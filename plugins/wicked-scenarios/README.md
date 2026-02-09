@@ -34,6 +34,29 @@ E2E testing written as human-readable markdown scenarios that orchestrate 9 ligh
 /wicked-scenarios:check scenarios/
 ```
 
+## Scenario Format
+
+Scenarios are markdown files with YAML frontmatter and fenced code blocks for each step:
+
+````markdown
+---
+name: api-health-check
+category: api
+tools: [curl]
+---
+# API Health Check
+
+## Step 1: Check health endpoint
+
+```bash
+curl -sf http://localhost:3000/health
+```
+
+Expected: HTTP 200 with JSON body containing `"status": "ok"`
+````
+
+Each step runs independently. Exit code 0 = PASS, non-zero = FAIL.
+
 ## Writing Scenarios
 
 See the [scenario-authoring skill](skills/scenario-authoring/SKILL.md) for the full authoring guide.

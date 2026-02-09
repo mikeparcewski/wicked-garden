@@ -1,6 +1,8 @@
 # wicked-agentic
 
-Architecture review built specifically for AI agent systems. Auto-detects 12 agentic frameworks -- LangChain, CrewAI, AutoGen, Semantic Kernel, DSPy, Pydantic AI, and more -- analyzes agent topologies, scores patterns against a five-layer maturity model, and generates trust and safety audit reports with prioritized remediation roadmaps. Whether you are designing a new multi-agent system or hardening an existing one for production, wicked-agentic gives you the specialized review that generic code tools miss.
+Architecture review built specifically for AI agent systems. Auto-detects 12 agentic frameworks (LangChain, CrewAI, AutoGen, Semantic Kernel, DSPy, Pydantic AI, and more), analyzes agent topologies, and scores patterns against a five-layer maturity model.
+
+Whether you're designing a new multi-agent system or hardening an existing one for production, wicked-agentic generates trust and safety audits with prioritized remediation roadmaps -- the specialized review that generic code tools miss.
 
 ## Quick Start
 

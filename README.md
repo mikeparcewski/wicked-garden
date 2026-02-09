@@ -70,7 +70,7 @@ Claude Code is powerful but stateless. It forgets past decisions, skips requirem
 |--------|-------------|-------------------|
 | [wicked-cache](plugins/wicked-cache) | Shared caching layer with namespace isolation | File-aware invalidation — auto-expires when source files change, makes other plugins instant |
 | [wicked-startah](plugins/wicked-startah) | Starter kit with MCP servers and multi-AI conversations | One install gets Context7 docs, Atlassian integration, Gemini/Codex conversations, browser automation |
-| [wicked-workbench](plugins/wicked-workbench) | Web dashboard for browsing and executing plugin commands | ACP-powered React UI — browse all 18 plugins and 171 commands from a browser |
+| [wicked-workbench](plugins/wicked-workbench) | Web dashboard for browsing and executing plugin commands | ACP-powered React UI — browse all installed plugins and generate custom dashboards from plain English |
 | [wicked-scenarios](plugins/wicked-scenarios) | E2E testing via markdown scenarios | Human-readable test specs that orchestrate 9 CLIs (curl, playwright, k6, trivy, semgrep, pa11y) — no framework lock-in |
 | [wicked-patch](plugins/wicked-patch) | Code generation and change propagation | Add a field to a Java entity → auto-patches SQL migration + DAO + JSP + API + UI across 5 languages |
 

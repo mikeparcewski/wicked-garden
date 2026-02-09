@@ -69,6 +69,10 @@ claude plugin install wicked-qe@wicked-garden
 | `code-analyzer` | Static analysis for testability, quality metrics, coverage gaps |
 | `tdd-coach` | Red-green-refactor guidance, test-first development practices |
 
+## Real-Time Coverage Tracking
+
+wicked-qe includes a PostToolUse hook that runs automatically on every file write or edit. It tracks which files you've changed during a session and nudges you when modified code lacks test coverage -- so you never forget to test what you just wrote.
+
 ## Philosophy
 
 > Testing is what allows you to deliver faster.
