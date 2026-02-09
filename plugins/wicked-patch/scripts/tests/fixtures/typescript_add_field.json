@@ -1,0 +1,35 @@
+{
+  "name": "typescript_add_field",
+  "description": "Add a new field to a TypeORM entity",
+  "generator": "typescript",
+  "input": {
+    "change_type": "add_field",
+    "field_spec": {
+      "name": "email",
+      "type": "String",
+      "nullable": false,
+      "column_name": "email"
+    },
+    "sample_content": "import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';\n\n@Entity()\nexport class User {\n    @PrimaryGeneratedColumn()\n    id: number;\n\n    @Column()\n    name: string;\n}\n",
+    "symbol": {
+      "id": "entities/User.ts::User",
+      "name": "User",
+      "type": "class",
+      "file_path": "entities/User.ts",
+      "line_start": 4,
+      "line_end": 10
+    }
+  },
+  "expected": {
+    "patch_count_min": 1,
+    "must_contain": [
+      "@Column",
+      "email",
+      "string"
+    ],
+    "must_not_contain": [
+      "undefined",
+      "any"
+    ]
+  }
+}

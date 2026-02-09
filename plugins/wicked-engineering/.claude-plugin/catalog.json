@@ -1,0 +1,5099 @@
+{
+  "catalogId": "engineering",
+  "version": "1.0.0",
+  "description": "Engineering components for code insights, architecture, and documentation",
+  "components": {
+    "AppEngDashboard": {
+      "description": "Central application engineering dashboard with navigation and content areas.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title",
+          "default": "Code Intelligence"
+        },
+        "projectName": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "lastAnalysis": {
+          "type": "string",
+          "description": "Last analysis timestamp"
+        }
+      },
+      "slots": {
+        "navigation": {
+          "role": "navigation",
+          "description": "Navigation sidebar",
+          "accepts": [
+            "AppEngNav"
+          ]
+        },
+        "health": {
+          "role": "header",
+          "description": "Health summary",
+          "accepts": [
+            "HealthSummaryBar"
+          ]
+        },
+        "main": {
+          "role": "content",
+          "description": "Main content area",
+          "accepts": [
+            "CodebaseHealth",
+            "InsightPanel",
+            "TechDebtPanel",
+            "DependencyView",
+            "PatternBrowser",
+            "RefactoringHub"
+          ]
+        },
+        "sidebar": {
+          "role": "aside",
+          "description": "Quick insights",
+          "accepts": [
+            "QuickActions",
+            "RecentChanges"
+          ]
+        }
+      }
+    },
+    "AppEngNav": {
+      "description": "Navigation sidebar for code intelligence sections.",
+      "category": "navigation",
+      "props": {
+        "activeSection": {
+          "type": "string",
+          "description": "Currently active section"
+        },
+        "sections": {
+          "type": "array",
+          "description": "Available sections"
+        },
+        "collapsed": {
+          "type": "boolean",
+          "description": "Sidebar collapsed state",
+          "default": false
+        }
+      }
+    },
+    "HealthSummaryBar": {
+      "description": "Codebase health summary bar with key metrics.",
+      "category": "display",
+      "props": {
+        "overallScore": {
+          "type": "number",
+          "description": "Overall health score (0-100)",
+          "required": true
+        },
+        "trend": {
+          "type": "string",
+          "description": "Health trend",
+          "enum": [
+            "improving",
+            "stable",
+            "declining"
+          ]
+        },
+        "criticalIssues": {
+          "type": "number",
+          "description": "Number of critical issues"
+        },
+        "testCoverage": {
+          "type": "number",
+          "description": "Test coverage (%)"
+        },
+        "technicalDebt": {
+          "type": "string",
+          "description": "Technical debt level",
+          "enum": [
+            "low",
+            "moderate",
+            "high",
+            "critical"
+          ]
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      }
+    },
+    "CodebaseHealth": {
+      "description": "Overall codebase health assessment with detailed scores.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Codebase Health"
+        }
+      },
+      "slots": {
+        "overview": {
+          "role": "header",
+          "description": "Health overview",
+          "accepts": [
+            "HealthOverview"
+          ]
+        },
+        "metrics": {
+          "role": "content",
+          "description": "Health metrics",
+          "accepts": [
+            "HealthMetric",
+            "HealthChart"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Actions",
+          "accepts": [
+            "HealthActions"
+          ]
+        }
+      }
+    },
+    "HealthOverview": {
+      "description": "High-level health overview with score breakdown.",
+      "category": "display",
+      "props": {
+        "overallScore": {
+          "type": "number",
+          "description": "Overall health score (0-100)",
+          "required": true
+        },
+        "maintainability": {
+          "type": "number",
+          "description": "Maintainability score"
+        },
+        "reliability": {
+          "type": "number",
+          "description": "Reliability score"
+        },
+        "security": {
+          "type": "number",
+          "description": "Security score"
+        },
+        "performance": {
+          "type": "number",
+          "description": "Performance score"
+        },
+        "testability": {
+          "type": "number",
+          "description": "Testability score"
+        }
+      }
+    },
+    "HealthMetric": {
+      "description": "A single health metric with trend.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Metric name",
+          "required": true
+        },
+        "value": {
+          "type": "number",
+          "description": "Current value",
+          "required": true
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measure"
+        },
+        "target": {
+          "type": "number",
+          "description": "Target value"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "good",
+            "warning",
+            "critical"
+          ]
+        },
+        "trend": {
+          "type": "string",
+          "description": "Trend direction",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        },
+        "changePercent": {
+          "type": "number",
+          "description": "Change percentage"
+        }
+      }
+    },
+    "HealthChart": {
+      "description": "Health metrics over time chart.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "metrics": {
+          "type": "array",
+          "description": "Metrics to display"
+        },
+        "data": {
+          "type": "array",
+          "description": "Time series data"
+        },
+        "showTargets": {
+          "type": "boolean",
+          "description": "Show target lines",
+          "default": true
+        }
+      }
+    },
+    "HealthActions": {
+      "description": "Actions for health improvement.",
+      "category": "control",
+      "props": {
+        "canRunAnalysis": {
+          "type": "boolean",
+          "description": "Can run analysis"
+        },
+        "canExport": {
+          "type": "boolean",
+          "description": "Can export report"
+        },
+        "canSchedule": {
+          "type": "boolean",
+          "description": "Can schedule analysis"
+        }
+      }
+    },
+    "InsightPanel": {
+      "description": "Panel showing code insights and recommendations.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Insights"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Insight toolbar",
+          "accepts": [
+            "InsightToolbar"
+          ]
+        },
+        "insights": {
+          "role": "content",
+          "description": "Insight cards",
+          "accepts": [
+            "CodeInsight",
+            "InsightGroup"
+          ]
+        }
+      }
+    },
+    "InsightToolbar": {
+      "description": "Toolbar for filtering insights.",
+      "category": "control",
+      "props": {
+        "typeFilter": {
+          "type": "array",
+          "description": "Insight type filter"
+        },
+        "severityFilter": {
+          "type": "array",
+          "description": "Severity filter"
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort by",
+          "enum": [
+            "severity",
+            "type",
+            "location",
+            "date"
+          ]
+        }
+      }
+    },
+    "InsightGroup": {
+      "description": "Grouped collection of related insights.",
+      "category": "layout",
+      "props": {
+        "groupKey": {
+          "type": "string",
+          "description": "Group key",
+          "required": true
+        },
+        "groupLabel": {
+          "type": "string",
+          "description": "Group label"
+        },
+        "count": {
+          "type": "number",
+          "description": "Number of insights"
+        },
+        "highestSeverity": {
+          "type": "string",
+          "description": "Highest severity in group",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      },
+      "slots": {
+        "insights": {
+          "role": "content",
+          "description": "Insights in group",
+          "accepts": [
+            "CodeInsight"
+          ]
+        }
+      }
+    },
+    "CodeInsight": {
+      "description": "An insight about the codebase with recommendation.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Insight ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Insight title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Insight type",
+          "enum": [
+            "pattern",
+            "anti_pattern",
+            "opportunity",
+            "risk",
+            "dependency",
+            "security",
+            "performance"
+          ],
+          "required": true
+        },
+        "severity": {
+          "type": "string",
+          "description": "Importance level",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed explanation"
+        },
+        "location": {
+          "type": "string",
+          "description": "File or module location"
+        },
+        "lineNumber": {
+          "type": "number",
+          "description": "Line number"
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "Suggested action"
+        },
+        "codeSnippet": {
+          "type": "string",
+          "description": "Relevant code snippet"
+        },
+        "effort": {
+          "type": "string",
+          "description": "Fix effort",
+          "enum": [
+            "trivial",
+            "small",
+            "medium",
+            "large"
+          ]
+        }
+      }
+    },
+    "InsightDetails": {
+      "description": "Detailed insight view with context.",
+      "category": "layout",
+      "props": {
+        "insight": {
+          "type": "object",
+          "description": "Insight data",
+          "required": true
+        }
+      },
+      "slots": {
+        "code": {
+          "role": "content",
+          "description": "Code context",
+          "accepts": [
+            "CodeViewer"
+          ]
+        },
+        "related": {
+          "role": "content",
+          "description": "Related insights",
+          "accepts": [
+            "CodeInsight"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Actions",
+          "accepts": [
+            "InsightActions"
+          ]
+        }
+      }
+    },
+    "CodeViewer": {
+      "description": "Code snippet viewer with highlighting.",
+      "category": "display",
+      "props": {
+        "code": {
+          "type": "string",
+          "description": "Code content",
+          "required": true
+        },
+        "language": {
+          "type": "string",
+          "description": "Programming language"
+        },
+        "startLine": {
+          "type": "number",
+          "description": "Starting line number"
+        },
+        "highlightLines": {
+          "type": "array",
+          "description": "Lines to highlight"
+        },
+        "showLineNumbers": {
+          "type": "boolean",
+          "description": "Show line numbers",
+          "default": true
+        }
+      }
+    },
+    "InsightActions": {
+      "description": "Action buttons for insight management.",
+      "category": "control",
+      "props": {
+        "insightId": {
+          "type": "string",
+          "description": "Insight ID",
+          "required": true
+        },
+        "canFix": {
+          "type": "boolean",
+          "description": "Can auto-fix"
+        },
+        "canIgnore": {
+          "type": "boolean",
+          "description": "Can ignore"
+        },
+        "canCreateTask": {
+          "type": "boolean",
+          "description": "Can create task"
+        }
+      }
+    },
+    "TechDebtPanel": {
+      "description": "Panel showing technical debt items.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Technical Debt"
+        }
+      },
+      "slots": {
+        "summary": {
+          "role": "header",
+          "description": "Debt summary",
+          "accepts": [
+            "TechDebtSummary"
+          ]
+        },
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Debt toolbar",
+          "accepts": [
+            "TechDebtToolbar"
+          ]
+        },
+        "items": {
+          "role": "content",
+          "description": "Debt items",
+          "accepts": [
+            "TechDebtItem",
+            "TechDebtGroup"
+          ]
+        }
+      }
+    },
+    "TechDebtSummary": {
+      "description": "Summary of technical debt.",
+      "category": "display",
+      "props": {
+        "totalItems": {
+          "type": "number",
+          "description": "Total debt items",
+          "required": true
+        },
+        "totalEffort": {
+          "type": "string",
+          "description": "Total remediation effort"
+        },
+        "debtLevel": {
+          "type": "string",
+          "description": "Overall debt level",
+          "enum": [
+            "low",
+            "moderate",
+            "high",
+            "critical"
+          ]
+        },
+        "trend": {
+          "type": "string",
+          "description": "Debt trend",
+          "enum": [
+            "increasing",
+            "stable",
+            "decreasing"
+          ]
+        },
+        "oldestItem": {
+          "type": "string",
+          "description": "Age of oldest item"
+        }
+      }
+    },
+    "TechDebtToolbar": {
+      "description": "Toolbar for filtering tech debt.",
+      "category": "control",
+      "props": {
+        "typeFilter": {
+          "type": "array",
+          "description": "Debt type filter"
+        },
+        "effortFilter": {
+          "type": "array",
+          "description": "Effort filter"
+        },
+        "prioritySort": {
+          "type": "boolean",
+          "description": "Sort by priority",
+          "default": true
+        }
+      }
+    },
+    "TechDebtGroup": {
+      "description": "Grouped collection of debt items.",
+      "category": "layout",
+      "props": {
+        "groupKey": {
+          "type": "string",
+          "description": "Group key",
+          "required": true
+        },
+        "groupLabel": {
+          "type": "string",
+          "description": "Group label"
+        },
+        "count": {
+          "type": "number",
+          "description": "Number of items"
+        },
+        "totalEffort": {
+          "type": "string",
+          "description": "Total effort for group"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Debt items",
+          "accepts": [
+            "TechDebtItem"
+          ]
+        }
+      }
+    },
+    "TechDebtItem": {
+      "description": "A technical debt item requiring attention.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Debt item ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Debt title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Debt type",
+          "enum": [
+            "code_smell",
+            "outdated_dep",
+            "missing_tests",
+            "documentation",
+            "architecture",
+            "security",
+            "performance"
+          ]
+        },
+        "effort": {
+          "type": "string",
+          "description": "Remediation effort",
+          "enum": [
+            "trivial",
+            "small",
+            "medium",
+            "large"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact of debt",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "priority": {
+          "type": "number",
+          "description": "Priority score"
+        },
+        "location": {
+          "type": "string",
+          "description": "Code location"
+        },
+        "description": {
+          "type": "string",
+          "description": "Debt description"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "When identified"
+        },
+        "assignee": {
+          "type": "string",
+          "description": "Assigned to"
+        }
+      }
+    },
+    "TechDebtDetails": {
+      "description": "Detailed tech debt view.",
+      "category": "layout",
+      "props": {
+        "item": {
+          "type": "object",
+          "description": "Debt item data",
+          "required": true
+        }
+      },
+      "slots": {
+        "code": {
+          "role": "content",
+          "description": "Code context",
+          "accepts": [
+            "CodeViewer"
+          ]
+        },
+        "history": {
+          "role": "content",
+          "description": "Item history",
+          "accepts": [
+            "DebtHistory"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Actions",
+          "accepts": [
+            "TechDebtActions"
+          ]
+        }
+      }
+    },
+    "DebtHistory": {
+      "description": "History of a debt item.",
+      "category": "layout",
+      "props": {
+        "itemId": {
+          "type": "string",
+          "description": "Debt item ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "events": {
+          "role": "content",
+          "description": "History events",
+          "accepts": [
+            "DebtHistoryEntry"
+          ]
+        }
+      }
+    },
+    "DebtHistoryEntry": {
+      "description": "A debt history entry.",
+      "category": "content",
+      "props": {
+        "timestamp": {
+          "type": "string",
+          "description": "Event timestamp",
+          "required": true
+        },
+        "event": {
+          "type": "string",
+          "description": "Event type",
+          "enum": [
+            "created",
+            "assigned",
+            "updated",
+            "resolved",
+            "reopened"
+          ]
+        },
+        "user": {
+          "type": "string",
+          "description": "User who acted"
+        },
+        "note": {
+          "type": "string",
+          "description": "Event note"
+        }
+      }
+    },
+    "TechDebtActions": {
+      "description": "Actions for tech debt management.",
+      "category": "control",
+      "props": {
+        "itemId": {
+          "type": "string",
+          "description": "Item ID",
+          "required": true
+        },
+        "canAssign": {
+          "type": "boolean",
+          "description": "Can assign"
+        },
+        "canResolve": {
+          "type": "boolean",
+          "description": "Can resolve"
+        },
+        "canCreateTask": {
+          "type": "boolean",
+          "description": "Can create task"
+        }
+      }
+    },
+    "DependencyView": {
+      "description": "View for exploring dependencies.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "View title",
+          "default": "Dependencies"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Dependency toolbar",
+          "accepts": [
+            "DependencyToolbar"
+          ]
+        },
+        "map": {
+          "role": "content",
+          "description": "Dependency map",
+          "accepts": [
+            "DependencyMap"
+          ]
+        },
+        "list": {
+          "role": "content",
+          "description": "Dependency list",
+          "accepts": [
+            "DependencyList"
+          ]
+        }
+      }
+    },
+    "DependencyToolbar": {
+      "description": "Toolbar for dependency controls.",
+      "category": "control",
+      "props": {
+        "viewMode": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "map",
+            "list",
+            "tree"
+          ]
+        },
+        "depthFilter": {
+          "type": "number",
+          "description": "Max depth to show"
+        },
+        "showExternal": {
+          "type": "boolean",
+          "description": "Show external deps",
+          "default": true
+        },
+        "showCircular": {
+          "type": "boolean",
+          "description": "Highlight circular deps",
+          "default": true
+        }
+      }
+    },
+    "DependencyMap": {
+      "description": "Visualization of module/package dependencies.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Map title"
+        },
+        "rootModule": {
+          "type": "string",
+          "description": "Root module to analyze"
+        },
+        "depth": {
+          "type": "number",
+          "description": "Dependency depth to show",
+          "default": 3
+        },
+        "showExternal": {
+          "type": "boolean",
+          "description": "Show external dependencies",
+          "default": true
+        },
+        "layout": {
+          "type": "string",
+          "description": "Layout algorithm",
+          "enum": [
+            "hierarchical",
+            "force",
+            "circular"
+          ]
+        },
+        "highlightCircular": {
+          "type": "boolean",
+          "description": "Highlight circular deps",
+          "default": true
+        }
+      }
+    },
+    "DependencyList": {
+      "description": "List of dependencies with details.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "name",
+            "type",
+            "version",
+            "health"
+          ]
+        }
+      },
+      "slots": {
+        "dependencies": {
+          "role": "content",
+          "description": "Dependency cards",
+          "accepts": [
+            "DependencyCard"
+          ]
+        }
+      }
+    },
+    "DependencyCard": {
+      "description": "Card for a single dependency.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Dependency name",
+          "required": true
+        },
+        "version": {
+          "type": "string",
+          "description": "Current version"
+        },
+        "latestVersion": {
+          "type": "string",
+          "description": "Latest available version"
+        },
+        "type": {
+          "type": "string",
+          "description": "Dependency type",
+          "enum": [
+            "internal",
+            "external",
+            "dev",
+            "peer"
+          ]
+        },
+        "health": {
+          "type": "string",
+          "description": "Health status",
+          "enum": [
+            "healthy",
+            "outdated",
+            "vulnerable",
+            "deprecated"
+          ]
+        },
+        "vulnerabilities": {
+          "type": "number",
+          "description": "Number of vulnerabilities"
+        },
+        "usedBy": {
+          "type": "array",
+          "description": "Modules using this dep"
+        }
+      }
+    },
+    "PatternBrowser": {
+      "description": "Browser for detected code patterns.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Browser title",
+          "default": "Patterns"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Pattern toolbar",
+          "accepts": [
+            "PatternToolbar"
+          ]
+        },
+        "patterns": {
+          "role": "content",
+          "description": "Pattern cards",
+          "accepts": [
+            "PatternCard",
+            "PatternGroup"
+          ]
+        }
+      }
+    },
+    "PatternToolbar": {
+      "description": "Toolbar for pattern filtering.",
+      "category": "control",
+      "props": {
+        "typeFilter": {
+          "type": "array",
+          "description": "Pattern type filter"
+        },
+        "qualityFilter": {
+          "type": "array",
+          "description": "Quality filter"
+        },
+        "showAntiPatterns": {
+          "type": "boolean",
+          "description": "Show anti-patterns",
+          "default": true
+        }
+      }
+    },
+    "PatternGroup": {
+      "description": "Grouped patterns by type.",
+      "category": "layout",
+      "props": {
+        "type": {
+          "type": "string",
+          "description": "Pattern type",
+          "required": true
+        },
+        "count": {
+          "type": "number",
+          "description": "Number of patterns"
+        }
+      },
+      "slots": {
+        "patterns": {
+          "role": "content",
+          "description": "Patterns",
+          "accepts": [
+            "PatternCard"
+          ]
+        }
+      }
+    },
+    "PatternOccurrence": {
+      "description": "A single pattern occurrence.",
+      "category": "content",
+      "props": {
+        "location": {
+          "type": "string",
+          "description": "File location",
+          "required": true
+        },
+        "lineNumber": {
+          "type": "number",
+          "description": "Line number"
+        },
+        "quality": {
+          "type": "string",
+          "description": "Quality",
+          "enum": [
+            "good",
+            "acceptable",
+            "poor"
+          ]
+        },
+        "snippet": {
+          "type": "string",
+          "description": "Code snippet"
+        }
+      }
+    },
+    "ModuleCard": {
+      "description": "Summary of a code module with metrics.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Module name",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "description": "Module path"
+        },
+        "fileCount": {
+          "type": "number",
+          "description": "Number of files"
+        },
+        "lineCount": {
+          "type": "number",
+          "description": "Lines of code"
+        },
+        "complexity": {
+          "type": "number",
+          "description": "Cyclomatic complexity"
+        },
+        "testCoverage": {
+          "type": "number",
+          "description": "Test coverage %"
+        },
+        "healthScore": {
+          "type": "number",
+          "description": "Module health score"
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Module dependencies"
+        }
+      }
+    },
+    "ModuleList": {
+      "description": "List of modules with metrics.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "name",
+            "size",
+            "complexity",
+            "coverage"
+          ]
+        }
+      },
+      "slots": {
+        "modules": {
+          "role": "content",
+          "description": "Module cards",
+          "accepts": [
+            "ModuleCard"
+          ]
+        }
+      }
+    },
+    "RefactoringHub": {
+      "description": "Hub for refactoring guidance and tools.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Hub title",
+          "default": "Refactoring"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Refactoring toolbar",
+          "accepts": [
+            "RefactoringToolbar"
+          ]
+        },
+        "guides": {
+          "role": "content",
+          "description": "Refactoring guides",
+          "accepts": [
+            "RefactoringGuide"
+          ]
+        }
+      }
+    },
+    "RefactoringToolbar": {
+      "description": "Toolbar for refactoring controls.",
+      "category": "control",
+      "props": {
+        "riskFilter": {
+          "type": "array",
+          "description": "Risk level filter"
+        },
+        "typeFilter": {
+          "type": "array",
+          "description": "Refactoring type filter"
+        }
+      }
+    },
+    "RefactoringGuide": {
+      "description": "Step-by-step refactoring guidance.",
+      "category": "layout",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Guide ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Refactoring title",
+          "required": true
+        },
+        "goal": {
+          "type": "string",
+          "description": "What we're trying to achieve"
+        },
+        "risk": {
+          "type": "string",
+          "description": "Risk level",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "effort": {
+          "type": "string",
+          "description": "Effort required",
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "suggested",
+            "in_progress",
+            "completed"
+          ]
+        }
+      },
+      "slots": {
+        "steps": {
+          "role": "content",
+          "description": "Refactoring steps",
+          "accepts": [
+            "RefactoringStep"
+          ]
+        }
+      }
+    },
+    "RefactoringStep": {
+      "description": "A single step in a refactoring guide.",
+      "category": "content",
+      "props": {
+        "order": {
+          "type": "number",
+          "description": "Step order",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Step title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Step description"
+        },
+        "files": {
+          "type": "array",
+          "description": "Files affected"
+        },
+        "tests": {
+          "type": "array",
+          "description": "Tests to run after"
+        },
+        "status": {
+          "type": "string",
+          "description": "Step status",
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed"
+          ]
+        }
+      }
+    },
+    "RecentChanges": {
+      "description": "Recent codebase changes.",
+      "category": "display",
+      "props": {
+        "changes": {
+          "type": "array",
+          "description": "Recent changes"
+        },
+        "maxItems": {
+          "type": "number",
+          "description": "Max items to show",
+          "default": 10
+        }
+      }
+    },
+    "AppEngSettings": {
+      "description": "App engineering settings.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "sections": {
+          "role": "content",
+          "description": "Setting sections",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "ArchDashboard": {
+      "description": "Central architecture dashboard with diagrams, decisions, and patterns.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title",
+          "default": "Architecture"
+        },
+        "projectName": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last architecture update"
+        }
+      },
+      "slots": {
+        "diagrams": {
+          "role": "content",
+          "description": "Architecture diagrams",
+          "accepts": [
+            "ArchitectureDiagram",
+            "DiagramCard"
+          ]
+        },
+        "decisions": {
+          "role": "content",
+          "description": "Architecture decisions",
+          "accepts": [
+            "DecisionRecord",
+            "DecisionCard"
+          ]
+        },
+        "sidebar": {
+          "role": "navigation",
+          "description": "Navigation and status",
+          "accepts": [
+            "ArchNav",
+            "ArchHealthSummary"
+          ]
+        }
+      }
+    },
+    "ArchNav": {
+      "description": "Architecture navigation with section links.",
+      "category": "control",
+      "props": {
+        "sections": {
+          "type": "array",
+          "description": "Navigation sections"
+        },
+        "activeSection": {
+          "type": "string",
+          "description": "Currently active section"
+        },
+        "showSearch": {
+          "type": "boolean",
+          "description": "Show search box",
+          "default": true
+        }
+      }
+    },
+    "ArchHealthSummary": {
+      "description": "Architecture health summary with key metrics.",
+      "category": "display",
+      "props": {
+        "overallHealth": {
+          "type": "string",
+          "description": "Overall health status",
+          "enum": [
+            "healthy",
+            "attention_needed",
+            "critical"
+          ]
+        },
+        "documentedComponents": {
+          "type": "number",
+          "description": "Documented components count"
+        },
+        "totalComponents": {
+          "type": "number",
+          "description": "Total components"
+        },
+        "pendingDecisions": {
+          "type": "number",
+          "description": "Pending ADRs"
+        },
+        "techDebtScore": {
+          "type": "number",
+          "description": "Architecture debt score"
+        }
+      }
+    },
+    "ArchitectureDiagram": {
+      "description": "Visual architecture diagram showing system components and their relationships.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Diagram title"
+        },
+        "diagramType": {
+          "type": "string",
+          "description": "Type of diagram",
+          "enum": [
+            "system",
+            "component",
+            "sequence",
+            "deployment",
+            "data_flow",
+            "c4_context",
+            "c4_container",
+            "c4_component"
+          ],
+          "required": true
+        },
+        "components": {
+          "type": "array",
+          "description": "System components to display"
+        },
+        "connections": {
+          "type": "array",
+          "description": "Connections between components"
+        },
+        "zoom": {
+          "type": "number",
+          "description": "Zoom level",
+          "default": 100
+        },
+        "interactive": {
+          "type": "boolean",
+          "description": "Enable pan/zoom",
+          "default": true
+        }
+      }
+    },
+    "DiagramCard": {
+      "description": "Card representing a diagram for listing views.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Diagram ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Diagram title",
+          "required": true
+        },
+        "diagramType": {
+          "type": "string",
+          "description": "Type of diagram",
+          "enum": [
+            "system",
+            "component",
+            "sequence",
+            "deployment",
+            "data_flow"
+          ]
+        },
+        "thumbnail": {
+          "type": "string",
+          "description": "Thumbnail image URL"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update date"
+        },
+        "author": {
+          "type": "string",
+          "description": "Author name"
+        }
+      }
+    },
+    "DiagramList": {
+      "description": "List of architecture diagrams with filtering.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Diagrams"
+        },
+        "filterType": {
+          "type": "string",
+          "description": "Filter by diagram type"
+        }
+      },
+      "slots": {
+        "diagrams": {
+          "role": "content",
+          "description": "Diagram cards",
+          "accepts": [
+            "DiagramCard"
+          ]
+        }
+      }
+    },
+    "DiagramToolbar": {
+      "description": "Toolbar for diagram interaction.",
+      "category": "control",
+      "props": {
+        "showZoomControls": {
+          "type": "boolean",
+          "description": "Show zoom controls",
+          "default": true
+        },
+        "showExport": {
+          "type": "boolean",
+          "description": "Show export button",
+          "default": true
+        },
+        "showEdit": {
+          "type": "boolean",
+          "description": "Show edit button",
+          "default": true
+        },
+        "showLayers": {
+          "type": "boolean",
+          "description": "Show layer controls",
+          "default": false
+        }
+      }
+    },
+    "DiagramLayer": {
+      "description": "A layer in a multi-layer diagram.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Layer name",
+          "required": true
+        },
+        "visible": {
+          "type": "boolean",
+          "description": "Is layer visible",
+          "default": true
+        },
+        "color": {
+          "type": "string",
+          "description": "Layer color"
+        },
+        "components": {
+          "type": "array",
+          "description": "Components in this layer"
+        }
+      }
+    },
+    "ComponentCard": {
+      "description": "A card representing a system component with its responsibilities and interfaces.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Component name",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Component type",
+          "enum": [
+            "service",
+            "database",
+            "queue",
+            "cache",
+            "gateway",
+            "external",
+            "frontend",
+            "worker",
+            "scheduler"
+          ],
+          "required": true
+        },
+        "responsibilities": {
+          "type": "array",
+          "description": "Component responsibilities"
+        },
+        "interfaces": {
+          "type": "array",
+          "description": "Exposed interfaces/APIs"
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Dependencies on other components"
+        },
+        "technology": {
+          "type": "string",
+          "description": "Technology stack used"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Team/person owner"
+        },
+        "status": {
+          "type": "string",
+          "description": "Component status",
+          "enum": [
+            "active",
+            "deprecated",
+            "planned",
+            "retired"
+          ]
+        }
+      }
+    },
+    "ComponentList": {
+      "description": "List of system components.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Components"
+        },
+        "groupBy": {
+          "type": "string",
+          "description": "Group by field",
+          "enum": [
+            "type",
+            "owner",
+            "status"
+          ]
+        }
+      },
+      "slots": {
+        "components": {
+          "role": "content",
+          "description": "Component cards",
+          "accepts": [
+            "ComponentCard"
+          ]
+        }
+      }
+    },
+    "ComponentDetails": {
+      "description": "Detailed view of a system component.",
+      "category": "layout",
+      "props": {
+        "componentId": {
+          "type": "string",
+          "description": "Component ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "overview": {
+          "role": "content",
+          "description": "Component overview",
+          "accepts": [
+            "ComponentCard"
+          ]
+        },
+        "interfaces": {
+          "role": "content",
+          "description": "Component interfaces",
+          "accepts": [
+            "APIEndpoint"
+          ]
+        },
+        "dependencies": {
+          "role": "content",
+          "description": "Dependency graph",
+          "accepts": [
+            "DependencyGraph"
+          ]
+        }
+      }
+    },
+    "DependencyGraph": {
+      "description": "Graph showing component dependencies.",
+      "category": "display",
+      "props": {
+        "rootComponent": {
+          "type": "string",
+          "description": "Root component to start from"
+        },
+        "direction": {
+          "type": "string",
+          "description": "Graph direction",
+          "enum": [
+            "upstream",
+            "downstream",
+            "both"
+          ],
+          "default": "both"
+        },
+        "depth": {
+          "type": "number",
+          "description": "Dependency depth",
+          "default": 2
+        },
+        "highlightCycles": {
+          "type": "boolean",
+          "description": "Highlight circular dependencies",
+          "default": true
+        }
+      }
+    },
+    "DecisionRecord": {
+      "description": "Architecture Decision Record (ADR) showing context, decision, and consequences.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "ADR number",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Decision title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Decision status",
+          "enum": [
+            "proposed",
+            "accepted",
+            "deprecated",
+            "superseded"
+          ],
+          "required": true
+        },
+        "context": {
+          "type": "string",
+          "description": "Context and problem statement"
+        },
+        "decision": {
+          "type": "string",
+          "description": "The decision made"
+        },
+        "consequences": {
+          "type": "array",
+          "description": "Consequences and trade-offs"
+        },
+        "alternatives": {
+          "type": "array",
+          "description": "Alternatives considered"
+        },
+        "date": {
+          "type": "string",
+          "description": "Decision date"
+        },
+        "deciders": {
+          "type": "array",
+          "description": "People involved in decision"
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "ADR this supersedes"
+        },
+        "supersededBy": {
+          "type": "string",
+          "description": "ADR that superseded this"
+        }
+      }
+    },
+    "DecisionCard": {
+      "description": "Compact decision card for listing views.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "ADR number",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Decision title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Decision status",
+          "enum": [
+            "proposed",
+            "accepted",
+            "deprecated",
+            "superseded"
+          ],
+          "required": true
+        },
+        "date": {
+          "type": "string",
+          "description": "Decision date"
+        },
+        "category": {
+          "type": "string",
+          "description": "Decision category"
+        }
+      }
+    },
+    "DecisionList": {
+      "description": "List of architecture decisions with filtering.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Architecture Decisions"
+        },
+        "filterStatus": {
+          "type": "string",
+          "description": "Filter by status"
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "date",
+            "id",
+            "title"
+          ],
+          "default": "date"
+        }
+      },
+      "slots": {
+        "decisions": {
+          "role": "content",
+          "description": "Decision cards",
+          "accepts": [
+            "DecisionCard",
+            "DecisionRecord"
+          ]
+        }
+      }
+    },
+    "DecisionTimeline": {
+      "description": "Timeline view of architecture decisions.",
+      "category": "display",
+      "props": {
+        "startDate": {
+          "type": "string",
+          "description": "Timeline start"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Timeline end"
+        },
+        "showSuperseded": {
+          "type": "boolean",
+          "description": "Show superseded decisions",
+          "default": false
+        }
+      }
+    },
+    "DecisionToolbar": {
+      "description": "Toolbar for decision management.",
+      "category": "control",
+      "props": {
+        "showCreate": {
+          "type": "boolean",
+          "description": "Show create button",
+          "default": true
+        },
+        "showExport": {
+          "type": "boolean",
+          "description": "Show export button",
+          "default": true
+        },
+        "showFilters": {
+          "type": "boolean",
+          "description": "Show filter controls",
+          "default": true
+        }
+      }
+    },
+    "AppengPatternCard": {
+      "description": "A detected code pattern with usage locations.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Pattern ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Pattern name",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Pattern type",
+          "enum": [
+            "design_pattern",
+            "idiom",
+            "convention",
+            "anti_pattern"
+          ]
+        },
+        "occurrences": {
+          "type": "number",
+          "description": "Number of occurrences"
+        },
+        "locations": {
+          "type": "array",
+          "description": "File locations"
+        },
+        "description": {
+          "type": "string",
+          "description": "Pattern description"
+        },
+        "quality": {
+          "type": "string",
+          "description": "Implementation quality",
+          "enum": [
+            "good",
+            "acceptable",
+            "poor"
+          ]
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "Improvement recommendation"
+        }
+      }
+    },
+    "ArchPatternCard": {
+      "description": "An architecture pattern with description and when to use it.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Pattern name",
+          "required": true
+        },
+        "category": {
+          "type": "string",
+          "description": "Pattern category",
+          "enum": [
+            "structural",
+            "behavioral",
+            "integration",
+            "data",
+            "security",
+            "resilience",
+            "scalability"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Pattern description"
+        },
+        "whenToUse": {
+          "type": "string",
+          "description": "When to apply this pattern"
+        },
+        "tradeoffs": {
+          "type": "array",
+          "description": "Trade-offs and considerations"
+        },
+        "relatedPatterns": {
+          "type": "array",
+          "description": "Related patterns"
+        },
+        "implementations": {
+          "type": "number",
+          "description": "Number of implementations in codebase"
+        }
+      }
+    },
+    "PatternCatalog": {
+      "description": "Catalog of architecture patterns.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Catalog title",
+          "default": "Pattern Catalog"
+        },
+        "filterCategory": {
+          "type": "string",
+          "description": "Filter by category"
+        }
+      },
+      "slots": {
+        "patterns": {
+          "role": "content",
+          "description": "Pattern cards",
+          "accepts": [
+            "PatternCard"
+          ]
+        }
+      }
+    },
+    "AppengPatternDetails": {
+      "description": "Detailed pattern view with examples.",
+      "category": "layout",
+      "props": {
+        "pattern": {
+          "type": "object",
+          "description": "Pattern data",
+          "required": true
+        }
+      },
+      "slots": {
+        "examples": {
+          "role": "content",
+          "description": "Code examples",
+          "accepts": [
+            "CodeViewer"
+          ]
+        },
+        "occurrences": {
+          "role": "content",
+          "description": "Occurrence list",
+          "accepts": [
+            "PatternOccurrence"
+          ]
+        }
+      }
+    },
+    "ArchPatternDetails": {
+      "description": "Detailed pattern view with examples and implementations.",
+      "category": "layout",
+      "props": {
+        "patternId": {
+          "type": "string",
+          "description": "Pattern ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "overview": {
+          "role": "content",
+          "description": "Pattern overview",
+          "accepts": [
+            "PatternCard"
+          ]
+        },
+        "diagram": {
+          "role": "content",
+          "description": "Pattern diagram",
+          "accepts": [
+            "ArchitectureDiagram"
+          ]
+        },
+        "implementations": {
+          "role": "content",
+          "description": "Implementation examples",
+          "accepts": [
+            "PatternImplementation"
+          ]
+        }
+      }
+    },
+    "PatternImplementation": {
+      "description": "An implementation of a pattern in the codebase.",
+      "category": "content",
+      "props": {
+        "location": {
+          "type": "string",
+          "description": "Code location",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Implementation description"
+        },
+        "quality": {
+          "type": "string",
+          "description": "Implementation quality",
+          "enum": [
+            "exemplary",
+            "good",
+            "acceptable",
+            "needs_improvement"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "description": "Implementation notes"
+        }
+      }
+    },
+    "APIContract": {
+      "description": "API contract definition showing endpoints, methods, and schemas.",
+      "category": "layout",
+      "props": {
+        "serviceName": {
+          "type": "string",
+          "description": "Service name",
+          "required": true
+        },
+        "version": {
+          "type": "string",
+          "description": "API version"
+        },
+        "baseUrl": {
+          "type": "string",
+          "description": "Base URL"
+        },
+        "protocol": {
+          "type": "string",
+          "description": "API protocol",
+          "enum": [
+            "rest",
+            "graphql",
+            "grpc",
+            "websocket"
+          ]
+        },
+        "authType": {
+          "type": "string",
+          "description": "Authentication type"
+        }
+      },
+      "slots": {
+        "endpoints": {
+          "role": "content",
+          "description": "API endpoints",
+          "accepts": [
+            "APIEndpoint"
+          ]
+        }
+      }
+    },
+    "APIList": {
+      "description": "List of API contracts.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "APIs"
+        },
+        "filterProtocol": {
+          "type": "string",
+          "description": "Filter by protocol"
+        }
+      },
+      "slots": {
+        "apis": {
+          "role": "content",
+          "description": "API contracts",
+          "accepts": [
+            "APIContract",
+            "APICard"
+          ]
+        }
+      }
+    },
+    "APICard": {
+      "description": "Compact API card for listing.",
+      "category": "content",
+      "props": {
+        "serviceName": {
+          "type": "string",
+          "description": "Service name",
+          "required": true
+        },
+        "version": {
+          "type": "string",
+          "description": "API version"
+        },
+        "protocol": {
+          "type": "string",
+          "description": "API protocol",
+          "enum": [
+            "rest",
+            "graphql",
+            "grpc",
+            "websocket"
+          ]
+        },
+        "endpointCount": {
+          "type": "number",
+          "description": "Number of endpoints"
+        },
+        "status": {
+          "type": "string",
+          "description": "API status",
+          "enum": [
+            "stable",
+            "beta",
+            "deprecated"
+          ]
+        }
+      }
+    },
+    "APIExplorer": {
+      "description": "Interactive API explorer for testing endpoints.",
+      "category": "layout",
+      "props": {
+        "apiId": {
+          "type": "string",
+          "description": "API to explore",
+          "required": true
+        },
+        "showTryIt": {
+          "type": "boolean",
+          "description": "Show try-it panel",
+          "default": true
+        }
+      },
+      "slots": {
+        "endpoints": {
+          "role": "content",
+          "description": "API endpoints",
+          "accepts": [
+            "APIEndpoint"
+          ]
+        },
+        "request": {
+          "role": "content",
+          "description": "Request builder",
+          "accepts": [
+            "RequestBuilder"
+          ]
+        },
+        "response": {
+          "role": "content",
+          "description": "Response viewer",
+          "accepts": [
+            "ResponseViewer"
+          ]
+        }
+      }
+    },
+    "RequestBuilder": {
+      "description": "API request builder for testing.",
+      "category": "control",
+      "props": {
+        "method": {
+          "type": "string",
+          "description": "HTTP method"
+        },
+        "url": {
+          "type": "string",
+          "description": "Request URL"
+        },
+        "headers": {
+          "type": "object",
+          "description": "Request headers"
+        },
+        "body": {
+          "type": "string",
+          "description": "Request body"
+        }
+      }
+    },
+    "ResponseViewer": {
+      "description": "API response viewer.",
+      "category": "display",
+      "props": {
+        "statusCode": {
+          "type": "number",
+          "description": "Response status code"
+        },
+        "headers": {
+          "type": "object",
+          "description": "Response headers"
+        },
+        "body": {
+          "type": "string",
+          "description": "Response body"
+        },
+        "duration": {
+          "type": "number",
+          "description": "Request duration (ms)"
+        }
+      }
+    },
+    "DataModel": {
+      "description": "Data model showing entities and their relationships.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Model title"
+        },
+        "modelType": {
+          "type": "string",
+          "description": "Model type",
+          "enum": [
+            "conceptual",
+            "logical",
+            "physical"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "description": "Model version"
+        }
+      },
+      "slots": {
+        "entities": {
+          "role": "content",
+          "description": "Data entities",
+          "accepts": [
+            "DataEntity"
+          ]
+        }
+      }
+    },
+    "DataEntity": {
+      "description": "A data entity with attributes and relationships.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Entity name",
+          "required": true
+        },
+        "attributes": {
+          "type": "array",
+          "description": "Entity attributes"
+        },
+        "primaryKey": {
+          "type": "string",
+          "description": "Primary key field"
+        },
+        "relationships": {
+          "type": "array",
+          "description": "Relationships to other entities"
+        },
+        "indexes": {
+          "type": "array",
+          "description": "Database indexes"
+        },
+        "constraints": {
+          "type": "array",
+          "description": "Data constraints"
+        }
+      }
+    },
+    "DataModelList": {
+      "description": "List of data models.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Data Models"
+        }
+      },
+      "slots": {
+        "models": {
+          "role": "content",
+          "description": "Data model cards",
+          "accepts": [
+            "DataModelCard"
+          ]
+        }
+      }
+    },
+    "DataModelCard": {
+      "description": "Compact data model card for listing.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Model name",
+          "required": true
+        },
+        "modelType": {
+          "type": "string",
+          "description": "Model type",
+          "enum": [
+            "conceptual",
+            "logical",
+            "physical"
+          ]
+        },
+        "entityCount": {
+          "type": "number",
+          "description": "Number of entities"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update date"
+        }
+      }
+    },
+    "ERDiagram": {
+      "description": "Entity-Relationship diagram.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Diagram title"
+        },
+        "entities": {
+          "type": "array",
+          "description": "Entities to display"
+        },
+        "showAttributes": {
+          "type": "boolean",
+          "description": "Show entity attributes",
+          "default": true
+        },
+        "showRelationships": {
+          "type": "boolean",
+          "description": "Show relationships",
+          "default": true
+        },
+        "layout": {
+          "type": "string",
+          "description": "Layout algorithm",
+          "enum": [
+            "hierarchical",
+            "force",
+            "circular"
+          ]
+        }
+      }
+    },
+    "TradeoffMatrix": {
+      "description": "Matrix comparing options across multiple criteria.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Matrix title"
+        },
+        "options": {
+          "type": "array",
+          "description": "Options being compared",
+          "required": true
+        },
+        "criteria": {
+          "type": "array",
+          "description": "Evaluation criteria",
+          "required": true
+        },
+        "scores": {
+          "type": "object",
+          "description": "Scores for each option/criterion"
+        },
+        "weights": {
+          "type": "object",
+          "description": "Criteria weights"
+        },
+        "highlightWinner": {
+          "type": "boolean",
+          "description": "Highlight winning option",
+          "default": true
+        }
+      }
+    },
+    "TradeoffAnalysis": {
+      "description": "Full trade-off analysis with matrix and recommendations.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Analysis title",
+          "required": true
+        },
+        "context": {
+          "type": "string",
+          "description": "Decision context"
+        }
+      },
+      "slots": {
+        "matrix": {
+          "role": "content",
+          "description": "Trade-off matrix",
+          "accepts": [
+            "TradeoffMatrix"
+          ]
+        },
+        "recommendation": {
+          "role": "content",
+          "description": "Recommendation",
+          "accepts": [
+            "TradeoffRecommendation"
+          ]
+        }
+      }
+    },
+    "TradeoffRecommendation": {
+      "description": "Trade-off analysis recommendation.",
+      "category": "content",
+      "props": {
+        "recommendation": {
+          "type": "string",
+          "description": "Recommended option",
+          "required": true
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Recommendation rationale"
+        },
+        "risks": {
+          "type": "array",
+          "description": "Identified risks"
+        },
+        "mitigations": {
+          "type": "array",
+          "description": "Risk mitigations"
+        }
+      }
+    },
+    "TechStackCard": {
+      "description": "Technology stack summary showing languages, frameworks, and tools.",
+      "category": "display",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Stack name",
+          "required": true
+        },
+        "languages": {
+          "type": "array",
+          "description": "Programming languages"
+        },
+        "frameworks": {
+          "type": "array",
+          "description": "Frameworks used"
+        },
+        "databases": {
+          "type": "array",
+          "description": "Databases used"
+        },
+        "infrastructure": {
+          "type": "array",
+          "description": "Infrastructure components"
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why this stack was chosen"
+        }
+      }
+    },
+    "TechRadar": {
+      "description": "Technology radar showing tech adoption stages.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Radar title",
+          "default": "Tech Radar"
+        },
+        "quadrants": {
+          "type": "array",
+          "description": "Radar quadrants",
+          "default": [
+            "Languages",
+            "Frameworks",
+            "Tools",
+            "Platforms"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Radar items",
+          "accepts": [
+            "TechRadarItem"
+          ]
+        }
+      }
+    },
+    "TechRadarItem": {
+      "description": "An item on the technology radar.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Technology name",
+          "required": true
+        },
+        "quadrant": {
+          "type": "string",
+          "description": "Radar quadrant",
+          "required": true
+        },
+        "ring": {
+          "type": "string",
+          "description": "Adoption ring",
+          "enum": [
+            "adopt",
+            "trial",
+            "assess",
+            "hold"
+          ],
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Technology description"
+        },
+        "moved": {
+          "type": "string",
+          "description": "Movement since last update",
+          "enum": [
+            "up",
+            "down",
+            "none"
+          ]
+        }
+      }
+    },
+    "IntegrationMap": {
+      "description": "Map showing system integrations and data flows.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Map title"
+        },
+        "focusSystem": {
+          "type": "string",
+          "description": "System to focus on"
+        },
+        "showDataFlows": {
+          "type": "boolean",
+          "description": "Show data flow directions",
+          "default": true
+        }
+      },
+      "slots": {
+        "systems": {
+          "role": "content",
+          "description": "Integrated systems",
+          "accepts": [
+            "IntegrationCard"
+          ]
+        }
+      }
+    },
+    "IntegrationCard": {
+      "description": "An external system integration.",
+      "category": "content",
+      "props": {
+        "systemName": {
+          "type": "string",
+          "description": "System name",
+          "required": true
+        },
+        "integrationType": {
+          "type": "string",
+          "description": "Integration type",
+          "enum": [
+            "api",
+            "file",
+            "database",
+            "message_queue",
+            "webhook"
+          ]
+        },
+        "direction": {
+          "type": "string",
+          "description": "Data flow direction",
+          "enum": [
+            "inbound",
+            "outbound",
+            "bidirectional"
+          ]
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Integration protocol"
+        },
+        "frequency": {
+          "type": "string",
+          "description": "Sync frequency"
+        },
+        "status": {
+          "type": "string",
+          "description": "Integration status",
+          "enum": [
+            "active",
+            "inactive",
+            "error"
+          ]
+        }
+      }
+    },
+    "ArchSettings": {
+      "description": "Architecture settings and preferences.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "general": {
+          "role": "content",
+          "description": "General settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        },
+        "diagrams": {
+          "role": "content",
+          "description": "Diagram settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        },
+        "export": {
+          "role": "content",
+          "description": "Export settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "AppengSettingGroup": {
+      "description": "Group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Group description"
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in group"
+        }
+      }
+    },
+    "ArchSettingGroup": {
+      "description": "A group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in this group"
+        }
+      }
+    },
+    "ChangelogEntry": {
+      "description": "Architecture changelog entry.",
+      "category": "content",
+      "props": {
+        "date": {
+          "type": "string",
+          "description": "Change date",
+          "required": true
+        },
+        "author": {
+          "type": "string",
+          "description": "Author"
+        },
+        "changeType": {
+          "type": "string",
+          "description": "Type of change",
+          "enum": [
+            "component_added",
+            "component_removed",
+            "decision_made",
+            "pattern_adopted",
+            "integration_added"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Change description",
+          "required": true
+        },
+        "relatedItems": {
+          "type": "array",
+          "description": "Related ADRs, components, etc."
+        }
+      }
+    },
+    "ArchChangelog": {
+      "description": "Architecture changelog showing history.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Changelog title",
+          "default": "Changelog"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Filter start date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Filter end date"
+        }
+      },
+      "slots": {
+        "entries": {
+          "role": "content",
+          "description": "Changelog entries",
+          "accepts": [
+            "ChangelogEntry"
+          ]
+        }
+      }
+    },
+    "DocsDashboard": {
+      "description": "Central documentation management dashboard with navigation, coverage, and activity.",
+      "category": "layout",
+      "props": {
+        "projectName": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "overallCoverage": {
+          "type": "number",
+          "description": "Overall documentation coverage"
+        },
+        "syncStatus": {
+          "type": "string",
+          "description": "Overall sync status",
+          "enum": [
+            "synced",
+            "outdated",
+            "critical"
+          ]
+        },
+        "pendingTasks": {
+          "type": "number",
+          "description": "Pending documentation tasks"
+        }
+      },
+      "slots": {
+        "navigation": {
+          "role": "navigation",
+          "description": "Sidebar navigation",
+          "accepts": [
+            "DocsNav"
+          ]
+        },
+        "header": {
+          "role": "header",
+          "description": "Summary bar",
+          "accepts": [
+            "DocsSummaryBar"
+          ]
+        },
+        "main": {
+          "role": "content",
+          "description": "Main content area",
+          "accepts": [
+            "CoverageOverview",
+            "SyncOverview",
+            "DocBrowser",
+            "APIBrowser",
+            "GenerationPanel",
+            "StylePanel"
+          ]
+        },
+        "sidebar": {
+          "role": "aside",
+          "description": "Quick actions sidebar",
+          "accepts": [
+            "QuickActions",
+            "RecentDocs",
+            "DocsSettings"
+          ]
+        }
+      }
+    },
+    "DocsNav": {
+      "description": "Documentation navigation with sections and filters.",
+      "category": "navigation",
+      "props": {
+        "activeSection": {
+          "type": "string",
+          "description": "Active section",
+          "enum": [
+            "coverage",
+            "sync",
+            "browse",
+            "api",
+            "generate",
+            "style",
+            "templates",
+            "settings"
+          ]
+        },
+        "coveragePercent": {
+          "type": "number",
+          "description": "Quick coverage indicator"
+        },
+        "issueCount": {
+          "type": "number",
+          "description": "Number of sync issues"
+        }
+      }
+    },
+    "DocsSummaryBar": {
+      "description": "Summary bar showing documentation health metrics.",
+      "category": "display",
+      "props": {
+        "coverage": {
+          "type": "number",
+          "description": "Overall coverage percentage"
+        },
+        "syncedDocs": {
+          "type": "number",
+          "description": "Number of synced docs"
+        },
+        "outdatedDocs": {
+          "type": "number",
+          "description": "Number of outdated docs"
+        },
+        "missingDocs": {
+          "type": "number",
+          "description": "Number of missing docs"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last documentation update"
+        }
+      }
+    },
+    "CoverageOverview": {
+      "description": "Documentation coverage overview with breakdown by type.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Documentation Coverage"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Coverage toolbar",
+          "accepts": [
+            "CoverageToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "Coverage summary",
+          "accepts": [
+            "CoverageSummary"
+          ]
+        },
+        "breakdown": {
+          "role": "content",
+          "description": "Coverage breakdown",
+          "accepts": [
+            "CoverageBreakdown",
+            "CoverageChart"
+          ]
+        },
+        "gaps": {
+          "role": "content",
+          "description": "Coverage gaps",
+          "accepts": [
+            "CoverageGapList"
+          ]
+        }
+      }
+    },
+    "CoverageToolbar": {
+      "description": "Toolbar for coverage view actions.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by type",
+          "enum": [
+            "all",
+            "api",
+            "guides",
+            "reference",
+            "tutorials"
+          ]
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "coverage",
+            "priority",
+            "name"
+          ]
+        },
+        "showGapsOnly": {
+          "type": "boolean",
+          "description": "Show only gaps",
+          "default": false
+        }
+      }
+    },
+    "CoverageSummary": {
+      "description": "Summary of documentation coverage metrics.",
+      "category": "display",
+      "props": {
+        "overallCoverage": {
+          "type": "number",
+          "description": "Overall coverage percentage",
+          "required": true
+        },
+        "publicAPIs": {
+          "type": "number",
+          "description": "Public API doc coverage"
+        },
+        "internalCode": {
+          "type": "number",
+          "description": "Internal code doc coverage"
+        },
+        "guides": {
+          "type": "number",
+          "description": "Guide coverage"
+        },
+        "tutorials": {
+          "type": "number",
+          "description": "Tutorial coverage"
+        },
+        "readme": {
+          "type": "boolean",
+          "description": "Has README"
+        },
+        "changelog": {
+          "type": "boolean",
+          "description": "Has CHANGELOG"
+        },
+        "contributing": {
+          "type": "boolean",
+          "description": "Has CONTRIBUTING guide"
+        }
+      }
+    },
+    "CoverageBreakdown": {
+      "description": "Breakdown of coverage by module or area.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "module",
+            "type",
+            "author"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Coverage items",
+          "accepts": [
+            "CoverageItem"
+          ]
+        }
+      }
+    },
+    "CoverageItem": {
+      "description": "Coverage status for a module or documentation area.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Module/area name",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "description": "Path"
+        },
+        "coverage": {
+          "type": "number",
+          "description": "Coverage percentage",
+          "required": true
+        },
+        "documented": {
+          "type": "number",
+          "description": "Documented items"
+        },
+        "total": {
+          "type": "number",
+          "description": "Total items"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Coverage trend",
+          "enum": [
+            "improving",
+            "stable",
+            "declining"
+          ]
+        }
+      }
+    },
+    "CoverageChart": {
+      "description": "Visual chart of documentation coverage.",
+      "category": "display",
+      "props": {
+        "chartType": {
+          "type": "string",
+          "description": "Chart type",
+          "enum": [
+            "pie",
+            "bar",
+            "treemap"
+          ],
+          "default": "bar"
+        },
+        "data": {
+          "type": "array",
+          "description": "Coverage data points"
+        },
+        "showTarget": {
+          "type": "boolean",
+          "description": "Show target line",
+          "default": true
+        },
+        "target": {
+          "type": "number",
+          "description": "Target coverage",
+          "default": 80
+        }
+      }
+    },
+    "CoverageGapList": {
+      "description": "List of documentation coverage gaps.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Coverage Gaps"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Filter by priority",
+          "enum": [
+            "all",
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      },
+      "slots": {
+        "gaps": {
+          "role": "content",
+          "description": "Gap items",
+          "accepts": [
+            "CoverageGap"
+          ]
+        }
+      }
+    },
+    "CoverageGap": {
+      "description": "A documentation coverage gap to address.",
+      "category": "content",
+      "props": {
+        "target": {
+          "type": "string",
+          "description": "What needs documenting",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Gap type",
+          "enum": [
+            "missing",
+            "incomplete",
+            "outdated"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact description"
+        },
+        "suggestedAction": {
+          "type": "string",
+          "description": "Suggested action"
+        }
+      }
+    },
+    "SyncOverview": {
+      "description": "Code-documentation sync status overview.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Sync Status"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Sync toolbar",
+          "accepts": [
+            "SyncToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "Sync summary",
+          "accepts": [
+            "SyncSummary"
+          ]
+        },
+        "issues": {
+          "role": "content",
+          "description": "Sync issues",
+          "accepts": [
+            "SyncIssueList"
+          ]
+        }
+      }
+    },
+    "SyncToolbar": {
+      "description": "Toolbar for sync view actions.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter issues",
+          "enum": [
+            "all",
+            "outdated",
+            "missing",
+            "orphaned"
+          ]
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "severity",
+            "date",
+            "file"
+          ]
+        },
+        "autoSync": {
+          "type": "boolean",
+          "description": "Auto-sync enabled"
+        }
+      }
+    },
+    "SyncSummary": {
+      "description": "Summary of sync status.",
+      "category": "display",
+      "props": {
+        "status": {
+          "type": "string",
+          "description": "Overall sync status",
+          "enum": [
+            "synced",
+            "outdated",
+            "critical"
+          ],
+          "required": true
+        },
+        "lastSync": {
+          "type": "string",
+          "description": "Last sync timestamp"
+        },
+        "syncedCount": {
+          "type": "number",
+          "description": "Synced docs"
+        },
+        "outdatedCount": {
+          "type": "number",
+          "description": "Outdated docs"
+        },
+        "missingCount": {
+          "type": "number",
+          "description": "Missing docs"
+        },
+        "orphanedCount": {
+          "type": "number",
+          "description": "Orphaned docs"
+        }
+      }
+    },
+    "SyncIssueList": {
+      "description": "List of sync issues to resolve.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Sync Issues"
+        },
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "type",
+            "severity",
+            "module"
+          ]
+        }
+      },
+      "slots": {
+        "issues": {
+          "role": "content",
+          "description": "Sync issues",
+          "accepts": [
+            "SyncIssue"
+          ]
+        }
+      }
+    },
+    "SyncIssue": {
+      "description": "A documentation sync issue.",
+      "category": "content",
+      "props": {
+        "type": {
+          "type": "string",
+          "description": "Issue type",
+          "enum": [
+            "outdated",
+            "missing",
+            "orphaned"
+          ],
+          "required": true
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity",
+          "enum": [
+            "critical",
+            "warning",
+            "info"
+          ]
+        },
+        "codeLocation": {
+          "type": "string",
+          "description": "Related code file"
+        },
+        "docLocation": {
+          "type": "string",
+          "description": "Related doc file"
+        },
+        "description": {
+          "type": "string",
+          "description": "Issue description"
+        },
+        "lastCodeChange": {
+          "type": "string",
+          "description": "When code was last changed"
+        },
+        "lastDocChange": {
+          "type": "string",
+          "description": "When doc was last changed"
+        },
+        "diff": {
+          "type": "string",
+          "description": "Summary of changes"
+        }
+      }
+    },
+    "SyncIssueDetails": {
+      "description": "Detailed view of a sync issue with diff.",
+      "category": "layout",
+      "props": {
+        "issueId": {
+          "type": "string",
+          "description": "Issue ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Issue header",
+          "accepts": [
+            "SyncIssue"
+          ]
+        },
+        "diff": {
+          "role": "content",
+          "description": "Code diff",
+          "accepts": [
+            "DiffViewer"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Issue actions",
+          "accepts": [
+            "SyncActions"
+          ]
+        }
+      }
+    },
+    "DiffViewer": {
+      "description": "Side-by-side or unified diff viewer.",
+      "category": "display",
+      "props": {
+        "oldContent": {
+          "type": "string",
+          "description": "Previous content"
+        },
+        "newContent": {
+          "type": "string",
+          "description": "New content"
+        },
+        "viewMode": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "split",
+            "unified"
+          ],
+          "default": "split"
+        },
+        "language": {
+          "type": "string",
+          "description": "Syntax highlighting language"
+        }
+      }
+    },
+    "SyncActions": {
+      "description": "Actions for resolving sync issues.",
+      "category": "control",
+      "props": {
+        "canAutoFix": {
+          "type": "boolean",
+          "description": "Can be auto-fixed"
+        },
+        "canIgnore": {
+          "type": "boolean",
+          "description": "Can be ignored"
+        },
+        "canRegenerate": {
+          "type": "boolean",
+          "description": "Can regenerate docs"
+        }
+      }
+    },
+    "DocBrowser": {
+      "description": "Documentation browser with tree view and search.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Browser title",
+          "default": "Documentation"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Browser toolbar",
+          "accepts": [
+            "DocBrowserToolbar"
+          ]
+        },
+        "tree": {
+          "role": "navigation",
+          "description": "Doc tree",
+          "accepts": [
+            "DocTree"
+          ]
+        },
+        "content": {
+          "role": "content",
+          "description": "Doc content",
+          "accepts": [
+            "DocViewer",
+            "DocEditor"
+          ]
+        }
+      }
+    },
+    "DocBrowserToolbar": {
+      "description": "Toolbar for documentation browser.",
+      "category": "control",
+      "props": {
+        "searchQuery": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "viewMode": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "tree",
+            "list",
+            "grid"
+          ]
+        },
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by status",
+          "enum": [
+            "all",
+            "complete",
+            "incomplete",
+            "draft"
+          ]
+        }
+      }
+    },
+    "DocTree": {
+      "description": "Hierarchical documentation tree.",
+      "category": "navigation",
+      "props": {
+        "expandedPaths": {
+          "type": "array",
+          "description": "Expanded paths"
+        },
+        "selectedPath": {
+          "type": "string",
+          "description": "Selected doc path"
+        }
+      },
+      "slots": {
+        "nodes": {
+          "role": "content",
+          "description": "Tree nodes",
+          "accepts": [
+            "DocTreeNode"
+          ]
+        }
+      }
+    },
+    "DocTreeNode": {
+      "description": "A node in the documentation tree.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Node title",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "description": "Doc path"
+        },
+        "type": {
+          "type": "string",
+          "description": "Node type",
+          "enum": [
+            "folder",
+            "guide",
+            "reference",
+            "tutorial",
+            "api"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Doc status",
+          "enum": [
+            "complete",
+            "partial",
+            "stub",
+            "missing"
+          ]
+        },
+        "hasChildren": {
+          "type": "boolean",
+          "description": "Has child nodes"
+        }
+      }
+    },
+    "DocViewer": {
+      "description": "Documentation content viewer with metadata.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Doc title",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "description": "Doc path"
+        },
+        "content": {
+          "type": "string",
+          "description": "Doc content in markdown"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update date"
+        },
+        "author": {
+          "type": "string",
+          "description": "Last author"
+        },
+        "wordCount": {
+          "type": "number",
+          "description": "Word count"
+        },
+        "readTime": {
+          "type": "number",
+          "description": "Estimated read time (minutes)"
+        }
+      }
+    },
+    "DocEditor": {
+      "description": "Documentation content editor.",
+      "category": "control",
+      "props": {
+        "path": {
+          "type": "string",
+          "description": "Doc path",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "description": "Current content"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Editor mode",
+          "enum": [
+            "markdown",
+            "wysiwyg"
+          ],
+          "default": "markdown"
+        },
+        "autoSave": {
+          "type": "boolean",
+          "description": "Auto-save enabled",
+          "default": true
+        }
+      }
+    },
+    "DocCard": {
+      "description": "Documentation card for grid/list views.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Doc title",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "description": "Doc path"
+        },
+        "type": {
+          "type": "string",
+          "description": "Doc type",
+          "enum": [
+            "guide",
+            "reference",
+            "tutorial",
+            "api",
+            "readme"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Doc status",
+          "enum": [
+            "complete",
+            "partial",
+            "stub",
+            "missing"
+          ]
+        },
+        "excerpt": {
+          "type": "string",
+          "description": "Content excerpt"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update date"
+        },
+        "author": {
+          "type": "string",
+          "description": "Author"
+        }
+      }
+    },
+    "APIBrowser": {
+      "description": "API documentation browser with endpoint navigation.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Browser title",
+          "default": "API Reference"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "API toolbar",
+          "accepts": [
+            "APIToolbar"
+          ]
+        },
+        "modules": {
+          "role": "navigation",
+          "description": "Module list",
+          "accepts": [
+            "APIModuleList"
+          ]
+        },
+        "content": {
+          "role": "content",
+          "description": "API content",
+          "accepts": [
+            "APIModuleDetails",
+            "APIEndpointDetails"
+          ]
+        }
+      }
+    },
+    "APIToolbar": {
+      "description": "Toolbar for API browser.",
+      "category": "control",
+      "props": {
+        "searchQuery": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by type",
+          "enum": [
+            "all",
+            "rest",
+            "graphql",
+            "grpc",
+            "library"
+          ]
+        },
+        "showUndocumented": {
+          "type": "boolean",
+          "description": "Show undocumented",
+          "default": false
+        }
+      }
+    },
+    "APIModuleList": {
+      "description": "List of API modules.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "type",
+            "coverage",
+            "name"
+          ]
+        }
+      },
+      "slots": {
+        "modules": {
+          "role": "content",
+          "description": "Module cards",
+          "accepts": [
+            "APIModuleCard"
+          ]
+        }
+      }
+    },
+    "APIModuleCard": {
+      "description": "API module card with coverage info.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Module name",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "API type",
+          "enum": [
+            "rest",
+            "graphql",
+            "grpc",
+            "library"
+          ]
+        },
+        "coverage": {
+          "type": "number",
+          "description": "Documentation coverage"
+        },
+        "documented": {
+          "type": "number",
+          "description": "Documented endpoints"
+        },
+        "total": {
+          "type": "number",
+          "description": "Total endpoints"
+        },
+        "hasExamples": {
+          "type": "boolean",
+          "description": "Has examples"
+        },
+        "hasTypes": {
+          "type": "boolean",
+          "description": "Has type definitions"
+        }
+      }
+    },
+    "APIModuleDetails": {
+      "description": "Detailed view of an API module.",
+      "category": "layout",
+      "props": {
+        "moduleName": {
+          "type": "string",
+          "description": "Module name",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Module header",
+          "accepts": [
+            "APIModuleCard"
+          ]
+        },
+        "endpoints": {
+          "role": "content",
+          "description": "Endpoint list",
+          "accepts": [
+            "APIEndpointList"
+          ]
+        }
+      }
+    },
+    "APIEndpointList": {
+      "description": "List of API endpoints.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "tag",
+            "method",
+            "path"
+          ]
+        }
+      },
+      "slots": {
+        "endpoints": {
+          "role": "content",
+          "description": "Endpoint cards",
+          "accepts": [
+            "APIEndpoint"
+          ]
+        }
+      }
+    },
+    "ArchAPIEndpoint": {
+      "description": "A single API endpoint with method, path, and schema.",
+      "category": "content",
+      "props": {
+        "method": {
+          "type": "string",
+          "description": "HTTP method",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "HEAD",
+            "OPTIONS"
+          ],
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "description": "Endpoint path",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Endpoint description"
+        },
+        "requestSchema": {
+          "type": "object",
+          "description": "Request body schema"
+        },
+        "responseSchema": {
+          "type": "object",
+          "description": "Response schema"
+        },
+        "authentication": {
+          "type": "string",
+          "description": "Auth requirements"
+        },
+        "rateLimit": {
+          "type": "string",
+          "description": "Rate limit"
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "Is deprecated",
+          "default": false
+        }
+      }
+    },
+    "DocsAPIEndpoint": {
+      "description": "API endpoint summary card.",
+      "category": "content",
+      "props": {
+        "method": {
+          "type": "string",
+          "description": "HTTP method",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "description": "Endpoint path",
+          "required": true
+        },
+        "summary": {
+          "type": "string",
+          "description": "Endpoint summary"
+        },
+        "documented": {
+          "type": "boolean",
+          "description": "Is documented"
+        },
+        "hasExamples": {
+          "type": "boolean",
+          "description": "Has examples"
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "Is deprecated"
+        }
+      }
+    },
+    "APIEndpointDetails": {
+      "description": "Detailed API endpoint documentation.",
+      "category": "layout",
+      "props": {
+        "endpointId": {
+          "type": "string",
+          "description": "Endpoint ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Endpoint header",
+          "accepts": [
+            "APIEndpoint"
+          ]
+        },
+        "params": {
+          "role": "content",
+          "description": "Parameters",
+          "accepts": [
+            "APIParamList"
+          ]
+        },
+        "request": {
+          "role": "content",
+          "description": "Request body",
+          "accepts": [
+            "APIRequestBody"
+          ]
+        },
+        "response": {
+          "role": "content",
+          "description": "Response",
+          "accepts": [
+            "APIResponse"
+          ]
+        },
+        "examples": {
+          "role": "content",
+          "description": "Code examples",
+          "accepts": [
+            "CodeExample"
+          ]
+        }
+      }
+    },
+    "APIParamList": {
+      "description": "List of API parameters.",
+      "category": "layout",
+      "props": {
+        "paramType": {
+          "type": "string",
+          "description": "Parameter type",
+          "enum": [
+            "path",
+            "query",
+            "header"
+          ]
+        }
+      },
+      "slots": {
+        "params": {
+          "role": "content",
+          "description": "Parameters",
+          "accepts": [
+            "APIParam"
+          ]
+        }
+      }
+    },
+    "APIParam": {
+      "description": "API parameter documentation.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Param name",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Data type"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Is required"
+        },
+        "description": {
+          "type": "string",
+          "description": "Param description"
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "Default value"
+        },
+        "example": {
+          "type": "string",
+          "description": "Example value"
+        }
+      }
+    },
+    "APIRequestBody": {
+      "description": "API request body documentation.",
+      "category": "content",
+      "props": {
+        "contentType": {
+          "type": "string",
+          "description": "Content type"
+        },
+        "schema": {
+          "type": "object",
+          "description": "JSON schema"
+        },
+        "example": {
+          "type": "string",
+          "description": "Example body"
+        }
+      }
+    },
+    "APIResponse": {
+      "description": "API response documentation.",
+      "category": "content",
+      "props": {
+        "statusCode": {
+          "type": "number",
+          "description": "HTTP status code",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Response description"
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Content type"
+        },
+        "schema": {
+          "type": "object",
+          "description": "JSON schema"
+        },
+        "example": {
+          "type": "string",
+          "description": "Example response"
+        }
+      }
+    },
+    "CodeExample": {
+      "description": "Code example with language selection.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Example title"
+        },
+        "language": {
+          "type": "string",
+          "description": "Programming language",
+          "required": true
+        },
+        "code": {
+          "type": "string",
+          "description": "Code content",
+          "required": true
+        },
+        "runnable": {
+          "type": "boolean",
+          "description": "Can be run",
+          "default": false
+        }
+      }
+    },
+    "GenerationPanel": {
+      "description": "Documentation generation management panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Generate Documentation"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Generation toolbar",
+          "accepts": [
+            "GenerationToolbar"
+          ]
+        },
+        "queue": {
+          "role": "content",
+          "description": "Generation queue",
+          "accepts": [
+            "GenerationQueue"
+          ]
+        },
+        "templates": {
+          "role": "content",
+          "description": "Templates",
+          "accepts": [
+            "TemplateLibrary"
+          ]
+        }
+      }
+    },
+    "GenerationToolbar": {
+      "description": "Toolbar for documentation generation.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter tasks",
+          "enum": [
+            "all",
+            "pending",
+            "in_progress",
+            "complete"
+          ]
+        },
+        "aiModel": {
+          "type": "string",
+          "description": "AI model to use"
+        },
+        "batchMode": {
+          "type": "boolean",
+          "description": "Batch mode enabled"
+        }
+      }
+    },
+    "GenerationQueue": {
+      "description": "Queue of documentation generation tasks.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Queue title",
+          "default": "Generation Queue"
+        }
+      },
+      "slots": {
+        "tasks": {
+          "role": "content",
+          "description": "Generation tasks",
+          "accepts": [
+            "GenerationTask"
+          ]
+        }
+      }
+    },
+    "GenerationTask": {
+      "description": "A documentation generation task.",
+      "category": "content",
+      "props": {
+        "target": {
+          "type": "string",
+          "description": "What to document",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Doc type",
+          "enum": [
+            "api_reference",
+            "tutorial",
+            "how_to",
+            "explanation",
+            "readme",
+            "changelog"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Task status",
+          "enum": [
+            "pending",
+            "generating",
+            "review",
+            "complete",
+            "failed"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "progress": {
+          "type": "number",
+          "description": "Progress percentage"
+        },
+        "estimatedTime": {
+          "type": "string",
+          "description": "Estimated time"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if failed"
+        }
+      }
+    },
+    "GenerationTaskDetails": {
+      "description": "Detailed view of a generation task.",
+      "category": "layout",
+      "props": {
+        "taskId": {
+          "type": "string",
+          "description": "Task ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Task header",
+          "accepts": [
+            "GenerationTask"
+          ]
+        },
+        "preview": {
+          "role": "content",
+          "description": "Generated preview",
+          "accepts": [
+            "DocViewer"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Task actions",
+          "accepts": [
+            "GenerationActions"
+          ]
+        }
+      }
+    },
+    "GenerationActions": {
+      "description": "Actions for generation tasks.",
+      "category": "control",
+      "props": {
+        "canApprove": {
+          "type": "boolean",
+          "description": "Can approve"
+        },
+        "canReject": {
+          "type": "boolean",
+          "description": "Can reject"
+        },
+        "canRegenerate": {
+          "type": "boolean",
+          "description": "Can regenerate"
+        },
+        "canEdit": {
+          "type": "boolean",
+          "description": "Can edit before approve"
+        }
+      }
+    },
+    "TemplateLibrary": {
+      "description": "Library of documentation templates.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Library title",
+          "default": "Templates"
+        }
+      },
+      "slots": {
+        "templates": {
+          "role": "content",
+          "description": "Template list",
+          "accepts": [
+            "DocTemplate"
+          ]
+        }
+      }
+    },
+    "DocTemplate": {
+      "description": "A documentation template.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Template name",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Template type",
+          "enum": [
+            "api_reference",
+            "tutorial",
+            "how_to",
+            "explanation",
+            "readme",
+            "changelog"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Template description"
+        },
+        "preview": {
+          "type": "string",
+          "description": "Template preview"
+        },
+        "variables": {
+          "type": "array",
+          "description": "Template variables"
+        }
+      }
+    },
+    "StylePanel": {
+      "description": "Documentation style guide compliance panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Style Guide Compliance"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Style toolbar",
+          "accepts": [
+            "StyleToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "Compliance summary",
+          "accepts": [
+            "StyleSummary"
+          ]
+        },
+        "issues": {
+          "role": "content",
+          "description": "Style issues",
+          "accepts": [
+            "StyleIssueList"
+          ]
+        }
+      }
+    },
+    "StyleToolbar": {
+      "description": "Toolbar for style compliance.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter issues",
+          "enum": [
+            "all",
+            "errors",
+            "warnings",
+            "suggestions"
+          ]
+        },
+        "ruleSet": {
+          "type": "string",
+          "description": "Active rule set"
+        },
+        "autoFix": {
+          "type": "boolean",
+          "description": "Auto-fix enabled"
+        }
+      }
+    },
+    "StyleSummary": {
+      "description": "Summary of style compliance.",
+      "category": "display",
+      "props": {
+        "score": {
+          "type": "number",
+          "description": "Compliance score",
+          "required": true
+        },
+        "passCount": {
+          "type": "number",
+          "description": "Passed checks"
+        },
+        "failCount": {
+          "type": "number",
+          "description": "Failed checks"
+        },
+        "warningCount": {
+          "type": "number",
+          "description": "Warnings"
+        },
+        "lastCheck": {
+          "type": "string",
+          "description": "Last check timestamp"
+        }
+      }
+    },
+    "StyleIssueList": {
+      "description": "List of style guide issues.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "rule",
+            "file",
+            "severity"
+          ]
+        }
+      },
+      "slots": {
+        "issues": {
+          "role": "content",
+          "description": "Style issues",
+          "accepts": [
+            "StyleIssue"
+          ]
+        }
+      }
+    },
+    "StyleIssue": {
+      "description": "A style guide compliance issue.",
+      "category": "content",
+      "props": {
+        "rule": {
+          "type": "string",
+          "description": "Style rule",
+          "required": true
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity",
+          "enum": [
+            "error",
+            "warning",
+            "suggestion"
+          ]
+        },
+        "location": {
+          "type": "string",
+          "description": "Doc location"
+        },
+        "line": {
+          "type": "number",
+          "description": "Line number"
+        },
+        "message": {
+          "type": "string",
+          "description": "Issue message"
+        },
+        "suggestion": {
+          "type": "string",
+          "description": "How to fix"
+        },
+        "autoFixable": {
+          "type": "boolean",
+          "description": "Can be auto-fixed"
+        }
+      }
+    },
+    "AppengQuickActions": {
+      "description": "Quick action buttons panel.",
+      "category": "control",
+      "props": {
+        "actions": {
+          "type": "array",
+          "description": "Available actions"
+        }
+      }
+    },
+    "DocsQuickActions": {
+      "description": "Quick action buttons for documentation tasks.",
+      "category": "control",
+      "props": {
+        "actions": {
+          "type": "array",
+          "description": "Available quick actions"
+        }
+      }
+    },
+    "RecentDocs": {
+      "description": "Recently viewed or edited documents.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Recent Documents"
+        },
+        "maxItems": {
+          "type": "number",
+          "description": "Max items to show",
+          "default": 5
+        }
+      },
+      "slots": {
+        "docs": {
+          "role": "content",
+          "description": "Recent docs",
+          "accepts": [
+            "DocCard"
+          ]
+        }
+      }
+    },
+    "DocsSettings": {
+      "description": "Documentation settings panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "groups": {
+          "role": "content",
+          "description": "Setting groups",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "DocsSettingGroup": {
+      "description": "A group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Group description"
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in group"
+        }
+      }
+    }
+  },
+  "intents": {
+    "appeng-show-appeng-dashboard": {
+      "description": "Show main app engineering dashboard",
+      "suggestedComponents": [
+        "AppEngDashboard",
+        "AppEngNav",
+        "HealthSummaryBar"
+      ],
+      "requiredData": [
+        "healthSummary"
+      ]
+    },
+    "appeng-show-codebase-health": {
+      "description": "Show overall codebase health metrics",
+      "suggestedComponents": [
+        "CodebaseHealth",
+        "HealthOverview",
+        "HealthMetric",
+        "HealthChart"
+      ],
+      "requiredData": [
+        "health"
+      ]
+    },
+    "appeng-show-insights": {
+      "description": "Show code insights and recommendations",
+      "suggestedComponents": [
+        "InsightPanel",
+        "InsightToolbar",
+        "CodeInsight"
+      ],
+      "requiredData": [
+        "insights"
+      ]
+    },
+    "appeng-show-insight-details": {
+      "description": "Show detailed insight with code context",
+      "suggestedComponents": [
+        "InsightDetails",
+        "CodeViewer",
+        "InsightActions"
+      ],
+      "requiredData": [
+        "insightDetails"
+      ]
+    },
+    "appeng-show-tech-debt": {
+      "description": "Show technical debt items",
+      "suggestedComponents": [
+        "TechDebtPanel",
+        "TechDebtSummary",
+        "TechDebtItem"
+      ],
+      "requiredData": [
+        "techDebt"
+      ]
+    },
+    "appeng-show-tech-debt-details": {
+      "description": "Show tech debt item details",
+      "suggestedComponents": [
+        "TechDebtDetails",
+        "DebtHistory",
+        "TechDebtActions"
+      ],
+      "requiredData": [
+        "techDebtDetails"
+      ]
+    },
+    "appeng-show-dependencies": {
+      "description": "Show dependency map",
+      "suggestedComponents": [
+        "DependencyView",
+        "DependencyToolbar",
+        "DependencyMap",
+        "DependencyList"
+      ],
+      "requiredData": [
+        "dependencies"
+      ]
+    },
+    "appeng-show-dependency-details": {
+      "description": "Show dependency details",
+      "suggestedComponents": [
+        "DependencyCard"
+      ],
+      "requiredData": [
+        "dependencyDetails"
+      ]
+    },
+    "appeng-show-patterns": {
+      "description": "Show detected code patterns",
+      "suggestedComponents": [
+        "PatternBrowser",
+        "PatternToolbar",
+        "PatternCard"
+      ],
+      "requiredData": [
+        "patterns"
+      ]
+    },
+    "appeng-show-pattern-details": {
+      "description": "Show pattern details with examples",
+      "suggestedComponents": [
+        "PatternDetails",
+        "PatternOccurrence",
+        "CodeViewer"
+      ],
+      "requiredData": [
+        "patternDetails"
+      ]
+    },
+    "appeng-show-modules": {
+      "description": "Show module breakdown",
+      "suggestedComponents": [
+        "ModuleList",
+        "ModuleCard"
+      ],
+      "requiredData": [
+        "modules"
+      ]
+    },
+    "appeng-show-refactoring": {
+      "description": "Show refactoring guidance",
+      "suggestedComponents": [
+        "RefactoringHub",
+        "RefactoringToolbar",
+        "RefactoringGuide",
+        "RefactoringStep"
+      ],
+      "requiredData": [
+        "refactoring"
+      ]
+    },
+    "appeng-show-appeng-settings": {
+      "description": "Show app engineering settings",
+      "suggestedComponents": [
+        "AppEngSettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    },
+    "arch-show-dashboard": {
+      "description": "Show main architecture dashboard",
+      "suggestedComponents": [
+        "ArchDashboard",
+        "ArchNav",
+        "ArchHealthSummary"
+      ],
+      "requiredData": [
+        "dashboard"
+      ]
+    },
+    "arch-show-architecture": {
+      "description": "Show system architecture diagram and components",
+      "suggestedComponents": [
+        "ArchitectureDiagram",
+        "ComponentCard",
+        "DiagramToolbar"
+      ],
+      "requiredData": [
+        "architecture"
+      ]
+    },
+    "arch-show-diagrams": {
+      "description": "Show list of architecture diagrams",
+      "suggestedComponents": [
+        "DiagramList",
+        "DiagramCard"
+      ],
+      "requiredData": [
+        "diagrams"
+      ]
+    },
+    "arch-show-components": {
+      "description": "Show system components and their details",
+      "suggestedComponents": [
+        "ComponentList",
+        "ComponentCard",
+        "ComponentDetails"
+      ],
+      "requiredData": [
+        "components"
+      ]
+    },
+    "arch-show-dependencies": {
+      "description": "Show component dependency graph",
+      "suggestedComponents": [
+        "DependencyGraph",
+        "ComponentCard"
+      ],
+      "requiredData": [
+        "dependencies"
+      ]
+    },
+    "arch-show-decisions": {
+      "description": "Show architecture decision records",
+      "suggestedComponents": [
+        "DecisionList",
+        "DecisionRecord",
+        "DecisionTimeline"
+      ],
+      "requiredData": [
+        "decisions"
+      ]
+    },
+    "arch-show-decision-details": {
+      "description": "Show single ADR details",
+      "suggestedComponents": [
+        "DecisionRecord",
+        "TradeoffMatrix"
+      ],
+      "requiredData": [
+        "decision"
+      ]
+    },
+    "arch-show-api-contracts": {
+      "description": "Show API contracts and endpoints",
+      "suggestedComponents": [
+        "APIList",
+        "APIContract",
+        "APIEndpoint"
+      ],
+      "requiredData": [
+        "apis"
+      ]
+    },
+    "arch-show-api-explorer": {
+      "description": "Interactive API exploration",
+      "suggestedComponents": [
+        "APIExplorer",
+        "RequestBuilder",
+        "ResponseViewer"
+      ],
+      "requiredData": [
+        "api"
+      ]
+    },
+    "arch-show-data-model": {
+      "description": "Show data model and entities",
+      "suggestedComponents": [
+        "DataModel",
+        "DataEntity",
+        "ERDiagram"
+      ],
+      "requiredData": [
+        "dataModel"
+      ]
+    },
+    "arch-show-patterns": {
+      "description": "Show architecture patterns in use",
+      "suggestedComponents": [
+        "PatternCatalog",
+        "PatternCard",
+        "PatternDetails"
+      ],
+      "requiredData": [
+        "patterns"
+      ]
+    },
+    "arch-show-tradeoffs": {
+      "description": "Show trade-off analysis for a decision",
+      "suggestedComponents": [
+        "TradeoffAnalysis",
+        "TradeoffMatrix",
+        "TradeoffRecommendation"
+      ],
+      "requiredData": [
+        "tradeoffs"
+      ]
+    },
+    "arch-show-tech-stack": {
+      "description": "Show technology stack choices",
+      "suggestedComponents": [
+        "TechStackCard",
+        "TechRadar",
+        "TechRadarItem"
+      ],
+      "requiredData": [
+        "techStack"
+      ]
+    },
+    "arch-show-integrations": {
+      "description": "Show system integrations",
+      "suggestedComponents": [
+        "IntegrationMap",
+        "IntegrationCard"
+      ],
+      "requiredData": [
+        "integrations"
+      ]
+    },
+    "arch-show-changelog": {
+      "description": "Show architecture changelog",
+      "suggestedComponents": [
+        "ArchChangelog",
+        "ChangelogEntry"
+      ],
+      "requiredData": [
+        "changelog"
+      ]
+    },
+    "arch-show-settings": {
+      "description": "Show architecture settings",
+      "suggestedComponents": [
+        "ArchSettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    },
+    "docs-show-docs-dashboard": {
+      "description": "Show documentation management dashboard",
+      "suggestedComponents": [
+        "DocsDashboard",
+        "DocsNav",
+        "DocsSummaryBar"
+      ],
+      "requiredData": [
+        "overview"
+      ]
+    },
+    "docs-show-doc-coverage": {
+      "description": "Show documentation coverage metrics",
+      "suggestedComponents": [
+        "CoverageOverview",
+        "CoverageSummary",
+        "CoverageChart",
+        "CoverageGapList"
+      ],
+      "requiredData": [
+        "coverage"
+      ]
+    },
+    "docs-show-coverage-gaps": {
+      "description": "Show documentation gaps to address",
+      "suggestedComponents": [
+        "CoverageGapList",
+        "CoverageGap"
+      ],
+      "requiredData": [
+        "gaps"
+      ]
+    },
+    "docs-show-sync-status": {
+      "description": "Show code-doc sync status",
+      "suggestedComponents": [
+        "SyncOverview",
+        "SyncSummary",
+        "SyncIssueList"
+      ],
+      "requiredData": [
+        "syncStatus"
+      ]
+    },
+    "docs-show-sync-issues": {
+      "description": "Show sync issues to resolve",
+      "suggestedComponents": [
+        "SyncIssueList",
+        "SyncIssue",
+        "SyncIssueDetails"
+      ],
+      "requiredData": [
+        "syncIssues"
+      ]
+    },
+    "docs-browse-docs": {
+      "description": "Browse documentation tree",
+      "suggestedComponents": [
+        "DocBrowser",
+        "DocTree",
+        "DocViewer"
+      ],
+      "requiredData": [
+        "docTree"
+      ]
+    },
+    "docs-view-doc": {
+      "description": "View a specific document",
+      "suggestedComponents": [
+        "DocViewer",
+        "DocCard"
+      ],
+      "requiredData": [
+        "doc"
+      ]
+    },
+    "docs-edit-doc": {
+      "description": "Edit a document",
+      "suggestedComponents": [
+        "DocEditor"
+      ],
+      "requiredData": [
+        "doc"
+      ]
+    },
+    "docs-browse-api": {
+      "description": "Browse API documentation",
+      "suggestedComponents": [
+        "APIBrowser",
+        "APIModuleList",
+        "APIModuleCard"
+      ],
+      "requiredData": [
+        "apiModules"
+      ]
+    },
+    "docs-view-api-endpoint": {
+      "description": "View API endpoint documentation",
+      "suggestedComponents": [
+        "APIEndpointDetails",
+        "APIParam",
+        "CodeExample"
+      ],
+      "requiredData": [
+        "endpoint"
+      ]
+    },
+    "docs-show-generation-queue": {
+      "description": "Show documentation generation queue",
+      "suggestedComponents": [
+        "GenerationPanel",
+        "GenerationQueue",
+        "GenerationTask"
+      ],
+      "requiredData": [
+        "generationQueue"
+      ]
+    },
+    "docs-show-templates": {
+      "description": "Show documentation templates",
+      "suggestedComponents": [
+        "TemplateLibrary",
+        "DocTemplate"
+      ],
+      "requiredData": [
+        "templates"
+      ]
+    },
+    "docs-show-style-compliance": {
+      "description": "Show style guide compliance",
+      "suggestedComponents": [
+        "StylePanel",
+        "StyleSummary",
+        "StyleIssueList"
+      ],
+      "requiredData": [
+        "styleCompliance"
+      ]
+    },
+    "docs-show-style-issues": {
+      "description": "Show style guide issues",
+      "suggestedComponents": [
+        "StyleIssueList",
+        "StyleIssue"
+      ],
+      "requiredData": [
+        "styleIssues"
+      ]
+    },
+    "docs-show-docs-settings": {
+      "description": "Show documentation settings",
+      "suggestedComponents": [
+        "DocsSettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    }
+  }
+}

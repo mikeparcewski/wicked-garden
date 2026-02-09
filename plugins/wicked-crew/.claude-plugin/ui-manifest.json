@@ -1,0 +1,47 @@
+{
+  "manifestVersion": "1.0",
+  "plugin": "wicked-crew",
+  "navigation": {
+    "label": "Crew",
+    "icon": "users",
+    "order": 30
+  },
+  "defaultView": "projects",
+  "views": [
+    {
+      "id": "projects",
+      "label": "Projects",
+      "prompt": "Run /wicked-crew:status to get all crew projects. Display each project as a card showing: project name, current phase with a phase progress indicator (clarify → design → build → test → review), status, complexity score, and when it was last updated."
+    },
+    {
+      "id": "active",
+      "label": "Active Project",
+      "prompt": "Run /wicked-crew:status to find the most recently active project. Show detailed view with: current phase, phase deliverables checklist, evidence summary, specialist recommendations, and signal analysis."
+    },
+    {
+      "id": "evidence",
+      "label": "Evidence",
+      "prompt": "Run /wicked-crew:evidence to show all evidence artifacts for the current project. Display as a timeline with: phase, artifact name, type, and preview content."
+    }
+  ],
+  "actions": [
+    {
+      "id": "start",
+      "label": "New Project",
+      "icon": "plus",
+      "prompt": "Ask the user to describe their project, then use /wicked-crew:start to create it."
+    },
+    {
+      "id": "execute",
+      "label": "Execute Phase",
+      "icon": "play",
+      "prompt": "Use /wicked-crew:execute to run the current phase of the active project."
+    },
+    {
+      "id": "approve",
+      "label": "Approve Phase",
+      "icon": "check",
+      "prompt": "Use /wicked-crew:approve to approve the current phase and advance."
+    }
+  ]
+}

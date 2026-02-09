@@ -1,0 +1,11 @@
+# Scaffold Templates
+
+This directory contains templates for scaffolding marketplace components.
+
+Templates will be added in future implementations of Task 3.9.
+
+Expected structure:
+- plugin/ - Plugin template
+- skill/ - Skill template
+- agent/ - Agent template
+- hook/ - Hook template

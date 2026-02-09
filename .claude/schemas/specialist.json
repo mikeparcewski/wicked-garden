@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wicked.garden/schemas/specialist.json",
+  "title": "Specialist Plugin Contract",
+  "description": "Schema for specialist plugins that enhance wicked-crew orchestration (v3)",
+  "type": "object",
+  "required": ["specialist", "personas", "enhances"],
+  "properties": {
+    "specialist": {
+      "type": "object",
+      "required": ["name", "role", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Plugin name (must match plugin.json)",
+          "pattern": "^wicked-[a-z0-9-]+$"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role identifier",
+          "enum": [
+            "ideation",
+            "business-strategy",
+            "project-management",
+            "quality-engineering",
+            "devsecops",
+            "engineering",
+            "architecture",
+            "ux",
+            "product",
+            "compliance",
+            "data-engineering",
+            "research"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "What this specialist does",
+          "maxLength": 200
+        }
+      }
+    },
+    "personas": {
+      "type": "array",
+      "description": "Perspectives within this specialist role",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["name", "focus"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Persona display name"
+          },
+          "focus": {
+            "type": "string",
+            "description": "What this persona focuses on"
+          },
+          "expertise": {
+            "type": "array",
+            "description": "Areas of expertise",
+            "items": {"type": "string"}
+          },
+          "agent": {
+            "type": "string",
+            "description": "Path to agent definition file"
+          },
+          "dynamic": {
+            "type": "boolean",
+            "description": "Whether persona is dynamically generated",
+            "default": false
+          }
+        }
+      }
+    },
+    "enhances": {
+      "type": "array",
+      "description": "How this specialist enhances crew phases",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["phase", "trigger", "response"],
+        "properties": {
+          "phase": {
+            "type": "string",
+            "description": "Phase being enhanced (* for all)",
+            "enum": ["clarify", "research", "design", "qe", "gate", "build", "review", "*"]
+          },
+          "trigger": {
+            "type": "string",
+            "description": "Event that activates this specialist",
+            "pattern": "^[a-z]+:[a-z:-]+:(success|error|warning|pending)$"
+          },
+          "response": {
+            "type": "string",
+            "description": "Event emitted when done",
+            "pattern": "^[a-z]+:[a-z:-]+:(success|error|warning|pending)$"
+          },
+          "capabilities": {
+            "type": "array",
+            "description": "What this enhancement provides",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Event subscriptions and publications",
+      "properties": {
+        "subscribes": {
+          "type": "array",
+          "description": "Events this specialist listens for",
+          "items": {"type": "string", "pattern": "^[a-z]+:[a-z:-*]+:(success|error|warning|pending|\\*)$"}
+        },
+        "publishes": {
+          "type": "array",
+          "description": "Events this specialist emits",
+          "items": {"type": "string", "pattern": "^[a-z]+:[a-z:-]+:(success|error|warning|pending)$"}
+        }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "description": "Commands the specialist provides",
+      "items": {
+        "type": "object",
+        "required": ["name", "command", "description"],
+        "properties": {
+          "name": {"type": "string"},
+          "command": {"type": "string", "pattern": "^/wicked-[a-z-]+:[a-z-]+$"},
+          "description": {"type": "string"}
+        }
+      }
+    }
+  }
+}

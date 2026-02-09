@@ -1,0 +1,19 @@
+{
+  "name": "wicked-patch",
+  "version": "1.0.4",
+  "description": "Language-agnostic code generation and change propagation using symbol graphs",
+  "author": {
+    "name": "Mike Parcewski"
+  },
+  "repository": "https://github.com/mikeparcewski/wicked-garden",
+  "keywords": [
+    "code-generation",
+    "refactoring",
+    "propagation",
+    "patches",
+    "migrations"
+  ],
+  "dependencies": {
+    "wicked-search": ">=1.0.0"
+  }
+}

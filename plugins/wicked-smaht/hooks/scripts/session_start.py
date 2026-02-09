@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""
+wicked-smaht v2: SessionStart hook.
+
+Initializes session context from wicked-crew and wicked-kanban.
+Uses v2 history_condenser for session management.
+
+Cross-plugin boundary: queries crew and kanban via their CLI scripts,
+never reads their storage directories directly.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+# Add v2 scripts directory to path
+V2_SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts" / "v2"
+sys.path.insert(0, str(V2_SCRIPTS_DIR))
+
+
+def _parse_version(v: str) -> tuple:
+    """Parse semver string to comparable tuple."""
+    match = re.match(r"(\d+)\.(\d+)\.(\d+)", v)
+    if match:
+        return tuple(int(x) for x in match.groups())
+    return (0, 0, 0)
+
+
+def _discover_script(plugin_name: str, script_name: str):
+    """Find a plugin's script via cache (highest version) or local repo."""
+    cache_base = Path.home() / ".claude" / "plugins" / "cache" / "wicked-garden" / plugin_name
+    if cache_base.exists():
+        versions = []
+        for d in cache_base.iterdir():
+            if d.is_dir():
+                versions.append((_parse_version(d.name), d))
+        if versions:
+            versions.sort(key=lambda x: x[0], reverse=True)
+            script = versions[0][1] / "scripts" / script_name
+            if script.exists():
+                return script
+
+    # Local repo sibling path
+    local = Path(__file__).parent.parent.parent.parent / plugin_name / "scripts" / script_name
+    if local.exists():
+        return local
+
+    return None
+
+
+def _run_query(cmd, timeout=3.0):
+    """Run a subprocess query, return parsed JSON or None."""
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
+        pass
+    return None
+
+
+def get_active_project():
+    """Find the most recently modified wicked-crew project via crew.py CLI."""
+    crew_script = _discover_script("wicked-crew", "crew.py")
+    if not crew_script:
+        return None
+
+    data = _run_query([sys.executable, str(crew_script), "list-projects", "--active", "--json"])
+    if not data:
+        return None
+
+    projects = data.get("projects", [])
+    if not projects:
+        return None
+
+    # First project is most recently modified (crew.py sorts by mtime desc)
+    proj = projects[0]
+    return {
+        "name": proj.get("name", "unknown"),
+        "phase": proj.get("current_phase", "unknown"),
+    }
+
+
+def get_active_tasks():
+    """Get in-progress tasks from wicked-kanban via kanban.py CLI."""
+    kanban_script = _discover_script("wicked-kanban", "kanban.py")
+    if not kanban_script:
+        return []
+
+    data = _run_query([sys.executable, str(kanban_script), "list-tasks", "--json"])
+    if not data:
+        return []
+
+    tasks = []
+    for task in data.get("tasks", []):
+        status = task.get("status", task.get("swimlane", ""))
+        if status in ("doing", "in_progress", "todo"):
+            tasks.append({
+                "name": task.get("title", task.get("name", "")),
+                "swimlane": status,
+                "project": task.get("project", ""),
+            })
+
+    return tasks[:5]
+
+
+def main():
+    """Initialize session and gather baseline context."""
+    context_lines = []
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
+
+    # Initialize v2 session via history_condenser
+    try:
+        from history_condenser import HistoryCondenser
+
+        condenser = HistoryCondenser(session_id)
+        state = condenser.get_session_state()
+
+        if state.get("turn_count", 0) > 0:
+            context_lines.append(f"Session: {session_id} (resuming, {state['turn_count']} turns)")
+        else:
+            context_lines.append(f"Session: {session_id} (new)")
+
+        if state.get("topics"):
+            context_lines.append(f"Topics: {', '.join(state['topics'][:5])}")
+
+    except ImportError:
+        context_lines.append(f"Session: {session_id}")
+    except Exception as e:
+        context_lines.append(f"Session: {session_id} (init error: {str(e)[:30]})")
+
+    # Get active project
+    project = get_active_project()
+    if project:
+        context_lines.append(f"Active project: {project['name']} ({project['phase']} phase)")
+
+    # Get active tasks
+    tasks = get_active_tasks()
+    if tasks:
+        context_lines.append(f"Active tasks: {len(tasks)}")
+        for task in tasks[:3]:
+            context_lines.append(f"  - [{task['swimlane']}] {task['name']}")
+
+    if not context_lines:
+        # No context to inject
+        print(json.dumps({"continue": True}))
+        return
+
+    # Format as system reminder
+    context = "\n".join(context_lines)
+    result = {
+        "continue": True,
+        "message": f"<system-reminder>\nwicked-smaht v2 session:\n{context}\n</system-reminder>"
+    }
+
+    print(json.dumps(result))
+
+
+if __name__ == "__main__":
+    main()

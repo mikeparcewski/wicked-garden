@@ -1,0 +1,106 @@
+{
+  "specialist": {
+    "name": "wicked-engineering",
+    "role": "engineering",
+    "description": "Full-stack engineering expertise spanning code quality, architecture, debugging, documentation, and implementation patterns."
+  },
+  "personas": [
+    {
+      "name": "Senior Engineer",
+      "focus": "Code quality, architecture patterns, best practices, implementation guidance",
+      "agent": "agents/senior-engineer.md"
+    },
+    {
+      "name": "Solution Architect",
+      "focus": "End-to-end solution design, technology choices, trade-offs",
+      "agent": "agents/solution-architect.md"
+    },
+    {
+      "name": "Debugger",
+      "focus": "Root cause analysis, error investigation, systematic debugging",
+      "agent": "agents/debugger.md"
+    },
+    {
+      "name": "Frontend Engineer",
+      "focus": "React, CSS, browser APIs, component design, accessibility",
+      "agent": "agents/frontend-engineer.md"
+    },
+    {
+      "name": "Backend Engineer",
+      "focus": "APIs, databases, server-side patterns, data modeling",
+      "agent": "agents/backend-engineer.md"
+    }
+  ],
+  "enhances": [
+    {
+      "phase": "design",
+      "trigger": "crew:phase:started:success",
+      "response": "engineering:architecture:reviewed:success",
+      "capabilities": [
+        "architecture-review",
+        "system-design",
+        "integration-design",
+        "technology-selection"
+      ]
+    },
+    {
+      "phase": "build",
+      "trigger": "crew:phase:started:success",
+      "response": "engineering:implementation:completed:success",
+      "capabilities": [
+        "code-implementation",
+        "code-review",
+        "debugging",
+        "documentation"
+      ]
+    },
+    {
+      "phase": "review",
+      "trigger": "crew:phase:started:success",
+      "response": "engineering:review:completed:success",
+      "capabilities": [
+        "code-review",
+        "architecture-review",
+        "documentation-review"
+      ]
+    }
+  ],
+  "hooks": {
+    "subscribes": [
+      "crew:phase:started:success",
+      "crew:specialist:engaged:success"
+    ],
+    "publishes": [
+      "engineering:review:completed:success",
+      "engineering:architecture:reviewed:success",
+      "engineering:implementation:completed:success"
+    ]
+  },
+  "skills": [
+    {
+      "name": "review",
+      "command": "/wicked-engineering:review",
+      "description": "Code review with senior engineering perspective"
+    },
+    {
+      "name": "arch",
+      "command": "/wicked-engineering:arch",
+      "description": "Architecture analysis and design recommendations"
+    },
+    {
+      "name": "debug",
+      "command": "/wicked-engineering:debug",
+      "description": "Systematic debugging with root cause analysis"
+    },
+    {
+      "name": "plan",
+      "command": "/wicked-engineering:plan",
+      "description": "Implementation planning and recommendations"
+    },
+    {
+      "name": "docs",
+      "command": "/wicked-engineering:docs",
+      "description": "Generate or improve documentation"
+    }
+  ]
+}

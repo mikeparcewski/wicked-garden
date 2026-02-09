@@ -1,0 +1,33 @@
+{
+  "name": "kotlin_add_field",
+  "description": "Add a new property to a Kotlin data class",
+  "generator": "kotlin",
+  "input": {
+    "change_type": "add_field",
+    "field_spec": {
+      "name": "email",
+      "type": "String",
+      "nullable": true
+    },
+    "sample_content": "package com.example\n\ndata class User(\n    val id: Long,\n    val name: String\n)\n",
+    "symbol": {
+      "id": "com/example/User.kt::User",
+      "name": "User",
+      "type": "data_class",
+      "file_path": "com/example/User.kt",
+      "line_start": 3,
+      "line_end": 6
+    }
+  },
+  "expected": {
+    "patch_count_min": 1,
+    "must_contain": [
+      "email",
+      "String?",
+      "val"
+    ],
+    "must_not_contain": [
+      "undefined"
+    ]
+  }
+}

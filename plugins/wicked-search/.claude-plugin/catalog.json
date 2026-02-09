@@ -1,0 +1,374 @@
+{
+  "catalogId": "search",
+  "version": "2.0.0",
+  "description": "Code and document search components for navigation, exploration, and impact analysis",
+  "components": {
+    "SearchBox": {
+      "description": "Search input with autocomplete and suggestions.",
+      "category": "control",
+      "props": {
+        "placeholder": {"type": "string", "description": "Placeholder text", "default": "Search code and docs..."},
+        "searchType": {"type": "string", "description": "Search mode", "enum": ["code", "docs", "unified", "symbols"]},
+        "showHistory": {"type": "boolean", "description": "Show recent searches", "default": true},
+        "showSuggestions": {"type": "boolean", "description": "Show autocomplete", "default": true}
+      }
+    },
+    "SearchFilters": {
+      "description": "Faceted search filters for refining results.",
+      "category": "control",
+      "props": {
+        "languages": {"type": "array", "description": "Filter by programming languages"},
+        "fileTypes": {"type": "array", "description": "Filter by file types"},
+        "paths": {"type": "array", "description": "Filter by directory paths"},
+        "dateRange": {"type": "object", "description": "Filter by modification date"},
+        "authors": {"type": "array", "description": "Filter by git authors"}
+      }
+    },
+    "SearchResults": {
+      "description": "Container for search results with query info and result count.",
+      "category": "layout",
+      "props": {
+        "query": {"type": "string", "description": "Search query executed"},
+        "resultCount": {"type": "number", "description": "Total results found"},
+        "searchType": {"type": "string", "description": "Type of search", "enum": ["code", "docs", "unified"]},
+        "searchTime": {"type": "number", "description": "Search duration in ms"},
+        "groupBy": {"type": "string", "description": "Group results by", "enum": ["file", "type", "relevance"]}
+      },
+      "slots": {
+        "results": {"role": "content", "description": "Search result items", "accepts": ["CodeResult", "DocResult", "SymbolResult"]},
+        "filters": {"role": "control", "description": "Search filters", "accepts": ["SearchFilters"]}
+      }
+    },
+    "CodeResult": {
+      "description": "A code search result showing file, line, and matched content.",
+      "category": "content",
+      "props": {
+        "filePath": {"type": "string", "description": "Path to file", "required": true},
+        "lineNumber": {"type": "number", "description": "Line number of match"},
+        "content": {"type": "string", "description": "Matched code snippet", "required": true},
+        "language": {"type": "string", "description": "Programming language"},
+        "score": {"type": "number", "description": "Relevance score"},
+        "highlights": {"type": "array", "description": "Character ranges to highlight"},
+        "context": {"type": "object", "description": "Lines before/after for context"}
+      }
+    },
+    "DocResult": {
+      "description": "A document search result showing title, excerpt, and location.",
+      "category": "content",
+      "props": {
+        "title": {"type": "string", "description": "Document title", "required": true},
+        "filePath": {"type": "string", "description": "Path to document"},
+        "excerpt": {"type": "string", "description": "Matched excerpt", "required": true},
+        "docType": {"type": "string", "description": "Document type", "enum": ["markdown", "pdf", "office", "html"]},
+        "section": {"type": "string", "description": "Section/heading where match found"},
+        "score": {"type": "number", "description": "Relevance score"}
+      }
+    },
+    "SymbolResult": {
+      "description": "A symbol search result showing function/class definition.",
+      "category": "content",
+      "props": {
+        "name": {"type": "string", "description": "Symbol name", "required": true},
+        "kind": {"type": "string", "description": "Symbol type", "enum": ["function", "class", "method", "variable", "constant", "interface", "type", "enum"]},
+        "filePath": {"type": "string", "description": "File containing symbol"},
+        "lineNumber": {"type": "number", "description": "Definition line"},
+        "signature": {"type": "string", "description": "Function/method signature"},
+        "docstring": {"type": "string", "description": "Documentation string"},
+        "visibility": {"type": "string", "description": "Access modifier", "enum": ["public", "private", "protected", "internal"]}
+      }
+    },
+    "SearchHistory": {
+      "description": "List of recent search queries.",
+      "category": "layout",
+      "props": {
+        "title": {"type": "string", "description": "Panel title", "default": "Recent Searches"},
+        "limit": {"type": "number", "description": "Max items to show", "default": 10}
+      },
+      "slots": {
+        "searches": {"role": "content", "description": "Search history items", "accepts": ["SearchHistoryItem"]}
+      }
+    },
+    "SearchHistoryItem": {
+      "description": "A single search history entry.",
+      "category": "content",
+      "props": {
+        "query": {"type": "string", "description": "Search query", "required": true},
+        "searchType": {"type": "string", "description": "Search type used"},
+        "resultCount": {"type": "number", "description": "Results found"},
+        "timestamp": {"type": "string", "description": "When search was performed"}
+      }
+    },
+    "SavedSearch": {
+      "description": "A saved/bookmarked search query.",
+      "category": "content",
+      "props": {
+        "name": {"type": "string", "description": "Saved search name", "required": true},
+        "query": {"type": "string", "description": "Search query", "required": true},
+        "searchType": {"type": "string", "description": "Search type"},
+        "filters": {"type": "object", "description": "Saved filter settings"},
+        "description": {"type": "string", "description": "What this search finds"}
+      }
+    },
+    "FileTree": {
+      "description": "Navigable file tree for browsing codebase structure.",
+      "category": "layout",
+      "props": {
+        "rootPath": {"type": "string", "description": "Root directory to show"},
+        "expandedPaths": {"type": "array", "description": "Initially expanded directories"},
+        "selectedPath": {"type": "string", "description": "Currently selected file/folder"},
+        "showHidden": {"type": "boolean", "description": "Show hidden files", "default": false},
+        "filter": {"type": "string", "description": "Filter pattern (glob)"}
+      },
+      "slots": {
+        "nodes": {"role": "content", "description": "Tree nodes", "accepts": ["FileTreeNode"]}
+      }
+    },
+    "FileTreeNode": {
+      "description": "A node in the file tree (file or directory).",
+      "category": "content",
+      "props": {
+        "name": {"type": "string", "description": "File/folder name", "required": true},
+        "path": {"type": "string", "description": "Full path", "required": true},
+        "type": {"type": "string", "description": "Node type", "enum": ["file", "directory"], "required": true},
+        "language": {"type": "string", "description": "File language (for files)"},
+        "size": {"type": "number", "description": "File size in bytes"},
+        "modified": {"type": "string", "description": "Last modified date"}
+      }
+    },
+    "SymbolOutline": {
+      "description": "Symbol hierarchy/outline for a file.",
+      "category": "layout",
+      "props": {
+        "filePath": {"type": "string", "description": "File to show outline for", "required": true},
+        "showPrivate": {"type": "boolean", "description": "Include private symbols", "default": true},
+        "groupBy": {"type": "string", "description": "Group symbols by", "enum": ["kind", "visibility", "none"]}
+      },
+      "slots": {
+        "symbols": {"role": "content", "description": "Symbol nodes", "accepts": ["SymbolOutlineNode"]}
+      }
+    },
+    "SymbolOutlineNode": {
+      "description": "A symbol in the file outline.",
+      "category": "content",
+      "props": {
+        "name": {"type": "string", "description": "Symbol name", "required": true},
+        "kind": {"type": "string", "description": "Symbol kind", "required": true},
+        "lineNumber": {"type": "number", "description": "Line number"},
+        "signature": {"type": "string", "description": "Signature preview"},
+        "children": {"type": "array", "description": "Nested symbols"}
+      }
+    },
+    "CodePreview": {
+      "description": "Expanded code view with syntax highlighting and context.",
+      "category": "display",
+      "props": {
+        "filePath": {"type": "string", "description": "File path", "required": true},
+        "startLine": {"type": "number", "description": "Start line to show"},
+        "endLine": {"type": "number", "description": "End line to show"},
+        "highlightLines": {"type": "array", "description": "Lines to highlight"},
+        "language": {"type": "string", "description": "Language for syntax highlighting"},
+        "showLineNumbers": {"type": "boolean", "description": "Show line numbers", "default": true}
+      }
+    },
+    "DiffView": {
+      "description": "Side-by-side or unified diff view.",
+      "category": "display",
+      "props": {
+        "leftPath": {"type": "string", "description": "Left file path"},
+        "rightPath": {"type": "string", "description": "Right file path"},
+        "leftContent": {"type": "string", "description": "Left content (if not from file)"},
+        "rightContent": {"type": "string", "description": "Right content (if not from file)"},
+        "viewMode": {"type": "string", "description": "Diff view mode", "enum": ["split", "unified"], "default": "split"},
+        "language": {"type": "string", "description": "Language for highlighting"}
+      }
+    },
+    "BlastRadius": {
+      "description": "Impact analysis showing what depends on a symbol and what it depends on.",
+      "category": "display",
+      "props": {
+        "symbolName": {"type": "string", "description": "Analyzed symbol", "required": true},
+        "symbolPath": {"type": "string", "description": "File containing symbol"},
+        "dependents": {"type": "array", "description": "Things that depend on this symbol"},
+        "dependencies": {"type": "array", "description": "Things this symbol depends on"},
+        "impactLevel": {"type": "string", "description": "Overall impact", "enum": ["critical", "high", "medium", "low"]},
+        "affectedFiles": {"type": "number", "description": "Number of files affected"},
+        "affectedTests": {"type": "number", "description": "Number of tests that would need updating"}
+      },
+      "slots": {
+        "graph": {"role": "display", "description": "Visual dependency graph", "accepts": ["DependencyGraph"]}
+      }
+    },
+    "DependencyGraph": {
+      "description": "Visual graph of dependencies between symbols/files.",
+      "category": "display",
+      "props": {
+        "nodes": {"type": "array", "description": "Graph nodes", "required": true},
+        "edges": {"type": "array", "description": "Graph edges", "required": true},
+        "layout": {"type": "string", "description": "Graph layout", "enum": ["hierarchical", "force", "radial"]},
+        "focusNode": {"type": "string", "description": "Node to center on"},
+        "depth": {"type": "number", "description": "Max depth to show", "default": 2}
+      }
+    },
+    "ReferenceList": {
+      "description": "List of all references to a symbol.",
+      "category": "layout",
+      "props": {
+        "symbolName": {"type": "string", "description": "Symbol being referenced", "required": true},
+        "referenceCount": {"type": "number", "description": "Total references found"},
+        "groupBy": {"type": "string", "description": "Group references by", "enum": ["file", "type", "none"]}
+      },
+      "slots": {
+        "references": {"role": "content", "description": "Reference items", "accepts": ["ReferenceItem"]}
+      }
+    },
+    "ReferenceItem": {
+      "description": "A single reference to a symbol.",
+      "category": "content",
+      "props": {
+        "filePath": {"type": "string", "description": "File containing reference", "required": true},
+        "lineNumber": {"type": "number", "description": "Line number", "required": true},
+        "content": {"type": "string", "description": "Line content"},
+        "referenceType": {"type": "string", "description": "How it's referenced", "enum": ["call", "import", "type", "assignment", "parameter"]}
+      }
+    },
+    "CrossReference": {
+      "description": "Shows relationship between code and documentation.",
+      "category": "content",
+      "props": {
+        "codeLocation": {"type": "string", "description": "Code file and line"},
+        "docLocation": {"type": "string", "description": "Related documentation"},
+        "relationship": {"type": "string", "description": "How they relate", "enum": ["implements", "documents", "tests", "references"]},
+        "syncStatus": {"type": "string", "description": "Are they in sync?", "enum": ["synced", "outdated", "missing"]}
+      }
+    },
+    "IndexStats": {
+      "description": "Statistics about the search index.",
+      "category": "display",
+      "props": {
+        "filesIndexed": {"type": "number", "description": "Number of files indexed"},
+        "symbolsFound": {"type": "number", "description": "Number of symbols extracted"},
+        "documentsIndexed": {"type": "number", "description": "Documents indexed"},
+        "lastUpdated": {"type": "string", "description": "Last index update time"},
+        "indexHealth": {"type": "string", "description": "Index health status", "enum": ["healthy", "stale", "rebuilding", "error"]},
+        "indexSize": {"type": "number", "description": "Index size in bytes"}
+      }
+    },
+    "IndexProgress": {
+      "description": "Progress indicator for indexing operations.",
+      "category": "display",
+      "props": {
+        "status": {"type": "string", "description": "Indexing status", "enum": ["idle", "scanning", "parsing", "indexing", "complete", "error"], "required": true},
+        "filesProcessed": {"type": "number", "description": "Files processed so far"},
+        "totalFiles": {"type": "number", "description": "Total files to process"},
+        "currentFile": {"type": "string", "description": "Currently processing"},
+        "errors": {"type": "array", "description": "Indexing errors encountered"}
+      }
+    },
+    "QuickOpen": {
+      "description": "Quick file/symbol open dialog (cmd+p style).",
+      "category": "control",
+      "props": {
+        "mode": {"type": "string", "description": "Open mode", "enum": ["files", "symbols", "commands"], "required": true},
+        "placeholder": {"type": "string", "description": "Placeholder text"},
+        "recentLimit": {"type": "number", "description": "Recent items to show", "default": 5}
+      },
+      "slots": {
+        "results": {"role": "content", "description": "Quick open results", "accepts": ["FileTreeNode", "SymbolResult"]}
+      }
+    }
+  },
+  "intents": {
+    "show-search-results": {
+      "description": "Show results from code or document search",
+      "suggestedComponents": ["SearchResults", "CodeResult", "DocResult", "SearchFilters"],
+      "requiredData": ["searchResults"]
+    },
+    "show-symbol-search": {
+      "description": "Show symbol definitions matching query",
+      "suggestedComponents": ["SearchResults", "SymbolResult"],
+      "requiredData": ["symbols"]
+    },
+    "show-blast-radius": {
+      "description": "Show impact analysis for a symbol",
+      "suggestedComponents": ["BlastRadius", "DependencyGraph", "ReferenceList"],
+      "requiredData": ["impactAnalysis"]
+    },
+    "show-references": {
+      "description": "Show all references to a symbol",
+      "suggestedComponents": ["ReferenceList", "ReferenceItem", "CodePreview"],
+      "requiredData": ["references"]
+    },
+    "show-cross-references": {
+      "description": "Show code-documentation relationships",
+      "suggestedComponents": ["CrossReference"],
+      "requiredData": ["crossRefs"]
+    },
+    "show-index-stats": {
+      "description": "Show search index statistics and health",
+      "suggestedComponents": ["IndexStats", "IndexProgress"],
+      "requiredData": ["indexStats"]
+    },
+    "browse-files": {
+      "description": "Browse codebase file structure",
+      "suggestedComponents": ["FileTree", "FileTreeNode", "CodePreview"],
+      "requiredData": ["fileTree"]
+    },
+    "show-file-outline": {
+      "description": "Show symbol outline for a file",
+      "suggestedComponents": ["SymbolOutline", "SymbolOutlineNode"],
+      "requiredData": ["fileOutline"]
+    },
+    "show-diff": {
+      "description": "Show diff between two files or versions",
+      "suggestedComponents": ["DiffView"],
+      "requiredData": ["diffData"]
+    },
+    "quick-open": {
+      "description": "Quick file/symbol open dialog",
+      "suggestedComponents": ["QuickOpen"],
+      "requiredData": ["quickOpenResults"]
+    },
+    "show-search-history": {
+      "description": "Show recent and saved searches",
+      "suggestedComponents": ["SearchHistory", "SavedSearch"],
+      "requiredData": ["searchHistory"]
+    }
+  },
+  "dataBindings": {
+    "searchResults": {
+      "mcpServer": "search",
+      "tool": "search",
+      "description": "Search results"
+    },
+    "symbols": {
+      "mcpServer": "search",
+      "tool": "code",
+      "description": "Code symbol search"
+    },
+    "impactAnalysis": {
+      "mcpServer": "search",
+      "tool": "blast_radius",
+      "description": "Impact analysis"
+    },
+    "references": {
+      "mcpServer": "search",
+      "tool": "refs",
+      "description": "Symbol references"
+    },
+    "fileTree": {
+      "mcpServer": "search",
+      "tool": "list_files",
+      "description": "File tree structure"
+    },
+    "fileOutline": {
+      "mcpServer": "search",
+      "tool": "outline",
+      "description": "File symbol outline"
+    },
+    "indexStats": {
+      "mcpServer": "search",
+      "tool": "stats",
+      "description": "Index statistics"
+    }
+  }
+}

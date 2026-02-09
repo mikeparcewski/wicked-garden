@@ -1,0 +1,19 @@
+{
+  "name": "wicked-kanban",
+  "version": "0.5.1",
+  "description": "Persistent kanban board that survives across sessions. Auto-syncs Claude Code's TaskCreate/TaskUpdate to a durable board with git commit linking, activity audit trail, and sprint grouping. Built-in tasks reset each session \u2014 kanban remembers everything.",
+  "author": {
+    "name": "Mike Parcewski"
+  },
+  "license": "MIT",
+  "keywords": [
+    "kanban",
+    "tasks",
+    "todo",
+    "project-management",
+    "initiatives",
+    "agile",
+    "persistent",
+    "activity-tracking"
+  ]
+}

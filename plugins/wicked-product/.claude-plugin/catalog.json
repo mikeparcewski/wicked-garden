@@ -1,0 +1,7015 @@
+{
+  "catalogId": "product",
+  "version": "1.0.0",
+  "description": "Product, UX, customer voice, and strategy components",
+  "components": {
+    "ProductDashboard": {
+      "description": "Central product management dashboard.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title",
+          "default": "Product"
+        },
+        "productName": {
+          "type": "string",
+          "description": "Product name"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update date"
+        }
+      },
+      "slots": {
+        "overview": {
+          "role": "content",
+          "description": "Product overview",
+          "accepts": [
+            "ProductSummary",
+            "RoadmapView"
+          ]
+        },
+        "backlog": {
+          "role": "content",
+          "description": "Backlog items",
+          "accepts": [
+            "UserStory",
+            "RequirementCard"
+          ]
+        },
+        "sidebar": {
+          "role": "navigation",
+          "description": "Navigation",
+          "accepts": [
+            "ProductNav",
+            "ProductHealth"
+          ]
+        }
+      }
+    },
+    "ProductNav": {
+      "description": "Product navigation with section links.",
+      "category": "control",
+      "props": {
+        "sections": {
+          "type": "array",
+          "description": "Navigation sections"
+        },
+        "activeSection": {
+          "type": "string",
+          "description": "Currently active section"
+        },
+        "showSearch": {
+          "type": "boolean",
+          "description": "Show search box",
+          "default": true
+        }
+      }
+    },
+    "ProductHealth": {
+      "description": "Product health metrics summary.",
+      "category": "display",
+      "props": {
+        "overallHealth": {
+          "type": "string",
+          "description": "Overall health",
+          "enum": [
+            "healthy",
+            "attention_needed",
+            "at_risk"
+          ]
+        },
+        "velocity": {
+          "type": "number",
+          "description": "Current velocity"
+        },
+        "backlogHealth": {
+          "type": "string",
+          "description": "Backlog health",
+          "enum": [
+            "groomed",
+            "needs_grooming",
+            "stale"
+          ]
+        },
+        "roadmapStatus": {
+          "type": "string",
+          "description": "Roadmap status",
+          "enum": [
+            "on_track",
+            "at_risk",
+            "off_track"
+          ]
+        }
+      }
+    },
+    "ProductSummary": {
+      "description": "Product summary with key metrics.",
+      "category": "display",
+      "props": {
+        "vision": {
+          "type": "string",
+          "description": "Product vision"
+        },
+        "currentRelease": {
+          "type": "string",
+          "description": "Current release"
+        },
+        "nextMilestone": {
+          "type": "string",
+          "description": "Next milestone"
+        },
+        "activeStories": {
+          "type": "number",
+          "description": "Active stories count"
+        },
+        "completedThisQuarter": {
+          "type": "number",
+          "description": "Stories completed this quarter"
+        }
+      }
+    },
+    "RequirementCard": {
+      "description": "A product requirement with priority and acceptance criteria.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Requirement ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Requirement title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Requirement type",
+          "enum": [
+            "functional",
+            "non_functional",
+            "constraint",
+            "assumption",
+            "business_rule"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "must_have",
+            "should_have",
+            "could_have",
+            "wont_have"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description"
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "description": "Acceptance criteria"
+        },
+        "source": {
+          "type": "string",
+          "description": "Requirement source/stakeholder"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "draft",
+            "approved",
+            "implemented",
+            "deferred",
+            "rejected"
+          ]
+        },
+        "traceability": {
+          "type": "array",
+          "description": "Related stories/features"
+        }
+      }
+    },
+    "RequirementList": {
+      "description": "List of product requirements.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Requirements"
+        },
+        "filterType": {
+          "type": "string",
+          "description": "Filter by type"
+        },
+        "filterPriority": {
+          "type": "string",
+          "description": "Filter by priority"
+        }
+      },
+      "slots": {
+        "requirements": {
+          "role": "content",
+          "description": "Requirement cards",
+          "accepts": [
+            "RequirementCard"
+          ]
+        }
+      }
+    },
+    "RequirementToolbar": {
+      "description": "Toolbar for requirement management.",
+      "category": "control",
+      "props": {
+        "showCreate": {
+          "type": "boolean",
+          "description": "Show create button",
+          "default": true
+        },
+        "showFilters": {
+          "type": "boolean",
+          "description": "Show filters",
+          "default": true
+        },
+        "showExport": {
+          "type": "boolean",
+          "description": "Show export",
+          "default": true
+        },
+        "showTraceability": {
+          "type": "boolean",
+          "description": "Show traceability view",
+          "default": false
+        }
+      }
+    },
+    "RequirementDetails": {
+      "description": "Detailed requirement view with traceability.",
+      "category": "layout",
+      "props": {
+        "requirementId": {
+          "type": "string",
+          "description": "Requirement ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "overview": {
+          "role": "content",
+          "description": "Requirement overview",
+          "accepts": [
+            "RequirementCard"
+          ]
+        },
+        "stories": {
+          "role": "content",
+          "description": "Related stories",
+          "accepts": [
+            "UserStory"
+          ]
+        },
+        "history": {
+          "role": "content",
+          "description": "Change history",
+          "accepts": [
+            "ChangeHistoryEntry"
+          ]
+        }
+      }
+    },
+    "UserStory": {
+      "description": "User story with persona, goal, and benefit.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Story ID",
+          "required": true
+        },
+        "persona": {
+          "type": "string",
+          "description": "User persona",
+          "required": true
+        },
+        "want": {
+          "type": "string",
+          "description": "What they want",
+          "required": true
+        },
+        "benefit": {
+          "type": "string",
+          "description": "Why they want it",
+          "required": true
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "description": "Acceptance criteria"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "storyPoints": {
+          "type": "number",
+          "description": "Estimated story points"
+        },
+        "status": {
+          "type": "string",
+          "description": "Story status",
+          "enum": [
+            "backlog",
+            "ready",
+            "in_progress",
+            "review",
+            "done"
+          ]
+        },
+        "assignee": {
+          "type": "string",
+          "description": "Assigned to"
+        },
+        "sprint": {
+          "type": "string",
+          "description": "Sprint assignment"
+        },
+        "epic": {
+          "type": "string",
+          "description": "Parent epic"
+        }
+      }
+    },
+    "StoryList": {
+      "description": "List of user stories.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "User Stories"
+        },
+        "filterStatus": {
+          "type": "string",
+          "description": "Filter by status"
+        },
+        "filterPriority": {
+          "type": "string",
+          "description": "Filter by priority"
+        },
+        "groupBy": {
+          "type": "string",
+          "description": "Group by field",
+          "enum": [
+            "status",
+            "priority",
+            "epic",
+            "sprint"
+          ]
+        }
+      },
+      "slots": {
+        "stories": {
+          "role": "content",
+          "description": "User stories",
+          "accepts": [
+            "UserStory",
+            "StoryCard"
+          ]
+        }
+      }
+    },
+    "StoryCard": {
+      "description": "Compact user story card for listing.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Story ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Story title",
+          "required": true
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "storyPoints": {
+          "type": "number",
+          "description": "Story points"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status"
+        },
+        "epic": {
+          "type": "string",
+          "description": "Parent epic"
+        }
+      }
+    },
+    "StoryDetails": {
+      "description": "Detailed story view with tasks and discussion.",
+      "category": "layout",
+      "props": {
+        "storyId": {
+          "type": "string",
+          "description": "Story ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "overview": {
+          "role": "content",
+          "description": "Story overview",
+          "accepts": [
+            "UserStory"
+          ]
+        },
+        "tasks": {
+          "role": "content",
+          "description": "Story tasks",
+          "accepts": [
+            "TaskCard"
+          ]
+        },
+        "comments": {
+          "role": "content",
+          "description": "Discussion",
+          "accepts": [
+            "CommentThread"
+          ]
+        }
+      }
+    },
+    "EpicCard": {
+      "description": "An epic containing multiple stories.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Epic ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Epic title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Epic description"
+        },
+        "status": {
+          "type": "string",
+          "description": "Epic status",
+          "enum": [
+            "draft",
+            "planned",
+            "in_progress",
+            "done"
+          ]
+        },
+        "storyCount": {
+          "type": "number",
+          "description": "Number of stories"
+        },
+        "completedStories": {
+          "type": "number",
+          "description": "Completed stories"
+        },
+        "targetRelease": {
+          "type": "string",
+          "description": "Target release"
+        }
+      }
+    },
+    "EpicList": {
+      "description": "List of epics.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Epics"
+        },
+        "filterStatus": {
+          "type": "string",
+          "description": "Filter by status"
+        }
+      },
+      "slots": {
+        "epics": {
+          "role": "content",
+          "description": "Epic cards",
+          "accepts": [
+            "EpicCard"
+          ]
+        }
+      }
+    },
+    "TaskCard": {
+      "description": "A task within a user story.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Task ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Task status",
+          "enum": [
+            "todo",
+            "in_progress",
+            "done"
+          ]
+        },
+        "assignee": {
+          "type": "string",
+          "description": "Assigned to"
+        },
+        "estimate": {
+          "type": "number",
+          "description": "Estimate (hours)"
+        }
+      }
+    },
+    "CommentThread": {
+      "description": "Discussion thread on a story.",
+      "category": "layout",
+      "props": {
+        "itemId": {
+          "type": "string",
+          "description": "Item being discussed"
+        }
+      },
+      "slots": {
+        "comments": {
+          "role": "content",
+          "description": "Comments",
+          "accepts": [
+            "Comment"
+          ]
+        }
+      }
+    },
+    "Comment": {
+      "description": "A single comment.",
+      "category": "content",
+      "props": {
+        "author": {
+          "type": "string",
+          "description": "Comment author",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "description": "Comment content",
+          "required": true
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Posted timestamp"
+        },
+        "edited": {
+          "type": "boolean",
+          "description": "Was edited",
+          "default": false
+        }
+      }
+    },
+    "RoadmapView": {
+      "description": "Product roadmap showing initiatives and timeline.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Roadmap title"
+        },
+        "timeframe": {
+          "type": "string",
+          "description": "Timeframe",
+          "enum": [
+            "quarterly",
+            "yearly",
+            "custom"
+          ]
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Start date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "End date"
+        },
+        "view": {
+          "type": "string",
+          "description": "View type",
+          "enum": [
+            "timeline",
+            "kanban",
+            "list"
+          ],
+          "default": "timeline"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Roadmap items",
+          "accepts": [
+            "RoadmapItem",
+            "MilestoneMarker"
+          ]
+        }
+      }
+    },
+    "RoadmapItem": {
+      "description": "An item on the product roadmap with timing and status.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Item title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Item type",
+          "enum": [
+            "feature",
+            "initiative",
+            "milestone",
+            "release",
+            "epic"
+          ]
+        },
+        "quarter": {
+          "type": "string",
+          "description": "Target quarter"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Start date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "End date"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "planned",
+            "in_progress",
+            "completed",
+            "at_risk",
+            "blocked"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Item description"
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Dependencies on other items"
+        },
+        "progress": {
+          "type": "number",
+          "description": "Progress percentage"
+        }
+      }
+    },
+    "MilestoneMarker": {
+      "description": "A milestone marker on the roadmap.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Milestone title",
+          "required": true
+        },
+        "date": {
+          "type": "string",
+          "description": "Milestone date",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Milestone type",
+          "enum": [
+            "release",
+            "deadline",
+            "review",
+            "launch"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "upcoming",
+            "on_track",
+            "at_risk",
+            "completed"
+          ]
+        }
+      }
+    },
+    "RoadmapToolbar": {
+      "description": "Toolbar for roadmap view.",
+      "category": "control",
+      "props": {
+        "showViewToggle": {
+          "type": "boolean",
+          "description": "Show view toggle",
+          "default": true
+        },
+        "showTimeframe": {
+          "type": "boolean",
+          "description": "Show timeframe selector",
+          "default": true
+        },
+        "showFilters": {
+          "type": "boolean",
+          "description": "Show filters",
+          "default": true
+        },
+        "showExport": {
+          "type": "boolean",
+          "description": "Show export",
+          "default": true
+        }
+      }
+    },
+    "PriorityMatrix": {
+      "description": "Priority matrix showing items by value and effort.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Matrix title",
+          "default": "Priority Matrix"
+        },
+        "xAxis": {
+          "type": "string",
+          "description": "X-axis label",
+          "default": "Effort"
+        },
+        "yAxis": {
+          "type": "string",
+          "description": "Y-axis label",
+          "default": "Value"
+        },
+        "showQuadrantLabels": {
+          "type": "boolean",
+          "description": "Show quadrant labels",
+          "default": true
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Items to plot",
+          "accepts": [
+            "PriorityItem"
+          ]
+        }
+      }
+    },
+    "PriorityItem": {
+      "description": "An item on the priority matrix with value and effort scores.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Item title",
+          "required": true
+        },
+        "value": {
+          "type": "number",
+          "description": "Value score (1-10)",
+          "required": true
+        },
+        "effort": {
+          "type": "number",
+          "description": "Effort score (1-10)",
+          "required": true
+        },
+        "quadrant": {
+          "type": "string",
+          "description": "Matrix quadrant",
+          "enum": [
+            "quick_wins",
+            "big_bets",
+            "fill_ins",
+            "money_pits"
+          ]
+        },
+        "itemType": {
+          "type": "string",
+          "description": "Item type",
+          "enum": [
+            "feature",
+            "story",
+            "epic"
+          ]
+        }
+      }
+    },
+    "PrioritizationSession": {
+      "description": "Interactive prioritization session.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Session title"
+        },
+        "methodology": {
+          "type": "string",
+          "description": "Prioritization method",
+          "enum": [
+            "moscow",
+            "rice",
+            "wsjf",
+            "ice",
+            "value_effort"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Items to prioritize",
+          "accepts": [
+            "PrioritizationCard"
+          ]
+        },
+        "results": {
+          "role": "content",
+          "description": "Prioritized results",
+          "accepts": [
+            "PriorityMatrix",
+            "RankedList"
+          ]
+        }
+      }
+    },
+    "PrioritizationCard": {
+      "description": "Item being scored in prioritization.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Item ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Item title",
+          "required": true
+        },
+        "scores": {
+          "type": "object",
+          "description": "Scores by criterion"
+        },
+        "totalScore": {
+          "type": "number",
+          "description": "Calculated total score"
+        },
+        "rank": {
+          "type": "number",
+          "description": "Priority rank"
+        }
+      }
+    },
+    "RankedList": {
+      "description": "Ranked list of prioritized items.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title"
+        },
+        "showScores": {
+          "type": "boolean",
+          "description": "Show scores",
+          "default": true
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Ranked items",
+          "accepts": [
+            "PrioritizationCard"
+          ]
+        }
+      }
+    },
+    "StakeholderMap": {
+      "description": "Stakeholder map showing influence and interest levels.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Map title",
+          "default": "Stakeholder Map"
+        },
+        "showQuadrants": {
+          "type": "boolean",
+          "description": "Show quadrant labels",
+          "default": true
+        }
+      },
+      "slots": {
+        "stakeholders": {
+          "role": "content",
+          "description": "Stakeholder cards",
+          "accepts": [
+            "StakeholderCard"
+          ]
+        }
+      }
+    },
+    "StakeholderCard": {
+      "description": "A stakeholder with their influence and interests.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Stakeholder name",
+          "required": true
+        },
+        "role": {
+          "type": "string",
+          "description": "Role or title"
+        },
+        "organization": {
+          "type": "string",
+          "description": "Organization"
+        },
+        "influence": {
+          "type": "string",
+          "description": "Influence level",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "required": true
+        },
+        "interest": {
+          "type": "string",
+          "description": "Interest level",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "required": true
+        },
+        "needs": {
+          "type": "array",
+          "description": "Key needs/concerns"
+        },
+        "strategy": {
+          "type": "string",
+          "description": "Engagement strategy"
+        },
+        "lastContact": {
+          "type": "string",
+          "description": "Last contact date"
+        }
+      }
+    },
+    "FeatureComparison": {
+      "description": "Feature comparison showing current vs proposed capabilities.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Comparison title"
+        },
+        "features": {
+          "type": "array",
+          "description": "Features to compare",
+          "required": true
+        },
+        "current": {
+          "type": "object",
+          "description": "Current state for each feature"
+        },
+        "proposed": {
+          "type": "object",
+          "description": "Proposed state for each feature"
+        },
+        "competitor": {
+          "type": "object",
+          "description": "Competitor state (optional)"
+        }
+      }
+    },
+    "CompetitorCard": {
+      "description": "Competitor profile card.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Competitor name",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief description"
+        },
+        "strengths": {
+          "type": "array",
+          "description": "Key strengths"
+        },
+        "weaknesses": {
+          "type": "array",
+          "description": "Key weaknesses"
+        },
+        "marketShare": {
+          "type": "number",
+          "description": "Market share %"
+        },
+        "threat": {
+          "type": "string",
+          "description": "Threat level",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      }
+    },
+    "ScopeStatement": {
+      "description": "Project scope statement with in-scope and out-of-scope items.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Project/feature name",
+          "required": true
+        },
+        "objective": {
+          "type": "string",
+          "description": "Project objective"
+        },
+        "inScope": {
+          "type": "array",
+          "description": "Items in scope",
+          "required": true
+        },
+        "outOfScope": {
+          "type": "array",
+          "description": "Items explicitly out of scope",
+          "required": true
+        },
+        "assumptions": {
+          "type": "array",
+          "description": "Key assumptions"
+        },
+        "constraints": {
+          "type": "array",
+          "description": "Constraints"
+        },
+        "risks": {
+          "type": "array",
+          "description": "Identified risks"
+        }
+      }
+    },
+    "ReleaseNotes": {
+      "description": "Release notes for a product release.",
+      "category": "layout",
+      "props": {
+        "version": {
+          "type": "string",
+          "description": "Release version",
+          "required": true
+        },
+        "releaseDate": {
+          "type": "string",
+          "description": "Release date"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Release summary"
+        }
+      },
+      "slots": {
+        "features": {
+          "role": "content",
+          "description": "New features",
+          "accepts": [
+            "ReleaseItem"
+          ]
+        },
+        "fixes": {
+          "role": "content",
+          "description": "Bug fixes",
+          "accepts": [
+            "ReleaseItem"
+          ]
+        },
+        "improvements": {
+          "role": "content",
+          "description": "Improvements",
+          "accepts": [
+            "ReleaseItem"
+          ]
+        }
+      }
+    },
+    "ReleaseItem": {
+      "description": "An item in release notes.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Item title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Item description"
+        },
+        "type": {
+          "type": "string",
+          "description": "Item type",
+          "enum": [
+            "feature",
+            "fix",
+            "improvement",
+            "breaking_change"
+          ]
+        },
+        "storyId": {
+          "type": "string",
+          "description": "Related story ID"
+        }
+      }
+    },
+    "ChangeHistoryEntry": {
+      "description": "Change history entry.",
+      "category": "content",
+      "props": {
+        "date": {
+          "type": "string",
+          "description": "Change date",
+          "required": true
+        },
+        "author": {
+          "type": "string",
+          "description": "Author"
+        },
+        "changeType": {
+          "type": "string",
+          "description": "Type of change",
+          "enum": [
+            "created",
+            "updated",
+            "status_change",
+            "priority_change"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Change description",
+          "required": true
+        },
+        "previousValue": {
+          "type": "string",
+          "description": "Previous value"
+        },
+        "newValue": {
+          "type": "string",
+          "description": "New value"
+        }
+      }
+    },
+    "ProductSettings": {
+      "description": "Product management settings.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "general": {
+          "role": "content",
+          "description": "General settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        },
+        "workflow": {
+          "role": "content",
+          "description": "Workflow settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        },
+        "notifications": {
+          "role": "content",
+          "description": "Notification settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "UXDashboard": {
+      "description": "Central UX dashboard with research, flows, and reviews.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title",
+          "default": "UX Research"
+        },
+        "projectName": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update date"
+        }
+      },
+      "slots": {
+        "overview": {
+          "role": "content",
+          "description": "Research overview",
+          "accepts": [
+            "ResearchSummary",
+            "PersonaCard"
+          ]
+        },
+        "flows": {
+          "role": "content",
+          "description": "User flows",
+          "accepts": [
+            "UserFlow",
+            "FlowCard"
+          ]
+        },
+        "sidebar": {
+          "role": "navigation",
+          "description": "Navigation",
+          "accepts": [
+            "UXNav",
+            "UXHealthScore"
+          ]
+        }
+      }
+    },
+    "UXNav": {
+      "description": "UX navigation with section links.",
+      "category": "control",
+      "props": {
+        "sections": {
+          "type": "array",
+          "description": "Navigation sections"
+        },
+        "activeSection": {
+          "type": "string",
+          "description": "Currently active section"
+        },
+        "showSearch": {
+          "type": "boolean",
+          "description": "Show search box",
+          "default": true
+        }
+      }
+    },
+    "UXHealthScore": {
+      "description": "Overall UX health score summary.",
+      "category": "display",
+      "props": {
+        "overallScore": {
+          "type": "number",
+          "description": "Overall UX score (0-100)"
+        },
+        "usabilityScore": {
+          "type": "number",
+          "description": "Usability score"
+        },
+        "accessibilityScore": {
+          "type": "number",
+          "description": "Accessibility score"
+        },
+        "criticalIssues": {
+          "type": "number",
+          "description": "Critical issues count"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Score trend",
+          "enum": [
+            "improving",
+            "stable",
+            "declining"
+          ]
+        }
+      }
+    },
+    "ResearchSummary": {
+      "description": "User research summary with key findings.",
+      "category": "display",
+      "props": {
+        "studiesCompleted": {
+          "type": "number",
+          "description": "Studies completed"
+        },
+        "participantsTotal": {
+          "type": "number",
+          "description": "Total participants"
+        },
+        "keyFindings": {
+          "type": "array",
+          "description": "Key research findings"
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "Priority recommendations"
+        }
+      }
+    },
+    "UserFlow": {
+      "description": "Visual user flow showing steps, decisions, and paths through an experience.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Flow title",
+          "required": true
+        },
+        "entryPoint": {
+          "type": "string",
+          "description": "Where user enters the flow"
+        },
+        "goal": {
+          "type": "string",
+          "description": "What user is trying to accomplish"
+        },
+        "complexity": {
+          "type": "string",
+          "description": "Flow complexity",
+          "enum": [
+            "simple",
+            "moderate",
+            "complex"
+          ]
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update date"
+        }
+      },
+      "slots": {
+        "steps": {
+          "role": "content",
+          "description": "Flow steps",
+          "accepts": [
+            "FlowStep"
+          ]
+        }
+      }
+    },
+    "FlowStep": {
+      "description": "A single step in a user flow with type and outcomes.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Step ID",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "description": "Step label",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Step type",
+          "enum": [
+            "action",
+            "decision",
+            "page",
+            "system",
+            "endpoint",
+            "wait",
+            "error"
+          ],
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Step description"
+        },
+        "outcomes": {
+          "type": "array",
+          "description": "Possible outcomes/next steps"
+        },
+        "issues": {
+          "type": "array",
+          "description": "UX issues identified at this step"
+        },
+        "dropoffRate": {
+          "type": "number",
+          "description": "User dropoff rate at this step"
+        }
+      }
+    },
+    "FlowCard": {
+      "description": "Compact user flow card for listing views.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Flow ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Flow title",
+          "required": true
+        },
+        "stepCount": {
+          "type": "number",
+          "description": "Number of steps"
+        },
+        "issueCount": {
+          "type": "number",
+          "description": "Issues identified"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update date"
+        }
+      }
+    },
+    "FlowList": {
+      "description": "List of user flows with filtering.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "User Flows"
+        },
+        "filterComplexity": {
+          "type": "string",
+          "description": "Filter by complexity"
+        }
+      },
+      "slots": {
+        "flows": {
+          "role": "content",
+          "description": "Flow cards",
+          "accepts": [
+            "FlowCard"
+          ]
+        }
+      }
+    },
+    "FlowEditor": {
+      "description": "Interactive flow editor for creating/modifying flows.",
+      "category": "layout",
+      "props": {
+        "flowId": {
+          "type": "string",
+          "description": "Flow being edited"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Editor mode",
+          "enum": [
+            "view",
+            "edit",
+            "annotate"
+          ]
+        }
+      },
+      "slots": {
+        "canvas": {
+          "role": "content",
+          "description": "Flow canvas",
+          "accepts": [
+            "FlowStep"
+          ]
+        },
+        "toolbar": {
+          "role": "control",
+          "description": "Editor toolbar",
+          "accepts": [
+            "FlowToolbar"
+          ]
+        },
+        "properties": {
+          "role": "content",
+          "description": "Properties panel",
+          "accepts": [
+            "StepProperties"
+          ]
+        }
+      }
+    },
+    "FlowToolbar": {
+      "description": "Toolbar for flow editor.",
+      "category": "control",
+      "props": {
+        "showAddStep": {
+          "type": "boolean",
+          "description": "Show add step",
+          "default": true
+        },
+        "showAnnotate": {
+          "type": "boolean",
+          "description": "Show annotate",
+          "default": true
+        },
+        "showExport": {
+          "type": "boolean",
+          "description": "Show export",
+          "default": true
+        },
+        "showShare": {
+          "type": "boolean",
+          "description": "Show share",
+          "default": true
+        }
+      }
+    },
+    "StepProperties": {
+      "description": "Properties panel for a flow step.",
+      "category": "display",
+      "props": {
+        "stepId": {
+          "type": "string",
+          "description": "Selected step ID"
+        },
+        "editable": {
+          "type": "boolean",
+          "description": "Is editable",
+          "default": false
+        }
+      }
+    },
+    "PersonaCard": {
+      "description": "User persona with demographics, goals, and pain points.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Persona name",
+          "required": true
+        },
+        "role": {
+          "type": "string",
+          "description": "Role or job title"
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Avatar image URL"
+        },
+        "demographics": {
+          "type": "string",
+          "description": "Key demographics"
+        },
+        "goals": {
+          "type": "array",
+          "description": "User goals"
+        },
+        "painPoints": {
+          "type": "array",
+          "description": "Frustrations and pain points"
+        },
+        "behaviors": {
+          "type": "array",
+          "description": "Key behaviors"
+        },
+        "quote": {
+          "type": "string",
+          "description": "Representative quote"
+        },
+        "techSavvy": {
+          "type": "string",
+          "description": "Tech proficiency",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      }
+    },
+    "PersonaList": {
+      "description": "List of user personas.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Personas"
+        }
+      },
+      "slots": {
+        "personas": {
+          "role": "content",
+          "description": "Persona cards",
+          "accepts": [
+            "PersonaCard"
+          ]
+        }
+      }
+    },
+    "PersonaDetails": {
+      "description": "Detailed persona view with full profile.",
+      "category": "layout",
+      "props": {
+        "personaId": {
+          "type": "string",
+          "description": "Persona ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "profile": {
+          "role": "content",
+          "description": "Persona profile",
+          "accepts": [
+            "PersonaCard"
+          ]
+        },
+        "journeys": {
+          "role": "content",
+          "description": "Related journeys",
+          "accepts": [
+            "JourneyMap"
+          ]
+        },
+        "scenarios": {
+          "role": "content",
+          "description": "Use scenarios",
+          "accepts": [
+            "ScenarioCard"
+          ]
+        }
+      }
+    },
+    "ScenarioCard": {
+      "description": "A use scenario for a persona.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Scenario title",
+          "required": true
+        },
+        "persona": {
+          "type": "string",
+          "description": "Associated persona"
+        },
+        "context": {
+          "type": "string",
+          "description": "Scenario context"
+        },
+        "goal": {
+          "type": "string",
+          "description": "User goal"
+        },
+        "steps": {
+          "type": "array",
+          "description": "Scenario steps"
+        },
+        "outcome": {
+          "type": "string",
+          "description": "Expected outcome"
+        }
+      }
+    },
+    "JourneyMap": {
+      "description": "User journey map showing stages, actions, thoughts, and emotions.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Journey title",
+          "required": true
+        },
+        "persona": {
+          "type": "string",
+          "description": "Associated persona"
+        },
+        "scenario": {
+          "type": "string",
+          "description": "Journey scenario"
+        },
+        "timeframe": {
+          "type": "string",
+          "description": "Journey timeframe"
+        }
+      },
+      "slots": {
+        "stages": {
+          "role": "content",
+          "description": "Journey stages",
+          "accepts": [
+            "JourneyStage"
+          ]
+        }
+      }
+    },
+    "JourneyStage": {
+      "description": "A stage in the user journey with touchpoints and emotions.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Stage name",
+          "required": true
+        },
+        "actions": {
+          "type": "array",
+          "description": "User actions"
+        },
+        "thoughts": {
+          "type": "array",
+          "description": "User thoughts"
+        },
+        "emotions": {
+          "type": "string",
+          "description": "Emotional state",
+          "enum": [
+            "delighted",
+            "positive",
+            "neutral",
+            "negative",
+            "frustrated"
+          ]
+        },
+        "emotionScore": {
+          "type": "number",
+          "description": "Emotion score (-5 to 5)"
+        },
+        "touchpoints": {
+          "type": "array",
+          "description": "Interaction touchpoints"
+        },
+        "opportunities": {
+          "type": "array",
+          "description": "Improvement opportunities"
+        },
+        "painPoints": {
+          "type": "array",
+          "description": "Pain points identified"
+        }
+      }
+    },
+    "JourneyList": {
+      "description": "List of user journey maps.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Journey Maps"
+        }
+      },
+      "slots": {
+        "journeys": {
+          "role": "content",
+          "description": "Journey cards",
+          "accepts": [
+            "JourneyCard"
+          ]
+        }
+      }
+    },
+    "JourneyCard": {
+      "description": "Compact journey map card for listing.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Journey ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Journey title",
+          "required": true
+        },
+        "persona": {
+          "type": "string",
+          "description": "Associated persona"
+        },
+        "stageCount": {
+          "type": "number",
+          "description": "Number of stages"
+        },
+        "painPointCount": {
+          "type": "number",
+          "description": "Pain points identified"
+        }
+      }
+    },
+    "EmotionCurve": {
+      "description": "Emotion curve visualization across journey stages.",
+      "category": "display",
+      "props": {
+        "journeyId": {
+          "type": "string",
+          "description": "Journey ID"
+        },
+        "data": {
+          "type": "array",
+          "description": "Emotion data points"
+        },
+        "showAnnotations": {
+          "type": "boolean",
+          "description": "Show pain point annotations",
+          "default": true
+        }
+      }
+    },
+    "UsabilityFinding": {
+      "description": "A usability finding from testing or review.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Finding ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Finding title",
+          "required": true
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity level",
+          "enum": [
+            "critical",
+            "major",
+            "minor",
+            "cosmetic"
+          ],
+          "required": true
+        },
+        "heuristic": {
+          "type": "string",
+          "description": "Violated heuristic",
+          "enum": [
+            "visibility",
+            "match",
+            "control",
+            "consistency",
+            "error_prevention",
+            "recognition",
+            "flexibility",
+            "aesthetics",
+            "recovery",
+            "help"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Finding description"
+        },
+        "location": {
+          "type": "string",
+          "description": "Where in the UI"
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "Suggested fix"
+        },
+        "screenshot": {
+          "type": "string",
+          "description": "Path to screenshot"
+        },
+        "frequency": {
+          "type": "number",
+          "description": "How often observed"
+        },
+        "status": {
+          "type": "string",
+          "description": "Remediation status",
+          "enum": [
+            "open",
+            "in_progress",
+            "resolved",
+            "wont_fix"
+          ]
+        }
+      }
+    },
+    "FindingsList": {
+      "description": "List of usability findings.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Findings"
+        },
+        "filterSeverity": {
+          "type": "string",
+          "description": "Filter by severity"
+        },
+        "filterStatus": {
+          "type": "string",
+          "description": "Filter by status"
+        }
+      },
+      "slots": {
+        "findings": {
+          "role": "content",
+          "description": "Usability findings",
+          "accepts": [
+            "UsabilityFinding"
+          ]
+        }
+      }
+    },
+    "FindingsToolbar": {
+      "description": "Toolbar for findings management.",
+      "category": "control",
+      "props": {
+        "showFilters": {
+          "type": "boolean",
+          "description": "Show filter controls",
+          "default": true
+        },
+        "showExport": {
+          "type": "boolean",
+          "description": "Show export button",
+          "default": true
+        },
+        "showAdd": {
+          "type": "boolean",
+          "description": "Show add button",
+          "default": true
+        }
+      }
+    },
+    "DesignReview": {
+      "description": "Design review summary with overall assessment and findings.",
+      "category": "display",
+      "props": {
+        "reviewType": {
+          "type": "string",
+          "description": "Type of review",
+          "enum": [
+            "heuristic",
+            "cognitive_walkthrough",
+            "usability_test",
+            "a11y_audit",
+            "expert_review"
+          ],
+          "required": true
+        },
+        "overallScore": {
+          "type": "number",
+          "description": "Overall score (0-100)"
+        },
+        "criticalCount": {
+          "type": "number",
+          "description": "Critical issues found"
+        },
+        "majorCount": {
+          "type": "number",
+          "description": "Major issues found"
+        },
+        "minorCount": {
+          "type": "number",
+          "description": "Minor issues found"
+        },
+        "strengths": {
+          "type": "array",
+          "description": "Design strengths identified"
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "Priority recommendations"
+        },
+        "reviewDate": {
+          "type": "string",
+          "description": "Review date"
+        },
+        "reviewer": {
+          "type": "string",
+          "description": "Reviewer name"
+        }
+      },
+      "slots": {
+        "findings": {
+          "role": "content",
+          "description": "Review findings",
+          "accepts": [
+            "UsabilityFinding"
+          ]
+        }
+      }
+    },
+    "ReviewList": {
+      "description": "List of design reviews.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Design Reviews"
+        }
+      },
+      "slots": {
+        "reviews": {
+          "role": "content",
+          "description": "Review cards",
+          "accepts": [
+            "ReviewCard"
+          ]
+        }
+      }
+    },
+    "ReviewCard": {
+      "description": "Compact design review card for listing.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Review ID",
+          "required": true
+        },
+        "reviewType": {
+          "type": "string",
+          "description": "Type of review",
+          "enum": [
+            "heuristic",
+            "cognitive_walkthrough",
+            "usability_test",
+            "a11y_audit"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "description": "Overall score"
+        },
+        "issueCount": {
+          "type": "number",
+          "description": "Issues found"
+        },
+        "reviewDate": {
+          "type": "string",
+          "description": "Review date"
+        }
+      }
+    },
+    "HeuristicChart": {
+      "description": "Chart showing scores by heuristic.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "scores": {
+          "type": "object",
+          "description": "Score per heuristic"
+        },
+        "showComparison": {
+          "type": "boolean",
+          "description": "Show comparison to benchmark",
+          "default": false
+        }
+      }
+    },
+    "A11yReport": {
+      "description": "Accessibility audit report with WCAG compliance status.",
+      "category": "display",
+      "props": {
+        "wcagLevel": {
+          "type": "string",
+          "description": "WCAG level tested",
+          "enum": [
+            "A",
+            "AA",
+            "AAA"
+          ],
+          "required": true
+        },
+        "compliance": {
+          "type": "string",
+          "description": "Compliance status",
+          "enum": [
+            "compliant",
+            "partial",
+            "non_compliant"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "description": "Accessibility score (0-100)"
+        },
+        "categories": {
+          "type": "object",
+          "description": "Scores by WCAG category (perceivable, operable, understandable, robust)"
+        },
+        "automatedIssues": {
+          "type": "number",
+          "description": "Issues found by automation"
+        },
+        "manualIssues": {
+          "type": "number",
+          "description": "Issues found manually"
+        },
+        "auditDate": {
+          "type": "string",
+          "description": "Audit date"
+        }
+      },
+      "slots": {
+        "issues": {
+          "role": "content",
+          "description": "Accessibility issues",
+          "accepts": [
+            "A11yIssue"
+          ]
+        }
+      }
+    },
+    "A11yIssue": {
+      "description": "A single accessibility issue with WCAG criterion.",
+      "category": "content",
+      "props": {
+        "criterion": {
+          "type": "string",
+          "description": "WCAG criterion (e.g., '1.4.3')",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Issue title",
+          "required": true
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact level",
+          "enum": [
+            "critical",
+            "serious",
+            "moderate",
+            "minor"
+          ],
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Issue description"
+        },
+        "element": {
+          "type": "string",
+          "description": "Affected element/selector"
+        },
+        "fix": {
+          "type": "string",
+          "description": "How to fix"
+        },
+        "helpUrl": {
+          "type": "string",
+          "description": "Link to more info"
+        },
+        "status": {
+          "type": "string",
+          "description": "Remediation status",
+          "enum": [
+            "open",
+            "in_progress",
+            "resolved",
+            "wont_fix"
+          ]
+        }
+      }
+    },
+    "A11yDashboard": {
+      "description": "Accessibility dashboard with scores and trends.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title",
+          "default": "Accessibility"
+        }
+      },
+      "slots": {
+        "summary": {
+          "role": "content",
+          "description": "Accessibility summary",
+          "accepts": [
+            "A11ySummary"
+          ]
+        },
+        "issues": {
+          "role": "content",
+          "description": "Issue list",
+          "accepts": [
+            "A11yIssue"
+          ]
+        },
+        "trends": {
+          "role": "content",
+          "description": "Trend charts",
+          "accepts": [
+            "A11yTrendChart"
+          ]
+        }
+      }
+    },
+    "A11ySummary": {
+      "description": "Accessibility summary with key metrics.",
+      "category": "display",
+      "props": {
+        "overallScore": {
+          "type": "number",
+          "description": "Overall a11y score"
+        },
+        "wcagLevel": {
+          "type": "string",
+          "description": "Target WCAG level",
+          "enum": [
+            "A",
+            "AA",
+            "AAA"
+          ]
+        },
+        "compliantCriteria": {
+          "type": "number",
+          "description": "Compliant criteria count"
+        },
+        "totalCriteria": {
+          "type": "number",
+          "description": "Total criteria checked"
+        },
+        "openIssues": {
+          "type": "number",
+          "description": "Open issues count"
+        }
+      }
+    },
+    "A11yTrendChart": {
+      "description": "Accessibility score trend over time.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "data": {
+          "type": "array",
+          "description": "Trend data points"
+        },
+        "showTarget": {
+          "type": "boolean",
+          "description": "Show target line",
+          "default": true
+        }
+      }
+    },
+    "A11yChecklist": {
+      "description": "WCAG compliance checklist.",
+      "category": "layout",
+      "props": {
+        "wcagLevel": {
+          "type": "string",
+          "description": "WCAG level",
+          "enum": [
+            "A",
+            "AA",
+            "AAA"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "description": "WCAG category",
+          "enum": [
+            "perceivable",
+            "operable",
+            "understandable",
+            "robust"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Checklist items",
+          "accepts": [
+            "A11yCheckItem"
+          ]
+        }
+      }
+    },
+    "A11yCheckItem": {
+      "description": "A single WCAG checklist item.",
+      "category": "content",
+      "props": {
+        "criterion": {
+          "type": "string",
+          "description": "WCAG criterion",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Criterion title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Compliance status",
+          "enum": [
+            "pass",
+            "fail",
+            "partial",
+            "not_applicable",
+            "not_tested"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "description": "Notes"
+        }
+      }
+    },
+    "ComponentPattern": {
+      "description": "A UI component pattern with usage guidelines.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Pattern name",
+          "required": true
+        },
+        "category": {
+          "type": "string",
+          "description": "Pattern category",
+          "enum": [
+            "navigation",
+            "input",
+            "display",
+            "feedback",
+            "layout",
+            "action"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Pattern description"
+        },
+        "whenToUse": {
+          "type": "string",
+          "description": "When to use this pattern"
+        },
+        "whenNotToUse": {
+          "type": "string",
+          "description": "When not to use"
+        },
+        "examples": {
+          "type": "array",
+          "description": "Example implementations"
+        },
+        "a11yConsiderations": {
+          "type": "array",
+          "description": "Accessibility considerations"
+        }
+      }
+    },
+    "PatternLibrary": {
+      "description": "UI pattern library with categories.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Library title",
+          "default": "Pattern Library"
+        },
+        "filterCategory": {
+          "type": "string",
+          "description": "Filter by category"
+        }
+      },
+      "slots": {
+        "patterns": {
+          "role": "content",
+          "description": "Component patterns",
+          "accepts": [
+            "ComponentPattern"
+          ]
+        }
+      }
+    },
+    "PatternDetails": {
+      "description": "Detailed pattern view with examples.",
+      "category": "layout",
+      "props": {
+        "patternId": {
+          "type": "string",
+          "description": "Pattern ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "overview": {
+          "role": "content",
+          "description": "Pattern overview",
+          "accepts": [
+            "ComponentPattern"
+          ]
+        },
+        "examples": {
+          "role": "content",
+          "description": "Pattern examples",
+          "accepts": [
+            "PatternExample"
+          ]
+        },
+        "guidelines": {
+          "role": "content",
+          "description": "Usage guidelines",
+          "accepts": [
+            "UsageGuideline"
+          ]
+        }
+      }
+    },
+    "PatternExample": {
+      "description": "An example implementation of a pattern.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Example title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Example description"
+        },
+        "image": {
+          "type": "string",
+          "description": "Example image URL"
+        },
+        "code": {
+          "type": "string",
+          "description": "Code snippet"
+        },
+        "doThis": {
+          "type": "boolean",
+          "description": "Is this a do or dont example",
+          "default": true
+        }
+      }
+    },
+    "UsageGuideline": {
+      "description": "Usage guideline for a pattern.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Guideline title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Guideline description"
+        },
+        "type": {
+          "type": "string",
+          "description": "Guideline type",
+          "enum": [
+            "do",
+            "dont",
+            "consider"
+          ]
+        }
+      }
+    },
+    "UsabilityTest": {
+      "description": "Usability test session with tasks and results.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Test title",
+          "required": true
+        },
+        "methodology": {
+          "type": "string",
+          "description": "Test methodology",
+          "enum": [
+            "moderated",
+            "unmoderated",
+            "remote",
+            "in_person"
+          ]
+        },
+        "participantCount": {
+          "type": "number",
+          "description": "Number of participants"
+        },
+        "completionRate": {
+          "type": "number",
+          "description": "Task completion rate"
+        },
+        "testDate": {
+          "type": "string",
+          "description": "Test date"
+        }
+      },
+      "slots": {
+        "tasks": {
+          "role": "content",
+          "description": "Test tasks",
+          "accepts": [
+            "TestTask"
+          ]
+        },
+        "findings": {
+          "role": "content",
+          "description": "Test findings",
+          "accepts": [
+            "UsabilityFinding"
+          ]
+        }
+      }
+    },
+    "TestTask": {
+      "description": "A task in a usability test.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Task ID",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Task description",
+          "required": true
+        },
+        "successCriteria": {
+          "type": "string",
+          "description": "Success criteria"
+        },
+        "completionRate": {
+          "type": "number",
+          "description": "Completion rate"
+        },
+        "avgTime": {
+          "type": "number",
+          "description": "Average time (seconds)"
+        },
+        "errorRate": {
+          "type": "number",
+          "description": "Error rate"
+        }
+      }
+    },
+    "TestList": {
+      "description": "List of usability tests.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Usability Tests"
+        }
+      },
+      "slots": {
+        "tests": {
+          "role": "content",
+          "description": "Test cards",
+          "accepts": [
+            "TestCard"
+          ]
+        }
+      }
+    },
+    "TestCard": {
+      "description": "Compact usability test card.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Test ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Test title",
+          "required": true
+        },
+        "methodology": {
+          "type": "string",
+          "description": "Test methodology"
+        },
+        "participantCount": {
+          "type": "number",
+          "description": "Participants"
+        },
+        "completionRate": {
+          "type": "number",
+          "description": "Completion rate"
+        },
+        "testDate": {
+          "type": "string",
+          "description": "Test date"
+        }
+      }
+    },
+    "ParticipantFeedback": {
+      "description": "Participant feedback from a test.",
+      "category": "content",
+      "props": {
+        "participantId": {
+          "type": "string",
+          "description": "Participant ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID"
+        },
+        "quote": {
+          "type": "string",
+          "description": "Participant quote"
+        },
+        "sentiment": {
+          "type": "string",
+          "description": "Sentiment",
+          "enum": [
+            "positive",
+            "neutral",
+            "negative"
+          ]
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Feedback timestamp"
+        }
+      }
+    },
+    "UXSettings": {
+      "description": "UX research settings and preferences.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "general": {
+          "role": "content",
+          "description": "General settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        },
+        "accessibility": {
+          "role": "content",
+          "description": "Accessibility settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        },
+        "export": {
+          "role": "content",
+          "description": "Export settings",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "ProductSettingGroup": {
+      "description": "A group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in this group"
+        }
+      }
+    },
+    "UxSettingGroup": {
+      "description": "A group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in this group"
+        }
+      }
+    },
+    "VoiceDashboard": {
+      "description": "Central dashboard for customer voice insights and metrics.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title",
+          "default": "Customer Voice"
+        },
+        "dateRange": {
+          "type": "string",
+          "description": "Date range filter",
+          "enum": [
+            "7d",
+            "30d",
+            "90d",
+            "ytd",
+            "custom"
+          ]
+        },
+        "segment": {
+          "type": "string",
+          "description": "Customer segment filter"
+        }
+      },
+      "slots": {
+        "summary": {
+          "role": "header",
+          "description": "Summary metrics",
+          "accepts": [
+            "FeedbackSummary",
+            "NPSScore",
+            "CSATScore"
+          ]
+        },
+        "charts": {
+          "role": "content",
+          "description": "Trend charts",
+          "accepts": [
+            "SentimentChart",
+            "NPSTrendChart",
+            "FeedbackVolumeChart"
+          ]
+        },
+        "insights": {
+          "role": "content",
+          "description": "AI insights",
+          "accepts": [
+            "VoiceInsight",
+            "ThemeCard"
+          ]
+        },
+        "actions": {
+          "role": "footer",
+          "description": "Action items",
+          "accepts": [
+            "ActionableItem",
+            "AlertCard"
+          ]
+        }
+      }
+    },
+    "FeedbackSummary": {
+      "description": "Summary of customer feedback with sentiment breakdown.",
+      "category": "display",
+      "props": {
+        "totalFeedback": {
+          "type": "number",
+          "description": "Total feedback items",
+          "required": true
+        },
+        "positivePct": {
+          "type": "number",
+          "description": "Positive sentiment %"
+        },
+        "neutralPct": {
+          "type": "number",
+          "description": "Neutral sentiment %"
+        },
+        "negativePct": {
+          "type": "number",
+          "description": "Negative sentiment %"
+        },
+        "trendDirection": {
+          "type": "string",
+          "description": "Sentiment trend",
+          "enum": [
+            "improving",
+            "stable",
+            "declining"
+          ]
+        },
+        "period": {
+          "type": "string",
+          "description": "Analysis period"
+        },
+        "responseRate": {
+          "type": "number",
+          "description": "Response rate %"
+        }
+      }
+    },
+    "FeedbackList": {
+      "description": "Filterable list of customer feedback items.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Feedback"
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "date",
+            "sentiment",
+            "source",
+            "priority"
+          ]
+        },
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "none",
+            "source",
+            "sentiment",
+            "theme"
+          ]
+        }
+      },
+      "slots": {
+        "filters": {
+          "role": "header",
+          "description": "Filter controls",
+          "accepts": [
+            "FeedbackFilter"
+          ]
+        },
+        "items": {
+          "role": "content",
+          "description": "Feedback items",
+          "accepts": [
+            "FeedbackItem",
+            "FeedbackCard"
+          ]
+        }
+      }
+    },
+    "FeedbackItem": {
+      "description": "A single piece of customer feedback.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Feedback ID",
+          "required": true
+        },
+        "source": {
+          "type": "string",
+          "description": "Feedback source",
+          "enum": [
+            "survey",
+            "support",
+            "review",
+            "social",
+            "interview",
+            "app_store",
+            "email"
+          ],
+          "required": true
+        },
+        "sentiment": {
+          "type": "string",
+          "description": "Sentiment",
+          "enum": [
+            "positive",
+            "neutral",
+            "negative"
+          ],
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "description": "Feedback text",
+          "required": true
+        },
+        "customer": {
+          "type": "string",
+          "description": "Customer identifier"
+        },
+        "date": {
+          "type": "string",
+          "description": "Feedback date"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Topic tags"
+        },
+        "actionable": {
+          "type": "boolean",
+          "description": "Marked as actionable",
+          "default": false
+        },
+        "responded": {
+          "type": "boolean",
+          "description": "Response sent",
+          "default": false
+        }
+      }
+    },
+    "FeedbackCard": {
+      "description": "Rich feedback card with context and actions.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Feedback ID",
+          "required": true
+        },
+        "source": {
+          "type": "string",
+          "description": "Feedback source",
+          "required": true
+        },
+        "sentiment": {
+          "type": "string",
+          "description": "Sentiment",
+          "enum": [
+            "positive",
+            "neutral",
+            "negative"
+          ],
+          "required": true
+        },
+        "sentimentScore": {
+          "type": "number",
+          "description": "Sentiment score (-1 to 1)"
+        },
+        "content": {
+          "type": "string",
+          "description": "Feedback text",
+          "required": true
+        },
+        "customer": {
+          "type": "object",
+          "description": "Customer details (name, segment, tenure)"
+        },
+        "date": {
+          "type": "string",
+          "description": "Feedback date"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Topic tags"
+        },
+        "relatedTickets": {
+          "type": "array",
+          "description": "Related support tickets"
+        },
+        "followUpStatus": {
+          "type": "string",
+          "description": "Follow-up status",
+          "enum": [
+            "none",
+            "pending",
+            "in_progress",
+            "completed"
+          ]
+        }
+      },
+      "slots": {
+        "actions": {
+          "role": "footer",
+          "description": "Action buttons",
+          "accepts": [
+            "ResponseAction"
+          ]
+        }
+      }
+    },
+    "FeedbackFilter": {
+      "description": "Filter controls for feedback lists.",
+      "category": "control",
+      "props": {
+        "sources": {
+          "type": "array",
+          "description": "Source filters"
+        },
+        "sentiments": {
+          "type": "array",
+          "description": "Sentiment filters"
+        },
+        "dateRange": {
+          "type": "object",
+          "description": "Date range"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tag filters"
+        },
+        "segments": {
+          "type": "array",
+          "description": "Customer segment filters"
+        },
+        "actionableOnly": {
+          "type": "boolean",
+          "description": "Show only actionable",
+          "default": false
+        }
+      }
+    },
+    "ThemeCard": {
+      "description": "An aggregated feedback theme with frequency.",
+      "category": "content",
+      "props": {
+        "theme": {
+          "type": "string",
+          "description": "Theme name",
+          "required": true
+        },
+        "count": {
+          "type": "number",
+          "description": "Mention count",
+          "required": true
+        },
+        "sentiment": {
+          "type": "string",
+          "description": "Dominant sentiment",
+          "enum": [
+            "positive",
+            "neutral",
+            "negative"
+          ]
+        },
+        "trend": {
+          "type": "string",
+          "description": "Trend direction",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        },
+        "changePercent": {
+          "type": "number",
+          "description": "Change % from prior period"
+        },
+        "examples": {
+          "type": "array",
+          "description": "Example feedback"
+        },
+        "relatedFeatures": {
+          "type": "array",
+          "description": "Related features/areas"
+        },
+        "suggestedActions": {
+          "type": "array",
+          "description": "Suggested actions"
+        }
+      }
+    },
+    "ThemeExplorer": {
+      "description": "Interactive theme exploration with drill-down.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Explorer title",
+          "default": "Themes"
+        },
+        "visualMode": {
+          "type": "string",
+          "description": "Visualization mode",
+          "enum": [
+            "treemap",
+            "bubble",
+            "list"
+          ],
+          "default": "treemap"
+        },
+        "minMentions": {
+          "type": "number",
+          "description": "Minimum mentions to show",
+          "default": 5
+        }
+      },
+      "slots": {
+        "themes": {
+          "role": "content",
+          "description": "Theme cards",
+          "accepts": [
+            "ThemeCard",
+            "SubTheme"
+          ]
+        }
+      }
+    },
+    "SubTheme": {
+      "description": "A sub-theme within a parent theme.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Sub-theme name",
+          "required": true
+        },
+        "parentTheme": {
+          "type": "string",
+          "description": "Parent theme"
+        },
+        "count": {
+          "type": "number",
+          "description": "Mention count",
+          "required": true
+        },
+        "sentiment": {
+          "type": "string",
+          "description": "Sentiment",
+          "enum": [
+            "positive",
+            "neutral",
+            "negative"
+          ]
+        },
+        "keywords": {
+          "type": "array",
+          "description": "Associated keywords"
+        }
+      }
+    },
+    "SupportTicketCard": {
+      "description": "A support ticket with resolution status.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Ticket ID",
+          "required": true
+        },
+        "subject": {
+          "type": "string",
+          "description": "Ticket subject",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Ticket status",
+          "enum": [
+            "open",
+            "in_progress",
+            "waiting",
+            "resolved",
+            "closed"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "urgent",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "description": "Issue category"
+        },
+        "customer": {
+          "type": "string",
+          "description": "Customer name"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Created timestamp"
+        },
+        "responseTime": {
+          "type": "string",
+          "description": "First response time"
+        },
+        "resolutionTime": {
+          "type": "string",
+          "description": "Resolution time"
+        },
+        "satisfaction": {
+          "type": "number",
+          "description": "CSAT score if collected"
+        }
+      }
+    },
+    "TicketQueue": {
+      "description": "Support ticket queue with prioritization.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Queue title",
+          "default": "Support Queue"
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "priority",
+            "age",
+            "customer_value"
+          ]
+        },
+        "showMetrics": {
+          "type": "boolean",
+          "description": "Show queue metrics",
+          "default": true
+        }
+      },
+      "slots": {
+        "tickets": {
+          "role": "content",
+          "description": "Ticket cards",
+          "accepts": [
+            "SupportTicketCard"
+          ]
+        }
+      }
+    },
+    "SentimentChart": {
+      "description": "Sentiment trend over time.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "data": {
+          "type": "array",
+          "description": "Sentiment data over time",
+          "required": true
+        },
+        "showBreakdown": {
+          "type": "boolean",
+          "description": "Show pos/neg/neutral breakdown",
+          "default": true
+        },
+        "granularity": {
+          "type": "string",
+          "description": "Time granularity",
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ]
+        },
+        "showAnnotations": {
+          "type": "boolean",
+          "description": "Show event annotations",
+          "default": false
+        }
+      }
+    },
+    "SentimentHeatmap": {
+      "description": "Sentiment heatmap by dimension (time, source, segment).",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Heatmap title"
+        },
+        "xAxis": {
+          "type": "string",
+          "description": "X-axis dimension",
+          "enum": [
+            "time",
+            "source",
+            "segment",
+            "product"
+          ]
+        },
+        "yAxis": {
+          "type": "string",
+          "description": "Y-axis dimension",
+          "enum": [
+            "time",
+            "source",
+            "segment",
+            "product"
+          ]
+        },
+        "data": {
+          "type": "array",
+          "description": "Heatmap data",
+          "required": true
+        }
+      }
+    },
+    "NPSScore": {
+      "description": "Net Promoter Score display with breakdown.",
+      "category": "display",
+      "props": {
+        "score": {
+          "type": "number",
+          "description": "NPS score (-100 to 100)",
+          "required": true
+        },
+        "promoters": {
+          "type": "number",
+          "description": "Promoters %"
+        },
+        "passives": {
+          "type": "number",
+          "description": "Passives %"
+        },
+        "detractors": {
+          "type": "number",
+          "description": "Detractors %"
+        },
+        "responses": {
+          "type": "number",
+          "description": "Total responses"
+        },
+        "previousScore": {
+          "type": "number",
+          "description": "Previous period score"
+        },
+        "benchmark": {
+          "type": "number",
+          "description": "Industry benchmark"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Trend direction",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        }
+      }
+    },
+    "NPSTrendChart": {
+      "description": "NPS trend over time with driver analysis.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title",
+          "default": "NPS Trend"
+        },
+        "data": {
+          "type": "array",
+          "description": "NPS data over time",
+          "required": true
+        },
+        "showDrivers": {
+          "type": "boolean",
+          "description": "Show NPS drivers",
+          "default": true
+        },
+        "showBenchmark": {
+          "type": "boolean",
+          "description": "Show industry benchmark",
+          "default": false
+        }
+      }
+    },
+    "NPSDrivers": {
+      "description": "Analysis of NPS drivers and detractors.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Title",
+          "default": "NPS Drivers"
+        },
+        "promoterReasons": {
+          "type": "array",
+          "description": "Top reasons promoters give"
+        },
+        "detractorReasons": {
+          "type": "array",
+          "description": "Top reasons detractors give"
+        },
+        "improvementOpportunities": {
+          "type": "array",
+          "description": "Key opportunities"
+        }
+      }
+    },
+    "CSATScore": {
+      "description": "Customer Satisfaction Score display.",
+      "category": "display",
+      "props": {
+        "score": {
+          "type": "number",
+          "description": "CSAT score (0-100)",
+          "required": true
+        },
+        "responses": {
+          "type": "number",
+          "description": "Total responses"
+        },
+        "previousScore": {
+          "type": "number",
+          "description": "Previous period score"
+        },
+        "target": {
+          "type": "number",
+          "description": "Target score"
+        },
+        "byChannel": {
+          "type": "object",
+          "description": "CSAT by channel"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Trend",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        }
+      }
+    },
+    "CESScore": {
+      "description": "Customer Effort Score display.",
+      "category": "display",
+      "props": {
+        "score": {
+          "type": "number",
+          "description": "CES score (1-7)",
+          "required": true
+        },
+        "responses": {
+          "type": "number",
+          "description": "Total responses"
+        },
+        "lowEffortPct": {
+          "type": "number",
+          "description": "Low effort %"
+        },
+        "highEffortPct": {
+          "type": "number",
+          "description": "High effort %"
+        },
+        "touchpoint": {
+          "type": "string",
+          "description": "Measured touchpoint"
+        }
+      }
+    },
+    "FeatureRequest": {
+      "description": "An aggregated feature request from customers.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Request title",
+          "required": true
+        },
+        "votes": {
+          "type": "number",
+          "description": "Customer votes/mentions",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Request status",
+          "enum": [
+            "submitted",
+            "under_review",
+            "planned",
+            "in_progress",
+            "shipped",
+            "declined"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Request description"
+        },
+        "customerSegments": {
+          "type": "array",
+          "description": "Requesting segments"
+        },
+        "impactEstimate": {
+          "type": "string",
+          "description": "Estimated impact",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "revenueAtRisk": {
+          "type": "number",
+          "description": "Revenue at risk from requesters"
+        },
+        "relatedFeedback": {
+          "type": "array",
+          "description": "Related feedback IDs"
+        }
+      }
+    },
+    "FeatureRequestBoard": {
+      "description": "Kanban-style feature request board.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Board title",
+          "default": "Feature Requests"
+        },
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "status",
+            "impact",
+            "segment"
+          ]
+        }
+      },
+      "slots": {
+        "columns": {
+          "role": "content",
+          "description": "Board columns",
+          "accepts": [
+            "FeatureRequestColumn"
+          ]
+        }
+      }
+    },
+    "FeatureRequestColumn": {
+      "description": "A column in the feature request board.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Column title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Status for this column"
+        },
+        "count": {
+          "type": "number",
+          "description": "Request count"
+        }
+      },
+      "slots": {
+        "requests": {
+          "role": "content",
+          "description": "Feature requests",
+          "accepts": [
+            "FeatureRequest"
+          ]
+        }
+      }
+    },
+    "VoiceInsight": {
+      "description": "An AI-generated insight from customer feedback.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Insight title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Insight type",
+          "enum": [
+            "trend",
+            "anomaly",
+            "opportunity",
+            "risk",
+            "correlation"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Insight description",
+          "required": true
+        },
+        "confidence": {
+          "type": "string",
+          "description": "Confidence level",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "description": "Supporting feedback"
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "Recommended action"
+        },
+        "impact": {
+          "type": "string",
+          "description": "Potential impact",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "timeframe": {
+          "type": "string",
+          "description": "When trend was detected"
+        }
+      }
+    },
+    "InsightPanel": {
+      "description": "Panel of AI-generated insights.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Insights"
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort by",
+          "enum": [
+            "confidence",
+            "impact",
+            "recency"
+          ]
+        }
+      },
+      "slots": {
+        "insights": {
+          "role": "content",
+          "description": "Insight cards",
+          "accepts": [
+            "VoiceInsight"
+          ]
+        }
+      }
+    },
+    "SurveyBuilder": {
+      "description": "Survey creation and configuration.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Survey title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Survey type",
+          "enum": [
+            "nps",
+            "csat",
+            "ces",
+            "custom"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Survey status",
+          "enum": [
+            "draft",
+            "active",
+            "paused",
+            "completed"
+          ]
+        }
+      },
+      "slots": {
+        "questions": {
+          "role": "content",
+          "description": "Survey questions",
+          "accepts": [
+            "SurveyQuestion"
+          ]
+        }
+      }
+    },
+    "SurveyQuestion": {
+      "description": "A survey question with type and options.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Question ID",
+          "required": true
+        },
+        "text": {
+          "type": "string",
+          "description": "Question text",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Question type",
+          "enum": [
+            "nps",
+            "rating",
+            "multiple_choice",
+            "open_text",
+            "yes_no"
+          ]
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Required question",
+          "default": false
+        },
+        "options": {
+          "type": "array",
+          "description": "Answer options for multiple choice"
+        },
+        "logic": {
+          "type": "object",
+          "description": "Skip/display logic"
+        }
+      }
+    },
+    "SurveyCard": {
+      "description": "Survey summary card with response metrics.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Survey ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Survey title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Survey type",
+          "enum": [
+            "nps",
+            "csat",
+            "ces",
+            "custom"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "draft",
+            "active",
+            "paused",
+            "completed"
+          ]
+        },
+        "responses": {
+          "type": "number",
+          "description": "Response count"
+        },
+        "responseRate": {
+          "type": "number",
+          "description": "Response rate %"
+        },
+        "avgScore": {
+          "type": "number",
+          "description": "Average score"
+        },
+        "lastResponse": {
+          "type": "string",
+          "description": "Last response date"
+        }
+      }
+    },
+    "SurveyList": {
+      "description": "List of surveys with status and metrics.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Surveys"
+        }
+      },
+      "slots": {
+        "surveys": {
+          "role": "content",
+          "description": "Survey cards",
+          "accepts": [
+            "SurveyCard"
+          ]
+        }
+      }
+    },
+    "CustomerSegment": {
+      "description": "Customer segment with voice metrics.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Segment name",
+          "required": true
+        },
+        "size": {
+          "type": "number",
+          "description": "Segment size",
+          "required": true
+        },
+        "nps": {
+          "type": "number",
+          "description": "Segment NPS"
+        },
+        "csat": {
+          "type": "number",
+          "description": "Segment CSAT"
+        },
+        "feedbackVolume": {
+          "type": "number",
+          "description": "Feedback volume"
+        },
+        "topThemes": {
+          "type": "array",
+          "description": "Top themes for segment"
+        },
+        "sentiment": {
+          "type": "string",
+          "description": "Overall sentiment",
+          "enum": [
+            "positive",
+            "neutral",
+            "negative"
+          ]
+        },
+        "trend": {
+          "type": "string",
+          "description": "Trend direction",
+          "enum": [
+            "improving",
+            "stable",
+            "declining"
+          ]
+        }
+      }
+    },
+    "SegmentComparison": {
+      "description": "Compare voice metrics across customer segments.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Comparison title"
+        },
+        "metric": {
+          "type": "string",
+          "description": "Metric to compare",
+          "enum": [
+            "nps",
+            "csat",
+            "sentiment",
+            "volume"
+          ]
+        },
+        "segments": {
+          "type": "array",
+          "description": "Segments to compare",
+          "required": true
+        }
+      }
+    },
+    "ActionableItem": {
+      "description": "An actionable item derived from feedback.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Item ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Action title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Action type",
+          "enum": [
+            "respond",
+            "escalate",
+            "investigate",
+            "implement",
+            "follow_up"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "urgent",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "dismissed"
+          ]
+        },
+        "assignee": {
+          "type": "string",
+          "description": "Assigned to"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Due date"
+        },
+        "relatedFeedback": {
+          "type": "array",
+          "description": "Related feedback IDs"
+        },
+        "impact": {
+          "type": "string",
+          "description": "Expected impact"
+        }
+      }
+    },
+    "ActionQueue": {
+      "description": "Queue of actionable items from feedback.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Queue title",
+          "default": "Action Items"
+        },
+        "filter": {
+          "type": "string",
+          "description": "Filter by type"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Action items",
+          "accepts": [
+            "ActionableItem"
+          ]
+        }
+      }
+    },
+    "ResponseAction": {
+      "description": "Response action button with templates.",
+      "category": "control",
+      "props": {
+        "actionType": {
+          "type": "string",
+          "description": "Action type",
+          "enum": [
+            "respond",
+            "escalate",
+            "tag",
+            "dismiss"
+          ]
+        },
+        "templates": {
+          "type": "array",
+          "description": "Response templates available"
+        },
+        "feedbackId": {
+          "type": "string",
+          "description": "Related feedback ID"
+        }
+      }
+    },
+    "AlertCard": {
+      "description": "Alert for significant voice changes.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Alert ID",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Alert type",
+          "enum": [
+            "sentiment_drop",
+            "volume_spike",
+            "nps_change",
+            "theme_emerging",
+            "vip_negative"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity",
+          "enum": [
+            "critical",
+            "warning",
+            "info"
+          ],
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Alert title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Alert description"
+        },
+        "metric": {
+          "type": "string",
+          "description": "Affected metric"
+        },
+        "change": {
+          "type": "number",
+          "description": "Change value"
+        },
+        "triggeredAt": {
+          "type": "string",
+          "description": "When triggered"
+        },
+        "acknowledged": {
+          "type": "boolean",
+          "description": "Acknowledged",
+          "default": false
+        }
+      }
+    },
+    "FeedbackVolumeChart": {
+      "description": "Feedback volume over time by source.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title",
+          "default": "Feedback Volume"
+        },
+        "data": {
+          "type": "array",
+          "description": "Volume data",
+          "required": true
+        },
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "source",
+            "sentiment",
+            "segment"
+          ]
+        },
+        "granularity": {
+          "type": "string",
+          "description": "Time granularity",
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ]
+        }
+      }
+    },
+    "WordCloud": {
+      "description": "Word cloud from feedback text.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Cloud title"
+        },
+        "words": {
+          "type": "array",
+          "description": "Words with frequencies",
+          "required": true
+        },
+        "sentiment": {
+          "type": "string",
+          "description": "Filter by sentiment",
+          "enum": [
+            "all",
+            "positive",
+            "negative"
+          ]
+        },
+        "maxWords": {
+          "type": "number",
+          "description": "Max words to show",
+          "default": 50
+        }
+      }
+    },
+    "VoiceSettings": {
+      "description": "Voice of customer settings and configuration.",
+      "category": "control",
+      "props": {
+        "alertThresholds": {
+          "type": "object",
+          "description": "Alert threshold settings"
+        },
+        "integrations": {
+          "type": "array",
+          "description": "Connected data sources"
+        },
+        "sentimentModel": {
+          "type": "string",
+          "description": "Sentiment model",
+          "enum": [
+            "default",
+            "custom"
+          ]
+        },
+        "tagTaxonomy": {
+          "type": "array",
+          "description": "Tag taxonomy"
+        },
+        "responseTemplates": {
+          "type": "array",
+          "description": "Response templates"
+        }
+      }
+    },
+    "IntegrationStatus": {
+      "description": "Status of feedback source integrations.",
+      "category": "content",
+      "props": {
+        "source": {
+          "type": "string",
+          "description": "Source name",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Connection status",
+          "enum": [
+            "connected",
+            "disconnected",
+            "error"
+          ]
+        },
+        "lastSync": {
+          "type": "string",
+          "description": "Last sync time"
+        },
+        "itemsSynced": {
+          "type": "number",
+          "description": "Items synced"
+        },
+        "errorMessage": {
+          "type": "string",
+          "description": "Error message if any"
+        }
+      }
+    },
+    "StrategyDashboard": {
+      "description": "Central strategy dashboard with configurable layout for business planning and analysis.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title"
+        },
+        "view": {
+          "type": "string",
+          "description": "Active view",
+          "enum": [
+            "overview",
+            "roi",
+            "cases",
+            "goals",
+            "risks",
+            "decisions"
+          ]
+        }
+      },
+      "slots": {
+        "navigation": {
+          "role": "navigation",
+          "description": "Navigation sidebar",
+          "accepts": [
+            "StrategyNav"
+          ]
+        },
+        "header": {
+          "role": "header",
+          "description": "Summary bar",
+          "accepts": [
+            "StrategySummaryBar"
+          ]
+        },
+        "main": {
+          "role": "content",
+          "description": "Main content area",
+          "accepts": [
+            "ROIOverview",
+            "CaseOverview",
+            "GoalOverview",
+            "RiskOverview",
+            "DecisionOverview",
+            "InvestmentOverview"
+          ]
+        },
+        "aside": {
+          "role": "aside",
+          "description": "Side panel for details",
+          "accepts": [
+            "ROIDetails",
+            "CaseDetails",
+            "GoalDetails",
+            "RiskDetails",
+            "DecisionDetails"
+          ]
+        }
+      }
+    },
+    "StrategyNav": {
+      "description": "Navigation sidebar for strategy sections.",
+      "category": "navigation",
+      "props": {
+        "activeSection": {
+          "type": "string",
+          "description": "Currently active section"
+        },
+        "sections": {
+          "type": "array",
+          "description": "Available navigation sections"
+        },
+        "collapsed": {
+          "type": "boolean",
+          "description": "Collapsed state",
+          "default": false
+        }
+      }
+    },
+    "StrategySummaryBar": {
+      "description": "Summary bar showing key strategy health metrics.",
+      "category": "display",
+      "props": {
+        "totalROI": {
+          "type": "number",
+          "description": "Aggregate ROI percentage"
+        },
+        "activeCases": {
+          "type": "number",
+          "description": "Number of active business cases"
+        },
+        "goalsOnTrack": {
+          "type": "number",
+          "description": "Goals on track count"
+        },
+        "openRisks": {
+          "type": "number",
+          "description": "Open risk count"
+        },
+        "pendingDecisions": {
+          "type": "number",
+          "description": "Pending decisions count"
+        }
+      }
+    },
+    "ROIOverview": {
+      "description": "Overview panel for ROI analysis and financial metrics.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "ROI Analysis"
+        },
+        "period": {
+          "type": "string",
+          "description": "Analysis period",
+          "enum": [
+            "quarterly",
+            "annual",
+            "multi_year"
+          ]
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Actions and filters",
+          "accepts": [
+            "ROIToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "ROI summary",
+          "accepts": [
+            "ROISummary"
+          ]
+        },
+        "analyses": {
+          "role": "content",
+          "description": "ROI analysis list",
+          "accepts": [
+            "ROIAnalysisList"
+          ]
+        }
+      }
+    },
+    "ROIToolbar": {
+      "description": "Toolbar for ROI analysis actions and filters.",
+      "category": "control",
+      "props": {
+        "selectedPeriod": {
+          "type": "string",
+          "description": "Selected time period"
+        },
+        "showProjected": {
+          "type": "boolean",
+          "description": "Show projected values",
+          "default": true
+        }
+      }
+    },
+    "ROISummary": {
+      "description": "Summary metrics for ROI portfolio.",
+      "category": "display",
+      "props": {
+        "totalInvestment": {
+          "type": "number",
+          "description": "Total portfolio investment"
+        },
+        "totalReturns": {
+          "type": "number",
+          "description": "Total portfolio returns"
+        },
+        "averageROI": {
+          "type": "number",
+          "description": "Average ROI percentage"
+        },
+        "npv": {
+          "type": "number",
+          "description": "Net present value"
+        },
+        "irr": {
+          "type": "number",
+          "description": "Internal rate of return"
+        }
+      }
+    },
+    "ROIAnalysisList": {
+      "description": "List of ROI analyses.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "roi",
+            "npv",
+            "investment",
+            "created"
+          ]
+        },
+        "filterStatus": {
+          "type": "string",
+          "description": "Filter by status"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Analysis items",
+          "accepts": [
+            "ROIAnalysisCard"
+          ]
+        }
+      }
+    },
+    "ROIAnalysisCard": {
+      "description": "Card displaying ROI analysis summary.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Analysis ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Analysis title",
+          "required": true
+        },
+        "investment": {
+          "type": "number",
+          "description": "Total investment cost",
+          "required": true
+        },
+        "returns": {
+          "type": "number",
+          "description": "Expected returns",
+          "required": true
+        },
+        "roi": {
+          "type": "number",
+          "description": "ROI percentage"
+        },
+        "paybackPeriod": {
+          "type": "string",
+          "description": "Payback period"
+        },
+        "status": {
+          "type": "string",
+          "description": "Analysis status",
+          "enum": [
+            "draft",
+            "approved",
+            "rejected",
+            "realized"
+          ]
+        },
+        "confidence": {
+          "type": "string",
+          "description": "Confidence level",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      }
+    },
+    "ROIDetails": {
+      "description": "Detailed view of an ROI analysis.",
+      "category": "layout",
+      "props": {
+        "analysisId": {
+          "type": "string",
+          "description": "Analysis ID"
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Analysis header",
+          "accepts": [
+            "ROIAnalysis"
+          ]
+        },
+        "chart": {
+          "role": "content",
+          "description": "Visualization",
+          "accepts": [
+            "CostBenefitChart",
+            "CashFlowChart"
+          ]
+        },
+        "breakdown": {
+          "role": "content",
+          "description": "Cost/benefit breakdown",
+          "accepts": [
+            "CostBreakdown",
+            "BenefitBreakdown"
+          ]
+        },
+        "actions": {
+          "role": "footer",
+          "description": "Action buttons",
+          "accepts": [
+            "ROIActions"
+          ]
+        }
+      }
+    },
+    "ROIAnalysis": {
+      "description": "Return on investment analysis display.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Analysis title",
+          "required": true
+        },
+        "investment": {
+          "type": "number",
+          "description": "Total investment cost",
+          "required": true
+        },
+        "returns": {
+          "type": "number",
+          "description": "Expected returns",
+          "required": true
+        },
+        "roi": {
+          "type": "number",
+          "description": "ROI percentage"
+        },
+        "paybackPeriod": {
+          "type": "string",
+          "description": "Payback period"
+        },
+        "npv": {
+          "type": "number",
+          "description": "Net present value"
+        },
+        "irr": {
+          "type": "number",
+          "description": "Internal rate of return"
+        },
+        "confidence": {
+          "type": "string",
+          "description": "Confidence level",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      }
+    },
+    "CostBenefitChart": {
+      "description": "Cost vs benefit visualization over time.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "costs": {
+          "type": "array",
+          "description": "Cost data points over time"
+        },
+        "benefits": {
+          "type": "array",
+          "description": "Benefit data points over time"
+        },
+        "breakEvenPoint": {
+          "type": "string",
+          "description": "Break-even date"
+        },
+        "timeframe": {
+          "type": "string",
+          "description": "Analysis timeframe"
+        }
+      }
+    },
+    "CashFlowChart": {
+      "description": "Cash flow projection chart.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "cashFlows": {
+          "type": "array",
+          "description": "Cash flow data points"
+        },
+        "cumulativeFlows": {
+          "type": "array",
+          "description": "Cumulative cash flow"
+        },
+        "timeframe": {
+          "type": "string",
+          "description": "Time period"
+        }
+      }
+    },
+    "CostBreakdown": {
+      "description": "Breakdown of costs by category.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Cost Breakdown"
+        },
+        "categories": {
+          "type": "array",
+          "description": "Cost categories with amounts"
+        },
+        "total": {
+          "type": "number",
+          "description": "Total cost"
+        }
+      }
+    },
+    "BenefitBreakdown": {
+      "description": "Breakdown of benefits by category.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Benefit Breakdown"
+        },
+        "categories": {
+          "type": "array",
+          "description": "Benefit categories with amounts"
+        },
+        "total": {
+          "type": "number",
+          "description": "Total benefits"
+        },
+        "tangible": {
+          "type": "number",
+          "description": "Tangible benefits"
+        },
+        "intangible": {
+          "type": "number",
+          "description": "Intangible benefits estimate"
+        }
+      }
+    },
+    "ROIActions": {
+      "description": "Action buttons for ROI analysis.",
+      "category": "control",
+      "props": {
+        "analysisId": {
+          "type": "string",
+          "description": "Analysis ID"
+        },
+        "canApprove": {
+          "type": "boolean",
+          "description": "Can approve analysis"
+        },
+        "canEdit": {
+          "type": "boolean",
+          "description": "Can edit analysis"
+        }
+      }
+    },
+    "CaseOverview": {
+      "description": "Overview panel for business cases.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Business Cases"
+        },
+        "filterStatus": {
+          "type": "string",
+          "description": "Filter by status"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Actions and filters",
+          "accepts": [
+            "CaseToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "Cases summary",
+          "accepts": [
+            "CaseSummary"
+          ]
+        },
+        "cases": {
+          "role": "content",
+          "description": "Business case list",
+          "accepts": [
+            "CaseList"
+          ]
+        }
+      }
+    },
+    "CaseToolbar": {
+      "description": "Toolbar for business case actions.",
+      "category": "control",
+      "props": {
+        "selectedStatus": {
+          "type": "string",
+          "description": "Status filter"
+        },
+        "searchQuery": {
+          "type": "string",
+          "description": "Search query"
+        }
+      }
+    },
+    "CaseSummary": {
+      "description": "Summary of business cases by status.",
+      "category": "display",
+      "props": {
+        "total": {
+          "type": "number",
+          "description": "Total cases"
+        },
+        "draft": {
+          "type": "number",
+          "description": "Draft cases"
+        },
+        "inReview": {
+          "type": "number",
+          "description": "Cases in review"
+        },
+        "approved": {
+          "type": "number",
+          "description": "Approved cases"
+        },
+        "rejected": {
+          "type": "number",
+          "description": "Rejected cases"
+        },
+        "totalBudgetRequested": {
+          "type": "number",
+          "description": "Total budget requested"
+        }
+      }
+    },
+    "CaseList": {
+      "description": "List of business cases.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "created",
+            "budget",
+            "status",
+            "title"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Case items",
+          "accepts": [
+            "CaseCard"
+          ]
+        }
+      }
+    },
+    "CaseCard": {
+      "description": "Card displaying business case summary.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Case ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Business case title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Case status",
+          "enum": [
+            "draft",
+            "review",
+            "approved",
+            "rejected"
+          ]
+        },
+        "sponsor": {
+          "type": "string",
+          "description": "Executive sponsor"
+        },
+        "requestedBudget": {
+          "type": "number",
+          "description": "Requested budget"
+        },
+        "created": {
+          "type": "string",
+          "description": "Creation date"
+        }
+      }
+    },
+    "CaseDetails": {
+      "description": "Detailed view of a business case.",
+      "category": "layout",
+      "props": {
+        "caseId": {
+          "type": "string",
+          "description": "Case ID"
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Case header",
+          "accepts": [
+            "BusinessCase"
+          ]
+        },
+        "sections": {
+          "role": "content",
+          "description": "Case sections",
+          "accepts": [
+            "CaseSection"
+          ]
+        },
+        "timeline": {
+          "role": "content",
+          "description": "Case timeline",
+          "accepts": [
+            "CaseTimeline"
+          ]
+        },
+        "actions": {
+          "role": "footer",
+          "description": "Action buttons",
+          "accepts": [
+            "CaseActions"
+          ]
+        }
+      }
+    },
+    "BusinessCase": {
+      "description": "Business case header with key information.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Business case title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Case status",
+          "enum": [
+            "draft",
+            "review",
+            "approved",
+            "rejected"
+          ]
+        },
+        "sponsor": {
+          "type": "string",
+          "description": "Executive sponsor"
+        },
+        "requestedBudget": {
+          "type": "number",
+          "description": "Requested budget"
+        },
+        "expectedROI": {
+          "type": "number",
+          "description": "Expected ROI"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority level",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      }
+    },
+    "CaseSection": {
+      "description": "A section in a business case.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Section type",
+          "enum": [
+            "problem",
+            "solution",
+            "benefits",
+            "costs",
+            "risks",
+            "timeline",
+            "alternatives",
+            "assumptions"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "description": "Section content"
+        },
+        "items": {
+          "type": "array",
+          "description": "Bullet points"
+        }
+      }
+    },
+    "CaseTimeline": {
+      "description": "Timeline of business case milestones.",
+      "category": "display",
+      "props": {
+        "milestones": {
+          "type": "array",
+          "description": "Timeline milestones"
+        },
+        "currentPhase": {
+          "type": "string",
+          "description": "Current phase"
+        }
+      }
+    },
+    "CaseActions": {
+      "description": "Action buttons for business case.",
+      "category": "control",
+      "props": {
+        "caseId": {
+          "type": "string",
+          "description": "Case ID"
+        },
+        "canApprove": {
+          "type": "boolean",
+          "description": "Can approve case"
+        },
+        "canReject": {
+          "type": "boolean",
+          "description": "Can reject case"
+        },
+        "canEdit": {
+          "type": "boolean",
+          "description": "Can edit case"
+        }
+      }
+    },
+    "GoalOverview": {
+      "description": "Overview panel for strategic goals.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Strategic Goals"
+        },
+        "horizon": {
+          "type": "string",
+          "description": "Planning horizon",
+          "enum": [
+            "quarterly",
+            "annual",
+            "multi_year"
+          ]
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Actions and filters",
+          "accepts": [
+            "GoalToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "Goals summary",
+          "accepts": [
+            "GoalSummary"
+          ]
+        },
+        "roadmap": {
+          "role": "content",
+          "description": "Strategic roadmap",
+          "accepts": [
+            "StrategicRoadmap"
+          ]
+        },
+        "goals": {
+          "role": "content",
+          "description": "Goal list",
+          "accepts": [
+            "GoalList"
+          ]
+        }
+      }
+    },
+    "GoalToolbar": {
+      "description": "Toolbar for strategic goal actions.",
+      "category": "control",
+      "props": {
+        "selectedType": {
+          "type": "string",
+          "description": "Goal type filter"
+        },
+        "selectedStatus": {
+          "type": "string",
+          "description": "Status filter"
+        },
+        "view": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "list",
+            "roadmap",
+            "hierarchy"
+          ]
+        }
+      }
+    },
+    "GoalSummary": {
+      "description": "Summary of strategic goals by status.",
+      "category": "display",
+      "props": {
+        "total": {
+          "type": "number",
+          "description": "Total goals"
+        },
+        "onTrack": {
+          "type": "number",
+          "description": "Goals on track"
+        },
+        "atRisk": {
+          "type": "number",
+          "description": "Goals at risk"
+        },
+        "behind": {
+          "type": "number",
+          "description": "Goals behind"
+        },
+        "achieved": {
+          "type": "number",
+          "description": "Achieved goals"
+        },
+        "averageProgress": {
+          "type": "number",
+          "description": "Average progress percentage"
+        }
+      }
+    },
+    "GoalList": {
+      "description": "List of strategic goals.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "dueDate",
+            "progress",
+            "type",
+            "status"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Goal items",
+          "accepts": [
+            "GoalCard"
+          ]
+        }
+      }
+    },
+    "GoalCard": {
+      "description": "Card displaying strategic goal summary.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Goal title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Goal type",
+          "enum": [
+            "revenue",
+            "efficiency",
+            "quality",
+            "innovation",
+            "growth",
+            "customer",
+            "operational"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Goal status",
+          "enum": [
+            "on_track",
+            "at_risk",
+            "behind",
+            "achieved"
+          ]
+        },
+        "progress": {
+          "type": "number",
+          "description": "Progress percentage"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Target date"
+        }
+      }
+    },
+    "GoalDetails": {
+      "description": "Detailed view of a strategic goal.",
+      "category": "layout",
+      "props": {
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Goal header",
+          "accepts": [
+            "StrategicGoal"
+          ]
+        },
+        "metrics": {
+          "role": "content",
+          "description": "Key results",
+          "accepts": [
+            "KeyResultList"
+          ]
+        },
+        "initiatives": {
+          "role": "content",
+          "description": "Supporting initiatives",
+          "accepts": [
+            "InitiativeList"
+          ]
+        },
+        "actions": {
+          "role": "footer",
+          "description": "Action buttons",
+          "accepts": [
+            "GoalActions"
+          ]
+        }
+      }
+    },
+    "StrategicGoal": {
+      "description": "A strategic goal with OKRs or KPIs.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Goal title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Goal type",
+          "enum": [
+            "revenue",
+            "efficiency",
+            "quality",
+            "innovation",
+            "growth",
+            "customer",
+            "operational"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Goal status",
+          "enum": [
+            "on_track",
+            "at_risk",
+            "behind",
+            "achieved"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "description": "Target metric"
+        },
+        "current": {
+          "type": "string",
+          "description": "Current value"
+        },
+        "progress": {
+          "type": "number",
+          "description": "Progress percentage"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Target date"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Goal owner"
+        }
+      }
+    },
+    "KeyResultList": {
+      "description": "List of key results for a goal.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Key Results"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Key result items",
+          "accepts": [
+            "KeyResult"
+          ]
+        }
+      }
+    },
+    "KeyResult": {
+      "description": "A key result metric.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Key result title",
+          "required": true
+        },
+        "target": {
+          "type": "string",
+          "description": "Target value",
+          "required": true
+        },
+        "current": {
+          "type": "string",
+          "description": "Current value"
+        },
+        "progress": {
+          "type": "number",
+          "description": "Progress percentage"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "on_track",
+            "at_risk",
+            "behind",
+            "achieved"
+          ]
+        }
+      }
+    },
+    "InitiativeList": {
+      "description": "List of initiatives supporting a goal.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Initiatives"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Initiative items",
+          "accepts": [
+            "Initiative"
+          ]
+        }
+      }
+    },
+    "Initiative": {
+      "description": "A strategic initiative.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Initiative title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Initiative status",
+          "enum": [
+            "planned",
+            "in_progress",
+            "completed",
+            "blocked"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "description": "Initiative owner"
+        },
+        "progress": {
+          "type": "number",
+          "description": "Progress percentage"
+        }
+      }
+    },
+    "GoalActions": {
+      "description": "Action buttons for strategic goal.",
+      "category": "control",
+      "props": {
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "canEdit": {
+          "type": "boolean",
+          "description": "Can edit goal"
+        }
+      }
+    },
+    "StrategicRoadmap": {
+      "description": "Strategic roadmap with initiatives and milestones.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Roadmap title"
+        },
+        "horizon": {
+          "type": "string",
+          "description": "Planning horizon",
+          "enum": [
+            "quarterly",
+            "annual",
+            "multi_year"
+          ]
+        },
+        "phases": {
+          "type": "array",
+          "description": "Roadmap phases"
+        },
+        "milestones": {
+          "type": "array",
+          "description": "Key milestones"
+        }
+      }
+    },
+    "RiskOverview": {
+      "description": "Overview panel for strategic risks.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Risk Assessment"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Actions and filters",
+          "accepts": [
+            "RiskToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "Risk summary",
+          "accepts": [
+            "RiskSummary"
+          ]
+        },
+        "matrix": {
+          "role": "content",
+          "description": "Risk matrix",
+          "accepts": [
+            "RiskMatrix"
+          ]
+        },
+        "risks": {
+          "role": "content",
+          "description": "Risk list",
+          "accepts": [
+            "RiskList"
+          ]
+        }
+      }
+    },
+    "RiskToolbar": {
+      "description": "Toolbar for risk assessment actions.",
+      "category": "control",
+      "props": {
+        "selectedCategory": {
+          "type": "string",
+          "description": "Category filter"
+        },
+        "selectedSeverity": {
+          "type": "string",
+          "description": "Severity filter"
+        },
+        "view": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "list",
+            "matrix",
+            "heatmap"
+          ]
+        }
+      }
+    },
+    "RiskSummary": {
+      "description": "Summary of risks by severity.",
+      "category": "display",
+      "props": {
+        "total": {
+          "type": "number",
+          "description": "Total risks"
+        },
+        "critical": {
+          "type": "number",
+          "description": "Critical risks"
+        },
+        "high": {
+          "type": "number",
+          "description": "High risks"
+        },
+        "medium": {
+          "type": "number",
+          "description": "Medium risks"
+        },
+        "low": {
+          "type": "number",
+          "description": "Low risks"
+        },
+        "mitigated": {
+          "type": "number",
+          "description": "Mitigated risks"
+        }
+      }
+    },
+    "RiskMatrix": {
+      "description": "Risk probability/impact matrix visualization.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Matrix title"
+        },
+        "risks": {
+          "type": "array",
+          "description": "Risks to plot on matrix"
+        }
+      }
+    },
+    "RiskList": {
+      "description": "List of strategic risks.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "severity",
+            "category",
+            "created",
+            "status"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Risk items",
+          "accepts": [
+            "RiskCard"
+          ]
+        }
+      }
+    },
+    "RiskCard": {
+      "description": "Card displaying risk summary.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Risk ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Risk title",
+          "required": true
+        },
+        "category": {
+          "type": "string",
+          "description": "Risk category",
+          "enum": [
+            "market",
+            "technical",
+            "financial",
+            "operational",
+            "regulatory",
+            "strategic",
+            "competitive"
+          ]
+        },
+        "probability": {
+          "type": "string",
+          "description": "Probability",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Risk status",
+          "enum": [
+            "open",
+            "mitigating",
+            "mitigated",
+            "accepted"
+          ]
+        }
+      }
+    },
+    "RiskDetails": {
+      "description": "Detailed view of a strategic risk.",
+      "category": "layout",
+      "props": {
+        "riskId": {
+          "type": "string",
+          "description": "Risk ID"
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Risk header",
+          "accepts": [
+            "RiskAssessment"
+          ]
+        },
+        "mitigations": {
+          "role": "content",
+          "description": "Mitigation strategies",
+          "accepts": [
+            "MitigationList"
+          ]
+        },
+        "history": {
+          "role": "content",
+          "description": "Risk history",
+          "accepts": [
+            "RiskHistory"
+          ]
+        },
+        "actions": {
+          "role": "footer",
+          "description": "Action buttons",
+          "accepts": [
+            "RiskActions"
+          ]
+        }
+      }
+    },
+    "RiskAssessment": {
+      "description": "Strategic risk assessment display.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Risk title",
+          "required": true
+        },
+        "category": {
+          "type": "string",
+          "description": "Risk category",
+          "enum": [
+            "market",
+            "technical",
+            "financial",
+            "operational",
+            "regulatory",
+            "strategic",
+            "competitive"
+          ]
+        },
+        "probability": {
+          "type": "string",
+          "description": "Probability",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "required": true
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Risk description"
+        },
+        "triggers": {
+          "type": "array",
+          "description": "Risk triggers"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Risk owner"
+        }
+      }
+    },
+    "MitigationList": {
+      "description": "List of risk mitigations.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Mitigations"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Mitigation items",
+          "accepts": [
+            "Mitigation"
+          ]
+        }
+      }
+    },
+    "Mitigation": {
+      "description": "A risk mitigation strategy.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Mitigation title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Mitigation type",
+          "enum": [
+            "avoid",
+            "transfer",
+            "mitigate",
+            "accept"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Implementation status",
+          "enum": [
+            "planned",
+            "in_progress",
+            "completed"
+          ]
+        },
+        "effectiveness": {
+          "type": "string",
+          "description": "Expected effectiveness",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "description": "Mitigation owner"
+        }
+      }
+    },
+    "RiskHistory": {
+      "description": "History of risk changes.",
+      "category": "display",
+      "props": {
+        "entries": {
+          "type": "array",
+          "description": "History entries"
+        }
+      }
+    },
+    "RiskActions": {
+      "description": "Action buttons for risk.",
+      "category": "control",
+      "props": {
+        "riskId": {
+          "type": "string",
+          "description": "Risk ID"
+        },
+        "canEdit": {
+          "type": "boolean",
+          "description": "Can edit risk"
+        }
+      }
+    },
+    "InvestmentOverview": {
+      "description": "Overview panel for investment options comparison.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Investment Options"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Actions and filters",
+          "accepts": [
+            "InvestmentToolbar"
+          ]
+        },
+        "matrix": {
+          "role": "content",
+          "description": "Comparison matrix",
+          "accepts": [
+            "ComparisonMatrix"
+          ]
+        },
+        "options": {
+          "role": "content",
+          "description": "Investment options",
+          "accepts": [
+            "InvestmentList"
+          ]
+        }
+      }
+    },
+    "InvestmentToolbar": {
+      "description": "Toolbar for investment comparison.",
+      "category": "control",
+      "props": {
+        "selectedCriteria": {
+          "type": "array",
+          "description": "Selected comparison criteria"
+        },
+        "view": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "list",
+            "matrix",
+            "chart"
+          ]
+        }
+      }
+    },
+    "InvestmentList": {
+      "description": "List of investment options.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "cost",
+            "benefit",
+            "roi",
+            "risk"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Option items",
+          "accepts": [
+            "InvestmentCard"
+          ]
+        }
+      }
+    },
+    "InvestmentCard": {
+      "description": "Card displaying investment option summary.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Option ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Option name",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Option description"
+        },
+        "cost": {
+          "type": "number",
+          "description": "Estimated cost",
+          "required": true
+        },
+        "benefit": {
+          "type": "number",
+          "description": "Expected benefit"
+        },
+        "risk": {
+          "type": "string",
+          "description": "Risk level",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "timeToValue": {
+          "type": "string",
+          "description": "Time to realize value"
+        },
+        "recommendation": {
+          "type": "boolean",
+          "description": "Is recommended option",
+          "default": false
+        }
+      }
+    },
+    "InvestmentOption": {
+      "description": "An investment option for comparison.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Option name",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Option description"
+        },
+        "cost": {
+          "type": "number",
+          "description": "Estimated cost",
+          "required": true
+        },
+        "benefit": {
+          "type": "number",
+          "description": "Expected benefit"
+        },
+        "risk": {
+          "type": "string",
+          "description": "Risk level",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "timeToValue": {
+          "type": "string",
+          "description": "Time to realize value"
+        },
+        "recommendation": {
+          "type": "boolean",
+          "description": "Is recommended option",
+          "default": false
+        },
+        "scores": {
+          "type": "object",
+          "description": "Scores by criteria"
+        }
+      }
+    },
+    "ComparisonMatrix": {
+      "description": "Matrix comparing investment options across criteria.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Matrix title"
+        },
+        "criteria": {
+          "type": "array",
+          "description": "Comparison criteria",
+          "required": true
+        },
+        "weights": {
+          "type": "object",
+          "description": "Criteria weights"
+        },
+        "options": {
+          "type": "array",
+          "description": "Options with scores"
+        }
+      }
+    },
+    "DecisionOverview": {
+      "description": "Overview panel for strategic decisions.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Decisions"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Actions and filters",
+          "accepts": [
+            "DecisionToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "Decisions summary",
+          "accepts": [
+            "DecisionSummary"
+          ]
+        },
+        "decisions": {
+          "role": "content",
+          "description": "Decision list",
+          "accepts": [
+            "DecisionList"
+          ]
+        }
+      }
+    },
+    "DecisionToolbar": {
+      "description": "Toolbar for decision tracking.",
+      "category": "control",
+      "props": {
+        "selectedStatus": {
+          "type": "string",
+          "description": "Status filter"
+        },
+        "selectedCategory": {
+          "type": "string",
+          "description": "Category filter"
+        }
+      }
+    },
+    "DecisionSummary": {
+      "description": "Summary of decisions by status.",
+      "category": "display",
+      "props": {
+        "total": {
+          "type": "number",
+          "description": "Total decisions"
+        },
+        "pending": {
+          "type": "number",
+          "description": "Pending decisions"
+        },
+        "made": {
+          "type": "number",
+          "description": "Decisions made"
+        },
+        "deferred": {
+          "type": "number",
+          "description": "Deferred decisions"
+        },
+        "overdue": {
+          "type": "number",
+          "description": "Overdue decisions"
+        }
+      }
+    },
+    "DecisionList": {
+      "description": "List of strategic decisions.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field",
+          "enum": [
+            "dueDate",
+            "priority",
+            "status",
+            "created"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Decision items",
+          "accepts": [
+            "DecisionCard"
+          ]
+        }
+      }
+    },
+    "DecisionCard": {
+      "description": "Card displaying decision summary.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Decision ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Decision title",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Decision status",
+          "enum": [
+            "pending",
+            "made",
+            "deferred",
+            "revisiting"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Decision deadline"
+        },
+        "decisionMaker": {
+          "type": "string",
+          "description": "Decision maker"
+        }
+      }
+    },
+    "DecisionDetails": {
+      "description": "Detailed view of a strategic decision.",
+      "category": "layout",
+      "props": {
+        "decisionId": {
+          "type": "string",
+          "description": "Decision ID"
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Decision header",
+          "accepts": [
+            "Decision"
+          ]
+        },
+        "options": {
+          "role": "content",
+          "description": "Decision options",
+          "accepts": [
+            "DecisionOptionList"
+          ]
+        },
+        "stakeholders": {
+          "role": "content",
+          "description": "Stakeholders",
+          "accepts": [
+            "StakeholderList"
+          ]
+        },
+        "actions": {
+          "role": "footer",
+          "description": "Action buttons",
+          "accepts": [
+            "DecisionActions"
+          ]
+        }
+      }
+    },
+    "Decision": {
+      "description": "Strategic decision display.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Decision title",
+          "required": true
+        },
+        "context": {
+          "type": "string",
+          "description": "Decision context"
+        },
+        "status": {
+          "type": "string",
+          "description": "Decision status",
+          "enum": [
+            "pending",
+            "made",
+            "deferred",
+            "revisiting"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Decision deadline"
+        },
+        "decisionMaker": {
+          "type": "string",
+          "description": "Decision maker"
+        },
+        "outcome": {
+          "type": "string",
+          "description": "Decision outcome if made"
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Decision rationale"
+        }
+      }
+    },
+    "DecisionOptionList": {
+      "description": "List of options for a decision.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Options"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Option items",
+          "accepts": [
+            "DecisionOption"
+          ]
+        }
+      }
+    },
+    "DecisionOption": {
+      "description": "An option for a decision.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Option title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Option description"
+        },
+        "pros": {
+          "type": "array",
+          "description": "Advantages"
+        },
+        "cons": {
+          "type": "array",
+          "description": "Disadvantages"
+        },
+        "selected": {
+          "type": "boolean",
+          "description": "Is selected option",
+          "default": false
+        }
+      }
+    },
+    "ProductStakeholderList": {
+      "description": "List of stakeholders.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title",
+          "default": "Stakeholders"
+        }
+      },
+      "slots": {
+        "stakeholders": {
+          "role": "content",
+          "description": "Stakeholder cards",
+          "accepts": [
+            "StakeholderCard"
+          ]
+        }
+      }
+    },
+    "StrategyStakeholderList": {
+      "description": "List of decision stakeholders.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Stakeholders"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Stakeholder items",
+          "accepts": [
+            "Stakeholder"
+          ]
+        }
+      }
+    },
+    "Stakeholder": {
+      "description": "A decision stakeholder.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Stakeholder name",
+          "required": true
+        },
+        "role": {
+          "type": "string",
+          "description": "Role in decision",
+          "enum": [
+            "decider",
+            "advisor",
+            "informed",
+            "consulted"
+          ]
+        },
+        "position": {
+          "type": "string",
+          "description": "Current position"
+        },
+        "concerns": {
+          "type": "array",
+          "description": "Key concerns"
+        }
+      }
+    },
+    "DecisionActions": {
+      "description": "Action buttons for decision.",
+      "category": "control",
+      "props": {
+        "decisionId": {
+          "type": "string",
+          "description": "Decision ID"
+        },
+        "canDecide": {
+          "type": "boolean",
+          "description": "Can make decision"
+        },
+        "canDefer": {
+          "type": "boolean",
+          "description": "Can defer decision"
+        }
+      }
+    },
+    "QuickActions": {
+      "description": "Quick action buttons for common strategy tasks.",
+      "category": "control",
+      "props": {
+        "actions": {
+          "type": "array",
+          "description": "Available quick actions"
+        }
+      }
+    },
+    "RecentActivity": {
+      "description": "Recent strategy activity feed.",
+      "category": "display",
+      "props": {
+        "activities": {
+          "type": "array",
+          "description": "Recent activities"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Max items to show",
+          "default": 10
+        }
+      }
+    },
+    "StrategySettings": {
+      "description": "Strategy module settings panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "groups": {
+          "role": "content",
+          "description": "Setting groups",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "StrategySettingGroup": {
+      "description": "A group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Group description"
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in this group"
+        }
+      }
+    }
+  },
+  "intents": {
+    "product-show-dashboard": {
+      "description": "Show main product dashboard",
+      "suggestedComponents": [
+        "ProductDashboard",
+        "ProductNav",
+        "ProductHealth"
+      ],
+      "requiredData": [
+        "dashboard"
+      ]
+    },
+    "product-show-requirements": {
+      "description": "Show product requirements",
+      "suggestedComponents": [
+        "RequirementList",
+        "RequirementCard",
+        "RequirementToolbar"
+      ],
+      "requiredData": [
+        "requirements"
+      ]
+    },
+    "product-show-requirement-details": {
+      "description": "Show single requirement details",
+      "suggestedComponents": [
+        "RequirementDetails",
+        "RequirementCard"
+      ],
+      "requiredData": [
+        "requirement"
+      ]
+    },
+    "product-show-user-stories": {
+      "description": "Show user stories",
+      "suggestedComponents": [
+        "StoryList",
+        "UserStory",
+        "StoryCard"
+      ],
+      "requiredData": [
+        "stories"
+      ]
+    },
+    "product-show-story-details": {
+      "description": "Show single story details",
+      "suggestedComponents": [
+        "StoryDetails",
+        "UserStory",
+        "TaskCard"
+      ],
+      "requiredData": [
+        "story"
+      ]
+    },
+    "product-show-epics": {
+      "description": "Show epics",
+      "suggestedComponents": [
+        "EpicList",
+        "EpicCard"
+      ],
+      "requiredData": [
+        "epics"
+      ]
+    },
+    "product-show-roadmap": {
+      "description": "Show product roadmap",
+      "suggestedComponents": [
+        "RoadmapView",
+        "RoadmapItem",
+        "RoadmapToolbar"
+      ],
+      "requiredData": [
+        "roadmap"
+      ]
+    },
+    "product-show-priorities": {
+      "description": "Show priority matrix for features",
+      "suggestedComponents": [
+        "PriorityMatrix",
+        "PriorityItem",
+        "PrioritizationSession"
+      ],
+      "requiredData": [
+        "priorities"
+      ]
+    },
+    "product-show-stakeholders": {
+      "description": "Show stakeholder map",
+      "suggestedComponents": [
+        "StakeholderMap",
+        "StakeholderCard",
+        "StakeholderList"
+      ],
+      "requiredData": [
+        "stakeholders"
+      ]
+    },
+    "product-show-scope": {
+      "description": "Show project scope statement",
+      "suggestedComponents": [
+        "ScopeStatement"
+      ],
+      "requiredData": [
+        "scope"
+      ]
+    },
+    "product-show-feature-comparison": {
+      "description": "Show feature comparison",
+      "suggestedComponents": [
+        "FeatureComparison",
+        "CompetitorCard"
+      ],
+      "requiredData": [
+        "comparison"
+      ]
+    },
+    "product-show-release-notes": {
+      "description": "Show release notes",
+      "suggestedComponents": [
+        "ReleaseNotes",
+        "ReleaseItem"
+      ],
+      "requiredData": [
+        "release"
+      ]
+    },
+    "product-show-settings": {
+      "description": "Show product settings",
+      "suggestedComponents": [
+        "ProductSettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    },
+    "ux-show-dashboard": {
+      "description": "Show main UX research dashboard",
+      "suggestedComponents": [
+        "UXDashboard",
+        "UXNav",
+        "UXHealthScore"
+      ],
+      "requiredData": [
+        "dashboard"
+      ]
+    },
+    "ux-show-user-flows": {
+      "description": "Show user flow diagrams",
+      "suggestedComponents": [
+        "FlowList",
+        "UserFlow",
+        "FlowCard"
+      ],
+      "requiredData": [
+        "flows"
+      ]
+    },
+    "ux-show-flow-editor": {
+      "description": "Edit a user flow",
+      "suggestedComponents": [
+        "FlowEditor",
+        "FlowToolbar",
+        "FlowStep"
+      ],
+      "requiredData": [
+        "flow"
+      ]
+    },
+    "ux-show-personas": {
+      "description": "Show user personas",
+      "suggestedComponents": [
+        "PersonaList",
+        "PersonaCard",
+        "PersonaDetails"
+      ],
+      "requiredData": [
+        "personas"
+      ]
+    },
+    "ux-show-journey-maps": {
+      "description": "Show user journey maps",
+      "suggestedComponents": [
+        "JourneyList",
+        "JourneyMap",
+        "EmotionCurve"
+      ],
+      "requiredData": [
+        "journeys"
+      ]
+    },
+    "ux-show-design-reviews": {
+      "description": "Show design review results",
+      "suggestedComponents": [
+        "ReviewList",
+        "DesignReview",
+        "HeuristicChart"
+      ],
+      "requiredData": [
+        "reviews"
+      ]
+    },
+    "ux-show-findings": {
+      "description": "Show usability findings",
+      "suggestedComponents": [
+        "FindingsList",
+        "UsabilityFinding",
+        "FindingsToolbar"
+      ],
+      "requiredData": [
+        "findings"
+      ]
+    },
+    "ux-show-a11y-dashboard": {
+      "description": "Show accessibility dashboard",
+      "suggestedComponents": [
+        "A11yDashboard",
+        "A11ySummary",
+        "A11yTrendChart"
+      ],
+      "requiredData": [
+        "a11y"
+      ]
+    },
+    "ux-show-a11y-audit": {
+      "description": "Show accessibility audit results",
+      "suggestedComponents": [
+        "A11yReport",
+        "A11yIssue",
+        "A11yChecklist"
+      ],
+      "requiredData": [
+        "a11yAudit"
+      ]
+    },
+    "ux-show-pattern-library": {
+      "description": "Show UI pattern library",
+      "suggestedComponents": [
+        "PatternLibrary",
+        "ComponentPattern",
+        "PatternDetails"
+      ],
+      "requiredData": [
+        "patterns"
+      ]
+    },
+    "ux-show-usability-tests": {
+      "description": "Show usability test results",
+      "suggestedComponents": [
+        "TestList",
+        "UsabilityTest",
+        "TestTask"
+      ],
+      "requiredData": [
+        "tests"
+      ]
+    },
+    "ux-show-test-details": {
+      "description": "Show single usability test details",
+      "suggestedComponents": [
+        "UsabilityTest",
+        "TestTask",
+        "ParticipantFeedback"
+      ],
+      "requiredData": [
+        "test"
+      ]
+    },
+    "ux-show-settings": {
+      "description": "Show UX settings",
+      "suggestedComponents": [
+        "UXSettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    },
+    "voice-show-voice-dashboard": {
+      "description": "Show comprehensive customer voice dashboard",
+      "suggestedComponents": [
+        "VoiceDashboard",
+        "FeedbackSummary",
+        "NPSScore",
+        "SentimentChart"
+      ],
+      "requiredData": [
+        "feedbackSummary",
+        "npsData",
+        "sentimentTrend"
+      ]
+    },
+    "voice-show-feedback-summary": {
+      "description": "Show customer feedback summary and sentiment",
+      "suggestedComponents": [
+        "FeedbackSummary",
+        "SentimentChart",
+        "NPSScore"
+      ],
+      "requiredData": [
+        "feedbackSummary"
+      ]
+    },
+    "voice-show-feedback-themes": {
+      "description": "Show aggregated feedback themes",
+      "suggestedComponents": [
+        "ThemeExplorer",
+        "ThemeCard",
+        "SubTheme"
+      ],
+      "requiredData": [
+        "themes"
+      ]
+    },
+    "voice-show-feedback-items": {
+      "description": "Show individual feedback items with filtering",
+      "suggestedComponents": [
+        "FeedbackList",
+        "FeedbackCard",
+        "FeedbackFilter"
+      ],
+      "requiredData": [
+        "feedback"
+      ]
+    },
+    "voice-show-support-tickets": {
+      "description": "Show support tickets and queue",
+      "suggestedComponents": [
+        "TicketQueue",
+        "SupportTicketCard"
+      ],
+      "requiredData": [
+        "tickets"
+      ]
+    },
+    "voice-show-feature-requests": {
+      "description": "Show customer feature requests board",
+      "suggestedComponents": [
+        "FeatureRequestBoard",
+        "FeatureRequest"
+      ],
+      "requiredData": [
+        "requests"
+      ]
+    },
+    "voice-show-voice-insights": {
+      "description": "Show AI-generated customer insights",
+      "suggestedComponents": [
+        "InsightPanel",
+        "VoiceInsight"
+      ],
+      "requiredData": [
+        "insights"
+      ]
+    },
+    "voice-show-nps-analysis": {
+      "description": "Show NPS score analysis and drivers",
+      "suggestedComponents": [
+        "NPSScore",
+        "NPSTrendChart",
+        "NPSDrivers"
+      ],
+      "requiredData": [
+        "npsData"
+      ]
+    },
+    "voice-show-csat-analysis": {
+      "description": "Show CSAT and CES metrics",
+      "suggestedComponents": [
+        "CSATScore",
+        "CESScore",
+        "SentimentChart"
+      ],
+      "requiredData": [
+        "csatData"
+      ]
+    },
+    "voice-show-sentiment-analysis": {
+      "description": "Show detailed sentiment analysis",
+      "suggestedComponents": [
+        "SentimentChart",
+        "SentimentHeatmap",
+        "WordCloud"
+      ],
+      "requiredData": [
+        "sentimentData"
+      ]
+    },
+    "voice-show-surveys": {
+      "description": "Show surveys and create new surveys",
+      "suggestedComponents": [
+        "SurveyList",
+        "SurveyCard",
+        "SurveyBuilder"
+      ],
+      "requiredData": [
+        "surveys"
+      ]
+    },
+    "voice-show-segment-analysis": {
+      "description": "Show voice metrics by customer segment",
+      "suggestedComponents": [
+        "SegmentComparison",
+        "CustomerSegment"
+      ],
+      "requiredData": [
+        "segments"
+      ]
+    },
+    "voice-show-action-items": {
+      "description": "Show actionable items from feedback",
+      "suggestedComponents": [
+        "ActionQueue",
+        "ActionableItem"
+      ],
+      "requiredData": [
+        "actions"
+      ]
+    },
+    "voice-show-alerts": {
+      "description": "Show voice alerts and anomalies",
+      "suggestedComponents": [
+        "AlertCard"
+      ],
+      "requiredData": [
+        "alerts"
+      ]
+    },
+    "voice-manage-voice-settings": {
+      "description": "Configure voice of customer settings",
+      "suggestedComponents": [
+        "VoiceSettings",
+        "IntegrationStatus"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    },
+    "strategy-show-strategy-dashboard": {
+      "description": "Show comprehensive strategy dashboard",
+      "suggestedComponents": [
+        "StrategyDashboard",
+        "StrategyNav",
+        "StrategySummaryBar"
+      ],
+      "requiredData": [
+        "strategySummary"
+      ]
+    },
+    "strategy-show-roi-analysis": {
+      "description": "Show ROI analysis for investments",
+      "suggestedComponents": [
+        "ROIOverview",
+        "ROIAnalysisList",
+        "ROIAnalysisCard",
+        "CostBenefitChart"
+      ],
+      "requiredData": [
+        "roiAnalyses"
+      ]
+    },
+    "strategy-show-roi-details": {
+      "description": "Show detailed ROI analysis",
+      "suggestedComponents": [
+        "ROIDetails",
+        "ROIAnalysis",
+        "CostBreakdown",
+        "BenefitBreakdown",
+        "CashFlowChart"
+      ],
+      "requiredData": [
+        "roiAnalysis"
+      ]
+    },
+    "strategy-show-business-cases": {
+      "description": "Show business cases",
+      "suggestedComponents": [
+        "CaseOverview",
+        "CaseList",
+        "CaseCard",
+        "CaseSummary"
+      ],
+      "requiredData": [
+        "businessCases"
+      ]
+    },
+    "strategy-show-case-details": {
+      "description": "Show business case details",
+      "suggestedComponents": [
+        "CaseDetails",
+        "BusinessCase",
+        "CaseSection",
+        "CaseTimeline"
+      ],
+      "requiredData": [
+        "businessCase"
+      ]
+    },
+    "strategy-show-strategic-goals": {
+      "description": "Show strategic goals and progress",
+      "suggestedComponents": [
+        "GoalOverview",
+        "GoalList",
+        "GoalCard",
+        "GoalSummary",
+        "StrategicRoadmap"
+      ],
+      "requiredData": [
+        "strategicGoals"
+      ]
+    },
+    "strategy-show-goal-details": {
+      "description": "Show strategic goal details with OKRs",
+      "suggestedComponents": [
+        "GoalDetails",
+        "StrategicGoal",
+        "KeyResultList",
+        "InitiativeList"
+      ],
+      "requiredData": [
+        "strategicGoal"
+      ]
+    },
+    "strategy-show-risk-assessment": {
+      "description": "Show strategic risk assessment",
+      "suggestedComponents": [
+        "RiskOverview",
+        "RiskList",
+        "RiskCard",
+        "RiskMatrix",
+        "RiskSummary"
+      ],
+      "requiredData": [
+        "strategicRisks"
+      ]
+    },
+    "strategy-show-risk-details": {
+      "description": "Show risk details with mitigations",
+      "suggestedComponents": [
+        "RiskDetails",
+        "RiskAssessment",
+        "MitigationList",
+        "RiskHistory"
+      ],
+      "requiredData": [
+        "risk"
+      ]
+    },
+    "strategy-show-investment-options": {
+      "description": "Show and compare investment options",
+      "suggestedComponents": [
+        "InvestmentOverview",
+        "InvestmentList",
+        "InvestmentCard",
+        "ComparisonMatrix"
+      ],
+      "requiredData": [
+        "investmentOptions"
+      ]
+    },
+    "strategy-show-decisions": {
+      "description": "Show strategic decisions",
+      "suggestedComponents": [
+        "DecisionOverview",
+        "DecisionList",
+        "DecisionCard",
+        "DecisionSummary"
+      ],
+      "requiredData": [
+        "decisions"
+      ]
+    },
+    "strategy-show-decision-details": {
+      "description": "Show decision details with options",
+      "suggestedComponents": [
+        "DecisionDetails",
+        "Decision",
+        "DecisionOptionList",
+        "StakeholderList"
+      ],
+      "requiredData": [
+        "decision"
+      ]
+    },
+    "strategy-show-strategic-roadmap": {
+      "description": "Show strategic planning roadmap",
+      "suggestedComponents": [
+        "StrategicRoadmap",
+        "GoalList",
+        "InitiativeList"
+      ],
+      "requiredData": [
+        "roadmap"
+      ]
+    },
+    "strategy-show-strategy-settings": {
+      "description": "Show strategy module settings",
+      "suggestedComponents": [
+        "StrategySettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    }
+  }
+}
