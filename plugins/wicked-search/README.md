@@ -1,6 +1,6 @@
 # wicked-search
 
-Search code and docs together. Trace data flow from database to UI. Know what breaks before you change it.
+wicked-search builds a structural understanding of your codebase that text search cannot. It indexes 73 languages via tree-sitter, extracts text from PDFs and Office documents, and links everything into a unified symbol graph with typed, confidence-tagged relationships. From that graph you get capabilities grep and IDE search don't offer: trace a JSP form field to the exact database column it writes to across 8 ORM frameworks (JPA, SQLAlchemy, Django, TypeORM, Prisma, ActiveRecord, Entity Framework, GORM), find every UI element affected by a column rename, generate architecture diagrams from Docker Compose and Kubernetes manifests merged with code-inferred connections, audit lineage coverage for compliance, and run a self-improving quality crew that pushes index accuracy to 95%+. One command to understand how data flows, what breaks when you change something, and where your architecture actually connects.
 
 ## Quick Start
 

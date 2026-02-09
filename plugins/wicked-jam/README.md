@@ -1,6 +1,6 @@
 # wicked-jam
 
-Get diverse perspectives on any decision in 60 seconds. AI focus groups with real trade-offs - no meetings required.
+AI brainstorming with dynamic focus groups -- 4-6 personas that actually debate and build on each other's ideas. Get diverse trade-offs on architecture decisions, naming, and strategy in 60 seconds instead of scheduling a meeting. Real perspectives, real tension, real synthesis -- no meetings required.
 
 ## Quick Start
 

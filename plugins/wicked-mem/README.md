@@ -1,6 +1,6 @@
 # wicked-mem
 
-Never repeat yourself. Persistent memory that learns from your work and recalls relevant context automatically.
+Typed memory (decisions, patterns, preferences, episodes) with signal-based recall and automatic decay. Unlike built-in memory that bloats context with everything, wicked-mem only surfaces memories when your question signals relevance -- so session 47 remembers why you chose JWT without polluting session 3's CSS fix. It learns from your work automatically and never makes you repeat yourself.
 
 ## Quick Start
 

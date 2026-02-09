@@ -1,6 +1,6 @@
 # wicked-platform
 
-Ship confidently. Embedded SRE, security, and compliance that catches production issues, vulnerabilities, and regulatory gaps before they become incidents.
+A platform engineering team with auto-discovery -- SREs, security engineers, compliance officers, and incident responders that detect your observability stack (Sentry, Jaeger, Prometheus) via MCP. Live metrics and traces, not just static code analysis. Ships with SOC2, HIPAA, GDPR, and PCI compliance checks plus GitHub Actions and GitLab CI generation. Catches production issues, vulnerabilities, and regulatory gaps before they become incidents.
 
 ## Quick Start
 

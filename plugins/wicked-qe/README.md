@@ -1,6 +1,6 @@
 # wicked-qe
 
-Catch bugs before they ship. AI-powered quality engineering that generates test strategies, scenarios, and automation code from your requirements.
+Shift-left quality engineering that generates test scenarios from requirements before code exists. PostToolUse hooks track every file change as you write, nudging for test coverage in real time -- so testing enables faster delivery, not slower. Catch issues during development, not after, with AI-powered test strategies, scenario generation, and automation code that wire directly into your workflow.
 
 ## Quick Start
 

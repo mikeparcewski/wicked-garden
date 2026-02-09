@@ -1,196 +1,135 @@
 # Wicked Garden
 
-**AI-native plugins for Claude Code that make development feel like working with a great team.**
-
-## Quick Start
+**Turn Claude Code into a full engineering team.** Memory that persists across sessions. Code review from senior engineers, architects, and security specialists. Brainstorming with AI focus groups. Guided workflows that clarify before they code. Search that understands your entire codebase. 18 plugins, each useful alone — transformative together.
 
 ```bash
-# Install the starter kit (includes essential MCP servers)
+# One command to get started
 claude plugins add something-wicked/wicked-startah
-
-# Or install individual plugins
-claude plugins add something-wicked/wicked-crew
 ```
-
-Try it immediately:
 
 ```bash
-# Brainstorm with AI personas
-/wicked-jam:jam "should we use Redis or Postgres for session storage?"
-
-# Search code and docs together
-/wicked-search:search "authentication"
-
-# Start a guided workflow
 /wicked-crew:start "Add user authentication with OAuth2"
+#  Clarifies requirements → brainstorms approaches → finds existing patterns →
+#  builds with tracking → reviews for quality + security → remembers what it learned
+
+/wicked-jam:jam "Redis vs Postgres for session storage?"
+#  5 AI personas debate your question from different angles
+
+/wicked-engineering:review
+#  Senior engineer + architect + security review in one pass
+
+/wicked-mem:store --type decision "Chose JWT — stateless, no session DB needed"
+#  Surfaces automatically 47 sessions from now when someone asks about auth
 ```
 
-## What's Inside
+## Why This Exists
 
-### Core Infrastructure
+Claude Code is powerful but stateless. It forgets past decisions, skips requirements, and reviews its own code. Wicked Garden fixes that:
 
-| Plugin | Purpose |
-|--------|---------|
-| **[wicked-mem](plugins/wicked-mem)** | Cross-session memory - remembers decisions, learnings, and preferences |
-| **[wicked-cache](plugins/wicked-cache)** | Shared caching infrastructure for plugin data |
-| **[wicked-kanban](plugins/wicked-kanban)** | AI-native task board with web UI dashboard |
+| Problem | Without | With Wicked Garden |
+|---------|---------|-------------------|
+| Amnesia | Every session starts from zero | Decisions, patterns, and preferences persist |
+| Solo perspective | One voice, one blind spot | Engineering, product, security, data specialists |
+| Cowboy coding | Jumps straight to implementation | Clarify → design → build → review |
+| Lost context | "What did we decide about auth?" | Auto-surfaces relevant memories |
+| No quality gates | Hope for the best | Shift-left QE with embedded gates |
 
-### Workflow & Ideation
+## The Plugins
 
-| Plugin | Purpose |
-|--------|---------|
-| **[wicked-crew](plugins/wicked-crew)** | Phase-gated workflow orchestrator (clarify → design → build → review) |
-| **[wicked-jam](plugins/wicked-jam)** | AI brainstorming with developer-focused personas |
+**Workflow & Memory**
 
-### Search & Context
+| Plugin | What It Does | Why It's Different |
+|--------|-------------|-------------------|
+| [wicked-crew](plugins/wicked-crew) | Dynamic multi-phase workflows: clarify → design → build → review | Signal-based specialist routing — adapts phases and engages experts based on what it discovers, not a rigid pipeline |
+| [wicked-mem](plugins/wicked-mem) | Cross-session memory with typed categories and auto-decay | Only injects context when your question signals need — no context bloat, just relevant recall |
+| [wicked-kanban](plugins/wicked-kanban) | Persistent task board with sprint grouping and git commit linking | Built-in tasks reset every session — kanban remembers everything via PostToolUse auto-sync |
+| [wicked-jam](plugins/wicked-jam) | AI brainstorming with dynamic focus groups | 4-6 personas that build on each other's ideas — diverse trade-offs in 60 seconds, not a single voice |
 
-| Plugin | Purpose |
-|--------|---------|
-| **[wicked-search](plugins/wicked-search)** | Unified code + document search with cross-reference detection |
-| **[wicked-smaht](plugins/wicked-smaht)** | Intelligent context assembly from wicked-garden sources |
+**Specialists** — like having senior ICs on call
 
-### Specialist Plugins
+| Plugin | Roles | Why It's Different |
+|--------|-------|-------------------|
+| [wicked-engineering](plugins/wicked-engineering) | Senior engineers, architects, debuggers, frontend/backend, tech writers | 10 specialist agents with coordinated multi-pass review — architecture + code quality + security in one command |
+| [wicked-product](plugins/wicked-product) | Product managers, UX designers, requirements analysts, customer advocates | Full customer voice pipeline: listen → analyze → synthesize, plus a11y audits and acceptance criteria |
+| [wicked-platform](plugins/wicked-platform) | SREs, security engineers, compliance officers, incident responders | Auto-discovers your observability stack (Sentry, Jaeger, Prometheus) via MCP — live metrics, not just static analysis |
+| [wicked-delivery](plugins/wicked-delivery) | Delivery managers, cost analysts, onboarding guides, rollout coordinators | Sprint health in seconds + personalized developer onboarding + A/B test design with statistical rigor |
+| [wicked-data](plugins/wicked-data) | Data engineers, ML engineers, analytics architects | DuckDB-powered SQL on 10GB+ CSV/Excel with zero database setup — plain English to results |
+| [wicked-qe](plugins/wicked-qe) | QE strategists, test automation, shift-left quality | Generates test scenarios from requirements before code exists + hooks that track file changes as you write |
+| [wicked-agentic](plugins/wicked-agentic) | Agentic architecture review, pattern detection, trust & safety | Detects 12 frameworks, scores agent topologies, generates remediation roadmaps for AI systems |
 
-| Plugin | Purpose |
-|--------|---------|
-| **[wicked-engineering](plugins/wicked-engineering)** | Senior engineering, QE, architecture, debugging, frontend/backend |
-| **[wicked-product](plugins/wicked-product)** | Product management, UX review, requirements, customer feedback |
-| **[wicked-platform](plugins/wicked-platform)** | DevSecOps, CI/CD, compliance, incident response, observability |
-| **[wicked-delivery](plugins/wicked-delivery)** | PMO, cost analysis, rollouts, developer onboarding |
-| **[wicked-data](plugins/wicked-data)** | Data engineering, ML pipelines, analytics, DuckDB analysis |
+**Search & Intelligence**
 
-### Tools & Utilities
+| Plugin | What It Does | Why It's Different |
+|--------|-------------|-------------------|
+| [wicked-search](plugins/wicked-search) | Structural codebase understanding — 73 languages, PDF/Office docs, symbol graph with typed relationships | Trace a form field to its DB column, blast-radius analysis, architecture diagrams from Docker/K8s + code, lineage coverage audits, self-improving 95%+ accuracy |
+| [wicked-smaht](plugins/wicked-smaht) | Intercepts every prompt, detects intent, injects context from all installed plugins automatically | 6 adapters (memory, search, tasks, brainstorms, project state, docs), fast/deep path routing, session history condensation, turn-budget warnings — the brain that ties the ecosystem together |
 
-| Plugin | Purpose |
-|--------|---------|
-| **[wicked-workbench](plugins/wicked-workbench)** | Dashboard renderer for visualizing plugin data |
-| **[wicked-startah](plugins/wicked-startah)** | Opinionated starter kit with essential MCP servers |
+**Infrastructure & Tools**
+
+| Plugin | What It Does | Why It's Different |
+|--------|-------------|-------------------|
+| [wicked-cache](plugins/wicked-cache) | Shared caching layer with namespace isolation | File-aware invalidation — auto-expires when source files change, makes other plugins instant |
+| [wicked-startah](plugins/wicked-startah) | Starter kit with MCP servers and multi-AI conversations | One install gets Context7 docs, Atlassian integration, Gemini/Codex conversations, browser automation |
+| [wicked-workbench](plugins/wicked-workbench) | Web dashboard for browsing and executing plugin commands | ACP-powered React UI — browse all 18 plugins and 171 commands from a browser |
+| [wicked-scenarios](plugins/wicked-scenarios) | E2E testing via markdown scenarios | Human-readable test specs that orchestrate 9 CLIs (curl, playwright, k6, trivy, semgrep, pa11y) — no framework lock-in |
+| [wicked-patch](plugins/wicked-patch) | Code generation and change propagation | Add a field to a Java entity → auto-patches SQL migration + DAO + JSP + API + UI across 5 languages |
 
 ## How They Work Together
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        YOUR PROJECT                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  /wicked-crew:start "Build auth feature"                        │
-│       │                                                         │
-│       ├── CLARIFY ──► wicked-jam brainstorms approaches         │
-│       │                    └── wicked-mem recalls past decisions│
-│       │                                                         │
-│       ├── DESIGN ──► wicked-search finds existing patterns      │
-│       │                    └── wicked-engineering:arch reviews  │
-│       │                                                         │
-│       ├── BUILD ───► Implementation with wicked-kanban tracking │
-│       │                    └── wicked-platform checks security  │
-│       │                                                         │
-│       └── REVIEW ──► wicked-engineering:review (multi-pass)     │
-│                           └── wicked-mem stores learnings       │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+  /wicked-crew:start "Build auth feature"
+       │
+       ├── CLARIFY ──► wicked-jam brainstorms approaches
+       │                    └── wicked-mem recalls past decisions
+       │
+       ├── DESIGN ──► wicked-search finds existing patterns
+       │                    └── wicked-engineering:arch reviews
+       │
+       ├── BUILD ───► Implementation with wicked-kanban tracking
+       │                    └── wicked-platform checks security
+       │
+       └── REVIEW ──► wicked-engineering:review (multi-pass)
+                           └── wicked-mem stores learnings
 ```
 
-But you don't have to use them all. Each plugin works independently:
+Or use any plugin standalone — every one works independently:
 
 ```bash
-# Just brainstorm
-/wicked-jam:jam "microservices vs monolith for this project?"
-
-# Just search
-/wicked-search:search "error handling"
-
-# Just review code
-/wicked-engineering:review
-
-# Just remember
-/wicked-mem:store --title "Why we chose JWT" --type decision
+/wicked-search:search "error handling"     # just search
+/wicked-engineering:review                  # just review
+/wicked-product:elicit                      # just gather requirements
+/wicked-platform:security                   # just scan for vulnerabilities
 ```
 
-## Why Wicked Garden?
+## Principles
 
-Traditional SDLC frameworks (SAFe, Scrum, etc.) were designed for human coordination overhead. AI agents don't need standups, but they do need:
-
-- **Outcome clarity** before jumping into code
-- **Quality gates** that prevent shipping broken things
-- **Memory** of past decisions and learnings
-- **Multiple perspectives** to catch blind spots
-
-Wicked Garden provides these without the ceremony.
-
-### Principles
-
-1. **Lightweight over heavyweight** - No mandatory ceremonies. Use what helps, skip what doesn't.
-2. **Guardrails over gates** - Prevent disasters (force push, secret commits) without blocking flow.
-3. **Memory over amnesia** - Learn from past sessions. Remember decisions. Build context.
-4. **Perspectives over ego** - Multiple reviewers catch what one misses.
-5. **Graceful degradation** - Every plugin works standalone. Ecosystem integration is optional.
-
-## Memory That Matters
-
-Claude Code sessions are stateless by default. Wicked Garden changes that:
-
-```bash
-# Session 1: Make a decision
-/wicked-mem:store --title "Chose PostgreSQL over MongoDB" \
-  --type decision \
-  --tags "database,architecture"
-
-# Session 47: That decision surfaces automatically
-> "Should we add a new database?"
-# wicked-mem injects: "Previous decision: Chose PostgreSQL over MongoDB..."
-```
-
-Memory types:
-- **Episodic** - What happened (bugs fixed, features built)
-- **Procedural** - How to do things (patterns, techniques)
-- **Decision** - Why we chose X over Y
-- **Preference** - User/project preferences
-
-## Guardrails, Not Gates
-
-Wicked Garden doesn't block you. It prevents disasters:
-
-**Always prevented:**
-- Force push to main
-- Committing secrets
-- Destructive operations without confirmation
-- Auto-proceeding on deployments
-
-**Always allowed:**
-- Moving fast on low-risk changes
-- Skipping optional phases
-- Overriding suggestions with explicit intent
+1. **Lightweight over heavyweight** — No ceremonies. Use what helps, skip what doesn't.
+2. **Guardrails over gates** — Prevents force pushes and secret commits without blocking flow.
+3. **Memory over amnesia** — Learns from past sessions. Builds context over time.
+4. **Perspectives over ego** — Multiple specialists catch what one voice misses.
+5. **Graceful degradation** — Every plugin works alone. The ecosystem is optional.
 
 ## Installation
 
-Install individual plugins or the whole ecosystem:
-
 ```bash
-# Start with the recommended setup
+# Recommended: starter kit with MCP servers
 claude plugins add something-wicked/wicked-startah
 
-# Or install individual plugins
-claude plugins add something-wicked/wicked-mem
+# Or pick what you need
 claude plugins add something-wicked/wicked-crew
 claude plugins add something-wicked/wicked-engineering
+claude plugins add something-wicked/wicked-mem
 ```
 
 ## Contributing
 
-This is an open marketplace. Contributions welcome:
-
 1. Fork the repo
 2. Create your plugin in `plugins/wicked-yourplugin/`
-3. Run `/wg-check plugins/wicked-yourplugin` to validate structure
-4. Run `/wg-check plugins/wicked-yourplugin --full` for marketplace readiness
-5. Submit a PR
+3. Run `/wg-check plugins/wicked-yourplugin --full` for marketplace readiness
+4. Submit a PR
 
 See [.claude/CLAUDE.md](.claude/CLAUDE.md) for development tooling.
 
 ## License
 
-MIT - Use it, fork it, make it yours.
-
----
-
-*Wicked Garden: Because AI-assisted development should feel like having a great team, not fighting a framework.*
+MIT

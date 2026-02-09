@@ -1,6 +1,6 @@
 # wicked-product
 
-Turn vague ideas into shippable features. AI-powered requirements, UX reviews, customer voice analysis, and business strategy.
+A full product organization in a plugin -- product managers, UX designers, requirements analysts, customer advocates, and business strategists working together. Turn vague ideas into shippable features with a customer voice pipeline (listen, analyze, synthesize) that converts raw feedback into prioritized recommendations, WCAG accessibility audits, and acceptance criteria generation. Requirements, UX reviews, customer voice analysis, and business strategy in one install.
 
 ## Quick Start
 

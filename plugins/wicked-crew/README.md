@@ -1,6 +1,6 @@
 # wicked-crew
 
-Run multi-phase projects from idea to delivery. Smart decisioning analyzes your input and automatically engages the right specialists at the right time.
+Dynamic workflow orchestration with signal-based specialist routing. Crew adapts phases based on what it discovers -- injecting design when complexity increases, engaging security when it detects infrastructure changes, pulling in brainstorming when ambiguity spikes. This is not a rigid pipeline. It is a responsive delivery system that analyzes your input, plans the right phases, and automatically engages the right specialists at the right time.
 
 ## Quick Start
 

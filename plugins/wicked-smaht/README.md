@@ -1,6 +1,6 @@
 # wicked-smaht
 
-Stop re-explaining context every session. Automatically gathers relevant memories, tasks, code, and project state before Claude responds.
+wicked-smaht is the prefrontal cortex of your Claude Code environment. It intercepts every prompt, detects your intent (debugging, planning, implementation, review, research), and automatically injects relevant memories, active tasks, code context, brainstorm history, project state, and external documentation before Claude responds. You never re-explain context, re-search code, or re-recall decisions. A confidence-based router decides in milliseconds whether a fast 2-adapter path or a comprehensive 6-adapter deep path is needed, while a persistent session condenser tracks your topics, decisions, and preferences across turns so context survives even as conversations grow long. The more wicked-garden plugins you install, the more sources it draws from — making every plugin smarter by connecting them through a single context layer that no combination of manual commands can replicate.
 
 ## Quick Start
 

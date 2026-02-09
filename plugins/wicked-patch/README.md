@@ -1,6 +1,6 @@
 # wicked-patch
 
-One command to add a field. Every file that touches it - entity, DAO, SQL migration, API, UI template - patched automatically across 5 languages.
+Language-agnostic code generation using symbol graphs — add a field to a Java entity and automatically propagate changes to SQL migrations, DAOs, JSP views, REST APIs, and UI components. Cross-language change propagation with language-specific idioms across 5 languages, not string replacement.
 
 ## Quick Start
 

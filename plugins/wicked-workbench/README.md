@@ -1,6 +1,6 @@
 # wicked-workbench
 
-Turn any question into a live dashboard. "Show blocked tasks" becomes a visual board in your browser - no frontend code needed.
+Web dashboard powered by the Agent Client Protocol (ACP) — browse all 18 plugins and 171+ commands from a React UI, execute them with streaming results, and see your entire wicked-garden ecosystem at a glance. No terminal required. Ask a question, get a live dashboard.
 
 > **EXPERIMENTAL**: Renders structured JSON with component hierarchy. Full styled rendering coming soon.
 

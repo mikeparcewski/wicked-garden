@@ -1,6 +1,6 @@
 # wicked-cache
 
-Make expensive operations instant. Unified caching with file-based, TTL, and manual invalidation - from 500ms to <1ms.
+Shared caching infrastructure with file-aware invalidation — cached data auto-expires when source files change (mtime/size tracking), so stale results never sneak through. Namespace isolation keeps plugins from stepping on each other, and expensive operations like search indexing go from 500ms to <1ms on repeat queries.
 
 ## Quick Start
 
