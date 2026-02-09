@@ -1,6 +1,8 @@
 # wicked-data
 
-Data engineering specialists with DuckDB-powered analysis -- run SQL queries on 10GB+ CSV and Excel files with zero database setup. Ask questions in plain English, get SQL plus results with memory-efficient streaming that never chokes on large files. Beyond ad-hoc queries, wicked-data brings ML pipeline guidance, analytics architecture review, and ETL design into one plugin so your entire data workflow has expert-level support from exploration to production.
+Data engineering specialists with DuckDB-powered analysis -- run SQL queries on 10GB+ CSV and Excel files with zero database setup. Ask questions in plain English, get SQL plus results with memory-efficient streaming that never chokes on large files.
+
+Beyond ad-hoc queries, wicked-data brings ML pipeline guidance, analytics architecture review, and ETL design into one plugin. Your entire data workflow gets expert-level support from exploration to production.
 
 ## Quick Start
 

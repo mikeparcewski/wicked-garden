@@ -5,10 +5,11 @@ Language-agnostic code generation using symbol graphs — add a field to a Java 
 ## Quick Start
 
 ```bash
-# Install
+# Install (wicked-search is required for the symbol graph)
 claude plugin install wicked-patch@wicked-garden
+claude plugin install wicked-search@wicked-garden
 
-# Build the symbol graph (required)
+# Build the symbol graph
 /wicked-search:index .
 
 # Add a field - patches propagate to every layer

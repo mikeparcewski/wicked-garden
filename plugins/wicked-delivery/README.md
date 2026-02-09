@@ -1,6 +1,8 @@
 # wicked-delivery
 
-Delivery management that goes beyond task tracking -- sprint health reports in seconds, personalized developer onboarding with learning paths, A/B test design with statistical rigor, progressive rollout coordination, and FinOps cost optimization. The PM stuff Claude Code doesn't do by default. AI agents for sprint health, developer onboarding, experiment design, and cost savings, all in one plugin.
+Delivery management that goes beyond task tracking. Sprint health reports in seconds, personalized developer onboarding with learning paths, A/B test design with statistical rigor, and FinOps cost optimization.
+
+The PM stuff Claude Code doesn't do by default -- 11 AI agents covering sprint health, developer onboarding, experiment design, progressive rollouts, and cost savings, all in one plugin.
 
 ## Quick Start
 

@@ -1,44 +1,40 @@
 # wicked-workbench
 
-Web dashboard powered by the Agent Client Protocol (ACP) — browse all 18 plugins and 171+ commands from a React UI, execute them with streaming results, and see your entire wicked-garden ecosystem at a glance. No terminal required. Ask a question, get a live dashboard.
+Web dashboard for your wicked-garden ecosystem. Browse all installed plugins and commands from a React UI, execute them with streaming results, and generate custom dashboards by asking Claude in plain English.
 
-> **EXPERIMENTAL**: Renders structured JSON with component hierarchy. Full styled rendering coming soon.
+> **Early access**: Dashboard rendering uses structured component hierarchy. Visual polish is actively improving.
 
 ## Quick Start
 
 ```bash
-# Install
-pip install wicked-workbench
+# Install the plugin
+claude plugin install wicked-workbench@wicked-garden
 
 # Start the server
-/workbench
-# or: wicked-workbench
+/workbench start
 
 # Open http://localhost:18889
 
-# Then just ask Claude:
+# Then ask Claude to build dashboards:
 "Show my high priority tasks in a dashboard"
 "Create a sprint health board"
-"Display data quality metrics"
 ```
 
 ## How It Works
 
-```
-You ask a question
-  → Claude reads component catalogs from your installed plugins
-  → Generates an A2UI dashboard definition
-  → Workbench renders it + fetches live data
-  → You see it at http://localhost:18889
-```
+1. Start the workbench server (`/workbench start`)
+2. Ask Claude for a dashboard in plain English
+3. Claude generates an A2UI component layout from your installed plugins
+4. Workbench renders it with live data at http://localhost:18889
 
-Your dashboards are only limited by which plugins you have installed. More plugins = more dashboard components available.
+More installed plugins = more dashboard components available.
 
-## Commands
+## Commands & Skills
 
-| Command | What It Does | Example |
-|---------|-------------|---------|
-| `/workbench` | Start the workbench server | `/workbench` |
+| Component | What It Does | Example |
+|-----------|-------------|---------|
+| `/workbench` | Start, stop, or check the server | `/workbench start` |
+| `dashboard` skill | Generate A2UI dashboards from natural language | "Create a sprint board" |
 
 ## Available Components by Plugin
 

@@ -78,6 +78,13 @@ claude plugin install wicked-jam@wicked-garden
 3. Define token refresh strategy
 ```
 
+## Agents & Skills
+
+| Component | Type | What It Does |
+|-----------|------|-------------|
+| `facilitator` | Agent | Role-plays focus group personas and synthesizes discussions |
+| `brainstorming` | Skill | Orchestrates the persona selection, discussion rounds, and synthesis workflow |
+
 ## Integration
 
 Works standalone. Enhanced with:
