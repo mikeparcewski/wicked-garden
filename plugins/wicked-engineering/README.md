@@ -1,6 +1,6 @@
 # wicked-engineering
 
-Ship better code with AI engineers that review, debug, design systems, and plan implementations before you write a line.
+10 specialist agents -- senior engineers, solution architects, debuggers, frontend/backend specialists, tech writers, and API documentarians -- with coordinated multi-pass workflows. One command gets you architecture review + code quality + security analysis, not just a single "looks good to me." Review, debug, design systems, and plan implementations before you write a line.
 
 ## Quick Start
 

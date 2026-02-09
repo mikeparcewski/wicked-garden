@@ -1,6 +1,6 @@
 # wicked-kanban
 
-AI-native kanban that syncs automatically. Every TaskCreate and TaskUpdate flows to a persistent board with full audit trails.
+Persistent task board that survives across sessions. Claude Code's built-in tasks reset every time you start a new conversation -- kanban auto-syncs via PostToolUse hooks, links commits to tasks, and maintains sprint grouping and activity audit trails that persist forever. Every TaskCreate and TaskUpdate flows to a durable board with full history.
 
 ## Quick Start
 

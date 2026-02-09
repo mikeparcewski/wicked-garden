@@ -1,8 +1,8 @@
 # wicked-startah
 
-Install one plugin, get 8 skills, 2 MCP servers, and a curated plugin catalog. Zero configuration - everything works immediately.
+Zero-config starter kit — one install gets you Context7 documentation lookup, Atlassian integration, multi-AI conversations (Gemini, Codex, OpenCode), browser automation, and smart runtime execution. No API keys required for core features. This is the foundation that makes the rest of the wicked-garden ecosystem work out of the box.
 
-**Install this first.** It's the fastest way to get value from the wicked-garden ecosystem.
+**Install this first.** It's the fastest way to get value from every other plugin.
 
 ## Quick Start
 

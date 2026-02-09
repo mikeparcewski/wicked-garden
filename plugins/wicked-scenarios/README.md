@@ -1,6 +1,6 @@
 # wicked-scenarios
 
-E2E testing via human and agent-readable markdown scenarios that orchestrate lightweight open-source CLI tools.
+E2E testing written as human-readable markdown scenarios that orchestrate 9 lightweight CLI tools — curl, hurl, playwright, agent-browser, hey, k6, trivy, semgrep, and pa11y. Cover API, browser, performance, security, and accessibility testing without framework lock-in or test runner dependencies.
 
 ## Commands
 
