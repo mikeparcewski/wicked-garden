@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""
+wicked-smaht v2: Fast Path Assembler
+
+Pattern-based context assembly without LLM reasoning.
+Target latency: <1s
+
+Strategy:
+1. Get intent from router analysis
+2. Select adapters based on intent type
+3. Query adapters in parallel
+4. Format directly into briefing
+"""
+
+import asyncio
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+# Add parent to path for adapter imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from router import IntentType, PromptAnalysis
+
+
+# Adapter selection rules by intent
+ADAPTER_RULES = {
+    IntentType.DEBUGGING: ["search", "mem"],
+    IntentType.IMPLEMENTATION: ["search", "mem", "kanban", "context7"],
+    IntentType.PLANNING: ["kanban", "crew", "jam"],
+    IntentType.RESEARCH: ["search", "mem", "context7"],
+    IntentType.REVIEW: ["search", "kanban"],
+    IntentType.GENERAL: ["search"],  # Minimal
+}
+
+
+@dataclass
+class FastPathResult:
+    """Result from fast path assembly."""
+    briefing: str
+    sources_queried: list[str]
+    sources_failed: list[str]
+    latency_ms: int
+
+
+class FastPathAssembler:
+    """Pattern-based context assembly."""
+
+    def __init__(self):
+        self.adapters = self._load_adapters()
+
+    def _load_adapters(self) -> dict:
+        """Load available adapters."""
+        adapters = {}
+        try:
+            from adapters import mem_adapter, search_adapter, kanban_adapter, jam_adapter, crew_adapter, context7_adapter
+            adapters["mem"] = mem_adapter
+            adapters["search"] = search_adapter
+            adapters["kanban"] = kanban_adapter
+            adapters["jam"] = jam_adapter
+            adapters["crew"] = crew_adapter
+            adapters["context7"] = context7_adapter
+        except ImportError as e:
+            print(f"Warning: Could not load adapters: {e}", file=sys.stderr)
+        return adapters
+
+    async def assemble(self, prompt: str, analysis: PromptAnalysis) -> FastPathResult:
+        """Assemble context using pattern-based rules."""
+        import time
+        start_time = time.time()
+
+        # Get adapters for this intent
+        adapter_names = ADAPTER_RULES.get(analysis.intent_type, ["search"])
+
+        # Query adapters in parallel
+        tasks = []
+        queried = []
+        for name in adapter_names:
+            if name in self.adapters:
+                tasks.append(self._query_adapter(name, prompt))
+                queried.append(name)
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Collect items and track failures - differentiate empty from failed
+        all_items = []
+        sources_queried = []
+        sources_failed = []
+
+        for name, result in zip(queried, results):
+            if isinstance(result, Exception):
+                sources_failed.append(name)
+            else:
+                # Successfully queried (even if empty)
+                sources_queried.append(name)
+                if result:
+                    all_items.extend(result[:10])  # Cap per source
+
+        # Format briefing
+        briefing = self._format_briefing(prompt, analysis, all_items, sources_failed)
+
+        latency_ms = int((time.time() - start_time) * 1000)
+
+        return FastPathResult(
+            briefing=briefing,
+            sources_queried=sources_queried,
+            sources_failed=sources_failed,
+            latency_ms=latency_ms,
+        )
+
+    async def _query_adapter(self, name: str, prompt: str, timeout: float = 0.5):
+        """Query a single adapter with timeout."""
+        adapter = self.adapters.get(name)
+        if not adapter:
+            return []
+
+        try:
+            return await asyncio.wait_for(
+                adapter.query(prompt),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            raise Exception(f"{name} adapter timeout")
+        except Exception as e:
+            raise Exception(f"{name} adapter failed: {e}")
+
+    def _format_briefing(
+        self,
+        prompt: str,
+        analysis: PromptAnalysis,
+        items: list,
+        failed_sources: list[str]
+    ) -> str:
+        """Format items into a simple briefing."""
+        lines = [
+            "# Context Briefing (fast)",
+            "",
+            "## Situation",
+            f"**Intent**: {analysis.intent_type.value} (confidence: {analysis.confidence:.2f})",
+        ]
+
+        if analysis.entities:
+            lines.append(f"**Entities**: {', '.join(analysis.entities[:5])}")
+
+        lines.append("")
+
+        # Group items by source (with safe attribute access)
+        by_source: dict[str, list] = {}
+        for item in items:
+            source = getattr(item, 'source', 'unknown')
+            if source not in by_source:
+                by_source[source] = []
+            by_source[source].append(item)
+
+        # Format each source
+        source_labels = {
+            "mem": "Memories",
+            "search": "Code & Docs",
+            "kanban": "Tasks",
+            "jam": "Brainstorms",
+            "crew": "Project State",
+            "context7": "External Docs",
+        }
+
+        if by_source:
+            lines.append("## Relevant Context")
+            lines.append("")
+
+            for source, source_items in by_source.items():
+                label = source_labels.get(source, source)
+                lines.append(f"### {label}")
+
+                for item in source_items[:5]:  # Max 5 per source
+                    # Safe attribute access with fallbacks
+                    title = getattr(item, 'title', str(item)[:50])
+                    summary = getattr(item, 'summary', '')[:100]
+                    lines.append(f"- **{title}**: {summary}")
+
+                lines.append("")
+
+        # Note failures
+        if failed_sources:
+            lines.append("## Uncertainties")
+            lines.append(f"*Unavailable sources: {', '.join(failed_sources)}*")
+            lines.append("")
+
+        return "\n".join(lines)
+
+
+async def main():
+    """CLI for testing fast path."""
+    import json
+
+    if len(sys.argv) < 2:
+        print("Usage: fast_path.py <prompt>")
+        sys.exit(1)
+
+    prompt = " ".join(sys.argv[1:])
+
+    # Create mock analysis
+    from router import Router
+    router = Router()
+    decision = router.route(prompt)
+
+    assembler = FastPathAssembler()
+    result = await assembler.assemble(prompt, decision.analysis)
+
+    print(f"Latency: {result.latency_ms}ms")
+    print(f"Sources: {result.sources_queried}")
+    print(f"Failed: {result.sources_failed}")
+    print()
+    print(result.briefing)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

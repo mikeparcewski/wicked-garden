@@ -1,0 +1,6 @@
+{
+  "slug": "wicked-scenarios",
+  "display_name": "Wicked Scenarios",
+  "tagline": "E2E testing with human-readable scenarios and lightweight CLIs",
+  "category": "testing"
+}

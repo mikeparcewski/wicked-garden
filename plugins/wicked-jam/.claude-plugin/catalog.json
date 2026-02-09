@@ -1,0 +1,463 @@
+{
+  "catalogId": "jam",
+  "version": "2.0.0",
+  "description": "Brainstorming, ideation, and focus group components for collaborative exploration, consensus building, and insight synthesis",
+  "components": {
+    "JamDashboard": {
+      "description": "Main dashboard showing recent sessions, templates, and quick actions.",
+      "category": "layout",
+      "props": {
+        "activeSessionCount": {"type": "number", "description": "Number of active sessions"},
+        "totalInsights": {"type": "number", "description": "Total insights generated"},
+        "favoriteTopics": {"type": "array", "description": "Frequently explored topics"}
+      },
+      "slots": {
+        "recentSessions": {"role": "content", "description": "Recent session cards", "accepts": ["SessionCard"]},
+        "templates": {"role": "content", "description": "Session templates", "accepts": ["SessionTemplate"]},
+        "quickActions": {"role": "control", "description": "Quick action buttons", "accepts": ["QuickJamButton"]}
+      }
+    },
+    "BrainstormSession": {
+      "description": "Container for a full brainstorming session showing topic, personas, rounds, and synthesis.",
+      "category": "layout",
+      "props": {
+        "id": {"type": "string", "description": "Session ID"},
+        "topic": {"type": "string", "description": "Brainstorm topic/question", "required": true},
+        "status": {"type": "string", "description": "Session status", "enum": ["setup", "active", "synthesizing", "completed", "archived"]},
+        "mode": {"type": "string", "description": "Session mode", "enum": ["quick_jam", "full_brainstorm", "deep_dive"]},
+        "roundCount": {"type": "number", "description": "Number of discussion rounds"},
+        "currentRound": {"type": "number", "description": "Current round number"},
+        "startedAt": {"type": "string", "description": "Session start time"},
+        "duration": {"type": "string", "description": "Session duration"}
+      },
+      "slots": {
+        "personas": {"role": "content", "description": "Participating personas", "accepts": ["PersonaCard", "PersonaAvatar"]},
+        "rounds": {"role": "content", "description": "Discussion rounds", "accepts": ["DiscussionRound"]},
+        "synthesis": {"role": "content", "description": "Synthesis components", "accepts": ["SynthesisSummary", "InsightCard", "ActionItem"]},
+        "controls": {"role": "control", "description": "Session controls", "accepts": ["FacilitatorControls"]}
+      }
+    },
+    "SessionCard": {
+      "description": "Compact card showing a brainstorm session summary.",
+      "category": "content",
+      "props": {
+        "id": {"type": "string", "description": "Session ID", "required": true},
+        "topic": {"type": "string", "description": "Session topic", "required": true},
+        "status": {"type": "string", "description": "Session status", "enum": ["setup", "active", "synthesizing", "completed", "archived"]},
+        "personaCount": {"type": "number", "description": "Number of personas"},
+        "insightCount": {"type": "number", "description": "Insights generated"},
+        "date": {"type": "string", "description": "Session date"},
+        "tags": {"type": "array", "description": "Topic tags"}
+      }
+    },
+    "SessionTemplate": {
+      "description": "A reusable template for common brainstorm types.",
+      "category": "content",
+      "props": {
+        "name": {"type": "string", "description": "Template name", "required": true},
+        "description": {"type": "string", "description": "Template description"},
+        "type": {"type": "string", "description": "Template type", "enum": ["decision", "exploration", "problem_solving", "feature_review", "retrospective", "custom"]},
+        "suggestedPersonas": {"type": "array", "description": "Recommended persona types"},
+        "suggestedRounds": {"type": "number", "description": "Recommended round count"},
+        "prompts": {"type": "array", "description": "Guided prompts for the session"}
+      }
+    },
+    "QuickJamButton": {
+      "description": "Button to start a quick jam session.",
+      "category": "control",
+      "props": {
+        "label": {"type": "string", "description": "Button label", "default": "Quick Jam"},
+        "variant": {"type": "string", "description": "Button style", "enum": ["primary", "secondary", "outline"]}
+      }
+    },
+    "DiscussionRound": {
+      "description": "A round of discussion with multiple persona contributions.",
+      "category": "layout",
+      "props": {
+        "roundNumber": {"type": "number", "description": "Round number", "required": true},
+        "theme": {"type": "string", "description": "Round theme/focus"},
+        "status": {"type": "string", "description": "Round status", "enum": ["pending", "active", "completed"]},
+        "consensusLevel": {"type": "number", "description": "Consensus level 0-100"}
+      },
+      "slots": {
+        "contributions": {"role": "content", "description": "Persona contributions", "accepts": ["PersonaContribution", "DiscussionThread"]}
+      }
+    },
+    "PersonaContribution": {
+      "description": "A single contribution from a persona in a discussion round.",
+      "category": "content",
+      "props": {
+        "personaName": {"type": "string", "description": "Persona name", "required": true},
+        "personaRole": {"type": "string", "description": "Persona role/archetype"},
+        "content": {"type": "string", "description": "Contribution text", "required": true},
+        "sentiment": {"type": "string", "description": "Contribution sentiment", "enum": ["supportive", "neutral", "skeptical", "concerned"]},
+        "referencesInsight": {"type": "string", "description": "ID of insight being referenced"},
+        "agreesWithPersonas": {"type": "array", "description": "Personas they agree with"},
+        "disagreesWithPersonas": {"type": "array", "description": "Personas they disagree with"}
+      }
+    },
+    "DiscussionThread": {
+      "description": "A threaded conversation between personas on a specific point.",
+      "category": "layout",
+      "props": {
+        "topic": {"type": "string", "description": "Thread topic"},
+        "status": {"type": "string", "description": "Thread status", "enum": ["open", "resolved", "escalated"]},
+        "participantCount": {"type": "number", "description": "Number of participants"},
+        "messageCount": {"type": "number", "description": "Number of messages"}
+      },
+      "slots": {
+        "messages": {"role": "content", "description": "Thread messages", "accepts": ["PersonaContribution"]}
+      }
+    },
+    "PersonaCard": {
+      "description": "Full card showing a persona's profile, perspective, and contributions.",
+      "category": "content",
+      "props": {
+        "name": {"type": "string", "description": "Persona name", "required": true},
+        "role": {"type": "string", "description": "Persona role/archetype", "required": true},
+        "avatar": {"type": "string", "description": "Avatar image/icon"},
+        "perspective": {"type": "string", "description": "Their viewpoint on the topic"},
+        "expertise": {"type": "array", "description": "Areas of expertise"},
+        "biases": {"type": "array", "description": "Known biases to consider"},
+        "concerns": {"type": "array", "description": "Key concerns raised"},
+        "suggestions": {"type": "array", "description": "Suggestions made"},
+        "contributionCount": {"type": "number", "description": "Number of contributions"}
+      }
+    },
+    "PersonaAvatar": {
+      "description": "Compact avatar for persona display in lists.",
+      "category": "content",
+      "props": {
+        "name": {"type": "string", "description": "Persona name", "required": true},
+        "role": {"type": "string", "description": "Persona role"},
+        "avatar": {"type": "string", "description": "Avatar image/icon"},
+        "status": {"type": "string", "description": "Current status", "enum": ["speaking", "listening", "thinking", "idle"]}
+      }
+    },
+    "PersonaGallery": {
+      "description": "Gallery of available personas for selection.",
+      "category": "layout",
+      "props": {
+        "title": {"type": "string", "description": "Gallery title"},
+        "filter": {"type": "string", "description": "Filter by category"},
+        "selectionMode": {"type": "string", "description": "Selection mode", "enum": ["single", "multiple"]}
+      },
+      "slots": {
+        "personas": {"role": "content", "description": "Available personas", "accepts": ["PersonaCard", "PersonaAvatar"]}
+      }
+    },
+    "PersonaBuilder": {
+      "description": "Form for creating custom personas.",
+      "category": "control",
+      "props": {
+        "mode": {"type": "string", "description": "Builder mode", "enum": ["create", "edit", "clone"]},
+        "baseArchetype": {"type": "string", "description": "Base archetype to customize"}
+      }
+    },
+    "InsightCard": {
+      "description": "A synthesized insight from the brainstorm with confidence and evidence.",
+      "category": "content",
+      "props": {
+        "id": {"type": "string", "description": "Insight ID"},
+        "insight": {"type": "string", "description": "The insight text", "required": true},
+        "confidence": {"type": "string", "description": "Confidence level", "enum": ["high", "medium", "low"], "required": true},
+        "category": {"type": "string", "description": "Insight category", "enum": ["consensus", "tension", "opportunity", "risk", "action"]},
+        "evidence": {"type": "string", "description": "Supporting evidence from discussion"},
+        "sources": {"type": "array", "description": "Persona names who contributed"},
+        "votes": {"type": "number", "description": "Upvotes/agreement count"},
+        "linkedInsights": {"type": "array", "description": "Related insight IDs"}
+      }
+    },
+    "ActionItem": {
+      "description": "A recommended action from the brainstorm synthesis.",
+      "category": "content",
+      "props": {
+        "id": {"type": "string", "description": "Action ID"},
+        "action": {"type": "string", "description": "Action to take", "required": true},
+        "priority": {"type": "number", "description": "Priority order (1 = highest)"},
+        "effort": {"type": "string", "description": "Effort estimate", "enum": ["low", "medium", "high"]},
+        "impact": {"type": "string", "description": "Expected impact", "enum": ["low", "medium", "high"]},
+        "rationale": {"type": "string", "description": "Why this action matters"},
+        "owner": {"type": "string", "description": "Suggested owner"},
+        "status": {"type": "string", "description": "Action status", "enum": ["proposed", "accepted", "in_progress", "completed", "rejected"]}
+      }
+    },
+    "OpenQuestion": {
+      "description": "An unresolved question or tension identified during brainstorm.",
+      "category": "content",
+      "props": {
+        "id": {"type": "string", "description": "Question ID"},
+        "question": {"type": "string", "description": "The open question", "required": true},
+        "context": {"type": "string", "description": "Why this needs resolution"},
+        "type": {"type": "string", "description": "Question type", "enum": ["clarification", "decision", "research", "debate"]},
+        "blocksInsights": {"type": "array", "description": "Insights blocked by this question"},
+        "suggestedApproach": {"type": "string", "description": "How to resolve"}
+      }
+    },
+    "SynthesisSummary": {
+      "description": "Executive summary of brainstorm findings.",
+      "category": "display",
+      "props": {
+        "topic": {"type": "string", "description": "Original topic"},
+        "sessionMode": {"type": "string", "description": "Session mode used"},
+        "personaCount": {"type": "number", "description": "Personas involved"},
+        "roundCount": {"type": "number", "description": "Rounds completed"},
+        "keyInsights": {"type": "array", "description": "Top insights"},
+        "recommendedActions": {"type": "array", "description": "Prioritized actions"},
+        "openQuestions": {"type": "array", "description": "Unresolved questions"},
+        "overallConsensus": {"type": "number", "description": "Overall consensus level 0-100"}
+      }
+    },
+    "ConsensusTracker": {
+      "description": "Visual tracker showing consensus levels across topics.",
+      "category": "display",
+      "props": {
+        "title": {"type": "string", "description": "Tracker title"},
+        "overallConsensus": {"type": "number", "description": "Overall consensus 0-100"},
+        "trend": {"type": "string", "description": "Consensus trend", "enum": ["converging", "stable", "diverging"]}
+      },
+      "slots": {
+        "topics": {"role": "content", "description": "Topic consensus items", "accepts": ["ConsensusItem"]}
+      }
+    },
+    "ConsensusItem": {
+      "description": "Consensus level for a specific topic or insight.",
+      "category": "content",
+      "props": {
+        "topic": {"type": "string", "description": "Topic/insight", "required": true},
+        "consensusLevel": {"type": "number", "description": "Consensus 0-100", "required": true},
+        "supportingPersonas": {"type": "array", "description": "Personas in support"},
+        "opposingPersonas": {"type": "array", "description": "Personas opposed"},
+        "undecidedPersonas": {"type": "array", "description": "Personas undecided"}
+      }
+    },
+    "VotingPanel": {
+      "description": "Panel for voting on insights or actions.",
+      "category": "control",
+      "props": {
+        "title": {"type": "string", "description": "Voting title"},
+        "mode": {"type": "string", "description": "Voting mode", "enum": ["updown", "ranking", "dotmocracy", "weighted"]},
+        "votesPerPerson": {"type": "number", "description": "Votes allowed per persona"},
+        "status": {"type": "string", "description": "Voting status", "enum": ["open", "closed"]}
+      },
+      "slots": {
+        "items": {"role": "content", "description": "Items to vote on", "accepts": ["VotingItem"]}
+      }
+    },
+    "VotingItem": {
+      "description": "A single item in a voting panel.",
+      "category": "content",
+      "props": {
+        "id": {"type": "string", "description": "Item ID", "required": true},
+        "content": {"type": "string", "description": "Item content", "required": true},
+        "votes": {"type": "number", "description": "Vote count"},
+        "rank": {"type": "number", "description": "Current rank"},
+        "voters": {"type": "array", "description": "Who voted for this"}
+      }
+    },
+    "ArgumentMap": {
+      "description": "Visual map of arguments for and against a position.",
+      "category": "display",
+      "props": {
+        "title": {"type": "string", "description": "Position/topic"},
+        "proCount": {"type": "number", "description": "Number of supporting arguments"},
+        "conCount": {"type": "number", "description": "Number of opposing arguments"}
+      },
+      "slots": {
+        "pros": {"role": "content", "description": "Supporting arguments", "accepts": ["ArgumentItem"]},
+        "cons": {"role": "content", "description": "Opposing arguments", "accepts": ["ArgumentItem"]}
+      }
+    },
+    "ArgumentItem": {
+      "description": "A single argument in an argument map.",
+      "category": "content",
+      "props": {
+        "argument": {"type": "string", "description": "The argument", "required": true},
+        "strength": {"type": "string", "description": "Argument strength", "enum": ["strong", "moderate", "weak"]},
+        "source": {"type": "string", "description": "Persona who raised it"},
+        "rebuttals": {"type": "array", "description": "Counter-arguments"}
+      }
+    },
+    "IdeaCluster": {
+      "description": "A cluster of related ideas grouped by theme.",
+      "category": "layout",
+      "props": {
+        "theme": {"type": "string", "description": "Cluster theme", "required": true},
+        "ideaCount": {"type": "number", "description": "Number of ideas"},
+        "color": {"type": "string", "description": "Cluster color"}
+      },
+      "slots": {
+        "ideas": {"role": "content", "description": "Ideas in cluster", "accepts": ["IdeaCard"]}
+      }
+    },
+    "IdeaCard": {
+      "description": "A single idea captured during brainstorming.",
+      "category": "content",
+      "props": {
+        "id": {"type": "string", "description": "Idea ID"},
+        "content": {"type": "string", "description": "Idea content", "required": true},
+        "author": {"type": "string", "description": "Persona who proposed"},
+        "votes": {"type": "number", "description": "Vote count"},
+        "status": {"type": "string", "description": "Idea status", "enum": ["raw", "refined", "promoted", "discarded"]},
+        "tags": {"type": "array", "description": "Idea tags"}
+      }
+    },
+    "SessionComparison": {
+      "description": "Compare insights across multiple sessions.",
+      "category": "display",
+      "props": {
+        "title": {"type": "string", "description": "Comparison title"},
+        "sessionCount": {"type": "number", "description": "Sessions being compared"}
+      },
+      "slots": {
+        "sessions": {"role": "content", "description": "Sessions to compare", "accepts": ["SessionCard"]},
+        "commonInsights": {"role": "content", "description": "Shared insights", "accepts": ["InsightCard"]},
+        "divergentInsights": {"role": "content", "description": "Conflicting insights", "accepts": ["InsightCard"]}
+      }
+    },
+    "SessionTimeline": {
+      "description": "Timeline view of session progression.",
+      "category": "display",
+      "props": {
+        "sessionId": {"type": "string", "description": "Session ID"},
+        "startTime": {"type": "string", "description": "Session start"},
+        "endTime": {"type": "string", "description": "Session end"}
+      },
+      "slots": {
+        "events": {"role": "content", "description": "Timeline events", "accepts": ["TimelineEvent"]}
+      }
+    },
+    "TimelineEvent": {
+      "description": "An event in the session timeline.",
+      "category": "content",
+      "props": {
+        "timestamp": {"type": "string", "description": "Event time", "required": true},
+        "type": {"type": "string", "description": "Event type", "enum": ["round_start", "round_end", "insight_emerged", "consensus_shift", "key_contribution"]},
+        "description": {"type": "string", "description": "Event description"},
+        "actor": {"type": "string", "description": "Persona involved"}
+      }
+    },
+    "FacilitatorControls": {
+      "description": "Controls for facilitating a session.",
+      "category": "control",
+      "props": {
+        "sessionStatus": {"type": "string", "description": "Current session status"},
+        "canAdvanceRound": {"type": "boolean", "description": "Can move to next round"},
+        "canSynthesize": {"type": "boolean", "description": "Can start synthesis"}
+      }
+    },
+    "ExportOptions": {
+      "description": "Options for exporting session results.",
+      "category": "control",
+      "props": {
+        "formats": {"type": "array", "description": "Available export formats", "default": ["markdown", "json", "pdf"]},
+        "includeDiscussion": {"type": "boolean", "description": "Include full discussion"},
+        "includePersonas": {"type": "boolean", "description": "Include persona details"}
+      }
+    }
+  },
+  "intents": {
+    "show-jam-dashboard": {
+      "description": "Show main brainstorming dashboard with recent sessions",
+      "suggestedComponents": ["JamDashboard", "SessionCard", "SessionTemplate"],
+      "requiredData": ["sessions", "templates"]
+    },
+    "show-brainstorm-session": {
+      "description": "Show a full brainstorm session with all rounds and synthesis",
+      "suggestedComponents": ["BrainstormSession", "DiscussionRound", "PersonaCard", "SynthesisSummary"],
+      "requiredData": ["session"]
+    },
+    "show-brainstorm-results": {
+      "description": "Show results of a completed brainstorming session",
+      "suggestedComponents": ["SynthesisSummary", "InsightCard", "ActionItem", "OpenQuestion"],
+      "requiredData": ["synthesis"]
+    },
+    "show-discussion-rounds": {
+      "description": "Show discussion rounds with persona contributions",
+      "suggestedComponents": ["DiscussionRound", "PersonaContribution", "DiscussionThread"],
+      "requiredData": ["rounds"]
+    },
+    "show-perspectives": {
+      "description": "Show diverse perspectives from focus group personas",
+      "suggestedComponents": ["PersonaCard", "PersonaContribution"],
+      "requiredData": ["perspectives"]
+    },
+    "show-persona-gallery": {
+      "description": "Show available personas for selection",
+      "suggestedComponents": ["PersonaGallery", "PersonaCard", "PersonaAvatar"],
+      "requiredData": ["personas"]
+    },
+    "show-insights": {
+      "description": "Show synthesized insights with confidence levels",
+      "suggestedComponents": ["InsightCard", "IdeaCluster"],
+      "requiredData": ["insights"]
+    },
+    "show-action-items": {
+      "description": "Show prioritized action items from brainstorm",
+      "suggestedComponents": ["ActionItem"],
+      "requiredData": ["actions"]
+    },
+    "show-consensus-tracker": {
+      "description": "Show consensus levels and agreement tracking",
+      "suggestedComponents": ["ConsensusTracker", "ConsensusItem"],
+      "requiredData": ["consensus"]
+    },
+    "show-argument-map": {
+      "description": "Show pros and cons argument visualization",
+      "suggestedComponents": ["ArgumentMap", "ArgumentItem"],
+      "requiredData": ["arguments"]
+    },
+    "show-voting-panel": {
+      "description": "Show voting panel for prioritization",
+      "suggestedComponents": ["VotingPanel", "VotingItem"],
+      "requiredData": ["votingSession"]
+    },
+    "show-session-comparison": {
+      "description": "Compare insights across multiple sessions",
+      "suggestedComponents": ["SessionComparison", "SessionCard", "InsightCard"],
+      "requiredData": ["sessions"]
+    },
+    "show-session-timeline": {
+      "description": "Show timeline of session events",
+      "suggestedComponents": ["SessionTimeline", "TimelineEvent"],
+      "requiredData": ["timeline"]
+    },
+    "configure-session": {
+      "description": "Configure a new brainstorm session",
+      "suggestedComponents": ["SessionTemplate", "PersonaGallery", "FacilitatorControls"],
+      "requiredData": ["templates", "personas"]
+    }
+  },
+  "dataBindings": {
+    "sessions": {
+      "mcpServer": "jam",
+      "tool": "list_sessions",
+      "description": "Brainstorm sessions"
+    },
+    "session": {
+      "mcpServer": "jam",
+      "tool": "get_session",
+      "description": "Single session details"
+    },
+    "templates": {
+      "mcpServer": "jam",
+      "tool": "list_templates",
+      "description": "Session templates"
+    },
+    "personas": {
+      "mcpServer": "jam",
+      "tool": "list_personas",
+      "description": "Available personas"
+    },
+    "synthesis": {
+      "mcpServer": "jam",
+      "tool": "get_synthesis",
+      "description": "Session synthesis results"
+    },
+    "consensus": {
+      "mcpServer": "jam",
+      "tool": "get_consensus",
+      "description": "Consensus tracking data"
+    }
+  }
+}

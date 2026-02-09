@@ -1,0 +1,34 @@
+{
+  "name": "sql_add_field",
+  "description": "Add a new column to a SQL table",
+  "generator": "sql",
+  "input": {
+    "change_type": "add_column",
+    "field_spec": {
+      "name": "email",
+      "type": "String",
+      "nullable": false,
+      "column_name": "email"
+    },
+    "sample_content": "CREATE TABLE users (\n    id INTEGER PRIMARY KEY,\n    name VARCHAR(255)\n);\n",
+    "symbol": {
+      "id": "schema/users.sql::users",
+      "name": "users",
+      "type": "table",
+      "file_path": "schema/users.sql",
+      "line_start": 1,
+      "line_end": 4
+    }
+  },
+  "expected": {
+    "patch_count_min": 1,
+    "must_contain": [
+      "ALTER TABLE",
+      "ADD COLUMN",
+      "email",
+      "VARCHAR",
+      "NOT NULL"
+    ],
+    "must_not_contain": []
+  }
+}

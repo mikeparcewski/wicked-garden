@@ -1,0 +1,40 @@
+{
+  "name": "wicked-search",
+  "version": "1.1.1",
+  "description": "Unified code and document search with reasoning capabilities. Multi-ORM data lineage (JPA, SQLAlchemy, Django, TypeORM, Prisma, ActiveRecord, Entity Framework, GORM), impact analysis, service map detection, and coverage reporting. Cross-layer linking and cross-plugin graph export via wicked-cache.",
+  "author": {
+    "name": "Mike Parcewski"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/mikeparcewski/wicked-garden",
+  "keywords": [
+    "search",
+    "code-search",
+    "document-search",
+    "knowledge-graph",
+    "cross-reference",
+    "unified-search",
+    "graph-export",
+    "cross-plugin",
+    "symbol-graph",
+    "data-lineage",
+    "lineage-tracing",
+    "impact-analysis",
+    "service-map",
+    "coverage-report",
+    "reasoning",
+    "orm",
+    "jpa",
+    "sqlalchemy",
+    "django",
+    "typeorm",
+    "prisma",
+    "activerecord",
+    "entity-framework",
+    "gorm",
+    "jsp",
+    "spring-mvc",
+    "react",
+    "vue"
+  ]
+}

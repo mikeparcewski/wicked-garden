@@ -1,0 +1,1698 @@
+{
+  "catalogId": "crew",
+  "version": "2.0.0",
+  "description": "Workflow orchestration with quality gates for intent-driven software delivery",
+  "components": {
+    "CrewDashboard": {
+      "description": "Main crew dashboard showing project status, phases, and team activity.",
+      "category": "layout",
+      "props": {
+        "projectName": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "currentPhase": {
+          "type": "string",
+          "description": "Current workflow phase"
+        },
+        "overallProgress": {
+          "type": "number",
+          "description": "Overall completion percentage"
+        },
+        "activeRoles": {
+          "type": "number",
+          "description": "Number of active roles"
+        },
+        "pendingTasks": {
+          "type": "number",
+          "description": "Tasks pending"
+        }
+      },
+      "slots": {
+        "phases": {
+          "role": "content",
+          "description": "Phase tracker",
+          "accepts": [
+            "PhaseTracker",
+            "PhaseCard"
+          ]
+        },
+        "activity": {
+          "role": "content",
+          "description": "Recent activity",
+          "accepts": [
+            "ActivityFeed",
+            "CommunicationLog"
+          ]
+        },
+        "roles": {
+          "role": "content",
+          "description": "Active roles",
+          "accepts": [
+            "RolePanel",
+            "RoleCard"
+          ]
+        }
+      }
+    },
+    "ProjectOverview": {
+      "description": "High-level project overview with outcomes and status.",
+      "category": "display",
+      "props": {
+        "projectId": {
+          "type": "string",
+          "description": "Project ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Project name",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Project description"
+        },
+        "status": {
+          "type": "string",
+          "description": "Project status",
+          "enum": [
+            "active",
+            "paused",
+            "completed",
+            "archived"
+          ]
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Start date"
+        },
+        "targetDate": {
+          "type": "string",
+          "description": "Target completion date"
+        },
+        "currentPhase": {
+          "type": "string",
+          "description": "Current phase"
+        },
+        "completedPhases": {
+          "type": "array",
+          "description": "Completed phases"
+        },
+        "outcomesSummary": {
+          "type": "string",
+          "description": "Summary of clarified outcomes"
+        }
+      }
+    },
+    "PhaseTracker": {
+      "description": "Visual tracker showing all phases in the delivery workflow with progress.",
+      "category": "display",
+      "props": {
+        "currentPhase": {
+          "type": "string",
+          "description": "Current workflow phase",
+          "enum": [
+            "clarify",
+            "design",
+            "build",
+            "verify",
+            "ship"
+          ],
+          "required": true
+        },
+        "completedPhases": {
+          "type": "array",
+          "description": "List of completed phase names"
+        },
+        "showGates": {
+          "type": "boolean",
+          "description": "Show quality gates between phases",
+          "default": true
+        },
+        "orientation": {
+          "type": "string",
+          "description": "Layout orientation",
+          "enum": [
+            "horizontal",
+            "vertical"
+          ]
+        }
+      },
+      "slots": {
+        "phases": {
+          "role": "content",
+          "description": "Phase cards",
+          "accepts": [
+            "PhaseCard"
+          ]
+        }
+      }
+    },
+    "PhaseCard": {
+      "description": "Detailed card for a single workflow phase.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Phase name",
+          "required": true
+        },
+        "phase": {
+          "type": "string",
+          "description": "Phase type",
+          "enum": [
+            "clarify",
+            "design",
+            "build",
+            "verify",
+            "ship"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Phase status",
+          "enum": [
+            "not_started",
+            "in_progress",
+            "completed",
+            "blocked"
+          ]
+        },
+        "progress": {
+          "type": "number",
+          "description": "Phase completion percentage"
+        },
+        "activeRoles": {
+          "type": "array",
+          "description": "Roles active in this phase"
+        },
+        "deliverableCount": {
+          "type": "number",
+          "description": "Deliverables in this phase"
+        },
+        "taskCount": {
+          "type": "number",
+          "description": "Tasks in this phase"
+        },
+        "completedTasks": {
+          "type": "number",
+          "description": "Completed tasks"
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "Phase start time"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Phase completion time"
+        }
+      }
+    },
+    "PhaseDetail": {
+      "description": "Detailed view of a single phase with tasks and deliverables.",
+      "category": "layout",
+      "props": {
+        "phase": {
+          "type": "string",
+          "description": "Phase name",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Phase status"
+        },
+        "description": {
+          "type": "string",
+          "description": "Phase description"
+        },
+        "objectives": {
+          "type": "array",
+          "description": "Phase objectives"
+        }
+      },
+      "slots": {
+        "tasks": {
+          "role": "content",
+          "description": "Phase tasks",
+          "accepts": [
+            "TaskBoard",
+            "TaskCard"
+          ]
+        },
+        "deliverables": {
+          "role": "content",
+          "description": "Phase deliverables",
+          "accepts": [
+            "DeliverableCard"
+          ]
+        },
+        "roles": {
+          "role": "content",
+          "description": "Active roles",
+          "accepts": [
+            "RoleCard"
+          ]
+        }
+      }
+    },
+    "TaskBoard": {
+      "description": "Kanban-style board for phase tasks.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Board title"
+        },
+        "phase": {
+          "type": "string",
+          "description": "Associated phase"
+        },
+        "columns": {
+          "type": "array",
+          "description": "Board columns",
+          "default": [
+            "todo",
+            "in_progress",
+            "review",
+            "done"
+          ]
+        }
+      },
+      "slots": {
+        "tasks": {
+          "role": "content",
+          "description": "Task cards",
+          "accepts": [
+            "TaskCard"
+          ]
+        }
+      }
+    },
+    "TaskCard": {
+      "description": "A task within a phase.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Task ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Task description"
+        },
+        "status": {
+          "type": "string",
+          "description": "Task status",
+          "enum": [
+            "todo",
+            "in_progress",
+            "review",
+            "done",
+            "blocked"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Task priority",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "assignedRole": {
+          "type": "string",
+          "description": "Assigned role"
+        },
+        "phase": {
+          "type": "string",
+          "description": "Associated phase"
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Task dependencies"
+        },
+        "blockedBy": {
+          "type": "string",
+          "description": "What's blocking this"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation time"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Completion time"
+        }
+      }
+    },
+    "DeliverableCard": {
+      "description": "A deliverable or artifact produced during a phase.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Deliverable ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Deliverable title",
+          "required": true
+        },
+        "phase": {
+          "type": "string",
+          "description": "Phase that produced this",
+          "enum": [
+            "clarify",
+            "design",
+            "build",
+            "verify",
+            "ship"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Deliverable status",
+          "enum": [
+            "draft",
+            "in_progress",
+            "review",
+            "approved",
+            "blocked"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "description": "Deliverable type",
+          "enum": [
+            "document",
+            "code",
+            "test",
+            "artifact",
+            "decision",
+            "design"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "description": "Responsible role/person"
+        },
+        "description": {
+          "type": "string",
+          "description": "Deliverable description"
+        },
+        "filePath": {
+          "type": "string",
+          "description": "Path to deliverable file"
+        },
+        "reviewedBy": {
+          "type": "string",
+          "description": "Reviewed by"
+        },
+        "approvedAt": {
+          "type": "string",
+          "description": "Approval timestamp"
+        }
+      }
+    },
+    "RolePanel": {
+      "description": "Panel showing all roles and their engagement status.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Active Roles"
+        },
+        "activeCount": {
+          "type": "number",
+          "description": "Active roles count"
+        },
+        "standbyCount": {
+          "type": "number",
+          "description": "Standby roles count"
+        }
+      },
+      "slots": {
+        "roles": {
+          "role": "content",
+          "description": "Role cards",
+          "accepts": [
+            "RoleCard"
+          ]
+        }
+      }
+    },
+    "RoleCard": {
+      "description": "A specialist role and their current contribution.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Role ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Role name (e.g., 'QE Analyst', 'UX Designer')",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Role type",
+          "enum": [
+            "orchestrator",
+            "facilitator",
+            "researcher",
+            "implementer",
+            "reviewer"
+          ]
+        },
+        "focus": {
+          "type": "string",
+          "description": "Current focus area"
+        },
+        "status": {
+          "type": "string",
+          "description": "Engagement status",
+          "enum": [
+            "active",
+            "standby",
+            "blocked",
+            "completed"
+          ]
+        },
+        "currentTask": {
+          "type": "string",
+          "description": "Current task"
+        },
+        "completedTasks": {
+          "type": "number",
+          "description": "Tasks completed"
+        },
+        "expertise": {
+          "type": "array",
+          "description": "Areas of expertise"
+        },
+        "lastActive": {
+          "type": "string",
+          "description": "Last activity timestamp"
+        }
+      }
+    },
+    "TeamComposition": {
+      "description": "Team composition showing all engaged roles.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Composition title"
+        },
+        "totalRoles": {
+          "type": "number",
+          "description": "Total roles available"
+        },
+        "engagedRoles": {
+          "type": "number",
+          "description": "Currently engaged"
+        },
+        "phase": {
+          "type": "string",
+          "description": "Current phase"
+        }
+      },
+      "slots": {
+        "roles": {
+          "role": "content",
+          "description": "Role cards",
+          "accepts": [
+            "RoleCard"
+          ]
+        }
+      }
+    },
+    "GateStatus": {
+      "description": "Quality gate status indicator for phase transitions.",
+      "category": "display",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Gate ID"
+        },
+        "gate": {
+          "type": "string",
+          "description": "Gate name",
+          "required": true
+        },
+        "gateType": {
+          "type": "string",
+          "description": "Gate type",
+          "enum": [
+            "value",
+            "design",
+            "execution",
+            "release"
+          ]
+        },
+        "fromPhase": {
+          "type": "string",
+          "description": "Source phase"
+        },
+        "toPhase": {
+          "type": "string",
+          "description": "Target phase"
+        },
+        "status": {
+          "type": "string",
+          "description": "Gate status",
+          "enum": [
+            "passed",
+            "failed",
+            "pending",
+            "skipped",
+            "in_review"
+          ]
+        },
+        "criteria": {
+          "type": "array",
+          "description": "Gate criteria"
+        },
+        "passedCriteria": {
+          "type": "number",
+          "description": "Criteria passed"
+        },
+        "blockers": {
+          "type": "array",
+          "description": "List of blocking issues"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "When gate was evaluated"
+        },
+        "evaluatedBy": {
+          "type": "string",
+          "description": "Who evaluated"
+        }
+      }
+    },
+    "WorkflowSummary": {
+      "description": "High-level summary of workflow status.",
+      "category": "display",
+      "props": {
+        "projectName": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "currentPhase": {
+          "type": "string",
+          "description": "Current phase"
+        },
+        "phaseProgress": {
+          "type": "number",
+          "description": "Current phase progress"
+        },
+        "nextSteps": {
+          "type": "array",
+          "description": "Recommended next actions"
+        },
+        "blockers": {
+          "type": "array",
+          "description": "Current blockers"
+        },
+        "recentActivity": {
+          "type": "array",
+          "description": "Recent activity summary"
+        },
+        "estimatedCompletion": {
+          "type": "string",
+          "description": "Estimated completion"
+        }
+      }
+    },
+    "OutcomeDefinition": {
+      "description": "Clarified outcome from the Clarify phase.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Outcome ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Outcome title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Outcome description"
+        },
+        "status": {
+          "type": "string",
+          "description": "Outcome status",
+          "enum": [
+            "draft",
+            "clarified",
+            "approved",
+            "in_progress",
+            "achieved"
+          ]
+        },
+        "successCriteria": {
+          "type": "array",
+          "description": "Success criteria"
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "description": "Acceptance criteria"
+        },
+        "constraints": {
+          "type": "array",
+          "description": "Known constraints"
+        },
+        "assumptions": {
+          "type": "array",
+          "description": "Key assumptions"
+        }
+      }
+    },
+    "AutonomySettings": {
+      "description": "User autonomy preferences panel.",
+      "category": "control",
+      "props": {
+        "currentLevel": {
+          "type": "string",
+          "description": "Current autonomy level",
+          "enum": [
+            "full",
+            "guided",
+            "supervised",
+            "manual"
+          ],
+          "required": true
+        },
+        "askBeforeActions": {
+          "type": "array",
+          "description": "Actions requiring confirmation"
+        },
+        "autoApproveTypes": {
+          "type": "array",
+          "description": "Auto-approved action types"
+        },
+        "phaseTransitionMode": {
+          "type": "string",
+          "description": "Phase transition behavior",
+          "enum": [
+            "auto",
+            "confirm",
+            "manual"
+          ]
+        }
+      }
+    },
+    "ApprovalPanel": {
+      "description": "Panel for approving phase transitions or deliverables.",
+      "category": "control",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title"
+        },
+        "approvalType": {
+          "type": "string",
+          "description": "What needs approval",
+          "enum": [
+            "phase_transition",
+            "deliverable",
+            "decision",
+            "task"
+          ]
+        },
+        "itemId": {
+          "type": "string",
+          "description": "Item requiring approval"
+        },
+        "status": {
+          "type": "string",
+          "description": "Approval status",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "deferred"
+          ]
+        }
+      },
+      "slots": {
+        "details": {
+          "role": "content",
+          "description": "Approval details",
+          "accepts": [
+            "GateStatus",
+            "DeliverableCard"
+          ]
+        }
+      }
+    },
+    "Checkpoint": {
+      "description": "A validation checkpoint within a phase.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Checkpoint ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Checkpoint name",
+          "required": true
+        },
+        "phase": {
+          "type": "string",
+          "description": "Associated phase"
+        },
+        "status": {
+          "type": "string",
+          "description": "Checkpoint status",
+          "enum": [
+            "pending",
+            "passed",
+            "failed"
+          ]
+        },
+        "validations": {
+          "type": "array",
+          "description": "Validation checks"
+        },
+        "passedValidations": {
+          "type": "number",
+          "description": "Passed validations"
+        },
+        "blockers": {
+          "type": "array",
+          "description": "Blocking issues"
+        }
+      }
+    },
+    "CommunicationLog": {
+      "description": "Log of role communications and decisions.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Log title"
+        },
+        "filter": {
+          "type": "string",
+          "description": "Filter by type",
+          "enum": [
+            "all",
+            "decisions",
+            "questions",
+            "updates"
+          ]
+        }
+      },
+      "slots": {
+        "entries": {
+          "role": "content",
+          "description": "Log entries",
+          "accepts": [
+            "LogEntry"
+          ]
+        }
+      }
+    },
+    "LogEntry": {
+      "description": "A single entry in the communication log.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Entry ID"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Entry timestamp",
+          "required": true
+        },
+        "role": {
+          "type": "string",
+          "description": "Role that created entry"
+        },
+        "type": {
+          "type": "string",
+          "description": "Entry type",
+          "enum": [
+            "decision",
+            "question",
+            "update",
+            "blocker",
+            "progress"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "description": "Entry content",
+          "required": true
+        },
+        "phase": {
+          "type": "string",
+          "description": "Associated phase"
+        },
+        "relatedTask": {
+          "type": "string",
+          "description": "Related task ID"
+        }
+      }
+    },
+    "ActivityFeed": {
+      "description": "Recent activity feed for the project.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Feed title"
+        },
+        "filter": {
+          "type": "string",
+          "description": "Activity filter"
+        },
+        "maxItems": {
+          "type": "number",
+          "description": "Max items to show"
+        }
+      },
+      "slots": {
+        "activities": {
+          "role": "content",
+          "description": "Activity items",
+          "accepts": [
+            "ActivityItem"
+          ]
+        }
+      }
+    },
+    "ActivityItem": {
+      "description": "A single activity in the feed.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Activity ID"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Activity time",
+          "required": true
+        },
+        "actor": {
+          "type": "string",
+          "description": "Who/what performed action"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action performed",
+          "required": true
+        },
+        "target": {
+          "type": "string",
+          "description": "Target of action"
+        },
+        "phase": {
+          "type": "string",
+          "description": "Associated phase"
+        },
+        "type": {
+          "type": "string",
+          "description": "Activity type",
+          "enum": [
+            "task",
+            "deliverable",
+            "phase",
+            "gate",
+            "decision"
+          ]
+        }
+      }
+    },
+    "HandoffSummary": {
+      "description": "Summary of handoff between phases.",
+      "category": "display",
+      "props": {
+        "fromPhase": {
+          "type": "string",
+          "description": "Source phase",
+          "required": true
+        },
+        "toPhase": {
+          "type": "string",
+          "description": "Target phase",
+          "required": true
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Handoff time"
+        },
+        "deliverables": {
+          "type": "array",
+          "description": "Deliverables handed off"
+        },
+        "openItems": {
+          "type": "array",
+          "description": "Items carried forward"
+        },
+        "decisions": {
+          "type": "array",
+          "description": "Key decisions made"
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "Recommendations for next phase"
+        }
+      }
+    },
+    "FeatureTree": {
+      "description": "Hierarchical feature breakdown.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Tree title"
+        },
+        "rootFeature": {
+          "type": "string",
+          "description": "Root feature name"
+        }
+      },
+      "slots": {
+        "features": {
+          "role": "content",
+          "description": "Feature nodes",
+          "accepts": [
+            "FeatureNode"
+          ]
+        }
+      }
+    },
+    "FeatureNode": {
+      "description": "A node in the feature tree.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Feature ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Feature name",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Feature status",
+          "enum": [
+            "planned",
+            "in_progress",
+            "completed",
+            "blocked"
+          ]
+        },
+        "progress": {
+          "type": "number",
+          "description": "Completion percentage"
+        },
+        "children": {
+          "type": "array",
+          "description": "Child feature IDs"
+        },
+        "assignedTo": {
+          "type": "string",
+          "description": "Assigned role"
+        }
+      }
+    },
+    "BacklogView": {
+      "description": "Prioritized backlog of work items.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Backlog title"
+        },
+        "totalItems": {
+          "type": "number",
+          "description": "Total backlog items"
+        },
+        "prioritizedItems": {
+          "type": "number",
+          "description": "Prioritized items"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Backlog items",
+          "accepts": [
+            "TaskCard",
+            "FeatureNode"
+          ]
+        }
+      }
+    },
+    "AcceptanceChecklist": {
+      "description": "Checklist for phase or deliverable acceptance.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Checklist title"
+        },
+        "targetType": {
+          "type": "string",
+          "description": "What's being accepted",
+          "enum": [
+            "phase",
+            "deliverable",
+            "feature"
+          ]
+        },
+        "targetId": {
+          "type": "string",
+          "description": "Target ID"
+        },
+        "totalItems": {
+          "type": "number",
+          "description": "Total checklist items"
+        },
+        "completedItems": {
+          "type": "number",
+          "description": "Completed items"
+        },
+        "status": {
+          "type": "string",
+          "description": "Overall status",
+          "enum": [
+            "incomplete",
+            "ready",
+            "accepted"
+          ]
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Checklist items",
+          "accepts": [
+            "ChecklistItem"
+          ]
+        }
+      }
+    },
+    "ChecklistItem": {
+      "description": "A single item in an acceptance checklist.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Item ID"
+        },
+        "description": {
+          "type": "string",
+          "description": "Item description",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Item status",
+          "enum": [
+            "pending",
+            "passed",
+            "failed",
+            "skipped"
+          ]
+        },
+        "verifiedBy": {
+          "type": "string",
+          "description": "Verified by"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Verification notes"
+        }
+      }
+    },
+    "ProgressTimeline": {
+      "description": "Historical timeline of project progress.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Timeline title"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Timeline start"
+        },
+        "currentDate": {
+          "type": "string",
+          "description": "Current date"
+        }
+      },
+      "slots": {
+        "events": {
+          "role": "content",
+          "description": "Timeline events",
+          "accepts": [
+            "TimelineEvent"
+          ]
+        }
+      }
+    },
+    "TimelineEvent": {
+      "description": "An event in the progress timeline.",
+      "category": "content",
+      "props": {
+        "timestamp": {
+          "type": "string",
+          "description": "Event time",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Event type",
+          "enum": [
+            "phase_start",
+            "phase_complete",
+            "gate_passed",
+            "deliverable_approved",
+            "blocker_resolved",
+            "milestone"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "description": "Event title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Event description"
+        },
+        "phase": {
+          "type": "string",
+          "description": "Associated phase"
+        }
+      }
+    },
+    "DependencyChain": {
+      "description": "Visualization of task dependencies.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chain title"
+        },
+        "taskCount": {
+          "type": "number",
+          "description": "Tasks in chain"
+        },
+        "criticalPathLength": {
+          "type": "number",
+          "description": "Critical path length"
+        }
+      },
+      "slots": {
+        "tasks": {
+          "role": "content",
+          "description": "Tasks in chain",
+          "accepts": [
+            "TaskCard"
+          ]
+        }
+      }
+    },
+    "QEDashboard": {
+      "description": "Main quality engineering dashboard showing overall quality status.",
+      "category": "layout",
+      "props": {
+        "projectName": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "qualityScore": {
+          "type": "number",
+          "description": "Overall quality score 0-100"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Quality trend",
+          "enum": [
+            "improving",
+            "stable",
+            "declining"
+          ]
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last updated timestamp"
+        }
+      },
+      "slots": {
+        "gates": {
+          "role": "content",
+          "description": "Quality gates",
+          "accepts": [
+            "QualityGate",
+            "GateSummary"
+          ]
+        },
+        "metrics": {
+          "role": "content",
+          "description": "Quality metrics",
+          "accepts": [
+            "QualityMetric",
+            "CoverageReport"
+          ]
+        },
+        "issues": {
+          "role": "content",
+          "description": "Quality issues",
+          "accepts": [
+            "RiskFinding",
+            "FlakyTestCard"
+          ]
+        }
+      }
+    },
+    "QualityGate": {
+      "description": "Quality gate status showing pass/fail criteria and blocking issues.",
+      "category": "display",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Gate ID"
+        },
+        "gateName": {
+          "type": "string",
+          "description": "Gate name (e.g., 'Value Gate', 'Execution Gate')",
+          "required": true
+        },
+        "gateType": {
+          "type": "string",
+          "description": "Gate type",
+          "enum": [
+            "value",
+            "design",
+            "execution",
+            "release",
+            "custom"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Gate status",
+          "enum": [
+            "passed",
+            "failed",
+            "pending",
+            "bypassed",
+            "in_progress"
+          ],
+          "required": true
+        },
+        "criteria": {
+          "type": "array",
+          "description": "Gate criteria checked"
+        },
+        "passedCriteria": {
+          "type": "number",
+          "description": "Number of passed criteria"
+        },
+        "totalCriteria": {
+          "type": "number",
+          "description": "Total criteria count"
+        },
+        "blockers": {
+          "type": "array",
+          "description": "Issues blocking passage"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "When gate was evaluated"
+        },
+        "evaluatedBy": {
+          "type": "string",
+          "description": "Who/what evaluated the gate"
+        }
+      }
+    },
+    "GateSummary": {
+      "description": "Compact summary of multiple quality gates.",
+      "category": "display",
+      "props": {
+        "passedGates": {
+          "type": "number",
+          "description": "Gates passed"
+        },
+        "failedGates": {
+          "type": "number",
+          "description": "Gates failed"
+        },
+        "pendingGates": {
+          "type": "number",
+          "description": "Gates pending"
+        }
+      }
+    },
+    "GateCriteria": {
+      "description": "Individual criterion within a quality gate.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Criterion name",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "What this criterion checks"
+        },
+        "status": {
+          "type": "string",
+          "description": "Criterion status",
+          "enum": [
+            "passed",
+            "failed",
+            "not_evaluated"
+          ]
+        },
+        "threshold": {
+          "type": "string",
+          "description": "Required threshold"
+        },
+        "actualValue": {
+          "type": "string",
+          "description": "Actual measured value"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "Evidence for the result"
+        }
+      }
+    },
+    "QualityMetric": {
+      "description": "A single quality metric with value and trend.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Metric name",
+          "required": true
+        },
+        "value": {
+          "type": "number",
+          "description": "Current value",
+          "required": true
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measurement"
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Target threshold"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status vs threshold",
+          "enum": [
+            "good",
+            "warning",
+            "critical"
+          ]
+        },
+        "trend": {
+          "type": "string",
+          "description": "Trend direction",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        },
+        "trendIsGood": {
+          "type": "boolean",
+          "description": "Is trend direction positive"
+        }
+      }
+    }
+  },
+  "intents": {
+    "show-crew-dashboard": {
+      "description": "Show main crew dashboard with project overview",
+      "suggestedComponents": [
+        "CrewDashboard",
+        "PhaseTracker",
+        "WorkflowSummary",
+        "RolePanel"
+      ],
+      "requiredData": [
+        "dashboard"
+      ]
+    },
+    "show-project-overview": {
+      "description": "Show project overview with outcomes and status",
+      "suggestedComponents": [
+        "ProjectOverview",
+        "OutcomeDefinition"
+      ],
+      "requiredData": [
+        "project"
+      ]
+    },
+    "show-workflow-status": {
+      "description": "Show current workflow phase and overall project status",
+      "suggestedComponents": [
+        "PhaseTracker",
+        "WorkflowSummary",
+        "GateStatus"
+      ],
+      "requiredData": [
+        "workflowStatus"
+      ]
+    },
+    "show-phase-detail": {
+      "description": "Show detailed view of a specific phase",
+      "suggestedComponents": [
+        "PhaseDetail",
+        "TaskBoard",
+        "DeliverableCard",
+        "RoleCard"
+      ],
+      "requiredData": [
+        "phaseDetail"
+      ]
+    },
+    "show-task-board": {
+      "description": "Show kanban board for current phase tasks",
+      "suggestedComponents": [
+        "TaskBoard",
+        "TaskCard"
+      ],
+      "requiredData": [
+        "tasks"
+      ]
+    },
+    "show-deliverables": {
+      "description": "Show deliverables produced in current or specific phase",
+      "suggestedComponents": [
+        "DeliverableCard"
+      ],
+      "requiredData": [
+        "deliverables"
+      ]
+    },
+    "show-active-roles": {
+      "description": "Show which specialist roles are currently engaged",
+      "suggestedComponents": [
+        "RolePanel",
+        "RoleCard",
+        "TeamComposition"
+      ],
+      "requiredData": [
+        "activeRoles"
+      ]
+    },
+    "show-quality-gates": {
+      "description": "Show quality gate status for phase transitions",
+      "suggestedComponents": [
+        "GateStatus",
+        "Checkpoint"
+      ],
+      "requiredData": [
+        "gates"
+      ]
+    },
+    "show-blockers": {
+      "description": "Show current blockers preventing phase progression",
+      "suggestedComponents": [
+        "GateStatus",
+        "WorkflowSummary"
+      ],
+      "requiredData": [
+        "blockers"
+      ]
+    },
+    "show-outcomes": {
+      "description": "Show clarified outcomes and success criteria",
+      "suggestedComponents": [
+        "OutcomeDefinition",
+        "AcceptanceChecklist"
+      ],
+      "requiredData": [
+        "outcomes"
+      ]
+    },
+    "show-autonomy-settings": {
+      "description": "Show and configure autonomy preferences",
+      "suggestedComponents": [
+        "AutonomySettings"
+      ],
+      "requiredData": [
+        "preferences"
+      ]
+    },
+    "show-approval-panel": {
+      "description": "Show items requiring approval",
+      "suggestedComponents": [
+        "ApprovalPanel",
+        "GateStatus",
+        "DeliverableCard"
+      ],
+      "requiredData": [
+        "pendingApprovals"
+      ]
+    },
+    "show-activity-feed": {
+      "description": "Show recent project activity",
+      "suggestedComponents": [
+        "ActivityFeed",
+        "ActivityItem"
+      ],
+      "requiredData": [
+        "activity"
+      ]
+    },
+    "show-communication-log": {
+      "description": "Show role communications and decisions",
+      "suggestedComponents": [
+        "CommunicationLog",
+        "LogEntry"
+      ],
+      "requiredData": [
+        "communications"
+      ]
+    },
+    "show-handoff-summary": {
+      "description": "Show summary of phase transition",
+      "suggestedComponents": [
+        "HandoffSummary"
+      ],
+      "requiredData": [
+        "handoff"
+      ]
+    },
+    "show-feature-tree": {
+      "description": "Show hierarchical feature breakdown",
+      "suggestedComponents": [
+        "FeatureTree",
+        "FeatureNode"
+      ],
+      "requiredData": [
+        "features"
+      ]
+    },
+    "show-backlog": {
+      "description": "Show prioritized work backlog",
+      "suggestedComponents": [
+        "BacklogView",
+        "TaskCard"
+      ],
+      "requiredData": [
+        "backlog"
+      ]
+    },
+    "show-progress-timeline": {
+      "description": "Show historical project progress",
+      "suggestedComponents": [
+        "ProgressTimeline",
+        "TimelineEvent"
+      ],
+      "requiredData": [
+        "timeline"
+      ]
+    }
+  },
+  "dataBindings": {
+    "dashboard": {
+      "mcpServer": "crew",
+      "tool": "get_dashboard",
+      "description": "Crew dashboard data"
+    },
+    "project": {
+      "mcpServer": "crew",
+      "tool": "get_project",
+      "description": "Project details"
+    },
+    "workflowStatus": {
+      "mcpServer": "crew",
+      "tool": "status",
+      "description": "Current workflow status"
+    },
+    "phaseDetail": {
+      "mcpServer": "crew",
+      "tool": "get_phase",
+      "description": "Phase details"
+    },
+    "tasks": {
+      "mcpServer": "crew",
+      "tool": "list_tasks",
+      "description": "Phase tasks"
+    },
+    "deliverables": {
+      "mcpServer": "crew",
+      "tool": "list_deliverables",
+      "description": "Project deliverables"
+    },
+    "activeRoles": {
+      "mcpServer": "crew",
+      "tool": "list_roles",
+      "description": "Active roles"
+    },
+    "gates": {
+      "mcpServer": "crew",
+      "tool": "get_gates",
+      "description": "Quality gates"
+    },
+    "outcomes": {
+      "mcpServer": "crew",
+      "tool": "get_outcomes",
+      "description": "Clarified outcomes"
+    },
+    "preferences": {
+      "mcpServer": "crew",
+      "tool": "get_preferences",
+      "description": "User preferences"
+    },
+    "activity": {
+      "mcpServer": "crew",
+      "tool": "get_activity",
+      "description": "Recent activity"
+    }
+  }
+}

@@ -1,0 +1,95 @@
+# wicked-smaht
+
+Stop re-explaining context every session. Automatically gathers relevant memories, tasks, code, and project state before Claude responds.
+
+## Quick Start
+
+```bash
+# Install - that's it, works automatically via hooks
+claude plugin install wicked-smaht@wicked-garden
+```
+
+After install, wicked-smaht runs automatically:
+- **On session start**: Loads your active project, tasks, and session context
+- **On every prompt**: Detects your intent, pulls relevant context from installed plugins
+
+No commands needed for normal use. It just works.
+
+## Commands
+
+| Command | What It Does | Example |
+|---------|-------------|---------|
+| `/smaht` | Manually gather context | `/smaht` |
+| `/smaht --deep` | Force comprehensive context from all sources | `/smaht --deep` |
+| `/smaht --sources` | Show which adapters were selected and why | `/smaht --sources` |
+| `/onboard` | Codebase onboarding walkthrough | `/onboard` |
+
+## How It Works
+
+### Intent Detection
+
+Your prompt is analyzed (no LLM calls, pure pattern matching) to determine what you need:
+
+| Intent | Triggers | What Gets Loaded |
+|--------|----------|-----------------|
+| Debugging | "fix", "error", "bug" | Related code, past fixes, active tasks |
+| Planning | "design", "plan", "strategy" | Project phase, brainstorms, architecture decisions |
+| Research | "what is", "explain", "where" | Code symbols, documentation, past learnings |
+| Implementation | "build", "create", "add" | Active tasks, code context, past patterns |
+| Review | "review", "check", "PR" | Code changes, test coverage, past reviews |
+
+### Context Sources
+
+wicked-smaht pulls from whatever plugins you have installed:
+
+| Source | What It Provides | Required Plugin |
+|--------|-----------------|-----------------|
+| Memories | Past decisions, learnings, patterns | wicked-mem |
+| Tasks | Active work items, blockers | wicked-kanban |
+| Code | Symbol definitions, documentation | wicked-search |
+| Project | Current phase, goals, outcomes | wicked-crew |
+| Brainstorms | Past discussions, perspectives | wicked-jam |
+| Library docs | External API documentation | wicked-startah |
+
+Missing plugins are silently skipped - you get context from whatever is available.
+
+### Fast vs Deep Path
+
+| Path | Sources | When Used |
+|------|---------|-----------|
+| **Fast** | 2-3 intent-specific adapters | High confidence, focused queries |
+| **Deep** | All 6 adapters | Complex planning, ambiguous, or novel topics |
+
+The router escalates to the deep path when it detects low confidence, competing intents, or references to past conversations.
+
+## Example Context Briefing
+
+When you ask "Fix the auth token expiration bug", wicked-smaht generates:
+
+```
+Intent: debugging (confidence: 0.85)
+Path: Fast (debugging-focused adapters)
+
+From wicked-mem: "Use JWT with 1h expiry, refresh tokens in Redis with 7d TTL"
+From wicked-search: auth.py:validate_token() - decodes JWT, checks expiration
+From wicked-kanban: Task #12 "Fix auth token validation" - In Progress
+```
+
+This context is injected before Claude responds, so you get informed answers without re-explaining.
+
+## Integration
+
+Works standalone (no-op without other plugins). Enhanced with:
+
+| Plugin | What It Adds |
+|--------|-------------|
+| wicked-mem | Past decisions, learnings, patterns |
+| wicked-kanban | Active tasks, artifacts |
+| wicked-search | Code symbols, documentation |
+| wicked-crew | Project phase, goals |
+| wicked-jam | Brainstorm sessions |
+| wicked-startah | External library docs via Context7 |
+
+## License
+
+MIT

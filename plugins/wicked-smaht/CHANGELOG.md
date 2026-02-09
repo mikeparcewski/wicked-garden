@@ -1,0 +1,163 @@
+# Changelog
+
+## [2.3.1] - 2026-02-08
+
+### Features
+- feat(wicked-qe): integrate with wicked-scenarios for E2E scenario discovery and execution (6538a71)
+- feat(wicked-mem): add PostToolUse nudge for MEMORY.md direct edits (a15db3f)
+- feat: add wicked-scenarios plugin for E2E testing via markdown scenarios (c7d4422)
+
+### Documentation
+- docs: rewrite all 17 plugin READMEs with sell-first structure (c30ebec)
+
+### Chores
+- chore: add wicked-scenarios to marketplace catalog (74de311)
+- chore: remove old release notes replaced by new versions (39955d9)
+- release: bump 8 plugins - dynamic flow, friction fixes, batch release (49dfd00)
+
+## [2.3.0] - 2026-02-07
+
+### Features
+- feat: dynamic crew flow, usage friction fixes, batch release tooling (311401b)
+- feat(wicked-mem): add TaskCompleted hook for memory capture prompt (531713c)
+- feat(wicked-kanban): add TaskCompleted hook for reliable task sync (25057d3)
+- feat(wicked-crew): replace hardcoded phases with flexible phases.json config (f8e7baa)
+
+### Chores
+- release: wicked-mem v0.3.2 (f46577e)
+- release: wicked-kanban v0.4.0 (4824f18)
+- release: wicked-crew v0.8.0 (7f48928)
+- release: bump 12 plugins - onboarding fixes, mem hooks, crew features (d819228)
+
+## [2.2.2] - 2026-02-06
+
+### Features
+- feat(wicked-crew): enforce sign-off verification in approve gate (ade44e2)
+- feat(wicked-crew): add phase sign-off priority chain (cec0e13)
+- feat(wicked-crew): add task lifecycle tracking to all crew agents (6254613)
+- feat(wicked-patch): v1.0.0 - language-agnostic code generation (5e24b0b)
+- feat(wicked-search): v1.0.0 - reasoning capabilities and index quality (4a1e6b3)
+- feat: update existing plugins with enhanced capabilities (6ae5cfc)
+- feat: add specialist plugins for domain expertise (4682037)
+- feat(wicked-startah): add runtime-exec skill for Python/Node execution (55b1393)
+- feat(wicked-search): add extensible parser/linker system with form binding support (ab18b36)
+- feat(wicked-kanban): enhance TodoWrite hook for rich traceability (85d55c5)
+
+### Bug Fixes
+- fix(wicked-crew): enforce phase documentation and non-skippable review (d64a673)
+- fix(wicked-mem): enforce memory storage with directive hook prompts (8703418)
+- fix: resolve onboarding issues - ghost plugins, code defects, structure (d16c293)
+- fix(wicked-mem,wicked-crew): memory filtering and task lifecycle improvements (c014f92)
+- fix(hooks): update Stop hooks to use required JSON response format (6e1c236)
+- fix(wicked-kanban): fix UI bugs and add security hardening (9ccbcd4)
+
+### Documentation
+- docs: standardize command prefixes and improve plugin READMEs (5129e89)
+
+### Refactoring
+- refactor: remove deprecated plugins consolidated into specialist plugins (a32a81f)
+
+### Chores
+- release: wicked-mem v0.3.0, wicked-kanban v0.3.10, wicked-crew v0.6.1 (044f1d2)
+- chore: fix stale plugin names in scaffold and update hook standards (e6bfe62)
+- chore: clean up repo garbage and auto-prune old release notes (eea12a8)
+- release: bump all plugins, automate release pipeline, extract QE (769c540)
+- chore: add wicked-patch to marketplace (62befa4)
+- version updates (36c7444)
+- chore: update plugin .gitignore files and crew hook script (7f263a2)
+- chore: update dev tools and scaffolding templates (df55616)
+- lots of stuff (278d71f)
+- release: bump all plugins for marketplace release (a660b40)
+- chore: marketplace validation and cleanup (3e350f1)
+- initial check-in (98cb674)
+
+## [2.2.1] - 2026-02-06
+
+### Features
+- feat(wicked-patch): v1.0.0 - language-agnostic code generation (5e24b0b)
+- feat(wicked-search): v1.0.0 - reasoning capabilities and index quality (4a1e6b3)
+- feat: update existing plugins with enhanced capabilities (6ae5cfc)
+- feat: add specialist plugins for domain expertise (4682037)
+- feat(wicked-startah): add runtime-exec skill for Python/Node execution (55b1393)
+- feat(wicked-search): add extensible parser/linker system with form binding support (ab18b36)
+- feat(wicked-kanban): enhance TodoWrite hook for rich traceability (85d55c5)
+
+### Bug Fixes
+- fix(wicked-mem,wicked-crew): memory filtering and task lifecycle improvements (c014f92)
+- fix(hooks): update Stop hooks to use required JSON response format (6e1c236)
+- fix(wicked-kanban): fix UI bugs and add security hardening (9ccbcd4)
+
+### Documentation
+- docs: standardize command prefixes and improve plugin READMEs (5129e89)
+
+### Refactoring
+- refactor: remove deprecated plugins consolidated into specialist plugins (a32a81f)
+
+### Chores
+- chore: add wicked-patch to marketplace (62befa4)
+- version updates (36c7444)
+- chore: update plugin .gitignore files and crew hook script (7f263a2)
+- chore: update dev tools and scaffolding templates (df55616)
+- lots of stuff (278d71f)
+- release: bump all plugins for marketplace release (a660b40)
+- chore: marketplace validation and cleanup (3e350f1)
+- initial check-in (98cb674)
+
+## [2.1.0] - 2026-02-01
+
+### Fixed
+- **Async subprocess pattern**: Adapters now use `asyncio.to_thread()` for true parallel execution
+- Performance improved ~34% (fast path: 500ms → 474ms, slow path: 800ms → 338ms)
+
+### Changed
+- Added `run_subprocess()` and `run_in_thread()` utilities to adapters/__init__.py
+- All adapters updated to use async utilities instead of blocking subprocess.run()
+
+## [2.0.0] - 2026-02-01
+
+### Added
+- **Tiered Hybrid Architecture**: Router-based path selection for optimal latency/depth tradeoff
+  - **Router**: Intent detection with regex patterns, confidence scoring, escalation triggers
+  - **Fast Path**: Intent-specific adapters, 500ms timeout, 5 items/source
+  - **Slow Path**: All adapters, 2s timeout, 10 items/source, history context
+- **Router Intelligence**:
+  - Intent types: debugging, planning, research, implementation, review, general
+  - Escalation triggers: low confidence, competing intents, history references, compound requests
+  - Novelty detection via session topic tracking
+- **Context7 Adapter**: External documentation integration via MCP
+- **History Condenser**: Session summary with topic tracking and last-turn context
+- **E2E Test Framework**: 9 scenarios (small/medium/complex) with routing validation
+- **Pattern-based Assembly**: Both paths use deterministic formatting (no external LLM calls)
+
+### Changed
+- Removed direct Anthropic API calls from slow path (architectural fix)
+- Slow path now uses pattern-based assembly like fast path
+- "Slow" refers to depth/comprehensiveness, not LLM reasoning time
+- Moved ContextItem to adapters/__init__.py (shared across all adapters)
+
+### Removed
+- v1 files: context_assembler.py, intent_detector.py, session_manager.py, fact_extractor.py, models.py
+- External LLM dependency for context curation
+
+### Fixed
+- Research intent patterns now match "What does..." questions
+- sources_failed properly passed through slow path formatting
+
+## [0.1.1] - 2026-01-31
+
+### Added
+- **UserPromptSubmit Hook**: Per-turn context gathering based on user input
+  - Runs on every turn to inject relevant context
+  - Skips short prompts and slash commands
+  - 1200 token budget (slightly lower than explicit /smaht)
+
+## [0.1.0] - 2026-01-31
+
+### Added
+- **Context Assembler**: Core engine for gathering and ranking context from 5 sources
+- **Query Type Detection**: Automatic detection of debugging, planning, research, implementation queries
+- **Relevance Scoring**: Weighted formula combining semantic, temporal, context, and link signals
+- **Source Adapters**: Integration with wicked-mem, wicked-jam, wicked-kanban, wicked-search, wicked-crew
+- **SessionStart Hook**: Automatic session context gathering
+- **`/smaht` Command**: Explicit context gathering with deep mode option
+- **Context Assembly Skill**: Documentation and quick reference

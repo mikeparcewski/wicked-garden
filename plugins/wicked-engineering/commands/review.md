@@ -1,0 +1,191 @@
+---
+description: Code review with senior engineering perspective on quality, patterns, and maintainability
+argument-hint: "[file or directory path] [--focus security|performance|patterns]"
+---
+
+# /wicked-engineering:review
+
+Perform a thorough code review with senior engineering perspective. Evaluates code quality, architecture patterns, maintainability, and provides actionable feedback.
+
+## Instructions
+
+### 1. Determine Scope
+
+If path provided, focus on that file/directory.
+If no path, check for:
+- Uncommitted changes: `git diff --name-only`
+- Recent commits: `git log --oneline -5`
+- Ask user what to review
+
+### 2. Understand the application
+
+Create a fast/shallow base report with your understanding to help with the
+
+Before your deep review, inspect the application to quickly understand it's:
+- Languages and frameworks
+- Design approach
+- Development style
+- Key components
+- Hotspots (most connected)
+- Areas of complexity
+
+**Important:** This is meant to be a fast/shallow review, just to get bearings.
+
+NOTE: When available, use the wicked-* marketplace tools to speed up discovery.
+
+### 3. Application Review
+
+```python
+Task(
+    subagent_type="wicked-engineering:senior-engineer",
+    prompt="""Review this code for quality, patterns, and maintainability.
+
+## Target
+{code content}
+
+## Context
+{file purpose, related files, traced request paths}
+
+## Focus Areas
+1. Code clarity and readability
+2. Error handling completeness — what happens when a call fails mid-chain?
+3. Contract enforcement — do callers validate what callees return?
+4. Context/data optimization — is unnecessary data being passed between components?
+5. Failure recovery — where would failures cascade silently?
+6. Naming and conventions
+7. Potential bugs or edge cases
+8. Performance considerations
+9. Test coverage gaps
+
+## Return Format
+Cite file:line for each finding. Structure as:
+- Critical Design Gaps
+- Silent Failure Risks
+- Context Optimization Opportunities
+- Suggestions
+"""
+)
+```
+
+### 4. Optional: Focused Analysis
+
+If `--focus` specified:
+
+**security**: Security review
+```python
+Task(
+    subagent_type="wicked-qe:code-analyzer",
+    prompt="""Security-focused analysis of code.
+
+## Target
+{files}
+
+## Security Checklist
+- Input validation
+- Injection vulnerabilities
+- Auth/authz issues
+- Sensitive data handling
+
+## Return Format
+List findings with file:line references and severity.
+"""
+)
+```
+
+**performance**: Performance issues
+```python
+Task(
+    subagent_type="wicked-engineering:backend-engineer",  # or frontend-engineer based on stack
+    prompt="""Performance analysis of code.
+
+## Target
+{files}
+
+## Performance Checklist
+- N+1 queries
+- Unnecessary iterations
+- Memory leaks
+- Caching opportunities
+
+## Return Format
+List findings with file:line references and impact estimates.
+"""
+)
+```
+
+**patterns**: Architecture and design patterns
+```python
+Task(
+    subagent_type="wicked-engineering:solution-architect",
+    prompt="""Pattern analysis of code.
+
+## Target
+{files}
+
+## Pattern Checklist
+- Design pattern usage
+- SOLID principles adherence
+- Abstraction levels
+- Coupling and cohesion
+
+## Return Format
+Evaluate each pattern with examples from code.
+"""
+)
+```
+
+### 5. Check for Agent Overstepping
+
+Evaluate whether changes stay within the intended scope. Look for these anti-patterns:
+
+**Unnecessary Changes (flag as HIGH)**:
+- Code modified that wasn't part of the task (renames, reformatting, refactoring unrelated code)
+- Working logic replaced with "simplified" alternatives that change behavior
+- Added abstractions, utilities, or helpers for one-time operations
+- Import reorganization or style changes outside the task scope
+
+**Commented-Out Code (flag as HIGH)**:
+- Working code commented out instead of cleanly removed
+- Logic replaced with TODO comments instead of being implemented or left alone
+- Backward-compatibility shims like `// removed` or `_unused_var` renames
+
+**Over-Engineering (flag as MEDIUM)**:
+- Error handling added for scenarios that can't happen
+- Feature flags or configuration for non-configurable features
+- Premature abstractions designed for hypothetical future needs
+- Extra validation beyond system boundaries (trusting internal code is fine)
+
+**Scope Creep (flag as MEDIUM)**:
+- Files modified that weren't mentioned in the original task
+- Refactoring mixed into unrelated bug fixes or feature work
+- Documentation updates for code that wasn't changed
+
+If agent overstepping is detected, add an **Agent Overstepping** section to the review output.
+
+### 6. Present Findings
+
+```markdown
+## Code Review: {scope}
+
+### Summary
+{overall assessment - good/needs work/critical issues}
+
+### Strengths
+- {what's done well, with file:line references}
+
+### Critical Design Gaps
+- **{issue}** in `{file}:{line}` - {description with code evidence}
+
+### Silent Failure Risks
+- **{risk}** traced through `{file_a}:{line}` → `{file_b}:{line}` - {what fails and why}
+
+### Context Optimization Opportunities
+- **{opportunity}** in `{file}:{line}` - {what's being passed unnecessarily, with size estimate}
+
+### Suggestions
+- **{suggestion}** in `{file}:{line}` - {description and recommendation}
+
+### Recommendations
+1. {prioritized action item}
+2. {next action}
+```

@@ -1,0 +1,63 @@
+# wicked-agentic configuration
+# Copy to .wicked-agentic.yaml in your project root to customize
+version: 1
+
+detection:
+  # Minimum confidence to report detections (0.0-1.0)
+  confidence_threshold: 0.6
+
+  # Frameworks to detect (empty = all)
+  frameworks: []
+
+  # Paths to exclude from scanning
+  exclude_patterns:
+    - "node_modules/**"
+    - "venv/**"
+    - ".venv/**"
+    - "**/__pycache__/**"
+    - "**/*.pyc"
+    - "dist/**"
+    - "build/**"
+
+  # Cache settings
+  cache:
+    enabled: true
+    ttl:
+      framework: 3600    # 1 hour
+      agents: 1800       # 30 minutes
+      patterns: 900      # 15 minutes
+    hook_cooldown: 300   # 5 minutes between same hook
+
+reporting:
+  # Minimum severity to include (critical, high, medium, low, info)
+  min_severity: medium
+
+  # Output format (markdown, json, both)
+  format: markdown
+
+  # Group findings by (category, severity, agent, file)
+  group_by: category
+
+  # Include evidence details in output
+  include_evidence: true
+
+agents:
+  # Max agents to analyze before stopping
+  max_agents: 50
+
+  # Pattern checks to run
+  patterns:
+    enabled:
+      - single_responsibility
+      - tool_composition
+      - error_handling
+      - observability
+      - human_in_loop
+    disabled: []
+
+crew:
+  # Auto-engage on these crew phases
+  auto_engage:
+    - design
+    - build
+    - review

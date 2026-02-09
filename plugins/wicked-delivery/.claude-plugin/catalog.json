@@ -1,0 +1,7377 @@
+{
+  "catalogId": "delivery",
+  "version": "1.0.0",
+  "description": "PMO, onboarding, experimentation, and FinOps components",
+  "components": {
+    "PMODashboard": {
+      "description": "Main PMO dashboard with portfolio overview and key metrics.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title"
+        },
+        "reportingPeriod": {
+          "type": "string",
+          "description": "Current reporting period"
+        },
+        "projectCount": {
+          "type": "number",
+          "description": "Total projects"
+        },
+        "healthyProjects": {
+          "type": "number",
+          "description": "Green status count"
+        },
+        "atRiskProjects": {
+          "type": "number",
+          "description": "Amber/Red status count"
+        }
+      },
+      "slots": {
+        "portfolio": {
+          "role": "content",
+          "description": "Portfolio overview",
+          "accepts": [
+            "PortfolioSummary",
+            "ProjectCard"
+          ]
+        },
+        "metrics": {
+          "role": "content",
+          "description": "Key metrics",
+          "accepts": [
+            "HealthIndicator",
+            "VelocityChart"
+          ]
+        },
+        "alerts": {
+          "role": "content",
+          "description": "Alerts and escalations",
+          "accepts": [
+            "EscalationItem",
+            "RiskItem"
+          ]
+        }
+      }
+    },
+    "PortfolioSummary": {
+      "description": "High-level summary of project portfolio.",
+      "category": "display",
+      "props": {
+        "totalProjects": {
+          "type": "number",
+          "description": "Total projects in portfolio"
+        },
+        "activeProjects": {
+          "type": "number",
+          "description": "Currently active projects"
+        },
+        "onTrackPercent": {
+          "type": "number",
+          "description": "Percentage on track"
+        },
+        "totalBudget": {
+          "type": "number",
+          "description": "Total portfolio budget"
+        },
+        "budgetSpent": {
+          "type": "number",
+          "description": "Budget spent to date"
+        },
+        "overallHealth": {
+          "type": "string",
+          "description": "Portfolio health",
+          "enum": [
+            "healthy",
+            "attention",
+            "critical"
+          ]
+        }
+      }
+    },
+    "ProjectCard": {
+      "description": "Compact project summary card.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Project ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Project name",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "RAG status",
+          "enum": [
+            "green",
+            "amber",
+            "red"
+          ],
+          "required": true
+        },
+        "phase": {
+          "type": "string",
+          "description": "Current phase"
+        },
+        "progress": {
+          "type": "number",
+          "description": "Completion percentage"
+        },
+        "lead": {
+          "type": "string",
+          "description": "Project lead"
+        },
+        "nextMilestone": {
+          "type": "string",
+          "description": "Upcoming milestone"
+        },
+        "nextMilestoneDate": {
+          "type": "string",
+          "description": "Next milestone date"
+        },
+        "riskCount": {
+          "type": "number",
+          "description": "Open risks"
+        },
+        "issueCount": {
+          "type": "number",
+          "description": "Open issues"
+        }
+      }
+    },
+    "StatusReport": {
+      "description": "Executive status report with RAG indicators and key metrics.",
+      "category": "display",
+      "props": {
+        "projectName": {
+          "type": "string",
+          "description": "Project name",
+          "required": true
+        },
+        "reportId": {
+          "type": "string",
+          "description": "Report ID"
+        },
+        "overallStatus": {
+          "type": "string",
+          "description": "RAG status",
+          "enum": [
+            "green",
+            "amber",
+            "red"
+          ],
+          "required": true
+        },
+        "scheduleStatus": {
+          "type": "string",
+          "description": "Schedule RAG",
+          "enum": [
+            "green",
+            "amber",
+            "red"
+          ]
+        },
+        "budgetStatus": {
+          "type": "string",
+          "description": "Budget RAG",
+          "enum": [
+            "green",
+            "amber",
+            "red"
+          ]
+        },
+        "resourceStatus": {
+          "type": "string",
+          "description": "Resource RAG",
+          "enum": [
+            "green",
+            "amber",
+            "red"
+          ]
+        },
+        "scopeStatus": {
+          "type": "string",
+          "description": "Scope RAG",
+          "enum": [
+            "green",
+            "amber",
+            "red"
+          ]
+        },
+        "reportDate": {
+          "type": "string",
+          "description": "Report date"
+        },
+        "reportingPeriod": {
+          "type": "string",
+          "description": "Period covered"
+        },
+        "highlights": {
+          "type": "array",
+          "description": "Key accomplishments"
+        },
+        "risks": {
+          "type": "array",
+          "description": "Active risks"
+        },
+        "issues": {
+          "type": "array",
+          "description": "Active issues"
+        },
+        "nextSteps": {
+          "type": "array",
+          "description": "Planned next actions"
+        },
+        "decisionsNeeded": {
+          "type": "array",
+          "description": "Decisions required"
+        }
+      }
+    },
+    "MilestoneTracker": {
+      "description": "Visual timeline of project milestones with status indicators.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Tracker title",
+          "default": "Milestones"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID"
+        },
+        "showPast": {
+          "type": "boolean",
+          "description": "Include completed milestones",
+          "default": true
+        },
+        "viewMode": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "timeline",
+            "list",
+            "gantt"
+          ]
+        }
+      },
+      "slots": {
+        "milestones": {
+          "role": "content",
+          "description": "Milestone items",
+          "accepts": [
+            "MilestoneItem"
+          ]
+        }
+      }
+    },
+    "MilestoneItem": {
+      "description": "A single milestone with date, status, and description.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Milestone ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Milestone name",
+          "required": true
+        },
+        "date": {
+          "type": "string",
+          "description": "Target date",
+          "required": true
+        },
+        "actualDate": {
+          "type": "string",
+          "description": "Actual completion date"
+        },
+        "status": {
+          "type": "string",
+          "description": "Milestone status",
+          "enum": [
+            "completed",
+            "on_track",
+            "at_risk",
+            "missed",
+            "pending"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Milestone details"
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Dependent milestones"
+        },
+        "deliverables": {
+          "type": "array",
+          "description": "Associated deliverables"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Milestone owner"
+        }
+      }
+    },
+    "GanttChart": {
+      "description": "Gantt chart view of project timeline.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Timeline start"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Timeline end"
+        },
+        "showDependencies": {
+          "type": "boolean",
+          "description": "Show dependency lines"
+        },
+        "showCriticalPath": {
+          "type": "boolean",
+          "description": "Highlight critical path"
+        },
+        "zoomLevel": {
+          "type": "string",
+          "description": "Zoom level",
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "quarter"
+          ]
+        }
+      },
+      "slots": {
+        "tasks": {
+          "role": "content",
+          "description": "Task items",
+          "accepts": [
+            "GanttTask"
+          ]
+        }
+      }
+    },
+    "GanttTask": {
+      "description": "A task in the Gantt chart.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Task ID",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Task name",
+          "required": true
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Start date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "End date"
+        },
+        "progress": {
+          "type": "number",
+          "description": "Completion percentage"
+        },
+        "assignee": {
+          "type": "string",
+          "description": "Assigned to"
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Predecessor task IDs"
+        },
+        "isCriticalPath": {
+          "type": "boolean",
+          "description": "On critical path"
+        },
+        "isMilestone": {
+          "type": "boolean",
+          "description": "Is milestone"
+        }
+      }
+    },
+    "RiskMatrix": {
+      "description": "Risk matrix showing risks by likelihood and impact.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Matrix title",
+          "default": "Risk Assessment"
+        },
+        "showMitigations": {
+          "type": "boolean",
+          "description": "Include mitigation plans",
+          "default": true
+        },
+        "highRiskCount": {
+          "type": "number",
+          "description": "High risk count"
+        },
+        "mediumRiskCount": {
+          "type": "number",
+          "description": "Medium risk count"
+        },
+        "lowRiskCount": {
+          "type": "number",
+          "description": "Low risk count"
+        }
+      },
+      "slots": {
+        "risks": {
+          "role": "content",
+          "description": "Risk items",
+          "accepts": [
+            "RiskItem"
+          ]
+        }
+      }
+    },
+    "RiskItem": {
+      "description": "A single risk with likelihood, impact, and mitigation.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Risk ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Risk title",
+          "required": true
+        },
+        "category": {
+          "type": "string",
+          "description": "Risk category",
+          "enum": [
+            "technical",
+            "resource",
+            "schedule",
+            "budget",
+            "scope",
+            "external"
+          ]
+        },
+        "likelihood": {
+          "type": "string",
+          "description": "Probability",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "required": true
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact severity",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "required": true
+        },
+        "riskScore": {
+          "type": "number",
+          "description": "Calculated risk score"
+        },
+        "description": {
+          "type": "string",
+          "description": "Risk description"
+        },
+        "mitigation": {
+          "type": "string",
+          "description": "Mitigation plan"
+        },
+        "contingency": {
+          "type": "string",
+          "description": "Contingency plan"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Risk owner"
+        },
+        "status": {
+          "type": "string",
+          "description": "Risk status",
+          "enum": [
+            "open",
+            "mitigating",
+            "accepted",
+            "closed"
+          ]
+        },
+        "identifiedDate": {
+          "type": "string",
+          "description": "When identified"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Mitigation due date"
+        }
+      }
+    },
+    "IssueTracker": {
+      "description": "Issue tracking panel for project issues.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Tracker title"
+        },
+        "openCount": {
+          "type": "number",
+          "description": "Open issues"
+        },
+        "resolvedCount": {
+          "type": "number",
+          "description": "Resolved issues"
+        },
+        "blockerCount": {
+          "type": "number",
+          "description": "Blocking issues"
+        }
+      },
+      "slots": {
+        "issues": {
+          "role": "content",
+          "description": "Issue items",
+          "accepts": [
+            "IssueItem"
+          ]
+        }
+      }
+    },
+    "IssueItem": {
+      "description": "A single project issue.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Issue ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Issue title",
+          "required": true
+        },
+        "severity": {
+          "type": "string",
+          "description": "Issue severity",
+          "enum": [
+            "blocker",
+            "critical",
+            "major",
+            "minor"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Issue status",
+          "enum": [
+            "open",
+            "in_progress",
+            "resolved",
+            "closed"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Issue description"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Issue owner"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Resolution due date"
+        },
+        "resolution": {
+          "type": "string",
+          "description": "Resolution notes"
+        }
+      }
+    },
+    "RAIDLog": {
+      "description": "RAID log (Risks, Actions, Issues, Decisions).",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Log title"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID"
+        },
+        "riskCount": {
+          "type": "number",
+          "description": "Open risks"
+        },
+        "actionCount": {
+          "type": "number",
+          "description": "Open actions"
+        },
+        "issueCount": {
+          "type": "number",
+          "description": "Open issues"
+        },
+        "decisionCount": {
+          "type": "number",
+          "description": "Pending decisions"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "RAID items",
+          "accepts": [
+            "RiskItem",
+            "ActionItem",
+            "IssueItem",
+            "DecisionItem"
+          ]
+        }
+      }
+    },
+    "ActionItem": {
+      "description": "An action item requiring follow-up.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Action ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Action title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Action description"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Action owner",
+          "required": true
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Due date"
+        },
+        "status": {
+          "type": "string",
+          "description": "Action status",
+          "enum": [
+            "open",
+            "in_progress",
+            "completed",
+            "cancelled"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "description": "Where action came from"
+        }
+      }
+    },
+    "DecisionItem": {
+      "description": "A decision requiring approval or already made.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Decision ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Decision title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Decision description"
+        },
+        "status": {
+          "type": "string",
+          "description": "Decision status",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "deferred"
+          ]
+        },
+        "decisionMaker": {
+          "type": "string",
+          "description": "Decision maker"
+        },
+        "decisionDate": {
+          "type": "string",
+          "description": "Date decided"
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Decision rationale"
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact of decision"
+        },
+        "alternatives": {
+          "type": "array",
+          "description": "Alternatives considered"
+        }
+      }
+    },
+    "BurndownChart": {
+      "description": "Sprint or release burndown showing work remaining over time.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "chartType": {
+          "type": "string",
+          "description": "Chart type",
+          "enum": [
+            "burndown",
+            "burnup"
+          ]
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Sprint/release start"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Sprint/release end"
+        },
+        "totalPoints": {
+          "type": "number",
+          "description": "Total story points"
+        },
+        "completedPoints": {
+          "type": "number",
+          "description": "Completed story points"
+        },
+        "idealBurnRate": {
+          "type": "number",
+          "description": "Ideal daily burn rate"
+        },
+        "actualBurnRate": {
+          "type": "number",
+          "description": "Actual daily burn rate"
+        },
+        "forecast": {
+          "type": "string",
+          "description": "Completion forecast"
+        }
+      }
+    },
+    "VelocityChart": {
+      "description": "Historical velocity across sprints.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "sprints": {
+          "type": "array",
+          "description": "Sprint velocity data"
+        },
+        "averageVelocity": {
+          "type": "number",
+          "description": "Average velocity"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Velocity trend",
+          "enum": [
+            "increasing",
+            "stable",
+            "decreasing"
+          ]
+        }
+      }
+    },
+    "ResourceAllocation": {
+      "description": "Resource allocation and capacity view.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "View title"
+        },
+        "period": {
+          "type": "string",
+          "description": "Planning period"
+        },
+        "totalCapacity": {
+          "type": "number",
+          "description": "Total team capacity"
+        },
+        "allocatedCapacity": {
+          "type": "number",
+          "description": "Allocated capacity"
+        },
+        "utilizationPercent": {
+          "type": "number",
+          "description": "Utilization percentage"
+        }
+      },
+      "slots": {
+        "resources": {
+          "role": "content",
+          "description": "Team members",
+          "accepts": [
+            "TeamMember"
+          ]
+        }
+      }
+    },
+    "TeamMember": {
+      "description": "A team member with allocation details.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Member name",
+          "required": true
+        },
+        "role": {
+          "type": "string",
+          "description": "Team role"
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Avatar image"
+        },
+        "capacity": {
+          "type": "number",
+          "description": "Available capacity (hours/points)"
+        },
+        "allocated": {
+          "type": "number",
+          "description": "Currently allocated"
+        },
+        "utilization": {
+          "type": "number",
+          "description": "Utilization percentage"
+        },
+        "projects": {
+          "type": "array",
+          "description": "Assigned projects"
+        },
+        "availability": {
+          "type": "string",
+          "description": "Availability status",
+          "enum": [
+            "available",
+            "partially_available",
+            "fully_allocated",
+            "unavailable"
+          ]
+        }
+      }
+    },
+    "BudgetTracker": {
+      "description": "Budget tracking and financial status.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Tracker title"
+        },
+        "totalBudget": {
+          "type": "number",
+          "description": "Total budget"
+        },
+        "spent": {
+          "type": "number",
+          "description": "Amount spent"
+        },
+        "committed": {
+          "type": "number",
+          "description": "Committed but not spent"
+        },
+        "remaining": {
+          "type": "number",
+          "description": "Remaining budget"
+        },
+        "forecast": {
+          "type": "number",
+          "description": "Forecast at completion"
+        },
+        "variance": {
+          "type": "number",
+          "description": "Budget variance"
+        },
+        "status": {
+          "type": "string",
+          "description": "Budget status",
+          "enum": [
+            "under",
+            "on_track",
+            "at_risk",
+            "over"
+          ]
+        }
+      }
+    },
+    "HealthIndicator": {
+      "description": "A single health metric indicator.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Indicator name",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Health status",
+          "enum": [
+            "green",
+            "amber",
+            "red"
+          ],
+          "required": true
+        },
+        "value": {
+          "type": "string",
+          "description": "Current value"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target value"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Trend direction",
+          "enum": [
+            "improving",
+            "stable",
+            "declining"
+          ]
+        }
+      }
+    },
+    "Forecast": {
+      "description": "Project completion forecast.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Forecast title"
+        },
+        "forecastDate": {
+          "type": "string",
+          "description": "Forecasted completion date"
+        },
+        "baselineDate": {
+          "type": "string",
+          "description": "Original baseline date"
+        },
+        "variance": {
+          "type": "number",
+          "description": "Variance in days"
+        },
+        "confidence": {
+          "type": "string",
+          "description": "Forecast confidence",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "assumptions": {
+          "type": "array",
+          "description": "Forecast assumptions"
+        },
+        "risks": {
+          "type": "array",
+          "description": "Risks to forecast"
+        }
+      }
+    },
+    "ChangeRequest": {
+      "description": "A scope or requirement change request.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Change request ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Change title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Change description"
+        },
+        "type": {
+          "type": "string",
+          "description": "Change type",
+          "enum": [
+            "scope",
+            "schedule",
+            "budget",
+            "resource",
+            "requirement"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Request status",
+          "enum": [
+            "submitted",
+            "under_review",
+            "approved",
+            "rejected",
+            "implemented"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact assessment"
+        },
+        "requestedBy": {
+          "type": "string",
+          "description": "Requester"
+        },
+        "approvedBy": {
+          "type": "string",
+          "description": "Approver"
+        },
+        "scheduleImpact": {
+          "type": "string",
+          "description": "Impact on schedule"
+        },
+        "budgetImpact": {
+          "type": "number",
+          "description": "Impact on budget"
+        }
+      }
+    },
+    "DependencyMap": {
+      "description": "Cross-project dependency visualization.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Map title"
+        },
+        "projectCount": {
+          "type": "number",
+          "description": "Projects shown"
+        },
+        "dependencyCount": {
+          "type": "number",
+          "description": "Dependencies shown"
+        },
+        "criticalDependencies": {
+          "type": "number",
+          "description": "Critical dependencies"
+        }
+      },
+      "slots": {
+        "dependencies": {
+          "role": "content",
+          "description": "Dependency items",
+          "accepts": [
+            "DependencyItem"
+          ]
+        }
+      }
+    },
+    "DependencyItem": {
+      "description": "A single dependency between projects or tasks.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Dependency ID"
+        },
+        "fromProject": {
+          "type": "string",
+          "description": "Source project",
+          "required": true
+        },
+        "toProject": {
+          "type": "string",
+          "description": "Dependent project",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Dependency type",
+          "enum": [
+            "blocks",
+            "requires",
+            "informs"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Dependency status",
+          "enum": [
+            "pending",
+            "on_track",
+            "at_risk",
+            "resolved"
+          ]
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Required by date"
+        },
+        "description": {
+          "type": "string",
+          "description": "Dependency description"
+        }
+      }
+    },
+    "StakeholderView": {
+      "description": "Stakeholder-specific view adapting detail level to audience.",
+      "category": "layout",
+      "props": {
+        "audience": {
+          "type": "string",
+          "description": "Target audience",
+          "enum": [
+            "executive",
+            "sponsor",
+            "steering",
+            "technical",
+            "team"
+          ],
+          "required": true
+        },
+        "focusAreas": {
+          "type": "array",
+          "description": "Areas to emphasize"
+        },
+        "detailLevel": {
+          "type": "string",
+          "description": "Detail level",
+          "enum": [
+            "summary",
+            "standard",
+            "detailed"
+          ]
+        }
+      },
+      "slots": {
+        "content": {
+          "role": "content",
+          "description": "Content adapted for audience",
+          "accepts": [
+            "StatusReport",
+            "MilestoneTracker",
+            "RiskMatrix",
+            "BudgetTracker"
+          ]
+        }
+      }
+    },
+    "EscalationItem": {
+      "description": "An item requiring management attention.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Escalation ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Escalation title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Escalation type",
+          "enum": [
+            "risk",
+            "issue",
+            "decision",
+            "resource",
+            "budget"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity",
+          "enum": [
+            "critical",
+            "high",
+            "medium"
+          ]
+        },
+        "escalatedTo": {
+          "type": "string",
+          "description": "Escalated to"
+        },
+        "escalatedDate": {
+          "type": "string",
+          "description": "Escalation date"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "open",
+            "acknowledged",
+            "in_progress",
+            "resolved"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Escalation details"
+        },
+        "requestedAction": {
+          "type": "string",
+          "description": "Action requested"
+        }
+      }
+    },
+    "LessonLearned": {
+      "description": "A lesson learned or retrospective insight.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Lesson ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Lesson title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Lesson type",
+          "enum": [
+            "success",
+            "improvement",
+            "failure"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "description": "Category",
+          "enum": [
+            "process",
+            "technical",
+            "communication",
+            "planning",
+            "execution"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Lesson description"
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "Recommendation for future"
+        },
+        "project": {
+          "type": "string",
+          "description": "Source project"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date captured"
+        }
+      }
+    },
+    "MeetingNotes": {
+      "description": "Steering committee or meeting notes.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Meeting title",
+          "required": true
+        },
+        "date": {
+          "type": "string",
+          "description": "Meeting date",
+          "required": true
+        },
+        "attendees": {
+          "type": "array",
+          "description": "Meeting attendees"
+        },
+        "agenda": {
+          "type": "array",
+          "description": "Agenda items"
+        },
+        "decisions": {
+          "type": "array",
+          "description": "Decisions made"
+        },
+        "actions": {
+          "type": "array",
+          "description": "Action items"
+        },
+        "nextMeeting": {
+          "type": "string",
+          "description": "Next meeting date"
+        }
+      }
+    },
+    "OnboardDashboard": {
+      "description": "Central onboarding dashboard with navigation, progress, and quick access.",
+      "category": "layout",
+      "props": {
+        "developerName": {
+          "type": "string",
+          "description": "Developer name"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Onboarding start date"
+        },
+        "currentPhase": {
+          "type": "string",
+          "description": "Current onboarding phase",
+          "enum": [
+            "setup",
+            "orientation",
+            "guided_tasks",
+            "independent",
+            "complete"
+          ]
+        },
+        "overallProgress": {
+          "type": "number",
+          "description": "Overall progress percentage"
+        }
+      },
+      "slots": {
+        "navigation": {
+          "role": "navigation",
+          "description": "Sidebar navigation",
+          "accepts": [
+            "OnboardNav"
+          ]
+        },
+        "header": {
+          "role": "header",
+          "description": "Progress bar",
+          "accepts": [
+            "OnboardProgressBar"
+          ]
+        },
+        "main": {
+          "role": "content",
+          "description": "Main content area",
+          "accepts": [
+            "ProgressOverview",
+            "LearningPathPanel",
+            "CodebaseMapPanel",
+            "TaskPanel",
+            "TeamPanel",
+            "SetupPanel",
+            "ResourcePanel"
+          ]
+        },
+        "sidebar": {
+          "role": "aside",
+          "description": "Quick actions sidebar",
+          "accepts": [
+            "QuickActions",
+            "UpcomingItems",
+            "OnboardSettings"
+          ]
+        }
+      }
+    },
+    "OnboardNav": {
+      "description": "Onboarding navigation with phases and sections.",
+      "category": "navigation",
+      "props": {
+        "activeSection": {
+          "type": "string",
+          "description": "Active section",
+          "enum": [
+            "overview",
+            "learning",
+            "codebase",
+            "tasks",
+            "team",
+            "setup",
+            "resources",
+            "settings"
+          ]
+        },
+        "currentPhase": {
+          "type": "string",
+          "description": "Current phase"
+        },
+        "completedSections": {
+          "type": "array",
+          "description": "Completed sections"
+        }
+      }
+    },
+    "OnboardProgressBar": {
+      "description": "Progress bar showing overall onboarding status.",
+      "category": "display",
+      "props": {
+        "completionPercent": {
+          "type": "number",
+          "description": "Overall completion %",
+          "required": true
+        },
+        "currentPhase": {
+          "type": "string",
+          "description": "Current phase"
+        },
+        "daysOnboarding": {
+          "type": "number",
+          "description": "Days since start"
+        },
+        "estimatedDaysRemaining": {
+          "type": "number",
+          "description": "Estimated days remaining"
+        },
+        "milestones": {
+          "type": "array",
+          "description": "Phase milestones"
+        }
+      }
+    },
+    "ProgressOverview": {
+      "description": "Detailed progress overview with phase breakdown.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Your Progress"
+        }
+      },
+      "slots": {
+        "summary": {
+          "role": "content",
+          "description": "Progress summary",
+          "accepts": [
+            "ProgressSummary"
+          ]
+        },
+        "phases": {
+          "role": "content",
+          "description": "Phase progress",
+          "accepts": [
+            "PhaseProgressList"
+          ]
+        },
+        "achievements": {
+          "role": "content",
+          "description": "Achievements",
+          "accepts": [
+            "AchievementList"
+          ]
+        },
+        "timeline": {
+          "role": "content",
+          "description": "Activity timeline",
+          "accepts": [
+            "ActivityTimeline"
+          ]
+        }
+      }
+    },
+    "ProgressSummary": {
+      "description": "Summary of onboarding progress metrics.",
+      "category": "display",
+      "props": {
+        "completionPercent": {
+          "type": "number",
+          "description": "Overall completion",
+          "required": true
+        },
+        "tasksCompleted": {
+          "type": "number",
+          "description": "Tasks completed"
+        },
+        "totalTasks": {
+          "type": "number",
+          "description": "Total tasks"
+        },
+        "modulesCompleted": {
+          "type": "number",
+          "description": "Modules completed"
+        },
+        "totalModules": {
+          "type": "number",
+          "description": "Total modules"
+        },
+        "hoursSpent": {
+          "type": "number",
+          "description": "Hours spent"
+        },
+        "streak": {
+          "type": "number",
+          "description": "Current streak days"
+        }
+      }
+    },
+    "PhaseProgressList": {
+      "description": "List of onboarding phases with progress.",
+      "category": "layout",
+      "props": {
+        "showTimeline": {
+          "type": "boolean",
+          "description": "Show timeline view",
+          "default": true
+        }
+      },
+      "slots": {
+        "phases": {
+          "role": "content",
+          "description": "Phase items",
+          "accepts": [
+            "PhaseProgress"
+          ]
+        }
+      }
+    },
+    "PhaseProgress": {
+      "description": "Progress for a single onboarding phase.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Phase name",
+          "required": true
+        },
+        "phase": {
+          "type": "string",
+          "description": "Phase type",
+          "enum": [
+            "setup",
+            "orientation",
+            "guided_tasks",
+            "independent",
+            "complete"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Phase status",
+          "enum": [
+            "locked",
+            "current",
+            "completed"
+          ]
+        },
+        "progress": {
+          "type": "number",
+          "description": "Progress percentage"
+        },
+        "tasksCompleted": {
+          "type": "number",
+          "description": "Completed tasks"
+        },
+        "totalTasks": {
+          "type": "number",
+          "description": "Total tasks"
+        },
+        "estimatedHours": {
+          "type": "number",
+          "description": "Estimated hours"
+        }
+      }
+    },
+    "AchievementList": {
+      "description": "List of onboarding achievements.",
+      "category": "layout",
+      "props": {
+        "showLocked": {
+          "type": "boolean",
+          "description": "Show locked achievements",
+          "default": true
+        }
+      },
+      "slots": {
+        "achievements": {
+          "role": "content",
+          "description": "Achievement items",
+          "accepts": [
+            "Achievement"
+          ]
+        }
+      }
+    },
+    "Achievement": {
+      "description": "An onboarding achievement or badge.",
+      "category": "content",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Achievement name",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Achievement description"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Achievement icon"
+        },
+        "status": {
+          "type": "string",
+          "description": "Achievement status",
+          "enum": [
+            "locked",
+            "unlocked",
+            "featured"
+          ]
+        },
+        "unlockedAt": {
+          "type": "string",
+          "description": "When unlocked"
+        },
+        "criteria": {
+          "type": "string",
+          "description": "Unlock criteria"
+        }
+      }
+    },
+    "ActivityTimeline": {
+      "description": "Timeline of onboarding activities.",
+      "category": "layout",
+      "props": {
+        "maxItems": {
+          "type": "number",
+          "description": "Max items to show",
+          "default": 10
+        }
+      },
+      "slots": {
+        "activities": {
+          "role": "content",
+          "description": "Activity items",
+          "accepts": [
+            "ActivityItem"
+          ]
+        }
+      }
+    },
+    "ActivityItem": {
+      "description": "A single activity in the timeline.",
+      "category": "content",
+      "props": {
+        "timestamp": {
+          "type": "string",
+          "description": "Activity timestamp",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Activity type",
+          "enum": [
+            "task_completed",
+            "module_completed",
+            "meeting_scheduled",
+            "code_reviewed",
+            "achievement_unlocked"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "description": "Activity title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Activity description"
+        }
+      }
+    },
+    "LearningPathPanel": {
+      "description": "Learning path management panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Learning Paths"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Learning toolbar",
+          "accepts": [
+            "LearningToolbar"
+          ]
+        },
+        "paths": {
+          "role": "content",
+          "description": "Learning paths",
+          "accepts": [
+            "LearningPathList"
+          ]
+        },
+        "activeModule": {
+          "role": "aside",
+          "description": "Active module",
+          "accepts": [
+            "ModuleDetails"
+          ]
+        }
+      }
+    },
+    "LearningToolbar": {
+      "description": "Toolbar for learning path management.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by status",
+          "enum": [
+            "all",
+            "in_progress",
+            "completed",
+            "not_started"
+          ]
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "recommended",
+            "progress",
+            "difficulty"
+          ]
+        },
+        "viewMode": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "list",
+            "grid"
+          ]
+        }
+      }
+    },
+    "LearningPathList": {
+      "description": "List of learning paths.",
+      "category": "layout",
+      "props": {
+        "showProgress": {
+          "type": "boolean",
+          "description": "Show progress bars",
+          "default": true
+        }
+      },
+      "slots": {
+        "paths": {
+          "role": "content",
+          "description": "Learning path cards",
+          "accepts": [
+            "LearningPathCard"
+          ]
+        }
+      }
+    },
+    "LearningPathCard": {
+      "description": "Learning path summary card.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Path ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Path title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Path description"
+        },
+        "category": {
+          "type": "string",
+          "description": "Path category",
+          "enum": [
+            "technical",
+            "process",
+            "domain",
+            "tools",
+            "culture"
+          ]
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Difficulty level",
+          "enum": [
+            "beginner",
+            "intermediate",
+            "advanced"
+          ]
+        },
+        "estimatedHours": {
+          "type": "number",
+          "description": "Estimated hours"
+        },
+        "completedModules": {
+          "type": "number",
+          "description": "Completed modules"
+        },
+        "totalModules": {
+          "type": "number",
+          "description": "Total modules"
+        },
+        "progress": {
+          "type": "number",
+          "description": "Progress percentage"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Is required path"
+        }
+      }
+    },
+    "LearningPathDetails": {
+      "description": "Detailed view of a learning path.",
+      "category": "layout",
+      "props": {
+        "pathId": {
+          "type": "string",
+          "description": "Path ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Path header",
+          "accepts": [
+            "LearningPathCard"
+          ]
+        },
+        "modules": {
+          "role": "content",
+          "description": "Module list",
+          "accepts": [
+            "ModuleList"
+          ]
+        },
+        "resources": {
+          "role": "aside",
+          "description": "Path resources",
+          "accepts": [
+            "ResourceList"
+          ]
+        }
+      }
+    },
+    "ModuleList": {
+      "description": "List of learning modules in a path.",
+      "category": "layout",
+      "props": {
+        "showPrerequisites": {
+          "type": "boolean",
+          "description": "Show prerequisites",
+          "default": true
+        }
+      },
+      "slots": {
+        "modules": {
+          "role": "content",
+          "description": "Module items",
+          "accepts": [
+            "ModuleCard"
+          ]
+        }
+      }
+    },
+    "ModuleCard": {
+      "description": "Learning module summary card.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Module ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Module title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Module type",
+          "enum": [
+            "reading",
+            "video",
+            "exercise",
+            "project",
+            "quiz",
+            "workshop"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Completion status",
+          "enum": [
+            "locked",
+            "not_started",
+            "in_progress",
+            "completed",
+            "skipped"
+          ]
+        },
+        "estimatedMinutes": {
+          "type": "number",
+          "description": "Estimated time (minutes)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Module description"
+        },
+        "prerequisites": {
+          "type": "array",
+          "description": "Prerequisite modules"
+        },
+        "order": {
+          "type": "number",
+          "description": "Module order"
+        }
+      }
+    },
+    "ModuleDetails": {
+      "description": "Detailed view of a learning module.",
+      "category": "layout",
+      "props": {
+        "moduleId": {
+          "type": "string",
+          "description": "Module ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Module header",
+          "accepts": [
+            "ModuleCard"
+          ]
+        },
+        "content": {
+          "role": "content",
+          "description": "Module content",
+          "accepts": [
+            "ModuleContent"
+          ]
+        },
+        "resources": {
+          "role": "content",
+          "description": "Module resources",
+          "accepts": [
+            "ResourceList"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Module actions",
+          "accepts": [
+            "ModuleActions"
+          ]
+        }
+      }
+    },
+    "ModuleContent": {
+      "description": "Learning module content viewer.",
+      "category": "display",
+      "props": {
+        "contentType": {
+          "type": "string",
+          "description": "Content type",
+          "enum": [
+            "markdown",
+            "video",
+            "interactive"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "description": "Content body"
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "Video URL if applicable"
+        },
+        "progress": {
+          "type": "number",
+          "description": "Content progress"
+        }
+      }
+    },
+    "ModuleActions": {
+      "description": "Actions for a learning module.",
+      "category": "control",
+      "props": {
+        "canStart": {
+          "type": "boolean",
+          "description": "Can start module"
+        },
+        "canComplete": {
+          "type": "boolean",
+          "description": "Can mark complete"
+        },
+        "canSkip": {
+          "type": "boolean",
+          "description": "Can skip module"
+        },
+        "canAskQuestion": {
+          "type": "boolean",
+          "description": "Can ask questions"
+        }
+      }
+    },
+    "CodebaseMapPanel": {
+      "description": "Codebase orientation and map panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Codebase"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Map toolbar",
+          "accepts": [
+            "CodebaseToolbar"
+          ]
+        },
+        "map": {
+          "role": "content",
+          "description": "Codebase map",
+          "accepts": [
+            "CodebaseMap"
+          ]
+        },
+        "concepts": {
+          "role": "content",
+          "description": "Key concepts",
+          "accepts": [
+            "ConceptList"
+          ]
+        },
+        "explorer": {
+          "role": "aside",
+          "description": "Code explorer",
+          "accepts": [
+            "CodeExplorer"
+          ]
+        }
+      }
+    },
+    "CodebaseToolbar": {
+      "description": "Toolbar for codebase exploration.",
+      "category": "control",
+      "props": {
+        "viewMode": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "map",
+            "tree",
+            "concepts"
+          ]
+        },
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by area",
+          "enum": [
+            "all",
+            "frontend",
+            "backend",
+            "infrastructure",
+            "shared"
+          ]
+        },
+        "showAnnotations": {
+          "type": "boolean",
+          "description": "Show annotations",
+          "default": true
+        }
+      }
+    },
+    "CodebaseMap": {
+      "description": "Visual map of codebase structure.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Map title",
+          "default": "Codebase Overview"
+        },
+        "focusArea": {
+          "type": "string",
+          "description": "Area to focus on"
+        },
+        "showAnnotations": {
+          "type": "boolean",
+          "description": "Show onboarding annotations",
+          "default": true
+        },
+        "showConnections": {
+          "type": "boolean",
+          "description": "Show component connections",
+          "default": true
+        },
+        "zoomLevel": {
+          "type": "number",
+          "description": "Zoom level",
+          "default": 1
+        }
+      }
+    },
+    "ConceptList": {
+      "description": "List of key concepts to understand.",
+      "category": "layout",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by category",
+          "enum": [
+            "all",
+            "architecture",
+            "domain",
+            "process",
+            "tooling",
+            "conventions"
+          ]
+        },
+        "showUnderstood": {
+          "type": "boolean",
+          "description": "Show understood concepts",
+          "default": true
+        }
+      },
+      "slots": {
+        "concepts": {
+          "role": "content",
+          "description": "Concept cards",
+          "accepts": [
+            "ConceptCard"
+          ]
+        }
+      }
+    },
+    "ConceptCard": {
+      "description": "A key concept the developer should understand.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Concept ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Concept title",
+          "required": true
+        },
+        "category": {
+          "type": "string",
+          "description": "Concept category",
+          "enum": [
+            "architecture",
+            "domain",
+            "process",
+            "tooling",
+            "conventions"
+          ]
+        },
+        "importance": {
+          "type": "string",
+          "description": "Importance level",
+          "enum": [
+            "critical",
+            "important",
+            "helpful"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Concept description"
+        },
+        "relatedFiles": {
+          "type": "array",
+          "description": "Related code files"
+        },
+        "relatedDocs": {
+          "type": "array",
+          "description": "Related documentation"
+        },
+        "understood": {
+          "type": "boolean",
+          "description": "Marked as understood",
+          "default": false
+        }
+      }
+    },
+    "ConceptDetails": {
+      "description": "Detailed view of a concept.",
+      "category": "layout",
+      "props": {
+        "conceptId": {
+          "type": "string",
+          "description": "Concept ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Concept header",
+          "accepts": [
+            "ConceptCard"
+          ]
+        },
+        "explanation": {
+          "role": "content",
+          "description": "Detailed explanation",
+          "accepts": [
+            "ConceptExplanation"
+          ]
+        },
+        "code": {
+          "role": "content",
+          "description": "Code examples",
+          "accepts": [
+            "CodeExampleList"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Concept actions",
+          "accepts": [
+            "ConceptActions"
+          ]
+        }
+      }
+    },
+    "ConceptExplanation": {
+      "description": "Detailed explanation of a concept.",
+      "category": "display",
+      "props": {
+        "content": {
+          "type": "string",
+          "description": "Explanation content"
+        },
+        "diagrams": {
+          "type": "array",
+          "description": "Related diagrams"
+        },
+        "examples": {
+          "type": "array",
+          "description": "Examples"
+        }
+      }
+    },
+    "ConceptActions": {
+      "description": "Actions for a concept.",
+      "category": "control",
+      "props": {
+        "canMarkUnderstood": {
+          "type": "boolean",
+          "description": "Can mark as understood"
+        },
+        "canAskQuestion": {
+          "type": "boolean",
+          "description": "Can ask question"
+        },
+        "canViewCode": {
+          "type": "boolean",
+          "description": "Can view related code"
+        }
+      }
+    },
+    "CodeExplorer": {
+      "description": "Code exploration panel with annotations.",
+      "category": "layout",
+      "props": {
+        "currentPath": {
+          "type": "string",
+          "description": "Current file path"
+        }
+      },
+      "slots": {
+        "tree": {
+          "role": "navigation",
+          "description": "File tree",
+          "accepts": [
+            "FileTree"
+          ]
+        },
+        "viewer": {
+          "role": "content",
+          "description": "Code viewer",
+          "accepts": [
+            "AnnotatedCodeViewer"
+          ]
+        }
+      }
+    },
+    "FileTree": {
+      "description": "Annotated file tree for navigation.",
+      "category": "navigation",
+      "props": {
+        "expandedPaths": {
+          "type": "array",
+          "description": "Expanded paths"
+        },
+        "selectedPath": {
+          "type": "string",
+          "description": "Selected path"
+        },
+        "showAnnotations": {
+          "type": "boolean",
+          "description": "Show importance markers",
+          "default": true
+        }
+      }
+    },
+    "AnnotatedCodeViewer": {
+      "description": "Code viewer with onboarding annotations.",
+      "category": "display",
+      "props": {
+        "filePath": {
+          "type": "string",
+          "description": "File path",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "description": "File content"
+        },
+        "language": {
+          "type": "string",
+          "description": "Programming language"
+        },
+        "annotations": {
+          "type": "array",
+          "description": "Line annotations"
+        },
+        "highlightLines": {
+          "type": "array",
+          "description": "Lines to highlight"
+        }
+      }
+    },
+    "CodeExampleList": {
+      "description": "List of code examples.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "List title"
+        }
+      },
+      "slots": {
+        "examples": {
+          "role": "content",
+          "description": "Code examples",
+          "accepts": [
+            "CodeExample"
+          ]
+        }
+      }
+    },
+    "CodeExample": {
+      "description": "A code example with explanation.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Example title"
+        },
+        "language": {
+          "type": "string",
+          "description": "Programming language",
+          "required": true
+        },
+        "code": {
+          "type": "string",
+          "description": "Code content",
+          "required": true
+        },
+        "explanation": {
+          "type": "string",
+          "description": "Code explanation"
+        },
+        "runnable": {
+          "type": "boolean",
+          "description": "Can be run",
+          "default": false
+        }
+      }
+    },
+    "TaskPanel": {
+      "description": "Guided task management panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Tasks"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Task toolbar",
+          "accepts": [
+            "TaskToolbar"
+          ]
+        },
+        "list": {
+          "role": "content",
+          "description": "Task list",
+          "accepts": [
+            "TaskList"
+          ]
+        },
+        "activeTask": {
+          "role": "aside",
+          "description": "Active task",
+          "accepts": [
+            "TaskDetails"
+          ]
+        }
+      }
+    },
+    "TaskToolbar": {
+      "description": "Toolbar for task management.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by status",
+          "enum": [
+            "all",
+            "available",
+            "in_progress",
+            "completed",
+            "locked"
+          ]
+        },
+        "filterDifficulty": {
+          "type": "string",
+          "description": "Filter by difficulty",
+          "enum": [
+            "all",
+            "beginner",
+            "intermediate",
+            "advanced"
+          ]
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "recommended",
+            "difficulty",
+            "time"
+          ]
+        }
+      }
+    },
+    "TaskList": {
+      "description": "List of guided tasks.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "none",
+            "difficulty",
+            "category",
+            "status"
+          ]
+        }
+      },
+      "slots": {
+        "tasks": {
+          "role": "content",
+          "description": "Task cards",
+          "accepts": [
+            "TaskCard"
+          ]
+        }
+      }
+    },
+    "TaskCard": {
+      "description": "Guided task summary card.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Task ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title",
+          "required": true
+        },
+        "objective": {
+          "type": "string",
+          "description": "Task objective"
+        },
+        "category": {
+          "type": "string",
+          "description": "Task category",
+          "enum": [
+            "bugfix",
+            "feature",
+            "refactor",
+            "test",
+            "documentation"
+          ]
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Difficulty level",
+          "enum": [
+            "beginner",
+            "intermediate",
+            "advanced"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Task status",
+          "enum": [
+            "locked",
+            "available",
+            "in_progress",
+            "completed"
+          ]
+        },
+        "estimatedMinutes": {
+          "type": "number",
+          "description": "Estimated time"
+        },
+        "hintsAvailable": {
+          "type": "number",
+          "description": "Available hints"
+        },
+        "successCriteria": {
+          "type": "array",
+          "description": "Completion criteria"
+        }
+      }
+    },
+    "TaskDetails": {
+      "description": "Detailed view of a guided task.",
+      "category": "layout",
+      "props": {
+        "taskId": {
+          "type": "string",
+          "description": "Task ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Task header",
+          "accepts": [
+            "TaskCard"
+          ]
+        },
+        "instructions": {
+          "role": "content",
+          "description": "Task instructions",
+          "accepts": [
+            "TaskInstructions"
+          ]
+        },
+        "hints": {
+          "role": "content",
+          "description": "Task hints",
+          "accepts": [
+            "HintList"
+          ]
+        },
+        "criteria": {
+          "role": "content",
+          "description": "Success criteria",
+          "accepts": [
+            "CriteriaList"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Task actions",
+          "accepts": [
+            "TaskActions"
+          ]
+        }
+      }
+    },
+    "TaskInstructions": {
+      "description": "Step-by-step task instructions.",
+      "category": "display",
+      "props": {
+        "steps": {
+          "type": "array",
+          "description": "Instruction steps"
+        },
+        "currentStep": {
+          "type": "number",
+          "description": "Current step"
+        },
+        "showCode": {
+          "type": "boolean",
+          "description": "Show code snippets",
+          "default": true
+        }
+      }
+    },
+    "HintList": {
+      "description": "List of hints for a task.",
+      "category": "layout",
+      "props": {
+        "revealedCount": {
+          "type": "number",
+          "description": "Hints revealed"
+        }
+      },
+      "slots": {
+        "hints": {
+          "role": "content",
+          "description": "Hint items",
+          "accepts": [
+            "Hint"
+          ]
+        }
+      }
+    },
+    "Hint": {
+      "description": "A task hint.",
+      "category": "content",
+      "props": {
+        "order": {
+          "type": "number",
+          "description": "Hint order",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "description": "Hint content"
+        },
+        "revealed": {
+          "type": "boolean",
+          "description": "Is revealed",
+          "default": false
+        }
+      }
+    },
+    "CriteriaList": {
+      "description": "List of success criteria.",
+      "category": "layout",
+      "props": {
+        "showProgress": {
+          "type": "boolean",
+          "description": "Show completion status",
+          "default": true
+        }
+      },
+      "slots": {
+        "criteria": {
+          "role": "content",
+          "description": "Criteria items",
+          "accepts": [
+            "Criterion"
+          ]
+        }
+      }
+    },
+    "Criterion": {
+      "description": "A success criterion.",
+      "category": "content",
+      "props": {
+        "description": {
+          "type": "string",
+          "description": "Criterion description",
+          "required": true
+        },
+        "met": {
+          "type": "boolean",
+          "description": "Is criterion met",
+          "default": false
+        },
+        "automated": {
+          "type": "boolean",
+          "description": "Is auto-verified",
+          "default": false
+        }
+      }
+    },
+    "TaskActions": {
+      "description": "Actions for a guided task.",
+      "category": "control",
+      "props": {
+        "canStart": {
+          "type": "boolean",
+          "description": "Can start task"
+        },
+        "canSubmit": {
+          "type": "boolean",
+          "description": "Can submit for review"
+        },
+        "canGetHint": {
+          "type": "boolean",
+          "description": "Can get hint"
+        },
+        "canAskForHelp": {
+          "type": "boolean",
+          "description": "Can ask for help"
+        }
+      }
+    },
+    "TeamPanel": {
+      "description": "Team introduction and meeting panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Team"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Team toolbar",
+          "accepts": [
+            "TeamToolbar"
+          ]
+        },
+        "members": {
+          "role": "content",
+          "description": "Team members",
+          "accepts": [
+            "TeamMemberList"
+          ]
+        },
+        "meetings": {
+          "role": "content",
+          "description": "Scheduled meetings",
+          "accepts": [
+            "MeetingList"
+          ]
+        }
+      }
+    },
+    "TeamToolbar": {
+      "description": "Toolbar for team view.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by role",
+          "enum": [
+            "all",
+            "engineering",
+            "design",
+            "product",
+            "management"
+          ]
+        },
+        "showMeetingStatus": {
+          "type": "boolean",
+          "description": "Show meeting status",
+          "default": true
+        }
+      }
+    },
+    "TeamMemberList": {
+      "description": "List of team members.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "none",
+            "team",
+            "role"
+          ]
+        }
+      },
+      "slots": {
+        "members": {
+          "role": "content",
+          "description": "Member cards",
+          "accepts": [
+            "TeamMemberCard"
+          ]
+        }
+      }
+    },
+    "TeamMemberCard": {
+      "description": "Team member card.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Member ID",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Member name",
+          "required": true
+        },
+        "role": {
+          "type": "string",
+          "description": "Role/title"
+        },
+        "team": {
+          "type": "string",
+          "description": "Team name"
+        },
+        "expertise": {
+          "type": "array",
+          "description": "Areas of expertise"
+        },
+        "meetingScheduled": {
+          "type": "boolean",
+          "description": "Meeting scheduled",
+          "default": false
+        },
+        "meetingCompleted": {
+          "type": "boolean",
+          "description": "Meeting completed",
+          "default": false
+        },
+        "notes": {
+          "type": "string",
+          "description": "Notes from meeting"
+        },
+        "availability": {
+          "type": "string",
+          "description": "Availability status"
+        }
+      }
+    },
+    "MeetingList": {
+      "description": "List of scheduled meetings.",
+      "category": "layout",
+      "props": {
+        "showPast": {
+          "type": "boolean",
+          "description": "Show past meetings",
+          "default": false
+        }
+      },
+      "slots": {
+        "meetings": {
+          "role": "content",
+          "description": "Meeting items",
+          "accepts": [
+            "MeetingCard"
+          ]
+        }
+      }
+    },
+    "MeetingCard": {
+      "description": "A scheduled meeting.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Meeting ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Meeting title",
+          "required": true
+        },
+        "with": {
+          "type": "string",
+          "description": "Meeting with"
+        },
+        "dateTime": {
+          "type": "string",
+          "description": "Meeting date/time"
+        },
+        "duration": {
+          "type": "number",
+          "description": "Duration in minutes"
+        },
+        "status": {
+          "type": "string",
+          "description": "Meeting status",
+          "enum": [
+            "scheduled",
+            "completed",
+            "cancelled"
+          ]
+        },
+        "agenda": {
+          "type": "array",
+          "description": "Meeting agenda"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Meeting notes"
+        }
+      }
+    },
+    "SetupPanel": {
+      "description": "Development environment setup panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Dev Setup"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Setup toolbar",
+          "accepts": [
+            "SetupToolbar"
+          ]
+        },
+        "checklist": {
+          "role": "content",
+          "description": "Setup checklist",
+          "accepts": [
+            "SetupChecklist"
+          ]
+        },
+        "troubleshooting": {
+          "role": "aside",
+          "description": "Troubleshooting",
+          "accepts": [
+            "TroubleshootingList"
+          ]
+        }
+      }
+    },
+    "SetupToolbar": {
+      "description": "Toolbar for setup view.",
+      "category": "control",
+      "props": {
+        "showCompleted": {
+          "type": "boolean",
+          "description": "Show completed items",
+          "default": true
+        },
+        "autoVerify": {
+          "type": "boolean",
+          "description": "Auto-verify setup",
+          "default": true
+        }
+      }
+    },
+    "SetupChecklist": {
+      "description": "Development environment setup checklist.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Checklist title",
+          "default": "Dev Setup"
+        },
+        "completedItems": {
+          "type": "number",
+          "description": "Completed items"
+        },
+        "totalItems": {
+          "type": "number",
+          "description": "Total items"
+        }
+      },
+      "slots": {
+        "items": {
+          "role": "content",
+          "description": "Checklist items",
+          "accepts": [
+            "SetupItem"
+          ]
+        }
+      }
+    },
+    "SetupItem": {
+      "description": "A setup checklist item.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Item ID",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Item title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Instructions"
+        },
+        "category": {
+          "type": "string",
+          "description": "Setup category",
+          "enum": [
+            "tools",
+            "access",
+            "config",
+            "verification"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Item status",
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "blocked",
+            "skipped"
+          ]
+        },
+        "command": {
+          "type": "string",
+          "description": "Command to run"
+        },
+        "verificationCommand": {
+          "type": "string",
+          "description": "Command to verify"
+        },
+        "documentation": {
+          "type": "string",
+          "description": "Documentation link"
+        },
+        "optional": {
+          "type": "boolean",
+          "description": "Is optional",
+          "default": false
+        }
+      }
+    },
+    "TroubleshootingList": {
+      "description": "List of common setup issues.",
+      "category": "layout",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by category"
+        }
+      },
+      "slots": {
+        "issues": {
+          "role": "content",
+          "description": "Issue items",
+          "accepts": [
+            "TroubleshootingItem"
+          ]
+        }
+      }
+    },
+    "TroubleshootingItem": {
+      "description": "A troubleshooting item.",
+      "category": "content",
+      "props": {
+        "problem": {
+          "type": "string",
+          "description": "Problem description",
+          "required": true
+        },
+        "solution": {
+          "type": "string",
+          "description": "Solution steps"
+        },
+        "category": {
+          "type": "string",
+          "description": "Issue category"
+        },
+        "common": {
+          "type": "boolean",
+          "description": "Is common issue",
+          "default": false
+        }
+      }
+    },
+    "ResourcePanel": {
+      "description": "Resource and documentation panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Resources"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Resource toolbar",
+          "accepts": [
+            "ResourceToolbar"
+          ]
+        },
+        "resources": {
+          "role": "content",
+          "description": "Resource list",
+          "accepts": [
+            "ResourceList"
+          ]
+        }
+      }
+    },
+    "UpcomingItems": {
+      "description": "Upcoming tasks and meetings.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Coming Up"
+        },
+        "maxItems": {
+          "type": "number",
+          "description": "Max items to show",
+          "default": 5
+        }
+      }
+    },
+    "OnboardSettings": {
+      "description": "Onboarding settings panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "groups": {
+          "role": "content",
+          "description": "Setting groups",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "ExperimentDashboard": {
+      "description": "Central experimentation dashboard with navigation, overview, and activity.",
+      "category": "layout",
+      "props": {
+        "projectName": {
+          "type": "string",
+          "description": "Project name"
+        },
+        "activeExperiments": {
+          "type": "number",
+          "description": "Active experiment count"
+        },
+        "activeFlags": {
+          "type": "number",
+          "description": "Active feature flags"
+        },
+        "recentWins": {
+          "type": "number",
+          "description": "Recent experiment wins"
+        }
+      },
+      "slots": {
+        "navigation": {
+          "role": "navigation",
+          "description": "Sidebar navigation",
+          "accepts": [
+            "ExperimentNav"
+          ]
+        },
+        "header": {
+          "role": "header",
+          "description": "Summary bar",
+          "accepts": [
+            "ExperimentSummaryBar"
+          ]
+        },
+        "main": {
+          "role": "content",
+          "description": "Main content area",
+          "accepts": [
+            "ExperimentOverview",
+            "ResultsOverview",
+            "FeatureFlagPanel",
+            "RolloutPanel",
+            "TargetingPanel",
+            "AudiencePanel"
+          ]
+        },
+        "sidebar": {
+          "role": "aside",
+          "description": "Quick actions sidebar",
+          "accepts": [
+            "QuickActions",
+            "RecentExperiments",
+            "ExperimentSettings"
+          ]
+        }
+      }
+    },
+    "ExperimentNav": {
+      "description": "Experimentation navigation with sections and filters.",
+      "category": "navigation",
+      "props": {
+        "activeSection": {
+          "type": "string",
+          "description": "Active section",
+          "enum": [
+            "experiments",
+            "results",
+            "flags",
+            "rollouts",
+            "targeting",
+            "audiences",
+            "settings"
+          ]
+        },
+        "experimentCount": {
+          "type": "number",
+          "description": "Total experiments"
+        },
+        "runningCount": {
+          "type": "number",
+          "description": "Running experiments"
+        }
+      }
+    },
+    "ExperimentSummaryBar": {
+      "description": "Summary bar showing experimentation metrics.",
+      "category": "display",
+      "props": {
+        "runningExperiments": {
+          "type": "number",
+          "description": "Running experiments"
+        },
+        "completedThisMonth": {
+          "type": "number",
+          "description": "Completed this month"
+        },
+        "winRate": {
+          "type": "number",
+          "description": "Win rate percentage"
+        },
+        "avgUplift": {
+          "type": "number",
+          "description": "Average uplift"
+        },
+        "usersInTests": {
+          "type": "number",
+          "description": "Users in tests"
+        }
+      }
+    },
+    "ExperimentOverview": {
+      "description": "Overview of experiments with filtering and management.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Experiments"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Experiment toolbar",
+          "accepts": [
+            "ExperimentToolbar"
+          ]
+        },
+        "list": {
+          "role": "content",
+          "description": "Experiment list",
+          "accepts": [
+            "ExperimentList"
+          ]
+        },
+        "details": {
+          "role": "aside",
+          "description": "Selected experiment details",
+          "accepts": [
+            "ExperimentDetails"
+          ]
+        }
+      }
+    },
+    "ExperimentToolbar": {
+      "description": "Toolbar for experiment management.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by status",
+          "enum": [
+            "all",
+            "draft",
+            "running",
+            "paused",
+            "completed",
+            "archived"
+          ]
+        },
+        "filterType": {
+          "type": "string",
+          "description": "Filter by type",
+          "enum": [
+            "all",
+            "ab_test",
+            "multivariate",
+            "feature_test"
+          ]
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "newest",
+            "oldest",
+            "name",
+            "traffic"
+          ]
+        },
+        "searchQuery": {
+          "type": "string",
+          "description": "Search query"
+        }
+      }
+    },
+    "ExperimentList": {
+      "description": "List of experiments with status and metrics.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "none",
+            "status",
+            "type",
+            "team"
+          ]
+        }
+      },
+      "slots": {
+        "experiments": {
+          "role": "content",
+          "description": "Experiment cards",
+          "accepts": [
+            "ExperimentCard"
+          ]
+        }
+      }
+    },
+    "ExperimentCard": {
+      "description": "Experiment summary card with key metrics.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Experiment ID",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Experiment name",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Experiment status",
+          "enum": [
+            "draft",
+            "running",
+            "paused",
+            "completed",
+            "archived"
+          ],
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Experiment type",
+          "enum": [
+            "ab_test",
+            "multivariate",
+            "feature_test",
+            "holdout"
+          ]
+        },
+        "hypothesis": {
+          "type": "string",
+          "description": "Experiment hypothesis"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Start date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "End date"
+        },
+        "traffic": {
+          "type": "number",
+          "description": "Traffic percentage"
+        },
+        "variants": {
+          "type": "number",
+          "description": "Number of variants"
+        },
+        "primaryMetric": {
+          "type": "string",
+          "description": "Primary metric"
+        },
+        "currentUplift": {
+          "type": "number",
+          "description": "Current uplift %"
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Statistical confidence %"
+        },
+        "winner": {
+          "type": "string",
+          "description": "Winning variant"
+        }
+      }
+    },
+    "ExperimentDetails": {
+      "description": "Detailed view of an experiment.",
+      "category": "layout",
+      "props": {
+        "experimentId": {
+          "type": "string",
+          "description": "Experiment ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Experiment header",
+          "accepts": [
+            "ExperimentCard"
+          ]
+        },
+        "variants": {
+          "role": "content",
+          "description": "Variant list",
+          "accepts": [
+            "VariantList"
+          ]
+        },
+        "results": {
+          "role": "content",
+          "description": "Results summary",
+          "accepts": [
+            "ResultsSummary"
+          ]
+        },
+        "timeline": {
+          "role": "content",
+          "description": "Experiment timeline",
+          "accepts": [
+            "ExperimentTimeline"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Experiment actions",
+          "accepts": [
+            "ExperimentActions"
+          ]
+        }
+      }
+    },
+    "ExperimentTimeline": {
+      "description": "Timeline of experiment events and changes.",
+      "category": "display",
+      "props": {
+        "experimentId": {
+          "type": "string",
+          "description": "Experiment ID",
+          "required": true
+        },
+        "events": {
+          "type": "array",
+          "description": "Timeline events"
+        }
+      },
+      "slots": {
+        "events": {
+          "role": "content",
+          "description": "Timeline events",
+          "accepts": [
+            "TimelineEvent"
+          ]
+        }
+      }
+    },
+    "TimelineEvent": {
+      "description": "A single event in the experiment timeline.",
+      "category": "content",
+      "props": {
+        "timestamp": {
+          "type": "string",
+          "description": "Event timestamp",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Event type",
+          "enum": [
+            "created",
+            "started",
+            "paused",
+            "resumed",
+            "modified",
+            "completed",
+            "winner_declared"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Event description"
+        },
+        "user": {
+          "type": "string",
+          "description": "User who made change"
+        }
+      }
+    },
+    "ExperimentActions": {
+      "description": "Actions for managing an experiment.",
+      "category": "control",
+      "props": {
+        "canStart": {
+          "type": "boolean",
+          "description": "Can start experiment"
+        },
+        "canPause": {
+          "type": "boolean",
+          "description": "Can pause experiment"
+        },
+        "canStop": {
+          "type": "boolean",
+          "description": "Can stop experiment"
+        },
+        "canDeclareWinner": {
+          "type": "boolean",
+          "description": "Can declare winner"
+        },
+        "canArchive": {
+          "type": "boolean",
+          "description": "Can archive experiment"
+        }
+      }
+    },
+    "VariantList": {
+      "description": "List of experiment variants.",
+      "category": "layout",
+      "props": {
+        "showMetrics": {
+          "type": "boolean",
+          "description": "Show metrics",
+          "default": true
+        }
+      },
+      "slots": {
+        "variants": {
+          "role": "content",
+          "description": "Variant cards",
+          "accepts": [
+            "VariantCard"
+          ]
+        }
+      }
+    },
+    "VariantCard": {
+      "description": "Variant summary with allocation and metrics.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Variant ID",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Variant name",
+          "required": true
+        },
+        "isControl": {
+          "type": "boolean",
+          "description": "Is control group",
+          "default": false
+        },
+        "isWinner": {
+          "type": "boolean",
+          "description": "Is declared winner",
+          "default": false
+        },
+        "allocation": {
+          "type": "number",
+          "description": "Traffic allocation %",
+          "required": true
+        },
+        "users": {
+          "type": "number",
+          "description": "Users in variant"
+        },
+        "conversions": {
+          "type": "number",
+          "description": "Conversions"
+        },
+        "conversionRate": {
+          "type": "number",
+          "description": "Conversion rate %"
+        },
+        "uplift": {
+          "type": "number",
+          "description": "Uplift vs control %"
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Statistical confidence %"
+        },
+        "description": {
+          "type": "string",
+          "description": "Variant description"
+        }
+      }
+    },
+    "VariantDetails": {
+      "description": "Detailed view of a variant.",
+      "category": "layout",
+      "props": {
+        "variantId": {
+          "type": "string",
+          "description": "Variant ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Variant header",
+          "accepts": [
+            "VariantCard"
+          ]
+        },
+        "metrics": {
+          "role": "content",
+          "description": "Variant metrics",
+          "accepts": [
+            "VariantMetrics"
+          ]
+        },
+        "segments": {
+          "role": "content",
+          "description": "Segment breakdown",
+          "accepts": [
+            "SegmentBreakdown"
+          ]
+        }
+      }
+    },
+    "VariantMetrics": {
+      "description": "Detailed metrics for a variant.",
+      "category": "display",
+      "props": {
+        "variantId": {
+          "type": "string",
+          "description": "Variant ID",
+          "required": true
+        },
+        "metrics": {
+          "type": "array",
+          "description": "Metric values"
+        },
+        "showTrend": {
+          "type": "boolean",
+          "description": "Show trend",
+          "default": true
+        }
+      }
+    },
+    "ResultsOverview": {
+      "description": "Experiment results analysis view.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Results"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Results toolbar",
+          "accepts": [
+            "ResultsToolbar"
+          ]
+        },
+        "summary": {
+          "role": "content",
+          "description": "Results summary",
+          "accepts": [
+            "ResultsSummary"
+          ]
+        },
+        "charts": {
+          "role": "content",
+          "description": "Results charts",
+          "accepts": [
+            "MetricComparisonChart",
+            "TimeSeriesChart",
+            "ConfidenceChart"
+          ]
+        },
+        "breakdown": {
+          "role": "content",
+          "description": "Segment breakdown",
+          "accepts": [
+            "SegmentBreakdown"
+          ]
+        }
+      }
+    },
+    "ResultsToolbar": {
+      "description": "Toolbar for results view.",
+      "category": "control",
+      "props": {
+        "dateRange": {
+          "type": "string",
+          "description": "Date range"
+        },
+        "metric": {
+          "type": "string",
+          "description": "Selected metric"
+        },
+        "segmentBy": {
+          "type": "string",
+          "description": "Segment by"
+        },
+        "confidenceLevel": {
+          "type": "number",
+          "description": "Confidence level",
+          "default": 95
+        }
+      }
+    },
+    "ResultsSummary": {
+      "description": "Summary of experiment results.",
+      "category": "display",
+      "props": {
+        "experimentId": {
+          "type": "string",
+          "description": "Experiment ID",
+          "required": true
+        },
+        "primaryMetric": {
+          "type": "string",
+          "description": "Primary metric name"
+        },
+        "sampleSize": {
+          "type": "number",
+          "description": "Total sample size"
+        },
+        "statisticalSignificance": {
+          "type": "boolean",
+          "description": "Is statistically significant"
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence level %"
+        },
+        "uplift": {
+          "type": "number",
+          "description": "Uplift % vs control"
+        },
+        "pValue": {
+          "type": "number",
+          "description": "P-value"
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "Recommended action",
+          "enum": [
+            "ship_winner",
+            "continue_testing",
+            "stop_test",
+            "no_clear_winner",
+            "needs_more_data"
+          ]
+        }
+      }
+    },
+    "MetricComparisonChart": {
+      "description": "Chart comparing metric values across variants.",
+      "category": "display",
+      "props": {
+        "metricName": {
+          "type": "string",
+          "description": "Metric name",
+          "required": true
+        },
+        "chartType": {
+          "type": "string",
+          "description": "Chart type",
+          "enum": [
+            "bar",
+            "funnel"
+          ],
+          "default": "bar"
+        },
+        "showConfidenceIntervals": {
+          "type": "boolean",
+          "description": "Show confidence intervals",
+          "default": true
+        },
+        "data": {
+          "type": "array",
+          "description": "Comparison data"
+        }
+      }
+    },
+    "TimeSeriesChart": {
+      "description": "Time series chart of experiment metrics.",
+      "category": "display",
+      "props": {
+        "metricName": {
+          "type": "string",
+          "description": "Metric name",
+          "required": true
+        },
+        "variants": {
+          "type": "array",
+          "description": "Variants to show"
+        },
+        "data": {
+          "type": "array",
+          "description": "Time series data"
+        },
+        "showConfidence": {
+          "type": "boolean",
+          "description": "Show confidence intervals",
+          "default": true
+        },
+        "granularity": {
+          "type": "string",
+          "description": "Time granularity",
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ]
+        }
+      }
+    },
+    "ConfidenceChart": {
+      "description": "Chart showing confidence level over time.",
+      "category": "display",
+      "props": {
+        "experimentId": {
+          "type": "string",
+          "description": "Experiment ID",
+          "required": true
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Confidence threshold",
+          "default": 95
+        },
+        "data": {
+          "type": "array",
+          "description": "Confidence data over time"
+        }
+      }
+    },
+    "SegmentBreakdown": {
+      "description": "Results broken down by user segment.",
+      "category": "layout",
+      "props": {
+        "segmentType": {
+          "type": "string",
+          "description": "Segment type",
+          "enum": [
+            "device",
+            "platform",
+            "country",
+            "browser",
+            "custom"
+          ]
+        }
+      },
+      "slots": {
+        "segments": {
+          "role": "content",
+          "description": "Segment rows",
+          "accepts": [
+            "SegmentRow"
+          ]
+        }
+      }
+    },
+    "SegmentRow": {
+      "description": "Results for a specific segment.",
+      "category": "content",
+      "props": {
+        "segmentName": {
+          "type": "string",
+          "description": "Segment name",
+          "required": true
+        },
+        "sampleSize": {
+          "type": "number",
+          "description": "Sample size"
+        },
+        "controlRate": {
+          "type": "number",
+          "description": "Control conversion rate"
+        },
+        "variantRate": {
+          "type": "number",
+          "description": "Variant conversion rate"
+        },
+        "uplift": {
+          "type": "number",
+          "description": "Uplift %"
+        },
+        "significant": {
+          "type": "boolean",
+          "description": "Is significant"
+        }
+      }
+    },
+    "FeatureFlagPanel": {
+      "description": "Feature flag management panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Feature Flags"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Flag toolbar",
+          "accepts": [
+            "FlagToolbar"
+          ]
+        },
+        "list": {
+          "role": "content",
+          "description": "Flag list",
+          "accepts": [
+            "FlagList"
+          ]
+        },
+        "details": {
+          "role": "aside",
+          "description": "Flag details",
+          "accepts": [
+            "FlagDetails"
+          ]
+        }
+      }
+    },
+    "FlagToolbar": {
+      "description": "Toolbar for feature flag management.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by state",
+          "enum": [
+            "all",
+            "enabled",
+            "disabled"
+          ]
+        },
+        "filterEnv": {
+          "type": "string",
+          "description": "Filter by environment",
+          "enum": [
+            "all",
+            "production",
+            "staging",
+            "development"
+          ]
+        },
+        "searchQuery": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "name",
+            "created",
+            "modified"
+          ]
+        }
+      }
+    },
+    "FlagList": {
+      "description": "List of feature flags.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "none",
+            "environment",
+            "tag"
+          ]
+        }
+      },
+      "slots": {
+        "flags": {
+          "role": "content",
+          "description": "Flag cards",
+          "accepts": [
+            "FlagCard"
+          ]
+        }
+      }
+    },
+    "FlagCard": {
+      "description": "Feature flag summary card.",
+      "category": "content",
+      "props": {
+        "key": {
+          "type": "string",
+          "description": "Flag key",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Flag name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Flag description"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Is enabled",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Flag type",
+          "enum": [
+            "boolean",
+            "string",
+            "number",
+            "json"
+          ]
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "Default value"
+        },
+        "targetingRules": {
+          "type": "number",
+          "description": "Number of targeting rules"
+        },
+        "environments": {
+          "type": "array",
+          "description": "Enabled environments"
+        },
+        "lastModified": {
+          "type": "string",
+          "description": "Last modified"
+        },
+        "modifiedBy": {
+          "type": "string",
+          "description": "Modified by"
+        }
+      }
+    },
+    "FlagDetails": {
+      "description": "Detailed view of a feature flag.",
+      "category": "layout",
+      "props": {
+        "flagKey": {
+          "type": "string",
+          "description": "Flag key",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Flag header",
+          "accepts": [
+            "FlagCard"
+          ]
+        },
+        "targeting": {
+          "role": "content",
+          "description": "Targeting rules",
+          "accepts": [
+            "TargetingRuleList"
+          ]
+        },
+        "history": {
+          "role": "content",
+          "description": "Flag history",
+          "accepts": [
+            "FlagHistory"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Flag actions",
+          "accepts": [
+            "FlagActions"
+          ]
+        }
+      }
+    },
+    "FlagHistory": {
+      "description": "History of flag changes.",
+      "category": "layout",
+      "props": {
+        "flagKey": {
+          "type": "string",
+          "description": "Flag key",
+          "required": true
+        }
+      },
+      "slots": {
+        "entries": {
+          "role": "content",
+          "description": "History entries",
+          "accepts": [
+            "FlagHistoryEntry"
+          ]
+        }
+      }
+    },
+    "FlagHistoryEntry": {
+      "description": "A flag change history entry.",
+      "category": "content",
+      "props": {
+        "timestamp": {
+          "type": "string",
+          "description": "Change timestamp",
+          "required": true
+        },
+        "action": {
+          "type": "string",
+          "description": "Action type",
+          "enum": [
+            "created",
+            "enabled",
+            "disabled",
+            "targeting_changed",
+            "value_changed"
+          ]
+        },
+        "user": {
+          "type": "string",
+          "description": "User who made change"
+        },
+        "previousValue": {
+          "type": "string",
+          "description": "Previous value"
+        },
+        "newValue": {
+          "type": "string",
+          "description": "New value"
+        },
+        "environment": {
+          "type": "string",
+          "description": "Environment"
+        }
+      }
+    },
+    "FlagActions": {
+      "description": "Actions for managing a flag.",
+      "category": "control",
+      "props": {
+        "canToggle": {
+          "type": "boolean",
+          "description": "Can toggle flag"
+        },
+        "canEdit": {
+          "type": "boolean",
+          "description": "Can edit flag"
+        },
+        "canDelete": {
+          "type": "boolean",
+          "description": "Can delete flag"
+        },
+        "canDuplicate": {
+          "type": "boolean",
+          "description": "Can duplicate flag"
+        }
+      }
+    },
+    "RolloutPanel": {
+      "description": "Progressive rollout management panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Rollouts"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Rollout toolbar",
+          "accepts": [
+            "RolloutToolbar"
+          ]
+        },
+        "list": {
+          "role": "content",
+          "description": "Rollout list",
+          "accepts": [
+            "RolloutList"
+          ]
+        },
+        "details": {
+          "role": "aside",
+          "description": "Rollout details",
+          "accepts": [
+            "RolloutDetails"
+          ]
+        }
+      }
+    },
+    "RolloutToolbar": {
+      "description": "Toolbar for rollout management.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by status",
+          "enum": [
+            "all",
+            "not_started",
+            "in_progress",
+            "paused",
+            "complete",
+            "rolled_back"
+          ]
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "name",
+            "progress",
+            "started"
+          ]
+        }
+      }
+    },
+    "RolloutList": {
+      "description": "List of progressive rollouts.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "none",
+            "status",
+            "feature"
+          ]
+        }
+      },
+      "slots": {
+        "rollouts": {
+          "role": "content",
+          "description": "Rollout cards",
+          "accepts": [
+            "RolloutCard"
+          ]
+        }
+      }
+    },
+    "RolloutCard": {
+      "description": "Rollout summary card.",
+      "category": "content",
+      "props": {
+        "featureKey": {
+          "type": "string",
+          "description": "Feature key",
+          "required": true
+        },
+        "featureName": {
+          "type": "string",
+          "description": "Feature name"
+        },
+        "currentPercentage": {
+          "type": "number",
+          "description": "Current rollout %",
+          "required": true
+        },
+        "targetPercentage": {
+          "type": "number",
+          "description": "Target rollout %"
+        },
+        "status": {
+          "type": "string",
+          "description": "Rollout status",
+          "enum": [
+            "not_started",
+            "in_progress",
+            "paused",
+            "complete",
+            "rolled_back"
+          ]
+        },
+        "healthStatus": {
+          "type": "string",
+          "description": "Health status",
+          "enum": [
+            "healthy",
+            "degraded",
+            "unhealthy"
+          ]
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "Rollout start time"
+        },
+        "stageCount": {
+          "type": "number",
+          "description": "Number of stages"
+        }
+      }
+    },
+    "RolloutDetails": {
+      "description": "Detailed view of a rollout.",
+      "category": "layout",
+      "props": {
+        "featureKey": {
+          "type": "string",
+          "description": "Feature key",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Rollout header",
+          "accepts": [
+            "RolloutCard"
+          ]
+        },
+        "stages": {
+          "role": "content",
+          "description": "Rollout stages",
+          "accepts": [
+            "RolloutStageList"
+          ]
+        },
+        "health": {
+          "role": "content",
+          "description": "Health metrics",
+          "accepts": [
+            "RolloutHealth"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Rollout actions",
+          "accepts": [
+            "RolloutActions"
+          ]
+        }
+      }
+    },
+    "RolloutStageList": {
+      "description": "List of rollout stages.",
+      "category": "layout",
+      "props": {
+        "showTimeline": {
+          "type": "boolean",
+          "description": "Show timeline view",
+          "default": true
+        }
+      },
+      "slots": {
+        "stages": {
+          "role": "content",
+          "description": "Stage items",
+          "accepts": [
+            "RolloutStage"
+          ]
+        }
+      }
+    },
+    "RolloutStage": {
+      "description": "A rollout stage.",
+      "category": "content",
+      "props": {
+        "stageName": {
+          "type": "string",
+          "description": "Stage name",
+          "required": true
+        },
+        "percentage": {
+          "type": "number",
+          "description": "Target percentage",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Stage status",
+          "enum": [
+            "pending",
+            "active",
+            "completed",
+            "skipped"
+          ]
+        },
+        "duration": {
+          "type": "string",
+          "description": "Stage duration"
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "Stage start time"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Stage completion time"
+        },
+        "criteria": {
+          "type": "array",
+          "description": "Advancement criteria"
+        }
+      }
+    },
+    "RolloutHealth": {
+      "description": "Rollout health metrics.",
+      "category": "display",
+      "props": {
+        "errorRate": {
+          "type": "number",
+          "description": "Error rate %"
+        },
+        "latencyP99": {
+          "type": "number",
+          "description": "P99 latency ms"
+        },
+        "successRate": {
+          "type": "number",
+          "description": "Success rate %"
+        },
+        "alerts": {
+          "type": "array",
+          "description": "Active alerts"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Health trend",
+          "enum": [
+            "improving",
+            "stable",
+            "degrading"
+          ]
+        }
+      }
+    },
+    "RolloutActions": {
+      "description": "Actions for managing a rollout.",
+      "category": "control",
+      "props": {
+        "canAdvance": {
+          "type": "boolean",
+          "description": "Can advance to next stage"
+        },
+        "canPause": {
+          "type": "boolean",
+          "description": "Can pause rollout"
+        },
+        "canRollback": {
+          "type": "boolean",
+          "description": "Can rollback"
+        },
+        "canComplete": {
+          "type": "boolean",
+          "description": "Can complete rollout"
+        }
+      }
+    },
+    "TargetingPanel": {
+      "description": "Targeting rules management panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Targeting"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Targeting toolbar",
+          "accepts": [
+            "TargetingToolbar"
+          ]
+        },
+        "rules": {
+          "role": "content",
+          "description": "Targeting rules",
+          "accepts": [
+            "TargetingRuleList"
+          ]
+        },
+        "builder": {
+          "role": "content",
+          "description": "Rule builder",
+          "accepts": [
+            "RuleBuilder"
+          ]
+        }
+      }
+    },
+    "TargetingToolbar": {
+      "description": "Toolbar for targeting management.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by type",
+          "enum": [
+            "all",
+            "user",
+            "segment",
+            "percentage"
+          ]
+        },
+        "testMode": {
+          "type": "boolean",
+          "description": "Test mode enabled"
+        }
+      }
+    },
+    "TargetingRuleList": {
+      "description": "List of targeting rules.",
+      "category": "layout",
+      "props": {
+        "showOrder": {
+          "type": "boolean",
+          "description": "Show rule order",
+          "default": true
+        }
+      },
+      "slots": {
+        "rules": {
+          "role": "content",
+          "description": "Targeting rules",
+          "accepts": [
+            "TargetingRule"
+          ]
+        }
+      }
+    },
+    "TargetingRule": {
+      "description": "A targeting rule for feature flags or experiments.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Rule ID",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Rule name"
+        },
+        "attribute": {
+          "type": "string",
+          "description": "Target attribute",
+          "required": true
+        },
+        "operator": {
+          "type": "string",
+          "description": "Comparison operator",
+          "enum": [
+            "equals",
+            "not_equals",
+            "contains",
+            "not_contains",
+            "in",
+            "not_in",
+            "greater_than",
+            "less_than",
+            "regex"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "description": "Target value"
+        },
+        "percentage": {
+          "type": "number",
+          "description": "Percentage to include"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Rule enabled",
+          "default": true
+        },
+        "priority": {
+          "type": "number",
+          "description": "Rule priority"
+        }
+      }
+    },
+    "RuleBuilder": {
+      "description": "Visual rule builder for targeting.",
+      "category": "control",
+      "props": {
+        "mode": {
+          "type": "string",
+          "description": "Builder mode",
+          "enum": [
+            "simple",
+            "advanced"
+          ]
+        },
+        "availableAttributes": {
+          "type": "array",
+          "description": "Available attributes"
+        },
+        "availableSegments": {
+          "type": "array",
+          "description": "Available segments"
+        }
+      }
+    },
+    "AudiencePanel": {
+      "description": "Audience segment management panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Audiences"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Audience toolbar",
+          "accepts": [
+            "AudienceToolbar"
+          ]
+        },
+        "list": {
+          "role": "content",
+          "description": "Audience list",
+          "accepts": [
+            "AudienceList"
+          ]
+        },
+        "details": {
+          "role": "aside",
+          "description": "Audience details",
+          "accepts": [
+            "AudienceDetails"
+          ]
+        }
+      }
+    },
+    "AudienceToolbar": {
+      "description": "Toolbar for audience management.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by type",
+          "enum": [
+            "all",
+            "static",
+            "dynamic"
+          ]
+        },
+        "searchQuery": {
+          "type": "string",
+          "description": "Search query"
+        }
+      }
+    },
+    "AudienceList": {
+      "description": "List of audience segments.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "name",
+            "size",
+            "created"
+          ]
+        }
+      },
+      "slots": {
+        "audiences": {
+          "role": "content",
+          "description": "Audience cards",
+          "accepts": [
+            "AudienceCard"
+          ]
+        }
+      }
+    },
+    "AudienceCard": {
+      "description": "Audience segment summary card.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Audience ID",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Audience name",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Audience description"
+        },
+        "type": {
+          "type": "string",
+          "description": "Segment type",
+          "enum": [
+            "static",
+            "dynamic"
+          ]
+        },
+        "size": {
+          "type": "number",
+          "description": "Audience size"
+        },
+        "rules": {
+          "type": "number",
+          "description": "Number of rules"
+        },
+        "usedIn": {
+          "type": "number",
+          "description": "Number of experiments using"
+        }
+      }
+    },
+    "AudienceDetails": {
+      "description": "Detailed view of an audience segment.",
+      "category": "layout",
+      "props": {
+        "audienceId": {
+          "type": "string",
+          "description": "Audience ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "header": {
+          "role": "header",
+          "description": "Audience header",
+          "accepts": [
+            "AudienceCard"
+          ]
+        },
+        "rules": {
+          "role": "content",
+          "description": "Segment rules",
+          "accepts": [
+            "TargetingRuleList"
+          ]
+        },
+        "usage": {
+          "role": "content",
+          "description": "Usage info",
+          "accepts": [
+            "AudienceUsage"
+          ]
+        }
+      }
+    },
+    "AudienceUsage": {
+      "description": "Shows where an audience is used.",
+      "category": "display",
+      "props": {
+        "audienceId": {
+          "type": "string",
+          "description": "Audience ID",
+          "required": true
+        },
+        "experiments": {
+          "type": "array",
+          "description": "Experiments using this audience"
+        },
+        "flags": {
+          "type": "array",
+          "description": "Flags using this audience"
+        }
+      }
+    },
+    "OnboardQuickActions": {
+      "description": "Quick action buttons for onboarding.",
+      "category": "control",
+      "props": {
+        "actions": {
+          "type": "array",
+          "description": "Available quick actions"
+        }
+      }
+    },
+    "ExperimentQuickActions": {
+      "description": "Quick action buttons for experimentation.",
+      "category": "control",
+      "props": {
+        "actions": {
+          "type": "array",
+          "description": "Available quick actions"
+        }
+      }
+    },
+    "RecentExperiments": {
+      "description": "Recently viewed or modified experiments.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Section title",
+          "default": "Recent Experiments"
+        },
+        "maxItems": {
+          "type": "number",
+          "description": "Max items to show",
+          "default": 5
+        }
+      },
+      "slots": {
+        "experiments": {
+          "role": "content",
+          "description": "Recent experiments",
+          "accepts": [
+            "ExperimentCard"
+          ]
+        }
+      }
+    },
+    "ExperimentSettings": {
+      "description": "Experimentation settings panel.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "groups": {
+          "role": "content",
+          "description": "Setting groups",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "OnboardSettingGroup": {
+      "description": "A group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Group description"
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in group"
+        }
+      }
+    },
+    "ExperimentSettingGroup": {
+      "description": "A group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Group description"
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in group"
+        }
+      }
+    },
+    "FinOpsDashboard": {
+      "description": "Central FinOps dashboard with navigation, cost overview, and content areas.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard title",
+          "default": "Cloud Costs"
+        },
+        "period": {
+          "type": "string",
+          "description": "Default time period",
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "quarter",
+            "year"
+          ],
+          "default": "month"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Display currency",
+          "default": "USD"
+        }
+      },
+      "slots": {
+        "navigation": {
+          "role": "navigation",
+          "description": "Navigation sidebar",
+          "accepts": [
+            "FinOpsNav"
+          ]
+        },
+        "summary": {
+          "role": "header",
+          "description": "Cost summary bar",
+          "accepts": [
+            "CostSummaryBar",
+            "AnomalyBanner"
+          ]
+        },
+        "main": {
+          "role": "content",
+          "description": "Main content area",
+          "accepts": [
+            "CostOverview",
+            "BudgetPanel",
+            "OptimizationPanel",
+            "AllocationView",
+            "ResourceExplorer"
+          ]
+        },
+        "sidebar": {
+          "role": "aside",
+          "description": "Quick insights sidebar",
+          "accepts": [
+            "QuickInsights",
+            "TopRecommendations"
+          ]
+        }
+      }
+    },
+    "FinOpsNav": {
+      "description": "Navigation sidebar for FinOps sections.",
+      "category": "navigation",
+      "props": {
+        "activeSection": {
+          "type": "string",
+          "description": "Currently active section"
+        },
+        "sections": {
+          "type": "array",
+          "description": "Available sections"
+        },
+        "collapsed": {
+          "type": "boolean",
+          "description": "Sidebar collapsed state",
+          "default": false
+        }
+      }
+    },
+    "CostSummaryBar": {
+      "description": "Cost summary bar with key metrics.",
+      "category": "display",
+      "props": {
+        "totalCost": {
+          "type": "number",
+          "description": "Total cost for period",
+          "required": true
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code",
+          "default": "USD"
+        },
+        "changePercent": {
+          "type": "number",
+          "description": "Change from previous period (%)"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Cost trend",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        },
+        "budgetUsed": {
+          "type": "number",
+          "description": "Budget utilization (%)"
+        },
+        "potentialSavings": {
+          "type": "number",
+          "description": "Potential savings identified"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last data update"
+        }
+      }
+    },
+    "AnomalyBanner": {
+      "description": "Prominent banner for cost anomalies.",
+      "category": "display",
+      "props": {
+        "anomalyCount": {
+          "type": "number",
+          "description": "Number of active anomalies",
+          "required": true
+        },
+        "highestSeverity": {
+          "type": "string",
+          "description": "Highest severity",
+          "enum": [
+            "critical",
+            "warning",
+            "info"
+          ]
+        },
+        "totalImpact": {
+          "type": "number",
+          "description": "Total cost impact"
+        },
+        "topAnomaly": {
+          "type": "object",
+          "description": "Most significant anomaly"
+        }
+      }
+    },
+    "CostOverview": {
+      "description": "Overview of cloud costs with breakdown by service or team.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Overview title",
+          "default": "Cloud Costs"
+        },
+        "period": {
+          "type": "string",
+          "description": "Time period",
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "quarter"
+          ],
+          "required": true
+        },
+        "totalCost": {
+          "type": "number",
+          "description": "Total cost for period",
+          "required": true
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code",
+          "default": "USD"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Cost trend",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        },
+        "changePercent": {
+          "type": "number",
+          "description": "Percent change from previous period"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Cost toolbar",
+          "accepts": [
+            "CostToolbar"
+          ]
+        },
+        "breakdown": {
+          "role": "content",
+          "description": "Cost breakdown items",
+          "accepts": [
+            "CostBreakdown",
+            "CostBreakdownChart"
+          ]
+        }
+      }
+    },
+    "CostToolbar": {
+      "description": "Toolbar for cost filtering and view controls.",
+      "category": "control",
+      "props": {
+        "periods": {
+          "type": "array",
+          "description": "Available periods"
+        },
+        "selectedPeriod": {
+          "type": "string",
+          "description": "Selected period"
+        },
+        "groupByOptions": {
+          "type": "array",
+          "description": "Group by options"
+        },
+        "selectedGroupBy": {
+          "type": "string",
+          "description": "Selected grouping"
+        },
+        "showForecast": {
+          "type": "boolean",
+          "description": "Show forecast",
+          "default": true
+        }
+      }
+    },
+    "CostBreakdown": {
+      "description": "Cost breakdown by category (service, team, environment).",
+      "category": "content",
+      "props": {
+        "category": {
+          "type": "string",
+          "description": "Category name",
+          "required": true
+        },
+        "cost": {
+          "type": "number",
+          "description": "Cost amount",
+          "required": true
+        },
+        "percentage": {
+          "type": "number",
+          "description": "Percentage of total"
+        },
+        "trend": {
+          "type": "string",
+          "description": "Trend direction",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        },
+        "changePercent": {
+          "type": "number",
+          "description": "Change percentage"
+        },
+        "forecast": {
+          "type": "number",
+          "description": "Forecasted cost"
+        },
+        "sparkline": {
+          "type": "array",
+          "description": "Mini trend data"
+        }
+      }
+    },
+    "CostBreakdownChart": {
+      "description": "Visual breakdown chart (pie, treemap, bar).",
+      "category": "display",
+      "props": {
+        "chartType": {
+          "type": "string",
+          "description": "Chart type",
+          "enum": [
+            "pie",
+            "treemap",
+            "bar",
+            "sunburst"
+          ],
+          "default": "pie"
+        },
+        "data": {
+          "type": "array",
+          "description": "Breakdown data",
+          "required": true
+        },
+        "showLabels": {
+          "type": "boolean",
+          "description": "Show labels",
+          "default": true
+        },
+        "showPercentages": {
+          "type": "boolean",
+          "description": "Show percentages",
+          "default": true
+        }
+      }
+    },
+    "CostChart": {
+      "description": "Cost trend chart over time.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Chart title"
+        },
+        "data": {
+          "type": "array",
+          "description": "Cost data points over time",
+          "required": true
+        },
+        "groupBy": {
+          "type": "string",
+          "description": "Group by dimension",
+          "enum": [
+            "service",
+            "team",
+            "environment",
+            "region",
+            "account"
+          ]
+        },
+        "showForecast": {
+          "type": "boolean",
+          "description": "Show cost forecast",
+          "default": true
+        },
+        "showBudget": {
+          "type": "boolean",
+          "description": "Show budget line",
+          "default": false
+        },
+        "annotations": {
+          "type": "array",
+          "description": "Chart annotations"
+        }
+      }
+    },
+    "CostComparison": {
+      "description": "Side-by-side cost comparison across periods or segments.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Comparison title"
+        },
+        "comparisonType": {
+          "type": "string",
+          "description": "Comparison type",
+          "enum": [
+            "period",
+            "budget",
+            "forecast"
+          ]
+        },
+        "currentPeriod": {
+          "type": "object",
+          "description": "Current period data"
+        },
+        "comparisonPeriod": {
+          "type": "object",
+          "description": "Comparison period data"
+        },
+        "showDiff": {
+          "type": "boolean",
+          "description": "Show difference",
+          "default": true
+        }
+      }
+    },
+    "BudgetPanel": {
+      "description": "Panel showing budgets and their status.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Budgets"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Budget toolbar",
+          "accepts": [
+            "BudgetToolbar"
+          ]
+        },
+        "budgets": {
+          "role": "content",
+          "description": "Budget cards",
+          "accepts": [
+            "BudgetStatus",
+            "BudgetCard"
+          ]
+        }
+      }
+    },
+    "BudgetToolbar": {
+      "description": "Toolbar for budget filtering and actions.",
+      "category": "control",
+      "props": {
+        "statusFilter": {
+          "type": "array",
+          "description": "Status filter"
+        },
+        "typeFilter": {
+          "type": "array",
+          "description": "Budget type filter"
+        },
+        "canCreate": {
+          "type": "boolean",
+          "description": "Can create budgets",
+          "default": true
+        }
+      }
+    },
+    "BudgetStatus": {
+      "description": "Budget status showing spend vs allocation.",
+      "category": "display",
+      "props": {
+        "name": {
+          "type": "string",
+          "description": "Budget name",
+          "required": true
+        },
+        "allocated": {
+          "type": "number",
+          "description": "Allocated budget",
+          "required": true
+        },
+        "spent": {
+          "type": "number",
+          "description": "Amount spent",
+          "required": true
+        },
+        "remaining": {
+          "type": "number",
+          "description": "Remaining budget"
+        },
+        "status": {
+          "type": "string",
+          "description": "Budget status",
+          "enum": [
+            "on_track",
+            "at_risk",
+            "over_budget"
+          ],
+          "required": true
+        },
+        "forecast": {
+          "type": "number",
+          "description": "Forecasted end-of-period spend"
+        },
+        "daysRemaining": {
+          "type": "number",
+          "description": "Days remaining in period"
+        },
+        "alerts": {
+          "type": "array",
+          "description": "Budget alerts"
+        }
+      }
+    },
+    "BudgetCard": {
+      "description": "Detailed budget card with history.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Budget ID",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Budget name",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Budget type",
+          "enum": [
+            "team",
+            "project",
+            "service",
+            "department"
+          ]
+        },
+        "period": {
+          "type": "string",
+          "description": "Budget period",
+          "enum": [
+            "monthly",
+            "quarterly",
+            "annual"
+          ]
+        },
+        "allocated": {
+          "type": "number",
+          "description": "Allocated amount",
+          "required": true
+        },
+        "spent": {
+          "type": "number",
+          "description": "Amount spent",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "on_track",
+            "at_risk",
+            "over_budget"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "description": "Budget owner"
+        },
+        "thresholds": {
+          "type": "array",
+          "description": "Alert thresholds"
+        }
+      }
+    },
+    "BudgetDetails": {
+      "description": "Detailed budget view with history and alerts.",
+      "category": "layout",
+      "props": {
+        "budget": {
+          "type": "object",
+          "description": "Budget data",
+          "required": true
+        }
+      },
+      "slots": {
+        "chart": {
+          "role": "content",
+          "description": "Spend chart",
+          "accepts": [
+            "BudgetSpendChart"
+          ]
+        },
+        "history": {
+          "role": "content",
+          "description": "Budget history",
+          "accepts": [
+            "BudgetHistory"
+          ]
+        },
+        "alerts": {
+          "role": "content",
+          "description": "Alert configuration",
+          "accepts": [
+            "BudgetAlertConfig"
+          ]
+        }
+      }
+    },
+    "BudgetSpendChart": {
+      "description": "Chart showing budget vs actual spend over time.",
+      "category": "display",
+      "props": {
+        "budgetName": {
+          "type": "string",
+          "description": "Budget name",
+          "required": true
+        },
+        "data": {
+          "type": "array",
+          "description": "Spend data points"
+        },
+        "budgetLine": {
+          "type": "number",
+          "description": "Budget amount"
+        },
+        "showForecast": {
+          "type": "boolean",
+          "description": "Show forecast",
+          "default": true
+        }
+      }
+    },
+    "BudgetHistory": {
+      "description": "Historical budget events.",
+      "category": "layout",
+      "props": {
+        "budgetId": {
+          "type": "string",
+          "description": "Budget ID",
+          "required": true
+        }
+      },
+      "slots": {
+        "events": {
+          "role": "content",
+          "description": "Budget events",
+          "accepts": [
+            "BudgetEvent"
+          ]
+        }
+      }
+    },
+    "BudgetEvent": {
+      "description": "A budget history event.",
+      "category": "content",
+      "props": {
+        "timestamp": {
+          "type": "string",
+          "description": "Event timestamp",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Event type",
+          "enum": [
+            "threshold_crossed",
+            "forecast_exceeded",
+            "adjustment",
+            "reset"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Event description"
+        },
+        "previousValue": {
+          "type": "number",
+          "description": "Previous value"
+        },
+        "newValue": {
+          "type": "number",
+          "description": "New value"
+        }
+      }
+    },
+    "BudgetAlertConfig": {
+      "description": "Budget alert configuration.",
+      "category": "control",
+      "props": {
+        "budgetId": {
+          "type": "string",
+          "description": "Budget ID",
+          "required": true
+        },
+        "thresholds": {
+          "type": "array",
+          "description": "Alert thresholds"
+        },
+        "recipients": {
+          "type": "array",
+          "description": "Alert recipients"
+        },
+        "channels": {
+          "type": "array",
+          "description": "Notification channels"
+        }
+      }
+    },
+    "OptimizationPanel": {
+      "description": "Panel showing optimization recommendations.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Optimizations"
+        }
+      },
+      "slots": {
+        "summary": {
+          "role": "header",
+          "description": "Savings summary",
+          "accepts": [
+            "SavingsSummary"
+          ]
+        },
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Optimization toolbar",
+          "accepts": [
+            "OptimizationToolbar"
+          ]
+        },
+        "recommendations": {
+          "role": "content",
+          "description": "Recommendations",
+          "accepts": [
+            "OptimizationRecommendation",
+            "OptimizationGroup"
+          ]
+        }
+      }
+    },
+    "SavingsSummary": {
+      "description": "Summary of potential and realized savings.",
+      "category": "display",
+      "props": {
+        "totalPotential": {
+          "type": "number",
+          "description": "Total potential savings",
+          "required": true
+        },
+        "realized": {
+          "type": "number",
+          "description": "Realized savings"
+        },
+        "inProgress": {
+          "type": "number",
+          "description": "In-progress savings"
+        },
+        "recommendationCount": {
+          "type": "number",
+          "description": "Number of recommendations"
+        }
+      }
+    },
+    "OptimizationToolbar": {
+      "description": "Toolbar for filtering optimizations.",
+      "category": "control",
+      "props": {
+        "typeFilter": {
+          "type": "array",
+          "description": "Optimization type filter"
+        },
+        "effortFilter": {
+          "type": "array",
+          "description": "Effort level filter"
+        },
+        "statusFilter": {
+          "type": "array",
+          "description": "Status filter"
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort by",
+          "enum": [
+            "savings",
+            "effort",
+            "impact"
+          ]
+        }
+      }
+    },
+    "OptimizationGroup": {
+      "description": "Grouped collection of related optimizations.",
+      "category": "layout",
+      "props": {
+        "groupKey": {
+          "type": "string",
+          "description": "Group key",
+          "required": true
+        },
+        "groupLabel": {
+          "type": "string",
+          "description": "Group label"
+        },
+        "totalSavings": {
+          "type": "number",
+          "description": "Total savings in group"
+        },
+        "count": {
+          "type": "number",
+          "description": "Number of recommendations"
+        }
+      },
+      "slots": {
+        "recommendations": {
+          "role": "content",
+          "description": "Recommendations",
+          "accepts": [
+            "OptimizationRecommendation"
+          ]
+        }
+      }
+    },
+    "OptimizationRecommendation": {
+      "description": "Cost optimization recommendation with potential savings.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Recommendation ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Recommendation title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Recommendation type",
+          "enum": [
+            "rightsizing",
+            "reserved",
+            "spot",
+            "cleanup",
+            "architecture",
+            "scheduling",
+            "storage"
+          ],
+          "required": true
+        },
+        "potentialSavings": {
+          "type": "number",
+          "description": "Potential monthly savings",
+          "required": true
+        },
+        "effort": {
+          "type": "string",
+          "description": "Implementation effort",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "description": "Impact level",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "Recommendation details"
+        },
+        "resources": {
+          "type": "array",
+          "description": "Affected resources"
+        },
+        "status": {
+          "type": "string",
+          "description": "Implementation status",
+          "enum": [
+            "pending",
+            "in_progress",
+            "implemented",
+            "dismissed"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence score (%)"
+        }
+      }
+    },
+    "OptimizationDetails": {
+      "description": "Detailed optimization view with implementation steps.",
+      "category": "layout",
+      "props": {
+        "recommendation": {
+          "type": "object",
+          "description": "Recommendation data",
+          "required": true
+        }
+      },
+      "slots": {
+        "resources": {
+          "role": "content",
+          "description": "Affected resources",
+          "accepts": [
+            "ResourceCost"
+          ]
+        },
+        "steps": {
+          "role": "content",
+          "description": "Implementation steps",
+          "accepts": [
+            "ImplementationStep"
+          ]
+        },
+        "actions": {
+          "role": "toolbar",
+          "description": "Actions",
+          "accepts": [
+            "OptimizationActions"
+          ]
+        }
+      }
+    },
+    "ImplementationStep": {
+      "description": "A step in optimization implementation.",
+      "category": "content",
+      "props": {
+        "order": {
+          "type": "number",
+          "description": "Step order",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Step title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Step description"
+        },
+        "status": {
+          "type": "string",
+          "description": "Step status",
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed"
+          ]
+        },
+        "risk": {
+          "type": "string",
+          "description": "Risk level",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      }
+    },
+    "OptimizationActions": {
+      "description": "Action buttons for optimization management.",
+      "category": "control",
+      "props": {
+        "recommendationId": {
+          "type": "string",
+          "description": "Recommendation ID",
+          "required": true
+        },
+        "canImplement": {
+          "type": "boolean",
+          "description": "Can implement"
+        },
+        "canDismiss": {
+          "type": "boolean",
+          "description": "Can dismiss"
+        },
+        "canSchedule": {
+          "type": "boolean",
+          "description": "Can schedule"
+        }
+      }
+    },
+    "SavingsTracker": {
+      "description": "Tracker showing realized savings from optimizations.",
+      "category": "display",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Tracker title",
+          "default": "Realized Savings"
+        },
+        "totalSavings": {
+          "type": "number",
+          "description": "Total savings realized",
+          "required": true
+        },
+        "targetSavings": {
+          "type": "number",
+          "description": "Target savings"
+        },
+        "implementedCount": {
+          "type": "number",
+          "description": "Optimizations implemented"
+        },
+        "pendingCount": {
+          "type": "number",
+          "description": "Optimizations pending"
+        },
+        "savingsByMonth": {
+          "type": "array",
+          "description": "Monthly savings data"
+        }
+      }
+    },
+    "ResourceExplorer": {
+      "description": "Explorer for drilling into resource-level costs.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Explorer title",
+          "default": "Resources"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Resource toolbar",
+          "accepts": [
+            "ResourceToolbar"
+          ]
+        },
+        "filters": {
+          "role": "aside",
+          "description": "Filter panel",
+          "accepts": [
+            "ResourceFilters"
+          ]
+        },
+        "resources": {
+          "role": "content",
+          "description": "Resource list",
+          "accepts": [
+            "ResourceList"
+          ]
+        }
+      }
+    },
+    "OnboardResourceToolbar": {
+      "description": "Toolbar for resource view.",
+      "category": "control",
+      "props": {
+        "filterBy": {
+          "type": "string",
+          "description": "Filter by type",
+          "enum": [
+            "all",
+            "documentation",
+            "videos",
+            "articles",
+            "tools"
+          ]
+        },
+        "searchQuery": {
+          "type": "string",
+          "description": "Search query"
+        }
+      }
+    },
+    "FinopsResourceToolbar": {
+      "description": "Toolbar for resource filtering and search.",
+      "category": "control",
+      "props": {
+        "searchQuery": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "sortBy": {
+          "type": "string",
+          "description": "Sort by",
+          "enum": [
+            "cost",
+            "name",
+            "type",
+            "utilization"
+          ]
+        },
+        "viewMode": {
+          "type": "string",
+          "description": "View mode",
+          "enum": [
+            "list",
+            "grid"
+          ]
+        }
+      }
+    },
+    "ResourceFilters": {
+      "description": "Filter panel for resources.",
+      "category": "control",
+      "props": {
+        "services": {
+          "type": "array",
+          "description": "Service filter"
+        },
+        "regions": {
+          "type": "array",
+          "description": "Region filter"
+        },
+        "accounts": {
+          "type": "array",
+          "description": "Account filter"
+        },
+        "tags": {
+          "type": "object",
+          "description": "Tag filters"
+        },
+        "costRange": {
+          "type": "object",
+          "description": "Cost range filter"
+        }
+      }
+    },
+    "OnboardResourceList": {
+      "description": "List of onboarding resources.",
+      "category": "layout",
+      "props": {
+        "groupBy": {
+          "type": "string",
+          "description": "Group by",
+          "enum": [
+            "none",
+            "type",
+            "category"
+          ]
+        }
+      },
+      "slots": {
+        "resources": {
+          "role": "content",
+          "description": "Resource items",
+          "accepts": [
+            "ResourceCard"
+          ]
+        }
+      }
+    },
+    "FinopsResourceList": {
+      "description": "List of resources with cost information.",
+      "category": "layout",
+      "props": {
+        "sortBy": {
+          "type": "string",
+          "description": "Sort field"
+        },
+        "sortOrder": {
+          "type": "string",
+          "description": "Sort order",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        }
+      },
+      "slots": {
+        "resources": {
+          "role": "content",
+          "description": "Resource cards",
+          "accepts": [
+            "ResourceCost",
+            "ResourceCard"
+          ]
+        }
+      }
+    },
+    "ResourceCost": {
+      "description": "Cost breakdown for a specific resource.",
+      "category": "content",
+      "props": {
+        "resourceId": {
+          "type": "string",
+          "description": "Resource identifier",
+          "required": true
+        },
+        "resourceType": {
+          "type": "string",
+          "description": "Resource type (e.g., EC2, RDS)",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Resource name"
+        },
+        "cost": {
+          "type": "number",
+          "description": "Cost for period",
+          "required": true
+        },
+        "utilization": {
+          "type": "number",
+          "description": "Utilization percentage"
+        },
+        "region": {
+          "type": "string",
+          "description": "Resource region"
+        },
+        "account": {
+          "type": "string",
+          "description": "Account ID"
+        },
+        "tags": {
+          "type": "object",
+          "description": "Resource tags"
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "Optimization recommendation"
+        }
+      }
+    },
+    "OnboardResourceCard": {
+      "description": "An onboarding resource.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Resource title",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "description": "Resource type",
+          "enum": [
+            "documentation",
+            "video",
+            "article",
+            "tool",
+            "repository"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "description": "Resource URL"
+        },
+        "description": {
+          "type": "string",
+          "description": "Resource description"
+        },
+        "recommended": {
+          "type": "boolean",
+          "description": "Is recommended",
+          "default": false
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Has been viewed",
+          "default": false
+        }
+      }
+    },
+    "FinopsResourceCard": {
+      "description": "Detailed resource card with metrics.",
+      "category": "content",
+      "props": {
+        "resourceId": {
+          "type": "string",
+          "description": "Resource ID",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Resource name"
+        },
+        "type": {
+          "type": "string",
+          "description": "Resource type",
+          "required": true
+        },
+        "cost": {
+          "type": "number",
+          "description": "Current cost",
+          "required": true
+        },
+        "costTrend": {
+          "type": "string",
+          "description": "Cost trend",
+          "enum": [
+            "up",
+            "down",
+            "stable"
+          ]
+        },
+        "utilization": {
+          "type": "number",
+          "description": "Utilization (%)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status",
+          "enum": [
+            "active",
+            "idle",
+            "stopped"
+          ]
+        },
+        "hasRecommendation": {
+          "type": "boolean",
+          "description": "Has optimization recommendation"
+        }
+      }
+    },
+    "ResourceDetails": {
+      "description": "Detailed resource view with cost history.",
+      "category": "layout",
+      "props": {
+        "resource": {
+          "type": "object",
+          "description": "Resource data",
+          "required": true
+        }
+      },
+      "slots": {
+        "costHistory": {
+          "role": "content",
+          "description": "Cost history chart",
+          "accepts": [
+            "ResourceCostChart"
+          ]
+        },
+        "metrics": {
+          "role": "content",
+          "description": "Resource metrics",
+          "accepts": [
+            "ResourceMetrics"
+          ]
+        },
+        "recommendations": {
+          "role": "content",
+          "description": "Recommendations",
+          "accepts": [
+            "OptimizationRecommendation"
+          ]
+        }
+      }
+    },
+    "ResourceCostChart": {
+      "description": "Resource cost over time chart.",
+      "category": "display",
+      "props": {
+        "resourceId": {
+          "type": "string",
+          "description": "Resource ID",
+          "required": true
+        },
+        "data": {
+          "type": "array",
+          "description": "Cost data points"
+        },
+        "showUtilization": {
+          "type": "boolean",
+          "description": "Overlay utilization",
+          "default": false
+        }
+      }
+    },
+    "ResourceMetrics": {
+      "description": "Resource utilization metrics.",
+      "category": "display",
+      "props": {
+        "resourceId": {
+          "type": "string",
+          "description": "Resource ID",
+          "required": true
+        },
+        "cpuUtilization": {
+          "type": "number",
+          "description": "CPU utilization (%)"
+        },
+        "memoryUtilization": {
+          "type": "number",
+          "description": "Memory utilization (%)"
+        },
+        "networkIO": {
+          "type": "number",
+          "description": "Network I/O"
+        },
+        "storageUtilization": {
+          "type": "number",
+          "description": "Storage utilization (%)"
+        }
+      }
+    },
+    "AllocationView": {
+      "description": "Cost allocation view by dimension.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "View title",
+          "default": "Cost Allocation"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Allocation toolbar",
+          "accepts": [
+            "AllocationToolbar"
+          ]
+        },
+        "table": {
+          "role": "content",
+          "description": "Allocation table",
+          "accepts": [
+            "CostAllocation"
+          ]
+        }
+      }
+    },
+    "AllocationToolbar": {
+      "description": "Toolbar for allocation view controls.",
+      "category": "control",
+      "props": {
+        "dimensions": {
+          "type": "array",
+          "description": "Available dimensions"
+        },
+        "selectedDimension": {
+          "type": "string",
+          "description": "Selected dimension"
+        },
+        "period": {
+          "type": "string",
+          "description": "Time period"
+        },
+        "exportFormats": {
+          "type": "array",
+          "description": "Export format options"
+        }
+      }
+    },
+    "CostAllocation": {
+      "description": "Cost allocation table showing costs by tag or dimension.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Allocation title"
+        },
+        "dimension": {
+          "type": "string",
+          "description": "Allocation dimension",
+          "enum": [
+            "team",
+            "project",
+            "environment",
+            "cost_center",
+            "department"
+          ],
+          "required": true
+        },
+        "period": {
+          "type": "string",
+          "description": "Time period"
+        },
+        "totalCost": {
+          "type": "number",
+          "description": "Total cost"
+        }
+      },
+      "slots": {
+        "rows": {
+          "role": "content",
+          "description": "Allocation rows",
+          "accepts": [
+            "AllocationRow"
+          ]
+        }
+      }
+    },
+    "AllocationRow": {
+      "description": "A row in cost allocation table.",
+      "category": "content",
+      "props": {
+        "dimension": {
+          "type": "string",
+          "description": "Dimension value",
+          "required": true
+        },
+        "cost": {
+          "type": "number",
+          "description": "Cost amount",
+          "required": true
+        },
+        "percentage": {
+          "type": "number",
+          "description": "Percentage of total"
+        },
+        "changePercent": {
+          "type": "number",
+          "description": "Change from previous period"
+        },
+        "budget": {
+          "type": "number",
+          "description": "Allocated budget"
+        },
+        "variance": {
+          "type": "number",
+          "description": "Budget variance"
+        }
+      }
+    },
+    "AnomalyAlert": {
+      "description": "Cost anomaly alert showing unexpected spend.",
+      "category": "content",
+      "props": {
+        "id": {
+          "type": "string",
+          "description": "Anomaly ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Alert title",
+          "required": true
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity",
+          "enum": [
+            "critical",
+            "warning",
+            "info"
+          ],
+          "required": true
+        },
+        "service": {
+          "type": "string",
+          "description": "Affected service"
+        },
+        "resource": {
+          "type": "string",
+          "description": "Affected resource"
+        },
+        "expectedCost": {
+          "type": "number",
+          "description": "Expected cost"
+        },
+        "actualCost": {
+          "type": "number",
+          "description": "Actual cost",
+          "required": true
+        },
+        "deviation": {
+          "type": "number",
+          "description": "Deviation percentage"
+        },
+        "detectedAt": {
+          "type": "string",
+          "description": "Detection timestamp"
+        },
+        "status": {
+          "type": "string",
+          "description": "Alert status",
+          "enum": [
+            "new",
+            "investigating",
+            "resolved",
+            "dismissed"
+          ]
+        }
+      }
+    },
+    "AnomalyPanel": {
+      "description": "Panel showing cost anomalies.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Panel title",
+          "default": "Anomalies"
+        }
+      },
+      "slots": {
+        "toolbar": {
+          "role": "toolbar",
+          "description": "Anomaly toolbar",
+          "accepts": [
+            "AnomalyToolbar"
+          ]
+        },
+        "anomalies": {
+          "role": "content",
+          "description": "Anomaly alerts",
+          "accepts": [
+            "AnomalyAlert"
+          ]
+        }
+      }
+    },
+    "AnomalyToolbar": {
+      "description": "Toolbar for anomaly filtering.",
+      "category": "control",
+      "props": {
+        "severityFilter": {
+          "type": "array",
+          "description": "Severity filter"
+        },
+        "statusFilter": {
+          "type": "array",
+          "description": "Status filter"
+        },
+        "timeRange": {
+          "type": "string",
+          "description": "Time range"
+        }
+      }
+    },
+    "QuickInsights": {
+      "description": "Quick cost insights panel.",
+      "category": "display",
+      "props": {
+        "insights": {
+          "type": "array",
+          "description": "Cost insights"
+        },
+        "maxItems": {
+          "type": "number",
+          "description": "Max items to show",
+          "default": 5
+        }
+      }
+    },
+    "TopRecommendations": {
+      "description": "Top optimization recommendations widget.",
+      "category": "display",
+      "props": {
+        "recommendations": {
+          "type": "array",
+          "description": "Top recommendations"
+        },
+        "totalSavings": {
+          "type": "number",
+          "description": "Total potential savings"
+        },
+        "maxItems": {
+          "type": "number",
+          "description": "Max items to show",
+          "default": 5
+        }
+      }
+    },
+    "ReportGenerator": {
+      "description": "Cost report generator.",
+      "category": "control",
+      "props": {
+        "reportTypes": {
+          "type": "array",
+          "description": "Available report types"
+        },
+        "selectedType": {
+          "type": "string",
+          "description": "Selected report type"
+        },
+        "scheduleOptions": {
+          "type": "array",
+          "description": "Schedule options"
+        },
+        "exportFormats": {
+          "type": "array",
+          "description": "Export formats"
+        }
+      }
+    },
+    "FinOpsSettings": {
+      "description": "FinOps settings and configuration.",
+      "category": "layout",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Settings title",
+          "default": "Settings"
+        }
+      },
+      "slots": {
+        "sections": {
+          "role": "content",
+          "description": "Setting sections",
+          "accepts": [
+            "SettingGroup"
+          ]
+        }
+      }
+    },
+    "FinopsSettingGroup": {
+      "description": "Group of related settings.",
+      "category": "content",
+      "props": {
+        "title": {
+          "type": "string",
+          "description": "Group title",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Group description"
+        },
+        "settings": {
+          "type": "array",
+          "description": "Settings in group"
+        }
+      }
+    }
+  },
+  "intents": {
+    "pmo-show-pmo-dashboard": {
+      "description": "Show main PMO dashboard with portfolio overview",
+      "suggestedComponents": [
+        "PMODashboard",
+        "PortfolioSummary",
+        "ProjectCard",
+        "HealthIndicator"
+      ],
+      "requiredData": [
+        "dashboard"
+      ]
+    },
+    "pmo-show-portfolio": {
+      "description": "Show project portfolio summary",
+      "suggestedComponents": [
+        "PortfolioSummary",
+        "ProjectCard"
+      ],
+      "requiredData": [
+        "portfolio"
+      ]
+    },
+    "pmo-show-project-status": {
+      "description": "Show executive status report for project",
+      "suggestedComponents": [
+        "StatusReport",
+        "MilestoneTracker",
+        "HealthIndicator"
+      ],
+      "requiredData": [
+        "projectStatus"
+      ]
+    },
+    "pmo-show-milestones": {
+      "description": "Show project milestones and timeline",
+      "suggestedComponents": [
+        "MilestoneTracker",
+        "MilestoneItem",
+        "GanttChart"
+      ],
+      "requiredData": [
+        "milestones"
+      ]
+    },
+    "pmo-show-gantt": {
+      "description": "Show Gantt chart project timeline",
+      "suggestedComponents": [
+        "GanttChart",
+        "GanttTask"
+      ],
+      "requiredData": [
+        "projectTimeline"
+      ]
+    },
+    "pmo-show-risks": {
+      "description": "Show project risks and mitigations",
+      "suggestedComponents": [
+        "RiskMatrix",
+        "RiskItem"
+      ],
+      "requiredData": [
+        "risks"
+      ]
+    },
+    "pmo-show-issues": {
+      "description": "Show project issues",
+      "suggestedComponents": [
+        "IssueTracker",
+        "IssueItem"
+      ],
+      "requiredData": [
+        "issues"
+      ]
+    },
+    "pmo-show-raid-log": {
+      "description": "Show RAID log (Risks, Actions, Issues, Decisions)",
+      "suggestedComponents": [
+        "RAIDLog",
+        "RiskItem",
+        "ActionItem",
+        "IssueItem",
+        "DecisionItem"
+      ],
+      "requiredData": [
+        "raid"
+      ]
+    },
+    "pmo-show-burndown": {
+      "description": "Show sprint/release burndown progress",
+      "suggestedComponents": [
+        "BurndownChart",
+        "VelocityChart"
+      ],
+      "requiredData": [
+        "burndown"
+      ]
+    },
+    "pmo-show-velocity": {
+      "description": "Show velocity history and trends",
+      "suggestedComponents": [
+        "VelocityChart"
+      ],
+      "requiredData": [
+        "velocity"
+      ]
+    },
+    "pmo-show-resources": {
+      "description": "Show resource allocation and capacity",
+      "suggestedComponents": [
+        "ResourceAllocation",
+        "TeamMember"
+      ],
+      "requiredData": [
+        "resources"
+      ]
+    },
+    "pmo-show-budget": {
+      "description": "Show budget tracking and financial status",
+      "suggestedComponents": [
+        "BudgetTracker"
+      ],
+      "requiredData": [
+        "budget"
+      ]
+    },
+    "pmo-show-forecast": {
+      "description": "Show project completion forecast",
+      "suggestedComponents": [
+        "Forecast",
+        "BurndownChart"
+      ],
+      "requiredData": [
+        "forecast"
+      ]
+    },
+    "pmo-show-dependencies": {
+      "description": "Show cross-project dependencies",
+      "suggestedComponents": [
+        "DependencyMap",
+        "DependencyItem"
+      ],
+      "requiredData": [
+        "dependencies"
+      ]
+    },
+    "pmo-show-change-requests": {
+      "description": "Show scope and change requests",
+      "suggestedComponents": [
+        "ChangeRequest"
+      ],
+      "requiredData": [
+        "changeRequests"
+      ]
+    },
+    "pmo-show-escalations": {
+      "description": "Show items requiring management attention",
+      "suggestedComponents": [
+        "EscalationItem"
+      ],
+      "requiredData": [
+        "escalations"
+      ]
+    },
+    "pmo-show-executive-summary": {
+      "description": "High-level summary for executives",
+      "suggestedComponents": [
+        "StakeholderView",
+        "StatusReport",
+        "PortfolioSummary"
+      ],
+      "suggestedFilter": {
+        "audience": "executive"
+      },
+      "requiredData": [
+        "projectStatus"
+      ]
+    },
+    "pmo-show-lessons-learned": {
+      "description": "Show lessons learned and retrospective insights",
+      "suggestedComponents": [
+        "LessonLearned"
+      ],
+      "requiredData": [
+        "lessons"
+      ]
+    },
+    "onboard-show-onboard-dashboard": {
+      "description": "Show onboarding dashboard",
+      "suggestedComponents": [
+        "OnboardDashboard",
+        "OnboardNav",
+        "OnboardProgressBar"
+      ],
+      "requiredData": [
+        "overview"
+      ]
+    },
+    "onboard-show-onboarding-progress": {
+      "description": "Show overall onboarding progress",
+      "suggestedComponents": [
+        "ProgressOverview",
+        "ProgressSummary",
+        "PhaseProgressList"
+      ],
+      "requiredData": [
+        "progress"
+      ]
+    },
+    "onboard-show-achievements": {
+      "description": "Show onboarding achievements",
+      "suggestedComponents": [
+        "AchievementList",
+        "Achievement"
+      ],
+      "requiredData": [
+        "achievements"
+      ]
+    },
+    "onboard-show-learning-paths": {
+      "description": "Show learning paths",
+      "suggestedComponents": [
+        "LearningPathPanel",
+        "LearningPathList",
+        "LearningPathCard"
+      ],
+      "requiredData": [
+        "learningPaths"
+      ]
+    },
+    "onboard-show-learning-path": {
+      "description": "Show a specific learning path",
+      "suggestedComponents": [
+        "LearningPathDetails",
+        "ModuleList",
+        "ModuleCard"
+      ],
+      "requiredData": [
+        "learningPath"
+      ]
+    },
+    "onboard-show-module": {
+      "description": "Show a learning module",
+      "suggestedComponents": [
+        "ModuleDetails",
+        "ModuleContent",
+        "ResourceList"
+      ],
+      "requiredData": [
+        "module"
+      ]
+    },
+    "onboard-show-codebase-map": {
+      "description": "Show codebase orientation map",
+      "suggestedComponents": [
+        "CodebaseMapPanel",
+        "CodebaseMap",
+        "ConceptList"
+      ],
+      "requiredData": [
+        "codebaseMap"
+      ]
+    },
+    "onboard-show-concepts": {
+      "description": "Show key concepts",
+      "suggestedComponents": [
+        "ConceptList",
+        "ConceptCard"
+      ],
+      "requiredData": [
+        "concepts"
+      ]
+    },
+    "onboard-show-concept": {
+      "description": "Show a specific concept",
+      "suggestedComponents": [
+        "ConceptDetails",
+        "ConceptExplanation",
+        "CodeExampleList"
+      ],
+      "requiredData": [
+        "concept"
+      ]
+    },
+    "onboard-show-guided-tasks": {
+      "description": "Show guided onboarding tasks",
+      "suggestedComponents": [
+        "TaskPanel",
+        "TaskList",
+        "TaskCard"
+      ],
+      "requiredData": [
+        "tasks"
+      ]
+    },
+    "onboard-show-task": {
+      "description": "Show a specific task",
+      "suggestedComponents": [
+        "TaskDetails",
+        "TaskInstructions",
+        "HintList"
+      ],
+      "requiredData": [
+        "task"
+      ]
+    },
+    "onboard-show-team": {
+      "description": "Show team members to meet",
+      "suggestedComponents": [
+        "TeamPanel",
+        "TeamMemberList",
+        "TeamMemberCard"
+      ],
+      "requiredData": [
+        "team"
+      ]
+    },
+    "onboard-show-meetings": {
+      "description": "Show scheduled meetings",
+      "suggestedComponents": [
+        "MeetingList",
+        "MeetingCard"
+      ],
+      "requiredData": [
+        "meetings"
+      ]
+    },
+    "onboard-show-setup-checklist": {
+      "description": "Show dev environment setup checklist",
+      "suggestedComponents": [
+        "SetupPanel",
+        "SetupChecklist",
+        "SetupItem"
+      ],
+      "requiredData": [
+        "setup"
+      ]
+    },
+    "onboard-show-resources": {
+      "description": "Show onboarding resources",
+      "suggestedComponents": [
+        "ResourcePanel",
+        "ResourceList",
+        "ResourceCard"
+      ],
+      "requiredData": [
+        "resources"
+      ]
+    },
+    "onboard-show-onboard-settings": {
+      "description": "Show onboarding settings",
+      "suggestedComponents": [
+        "OnboardSettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    },
+    "experiment-show-experiment-dashboard": {
+      "description": "Show experimentation dashboard",
+      "suggestedComponents": [
+        "ExperimentDashboard",
+        "ExperimentNav",
+        "ExperimentSummaryBar"
+      ],
+      "requiredData": [
+        "overview"
+      ]
+    },
+    "experiment-show-experiments": {
+      "description": "Show list of experiments",
+      "suggestedComponents": [
+        "ExperimentOverview",
+        "ExperimentList",
+        "ExperimentCard"
+      ],
+      "requiredData": [
+        "experiments"
+      ]
+    },
+    "experiment-show-experiment-details": {
+      "description": "Show experiment details",
+      "suggestedComponents": [
+        "ExperimentDetails",
+        "VariantList",
+        "ResultsSummary"
+      ],
+      "requiredData": [
+        "experiment"
+      ]
+    },
+    "experiment-show-experiment-results": {
+      "description": "Show experiment results and analysis",
+      "suggestedComponents": [
+        "ResultsOverview",
+        "ResultsSummary",
+        "MetricComparisonChart",
+        "TimeSeriesChart"
+      ],
+      "requiredData": [
+        "results"
+      ]
+    },
+    "experiment-show-segment-breakdown": {
+      "description": "Show results by segment",
+      "suggestedComponents": [
+        "SegmentBreakdown",
+        "SegmentRow"
+      ],
+      "requiredData": [
+        "segmentResults"
+      ]
+    },
+    "experiment-show-feature-flags": {
+      "description": "Show feature flags",
+      "suggestedComponents": [
+        "FeatureFlagPanel",
+        "FlagList",
+        "FlagCard"
+      ],
+      "requiredData": [
+        "flags"
+      ]
+    },
+    "experiment-show-flag-details": {
+      "description": "Show feature flag details",
+      "suggestedComponents": [
+        "FlagDetails",
+        "TargetingRuleList",
+        "FlagHistory"
+      ],
+      "requiredData": [
+        "flag"
+      ]
+    },
+    "experiment-show-rollouts": {
+      "description": "Show progressive rollouts",
+      "suggestedComponents": [
+        "RolloutPanel",
+        "RolloutList",
+        "RolloutCard"
+      ],
+      "requiredData": [
+        "rollouts"
+      ]
+    },
+    "experiment-show-rollout-details": {
+      "description": "Show rollout details",
+      "suggestedComponents": [
+        "RolloutDetails",
+        "RolloutStageList",
+        "RolloutHealth"
+      ],
+      "requiredData": [
+        "rollout"
+      ]
+    },
+    "experiment-show-targeting": {
+      "description": "Show targeting rules",
+      "suggestedComponents": [
+        "TargetingPanel",
+        "TargetingRuleList",
+        "RuleBuilder"
+      ],
+      "requiredData": [
+        "targeting"
+      ]
+    },
+    "experiment-show-audiences": {
+      "description": "Show audience segments",
+      "suggestedComponents": [
+        "AudiencePanel",
+        "AudienceList",
+        "AudienceCard"
+      ],
+      "requiredData": [
+        "audiences"
+      ]
+    },
+    "experiment-show-audience-details": {
+      "description": "Show audience details",
+      "suggestedComponents": [
+        "AudienceDetails",
+        "TargetingRuleList",
+        "AudienceUsage"
+      ],
+      "requiredData": [
+        "audience"
+      ]
+    },
+    "experiment-show-experiment-settings": {
+      "description": "Show experimentation settings",
+      "suggestedComponents": [
+        "ExperimentSettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    },
+    "finops-show-finops-dashboard": {
+      "description": "Show main FinOps dashboard",
+      "suggestedComponents": [
+        "FinOpsDashboard",
+        "FinOpsNav",
+        "CostSummaryBar"
+      ],
+      "requiredData": [
+        "costSummary"
+      ]
+    },
+    "finops-show-cost-overview": {
+      "description": "Show cloud cost overview and trends",
+      "suggestedComponents": [
+        "CostOverview",
+        "CostToolbar",
+        "CostBreakdown",
+        "CostChart"
+      ],
+      "requiredData": [
+        "costs"
+      ]
+    },
+    "finops-show-cost-breakdown": {
+      "description": "Show cost breakdown by dimension",
+      "suggestedComponents": [
+        "CostBreakdown",
+        "CostBreakdownChart"
+      ],
+      "requiredData": [
+        "costBreakdown"
+      ]
+    },
+    "finops-show-cost-trends": {
+      "description": "Show cost trends over time",
+      "suggestedComponents": [
+        "CostChart",
+        "CostComparison"
+      ],
+      "requiredData": [
+        "costTrends"
+      ]
+    },
+    "finops-show-budgets": {
+      "description": "Show budget status and alerts",
+      "suggestedComponents": [
+        "BudgetPanel",
+        "BudgetToolbar",
+        "BudgetStatus",
+        "BudgetCard"
+      ],
+      "requiredData": [
+        "budgets"
+      ]
+    },
+    "finops-show-budget-details": {
+      "description": "Show budget details with history",
+      "suggestedComponents": [
+        "BudgetDetails",
+        "BudgetSpendChart",
+        "BudgetHistory"
+      ],
+      "requiredData": [
+        "budgetDetails"
+      ]
+    },
+    "finops-show-optimizations": {
+      "description": "Show cost optimization recommendations",
+      "suggestedComponents": [
+        "OptimizationPanel",
+        "SavingsSummary",
+        "OptimizationRecommendation"
+      ],
+      "requiredData": [
+        "recommendations"
+      ]
+    },
+    "finops-show-optimization-details": {
+      "description": "Show optimization details with steps",
+      "suggestedComponents": [
+        "OptimizationDetails",
+        "ImplementationStep",
+        "OptimizationActions"
+      ],
+      "requiredData": [
+        "recommendationDetails"
+      ]
+    },
+    "finops-show-savings": {
+      "description": "Show realized savings tracker",
+      "suggestedComponents": [
+        "SavingsTracker"
+      ],
+      "requiredData": [
+        "savings"
+      ]
+    },
+    "finops-show-resources": {
+      "description": "Show resource-level costs",
+      "suggestedComponents": [
+        "ResourceExplorer",
+        "ResourceToolbar",
+        "ResourceList",
+        "ResourceCost"
+      ],
+      "requiredData": [
+        "resourceCosts"
+      ]
+    },
+    "finops-show-resource-details": {
+      "description": "Show resource cost details",
+      "suggestedComponents": [
+        "ResourceDetails",
+        "ResourceCostChart",
+        "ResourceMetrics"
+      ],
+      "requiredData": [
+        "resourceDetails"
+      ]
+    },
+    "finops-show-cost-allocation": {
+      "description": "Show cost allocation by team/project",
+      "suggestedComponents": [
+        "AllocationView",
+        "AllocationToolbar",
+        "CostAllocation",
+        "AllocationRow"
+      ],
+      "requiredData": [
+        "allocation"
+      ]
+    },
+    "finops-show-anomalies": {
+      "description": "Show cost anomaly alerts",
+      "suggestedComponents": [
+        "AnomalyPanel",
+        "AnomalyToolbar",
+        "AnomalyAlert"
+      ],
+      "requiredData": [
+        "anomalies"
+      ]
+    },
+    "finops-generate-report": {
+      "description": "Generate cost report",
+      "suggestedComponents": [
+        "ReportGenerator"
+      ],
+      "requiredData": [
+        "reportConfig"
+      ]
+    },
+    "finops-show-finops-settings": {
+      "description": "Show FinOps settings",
+      "suggestedComponents": [
+        "FinOpsSettings",
+        "SettingGroup"
+      ],
+      "requiredData": [
+        "settings"
+      ]
+    }
+  }
+}

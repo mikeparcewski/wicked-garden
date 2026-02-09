@@ -1,0 +1,76 @@
+{
+  "description": "Hooks for wicked-mem: memory behavior setup, per-type capture, recall, and working memory preservation",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session_start.py\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Check if the tool input in $ARGUMENTS targets a file path containing 'MEMORY.md'. If yes, respond {\"decision\": \"If you wrote learnings, decisions, or patterns to MEMORY.md, also store them via /wicked-mem:store for structured recall with types, tags, and TTL. MEMORY.md is a quick-reference summary — wicked-mem is the source of truth.\"}. If the file is NOT a MEMORY.md file, respond {}.",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_checkpoint.py\"",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_compact.py\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.py\"",
+            "async": true,
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

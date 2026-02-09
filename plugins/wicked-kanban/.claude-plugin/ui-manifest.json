@@ -1,0 +1,35 @@
+{
+  "manifestVersion": "1.0",
+  "plugin": "wicked-kanban",
+  "navigation": {
+    "label": "Kanban",
+    "icon": "layout",
+    "order": 20
+  },
+  "defaultView": "board",
+  "views": [
+    {
+      "id": "board",
+      "label": "Board",
+      "prompt": "Run /wicked-kanban:board-status to get the current kanban board state. Display it as a kanban board with swimlanes for each status (pending, in_progress, completed). Each task card should show: title, priority badge, project name, and blocked status. Use color coding: red for blocked, yellow for high priority, green for completed."
+    },
+    {
+      "id": "projects",
+      "label": "Projects",
+      "prompt": "Run /wicked-kanban:board-status and group tasks by project/initiative. Show each project as a card with: project name, task count by status (pending/in-progress/done), and a mini progress bar."
+    },
+    {
+      "id": "blocked",
+      "label": "Blocked",
+      "prompt": "Run /wicked-kanban:board-status and filter for blocked tasks only. Show each blocked task as an alert card with: task name, what it's blocked by, priority, and how long it's been blocked."
+    }
+  ],
+  "actions": [
+    {
+      "id": "new-task",
+      "label": "New Task",
+      "icon": "plus",
+      "prompt": "Ask the user for task details (title, description, priority), then use /wicked-kanban:new-task to create it."
+    }
+  ]
+}

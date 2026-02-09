@@ -1,0 +1,107 @@
+{
+  "specialist": {
+    "name": "wicked-product",
+    "role": "product",
+    "description": "Product and design expertise spanning requirements, UX, customer voice, business strategy, and accessibility."
+  },
+  "personas": [
+    {
+      "name": "Product Manager",
+      "focus": "Roadmap planning, prioritization, trade-offs, business value alignment",
+      "agent": "agents/product-manager.md"
+    },
+    {
+      "name": "UX Designer",
+      "focus": "User flows, interaction patterns, information architecture, usability",
+      "agent": "agents/ux-designer.md"
+    },
+    {
+      "name": "Requirements Analyst",
+      "focus": "User stories, acceptance criteria, requirements elicitation",
+      "agent": "agents/requirements-analyst.md"
+    },
+    {
+      "name": "Business Strategist",
+      "focus": "ROI analysis, value proposition, competitive positioning",
+      "agent": "agents/business-strategist.md"
+    },
+    {
+      "name": "Customer Advocate",
+      "focus": "Customer needs, pain points, feedback synthesis",
+      "agent": "agents/customer-advocate.md"
+    }
+  ],
+  "enhances": [
+    {
+      "phase": "clarify",
+      "trigger": "crew:phase:started:success",
+      "response": "product:requirements:completed:success",
+      "capabilities": [
+        "requirements-elicitation",
+        "user-story-creation",
+        "acceptance-criteria",
+        "customer-voice"
+      ]
+    },
+    {
+      "phase": "design",
+      "trigger": "crew:phase:started:success",
+      "response": "product:design:reviewed:success",
+      "capabilities": [
+        "ux-review",
+        "business-strategy",
+        "value-analysis",
+        "competitive-analysis"
+      ]
+    },
+    {
+      "phase": "review",
+      "trigger": "crew:phase:started:success",
+      "response": "product:review:completed:success",
+      "capabilities": [
+        "ux-review",
+        "accessibility-audit",
+        "stakeholder-alignment"
+      ]
+    }
+  ],
+  "hooks": {
+    "subscribes": [
+      "crew:phase:started:success",
+      "crew:specialist:engaged:success"
+    ],
+    "publishes": [
+      "product:requirements:completed:success",
+      "product:design:reviewed:success",
+      "product:review:completed:success",
+      "product:strategy:assessed:success"
+    ]
+  },
+  "skills": [
+    {
+      "name": "elicit",
+      "command": "/wicked-product:elicit",
+      "description": "Elicit and document requirements"
+    },
+    {
+      "name": "strategy",
+      "command": "/wicked-product:strategy",
+      "description": "Strategic analysis - ROI, value proposition"
+    },
+    {
+      "name": "ux-review",
+      "command": "/wicked-product:ux-review",
+      "description": "UX and design quality review"
+    },
+    {
+      "name": "acceptance",
+      "command": "/wicked-product:acceptance",
+      "description": "Define acceptance criteria"
+    },
+    {
+      "name": "listen",
+      "command": "/wicked-product:listen",
+      "description": "Aggregate customer feedback"
+    }
+  ]
+}

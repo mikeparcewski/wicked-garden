@@ -1,0 +1,75 @@
+{
+  "specialist": {
+    "name": "wicked-delivery",
+    "role": "project-management",
+    "description": "Delivery and project management specialist for reporting, progress tracking, cost optimization, and rollout coordination."
+  },
+  "personas": [
+    {
+      "name": "Delivery Manager",
+      "focus": "Sprint management, velocity tracking, blocker resolution, delivery cadence",
+      "agent": "agents/delivery-manager.md"
+    },
+    {
+      "name": "Stakeholder Reporter",
+      "focus": "Status communication, executive reporting, decision support",
+      "agent": "agents/stakeholder-reporter.md"
+    },
+    {
+      "name": "Risk Monitor",
+      "focus": "Delivery risk tracking, escalation management, dependency chains",
+      "agent": "agents/risk-monitor.md"
+    },
+    {
+      "name": "Rollout Manager",
+      "focus": "Progressive rollouts, canary deployments, feature flags",
+      "agent": "agents/rollout-manager.md"
+    },
+    {
+      "name": "Cost Optimizer",
+      "focus": "Cloud cost optimization, right-sizing, reserved capacity",
+      "agent": "agents/cost-optimizer.md"
+    }
+  ],
+  "enhances": [
+    {
+      "phase": "*",
+      "trigger": "crew:phase:started:success",
+      "response": "delivery:status:reported:success",
+      "capabilities": [
+        "progress-tracking",
+        "status-reporting",
+        "risk-monitoring",
+        "delivery-forecasting"
+      ]
+    },
+    {
+      "phase": "review",
+      "trigger": "crew:phase:started:success",
+      "response": "delivery:review:completed:success",
+      "capabilities": [
+        "delivery-assessment",
+        "rollout-planning",
+        "cost-analysis"
+      ]
+    }
+  ],
+  "hooks": {
+    "subscribes": [
+      "crew:phase:started:success",
+      "crew:project:completed:success"
+    ],
+    "publishes": [
+      "delivery:status:reported:success",
+      "delivery:review:completed:success",
+      "delivery:risk:escalated:success"
+    ]
+  },
+  "skills": [
+    {
+      "name": "report",
+      "command": "/wicked-delivery:report",
+      "description": "Multi-perspective delivery reporting"
+    }
+  ]
+}

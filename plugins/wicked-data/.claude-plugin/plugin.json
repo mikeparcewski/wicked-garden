@@ -1,0 +1,21 @@
+{
+  "name": "wicked-data",
+  "version": "0.2.6",
+  "description": "Data engineering specialist for pipeline design, data analysis, ML guidance, and analytics architecture. Includes CSV/Excel analysis with DuckDB SQL querying.",
+  "author": {
+    "name": "Mike Parcewski"
+  },
+  "license": "MIT",
+  "keywords": [
+    "data-engineering",
+    "analytics",
+    "machine-learning",
+    "data-pipelines",
+    "data-quality",
+    "ml-ops",
+    "csv",
+    "excel",
+    "duckdb",
+    "sql"
+  ]
+}

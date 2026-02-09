@@ -1,0 +1,41 @@
+{
+  "name": "java_add_field",
+  "description": "Add a new field to a JPA entity",
+  "generator": "java",
+  "input": {
+    "change_type": "add_field",
+    "field_spec": {
+      "name": "email",
+      "type": "String",
+      "nullable": false,
+      "column_name": "EMAIL",
+      "label": "Email Address"
+    },
+    "sample_content": "package com.example;\n\nimport javax.persistence.*;\n\n@Entity\n@Table(name = \"users\")\npublic class User {\n\n    @Id\n    @GeneratedValue\n    private Long id;\n\n    @Column(name = \"NAME\")\n    private String name;\n\n    public Long getId() {\n        return id;\n    }\n\n    public String getName() {\n        return name;\n    }\n\n    public void setName(String name) {\n        this.name = name;\n    }\n}\n",
+    "symbol": {
+      "id": "com/example/User.java::User",
+      "name": "User",
+      "type": "class",
+      "file_path": "com/example/User.java",
+      "line_start": 6,
+      "line_end": 26,
+      "metadata": {
+        "annotations": ["Entity", "Table"]
+      }
+    }
+  },
+  "expected": {
+    "patch_count_min": 1,
+    "must_contain": [
+      "@Column",
+      "EMAIL",
+      "private String email",
+      "getEmail",
+      "setEmail"
+    ],
+    "must_not_contain": [
+      "undefined",
+      "null"
+    ]
+  }
+}

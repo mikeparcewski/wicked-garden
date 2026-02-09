@@ -1,0 +1,17 @@
+{
+  "description": "wicked-search hooks: index status on session start",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session_start.py\"",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  }
+}

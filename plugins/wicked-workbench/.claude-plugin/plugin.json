@@ -1,0 +1,17 @@
+{
+  "name": "wicked-workbench",
+  "version": "0.3.0",
+  "description": "A2UI dashboard renderer for wicked-garden plugins. Claude Code generates dashboards, workbench renders them with live MCP data.",
+  "author": {
+    "name": "Mike Parcewski"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dashboard",
+    "workbench",
+    "a2ui",
+    "ui",
+    "visualization",
+    "meta-plugin"
+  ]
+}

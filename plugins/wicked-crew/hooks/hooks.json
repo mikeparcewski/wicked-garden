@@ -1,0 +1,52 @@
+{
+  "description": "Hooks for wicked-crew: capability-based orchestration with specialist routing",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session_start.py\"",
+            "timeout": 2000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "TaskCreate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pretool_taskcreate.py\"",
+            "timeout": 1000
+          }
+        ]
+      },
+      {
+        "matcher": "EnterPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pretool_planmode.py\"",
+            "timeout": 1000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.py\"",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "jsp_add_field",
+  "description": "Add a new form field to a JSP page",
+  "generator": "jsp",
+  "input": {
+    "change_type": "add_field",
+    "field_spec": {
+      "name": "email",
+      "type": "String",
+      "label": "Email Address"
+    },
+    "sample_content": "<%@ taglib prefix=\"form\" uri=\"http://www.springframework.org/tags/form\" %>\n<%@ taglib prefix=\"c\" uri=\"http://java.sun.com/jsp/jstl/core\" %>\n\n<form:form modelAttribute=\"user\" action=\"/users/save\" method=\"POST\">\n    <div class=\"form-group\">\n        <label for=\"name\">Name</label>\n        <form:input path=\"name\" cssClass=\"form-control\" />\n        <form:errors path=\"name\" cssClass=\"error\" />\n    </div>\n\n    <button type=\"submit\">Save</button>\n</form:form>\n",
+    "symbol": {
+      "id": "views/user-form.jsp::form",
+      "name": "user-form",
+      "type": "template",
+      "file_path": "views/user-form.jsp",
+      "line_start": 4,
+      "line_end": 12
+    }
+  },
+  "expected": {
+    "patch_count_min": 1,
+    "must_contain": [
+      "form:input",
+      "email",
+      "path="
+    ],
+    "must_not_contain": []
+  }
+}

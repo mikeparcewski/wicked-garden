@@ -1,0 +1,39 @@
+{
+  "specialist": {
+    "name": "{{name}}",
+    "role": "{{role}}",
+    "description": "{{description}}"
+  },
+  "personas": [
+    {
+      "name": "{{persona_1_name}}",
+      "focus": "{{persona_1_focus}}",
+      "expertise": ["{{persona_1_expertise_1}}", "{{persona_1_expertise_2}}"],
+      "agent": "agents/{{persona_1_agent}}.md"
+    },
+    {
+      "name": "{{persona_2_name}}",
+      "focus": "{{persona_2_focus}}",
+      "expertise": ["{{persona_2_expertise_1}}", "{{persona_2_expertise_2}}"],
+      "agent": "agents/{{persona_2_agent}}.md"
+    }
+  ],
+  "enhances": [
+    {
+      "phase": "{{phase}}",
+      "trigger": "crew:phase:started:success",
+      "response": "{{namespace}}:{{entity}}:completed:success",
+      "capabilities": ["{{capability_1}}", "{{capability_2}}"]
+    }
+  ],
+  "hooks": {
+    "subscribes": [
+      "crew:phase:started:success",
+      "crew:phase:completed:success"
+    ],
+    "publishes": [
+      "{{namespace}}:{{entity}}:completed:success",
+      "{{namespace}}:{{entity}}:finding:warning"
+    ]
+  }
+}

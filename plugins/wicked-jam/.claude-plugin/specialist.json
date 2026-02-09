@@ -1,0 +1,86 @@
+{
+  "specialist": {
+    "name": "wicked-jam",
+    "role": "ideation",
+    "description": "Multi-perspective brainstorming with dynamic focus groups. Explores ideas through persona-based discussion rounds and synthesis."
+  },
+  "personas": [
+    {
+      "name": "Facilitator",
+      "focus": "Orchestrating brainstorming sessions, assembling personas, guiding discussion rounds, synthesizing insights",
+      "agent": "agents/facilitator.md"
+    },
+    {
+      "name": "Technical Archetypes",
+      "focus": "How things work - architecture, debugging, optimization, security",
+      "dynamic": true
+    },
+    {
+      "name": "User Archetypes",
+      "focus": "Who uses it - power users, newcomers, support, accessibility",
+      "dynamic": true
+    },
+    {
+      "name": "Business Archetypes",
+      "focus": "Why it matters - product management, skepticism, evangelism, cost",
+      "dynamic": true
+    },
+    {
+      "name": "Process Archetypes",
+      "focus": "How it ships - maintenance, testing, documentation, release",
+      "dynamic": true
+    }
+  ],
+  "enhances": [
+    {
+      "phase": "clarify",
+      "trigger": "crew:phase:started:success",
+      "response": "jam:brainstorm:complete:success",
+      "capabilities": [
+        "idea-exploration",
+        "perspective-gathering",
+        "decision-support",
+        "requirement-discovery"
+      ]
+    },
+    {
+      "phase": "design",
+      "trigger": "crew:specialist:engaged:success",
+      "response": "jam:brainstorm:complete:success",
+      "capabilities": [
+        "design-alternatives",
+        "tradeoff-analysis",
+        "stakeholder-simulation"
+      ]
+    }
+  ],
+  "hooks": {
+    "subscribes": [
+      "crew:phase:started:success",
+      "crew:specialist:engaged:success"
+    ],
+    "publishes": [
+      "jam:session:started:success",
+      "jam:round:complete:success",
+      "jam:brainstorm:complete:success",
+      "jam:insight:stored:success"
+    ]
+  },
+  "skills": [
+    {
+      "name": "brainstorm",
+      "command": "/wicked-jam:brainstorm",
+      "description": "Full brainstorming session with 4-6 personas, 2-3 rounds, and synthesis"
+    },
+    {
+      "name": "jam",
+      "command": "/wicked-jam:jam",
+      "description": "Quick exploration with 4 personas, 1 round, brief synthesis"
+    },
+    {
+      "name": "perspectives",
+      "command": "/wicked-jam:perspectives",
+      "description": "Gather multiple viewpoints without synthesis"
+    }
+  ]
+}
