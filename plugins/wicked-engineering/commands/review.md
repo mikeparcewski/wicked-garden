@@ -143,7 +143,7 @@ Evaluate each pattern with examples from code.
 **tests**: Test quality and value
 ```python
 Task(
-    subagent_type="wicked-engineering:senior-engineer",
+    subagent_type="wicked-qe:code-analyzer",
     prompt="""Evaluate test quality. Fewer, higher-quality tests beat many low-value ones.
 
 ## Target
