@@ -4,9 +4,10 @@ Smart Decisioning - Signal detection and specialist matching for wicked-crew v3.
 
 Analyzes user input to determine:
 1. What signals are present (security, product, compliance, etc.)
-2. Complexity score (0-7 scale)
-3. Which specialists should be engaged
-4. Fallback agents for unavailable specialists
+2. Risk dimensions: impact (0-3), reversibility (0-3), novelty (0-3)
+3. Complexity score (0-7 scale, derived from dimensions)
+4. Which specialists should be engaged
+5. Fallback agents for unavailable specialists
 
 IMPORTANT: Do NOT import from specialist_discovery.py to avoid circular dependencies.
 This module is designed to be standalone and imported by specialist_discovery if needed.
@@ -19,7 +20,7 @@ import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 
 # Configure logging
 logging.basicConfig(
@@ -28,13 +29,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger('wicked-crew.smart-decisioning')
 
-# Pre-compiled regex patterns for performance
-_COMPILED_PATTERNS: Dict[str, re.Pattern] = {}
-
+# ---------------------------------------------------------------------------
 # Signal categories and their keywords
+# ---------------------------------------------------------------------------
 # This mapping is the core algorithm for capability matching:
 # - Each category represents a problem domain (security, performance, etc.)
-# - Keywords are lowercase, hyphenated or single words that indicate the domain
+# - Keywords are lowercase; keywords ending with * are stem-matched
 # - Matching uses word-boundary regex to avoid false positives
 # - This is a STABLE mapping - changes should be rare and well-documented
 SIGNAL_KEYWORDS = {
@@ -62,7 +62,9 @@ SIGNAL_KEYWORDS = {
     ],
     "complexity": [
         "multiple", "system", "integration", "migrate", "migration", "refactor",
-        "distributed", "microservice", "legacy", "cross-team"
+        "distributed", "microservice", "legacy", "cross-team",
+        "downstream", "cascading", "cross-cutting", "foundational", "core module",
+        "affects all",
     ],
     "data": [
         "data", "analytics", "metrics", "report", "dashboard", "visualization",
@@ -71,12 +73,17 @@ SIGNAL_KEYWORDS = {
     ],
     "infrastructure": [
         "deploy", "deployment", "ci/cd", "pipeline", "docker", "kubernetes",
-        "k8s", "cloud", "aws", "gcp", "azure", "terraform", "helm"
+        "k8s", "cloud", "aws", "gcp", "azure", "terraform", "helm",
+        "hook binding", "event handler", "event listener",
+        "middleware config", "build system", "makefile", "configuration-as-code",
     ],
     "architecture": [
         "architecture", "design pattern", "component", "api contract", "schema",
         "system design", "adr", "decision record", "monolith", "microservice",
-        "event-driven", "cqrs", "hexagonal"
+        "event-driven", "cqrs", "hexagonal",
+        "algorithm", "orchestrat*", "dispatcher", "resolver", "parser", "engine",
+        "scoring", "routing logic", "decision logic", "phase selection",
+        "signal detection",
     ],
     "ux": [
         "user", "experience", "ux", "ui", "flow", "usability", "accessibility",
@@ -86,19 +93,25 @@ SIGNAL_KEYWORDS = {
     "strategy": [
         "roi", "business value", "investment", "competitive", "market",
         "strategic", "value proposition", "differentiation", "business case"
-    ]
+    ],
+    "reversibility": [
+        "migrat*", "schema", "breaking change", "deprecat*", "backward incompatible",
+        "drop table", "drop column", "remove api", "rename api",
+        "data transform*", "restructur*", "irreversible",
+        "feature flag", "toggle", "rollback", "canary", "blue-green",
+    ],
+    "novelty": [
+        "first time", "new pattern", "prototype", "proof of concept", "poc",
+        "greenfield", "from scratch", "never done", "unfamiliar",
+        "research", "spike", "experiment*", "evaluat*",
+    ],
 }
 
+# ---------------------------------------------------------------------------
 # Map signal categories to specialist plugins
+# ---------------------------------------------------------------------------
 # This is a STABLE mapping that defines the wicked-crew specialist ecosystem.
-# Why stable? Changes here affect:
-# 1. Specialist discovery and routing logic
-# 2. Fallback agent selection
-# 3. User expectations about which specialists handle which domains
-# 4. Integration tests and documentation
-# Only modify when adding/removing specialists or redefining responsibilities.
-#
-# Note: Uses sets internally to prevent duplicate specialists per signal.
+# Uses sets internally to prevent duplicate specialists per signal.
 SIGNAL_TO_SPECIALISTS = {
     "security": {"wicked-platform", "wicked-qe"},
     "performance": {"wicked-engineering", "wicked-qe"},
@@ -110,24 +123,21 @@ SIGNAL_TO_SPECIALISTS = {
     "infrastructure": {"wicked-platform"},
     "architecture": {"wicked-agentic", "wicked-engineering"},
     "ux": {"wicked-product"},
-    "strategy": {"wicked-product"}
+    "strategy": {"wicked-product"},
+    "reversibility": {"wicked-platform", "wicked-delivery"},
+    "novelty": {"wicked-jam", "wicked-engineering"},
 }
 
 # Built-in fallback agents for unavailable specialists
-# Fallback mechanism design:
-# - Max chain depth: 1 (no chained fallbacks - specialist -> built-in agent only)
-# - Valid fallback agents: facilitator, reviewer, implementer, researcher
-# - None means use default crew orchestration (kanban/todowrite)
-# - Fallback references are validated at runtime
 SPECIALIST_FALLBACKS = {
     "wicked-jam": "facilitator",
     "wicked-qe": "reviewer",
-    "wicked-product": "facilitator",  # product strategy + review
+    "wicked-product": "facilitator",
     "wicked-engineering": "implementer",
-    "wicked-platform": "implementer",  # with security checklist
-    "wicked-delivery": None,  # tracking via kanban/todowrite
-    "wicked-data": "researcher",  # data analysis fallback
-    "wicked-agentic": "reviewer",  # agentic architecture review
+    "wicked-platform": "implementer",
+    "wicked-delivery": None,
+    "wicked-data": "researcher",
+    "wicked-agentic": "reviewer",
 }
 
 # Valid built-in agents that can serve as fallbacks
@@ -136,71 +146,363 @@ VALID_FALLBACK_AGENTS = {"facilitator", "reviewer", "implementer", "researcher"}
 # Maximum fallback chain depth (prevents circular fallbacks)
 MAX_FALLBACK_DEPTH = 1
 
+# ---------------------------------------------------------------------------
+# File Role Patterns (5-tier taxonomy for impact scoring)
+# ---------------------------------------------------------------------------
+FILE_ROLE_PATTERNS = [
+    # --- TIER 1: Behavior-defining (weight 2.0) ---
+    (r'\b(?:commands?|handlers?|controllers?|routes?|middleware|interceptors?)/\S+', 2.0),
+    (r'\b(?:hooks?|triggers?|listeners?|subscribers?)/\S+', 2.0),
+    (r'\.github/workflows/', 2.0),
+    (r'\bgitlab-ci', 2.0),
+    (r'\bJenkinsfile\b', 2.0),
+    (r'\.(?:tf|hcl)\b', 2.0),
+    (r'\b(?:Dockerfile|docker-compose)\b', 2.0),
+    (r'\bhooks\.json\b', 2.0),
+    (r'\b(?:routes|pipeline|workflow|dispatch)\.(?:json|ya?ml)\b', 2.0),
+    (r'\bMakefile\b', 2.0),
+
+    # --- TIER 2: Source code (weight 1.5) ---
+    (r'\b(?:src|lib|app|pkg|internal|core)/\S+', 1.5),
+    (r'\bscripts?/\S+', 1.5),
+    (r'\bagents?/\S+', 1.5),
+    (r'\bskills?/\S+\.md\b', 1.5),
+    (r'\bSKILL\.md\b', 1.5),
+
+    # --- TIER 3: Generic code files (weight 1.0) ---
+    (r'\.(?:py|ts|js|go|rs|java|rb|tsx|jsx|c|cpp|cs|swift|kt)\b', 1.0),
+
+    # --- TIER 4: Test code (weight 1.0) ---
+    (r'\b(?:tests?|spec|__tests__|e2e|cypress|playwright)/\S+', 1.0),
+
+    # --- TIER 5: Low-impact (weight 0.5 or 0.0) ---
+    (r'\bREADME\b', 0.5),
+    (r'\bCHANGELOG\b', 0.5),
+    (r'\bLICENSE\b', 0.0),
+    (r'\b(?:docs?|examples?|samples?)/\S+', 0.5),
+    (r'\.md\b', 0.5),
+    (r'\.(?:json|ya?ml)\b', 0.5),
+]
+
+MAX_FILE_IMPACT = 3
+
+# ---------------------------------------------------------------------------
+# Reversibility signals (opposing signal sets)
+# ---------------------------------------------------------------------------
+
+# High irreversibility indicators (push reversibility score UP)
+IRREVERSIBILITY_SIGNALS = [
+    # Data changes (hardest to reverse)
+    ("migrat*", 3, "data migration"),
+    ("schema change", 3, "schema change"),
+    ("schema migrat*", 3, "schema migration"),
+    ("drop table", 3, "destructive DDL"),
+    ("drop column", 3, "destructive DDL"),
+    ("data transform*", 2, "data transformation"),
+
+    # Breaking changes (hard to reverse once consumers adapt)
+    ("breaking change", 3, "breaking change"),
+    ("deprecat*", 2, "deprecation"),
+    ("remove api", 3, "API removal"),
+    ("rename api", 2, "API rename"),
+    ("backward incompatible", 3, "backward incompatible"),
+
+    # State changes (side effects persist)
+    ("delete", 1, "deletion"),
+    ("remove", 1, "removal"),
+    ("rename", 1, "rename"),
+    ("restructur*", 2, "restructuring"),
+
+    # External dependencies
+    ("third party", 1, "third-party dependency"),
+    ("external api", 2, "external API"),
+    ("vendor", 1, "vendor dependency"),
+]
+
+# Reversibility mitigators (push reversibility score DOWN)
+REVERSIBILITY_SIGNALS = [
+    ("feature flag", -2, "feature-flagged"),
+    ("feature toggle", -2, "feature-flagged"),
+    ("toggle", -1, "toggle available"),
+    ("rollback", -1, "rollback mentioned"),
+    ("revert", -1, "revert mentioned"),
+    ("canary", -1, "canary deployment"),
+    ("blue-green", -1, "blue-green deployment"),
+    ("experiment", -1, "experimental"),
+]
+
+# ---------------------------------------------------------------------------
+# Novelty signals
+# ---------------------------------------------------------------------------
+NOVELTY_SIGNALS = [
+    ("first time", 2, "first-time work"),
+    ("new pattern", 2, "new pattern"),
+    ("prototype", 2, "prototype"),
+    ("proof of concept", 2, "proof of concept"),
+    ("poc", 2, "proof of concept"),
+    ("experiment*", 1, "experimental"),
+    ("greenfield", 2, "greenfield"),
+    ("from scratch", 2, "built from scratch"),
+    ("never done", 2, "never done before"),
+    ("unfamiliar", 1, "unfamiliar territory"),
+    ("research", 1, "research needed"),
+    ("spike", 1, "exploration spike"),
+    ("evaluat*", 1, "evaluation"),
+]
+
+# ---------------------------------------------------------------------------
+# Pattern helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_pattern(keyword: str) -> str:
+    """Create regex pattern from keyword, supporting stem matching.
+
+    Keywords ending with * match as prefix stems (e.g., "migrat*" matches
+    "migrate", "migration", "migrating").
+    """
+    if keyword.endswith("*"):
+        return rf'\b{re.escape(keyword[:-1])}\w*'
+    else:
+        return rf'\b{re.escape(keyword)}\b'
+
+
+# ---------------------------------------------------------------------------
+# Pre-compiled patterns (module load time for performance)
+# ---------------------------------------------------------------------------
+_COMPILED_FILE_PATTERNS = [
+    (re.compile(pattern, re.IGNORECASE), weight)
+    for pattern, weight in FILE_ROLE_PATTERNS
+]
+
+_COMPILED_SIGNAL_PATTERNS: Dict[str, List[Tuple[re.Pattern, str]]] = {}
+for _cat, _keywords in SIGNAL_KEYWORDS.items():
+    _COMPILED_SIGNAL_PATTERNS[_cat] = [
+        (re.compile(_make_pattern(kw)), kw)
+        for kw in _keywords
+    ]
+
+_COMPILED_IRREVERSIBILITY = [
+    (re.compile(_make_pattern(kw)), weight, label)
+    for kw, weight, label in IRREVERSIBILITY_SIGNALS
+]
+
+_COMPILED_MITIGATORS = [
+    (re.compile(_make_pattern(kw)), weight, label)
+    for kw, weight, label in REVERSIBILITY_SIGNALS
+]
+
+_COMPILED_NOVELTY = [
+    (re.compile(_make_pattern(kw)), weight, label)
+    for kw, weight, label in NOVELTY_SIGNALS
+]
+
+# ---------------------------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RiskDimensions:
+    """Independent risk dimensions computed from text analysis.
+
+    Each dimension is 0-3. They drive different workflow decisions:
+    - impact: gate strictness (fast-pass vs full gate)
+    - reversibility: rollback planning, gate type selection
+    - novelty: specialist engagement, design phase inclusion
+    """
+    impact: int = 0
+    reversibility: int = 0
+    novelty: int = 0
+    explanation: List[str] = field(default_factory=list)
+
 
 @dataclass
 class SignalAnalysis:
     """Result of analyzing user input for signals."""
     signals: List[str]
-    complexity_score: int
+    complexity_score: int  # 0-7, backward-compatible composite
+    risk_dimensions: RiskDimensions
     recommended_specialists: List[str]
     available_specialists: List[str]
     unavailable_specialists: List[str]
     fallback_agents: Dict[str, str]
     is_ambiguous: bool
     confidence: str  # HIGH, MEDIUM, LOW
+    flags: Dict[str, bool] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Core scoring functions
+# ---------------------------------------------------------------------------
 
 
 def detect_signals(text: str) -> List[str]:
-    """Detect signal categories present in text."""
+    """Detect signal categories present in text.
+
+    Uses pre-compiled patterns with stem-aware matching.
+    """
     text_lower = text.lower()
     detected = []
 
-    for category, keywords in SIGNAL_KEYWORDS.items():
-        for keyword in keywords:
-            # Match whole words or hyphenated terms
-            pattern = rf'\b{re.escape(keyword)}\b'
-            if re.search(pattern, text_lower):
-                if category not in detected:
-                    detected.append(category)
+    for category, patterns in _COMPILED_SIGNAL_PATTERNS.items():
+        for compiled, _keyword in patterns:
+            if compiled.search(text_lower):
+                detected.append(category)
                 break
 
     return detected
 
 
-def assess_complexity(text: str) -> int:
-    """Assess complexity on 0-7 scale."""
+def assess_file_impact(text: str) -> int:
+    """Score file mentions by functional role instead of flat counting.
+
+    Returns 0-3 (capped to prevent file mentions from dominating).
+    Uses pre-compiled patterns from _COMPILED_FILE_PATTERNS.
+    First-match-wins ordering with span-overlap dedup.
+    Adjacent spans (end == start) are treated as overlapping to prevent
+    double-counting parts of the same file reference (e.g., "CHANGELOG.md"
+    matching both CHANGELOG and .md patterns).
+    """
+    text_lower = text.lower()
+    max_weight = 0.0
+    match_count = 0
+    matched_spans = []
+
+    for compiled_pattern, weight in _COMPILED_FILE_PATTERNS:
+        for match in compiled_pattern.finditer(text_lower):
+            start, end = match.span()
+            # Skip if this span overlaps or is adjacent to a previous match
+            if any(s <= start <= e or s <= end <= e for s, e in matched_spans):
+                continue
+
+            matched_spans.append((start, end))
+            max_weight = max(max_weight, weight)
+            match_count += 1
+
+    if match_count == 0:
+        return 0
+
+    # Score based on highest-impact file + breadth bonus
+    base = int(max_weight)
+
+    # Breadth bonus: multiple distinct file mentions add +1
+    breadth_bonus = 1 if match_count >= 3 else 0
+
+    return min(base + breadth_bonus, MAX_FILE_IMPACT)
+
+
+def assess_impact(text: str) -> Tuple[int, List[str]]:
+    """Compute impact dimension from text.
+
+    Returns (score 0-3, list of explanation strings).
+    Combines file role analysis with integration surface detection.
+    Integration keywords contribute +2 (matching old scorer behavior).
+    """
     score = 0
+    reasons = []
 
-    # Word count
-    word_count = len(text.split())
-    if word_count > 100:
-        score += 2
-    elif word_count > 50:
-        score += 1
+    # File role impact (0-3, from assess_file_impact)
+    file_impact = assess_file_impact(text)
+    score += file_impact
+    if file_impact >= 2:
+        reasons.append(f"behavior-defining files mentioned (impact={file_impact})")
+    elif file_impact >= 1:
+        reasons.append(f"source code files mentioned (impact={file_impact})")
 
-    # Multiple files mentioned
-    file_patterns = [r'\.(ts|js|py|go|rs|java|tsx|jsx|md|json|yaml|yml)\b', r'src/', r'lib/', r'test/']
-    file_mentions = sum(1 for p in file_patterns if re.search(p, text, re.IGNORECASE))
-    if file_mentions >= 2:
-        score += 2
-    elif file_mentions >= 1:
-        score += 1
-
-    # Integration keywords
+    # Integration surface (+2, matching old scorer's contribution)
     integration_keywords = ["integrate", "connect", "api", "endpoint", "service", "system"]
-    if any(kw in text.lower() for kw in integration_keywords):
+    text_lower = text.lower()
+    matched_integration = [kw for kw in integration_keywords if kw in text_lower]
+    if matched_integration:
         score += 2
+        reasons.append(f"integration surface: {', '.join(matched_integration[:3])}")
 
-    # Stakeholders mentioned
+    return (min(score, 3), reasons)
+
+
+def assess_reversibility(text: str) -> Tuple[int, List[str]]:
+    """Compute reversibility dimension from text.
+
+    0 = trivially reversible, 3 = very hard to undo.
+    Returns (score 0-3, list of explanation strings).
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    for compiled, weight, label in _COMPILED_IRREVERSIBILITY:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+
+    for compiled, weight, label in _COMPILED_MITIGATORS:
+        if compiled.search(text_lower):
+            score += weight  # weight is negative
+            reasons.append(f"{weight} {label}")
+
+    return (max(0, min(score, 3)), reasons)
+
+
+def assess_novelty(text: str, signals: List[str], is_ambiguous: bool) -> Tuple[int, List[str]]:
+    """Compute novelty dimension from text, detected signals, and ambiguity.
+
+    0 = routine/familiar, 3 = highly novel/uncertain.
+    Returns (score 0-3, list of explanation strings).
+
+    DEPENDENCY: Must be called AFTER detect_signals() since it uses the
+    signal count for cross-domain scoring.
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    # 1. Explicit novelty keywords (break on first match)
+    for compiled, weight, label in _COMPILED_NOVELTY:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+            break
+
+    # 2. Cross-domain indicator: multiple signal categories = broader scope
+    if len(signals) >= 3:
+        score += 2
+        reasons.append(f"+2 cross-domain ({len(signals)} signal categories)")
+    elif len(signals) >= 2:
+        score += 1
+        reasons.append(f"+1 multi-domain ({len(signals)} signal categories)")
+
+    # 3. Ambiguity as novelty proxy
+    if is_ambiguous:
+        score += 1
+        reasons.append("+1 ambiguity detected (uncertain scope)")
+
+    return (min(score, 3), reasons)
+
+
+def compute_composite(impact: int, reversibility: int, novelty: int, text: str) -> int:
+    """Derive backward-compatible 0-7 composite from risk dimensions + text factors.
+
+    Factors:
+    - impact (0-3): base score from file role + integration surface
+    - risk_premium (0-2): capped max of reversibility and novelty
+    - scope (0-2): word count indicator
+    - coordination (0-1): stakeholder mentions
+    """
+    base = impact
+
+    # Risk premium: whichever risk axis is worse, capped at 2
+    risk_premium = min(max(reversibility, novelty), 2)
+
+    # Scope: word count
+    word_count = len(text.split())
+    scope = 2 if word_count > 100 else (1 if word_count > 50 else 0)
+
+    # Coordination: stakeholder mentions
     stakeholder_keywords = ["team", "manager", "lead", "stakeholder", "customer", "user"]
-    if any(kw in text.lower() for kw in stakeholder_keywords):
-        score += 1
+    coordination = 1 if any(kw in text.lower() for kw in stakeholder_keywords) else 0
 
-    # Question marks (indicates uncertainty/scope exploration)
-    if text.count("?") >= 2:
-        score += 1
-
-    return min(score, 7)
+    return min(base + risk_premium + scope + coordination, 7)
 
 
 def is_ambiguous(text: str) -> bool:
@@ -220,9 +522,13 @@ def is_ambiguous(text: str) -> bool:
     return any(re.search(p, text_lower) for p in ambiguity_patterns)
 
 
+# ---------------------------------------------------------------------------
+# Specialist discovery and selection
+# ---------------------------------------------------------------------------
+
+
 def get_available_specialists(plugin_dir: Optional[Path] = None) -> Set[str]:
     """Check which specialist plugins are installed."""
-    # Look for specialist plugins in common locations
     available = set()
 
     search_paths = []
@@ -290,12 +596,10 @@ def select_specialists(
         - recommended: All specialists that should be engaged (sorted list)
         - available: Specialists that are installed (sorted list)
         - fallbacks: Mapping of unavailable specialists to fallback agents
-
-    Note: Uses set data structures internally to prevent duplicate specialists.
     """
     recommended = set()
 
-    # 1. Signal-based selection (SIGNAL_TO_SPECIALISTS already uses sets)
+    # 1. Signal-based selection
     for signal in signals:
         specialists = SIGNAL_TO_SPECIALISTS.get(signal, set())
         recommended.update(specialists)
@@ -304,7 +608,7 @@ def select_specialists(
     if complexity >= 5:
         recommended.add("wicked-delivery")
     if complexity >= 3:
-        recommended.add("wicked-qe")  # Always QE for moderate+
+        recommended.add("wicked-qe")
 
     # 3. Ambiguity detection
     if ambiguous:
@@ -314,7 +618,7 @@ def select_specialists(
     if complexity >= 2 or len(signals) >= 2:
         recommended.add("wicked-qe")
 
-    # 5. Filter to available (preserves set semantics - no duplicates)
+    # 5. Filter to available
     available_recommended = recommended.intersection(available)
     unavailable = recommended - available
 
@@ -323,7 +627,6 @@ def select_specialists(
     for spec in unavailable:
         fallback = SPECIALIST_FALLBACKS.get(spec)
         if fallback:
-            # Validate fallback reference
             if fallback not in VALID_FALLBACK_AGENTS:
                 logger.error(f"Invalid fallback agent '{fallback}' for specialist '{spec}'")
                 continue
@@ -349,18 +652,56 @@ def _validate_configuration():
 _validate_configuration()
 
 
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
+
 def analyze_input(text: str, plugin_dir: Optional[Path] = None) -> SignalAnalysis:
     """
     Main entry point: Analyze user input and return signal analysis.
+
+    ORDERING: detect_signals runs BEFORE assess_novelty because novelty
+    uses the signal count for cross-domain scoring.
     """
     logger.info(f"Analyzing input ({len(text)} chars)")
 
+    # Signal detection first (novelty depends on signal count)
     signals = detect_signals(text)
-    complexity = assess_complexity(text)
     ambiguous = is_ambiguous(text)
     available = get_available_specialists(plugin_dir)
 
+    # Compute risk dimensions
+    impact, impact_reasons = assess_impact(text)
+    reversibility, rev_reasons = assess_reversibility(text)
+    novelty, nov_reasons = assess_novelty(text, signals, ambiguous)
+
+    # Build explanation
+    explanation = []
+    if impact_reasons:
+        explanation.append(f"Impact ({impact}/3): {'; '.join(impact_reasons)}")
+    if rev_reasons:
+        explanation.append(f"Reversibility ({reversibility}/3): {'; '.join(rev_reasons)}")
+    if nov_reasons:
+        explanation.append(f"Novelty ({novelty}/3): {'; '.join(nov_reasons)}")
+
+    risk_dims = RiskDimensions(
+        impact=impact,
+        reversibility=reversibility,
+        novelty=novelty,
+        explanation=explanation,
+    )
+
+    # Backward-compatible composite
+    complexity = compute_composite(impact, reversibility, novelty, text)
+
+    # Dimension-driven flags
+    flags = {}
+    if risk_dims.reversibility >= 2:
+        flags["needs_rollback_plan"] = True
+
     logger.debug(f"Signals detected: {signals}")
+    logger.debug(f"Risk dimensions: impact={impact}, reversibility={reversibility}, novelty={novelty}")
     logger.debug(f"Complexity score: {complexity}/7")
     logger.debug(f"Ambiguous: {ambiguous}")
 
@@ -388,12 +729,14 @@ def analyze_input(text: str, plugin_dir: Optional[Path] = None) -> SignalAnalysi
     return SignalAnalysis(
         signals=signals,
         complexity_score=complexity,
+        risk_dimensions=risk_dims,
         recommended_specialists=recommended,
         available_specialists=available_specs,
         unavailable_specialists=unavailable,
         fallback_agents=fallbacks,
         is_ambiguous=ambiguous,
-        confidence=confidence
+        confidence=confidence,
+        flags=flags,
     )
 
 
@@ -425,6 +768,21 @@ def main():
         print(f"Complexity score: {analysis.complexity_score}/7")
         print(f"Confidence: {analysis.confidence}")
         print(f"Ambiguous: {'yes' if analysis.is_ambiguous else 'no'}")
+        print()
+        dims = analysis.risk_dimensions
+        print(f"Risk Dimensions:")
+        print(f"  Impact:        {dims.impact}/3")
+        print(f"  Reversibility: {dims.reversibility}/3")
+        print(f"  Novelty:       {dims.novelty}/3")
+        if dims.explanation:
+            print(f"  Explanation:")
+            for exp in dims.explanation:
+                print(f"    - {exp}")
+        if analysis.flags:
+            print()
+            print(f"Flags:")
+            for flag_name, flag_value in analysis.flags.items():
+                print(f"  {flag_name}: {flag_value}")
         print()
         print(f"Recommended specialists: {', '.join(analysis.recommended_specialists) or 'none'}")
         print(f"Available: {', '.join(analysis.available_specialists) or 'none'}")
