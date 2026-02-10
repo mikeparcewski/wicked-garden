@@ -38,7 +38,7 @@
       "name": "wicked-crew",
       "source": "./plugins/wicked-crew",
       "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates (value, strategy, execution).",
-      "version": "0.9.1"
+      "version": "0.9.2"
     },
     {
       "name": "wicked-jam",
@@ -98,7 +98,7 @@
       "name": "wicked-smaht",
       "source": "./plugins/wicked-smaht",
       "description": "Ecosystem multiplier \u2014 automatically gathers context from installed plugins (memories, tasks, code search, brainstorms) before Claude responds. The more plugins you install, the smarter it gets. Confidence-based routing: fast path for simple queries, comprehensive assembly for complex ones.",
-      "version": "2.3.1"
+      "version": "2.4.0"
     },
     {
       "name": "wicked-agentic",
