@@ -55,7 +55,14 @@ class Orchestrator:
 
         # Execute appropriate path with error handling
         try:
-            if decision.path == PathDecision.FAST:
+            if decision.path == PathDecision.HOT:
+                # Hot path: session state only, no adapter queries
+                state = self.condenser.get_session_state()
+                briefing = self._format_hot_briefing(state)
+                path_used = "hot"
+                sources_queried = ["session_state"]
+                sources_failed = []
+            elif decision.path == PathDecision.FAST:
                 result = await self.fast_path.assemble(prompt, decision.analysis)
                 path_used = "fast"
                 briefing = result.briefing
@@ -87,6 +94,23 @@ class Orchestrator:
             latency_ms=total_latency,
             routing_reason=decision.reason,
         )
+
+    def _format_hot_briefing(self, state: dict) -> str:
+        """Format minimal briefing from session state for hot path.
+
+        Only includes the working state (current task, constraints, file scope).
+        No adapter queries, no history dump — just the ticket rail.
+        """
+        lines = []
+        if state.get("current_task"):
+            lines.append(f"**Current task**: {state['current_task']}")
+        if state.get("decisions"):
+            lines.append(f"**Recent decisions**: {'; '.join(state['decisions'][-2:])}")
+        if state.get("active_constraints"):
+            lines.append(f"**Constraints**: {'; '.join(state['active_constraints'][-3:])}")
+        if state.get("file_scope"):
+            lines.append(f"**Active files**: {', '.join(state['file_scope'][-5:])}")
+        return "\n".join(lines) if lines else "(Session state empty — new session)"
 
     def add_turn(self, user_msg: str, assistant_msg: str, tools_used: list[str] = None):
         """Record a turn in session history."""

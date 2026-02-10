@@ -169,6 +169,24 @@ This table mirrors specialist.json `enhances` declarations. Always use the disco
 
 When engaging a specialist, use Task dispatch for heavy analysis work. Keep slash commands only for interactive or thin CLI operations. `-` means no direct dispatch for that phase.
 
+**Structured context packages**: Instead of dumping prose context into subagent prompts, use the context package builder to assemble task-scoped context from session state + memory + search:
+
+```bash
+# Build a context package for the subagent
+python3 "${SMAHT_PLUGIN_ROOT}/scripts/context_package.py" build \
+  --task "{task description}" \
+  --project "{project-name}" \
+  --prompt
+```
+
+Where `SMAHT_PLUGIN_ROOT` is discovered via:
+```bash
+# Find wicked-smaht plugin root (check cache, then local)
+SMAHT_PLUGIN_ROOT=$(find ~/.claude/plugins/cache/wicked-garden/wicked-smaht -maxdepth 1 -type d | sort -V | tail -1)
+```
+
+The context package outputs a structured prompt section with: task, decisions, constraints, file scope, relevant code, memories, and project state. Include this in the subagent prompt instead of raw deliverable text.
+
 For each specialist engagement, the dispatch pattern is:
 
 ```
@@ -179,7 +197,9 @@ Task(
   prompt="""
   {Phase-appropriate analysis prompt}.
   Project: {project-name}
-  Context: {deliverables from previous phases}
+
+  {Output from context_package.py --task "{task}" --project "{project-name}" --prompt}
+
   Signals: {relevant signals from project.json}
   """
 )
