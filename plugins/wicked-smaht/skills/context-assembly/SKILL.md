@@ -32,8 +32,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/v2/orchestrator.py" gather "your query" -
 
 | Path | Latency | Adapters | Depth |
 |------|---------|----------|-------|
+| Hot | <100ms | None (session state only) | Ticket rail: task, decisions, constraints, files |
 | Fast | ~500ms | Intent-specific (2-3) | 5 items/source |
 | Slow | ~525ms | All adapters (6) | 10 items/source + history |
+
+Router triggers **hot path** for short continuations/confirmations (<30 chars, e.g. "yes", "do it").
 
 Router triggers **slow path** when:
 - Low confidence (<0.5) or competing intents

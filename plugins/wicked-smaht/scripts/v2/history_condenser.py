@@ -40,24 +40,43 @@ class Turn:
 
 @dataclass
 class SessionSummary:
-    """Compressed session summary."""
+    """Compressed session summary — the "ticket rail" for the session.
+
+    Beyond topics/decisions/preferences, tracks working state:
+    current task, active constraints, file scope, and open questions.
+    This is the L2 cache between the rolling turn buffer (L1) and
+    long-term memory in wicked-mem (L3).
+    """
     topics: list[str] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
     preferences: list[str] = field(default_factory=list)
     open_threads: list[str] = field(default_factory=list)
+    # Working state fields (the "ticket rail")
+    current_task: str = ""
+    active_constraints: list[str] = field(default_factory=list)
+    file_scope: list[str] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
 
     def to_markdown(self) -> str:
         """Format as markdown."""
         lines = []
 
+        if self.current_task:
+            lines.append(f"**Current task**: {self.current_task}")
         if self.topics:
             lines.append("**Topics**: " + ", ".join(self.topics[:5]))
         if self.decisions:
             lines.append("**Decisions**: " + "; ".join(self.decisions[:3]))
+        if self.active_constraints:
+            lines.append("**Constraints**: " + "; ".join(self.active_constraints[:3]))
+        if self.file_scope:
+            lines.append("**Files**: " + ", ".join(self.file_scope[:8]))
         if self.preferences:
             lines.append("**Preferences**: " + ", ".join(self.preferences[:3]))
+        if self.open_questions:
+            lines.append("**Open questions**: " + "; ".join(self.open_questions[:3]))
         if self.open_threads:
-            lines.append("**Open**: " + ", ".join(self.open_threads[:3]))
+            lines.append("**Open threads**: " + ", ".join(self.open_threads[:3]))
 
         return "\n".join(lines) if lines else "(No summary yet)"
 
@@ -85,7 +104,10 @@ class HistoryCondenser:
         if summary_path.exists():
             try:
                 data = json.loads(summary_path.read_text())
-                return SessionSummary(**data)
+                # Filter to known fields only (schema drift safety)
+                known = {f.name for f in SessionSummary.__dataclass_fields__.values()}
+                filtered = {k: v for k, v in data.items() if k in known}
+                return SessionSummary(**filtered)
             except Exception:
                 pass
         return SessionSummary()
@@ -105,14 +127,12 @@ class HistoryCondenser:
 
     def _atomic_write(self, path: Path, content: str):
         """Write file atomically using temp file + rename."""
-        # Write to temp file in same directory, then rename
         fd, tmp_path = tempfile.mkstemp(dir=self.session_dir, suffix=".tmp")
         try:
-            os.write(fd, content.encode("utf-8"))
-            os.close(fd)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(content)
             os.replace(tmp_path, path)
         except Exception:
-            os.close(fd)
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
             raise
@@ -126,6 +146,10 @@ class HistoryCondenser:
             "decisions": self.summary.decisions,
             "preferences": self.summary.preferences,
             "open_threads": self.summary.open_threads,
+            "current_task": self.summary.current_task,
+            "active_constraints": self.summary.active_constraints,
+            "file_scope": self.summary.file_scope,
+            "open_questions": self.summary.open_questions,
         }, indent=2)
         self._atomic_write(summary_path, summary_content)
 
@@ -177,6 +201,12 @@ class HistoryCondenser:
                 self.summary.preferences.append(pref)
                 if len(self.summary.preferences) > self.MAX_PREFERENCES:
                     self.summary.preferences.pop(0)
+
+        # Extract working state: files touched, constraints, questions
+        self._update_file_scope(turn)
+        self._update_constraints(turn)
+        self._update_current_task(turn)
+        self._update_open_questions(turn)
 
     def _extract_topics(self, text: str) -> list[str]:
         """Extract topics from text."""
@@ -247,6 +277,76 @@ class HistoryCondenser:
 
         return preferences[:2]
 
+    def _update_file_scope(self, turn: Turn):
+        """Track files mentioned or modified in this turn."""
+        combined = turn.user + " " + turn.assistant
+        # Match file paths and filenames
+        files = re.findall(
+            r'(?:^|[\s"\'`(])([a-zA-Z_][a-zA-Z0-9_/.-]*\.'
+            r'(?:py|ts|js|tsx|jsx|md|json|yaml|yml|sh|sql|java|go|rs))\b',
+            combined
+        )
+        # Also pick up paths from tool use (Read, Edit, Write patterns)
+        paths = re.findall(r'file_path["\s:]+([^\s"]+)', combined)
+        all_files = list(dict.fromkeys(files + paths))  # dedupe, preserve order
+        for f in all_files:
+            if f not in self.summary.file_scope:
+                self.summary.file_scope.append(f)
+        # Keep bounded — most recent files matter most
+        if len(self.summary.file_scope) > 20:
+            self.summary.file_scope = self.summary.file_scope[-20:]
+
+    def _update_constraints(self, turn: Turn):
+        """Extract constraints from conversation."""
+        combined = (turn.user + " " + turn.assistant).lower()
+        patterns = [
+            r"(?:must|should|need to|has to|require[sd]?) ([^.!?]{10,80})",
+            r"(?:don't|do not|never|avoid) ([^.!?]{10,80})",
+            r"(?:constraint|requirement|rule):\s*([^.!?]{10,80})",
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, combined)
+            for match in matches[:2]:
+                match = match.strip()
+                if match and match not in self.summary.active_constraints:
+                    self.summary.active_constraints.append(match)
+        if len(self.summary.active_constraints) > 10:
+            self.summary.active_constraints = self.summary.active_constraints[-10:]
+
+    def _update_current_task(self, turn: Turn):
+        """Track what the user is currently working on."""
+        user_lower = turn.user.lower()
+        # Explicit task statements
+        patterns = [
+            r"(?:i(?:'m| am) (?:working on|trying to|building|fixing|implementing)) ([^.!?]{10,100})",
+            r"(?:let's|help me) ([^.!?]{10,100})",
+            r"(?:task|goal|objective):\s*([^.!?]{10,100})",
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, user_lower)
+            if matches:
+                self.summary.current_task = matches[0].strip()
+                return
+        # Also detect from crew task subjects
+        if "TaskCreate" in turn.assistant or "TaskUpdate" in turn.assistant:
+            task_match = re.search(r'subject["\s:]+([^"]+)', turn.assistant)
+            if task_match:
+                self.summary.current_task = task_match.group(1).strip()
+
+    def _update_open_questions(self, turn: Turn):
+        """Track recent questions from assistant. Keeps last 3 on substantive user response."""
+        # Questions from the assistant that need user input
+        questions = re.findall(r'([^.!]*\?)', turn.assistant)
+        for q in questions[-2:]:
+            q = q.strip()
+            if len(q) > 15 and len(q) < 150:
+                self.summary.open_questions.append(q)
+        # Clear questions that were likely answered by user input
+        if turn.user and self.summary.open_questions:
+            # If user gave a substantive response, clear oldest question
+            if len(turn.user) > 10:
+                self.summary.open_questions = self.summary.open_questions[-3:]
+
     def get_condensed_history(self) -> str:
         """Get condensed history for subagent input."""
         lines = ["## Session Context", ""]
@@ -307,11 +407,16 @@ class HistoryCondenser:
         return None
 
     def get_session_state(self) -> dict:
-        """Get session state for router."""
+        """Get full session state — the 'ticket rail' for context assembly."""
         return {
             "session_id": self.session_id,
             "turn_count": len(self.turn_buffer),
             "topics": self.summary.topics,
+            "decisions": self.summary.decisions,
+            "current_task": self.summary.current_task,
+            "active_constraints": self.summary.active_constraints,
+            "file_scope": self.summary.file_scope,
+            "open_questions": self.summary.open_questions,
             "has_decisions": len(self.summary.decisions) > 0,
             "has_open_threads": len(self.summary.open_threads) > 0,
         }

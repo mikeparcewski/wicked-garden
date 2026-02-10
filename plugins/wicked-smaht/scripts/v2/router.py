@@ -37,8 +37,9 @@ class IntentType(str, Enum):
 
 
 class PathDecision(str, Enum):
-    FAST = "fast"
-    SLOW = "slow"
+    HOT = "hot"    # Ultra-fast: continuation/confirmation, no adapter queries
+    FAST = "fast"  # Pattern-based: intent-specific adapters only
+    SLOW = "slow"  # Comprehensive: all adapters + history
 
 
 # Intent detection patterns
@@ -93,6 +94,15 @@ COMPOUND_PATTERNS = [
     r"(\d+\.\s+.+\n\s*\d+\.)",  # Numbered list
 ]
 
+# Continuation patterns — signals that the user is continuing the current topic
+# These should use the hot path (session state only, no adapter queries)
+CONTINUATION_PATTERNS = [
+    r"^(yes|yeah|yep|yup|ok|okay|sure|fine|good|great|perfect|right|correct|exactly|agreed|approved?)\.?$",
+    r"^(do it|go ahead|go for it|sounds good|looks good|ship it|proceed|continue|carry on|next)\.?$",
+    r"^(thanks|thank you|ty|thx)\.?$",
+    r"^(that|this|it|the same)$",
+]
+
 
 @dataclass
 class PromptAnalysis:
@@ -108,6 +118,7 @@ class PromptAnalysis:
     is_planning: bool = False
     is_novel: bool = False
     is_compound: bool = False
+    is_continuation: bool = False
 
 
 @dataclass
@@ -130,8 +141,12 @@ class Router:
         self.fast_path_cache: dict[str, bool] = {}
 
     def route(self, prompt: str) -> RouterDecision:
-        """Route a prompt to fast or slow path."""
+        """Route a prompt to hot, fast, or slow path."""
         analysis = self.analyze(prompt)
+
+        # Hot path: continuations/confirmations — no adapter queries needed
+        if analysis.is_continuation:
+            return RouterDecision(PathDecision.HOT, analysis, "Continuation/confirmation — session state only")
 
         # Check escalation triggers (slow path)
         if self._should_escalate(analysis):
@@ -161,6 +176,7 @@ class Router:
         is_planning = intent_type == IntentType.PLANNING or self._is_planning_request(prompt_lower)
         is_novel = self._is_novel_topic(entities)
         is_compound = self._is_compound_request(prompt_lower)
+        is_continuation = self._is_continuation(prompt)
 
         return PromptAnalysis(
             prompt=prompt,
@@ -174,6 +190,7 @@ class Router:
             is_planning=is_planning,
             is_novel=is_novel,
             is_compound=is_compound,
+            is_continuation=is_continuation,
         )
 
     def _detect_intent(self, prompt_lower: str) -> tuple[IntentType, float, int]:
@@ -242,6 +259,21 @@ class Router:
         # Novel if majority of entities are new
         new_count = sum(1 for e in entities if e not in self.session_topics)
         return new_count > len(entities) / 2
+
+    def _is_continuation(self, prompt: str) -> bool:
+        """Check if prompt is a simple continuation/confirmation.
+
+        Short prompts that confirm, approve, or continue the current flow.
+        These use the hot path — session state only, no adapter queries.
+        """
+        stripped = prompt.strip()
+        # Must be short (< 30 chars) to qualify
+        if len(stripped) > 30:
+            return False
+        for pattern in CONTINUATION_PATTERNS:
+            if re.match(pattern, stripped, re.IGNORECASE):
+                return True
+        return False
 
     def _is_compound_request(self, prompt_lower: str) -> bool:
         """Check for compound/multi-part requests."""
@@ -325,6 +357,7 @@ def main():
             "is_planning": decision.analysis.is_planning,
             "is_novel": decision.analysis.is_novel,
             "is_compound": decision.analysis.is_compound,
+            "is_continuation": decision.analysis.is_continuation,
         }
     }, indent=2))
 

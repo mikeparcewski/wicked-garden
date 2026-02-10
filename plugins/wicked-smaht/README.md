@@ -27,6 +27,7 @@ No commands needed for normal use. It just works.
 | `/smaht --deep` | Force comprehensive context from all sources | `/smaht --deep` |
 | `/smaht --sources` | Show which adapters were selected and why | `/smaht --sources` |
 | `/onboard` | Codebase onboarding walkthrough | `/onboard` |
+| `/debug` | Show session state, routing stats, context preview | `/debug --state` |
 
 ## How It Works
 
@@ -57,14 +58,15 @@ wicked-smaht pulls from whatever plugins you have installed:
 
 Missing plugins are silently skipped - you get context from whatever is available.
 
-### Fast vs Deep Path
+### Hot / Fast / Deep Path
 
 | Path | Sources | When Used |
 |------|---------|-----------|
+| **Hot** | Session state only (no adapters) | Continuations, confirmations ("yes", "do it", "looks good") |
 | **Fast** | 2-3 intent-specific adapters | High confidence, focused queries |
-| **Deep** | All 6 adapters | Complex planning, ambiguous, or novel topics |
+| **Deep** | All 6 adapters + history | Complex planning, ambiguous, or novel topics |
 
-The router escalates to the deep path when it detects low confidence, competing intents, or references to past conversations.
+The router escalates to the deep path when it detects low confidence, competing intents, or references to past conversations. Short confirmations hit the hot path for instant responses using only the session "ticket rail" (current task, decisions, constraints, active files).
 
 ## Example Context Briefing
 
