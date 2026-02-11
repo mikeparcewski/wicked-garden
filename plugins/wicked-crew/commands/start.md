@@ -119,6 +119,13 @@ This returns:
 - **complexity**: Score 0-7 (low/medium/high)
 - **ambiguous**: Whether clarification is needed
 - **recommended_specialists**: Which plugins would help
+- **memory_payload**: (if significant) A payload for the caller to store via `/wicked-mem:store`
+
+**If `memory_payload` is present** in the JSON output, store it using Claude's native tool system:
+```
+/wicked-mem:store "{memory_payload.content}" --type {memory_payload.type} --tags "{memory_payload.tags}" --importance {memory_payload.importance}
+```
+Scripts never call other plugins directly — Claude's tool system is the universal API.
 
 Store analysis in project.json:
 

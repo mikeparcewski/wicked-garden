@@ -118,6 +118,18 @@ When new signals are detected OR complexity increases at a checkpoint, check if 
 
 **User override**: If project.json contains `"phase_plan_mode": "static"`, skip re-analysis and injection entirely.
 
+#### Memory Payload Storage
+
+When `smart_decisioning.py --json` output includes a `memory_payload` field (non-null), the analysis was deemed significant and should be persisted to wicked-mem. **The script only returns the payload — this command is responsible for storing it** via Claude's native tool system:
+
+```
+/wicked-mem:store "{memory_payload.content}" --type {memory_payload.type} --tags "{memory_payload.tags}" --importance {memory_payload.importance}
+```
+
+This applies to ALL calls to `smart_decisioning.py` — both initial analysis (in start.md) and checkpoint re-analysis. The same pattern applies to `feedback.py record --json` which also returns a `memory_payload`.
+
+**Rationale**: Scripts run as subprocesses and should never call other plugins directly. Claude's tool system (skills, Task tool) IS the universal API for cross-plugin communication.
+
 ### 5. Discover Available Specialists
 
 Run specialist discovery to find installed specialist plugins:
