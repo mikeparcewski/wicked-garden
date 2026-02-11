@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0] - 2026-02-10
+
+### Features
+- feat(wicked-crew): replace extension-based scoring with multi-dimensional risk analysis (2a7042b)
+- feat(wicked-smaht): add tiered context management with HOT/FAST/SLOW routing (2bef5da)
+
+### Documentation
+- docs: fix README issues from 18-plugin specialist review (59d495b)
+- docs: rewrite READMEs with differentiators and value-first openings (a89f1ff)
+
+### Chores
+- release: wicked-smaht v2.4.0, wicked-crew v0.9.2 (f05e63e)
+- review useless files (29b10d1)
+- chore: normalize author to Mike Parcewski and fix repo URLs (ab8df47)
+
 ## [0.1.6] - 2026-02-08
 
 ### Features

@@ -1,16 +1,17 @@
-# Release wicked-smaht v2.4.0
+# Release wicked-data v0.3.0
 
-**Date**: 2026-02-09
-**Component**: wicked-smaht
+**Date**: 2026-02-10
+**Component**: wicked-data
 
 ## Summary
 
-This release includes: 1 new feature(s).
+This release includes: 2 new feature(s).
 
 ## Changes
 
 ### Features
 
+- feat(wicked-crew): replace extension-based scoring with multi-dimensional risk analysis (2a7042b)
 - feat(wicked-smaht): add tiered context management with HOT/FAST/SLOW routing (2bef5da)
 
 ### Documentation
@@ -20,6 +21,7 @@ This release includes: 1 new feature(s).
 
 ### Chores
 
+- release: wicked-smaht v2.4.0, wicked-crew v0.9.2 (f05e63e)
 - review useless files (29b10d1)
 - chore: normalize author to Mike Parcewski and fix repo URLs (ab8df47)
 
@@ -30,5 +32,5 @@ This release includes: 1 new feature(s).
 claude marketplace add wickedagile/wicked-garden
 
 # Then install the plugin
-claude plugin install wicked-smaht@wicked-garden
+claude plugin install wicked-data@wicked-garden
 ```
