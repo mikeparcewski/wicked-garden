@@ -1,6 +1,6 @@
 {
   "name": "wicked-delivery",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Delivery management expertise spanning PMO, onboarding, experimentation, and FinOps. Includes delivery managers, cost analysts, and rollout coordinators.",
   "author": {
     "name": "Mike Parcewski"

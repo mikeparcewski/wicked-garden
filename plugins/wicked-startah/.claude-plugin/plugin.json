@@ -1,6 +1,6 @@
 {
   "name": "wicked-startah",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "description": "Opinionated starter kit with MCP servers and plugin recommendations for a productive Claude Code setup",
   "author": {
     "name": "Mike Parcewski"

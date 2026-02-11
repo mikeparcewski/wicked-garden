@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.5.0] - 2026-02-10
+
+### Features
+- feat(wicked-crew): replace extension-based scoring with multi-dimensional risk analysis (2a7042b)
+
+### Chores
+- release: wicked-smaht v2.4.0, wicked-crew v0.9.2 (f05e63e)
+
 ## [2.4.0] - 2026-02-09
 
 ### Features
