@@ -77,7 +77,7 @@ Specialists define `specialist.json` with personas, phase enhancements, and hook
 
 Plugins never import each other's code directly. Three communication patterns:
 
-1. **Script discovery + subprocess** (wicked-smaht adapters are the gold standard):
+1. **Script discovery + subprocess** — for infrastructure code (adapters, hooks) that runs in Python:
    ```python
    script = discover_script("wicked-mem", "memory.py")  # cache path → local sibling
    returncode, stdout, stderr = await run_subprocess([sys.executable, str(script), ...])
@@ -87,6 +87,13 @@ Plugins never import each other's code directly. Three communication patterns:
 2. **Hook events** — plugins subscribe/publish via hooks.json. Event format: `{plugin}:{domain}:{action}:{outcome}` (e.g., `crew:phase:started:success`).
 
 3. **Task tool dispatch** — commands invoke agents from other plugins via `Task(subagent_type="wicked-platform:security-engineer", ...)`.
+
+**Universal API principle**: Claude's tool system (skills, Task tool) IS the universal API for cross-plugin communication. Scripts called by commands should **return data** (including any cross-plugin payloads), and the **calling command** stores/routes via Claude's native tools. Scripts must NEVER call other plugins via subprocess — that pattern is reserved for infrastructure code (smaht adapters, hook scripts) that runs outside Claude's tool context.
+
+```
+WRONG:  command → subprocess(script) → subprocess(other_plugin_script)
+RIGHT:  command → subprocess(script) → returns payload → command → /other-plugin:skill
+```
 
 ### Context Assembly (wicked-smaht)
 
@@ -164,7 +171,7 @@ Matchers specify tool names: `"*"` for all, or specific like `"TaskCreate"`, `"W
 
 ### Storage
 
-All plugin state goes under `~/.something-wicked/{plugin-name}/`. Never read another plugin's storage directly — use `discover_script()` + subprocess.
+All plugin state goes under `~/.something-wicked/{plugin-name}/`. Never read another plugin's storage directly. For infrastructure code (adapters, hooks): use `discover_script()` + subprocess. For scripts called by commands: return data and let the command use Claude's tool system (see Universal API principle above).
 
 ### Graceful Degradation
 

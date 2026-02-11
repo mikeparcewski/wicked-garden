@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional
 from dataclasses import dataclass, asdict, field
@@ -318,18 +319,54 @@ class RiskDimensions:
 
 
 @dataclass
+class RoutingInfo:
+    """How and why a specialist was selected."""
+    tier: str           # REQUIRED, RECOMMENDED, OPTIONAL
+    reason: str         # Human-readable explanation
+    signals: List[str]  # Which signals triggered this
+
+
+@dataclass
+class AnalysisOverrides:
+    """User-configurable overrides for signal analysis."""
+    complexity_override: Optional[int] = None
+    skip_signals: List[str] = field(default_factory=list)
+    force_signals: List[str] = field(default_factory=list)
+    skip_injection: bool = False
+    signal_threshold: float = 0.1
+    component_overrides: Dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
+class ContextualVariables:
+    """Optional context that modifies scoring."""
+    urgency: str = "medium"         # low, medium, high, critical
+    team_size: int = 1
+    customer_type: str = "internal"  # internal, external, enterprise
+
+
+URGENCY_MODIFIERS = {"low": -1, "medium": 0, "high": 1, "critical": 2}
+CUSTOMER_SIGNAL_INJECTION = {"enterprise": ["compliance"], "external": ["security"]}
+
+
+@dataclass
 class SignalAnalysis:
     """Result of analyzing user input for signals."""
-    signals: List[str]
-    complexity_score: int  # 0-7, backward-compatible composite
+    signals: List[str]                              # Categories above threshold
+    signal_confidences: Dict[str, float]            # Raw confidence per category
+    complexity_score: int                           # 0-7 composite
+    complexity_breakdown: Dict[str, int]            # Component values
     risk_dimensions: RiskDimensions
     recommended_specialists: List[str]
     available_specialists: List[str]
     unavailable_specialists: List[str]
+    specialist_routing: Dict[str, RoutingInfo]      # Tier + reason per specialist
     fallback_agents: Dict[str, str]
     is_ambiguous: bool
-    confidence: str  # HIGH, MEDIUM, LOW
+    confidence: str                                 # HIGH, MEDIUM, LOW
     flags: Dict[str, bool] = field(default_factory=dict)
+    overrides_applied: Dict = field(default_factory=dict)
+    memory_payload: Optional[Dict] = field(default=None)  # For caller to store via /wicked-mem:store
 
 
 # ---------------------------------------------------------------------------
@@ -337,21 +374,38 @@ class SignalAnalysis:
 # ---------------------------------------------------------------------------
 
 
-def detect_signals(text: str) -> List[str]:
-    """Detect signal categories present in text.
+def detect_signals(text: str, threshold: float = 0.1) -> Dict[str, float]:
+    """Detect signal categories with confidence scores.
 
-    Uses pre-compiled patterns with stem-aware matching.
+    Confidence = matched_keywords / total_keywords_in_category.
+    Returns only categories at or above threshold.
+
+    This replaces the old binary detection. Categories above threshold
+    are considered "detected" — the confidence value indicates strength.
     """
     text_lower = text.lower()
-    detected = []
+    confidences: Dict[str, float] = {}
 
     for category, patterns in _COMPILED_SIGNAL_PATTERNS.items():
-        for compiled, _keyword in patterns:
-            if compiled.search(text_lower):
-                detected.append(category)
-                break
+        if not patterns:
+            continue
+        matches = sum(1 for compiled, _ in patterns if compiled.search(text_lower))
+        confidence = matches / len(patterns)
+        if confidence >= threshold:
+            confidences[category] = round(confidence, 3)
 
-    return detected
+    # Merge with semantic detection if available (V2-2)
+    try:
+        from signal_library import get_library
+        lib = get_library()
+        semantic = lib.detect(text)
+        for cat, score in semantic.items():
+            if score >= threshold:
+                confidences[cat] = max(confidences.get(cat, 0.0), round(score, 3))
+    except (ImportError, Exception):
+        pass  # ChromaDB not available — keyword-only mode
+
+    return confidences
 
 
 def assess_file_impact(text: str) -> int:
@@ -480,29 +534,51 @@ def assess_novelty(text: str, signals: List[str], is_ambiguous: bool) -> Tuple[i
     return (min(score, 3), reasons)
 
 
-def compute_composite(impact: int, reversibility: int, novelty: int, text: str) -> int:
-    """Derive backward-compatible 0-7 composite from risk dimensions + text factors.
+STAKEHOLDER_KEYWORDS = ["team", "manager", "lead", "stakeholder", "customer", "user"]
+
+
+def compute_composite(
+    impact: int, reversibility: int, novelty: int, text: str,
+    component_overrides: Optional[Dict[str, int]] = None
+) -> Tuple[int, Dict[str, int]]:
+    """Derive 0-7 composite from risk dimensions + text factors.
+
+    Returns (score, breakdown) where breakdown is a dict of component values.
 
     Factors:
     - impact (0-3): base score from file role + integration surface
-    - risk_premium (0-2): capped max of reversibility and novelty
+    - risk_premium (0-2): multiplicative model — both reversibility AND novelty
+      must be elevated for high premium. Eliminates the degenerate equilibrium
+      where rev=3 and rev=2 produced identical outcomes under the old formula.
     - scope (0-2): word count indicator
     - coordination (0-1): stakeholder mentions
     """
-    base = impact
-
-    # Risk premium: whichever risk axis is worse, capped at 2
-    risk_premium = min(max(reversibility, novelty), 2)
+    # Multiplicative risk premium: rev*nov*0.22 → capped at 2
+    # 3*3*0.22=1.98→2, 2*2*0.22=0.88→1, 3*0*0.22=0→0 (degeneracy fix)
+    risk_premium = min(round(reversibility * novelty * 0.22), 2)
 
     # Scope: word count
     word_count = len(text.split())
     scope = 2 if word_count > 100 else (1 if word_count > 50 else 0)
 
     # Coordination: stakeholder mentions
-    stakeholder_keywords = ["team", "manager", "lead", "stakeholder", "customer", "user"]
-    coordination = 1 if any(kw in text.lower() for kw in stakeholder_keywords) else 0
+    coordination = 1 if any(kw in text.lower() for kw in STAKEHOLDER_KEYWORDS) else 0
 
-    return min(base + risk_premium + scope + coordination, 7)
+    breakdown = {
+        "impact": impact,
+        "risk_premium": risk_premium,
+        "scope": scope,
+        "coordination": coordination,
+    }
+
+    # Apply per-component overrides (V2-4: editable complexity)
+    if component_overrides:
+        for key, value in component_overrides.items():
+            if key in breakdown:
+                breakdown[key] = value
+
+    total = min(sum(breakdown.values()), 7)
+    return total, breakdown
 
 
 def is_ambiguous(text: str) -> bool:
@@ -584,39 +660,55 @@ def validate_fallback_references() -> List[str]:
 
 
 def select_specialists(
-    signals: List[str],
+    signal_confidences: Dict[str, float],
     complexity: int,
     ambiguous: bool,
     available: Set[str]
-) -> Tuple[List[str], List[str], Dict[str, str]]:
+) -> Tuple[List[str], List[str], Dict[str, str], Dict[str, RoutingInfo]]:
     """
-    Select specialists based on signals and complexity.
+    Select specialists based on signal confidences and complexity.
 
     Returns:
         - recommended: All specialists that should be engaged (sorted list)
         - available: Specialists that are installed (sorted list)
         - fallbacks: Mapping of unavailable specialists to fallback agents
+        - routing: RoutingInfo per specialist (tier, reason, signals)
     """
-    recommended = set()
+    routing: Dict[str, RoutingInfo] = {}
+    signals = list(signal_confidences.keys())
 
-    # 1. Signal-based selection
-    for signal in signals:
+    # 1. Signal-based selection with tier assignment
+    for signal, confidence in signal_confidences.items():
         specialists = SIGNAL_TO_SPECIALISTS.get(signal, set())
-        recommended.update(specialists)
+        tier = "REQUIRED" if confidence >= 0.3 else "RECOMMENDED"
+        for spec in specialists:
+            if spec not in routing:
+                routing[spec] = RoutingInfo(tier=tier, reason=f"signal:{signal}", signals=[signal])
+            else:
+                # Upgrade tier if stronger signal found
+                if tier == "REQUIRED" and routing[spec].tier != "REQUIRED":
+                    routing[spec].tier = "REQUIRED"
+                routing[spec].signals.append(signal)
 
     # 2. Complexity-based additions
-    if complexity >= 5:
-        recommended.add("wicked-delivery")
-    if complexity >= 3:
-        recommended.add("wicked-qe")
+    if complexity >= 5 and "wicked-delivery" not in routing:
+        routing["wicked-delivery"] = RoutingInfo(
+            tier="RECOMMENDED", reason=f"complexity:{complexity}>=5", signals=[])
+    if complexity >= 3 and "wicked-qe" not in routing:
+        routing["wicked-qe"] = RoutingInfo(
+            tier="RECOMMENDED", reason=f"complexity:{complexity}>=3", signals=[])
 
     # 3. Ambiguity detection
-    if ambiguous:
-        recommended.add("wicked-jam")
+    if ambiguous and "wicked-jam" not in routing:
+        routing["wicked-jam"] = RoutingInfo(
+            tier="RECOMMENDED", reason="ambiguity detected", signals=["ambiguity"])
 
     # 4. Always include QE for non-trivial work
-    if complexity >= 2 or len(signals) >= 2:
-        recommended.add("wicked-qe")
+    if (complexity >= 2 or len(signals) >= 2) and "wicked-qe" not in routing:
+        routing["wicked-qe"] = RoutingInfo(
+            tier="RECOMMENDED", reason="non-trivial work", signals=[])
+
+    recommended = set(routing.keys())
 
     # 5. Filter to available
     available_recommended = recommended.intersection(available)
@@ -635,7 +727,8 @@ def select_specialists(
     return (
         sorted(list(recommended)),
         sorted(list(available_recommended)),
-        fallbacks
+        fallbacks,
+        routing,
     )
 
 
@@ -657,7 +750,120 @@ _validate_configuration()
 # ---------------------------------------------------------------------------
 
 
-def analyze_input(text: str, plugin_dir: Optional[Path] = None) -> SignalAnalysis:
+def _apply_context(
+    signal_confidences: Dict[str, float],
+    complexity: int,
+    context: Optional[ContextualVariables],
+) -> Tuple[Dict[str, float], int]:
+    """Apply contextual variable modifiers to signals and complexity."""
+    if not context:
+        return signal_confidences, complexity
+
+    # Urgency affects complexity
+    complexity = max(0, min(complexity + URGENCY_MODIFIERS.get(context.urgency, 0), 7))
+
+    # Team size affects coordination
+    if context.team_size > 5:
+        complexity = min(complexity + 1, 7)
+
+    # Customer type injects signals
+    for signal in CUSTOMER_SIGNAL_INJECTION.get(context.customer_type, []):
+        if signal not in signal_confidences:
+            signal_confidences[signal] = 0.5  # Moderate confidence from context
+
+    return signal_confidences, complexity
+
+
+def _log_decision(analysis: 'SignalAnalysis', input_length: int) -> None:
+    """Log decision to JSONL audit trail and build memory_payload for significant decisions.
+
+    Every call writes to the JSONL file (fast, local audit trail).
+    Significant decisions get a memory_payload attached to the SignalAnalysis
+    for the CALLER (a Claude command) to store via /wicked-mem:store using
+    Claude's native tool system — scripts never call other plugins directly.
+    """
+    try:
+        log_dir = Path.home() / ".something-wicked" / "wicked-crew" / "decisions"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.jsonl"
+
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "input_length": input_length,
+            "signals": analysis.signal_confidences,
+            "risk_dimensions": {
+                "impact": analysis.risk_dimensions.impact,
+                "reversibility": analysis.risk_dimensions.reversibility,
+                "novelty": analysis.risk_dimensions.novelty,
+            },
+            "complexity_score": analysis.complexity_score,
+            "complexity_breakdown": analysis.complexity_breakdown,
+            "specialists_selected": [
+                {"name": name, "tier": info.tier, "reason": info.reason}
+                for name, info in analysis.specialist_routing.items()
+            ],
+            "overrides_applied": analysis.overrides_applied,
+            "confidence": analysis.confidence,
+        }
+
+        # Always write JSONL audit trail
+        with open(log_file, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+        # Build memory_payload for significant decisions (caller stores via tool system)
+        is_significant = (
+            analysis.complexity_score >= 4
+            or len(analysis.signals) >= 3
+            or analysis.overrides_applied
+            or analysis.risk_dimensions.reversibility >= 2
+        )
+
+        if is_significant:
+            reasoning_parts = []
+            if analysis.signal_confidences:
+                top_signals = sorted(analysis.signal_confidences.items(), key=lambda x: -x[1])[:3]
+                reasoning_parts.append(
+                    f"Signals: {', '.join(f'{s}={c:.0%}' for s, c in top_signals)}"
+                )
+            reasoning_parts.append(
+                f"Complexity {analysis.complexity_score}/7 "
+                f"(impact={analysis.complexity_breakdown.get('impact', 0)}, "
+                f"risk={analysis.complexity_breakdown.get('risk_premium', 0)}, "
+                f"scope={analysis.complexity_breakdown.get('scope', 0)}, "
+                f"coord={analysis.complexity_breakdown.get('coordination', 0)})"
+            )
+            if analysis.risk_dimensions.explanation:
+                reasoning_parts.append(
+                    f"Risk: {'; '.join(analysis.risk_dimensions.explanation[:2])}"
+                )
+            if analysis.specialist_routing:
+                required = [n for n, r in analysis.specialist_routing.items() if r.tier == "REQUIRED"]
+                recommended = [n for n, r in analysis.specialist_routing.items() if r.tier == "RECOMMENDED"]
+                if required:
+                    reasoning_parts.append(f"Required: {', '.join(required)}")
+                if recommended:
+                    reasoning_parts.append(f"Recommended: {', '.join(recommended)}")
+            if analysis.overrides_applied:
+                reasoning_parts.append(f"Overrides: {analysis.overrides_applied}")
+
+            analysis.memory_payload = {
+                "title": f"Signal analysis: {len(analysis.signals)} signals, complexity {analysis.complexity_score}",
+                "content": " | ".join(reasoning_parts),
+                "type": "decision",
+                "tags": "crew,smart-decisioning,signal-analysis",
+                "importance": "medium" if analysis.complexity_score < 5 else "high",
+            }
+
+    except Exception:
+        pass  # Best-effort logging, never block analysis
+
+
+def analyze_input(
+    text: str,
+    plugin_dir: Optional[Path] = None,
+    overrides: Optional[AnalysisOverrides] = None,
+    context: Optional[ContextualVariables] = None,
+) -> SignalAnalysis:
     """
     Main entry point: Analyze user input and return signal analysis.
 
@@ -666,8 +872,25 @@ def analyze_input(text: str, plugin_dir: Optional[Path] = None) -> SignalAnalysi
     """
     logger.info(f"Analyzing input ({len(text)} chars)")
 
-    # Signal detection first (novelty depends on signal count)
-    signals = detect_signals(text)
+    effective_overrides = overrides or AnalysisOverrides()
+    overrides_applied: Dict = {}
+
+    # Signal detection with confidence scoring
+    signal_confidences = detect_signals(text, threshold=effective_overrides.signal_threshold)
+
+    # Apply skip/force overrides
+    if effective_overrides.skip_signals:
+        for sig in effective_overrides.skip_signals:
+            signal_confidences.pop(sig, None)
+        overrides_applied["skip_signals"] = effective_overrides.skip_signals
+
+    if effective_overrides.force_signals:
+        for sig in effective_overrides.force_signals:
+            if sig not in signal_confidences:
+                signal_confidences[sig] = 1.0  # Forced = max confidence
+        overrides_applied["force_signals"] = effective_overrides.force_signals
+
+    signals = list(signal_confidences.keys())
     ambiguous = is_ambiguous(text)
     available = get_available_specialists(plugin_dir)
 
@@ -692,21 +915,39 @@ def analyze_input(text: str, plugin_dir: Optional[Path] = None) -> SignalAnalysi
         explanation=explanation,
     )
 
-    # Backward-compatible composite
-    complexity = compute_composite(impact, reversibility, novelty, text)
+    # Composite score with editable breakdown
+    complexity, breakdown = compute_composite(
+        impact, reversibility, novelty, text,
+        component_overrides=effective_overrides.component_overrides or None,
+    )
+
+    if effective_overrides.component_overrides:
+        overrides_applied["component_overrides"] = effective_overrides.component_overrides
+
+    # Apply complexity override
+    if effective_overrides.complexity_override is not None:
+        overrides_applied["complexity_override"] = effective_overrides.complexity_override
+        complexity = max(0, min(effective_overrides.complexity_override, 7))
+
+    # Apply contextual variables
+    signal_confidences, complexity = _apply_context(signal_confidences, complexity, context)
+    signals = list(signal_confidences.keys())  # Refresh after context injection
 
     # Dimension-driven flags
-    flags = {}
+    flags: Dict[str, bool] = {}
     if risk_dims.reversibility >= 2:
         flags["needs_rollback_plan"] = True
+    if effective_overrides.skip_injection:
+        flags["skip_injection"] = True
+        overrides_applied["skip_injection"] = True
 
-    logger.debug(f"Signals detected: {signals}")
+    logger.debug(f"Signals detected: {signals} (confidences: {signal_confidences})")
     logger.debug(f"Risk dimensions: impact={impact}, reversibility={reversibility}, novelty={novelty}")
-    logger.debug(f"Complexity score: {complexity}/7")
+    logger.debug(f"Complexity score: {complexity}/7 (breakdown: {breakdown})")
     logger.debug(f"Ambiguous: {ambiguous}")
 
-    recommended, available_specs, fallbacks = select_specialists(
-        signals, complexity, ambiguous, available
+    recommended, available_specs, fallbacks, routing = select_specialists(
+        signal_confidences, complexity, ambiguous, available
     )
 
     unavailable = [s for s in recommended if s not in available_specs]
@@ -726,18 +967,30 @@ def analyze_input(text: str, plugin_dir: Optional[Path] = None) -> SignalAnalysi
     if unavailable:
         logger.warning(f"Unavailable specialists will use fallbacks: {unavailable}")
 
-    return SignalAnalysis(
+    if overrides_applied:
+        logger.info(f"Overrides applied: {overrides_applied}")
+
+    analysis = SignalAnalysis(
         signals=signals,
+        signal_confidences=signal_confidences,
         complexity_score=complexity,
+        complexity_breakdown=breakdown,
         risk_dimensions=risk_dims,
         recommended_specialists=recommended,
         available_specialists=available_specs,
         unavailable_specialists=unavailable,
+        specialist_routing=routing,
         fallback_agents=fallbacks,
         is_ambiguous=ambiguous,
         confidence=confidence,
         flags=flags,
+        overrides_applied=overrides_applied,
     )
+
+    # Decision observability logging (best-effort)
+    _log_decision(analysis, len(text))
+
+    return analysis
 
 
 def main():
@@ -749,6 +1002,15 @@ def main():
     parser.add_argument("--stdin", action="store_true", help="Read from stdin")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--plugin-dir", type=Path, help="Plugin directory to check")
+    parser.add_argument("--signal-threshold", type=float, default=0.1,
+                        help="Signal confidence threshold (default: 0.1)")
+    parser.add_argument("--show-breakdown", action="store_true",
+                        help="Show complexity breakdown table")
+    parser.add_argument("--urgency", choices=["low", "medium", "high", "critical"],
+                        default="medium", help="Urgency context")
+    parser.add_argument("--team-size", type=int, default=1, help="Team size context")
+    parser.add_argument("--customer-type", choices=["internal", "external", "enterprise"],
+                        default="internal", help="Customer type context")
 
     args = parser.parse_args()
 
@@ -759,13 +1021,31 @@ def main():
     else:
         parser.error("Provide text or --stdin")
 
-    analysis = analyze_input(text, args.plugin_dir)
+    overrides = AnalysisOverrides(signal_threshold=args.signal_threshold)
+    context = ContextualVariables(
+        urgency=args.urgency,
+        team_size=args.team_size,
+        customer_type=args.customer_type,
+    )
+
+    analysis = analyze_input(text, args.plugin_dir, overrides=overrides, context=context)
 
     if args.json:
-        print(json.dumps(asdict(analysis), indent=2))
+        # Convert RoutingInfo objects to dicts for JSON serialization
+        data = asdict(analysis)
+        print(json.dumps(data, indent=2))
     else:
         print(f"Signals detected: {', '.join(analysis.signals) or 'none'}")
-        print(f"Complexity score: {analysis.complexity_score}/7")
+        if analysis.signal_confidences:
+            for cat, conf in sorted(analysis.signal_confidences.items(), key=lambda x: -x[1]):
+                print(f"  {cat}: {conf:.1%}")
+        print(f"\nComplexity score: {analysis.complexity_score}/7")
+
+        if args.show_breakdown or True:  # Always show breakdown now
+            print(f"  Breakdown:")
+            for comp, val in analysis.complexity_breakdown.items():
+                print(f"    {comp}: {val}")
+
         print(f"Confidence: {analysis.confidence}")
         print(f"Ambiguous: {'yes' if analysis.is_ambiguous else 'no'}")
         print()
@@ -784,11 +1064,18 @@ def main():
             for flag_name, flag_value in analysis.flags.items():
                 print(f"  {flag_name}: {flag_value}")
         print()
-        print(f"Recommended specialists: {', '.join(analysis.recommended_specialists) or 'none'}")
-        print(f"Available: {', '.join(analysis.available_specialists) or 'none'}")
-        print(f"Unavailable: {', '.join(analysis.unavailable_specialists) or 'none'}")
+        print(f"Specialist Routing:")
+        for name in analysis.recommended_specialists:
+            info = analysis.specialist_routing.get(name)
+            avail = "installed" if name in analysis.available_specialists else "NOT INSTALLED"
+            if info:
+                print(f"  [{info.tier}] {name} ({avail}) — {info.reason}")
+            else:
+                print(f"  [?] {name} ({avail})")
         if analysis.fallback_agents:
-            print(f"Fallbacks: {analysis.fallback_agents}")
+            print(f"\nFallbacks: {analysis.fallback_agents}")
+        if analysis.overrides_applied:
+            print(f"\nOverrides: {analysis.overrides_applied}")
 
 
 if __name__ == "__main__":
