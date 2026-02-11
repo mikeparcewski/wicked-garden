@@ -1,11 +1,17 @@
 ---
 description: Code review with senior engineering perspective on quality, patterns, and maintainability
-argument-hint: "[file or directory path] [--focus security|performance|patterns]"
+argument-hint: "[file or directory path] [--focus security|performance|patterns|tests]"
 ---
 
 # /wicked-engineering:review
 
 Perform a thorough code review with senior engineering perspective. Evaluates code quality, architecture patterns, maintainability, and provides actionable feedback.
+
+Use `--focus` to dive deeper into a specific area:
+- **security** — input validation, injection, auth, sensitive data handling
+- **performance** — N+1 queries, unnecessary iterations, memory leaks, caching
+- **patterns** — design patterns, SOLID, abstraction levels, coupling
+- **tests** — test value and quality. The core question: "What should break in the product for this test to fail?" If the answer is "nothing meaningful", the test is low-value. Favors fewer, higher-quality tests where each test is simple and focuses on one thing.
 
 ## Instructions
 
@@ -55,7 +61,7 @@ Task(
 6. Naming and conventions
 7. Potential bugs or edge cases
 8. Performance considerations
-9. Test coverage gaps
+9. Test quality — for each test ask "what product bug would make this fail?" Flag tests that assert their own inputs back or mirror implementation logic. Prefer fewer, focused tests over many low-value ones
 
 ## Return Format
 Cite file:line for each finding. Structure as:
@@ -130,6 +136,45 @@ Task(
 
 ## Return Format
 Evaluate each pattern with examples from code.
+"""
+)
+```
+
+**tests**: Test quality and value
+```python
+Task(
+    subagent_type="wicked-qe:code-analyzer",
+    prompt="""Evaluate test quality. Fewer, higher-quality tests beat many low-value ones.
+
+## Target
+{test files}
+
+## Core Question
+For each test, ask: "What should break in the product for this test to fail?"
+If the answer is "nothing meaningful", the test is low-value.
+
+## Low-Value Test Patterns (flag as issues)
+- **Tautological assertions**: constructs object, asserts own inputs back
+  (`user = User("alice"); assert user.name == "alice"`)
+- **Implementation mirroring**: re-implements production logic to compute expected value
+- **Mock-heavy isolation**: everything mocked, test only verifies mocks return what they were told
+- **Trivial coverage padding**: testing getters/setters, default constructors, obvious delegation
+- **Multiple concerns**: test checks too many things, making failures hard to diagnose
+
+## What Good Tests Do
+- Each test is simple and focuses on one thing
+- Tests a behavior the user cares about — there's a concrete product scenario
+- Would catch a real regression — if someone breaks X, this test turns red
+- Tests boundaries and edge cases — empty inputs, error paths, off-by-one
+
+## Return Format
+For each test file, list:
+- Tests to DELETE (zero value, with reason)
+- Tests to REWRITE (has intent but tests the wrong thing, with what to test instead)
+- Tests that are GOOD (cite the product behavior they protect)
+- Missing tests (real product scenarios with no coverage)
+
+Cite file:line for every finding.
 """
 )
 ```
