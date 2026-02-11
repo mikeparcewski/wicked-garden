@@ -38,7 +38,7 @@
       "name": "wicked-crew",
       "source": "./plugins/wicked-crew",
       "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates (value, strategy, execution).",
-      "version": "0.10.0"
+      "version": "0.11.0"
     },
     {
       "name": "wicked-jam",
