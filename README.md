@@ -40,7 +40,7 @@ Claude Code is powerful but stateless. It forgets past decisions, skips requirem
 
 | Plugin | What It Does | Why It's Different |
 |--------|-------------|-------------------|
-| [wicked-crew](plugins/wicked-crew) | Dynamic multi-phase workflows: clarify → design → build → review | Signal-based specialist routing — adapts phases and engages experts based on what it discovers, not a rigid pipeline |
+| [wicked-crew](plugins/wicked-crew) | Dynamic multi-phase workflows with risk-aware scoring | Scores changes on 3 dimensions (impact, reversibility, novelty) — a hooks.json change gets treated as behavior-defining code, not "just config". Adapts phases and specialists based on actual risk |
 | [wicked-mem](plugins/wicked-mem) | Cross-session memory with typed categories and auto-decay | Only injects context when your question signals need — no context bloat, just relevant recall |
 | [wicked-kanban](plugins/wicked-kanban) | Persistent task board with sprint grouping and git commit linking | Built-in tasks reset every session — kanban remembers everything via PostToolUse auto-sync |
 | [wicked-jam](plugins/wicked-jam) | AI brainstorming with dynamic focus groups | 4-6 personas that build on each other's ideas — diverse trade-offs in 60 seconds, not a single voice |
@@ -77,13 +77,16 @@ Claude Code is powerful but stateless. It forgets past decisions, skips requirem
 ## How They Work Together
 
 ```
-  /wicked-crew:start "Build auth feature"
+  /wicked-crew:start "Migrate auth from sessions to JWT across 3 services"
+       │
+       │  Smart Decisioning scores: impact=3, reversibility=3, novelty=1
+       │  Complexity: 7 → full pipeline, all matched specialists
        │
        ├── CLARIFY ──► wicked-jam brainstorms approaches
-       │                    └── wicked-mem recalls past decisions
+       │                    └── wicked-mem recalls past auth decisions
        │
-       ├── DESIGN ──► wicked-search finds existing patterns
-       │                    └── wicked-engineering:arch reviews
+       ├── DESIGN ──► wicked-engineering:arch reviews architecture
+       │                    └── wicked-search finds existing auth patterns
        │
        ├── BUILD ───► Implementation with wicked-kanban tracking
        │                    └── wicked-platform checks security

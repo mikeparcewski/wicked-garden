@@ -46,20 +46,95 @@ Your Description → Signal Detection → Phase Planning → Specialist Engageme
 
 ### Smart Decisioning
 
-When you `/start` a project, crew analyzes your description for:
+When you `/start` a project, crew reads your description and answers three questions:
+
+1. **How much could this break?** (Impact: 0-3)
+2. **Can we undo it easily?** (Reversibility: 0-3)
+3. **Have we done this before?** (Novelty: 0-3)
+
+These three scores combine into a single complexity number (0-7) that decides how many phases you need and which specialists get called in.
+
+#### The Simple Version
+
+Think of it like a doctor's triage. A paper cut (impact=0, reversible=easy, routine=yes) gets a band-aid. A broken arm (impact=2, reversible=slow, first time=maybe) gets an X-ray, a specialist, and a follow-up plan. Crew does the same thing for code changes.
+
+**Example: "Fix a typo in the README"**
+- Impact: 0 — it's a doc file, not executable code
+- Reversibility: 0 — trivially reversible
+- Novelty: 0 — routine work
+- **Complexity: 0** → clarify → build → review (fast track)
+
+**Example: "Migrate auth from sessions to JWT across 3 services"**
+- Impact: 3 — touches auth handlers, API endpoints, middleware
+- Reversibility: 3 — schema migration + breaking API change
+- Novelty: 1 — multi-domain (security + architecture + complexity)
+- **Complexity: 7** → full pipeline with design, test-strategy, and all specialists
+
+**Example: "Add a caching layer to the API"**
+- Impact: 2 — new middleware + config changes
+- Reversibility: 1 — feature-flaggable, rollback mentioned
+- Novelty: 1 — two signal domains (performance + infrastructure)
+- **Complexity: 4** → adds design and test-strategy phases
+
+#### How Scoring Works
+
+**Impact** looks at *what files you're changing*, not their extension. A `.md` file in `commands/` is executable code (weight 2.0). A `.md` file in `docs/` is documentation (weight 0.5). The scorer uses a 5-tier taxonomy:
+
+| Tier | What | Weight | Examples |
+|------|------|--------|----------|
+| 1 | Behavior-defining | 2.0 | commands/, hooks.json, Dockerfile, .github/workflows/, Makefile |
+| 2 | Source code | 1.5 | src/, scripts/, agents/, SKILL.md |
+| 3 | Generic code | 1.0 | .py, .ts, .go, .java, .rs |
+| 4 | Test code | 1.0 | tests/, spec/, e2e/ |
+| 5 | Low-impact | 0.5/0.0 | README, CHANGELOG, docs/, LICENSE |
+
+Integration keywords (api, endpoint, service, system) add +2 because connecting systems is inherently high-impact.
+
+**Reversibility** balances irreversibility signals against mitigators:
+- "Schema migration with breaking API change" → +3 (migration) +3 (breaking change) = very hard to undo
+- "Add feature-flagged experiment" → +1 (experiment) -2 (feature flag) = easily reversible
+
+**Novelty** detects unfamiliar territory:
+- Explicit markers: "prototype", "greenfield", "first time", "proof of concept"
+- Cross-domain scope: 3+ signal categories means you're touching many concerns at once
+- Ambiguity: questions and uncertainty signal exploration is needed
+
+**The composite formula** that produces the 0-7 score:
+
+```
+complexity = impact + min(max(reversibility, novelty), 2) + scope + coordination
+```
+
+Where scope (0-2) comes from description length and coordination (0-1) from stakeholder mentions. The `min(..., 2)` cap prevents risk dimensions alone from dominating.
+
+#### What Complexity Determines
+
+| Score | Phases | Specialists |
+|-------|--------|------------|
+| 0-2 | clarify → build → review | Minimal |
+| 3-4 | + design, test-strategy | Signal-matched |
+| 5-7 | + ideate, test, full gates | All relevant specialists engaged |
+
+#### Signals and Specialists
+
+The scorer also detects 12 signal categories that determine which specialists to engage:
 
 | Signal | Detected From | Engages |
 |--------|--------------|---------|
-| Security | auth, encrypt, token, jwt | wicked-platform |
-| Performance | scale, optimize, cache | wicked-engineering |
-| Product | user, feature, story | wicked-product |
-| Complexity | integration, migrate, refactor | wicked-delivery |
-| Ambiguity | maybe, should we, options | wicked-jam |
+| Security | auth, encrypt, token, jwt, oauth | wicked-platform, wicked-qe |
+| Performance | scale, optimize, cache, latency | wicked-engineering, wicked-qe |
+| Product | requirement, feature, story, customer | wicked-product |
+| Compliance | soc2, hipaa, gdpr, pci, audit | wicked-platform |
+| Ambiguity | maybe, should we, options, tradeoff | wicked-jam |
+| Complexity | integration, migrate, distributed, legacy | wicked-delivery, wicked-engineering |
+| Data | analytics, database, etl, pipeline, ml | wicked-data |
+| Infrastructure | deploy, docker, kubernetes, terraform | wicked-platform |
+| Architecture | design pattern, api contract, cqrs, event-driven | wicked-agentic, wicked-engineering |
+| UX | user experience, accessibility, persona, wireframe | wicked-product |
+| Reversibility | migration, breaking change, deprecation | wicked-platform, wicked-delivery |
+| Novelty | prototype, greenfield, first time, research | wicked-jam, wicked-engineering |
 
-**Complexity scoring** (0-7) determines how many phases you need:
-- **0-2**: clarify → build → review
-- **3-4**: + design, test-strategy
-- **5-7**: + ideate, test, full specialist engagement
+Keywords ending with `*` are stem-matched: `migrat*` catches "migrate", "migration", and "migrating".
 
 ### Graceful Degradation
 
