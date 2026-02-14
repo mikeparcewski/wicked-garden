@@ -163,13 +163,17 @@ For GitLab CI:
 - Dependency scanning enabled
 ```
 
-### 6. Update Kanban
+### 6. Update Task
 
-Track findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Security Analysis" "{task_id}" \
-  "[security-engineer] Security Scan Results
+Track findings via task tools:
+```
+Update the current task with security scan results:
+
+TaskUpdate(
+  taskId="{task_id}",
+  description="{original description}
+
+## Security Scan Results
 
 **Severity Breakdown**:
 - CRITICAL: {count}
@@ -182,6 +186,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 **Compliance**: OWASP {pass/fail}
 **Recommendation**: {action needed}"
+)
 ```
 
 ## Output Format

@@ -90,13 +90,15 @@ If `"available": false`, skip silently.
 | LOW likelihood + HIGH impact = P1 |
 | LOW likelihood + LOW impact = P2 |
 
-### 6. Update Kanban
+### 6. Update Task with Findings
 
-Add findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "QE Analysis" "{task_id}" \
-  "[risk-assessor] Risk Assessment
+Add findings to the task:
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append QE findings:
+
+[risk-assessor] Risk Assessment
 
 **Overall Risk**: {LOW|MEDIUM|HIGH|CRITICAL}
 
@@ -109,6 +111,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 - {P0 risks must be addressed}
 
 **Confidence**: {HIGH|MEDIUM|LOW}"
+)
 ```
 
 ### 7. Return Findings

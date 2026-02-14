@@ -345,10 +345,11 @@ From search results, extract:
 
 Track framework decisions:
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Framework Research" "{task_id}" \
-  "[framework-researcher] Framework Analysis Complete
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[framework-researcher] Framework Analysis Complete
 
 **Current Framework**: {framework} v{version}
 
@@ -363,7 +364,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 - Risk: {risk_level}
 
 **Next Steps**: {action needed}"
-```
+)
 
 ## Output Format
 

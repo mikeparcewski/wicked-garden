@@ -147,13 +147,15 @@ module.exports = {
   uses: codecov/codecov-action@v3
 ```
 
-### 5. Update Kanban
+### 5. Update Task with Test Coverage
 
-Add test coverage evidence:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "QE Analysis" "{task_id}" \
-  "[test-automation-engineer] Test Code Generated
+Add test coverage evidence to the task:
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append QE findings:
+
+[test-automation-engineer] Test Code Generated
 
 **Framework**: {Jest|Pytest|etc}
 **Tests Created**: {count}
@@ -164,6 +166,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 - {file2}
 
 **Next**: Run tests with \`{command}\`"
+)
 ```
 
 ### 6. Emit Event

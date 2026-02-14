@@ -186,10 +186,11 @@ Review the topology output for:
 
 Track architecture findings:
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Architecture Review" "{task_id}" \
-  "[architect] Architecture Analysis Complete
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[architect] Architecture Analysis Complete
 
 **Framework**: {detected_framework} v{version} (confidence: {score})
 
@@ -208,7 +209,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 2. {recommendation}
 
 **Next Steps**: {action needed}"
-```
+)
 
 ## Output Format
 

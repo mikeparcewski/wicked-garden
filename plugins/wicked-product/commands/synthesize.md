@@ -251,3 +251,13 @@ Complete customer voice workflow:
 # 4. Create tasks for approved items
 # (Automatically offered after synthesis)
 ```
+
+## Next Step
+
+After synthesizing recommendations, turn them into requirements:
+
+```bash
+/wicked-product:elicit
+```
+
+This will extract specific requirements and user stories from the customer voice recommendations, ready for implementation planning.

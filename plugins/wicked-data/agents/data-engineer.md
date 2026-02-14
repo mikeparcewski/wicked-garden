@@ -155,10 +155,12 @@ ORDER BY execution_time DESC;
 ### 5. Integration with wicked-kanban
 
 Document findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Data Engineering" "{task_id}" \
-  "[data-engineer] Pipeline Review
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[data-engineer] Pipeline Review
 
 **Architecture**: {summary}
 **Quality Score**: {score}/100
@@ -170,6 +172,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 1. {action item with priority}
 
 **Confidence**: {HIGH|MEDIUM|LOW}"
+)
 ```
 
 ## Pipeline Review Guidelines

@@ -292,21 +292,26 @@ All evidence stored in:
 4. Notify stakeholders of status
 ```
 
-## Kanban Integration
+## Task Integration
 
-Store evidence as artifacts:
-```bash
-# Add audit report
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-artifact \
-  "{task_id}" "file" \
-  --file-path "docs/compliance/audit-report.md" \
-  --label "Audit Report - {date}"
+Store evidence paths in task description:
+```
+Update task with audit findings and evidence references:
 
-# Add evidence
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-artifact \
-  "{task_id}" "file" \
-  --file-path "{evidence_file}" \
-  --label "Evidence: {control_id}"
+TaskUpdate(
+  taskId="{task_id}",
+  description="{original description}
+
+## Audit Evidence Collected
+
+**Audit Report**: docs/compliance/audit-report.md
+**Evidence Files**:
+- {evidence_file_1} - Evidence: {control_id_1}
+- {evidence_file_2} - Evidence: {control_id_2}
+
+## Audit Summary
+{Summary of findings and recommendations}"
+)
 ```
 
 ## Quality Standards

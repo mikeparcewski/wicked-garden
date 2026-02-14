@@ -463,13 +463,17 @@ class PrivacyAwareLogger:
 4. Test data subject rights workflows
 ```
 
-## Kanban Integration
+## Task Integration
 
-Track privacy findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Privacy Review" "{task_id}" \
-  "[privacy-expert] GDPR Analysis
+Track privacy findings via task tools:
+```
+Update the current task with privacy analysis:
+
+TaskUpdate(
+  taskId="{task_id}",
+  description="{original description}
+
+## GDPR Analysis
 
 **PII Detected**: {count} locations
 **Violations**: {P0 count} critical
@@ -479,6 +483,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 ## Remediation
 1. {action}"
+)
 ```
 
 ## Quality Standards

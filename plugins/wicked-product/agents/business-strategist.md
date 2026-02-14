@@ -131,12 +131,16 @@ Payback Period = Total Investment / Annual Benefit
 - Unacceptable risks
 - Better alternatives available
 
-### 7. Update Kanban (if available)
+### 7. Track Analysis
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Strategy" "{task_id}" \
-  "[business-strategist] ROI Analysis
+Document ROI analysis findings directly in your output. If working within a tracked task context, update the task description to include your analysis summary:
+
+```
+TaskUpdate(
+  taskId="{current_task_id}",
+  description="{original_description}
+
+## ROI Analysis
 
 **Decision**: {APPROVE|CONDITIONAL|REJECT}
 **Confidence**: {HIGH|MEDIUM|LOW}
@@ -148,6 +152,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 **Recommendation**: {summary}
 **Key Risks**: {top 3 risks}"
+)
 ```
 
 ## Output Format

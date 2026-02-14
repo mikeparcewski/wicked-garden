@@ -439,10 +439,11 @@ def summarize_history(history: list[Message], max_tokens: int) -> list[Message]:
 
 Track performance findings:
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Performance Analysis" "{task_id}" \
-  "[performance-analyst] Performance Assessment Complete
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[performance-analyst] Performance Assessment Complete
 
 **Current Performance**:
 - Avg latency: {p50}ms (p95: {p95}ms)
@@ -458,7 +459,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 1. {recommendation}
 
 **Next Steps**: {action needed}"
-```
+)
 
 ## Output Format
 

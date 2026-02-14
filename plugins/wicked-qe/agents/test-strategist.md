@@ -80,13 +80,15 @@ If `"available": false`, skip this step silently.
 - Empty/null inputs
 - Boundary values
 
-### 5. Update Kanban
+### 5. Update Task with Findings
 
-Add findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "QE Analysis" "{task_id}" \
-  "[test-strategist] Test Strategy
+Add findings to the task:
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append QE findings:
+
+[test-strategist] Test Strategy
 
 **Existing Tests**: {count}
 **New Scenarios**: {count}
@@ -98,6 +100,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 | S3 | Edge | {desc} | P2 |
 
 **Confidence**: {HIGH|MEDIUM|LOW}"
+)
 ```
 
 ### 6. Return Findings

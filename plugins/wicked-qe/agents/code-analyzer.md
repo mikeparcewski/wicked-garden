@@ -180,13 +180,15 @@ Include in analysis output:
 **Impact on gate**: {Blocking/Advisory/Informational}
 ```
 
-### 6. Update Kanban
+### 6. Update Task with Findings
 
-Add analysis findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "QE Analysis" "{task_id}" \
-  "[code-analyzer] Static Analysis Complete
+Add analysis findings to the task:
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append QE findings:
+
+[code-analyzer] Static Analysis Complete
 
 **Target**: {file/module}
 **Testability Score**: {avg}/5
@@ -199,6 +201,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 **Coverage Gaps**: {count} scenarios
 **Risk Level**: {HIGH|MEDIUM|LOW}"
+)
 ```
 
 ### 7. Emit Event

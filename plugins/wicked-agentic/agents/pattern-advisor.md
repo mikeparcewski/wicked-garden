@@ -571,11 +571,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
 ### 7. Update Kanban
 
 Track pattern findings:
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Pattern Review" "{task_id}" \
-  "[pattern-advisor] Pattern Analysis Complete
+[pattern-advisor] Pattern Analysis Complete
 
 **Pattern Quality Score**: {score}/10
 
@@ -591,7 +591,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 1. {refactoring} - {priority} - {effort}
 
 **Next Steps**: {action needed}"
-```
+)
 
 ## Output Format
 
