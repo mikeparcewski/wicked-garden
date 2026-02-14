@@ -440,18 +440,19 @@ For audit/certification:
 5. Collect evidence for audit
 ```
 
-## Kanban Integration
+## Task Integration
 
 Create remediation tasks:
-```bash
-# For each gap
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-task \
-  --name "Implement {control}" \
-  --description "Policy: {policy_ref}
+```
+For each gap identified, create a new task:
+
+TaskCreate(
+  subject="Implement {control}",
+  description="Policy: {policy_ref}
 Gap: {gap_description}
 Priority: {P0|P1|P2}
-Implementation: See policy analysis doc" \
-  --priority {P0|P1|P2}
+Implementation: See policy analysis doc"
+)
 ```
 
 ## Quality Standards

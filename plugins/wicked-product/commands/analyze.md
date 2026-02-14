@@ -216,3 +216,13 @@ Claude: I'll analyze feedback related to performance.
    - Evidence: 18 complaints in 30 days, 40% increase
    - Impact: Likely affecting retention, multiple churn signals
 ```
+
+## Next Step
+
+After analyzing customer feedback, continue the customer voice pipeline:
+
+```bash
+/wicked-product:synthesize
+```
+
+This will convert the insights into prioritized, actionable recommendations with effort estimates and expected outcomes.

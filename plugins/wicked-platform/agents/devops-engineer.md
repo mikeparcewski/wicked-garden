@@ -154,13 +154,17 @@ gh workflow view {workflow_name}
 glab ci lint
 ```
 
-### 6. Update Kanban
+### 6. Update Task
 
-Track pipeline improvements:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Pipeline Analysis" "{task_id}" \
-  "[devops-engineer] CI/CD Pipeline Review
+Track pipeline improvements via task tools:
+```
+Update the current task with pipeline analysis:
+
+TaskUpdate(
+  taskId="{task_id}",
+  description="{original description}
+
+## CI/CD Pipeline Review
 
 **Current State**:
 - Workflows: {count}
@@ -175,6 +179,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 - {issue count} issues found
 
 **Recommendation**: {action needed}"
+)
 ```
 
 ## GitHub Actions Patterns

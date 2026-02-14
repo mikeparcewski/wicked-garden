@@ -215,13 +215,17 @@ Focus on cardholder data:
 - Collect audit evidence
 ```
 
-## Kanban Integration
+## Task Integration
 
-Update tasks with findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Compliance Check" "{task_id}" \
-  "[compliance-officer] {Framework} Analysis
+Update tasks with findings via task tools:
+```
+Update the current task with compliance analysis:
+
+TaskUpdate(
+  taskId="{task_id}",
+  description="{original description}
+
+## {Framework} Compliance Analysis
 
 **Status**: {status}
 **Critical Issues**: {count}
@@ -232,6 +236,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 ## Remediation Required
 1. {action}"
+)
 ```
 
 ## Quality Standards

@@ -327,10 +327,11 @@ grep -r "citation\|source\|reference" --include="*.py" /path/to/codebase
 
 Track safety findings:
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Safety Review" "{task_id}" \
-  "[safety-reviewer] Safety Assessment Complete
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[safety-reviewer] Safety Assessment Complete
 
 **Risk Level**: {CRITICAL/HIGH/MEDIUM/LOW}
 
@@ -348,7 +349,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 1. {recommendation}
 
 **Next Steps**: {action needed}"
-```
+)
 
 ## Output Format
 

@@ -207,10 +207,12 @@ Structure findings narratively:
 ### 7. Integration with wicked-kanban
 
 Document insights:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Data Analysis" "{task_id}" \
-  "[data-analyst] Analysis Complete
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[data-analyst] Analysis Complete
 
 **Dataset**: {name}
 **Date Range**: {range}
@@ -223,6 +225,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 **Confidence**: {HIGH|MEDIUM|LOW}
 **Data Quality**: {assessment}"
+)
 ```
 
 ## Analysis Workflow

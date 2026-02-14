@@ -290,10 +290,12 @@ def log_prediction(model_id, features, prediction, ground_truth=None):
 ### 7. Integration with wicked-kanban
 
 Document ML work:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "ML Engineering" "{task_id}" \
-  "[ml-engineer] Model Review
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[ml-engineer] Model Review
 
 **Model**: {name}
 **Type**: {classification/regression/etc}
@@ -307,6 +309,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 1. {Priority action}
 
 **Confidence**: {HIGH|MEDIUM|LOW}"
+)
 ```
 
 ## ML Best Practices

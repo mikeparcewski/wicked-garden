@@ -82,13 +82,16 @@ Check for:
 - [ ] Dependencies
 - [ ] Assumptions
 
-### 6. Update Kanban
+### 6. Track Requirements
 
-Document findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Requirements Analysis" "{task_id}" \
-  "[requirements-analyst] Requirements Elicitation
+Document requirements analysis findings directly in your output. If working within a tracked task context, update the task description to include your analysis:
+
+```
+TaskUpdate(
+  taskId="{current_task_id}",
+  description="{original_description}
+
+## Requirements Elicitation
 
 **User Stories**: {count}
 **Acceptance Criteria**: {count}
@@ -105,6 +108,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 - Given {context}, When {action}, Then {outcome}
 
 **Clarity**: {CLEAR|NEEDS_CLARIFICATION}"
+)
 ```
 
 ## Output Format

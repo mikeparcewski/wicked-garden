@@ -130,15 +130,20 @@ Apply Nielsen's heuristics:
 - **User Researcher**: Validate against user needs/personas
 - **QE**: Share edge cases discovered during flow analysis
 
-## Creating Kanban Tasks
+## Tracking UX Issues
 
-For tracking UX issues:
+For tracking UX issues discovered during review:
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" create-task \
-  "UX Review" \
-  "UX: {issue summary}" \
-  "todo" \
-  --priority {P0|P1|P2} \
-  --tags "ux,flows"
+```
+TaskCreate(
+  subject="UX: {issue_summary}",
+  description="Issue found during UX review:
+
+**Severity**: {Critical|Major|Minor}
+**Impact**: {who/what affected}
+**Recommendation**: {specific fix}
+
+{detailed_description}",
+  activeForm="Tracking UX issue for resolution"
+)
 ```

@@ -157,3 +157,13 @@ Claude: I'll aggregate customer feedback from the last 7 days.
 ### Next Steps
 Run `/wicked-product:analyze` to extract themes and trends.
 ```
+
+## Next Step
+
+After aggregating customer feedback, continue the customer voice pipeline:
+
+```bash
+/wicked-product:analyze
+```
+
+This will analyze the collected feedback for recurring themes, sentiment patterns, and trends over time.

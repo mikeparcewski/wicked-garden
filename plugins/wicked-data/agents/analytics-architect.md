@@ -380,10 +380,12 @@ CLUSTER BY user_id, event_time;
 ### 7. Integration with wicked-kanban
 
 Document architecture decisions:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Analytics Architecture" "{task_id}" \
-  "[analytics-architect] Architecture Review
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[analytics-architect] Architecture Review
 
 **Scope**: {what was reviewed}
 
@@ -399,6 +401,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 - {What needs stakeholder approval}
 
 **Confidence**: {HIGH|MEDIUM|LOW}"
+)
 ```
 
 ## Architecture Principles

@@ -135,13 +135,17 @@ Assess scalability patterns:
 - CDN usage for static content
 - Async processing for background jobs
 
-### 6. Update Kanban
+### 6. Update Task
 
-Track infrastructure findings:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Infrastructure Review" "{task_id}" \
-  "[infrastructure-engineer] Infrastructure Analysis
+Track infrastructure findings via task tools:
+```
+Update the current task with infrastructure analysis:
+
+TaskUpdate(
+  taskId="{task_id}",
+  description="{original description}
+
+## Infrastructure Analysis
 
 **Current State**:
 - Platform: {AWS/GCP/Azure}
@@ -158,6 +162,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 **Cost Optimization**: Est. ${amount}/month savings
 
 **Recommendation**: {action needed}"
+)
 ```
 
 ## Terraform Best Practices

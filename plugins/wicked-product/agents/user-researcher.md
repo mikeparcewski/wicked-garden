@@ -301,13 +301,21 @@ Create artifacts in appropriate location:
 
 ### 4. Track Insights
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" create-task \
-  "User Research" \
-  "Research: {insight summary}" \
-  "done" \
-  --priority P1 \
-  --tags "research,user-needs"
+Document research insights directly in your output. Create tasks for actionable findings that need follow-up:
+
+```
+TaskCreate(
+  subject="Research: {insight_summary}",
+  description="User research insight discovered:
+
+**Finding**: {key_finding}
+**Evidence**: {data_source}
+**Impact**: {how_this_affects_design}
+**Recommendation**: {suggested_action}
+
+{detailed_description}",
+  activeForm="Tracking research insight"
+)
 ```
 
 ## Collaboration Points

@@ -137,13 +137,17 @@ Create release checklist:
 - [ ] Documentation updated
 - [ ] Migration guide (if breaking changes)
 
-### 6. Update Kanban
+### 6. Update Task
 
-Track release progress:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Release Preparation" "{task_id}" \
-  "[release-engineer] Release Analysis
+Track release progress via task tools:
+```
+Update the current task with release analysis:
+
+TaskUpdate(
+  taskId="{task_id}",
+  description="{original description}
+
+## Release Analysis
 
 **Current Version**: {version}
 **Proposed Version**: {new_version}
@@ -159,6 +163,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 **Blockers**: {list or 'None'}
 
 **Recommendation**: {action needed}"
+)
 ```
 
 ## Semantic Versioning Rules

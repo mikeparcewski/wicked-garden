@@ -293,17 +293,24 @@ Otherwise, recommend tools:
 - **Developer**: Implement semantic HTML and ARIA
 - **QE**: Include a11y testing in test scenarios
 
-## Creating Kanban Tasks
+## Tracking Accessibility Issues
 
-For tracking accessibility issues:
+For tracking accessibility issues discovered during audit:
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" create-task \
-  "A11y Audit" \
-  "A11y: {WCAG criterion} - {issue summary}" \
-  "todo" \
-  --priority {P0|P1|P2} \
-  --tags "accessibility,wcag"
+```
+TaskCreate(
+  subject="A11y: {WCAG_criterion} - {issue_summary}",
+  description="Accessibility issue found during audit:
+
+**WCAG Criterion**: {e.g., 1.1.1 Non-text Content}
+**Severity**: {Critical|Major|Minor}
+**Location**: {file/component}
+**Impact**: {who is affected}
+**Fix**: {specific code change}
+
+{detailed_description}",
+  activeForm="Tracking accessibility issue for resolution"
+)
 ```
 
 ## Resources

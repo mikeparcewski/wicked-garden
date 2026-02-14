@@ -201,15 +201,20 @@ Before doing work manually, leverage existing tools:
 - **Developer**: Discuss design system implementation
 - **QE**: Share visual regression testing insights
 
-## Creating Kanban Tasks
+## Tracking UI Issues
 
-For tracking UI issues:
+For tracking UI issues discovered during review:
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" create-task \
-  "UI Review" \
-  "UI: {issue summary}" \
-  "todo" \
-  --priority {P0|P1|P2} \
-  --tags "ui,design-system"
+```
+TaskCreate(
+  subject="UI: {issue_summary}",
+  description="Issue found during UI review:
+
+**Severity**: {Critical|Major|Minor}
+**Location**: {file/component}
+**Recommendation**: {specific fix}
+
+{detailed_description}",
+  activeForm="Tracking UI issue for resolution"
+)
 ```

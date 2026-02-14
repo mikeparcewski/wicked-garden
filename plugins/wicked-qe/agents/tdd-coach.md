@@ -130,11 +130,13 @@ For next behavior:
 
 ### 6. Track Progress
 
-Update kanban with TDD cycle:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "QE Analysis" "{task_id}" \
-  "[tdd-coach] TDD Cycle Complete
+Update task with TDD cycle progress:
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append QE findings:
+
+[tdd-coach] TDD Cycle Complete
 
 **Feature**: {feature_name}
 **Cycle**: {cycle_number}
@@ -145,6 +147,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 **Coverage**: {percentage}%
 
 **Next**: {next_test_to_write}"
+)
 ```
 
 ### 7. Emit Event
