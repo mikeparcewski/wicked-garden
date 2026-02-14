@@ -129,6 +129,18 @@ class RouterDecision:
     reason: str
 
 
+# Flow-based intent prediction: given recent intent sequence, predict next likely intent
+FLOW_PREDICTIONS = {
+    ("implementation", "implementation"): IntentType.REVIEW,
+    ("debugging", "debugging"): IntentType.IMPLEMENTATION,
+    ("planning", "planning"): IntentType.IMPLEMENTATION,
+    ("review", "review"): IntentType.PLANNING,
+    ("research", "research"): IntentType.IMPLEMENTATION,
+    ("implementation", "review"): IntentType.PLANNING,
+    ("debugging", "implementation"): IntentType.REVIEW,
+}
+
+
 class Router:
     """Decides fast vs slow path for context assembly."""
 
@@ -139,6 +151,7 @@ class Router:
         """
         self.session_topics = set(session_topics or [])
         self.fast_path_cache: dict[str, bool] = {}
+        self.recent_intents: list[str] = []
 
     def route(self, prompt: str) -> RouterDecision:
         """Route a prompt to hot, fast, or slow path."""
@@ -334,6 +347,24 @@ class Router:
     def update_session_topics(self, entities: list[str]):
         """Add entities to session topics for novelty tracking."""
         self.session_topics.update(entities)
+
+    def record_intent(self, intent_type: IntentType):
+        """Record intent for flow prediction."""
+        self.recent_intents.append(intent_type.value)
+        # Keep last 10 intents
+        if len(self.recent_intents) > 10:
+            self.recent_intents = self.recent_intents[-10:]
+
+    def predict_next_intent(self) -> Optional[IntentType]:
+        """Predict the next likely intent based on recent flow patterns.
+
+        Returns the predicted IntentType or None if no prediction.
+        Used by fast_path to pre-load bonus adapters.
+        """
+        if len(self.recent_intents) < 2:
+            return None
+        key = (self.recent_intents[-2], self.recent_intents[-1])
+        return FLOW_PREDICTIONS.get(key)
 
 
 def main():

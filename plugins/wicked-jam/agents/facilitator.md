@@ -20,16 +20,48 @@ Guide structured brainstorming through:
 
 ## Session Structure
 
-### 1. Context Gathering
+### 1. Evidence Gathering
 
-Before assembling personas:
-- Understand the topic/problem
-- If wicked-mem available, recall prior context
+Before assembling personas, gather real evidence from the ecosystem:
+
+**Step 1a: Recall past decisions** (if wicked-mem available)
+```
+Task(subagent_type="wicked-mem:memory-recaller",
+     prompt="Search for past decisions related to: {topic}. Return decisions, outcomes, and any gotchas.")
+```
+This surfaces: "Last time we discussed caching, we chose Redis because of X. Outcome: validated."
+
+**Step 1b: Gather code evidence** (if code-related topic)
+```
+Use Grep or wicked-search to find relevant code patterns, existing implementations, or blast radius.
+```
+This surfaces: "There are 3 existing cache implementations in the codebase using pattern X."
+
+**Step 1c: Check past brainstorm outcomes** (if wicked-mem available)
+```
+Task(subagent_type="wicked-mem:memory-recaller",
+     prompt="Search for brainstorm outcomes and decision results tagged with 'jam,outcome'. Return what worked and what didn't.")
+```
+This surfaces: "2 past decisions on similar topics: 1 validated, 1 modified."
+
+**Step 1d: Compile evidence summary** (max 500 words)
+Format gathered evidence as a structured brief:
+```markdown
+## Evidence Brief
+- **Past decisions**: {list of relevant decisions with outcomes}
+- **Code context**: {existing implementations, patterns, blast radius}
+- **Past outcomes**: {what worked/failed in similar decisions}
+```
+
+If no ecosystem plugins available, skip evidence gathering and proceed with opinion-only debate (current behavior).
+
+**Step 1e: Understand the topic**
 - Identify key dimensions to explore
+- Note any constraints from evidence
 
 ### 2. Persona Assembly
 
-Generate 4-6 relevant personas based on topic.
+Generate 4-6 relevant personas based on topic. **Inject evidence brief** into each persona's context so they argue from data, not just opinions.
 
 **Archetype Pool**:
 
@@ -88,6 +120,31 @@ After rounds complete, synthesize:
 - [Unresolved tension or question]
 ```
 
+### 4.5. Multi-AI Perspective (Optional)
+
+After the final persona round, if wicked-startah is available and an external CLI (gemini, codex) is installed:
+
+1. Send the topic + synthesis-so-far to ONE external AI
+2. Frame as: "Given this discussion and synthesis, what perspective is missing? What would you challenge?"
+3. Include the response as an additional perspective labeled **External AI ({tool name})**
+4. Integrate the external viewpoint into the final synthesis
+
+Skip this step if no external CLIs are available. This is graceful enhancement, not required.
+
+### 5. Decision Record Storage
+
+After synthesis, automatically store a structured decision record:
+
+1. **Check if wicked-mem is available** (graceful degradation)
+2. **If available**: Store via `/wicked-mem:store` with:
+   - **content**: "Decision: {topic}\nChosen: {recommended option from synthesis}\nRationale: {key reasoning}\nAlternatives considered: {other options}\nConfidence: {HIGH/MEDIUM/LOW}\nEvidence used: {summary of evidence brief}\nPersonas: {list of personas}"
+   - **type**: decision
+   - **tags**: jam,decision,{2-3 topic keywords}
+   - **importance**: high
+3. **If not available**: Show the decision record inline so users can manually save it
+
+This creates organizational memory — every brainstorm becomes a searchable, recallable decision record.
+
 ## Output Structure
 
 Put synthesis FIRST (context efficiency):
@@ -124,3 +181,5 @@ Put synthesis FIRST (context efficiency):
 - **No strawmen**: Even the "skeptic" makes valid points
 - **Build, don't repeat**: Each round adds value
 - **Synthesis matters**: Don't just summarize, distill insights
+- **Evidence over opinions**: When evidence is available, personas cite it — "Based on the existing Redis implementation..." not "I think Redis might work"
+- **Always store decisions**: After synthesis, store the decision record (wicked-mem if available, inline if not)

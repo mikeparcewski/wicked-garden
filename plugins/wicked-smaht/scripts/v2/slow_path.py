@@ -47,18 +47,24 @@ class SlowPathAssembler:
         self.adapters = self._load_adapters()
 
     def _load_adapters(self) -> dict:
-        """Load available adapters."""
+        """Load available adapters individually for graceful degradation."""
         adapters = {}
-        try:
-            from adapters import mem_adapter, search_adapter, kanban_adapter, jam_adapter, crew_adapter, context7_adapter
-            adapters["mem"] = mem_adapter
-            adapters["search"] = search_adapter
-            adapters["kanban"] = kanban_adapter
-            adapters["jam"] = jam_adapter
-            adapters["crew"] = crew_adapter
-            adapters["context7"] = context7_adapter
-        except ImportError as e:
-            print(f"Warning: Could not load adapters: {e}", file=sys.stderr)
+        adapter_modules = {
+            "mem": "mem_adapter",
+            "search": "search_adapter",
+            "kanban": "kanban_adapter",
+            "jam": "jam_adapter",
+            "crew": "crew_adapter",
+            "context7": "context7_adapter",
+            "startah": "startah_adapter",
+            "delegation": "delegation_adapter",
+        }
+        for name, module_name in adapter_modules.items():
+            try:
+                mod = __import__(f"adapters.{module_name}", fromlist=[module_name])
+                adapters[name] = mod
+            except ImportError as e:
+                print(f"smaht: adapter '{name}' unavailable: {e}", file=sys.stderr)
         return adapters
 
     async def assemble(
@@ -184,6 +190,8 @@ class SlowPathAssembler:
             "jam": "Brainstorms",
             "crew": "Project State",
             "context7": "External Docs",
+            "startah": "Available CLIs",
+            "delegation": "Delegation Hints",
         }
 
         has_context = any(items for items in items_by_source.values())

@@ -61,9 +61,9 @@ Read the last N turns from `~/.something-wicked/wicked-smaht/sessions/{session_i
 | 1 | {user[:80]} | {assistant[:80]} | {fast/slow/hot} |
 ```
 
-### 5. Display Routing Stats
+### 5. Display Routing Stats and Session Metrics
 
-Read the turn tracker from `/tmp/wicked-smaht-turns-{session_id}`:
+Read the turn tracker from `/tmp/wicked-smaht-turns-{session_id}` and metrics from `~/.something-wicked/wicked-smaht/sessions/{session_id}/metrics.json`:
 
 ```markdown
 ## Routing Stats
@@ -71,6 +71,12 @@ Read the turn tracker from `/tmp/wicked-smaht-turns-{session_id}`:
 - **Total turns**: {count}
 - **Context path**: hot={hot_count}, fast={fast_count}, slow={slow_count}
 - **Session ID**: {session_id}
+
+## Session Metrics
+
+- **Sources pre-loaded**: {items_pre_loaded} across {queries_made} queries
+- **Estimated turns saved**: ~{estimated_turns_saved} (context that would have required manual search/recall)
+- **Value**: Pre-loaded context eliminated approximately {estimated_turns_saved} additional turns of re-explaining or re-searching
 ```
 
 ### 6. Show Context Package Preview

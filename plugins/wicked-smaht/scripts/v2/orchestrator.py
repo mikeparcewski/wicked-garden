@@ -31,6 +31,7 @@ class ContextResult:
     sources_failed: list[str]
     latency_ms: int
     routing_reason: str
+    items_pre_loaded: int = 0
 
 
 class Orchestrator:
@@ -53,7 +54,11 @@ class Orchestrator:
         # Route the prompt
         decision = self.router.route(prompt)
 
+        # Get intent prediction for bonus adapters
+        predicted_intent = self.router.predict_next_intent()
+
         # Execute appropriate path with error handling
+        items_pre_loaded = 0
         try:
             if decision.path == PathDecision.HOT:
                 # Hot path: session state only, no adapter queries
@@ -63,17 +68,19 @@ class Orchestrator:
                 sources_queried = ["session_state"]
                 sources_failed = []
             elif decision.path == PathDecision.FAST:
-                result = await self.fast_path.assemble(prompt, decision.analysis)
+                result = await self.fast_path.assemble(prompt, decision.analysis, predicted_intent)
                 path_used = "fast"
                 briefing = result.briefing
                 sources_queried = result.sources_queried
                 sources_failed = result.sources_failed
+                items_pre_loaded = len(sources_queried)
             else:
                 result = await self.slow_path.assemble(prompt, decision.analysis, self.condenser)
                 path_used = "slow"
                 briefing = result.briefing
                 sources_queried = result.sources_queried
                 sources_failed = result.sources_failed
+                items_pre_loaded = len(sources_queried)
         except Exception as e:
             # Fallback on path execution failure
             path_used = decision.path.value
@@ -81,8 +88,12 @@ class Orchestrator:
             sources_queried = []
             sources_failed = ["assembly"]
 
-        # Update session with entities
+        # Update session with entities and record intent for prediction
         self.router.update_session_topics(decision.analysis.entities)
+        self.router.record_intent(decision.analysis.intent_type)
+
+        # Track session metrics
+        self._update_metrics(items_pre_loaded)
 
         total_latency = int((time.time() - start_time) * 1000)
 
@@ -93,6 +104,7 @@ class Orchestrator:
             sources_failed=sources_failed,
             latency_ms=total_latency,
             routing_reason=decision.reason,
+            items_pre_loaded=items_pre_loaded,
         )
 
     def _format_hot_briefing(self, state: dict) -> str:
@@ -111,6 +123,34 @@ class Orchestrator:
         if state.get("file_scope"):
             lines.append(f"**Active files**: {', '.join(state['file_scope'][-5:])}")
         return "\n".join(lines) if lines else "(Session state empty — new session)"
+
+    def _update_metrics(self, items_pre_loaded: int):
+        """Update session-level metrics for turn savings tracking."""
+        metrics_path = self.condenser.session_dir / "metrics.json"
+        try:
+            if metrics_path.exists():
+                metrics = json.loads(metrics_path.read_text())
+            else:
+                metrics = {"items_pre_loaded": 0, "queries_made": 0, "estimated_turns_saved": 0}
+
+            metrics["items_pre_loaded"] += items_pre_loaded
+            metrics["queries_made"] += 1
+            # Rough estimate: each pre-loaded source saves ~1.5 manual lookups
+            metrics["estimated_turns_saved"] = round(metrics["items_pre_loaded"] * 1.5)
+
+            self.condenser._atomic_write(metrics_path, json.dumps(metrics, indent=2))
+        except Exception:
+            pass  # Metrics are nice-to-have, never block
+
+    def get_session_metrics(self) -> dict:
+        """Get accumulated session metrics for /debug display."""
+        metrics_path = self.condenser.session_dir / "metrics.json"
+        try:
+            if metrics_path.exists():
+                return json.loads(metrics_path.read_text())
+        except Exception:
+            pass
+        return {"items_pre_loaded": 0, "queries_made": 0, "estimated_turns_saved": 0}
 
     def add_turn(self, user_msg: str, assistant_msg: str, tools_used: list[str] = None):
         """Record a turn in session history."""
