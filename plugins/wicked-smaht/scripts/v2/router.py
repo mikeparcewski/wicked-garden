@@ -256,6 +256,11 @@ class Router:
         """
         if not entities:
             return False
+        # Grace period: skip novelty check until we've seen enough topics
+        # to have a meaningful baseline (prevents cold-start escalation)
+        if len(self.session_topics) < 3:
+            self.session_topics.update(entities)
+            return False
         # Novel if majority of entities are new
         new_count = sum(1 for e in entities if e not in self.session_topics)
         return new_count > len(entities) / 2
@@ -267,8 +272,8 @@ class Router:
         These use the hot path — session state only, no adapter queries.
         """
         stripped = prompt.strip()
-        # Must be short (< 30 chars) to qualify
-        if len(stripped) > 30:
+        # Must be reasonably short to qualify as continuation
+        if len(stripped) > 60:
             return False
         for pattern in CONTINUATION_PATTERNS:
             if re.match(pattern, stripped, re.IGNORECASE):

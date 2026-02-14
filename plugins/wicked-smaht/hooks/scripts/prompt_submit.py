@@ -31,7 +31,10 @@ CONTEXT_CRITICAL_TURN = 50
 
 def get_turn_tracker_path() -> Path:
     """Get path to smaht turn tracker (per-session)."""
-    session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "")
+    if not session_id:
+        # Generate a unique fallback based on parent PID to avoid cross-session leaks
+        session_id = f"pid-{os.getppid()}"
     return Path(tempfile.gettempdir()) / f"wicked-smaht-turns-{session_id}"
 
 
@@ -62,13 +65,12 @@ def increment_and_check_turns() -> tuple:
 
 def should_gather_context(prompt: str) -> bool:
     """Determine if we should gather context for this prompt."""
-    # Skip very short prompts
-    if len(prompt.strip()) < 5:
+    # Skip very short prompts (confirmations like "y", "ok" still get HOT path)
+    if len(prompt.strip()) < 3:
         return False
 
-    # Skip slash commands (they have their own context)
-    if prompt.strip().startswith("/"):
-        return False
+    # Don't skip slash commands — they benefit from context too
+    # The orchestrator's HOT path handles continuations efficiently
 
     return True
 
@@ -119,12 +121,20 @@ def main():
     # Gather context
     result = asyncio.run(gather_context(prompt, session_id))
 
-    if not result["success"] or not result["briefing"]:
-        # Even without briefing, emit context warning if needed
+    if not result["success"] or not result.get("briefing"):
+        # Partial context is better than no context — inject what we have
+        fallback_parts = []
         if context_warning:
+            fallback_parts.append(context_warning)
+        if result.get("error"):
+            # Log error to stderr for debugging, don't inject error messages
+            print(f"smaht: context assembly failed: {result['error']}", file=sys.stderr)
+        if result.get("sources") and any(result["sources"]):
+            fallback_parts.append(f"Context sources queried: {', '.join(result.get('sources', []))}")
+        if fallback_parts:
             print(json.dumps({
                 "continue": True,
-                "message": f"<system-reminder>\n{context_warning}\n</system-reminder>"
+                "message": f"<system-reminder>\n{'  '.join(fallback_parts)}\n</system-reminder>"
             }))
         else:
             print(json.dumps({"continue": True}))

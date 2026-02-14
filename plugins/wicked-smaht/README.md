@@ -83,6 +83,24 @@ From wicked-kanban: Task #12 "Fix auth token validation" - In Progress
 
 This context is injected before Claude responds, so you get informed answers without re-explaining.
 
+## Data API
+
+This plugin exposes data via the standard Plugin Data API. Sources are declared in `wicked.json`.
+
+| Source | Capabilities | Description |
+|--------|-------------|-------------|
+| sessions | list, get, stats | Session state with condensed context and routing history |
+
+Query via the workbench gateway:
+```
+GET /api/v1/data/wicked-smaht/{source}/{verb}
+```
+
+Or directly via CLI:
+```bash
+python3 scripts/api.py {verb} {source} [--limit N] [--offset N] [--query Q]
+```
+
 ## Integration
 
 Works standalone (no-op without other plugins). Enhanced with:
