@@ -1,0 +1,47 @@
+{
+  "$schema": "wicked-data/1.0.0",
+  "api_script": "scripts/api.py",
+  "sources": [
+    {
+      "name": "projects",
+      "description": "Crew workflow projects with phase tracking",
+      "capabilities": [
+        "list",
+        "get"
+      ]
+    },
+    {
+      "name": "phases",
+      "description": "Project phase execution history and status",
+      "capabilities": [
+        "list",
+        "get"
+      ]
+    },
+    {
+      "name": "signals",
+      "description": "Signal detection library for project analysis",
+      "capabilities": [
+        "list",
+        "search",
+        "stats"
+      ]
+    },
+    {
+      "name": "feedback",
+      "description": "Project outcome records and signal accuracy metrics",
+      "capabilities": [
+        "list",
+        "stats"
+      ]
+    },
+    {
+      "name": "specialists",
+      "description": "Installed specialist plugins with capabilities",
+      "capabilities": [
+        "list",
+        "get"
+      ]
+    }
+  ]
+}

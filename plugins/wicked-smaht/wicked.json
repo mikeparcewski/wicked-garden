@@ -1,0 +1,15 @@
+{
+  "$schema": "wicked-data/1.0.0",
+  "api_script": "scripts/api.py",
+  "sources": [
+    {
+      "name": "sessions",
+      "description": "Session state with condensed context and routing history",
+      "capabilities": [
+        "list",
+        "get",
+        "stats"
+      ]
+    }
+  ]
+}

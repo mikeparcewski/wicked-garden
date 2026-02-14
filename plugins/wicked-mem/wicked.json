@@ -1,0 +1,16 @@
+{
+  "$schema": "wicked-data/1.0.0",
+  "api_script": "scripts/api.py",
+  "sources": [
+    {
+      "name": "memories",
+      "description": "Structured memories by type (episodic, decision, procedural, preference)",
+      "capabilities": [
+        "list",
+        "get",
+        "search",
+        "stats"
+      ]
+    }
+  ]
+}
