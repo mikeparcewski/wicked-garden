@@ -109,8 +109,22 @@ def get_active_tasks():
     return tasks[:5]
 
 
+def _reset_turn_counter():
+    """Reset turn counter on session start to prevent cross-session leaks."""
+    import tempfile
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "")
+    if not session_id:
+        session_id = f"pid-{os.getppid()}"
+    tracker = Path(tempfile.gettempdir()) / f"wicked-smaht-turns-{session_id}"
+    if tracker.exists():
+        tracker.unlink()
+
+
 def main():
     """Initialize session and gather baseline context."""
+    # Reset turn counter to prevent cross-session leaks
+    _reset_turn_counter()
+
     context_lines = []
     session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
 
