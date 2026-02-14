@@ -143,6 +143,41 @@ def main():
         if state.get("topics"):
             context_lines.append(f"Topics: {', '.join(state['topics'][:5])}")
 
+        # Cross-session memory: recall recent past sessions
+        recent_sessions = HistoryCondenser.load_recent_sessions(max_sessions=3)
+        # Filter out current session
+        recent_sessions = [s for s in recent_sessions if s.get("session_id") != session_id]
+        if recent_sessions:
+            context_lines.append("Previous sessions:")
+            for prev in recent_sessions[:3]:
+                topics = ", ".join(prev.get("key_topics", [])[:3]) or "general"
+                turns = prev.get("turn_count", 0)
+                task = prev.get("current_task", "")
+                end_time = prev.get("end_time", "")
+                # Calculate rough age
+                age_str = ""
+                if end_time:
+                    try:
+                        from datetime import datetime, timezone
+                        ended = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+                        now = datetime.now(timezone.utc)
+                        hours = (now - ended).total_seconds() / 3600
+                        if hours < 1:
+                            age_str = "just now"
+                        elif hours < 24:
+                            age_str = f"{int(hours)}h ago"
+                        else:
+                            age_str = f"{int(hours/24)}d ago"
+                    except Exception:
+                        pass
+                line = f"  - {topics} ({turns} turns"
+                if age_str:
+                    line += f", {age_str}"
+                line += ")"
+                if task:
+                    line += f" — {task[:60]}"
+                context_lines.append(line)
+
     except ImportError:
         context_lines.append(f"Session: {session_id}")
     except Exception as e:

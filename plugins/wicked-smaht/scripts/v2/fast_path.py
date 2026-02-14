@@ -71,13 +71,21 @@ class FastPathAssembler:
                 print(f"smaht: adapter '{name}' unavailable: {e}", file=sys.stderr)
         return adapters
 
-    async def assemble(self, prompt: str, analysis: PromptAnalysis) -> FastPathResult:
+    async def assemble(self, prompt: str, analysis: PromptAnalysis,
+                       predicted_intent: 'IntentType | None' = None) -> FastPathResult:
         """Assemble context using pattern-based rules."""
         import time
         start_time = time.time()
 
         # Get adapters for this intent
-        adapter_names = ADAPTER_RULES.get(analysis.intent_type, ["search"])
+        adapter_names = list(ADAPTER_RULES.get(analysis.intent_type, ["search"]))
+
+        # If we have a predicted next intent, add bonus adapters from that intent's rules
+        if predicted_intent:
+            bonus = ADAPTER_RULES.get(predicted_intent, [])
+            for b in bonus:
+                if b not in adapter_names:
+                    adapter_names.append(b)
 
         # Query adapters in parallel
         tasks = []
@@ -187,6 +195,13 @@ class FastPathAssembler:
 
                 lines.append("")
 
+        # Proactive suggestion (max 1 per turn)
+        suggestion = self._generate_suggestion(analysis, items)
+        if suggestion:
+            lines.append("## Suggestion")
+            lines.append(f"*{suggestion}*")
+            lines.append("")
+
         # Note failures
         if failed_sources:
             lines.append("## Uncertainties")
@@ -194,6 +209,26 @@ class FastPathAssembler:
             lines.append("")
 
         return "\n".join(lines)
+
+    def _generate_suggestion(self, analysis: PromptAnalysis, items: list) -> str:
+        """Generate at most one proactive suggestion based on context patterns."""
+        # Check for relevant past decisions in memory items
+        mem_items = [i for i in items if getattr(i, 'source', '') == 'mem']
+        for item in mem_items:
+            title = getattr(item, 'title', '')
+            relevance = getattr(item, 'relevance', 0)
+            if relevance > 0.6 and 'decision' in title.lower():
+                return f"Related past decision found: {title[:80]}"
+
+        # Check for delegation hints
+        delegation_items = [i for i in items if getattr(i, 'source', '') == 'delegation']
+        if delegation_items and analysis.confidence > 0.7:
+            hint = delegation_items[0]
+            title = getattr(hint, 'title', '')
+            if title:
+                return f"Consider delegating: {title[:80]}"
+
+        return ""
 
 
 async def main():

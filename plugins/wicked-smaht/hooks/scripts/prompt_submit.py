@@ -144,9 +144,19 @@ def main():
     briefing = result["briefing"]
     path = result["path"]
     latency = result["latency_ms"]
+    sources = result.get("sources", [])
+    failed = result.get("failed", [])
 
-    # Add metadata header
-    header = f"<!-- wicked-smaht v2 | path={path} | latency={latency}ms | turn={turn_count} -->"
+    # Build visible badge with adapter names
+    if sources:
+        badge_sources = f"sources: {','.join(sources)}"
+        if failed:
+            badge_sources += f" | failed: {','.join(failed)}"
+    else:
+        badge_sources = "no sources"
+
+    # Add metadata header with visible badge
+    header = f"<!-- wicked-smaht v2 | path={path} | {badge_sources} | {latency}ms | turn={turn_count} -->"
 
     # Append context warning if applicable
     if context_warning:

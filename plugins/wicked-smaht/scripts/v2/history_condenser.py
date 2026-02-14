@@ -421,6 +421,66 @@ class HistoryCondenser:
             "has_open_threads": len(self.summary.open_threads) > 0,
         }
 
+    def persist_session_meta(self):
+        """Persist session metadata for cross-session recall.
+
+        Called on session end (Stop hook) to save a condensed session
+        summary that future sessions can recall for continuity.
+        """
+        meta_path = self.session_dir / "session_meta.json"
+        turn_count = len(self.turn_buffer)
+
+        # Only persist if there was meaningful activity
+        if turn_count == 0 and not self.summary.topics:
+            return
+
+        meta = {
+            "session_id": self.session_id,
+            "start_time": self.turn_buffer[0].timestamp if self.turn_buffer else datetime.now(timezone.utc).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat(),
+            "turn_count": turn_count,
+            "key_topics": self.summary.topics[:5],
+            "decisions_made": self.summary.decisions[:3],
+            "current_task": self.summary.current_task,
+            "files_touched": self.summary.file_scope[:10],
+        }
+        self._atomic_write(meta_path, json.dumps(meta, indent=2))
+
+    @staticmethod
+    def load_recent_sessions(max_sessions: int = 3) -> list[dict]:
+        """Load condensed summaries from recent past sessions.
+
+        Returns session metadata sorted by recency (newest first).
+        Used by SessionStart hook for cross-session continuity.
+        """
+        sessions_dir = Path.home() / ".something-wicked" / "wicked-smaht" / "sessions"
+        if not sessions_dir.exists():
+            return []
+
+        session_metas = []
+        for session_path in sessions_dir.iterdir():
+            if not session_path.is_dir():
+                continue
+            meta_path = session_path / "session_meta.json"
+            if not meta_path.exists():
+                continue
+            try:
+                meta = json.loads(meta_path.read_text())
+                # Add mtime for sorting
+                meta["_mtime"] = meta_path.stat().st_mtime
+                session_metas.append(meta)
+            except Exception:
+                continue
+
+        # Sort by modification time, newest first
+        session_metas.sort(key=lambda x: x.get("_mtime", 0), reverse=True)
+
+        # Remove internal sort key and return
+        for meta in session_metas:
+            meta.pop("_mtime", None)
+
+        return session_metas[:max_sessions]
+
 
 def main():
     """CLI for testing history condenser."""

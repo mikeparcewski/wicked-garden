@@ -24,6 +24,19 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session_end.py\"",
+            "timeout": 5000,
+            "async": true
+          }
+        ]
+      }
     ]
   }
 }
