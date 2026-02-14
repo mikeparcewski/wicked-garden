@@ -106,6 +106,26 @@ Unlike grep or IDE search, wicked-search understands your application's architec
 # UI: login.jsp → Controller → Service → Repository → Entity → Database
 ```
 
+## Data API
+
+This plugin exposes data via the standard Plugin Data API. Sources are declared in `wicked.json`.
+
+| Source | Capabilities | Description |
+|--------|-------------|-------------|
+| symbols | list, get, search, stats | Code symbols (functions, classes, methods) from indexed projects |
+| documents | list, search | Indexed documents (markdown, PDF, Office) with frontmatter |
+| references | list, search | Cross-references between symbols and documents |
+
+Query via the workbench gateway:
+```
+GET /api/v1/data/wicked-search/{source}/{verb}
+```
+
+Or directly via CLI:
+```bash
+python3 scripts/api.py {verb} {source} [--limit N] [--offset N] [--query Q]
+```
+
 ## Integration
 
 Works standalone. Enhanced with:
@@ -114,7 +134,7 @@ Works standalone. Enhanced with:
 |--------|-------------|------------|
 | wicked-smaht | Auto-loads code context before responses | Manual search only |
 | wicked-patch | Change propagation using symbol graph | Manual multi-file edits |
-| wicked-cache | Faster repeated searches | Re-indexes each time |
+| wicked-startah | Faster repeated searches | Re-indexes each time |
 | wicked-crew | Auto-engaged during build/review phases | Use commands directly |
 
 ## License

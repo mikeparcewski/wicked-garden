@@ -61,23 +61,21 @@ def _parse_version(v: str) -> tuple:
 
 
 def _discover_search_script() -> Optional[Path]:
-    """Find wicked-search's unified_search.py via cache or local repo."""
-    cache_base = Path.home() / ".claude" / "plugins" / "cache" / "wicked-garden" / "wicked-search"
-    if cache_base.exists():
-        versions = []
-        for d in cache_base.iterdir():
-            if d.is_dir():
-                versions.append((_parse_version(d.name), d))
-        if versions:
-            versions.sort(key=lambda x: x[0], reverse=True)
-            script = versions[0][1] / "scripts" / "unified_search.py"
-            if script.exists():
-                return script
-
-    # Local repo sibling path
+    """Find wicked-search's unified_search.py via sibling path or cache."""
+    # Local repo sibling path (preferred)
     local = Path(__file__).parent.parent.parent / "wicked-search" / "scripts" / "unified_search.py"
     if local.exists():
         return local
+
+    # Cache discovery via CLAUDE_PLUGIN_ROOT environment variable
+    import os
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    if plugin_root:
+        cache_base = Path(plugin_root).parent / "wicked-search"
+        if cache_base.exists():
+            script = cache_base / "scripts" / "unified_search.py"
+            if script.exists():
+                return script
 
     return None
 

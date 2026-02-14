@@ -1,0 +1,30 @@
+{
+  "extraKnownMarketplaces": {
+    "wicked-garden": {
+      "source": {
+        "source": "directory",
+        "path": "./"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "wicked-agentic@wicked-garden": true,
+    "wicked-cache@wicked-garden": true,
+    "wicked-crew@wicked-garden": true,
+    "wicked-data@wicked-garden": true,
+    "wicked-delivery@wicked-garden": true,
+    "wicked-engineering@wicked-garden": true,
+    "wicked-jam@wicked-garden": true,
+    "wicked-kanban@wicked-garden": true,
+    "wicked-mem@wicked-garden": true,
+    "wicked-patch@wicked-garden": true,
+    "wicked-platform@wicked-garden": true,
+    "wicked-product@wicked-garden": true,
+    "wicked-qe@wicked-garden": true,
+    "wicked-scenarios@wicked-garden": true,
+    "wicked-search@wicked-garden": true,
+    "wicked-smaht@wicked-garden": true,
+    "wicked-startah@wicked-garden": true,
+    "wicked-workbench@wicked-garden": true
+  }
+}

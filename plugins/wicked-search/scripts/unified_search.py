@@ -2395,7 +2395,7 @@ async def main():
                         # Try to import wicked-cache
                         try:
                             import sys as _sys
-                            cache_path = Path(__file__).parent.parent.parent / "wicked-cache" / "scripts"
+                            cache_path = Path(__file__).parent.parent.parent / "wicked-startah" / "scripts"
                             if cache_path.exists():
                                 _sys.path.insert(0, str(cache_path))
                             from cache import namespace
