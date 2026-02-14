@@ -69,7 +69,7 @@ Requires **wicked-search** for the symbol graph.
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
 | wicked-search | **Required** - provides symbol graph | Cannot function |
-| wicked-cache | Cached graph lookups | Re-queries each time |
+| wicked-startah | Cached graph lookups | Re-queries each time |
 
 ## License
 

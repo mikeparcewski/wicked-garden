@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository is the **Wicked Garden Marketplace** — a monorepo of 18 Claude Code plugins that turn Claude into a full engineering team. Plugins provide persistent memory, multi-specialist code review, guided workflows, brainstorming focus groups, structural code search, and more.
+This repository is the **Wicked Garden Marketplace** — a monorepo of 17 Claude Code plugins that turn Claude into a full engineering team. Plugins provide persistent memory, multi-specialist code review, guided workflows, brainstorming focus groups, structural code search, and more.
 
 The `.claude/` directory contains **development tools** (prefixed `wg-`) for building and releasing plugins. These tools are NOT distributed to marketplace users — they only work when checked out in this repo.
 
@@ -66,7 +66,7 @@ Standard directories (`commands/`, `agents/`, `skills/`, `hooks/hooks.json`) are
 ### Two Plugin Categories
 
 **Utility plugins** — tools that agents invoke dynamically:
-- wicked-cache, wicked-kanban, wicked-mem, wicked-search, wicked-smaht, wicked-startah, wicked-workbench, wicked-scenarios, wicked-patch
+- wicked-kanban, wicked-mem, wicked-search, wicked-smaht, wicked-startah, wicked-workbench, wicked-scenarios, wicked-patch
 
 **Specialist plugins** — role-based enhancers with personas:
 - wicked-engineering, wicked-platform, wicked-product, wicked-delivery, wicked-data, wicked-qe, wicked-jam, wicked-agentic
@@ -178,7 +178,7 @@ All plugin state goes under `~/.something-wicked/{plugin-name}/`. Never read ano
 Every plugin MUST work standalone. Optional dependencies use try/except:
 
 ```python
-cache = _get_cache()  # Returns None if wicked-cache not installed
+cache = _get_cache()  # Returns None if wicked-startah not installed
 if cache:
     cached = cache.get(key)
     if cached:
@@ -233,6 +233,32 @@ See [SKILLS-GUIDELINES.md](skills/SKILLS-GUIDELINES.md) for full rules.
 - **DO** use `/wicked-mem:store` for all memory persistence (decisions, patterns, gotchas)
 - **DO** use `/wicked-mem:recall` to retrieve past context
 - wicked-mem is the source of truth; MEMORY.md is auto-generated from the memory store
+
+## Delegation-First Execution
+
+**Core principle**: Delegate complex work to specialist subagents. Execute simple operations inline.
+
+### Always Delegate (via Task tool)
+
+- **Domain-specific work**: security review → wicked-platform agents, architecture → wicked-engineering agents, test strategy → wicked-qe agents, data analysis → wicked-data agents, brainstorming → wicked-jam agents, requirements/UX → wicked-product agents, agent architecture → wicked-agentic agents, delivery/reporting → wicked-delivery agents
+- **Multi-step work** (3+ distinct operations): design + implement + test, analyze + diagnose + fix, research + plan + document
+- **Review/analysis work**: code review, architecture review, risk assessment, quality gates
+- **Parallel-eligible work**: 2+ independent tasks → launch parallel subagents via multiple Task calls in one message
+
+### Execute Inline
+
+- Single-step operations (read a file, run one command, answer a question)
+- Continuations ("yes", "continue", "do it", "looks good")
+- No matching specialist available (check Task tool agent list first)
+
+### Code Search
+
+**Always prefer wicked-search over native tools** when wicked-search is installed:
+- For code symbol search: use `/wicked-search:code` instead of Grep
+- For document search: use `/wicked-search:docs` instead of Grep with glob
+- For impact analysis: use `/wicked-search:blast-radius` instead of manual grep chains
+- For data lineage: use `/wicked-search:lineage` — no native equivalent exists
+- **Fallback to Grep/Glob only** when: wicked-search is not installed, searching for simple string literals in known files, or index is not built
 
 ## Security
 

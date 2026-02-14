@@ -4,7 +4,7 @@ Complete documentation for the wicked-search graph export cache system.
 
 ## Overview
 
-The wicked-search graph export cache provides a high-performance, cross-plugin API for consuming code graph data. Instead of each plugin parsing JSONL files directly, they can use pre-computed, query-optimized views cached in wicked-cache.
+The wicked-search graph export cache provides a high-performance, cross-plugin API for consuming code graph data. Instead of each plugin parsing JSONL files directly, they can use pre-computed, query-optimized views cached via wicked-startah's caching infrastructure.
 
 **Key Benefits**:
 - **50-100x faster** than direct JSONL parsing
@@ -105,7 +105,7 @@ The cache provides 4 pre-computed query types:
 
 ```
 ┌──────────────────┐         ┌──────────────────┐
-│  wicked-search   │────────▶│   wicked-cache   │
+│  wicked-search   │────────▶│  wicked-startah  │
 │   (Producer)     │         │  (Storage Layer) │
 └──────────────────┘         └──────────────────┘
                                       ▲
