@@ -44,7 +44,7 @@
       "name": "wicked-jam",
       "source": "./plugins/wicked-jam",
       "description": "AI-powered brainstorming with dynamic focus groups. Generate diverse perspectives on ideas through persona-based discussion rounds.",
-      "version": "0.2.0"
+      "version": "0.3.0"
     },
     {
       "name": "wicked-data",
@@ -98,7 +98,7 @@
       "name": "wicked-smaht",
       "source": "./plugins/wicked-smaht",
       "description": "Ecosystem multiplier \u2014 automatically gathers context from installed plugins (memories, tasks, code search, brainstorms) before Claude responds. The more plugins you install, the smarter it gets. Confidence-based routing: fast path for simple queries, comprehensive assembly for complex ones.",
-      "version": "2.5.0"
+      "version": "2.6.0"
     },
     {
       "name": "wicked-agentic",
