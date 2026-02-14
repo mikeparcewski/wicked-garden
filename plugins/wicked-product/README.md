@@ -1,8 +1,8 @@
 # wicked-product
 
-A full product organization in a plugin -- product managers, UX designers, requirements analysts, customer advocates, and business strategists working together. Turn vague ideas into shippable features with acceptance criteria you can test against.
+A full product organization in a plugin -- customer advocates, product managers, UX designers, requirements analysts, and business strategists working together. The primary workflow is **listen → analyze → synthesize**: aggregate feedback from all sources, extract themes and sentiment, then generate prioritized recommendations.
 
-A customer voice pipeline (listen, analyze, synthesize) converts raw feedback into prioritized recommendations. WCAG accessibility audits catch issues before release. Requirements elicitation, UX reviews, customer voice analysis, and business strategy in one install.
+Turn vague ideas into shippable features with acceptance criteria you can test against. WCAG accessibility audits catch issues before release. Requirements elicitation, UX reviews, customer voice analysis, and business strategy in one install.
 
 ## Quick Start
 
@@ -26,6 +26,16 @@ claude plugin install wicked-product@wicked-garden
 
 ## Commands
 
+### Customer Voice Pipeline
+
+The primary workflow is **listen → analyze → synthesize**: aggregate feedback from all sources, extract themes and sentiment, then generate prioritized recommendations.
+
+| Command | What It Does | Example |
+|---------|-------------|---------|
+| `/wicked-product:listen` | Aggregate customer feedback from all sources | `/wicked-product:listen --days 30` |
+| `/wicked-product:analyze` | Analyze feedback for themes, sentiment, and trends | `/wicked-product:analyze --theme "pricing"` |
+| `/wicked-product:synthesize` | Generate actionable recommendations from insights | `/wicked-product:synthesize --priority high` |
+
 ### Requirements & Alignment
 
 | Command | What It Does | Example |
@@ -33,14 +43,6 @@ claude plugin install wicked-product@wicked-garden
 | `/wicked-product:elicit` | Extract requirements and write user stories | `/wicked-product:elicit outcome.md` |
 | `/wicked-product:acceptance` | Define testable acceptance criteria | `/wicked-product:acceptance --feature "user-login"` |
 | `/wicked-product:align` | Facilitate stakeholder alignment | `/wicked-product:align requirements.md` |
-
-### Customer Voice
-
-| Command | What It Does | Example |
-|---------|-------------|---------|
-| `/wicked-product:listen` | Aggregate customer feedback | `/wicked-product:listen --days 30` |
-| `/wicked-product:analyze` | Extract themes, sentiment, trends | `/wicked-product:analyze --theme "pricing"` |
-| `/wicked-product:synthesize` | Generate actionable recommendations | `/wicked-product:synthesize --priority high` |
 
 ### UX & Design
 

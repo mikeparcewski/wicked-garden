@@ -21,11 +21,17 @@ claude plugin install wicked-data@wicked-garden
 
 That's it. Claude generates SQL, DuckDB executes it, you get answers.
 
-## Commands & Skills
+## Commands
 
 | Command | What It Does | Example |
 |---------|-------------|---------|
 | `/wicked-data:analyze` | Interactive analysis session for CSV/Excel | `/wicked-data:analyze sales.csv` |
+| `/wicked-data:ontology` | Recommend ontologies based on dataset structure | `/wicked-data:ontology customers.csv` |
+
+## Skills
+
+| Skill | What It Does | Example |
+|-------|-------------|---------|
 | `/wicked-data:numbers` | DuckDB SQL queries on large files | `/wicked-data:numbers transactions.csv` |
 | `/wicked-data:data` | Schema validation and data profiling | `/wicked-data:data profile users.csv` |
 | `/wicked-data:pipeline` | ETL pipeline design and review | `/wicked-data:pipeline review pipelines/etl/` |
@@ -37,6 +43,7 @@ That's it. Claude generates SQL, DuckDB executes it, you get answers.
 | Need | Use This |
 |------|----------|
 | Quick CSV/Excel exploration | `/wicked-data:analyze` |
+| Find matching ontologies for dataset | `/wicked-data:ontology` |
 | SQL queries on large files | `/wicked-data:numbers` |
 | Validate data against a schema | `/wicked-data:data` |
 | Review or design ETL pipelines | `/wicked-data:pipeline` |
@@ -65,7 +72,15 @@ That's it. Claude generates SQL, DuckDB executes it, you get answers.
 "Are there any null email addresses?"
 ```
 
-### Data Pipeline Review
+### Ontology Recommendation
+
+```bash
+# Find matching ontologies for your dataset
+/wicked-data:ontology customers.csv
+# Outputs: schema.org, industry-specific, or custom ontology recommendations
+```
+
+### ETL Pipeline Review
 
 ```bash
 # Review existing pipeline code
@@ -102,8 +117,7 @@ Works standalone. Enhanced with:
 
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
-| wicked-cache | Faster repeated queries via cached schemas | Re-analyzes each time |
-| wicked-crew | Auto-engaged during design/build phases | Use commands directly |
+| wicked-crew | Auto-engaged during data-focused phases | Use commands directly |
 | wicked-search | Find existing pipeline code and schemas | Manual discovery |
 | wicked-mem | Store data patterns and architecture decisions | Session-only context |
 

@@ -101,6 +101,24 @@ File-based storage at `~/.something-wicked/memory/` - human-readable Markdown wi
 | `memory-learner` | After task completion |
 | `memory-archivist` | Session start, maintenance |
 
+## Data API
+
+This plugin exposes data via the standard Plugin Data API. Sources are declared in `wicked.json`.
+
+| Source | Capabilities | Description |
+|--------|-------------|-------------|
+| memories | list, get, search, stats | Structured memories by type (episodic, decision, procedural, preference) |
+
+Query via the workbench gateway:
+```
+GET /api/v1/data/wicked-mem/{source}/{verb}
+```
+
+Or directly via CLI:
+```bash
+python3 scripts/api.py {verb} {source} [--limit N] [--offset N] [--query Q]
+```
+
 ## Integration
 
 Works standalone. Enhanced with:
@@ -108,7 +126,7 @@ Works standalone. Enhanced with:
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
 | wicked-smaht | Auto-injects memories into context | Manual `/recall` only |
-| wicked-cache | Faster repeated searches | Re-searches each time |
+| wicked-startah | Faster repeated searches | Re-searches each time |
 | wicked-search | Index memories for code cross-references | No code linking |
 | wicked-kanban | Auto-capture learnings from completed tasks | Manual storage |
 

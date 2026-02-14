@@ -85,6 +85,24 @@ claude plugin install wicked-jam@wicked-garden
 | `facilitator` | Agent | Role-plays focus group personas and synthesizes discussions |
 | `brainstorming` | Skill | Orchestrates the persona selection, discussion rounds, and synthesis workflow |
 
+## Data API
+
+This plugin exposes data via the standard Plugin Data API. Sources are declared in `wicked.json`.
+
+| Source | Capabilities | Description |
+|--------|-------------|-------------|
+| sessions | list, get, search, stats | Brainstorming session history with perspectives and synthesis |
+
+Query via the workbench gateway:
+```
+GET /api/v1/data/wicked-jam/{source}/{verb}
+```
+
+Or directly via CLI:
+```bash
+python3 scripts/api.py {verb} {source} [--limit N] [--offset N] [--query Q]
+```
+
 ## Integration
 
 Works standalone. Enhanced with:

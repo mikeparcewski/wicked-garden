@@ -83,6 +83,27 @@ Folder-based storage for fast, concurrent access:
     └── activity/{date}.jsonl # Daily audit log
 ```
 
+## Data API
+
+This plugin exposes data via the standard Plugin Data API. Sources are declared in `wicked.json`.
+
+| Source | Capabilities | Description |
+|--------|-------------|-------------|
+| projects | list, get | Kanban projects with metadata and configuration |
+| tasks | list, get, search, stats | Kanban tasks with status, priority, and metadata |
+| initiatives | list, get | Project initiatives for grouping tasks |
+| activity | list | Recent task activity and changes |
+
+Query via the workbench gateway:
+```
+GET /api/v1/data/wicked-kanban/{source}/{verb}
+```
+
+Or directly via CLI:
+```bash
+python3 scripts/api.py {verb} {source} [--limit N] [--offset N] [--query Q]
+```
+
 ## Integration
 
 Works standalone. Enhanced with:
