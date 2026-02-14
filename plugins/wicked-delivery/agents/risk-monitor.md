@@ -89,10 +89,11 @@ Identify critical path risks.
 ### 6. Update Kanban
 
 Add risk assessment:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Risk Assessment" "{task_id}" \
-  "[risk-monitor] Risk Analysis
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[risk-monitor] Risk Analysis
 
 **Overall Risk Level**: {LOW|MEDIUM|HIGH|CRITICAL}
 **Last Updated**: {date}
@@ -113,7 +114,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 **Next Review**: {date}
 **Confidence**: {HIGH|MEDIUM|LOW}"
-```
+)
 
 ### 7. Generate Risk Report
 

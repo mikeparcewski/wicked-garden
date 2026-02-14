@@ -144,10 +144,11 @@ secondary_metric_achieved {variant, user_id, value}
 ### 9. Update Kanban
 
 Store experiment design:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Experiment Design" "{task_id}" \
-  "[experiment-designer] Experiment Plan
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[experiment-designer] Experiment Plan
 
 **Hypothesis**: {hypothesis}
 
@@ -169,7 +170,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 - Analytics: {events}
 
 **Confidence**: {HIGH|MEDIUM|LOW}"
-```
+)
 
 ### 10. Return Design
 

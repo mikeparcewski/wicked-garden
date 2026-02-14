@@ -16,7 +16,7 @@ You translate project status into stakeholder-appropriate communications.
 
 Before doing work manually, check if a wicked-* skill or tool can help:
 
-- **Reporting**: Use wicked-delivery:report for multi-perspective analysis
+- **Reporting**: Use crew evidence tracking for multi-perspective analysis
 - **Task tracking**: Use wicked-kanban for current status
 - **Memory**: Use wicked-mem to recall stakeholder preferences
 - **Search**: Use wicked-search to gather project artifacts
@@ -70,10 +70,12 @@ For each stakeholder type, identify:
 ### 5. Update Kanban
 
 Add stakeholder summary:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Status Report" "{report_task_id}" \
-  "[stakeholder-reporter] Status Report Generated
+```
+TaskUpdate(
+  taskId="{report_task_id}",
+  description="Append findings:
+
+[stakeholder-reporter] Status Report Generated
 
 **Audience**: {stakeholder type}
 **Date**: {date}
@@ -89,6 +91,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 ## Next Report**: {date}
 **Confidence**: {HIGH|MEDIUM|LOW}"
+)
 ```
 
 ### 6. Generate Report

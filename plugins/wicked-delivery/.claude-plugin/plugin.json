@@ -1,18 +1,17 @@
 {
   "name": "wicked-delivery",
-  "version": "0.2.0",
-  "description": "Delivery management expertise spanning PMO, onboarding, experimentation, and FinOps. Includes delivery managers, cost analysts, and rollout coordinators.",
+  "version": "0.3.0",
+  "description": "Feature delivery tactics: A/B test design, progressive rollouts, and delivery risk monitoring. Focused on how features ship safely.",
   "author": {
     "name": "Mike Parcewski"
   },
   "license": "MIT",
   "keywords": [
-    "pmo",
-    "delivery",
-    "onboarding",
     "experiment",
-    "finops",
     "rollout",
-    "reporting"
+    "risk",
+    "canary",
+    "feature-flag",
+    "ab-test"
   ]
 }

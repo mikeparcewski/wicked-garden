@@ -19,7 +19,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Task tracking**: Use wicked-kanban for sprint boards and velocity
 - **Memory**: Use wicked-mem to recall past velocity patterns
 - **Search**: Use wicked-search to find blockers and dependencies
-- **Reporting**: Use wicked-delivery:report for delivery metrics
+- **Reporting**: Use crew evidence tracking for delivery metrics
 
 If a wicked-* tool is available, prefer it over manual approaches.
 
@@ -33,8 +33,8 @@ Check kanban board status:
 ```
 
 Or manually:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" list
+```
+TaskList()
 ```
 
 ### 2. Calculate Velocity
@@ -71,10 +71,12 @@ Assess team capacity:
 ### 5. Update Kanban
 
 Add sprint analysis:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Sprint Analysis" "{sprint_task_id}" \
-  "[delivery-manager] Sprint Health Check
+```
+TaskUpdate(
+  taskId="{sprint_task_id}",
+  description="Append findings:
+
+[delivery-manager] Sprint Health Check
 
 **Velocity**: {current} vs {target} ({trend})
 **Completion Rate**: {X}% on track
@@ -96,6 +98,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 
 **Recommendation**: {action to take}
 **Confidence**: {HIGH|MEDIUM|LOW}"
+)
 ```
 
 ### 6. Generate Sprint Report

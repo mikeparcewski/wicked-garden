@@ -142,10 +142,11 @@ Stage 2:
 ### 9. Update Kanban
 
 Track rollout progress:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Rollout Plan" "{task_id}" \
-  "[rollout-manager] Progressive Rollout Plan
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[rollout-manager] Progressive Rollout Plan
 
 **Feature**: {feature_name}
 **Risk Level**: {LOW|MEDIUM|HIGH}
@@ -168,7 +169,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 - Alerts: {channels}
 
 **Stakeholders Notified**: {list}"
-```
+)
 
 ### 10. Return Rollout Plan
 
