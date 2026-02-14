@@ -1,0 +1,32 @@
+{
+  "$schema": "wicked-data/1.0.0",
+  "api_script": "scripts/api.py",
+  "sources": [
+    {
+      "name": "symbols",
+      "description": "Code symbols (functions, classes, methods) from indexed projects",
+      "capabilities": [
+        "list",
+        "get",
+        "search",
+        "stats"
+      ]
+    },
+    {
+      "name": "documents",
+      "description": "Indexed documents (markdown, PDF, Office) with frontmatter",
+      "capabilities": [
+        "list",
+        "search"
+      ]
+    },
+    {
+      "name": "references",
+      "description": "Cross-references and dependency links between symbols",
+      "capabilities": [
+        "list",
+        "search"
+      ]
+    }
+  ]
+}

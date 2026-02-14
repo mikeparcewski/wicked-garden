@@ -1,0 +1,39 @@
+{
+  "$schema": "wicked-data/1.0.0",
+  "api_script": "scripts/api.py",
+  "sources": [
+    {
+      "name": "projects",
+      "description": "Kanban projects with metadata and configuration",
+      "capabilities": [
+        "list",
+        "get"
+      ]
+    },
+    {
+      "name": "tasks",
+      "description": "Kanban tasks with status, priority, and metadata",
+      "capabilities": [
+        "list",
+        "get",
+        "search",
+        "stats"
+      ]
+    },
+    {
+      "name": "initiatives",
+      "description": "Project initiatives for grouping related tasks",
+      "capabilities": [
+        "list",
+        "get"
+      ]
+    },
+    {
+      "name": "activity",
+      "description": "Audit trail of task and project changes",
+      "capabilities": [
+        "list"
+      ]
+    }
+  ]
+}
