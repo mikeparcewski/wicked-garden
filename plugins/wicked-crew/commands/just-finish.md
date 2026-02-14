@@ -27,6 +27,34 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/specialist_discovery.py" --json
 
 Match available specialists to project signals for auto-engagement.
 
+### 2.5 Gather Context via wicked-smaht (if available)
+
+Before starting phase work, assemble structured context from the ecosystem. This ensures specialists and fallback agents receive rich context — not just raw deliverable text.
+
+```bash
+# Discover wicked-smaht (graceful degradation if not installed)
+SMAHT_PLUGIN_ROOT=$(find ~/.claude/plugins/cache/wicked-garden/wicked-smaht -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
+
+if [ -n "$SMAHT_PLUGIN_ROOT" ]; then
+  # Build context package for current phase
+  cd "${SMAHT_PLUGIN_ROOT}" && uv run python scripts/context_package.py build \
+    --task "Execute {current_phase} phase for {project-name}" \
+    --project "{project-name}" \
+    --prompt
+fi
+```
+
+Include the context package output in ALL subagent Task() dispatches. If wicked-smaht is not available, proceed with project.json signals and deliverable text only.
+
+### 2.6 Orchestrator-Only Principle
+
+**CRITICAL: The main agent is an ORCHESTRATOR only.** It must NOT perform complex analysis, implementation, or review work inline. Instead:
+
+- **ALL processing** goes through subagent `Task()` dispatches to specialists or fallback agents
+- The main agent ONLY: reads project state, makes routing decisions, dispatches subagents, tracks task lifecycle, and reports progress
+- Manage context through tools (TaskList, TaskGet, Read) — do NOT accumulate large working state in the main conversation
+- When in doubt, delegate to a subagent rather than doing work inline
+
 ### 3. Autonomy Mode
 
 In "just-finish" mode:
@@ -34,6 +62,31 @@ In "just-finish" mode:
 - Auto-approve routine choices
 - **Auto-engage specialists** when signal thresholds are met
 - Only pause at guardrails
+- **For the clarify phase**: Do NOT ask the user for clarification. Make reasonable assumptions based on the project description and signal analysis. Document all assumptions in the phase deliverables.
+- **Track assumptions**: When making any assumption, immediately record it in project.json:
+  ```json
+  {
+    "assumptions": [
+      {"phase": "clarify", "assumption": "Requirements are for the current codebase", "reason": "No alternate target specified"},
+      {"phase": "build", "assumption": "Backward compatibility preserved", "reason": "No breaking change request"}
+    ]
+  }
+  ```
+- **Document assumptions**: At project completion, include an "Assumptions Made" appendix listing every tracked assumption
+
+### 3.5 Dynamic Archetype Pre-Analysis
+
+**Same as execute.md Section 4 — run before starting phase work.**
+
+Before loading signal analysis, dynamically detect project archetypes. Quality means different things for different projects. Use the same approach as execute.md:
+
+1. **Read project descriptor files**: CLAUDE.md, README.md, package.json, etc.
+2. **Query memories**: `/wicked-mem:recall "project type and quality dimensions for {project-name}"`
+3. **Analyze codebase**: `/wicked-search:scout` and `/wicked-search:blast-radius` if available
+4. **Classify archetypes** and build hints JSON
+5. **Pass hints** to smart_decisioning via `--archetype-hints`
+
+In just-finish mode, do this analysis ONCE at the start and cache the archetype hints in project.json for reuse at checkpoints. Do NOT re-run the full discovery at every checkpoint unless signals change significantly.
 
 ### 4. Guardrails (ALWAYS pause)
 
@@ -65,7 +118,7 @@ When a checkpoint phase completes:
 1. Gather phase artifacts from `phases/{phase}/`
 2. Re-run signal analysis:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" analyze --project-dir . --json "{summary of deliverables}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "{summary of deliverables}"
    ```
 3. Compare new signals against project.json `signals_detected`
 4. If new signals found:
@@ -168,6 +221,14 @@ When all phases complete:
 ### Artifacts Created
 
 - {List of files/deliverables}
+
+### Assumptions Made
+
+{List every assumption made during autonomous execution, organized by phase}
+
+- **Clarify**: {assumptions about requirements, scope, priorities}
+- **Build**: {assumptions about approach, trade-offs, defaults}
+- **Review**: {assumptions about acceptance criteria}
 
 ### Recommendations
 

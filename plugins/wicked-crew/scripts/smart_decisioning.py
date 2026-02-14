@@ -40,14 +40,15 @@ logger = logging.getLogger('wicked-crew.smart-decisioning')
 # - This is a STABLE mapping - changes should be rare and well-documented
 SIGNAL_KEYWORDS = {
     "security": [
-        "auth", "authenticate", "authorization", "encrypt", "pii", "credentials",
-        "token", "password", "oauth", "jwt", "secret", "vault", "certificate",
-        "api-key", "apikey", "login", "session", "csrf", "xss", "injection"
+        "auth*", "encrypt*", "pii", "credential*",
+        "token*", "password", "oauth", "jwt", "secret*", "vault", "certific*",
+        "login", "session", "csrf", "xss", "inject*",
+        "security", "permiss*", "rbac",
     ],
     "performance": [
-        "scale", "scaling", "load", "optimize", "optimization", "latency",
+        "scal*", "load", "optimi*", "latency",
         "throughput", "cache", "caching", "performance", "slow", "fast",
-        "bottleneck", "memory", "cpu", "concurrent"
+        "bottleneck", "memory", "cpu", "concurren*", "benchmark*",
     ],
     "product": [
         "requirement", "feature", "story", "customer", "stakeholder", "acceptance",
@@ -68,9 +69,9 @@ SIGNAL_KEYWORDS = {
         "affects all",
     ],
     "data": [
-        "data", "analytics", "metrics", "report", "dashboard", "visualization",
+        "data", "analytics", "metrics", "report*", "dashboard", "visuali*",
         "query", "database", "sql", "csv", "etl", "pipeline", "ml", "model",
-        "training", "dataset", "warehouse"
+        "training", "dataset", "warehouse", "schema", "ontology",
     ],
     "infrastructure": [
         "deploy", "deployment", "ci/cd", "pipeline", "docker", "kubernetes",
@@ -252,6 +253,154 @@ NOVELTY_SIGNALS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Project Archetype Detection
+# ---------------------------------------------------------------------------
+# Archetypes represent the TYPE of project/app being changed.
+# Different archetypes have different scoring levers:
+# - Content-heavy: messaging consistency matters, not tech complexity
+# - UI-heavy: design/UX consistency matters, needs design review + testing
+# - API/Backend: integration surface and contract stability matter
+# - Infrastructure/Framework: core execution path changes have broad impact
+# - Data Pipeline: data quality, lineage, and downstream effects matter
+#
+# The archetype adjusts impact scoring and injects relevant signals so that
+# scoring reflects what actually matters for the project type.
+
+ARCHETYPE_KEYWORDS = {
+    "content-heavy": [
+        "content", "copy", "messaging", "blog", "cms", "landing page",
+        "marketing", "seo", "editorial", "article", "headline", "brand",
+        "tone", "voice", "paragraph", "section copy", "fact*",
+        "consistency", "wording",
+    ],
+    "ui-heavy": [
+        "component", "design system", "css", "layout", "responsive",
+        "animation", "theme", "style", "visual", "frontend", "react",
+        "vue", "angular", "dashboard", "widget", "button", "form",
+        "modal", "sidebar", "navigation", "menu", "look and feel",
+        "differentiation",
+    ],
+    "api-backend": [
+        "api", "rest", "graphql", "endpoint", "service", "server",
+        "backend", "database", "query", "orm", "grpc", "websocket",
+        "microservice", "gateway", "proxy", "contract",
+    ],
+    "infrastructure-framework": [
+        "plugin", "framework", "build system", "ci/cd",
+        "scaffold", "hook", "middleware", "engine", "core",
+        "execution", "scoring", "routing", "dispatch", "orchestrat*",
+        "phase", "workflow", "configuration", "tooling", "cli",
+        "command", "agent", "prompt engineering", "behavior",
+        "core path", "execution path", "foundational",
+    ],
+    "data-pipeline": [
+        "etl", "pipeline", "data flow", "transform", "warehouse",
+        "lake", "batch", "stream", "ingest", "extract", "load",
+        "lineage", "dbt", "airflow", "spark",
+    ],
+    "mobile-app": [
+        "ios", "android", "mobile", "react native", "flutter",
+        "swift", "kotlin", "app store", "play store", "push notification",
+        "offline", "gesture",
+    ],
+    "ml-ai": [
+        "model", "training", "inference", "embedding", "vector",
+        "llm", "fine-tune", "prompt", "rag", "evaluation", "benchmark",
+        "dataset", "feature engineering", "hyperparameter",
+    ],
+    "compliance-regulated": [
+        "hipaa", "soc2", "gdpr", "pci", "audit", "compliance",
+        "regulation", "phi", "pii", "data protection", "retention",
+        "consent", "privacy",
+    ],
+    "monorepo-platform": [
+        "monorepo", "workspace", "package", "shared", "library",
+        "dependency", "nx", "turborepo", "lerna", "cross-package",
+        "internal package", "versioning",
+    ],
+    "real-time": [
+        "websocket", "real-time", "realtime", "streaming", "push",
+        "event-driven", "pubsub", "message queue", "kafka", "rabbitmq",
+        "socket", "live update",
+    ],
+}
+
+# How each archetype adjusts scoring:
+# - impact_bonus: added to impact score before composite (core path changes are high-impact)
+# - inject_signals: signals auto-added if not already present (with moderate confidence)
+# - min_complexity: floor for complexity score (prevents underscoring important changes)
+# - description: human-readable explanation of why this archetype matters
+#
+# NOTE: This is a FALLBACK set. Commands should do dynamic archetype analysis
+# (querying memories, reading CLAUDE.md/agent.md, using blast-radius) and pass
+# results via --archetype-hints. These static definitions activate when no
+# external hints are available or when keyword detection finds matches.
+# External hints use the same adjustment format and can define NEW archetypes
+# beyond this set.
+ARCHETYPE_ADJUSTMENTS = {
+    "content-heavy": {
+        "impact_bonus": 1,
+        "inject_signals": {"product": 0.3},
+        "min_complexity": 2,
+        "description": "Content-heavy: messaging consistency and factual accuracy matter",
+    },
+    "ui-heavy": {
+        "impact_bonus": 1,
+        "inject_signals": {"ux": 0.3},
+        "min_complexity": 2,
+        "description": "UI-heavy: design consistency and user experience require review",
+    },
+    "api-backend": {
+        "impact_bonus": 1,
+        "inject_signals": {},
+        "min_complexity": 2,
+        "description": "API/Backend: integration surface and contract stability matter",
+    },
+    "infrastructure-framework": {
+        "impact_bonus": 2,
+        "inject_signals": {"architecture": 0.3},
+        "min_complexity": 3,
+        "description": "Infrastructure/Framework: core execution path changes have broad impact",
+    },
+    "data-pipeline": {
+        "impact_bonus": 1,
+        "inject_signals": {"data": 0.3},
+        "min_complexity": 2,
+        "description": "Data pipeline: data quality, lineage, and downstream effects matter",
+    },
+    "mobile-app": {
+        "impact_bonus": 1,
+        "inject_signals": {"ux": 0.3},
+        "min_complexity": 2,
+        "description": "Mobile app: platform constraints, UX patterns, and release cycles matter",
+    },
+    "ml-ai": {
+        "impact_bonus": 1,
+        "inject_signals": {"data": 0.3},
+        "min_complexity": 3,
+        "description": "ML/AI: model quality, training data, and evaluation rigor matter",
+    },
+    "compliance-regulated": {
+        "impact_bonus": 2,
+        "inject_signals": {"compliance": 0.5, "security": 0.3},
+        "min_complexity": 3,
+        "description": "Compliance/Regulated: audit trails, policy adherence, and risk documentation matter",
+    },
+    "monorepo-platform": {
+        "impact_bonus": 2,
+        "inject_signals": {"architecture": 0.3},
+        "min_complexity": 3,
+        "description": "Monorepo/Platform: cross-package impact, shared dependencies, and versioning matter",
+    },
+    "real-time": {
+        "impact_bonus": 1,
+        "inject_signals": {"performance": 0.3},
+        "min_complexity": 2,
+        "description": "Real-time: latency, concurrency, and state synchronization matter",
+    },
+}
+
+# ---------------------------------------------------------------------------
 # Pattern helpers
 # ---------------------------------------------------------------------------
 
@@ -297,6 +446,13 @@ _COMPILED_NOVELTY = [
     (re.compile(_make_pattern(kw)), weight, label)
     for kw, weight, label in NOVELTY_SIGNALS
 ]
+
+_COMPILED_ARCHETYPE_PATTERNS: Dict[str, List[re.Pattern]] = {}
+for _arch, _keywords in ARCHETYPE_KEYWORDS.items():
+    _COMPILED_ARCHETYPE_PATTERNS[_arch] = [
+        re.compile(_make_pattern(kw), re.IGNORECASE)
+        for kw in _keywords
+    ]
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -364,6 +520,9 @@ class SignalAnalysis:
     fallback_agents: Dict[str, str]
     is_ambiguous: bool
     confidence: str                                 # HIGH, MEDIUM, LOW
+    archetypes: Dict[str, float] = field(default_factory=dict)  # Detected project archetypes
+    primary_archetype: Optional[str] = field(default=None)      # Highest-confidence archetype
+    archetype_adjustments_applied: Dict = field(default_factory=dict)  # What adjustments were made
     flags: Dict[str, bool] = field(default_factory=dict)
     overrides_applied: Dict = field(default_factory=dict)
     memory_payload: Optional[Dict] = field(default=None)  # For caller to store via /wicked-mem:store
@@ -532,6 +691,28 @@ def assess_novelty(text: str, signals: List[str], is_ambiguous: bool) -> Tuple[i
         reasons.append("+1 ambiguity detected (uncertain scope)")
 
     return (min(score, 3), reasons)
+
+
+def detect_archetype(text: str) -> Dict[str, float]:
+    """Detect project archetype from text description.
+
+    Returns dict of archetype -> confidence (0.0-1.0).
+    Multiple archetypes can be detected simultaneously.
+    Confidence is based on keyword density relative to archetype threshold.
+    """
+    text_lower = text.lower()
+    results: Dict[str, float] = {}
+
+    for archetype, patterns in _COMPILED_ARCHETYPE_PATTERNS.items():
+        if not patterns:
+            continue
+        matches = sum(1 for p in patterns if p.search(text_lower))
+        if matches > 0:
+            # Confidence scales with match density; 30% of keywords = 1.0
+            confidence = min(matches / max(len(patterns) * 0.3, 1), 1.0)
+            results[archetype] = round(confidence, 3)
+
+    return results
 
 
 STAKEHOLDER_KEYWORDS = ["team", "manager", "lead", "stakeholder", "customer", "user"]
@@ -863,6 +1044,7 @@ def analyze_input(
     plugin_dir: Optional[Path] = None,
     overrides: Optional[AnalysisOverrides] = None,
     context: Optional[ContextualVariables] = None,
+    archetype_hints: Optional[Dict] = None,
 ) -> SignalAnalysis:
     """
     Main entry point: Analyze user input and return signal analysis.
@@ -894,10 +1076,91 @@ def analyze_input(
     ambiguous = is_ambiguous(text)
     available = get_available_specialists(plugin_dir)
 
+    # Archetype detection - understand the TYPE of project/app
+    #
+    # TWO SOURCES (merged):
+    # 1. External archetype_hints from command-layer dynamic analysis (preferred)
+    #    - Commands use subagents, memories, CLAUDE.md, blast-radius, etc.
+    #    - Can define NEW archetypes not in ARCHETYPE_ADJUSTMENTS
+    #    - Format: {"archetype-name": {"confidence": 0.8, "impact_bonus": 2,
+    #      "inject_signals": {"security": 0.3}, "min_complexity": 3,
+    #      "description": "why this matters"}}
+    # 2. Static keyword detection (fallback when no hints provided)
+    #
+    # HOLISTIC: Apply adjustments from ALL detected archetypes using maximum values.
+    archetypes: Dict[str, float] = {}
+    archetype_adj_applied: Dict = {}
+
+    # Local copy of adjustments to avoid mutating the global dict
+    effective_adjustments = dict(ARCHETYPE_ADJUSTMENTS)
+
+    # Merge external hints (command-layer dynamic analysis)
+    if archetype_hints:
+        for arch_name, hint_data in archetype_hints.items():
+            # Validate hint schema
+            if not isinstance(hint_data, dict):
+                logger.warning(f"Invalid hint for {arch_name}: not a dict, skipping")
+                continue
+            confidence = hint_data.get("confidence", 0.7)
+            if not isinstance(confidence, (int, float)) or not 0.0 <= confidence <= 1.0:
+                logger.warning(f"Invalid confidence for {arch_name}: {confidence}, clamping")
+                confidence = max(0.0, min(float(confidence) if isinstance(confidence, (int, float)) else 0.7, 1.0))
+            archetypes[arch_name] = confidence
+            # Register custom adjustments in local copy (not global)
+            if arch_name not in effective_adjustments:
+                effective_adjustments[arch_name] = {
+                    "impact_bonus": min(int(hint_data.get("impact_bonus", 1)), 3),
+                    "inject_signals": hint_data.get("inject_signals", {}),
+                    "min_complexity": min(int(hint_data.get("min_complexity", 2)), 7),
+                    "description": hint_data.get("description", f"Dynamic: {arch_name}"),
+                }
+            archetype_adj_applied[f"hint:{arch_name}"] = confidence
+
+    # Keyword-based detection (fallback, always runs to augment hints)
+    keyword_archetypes = detect_archetype(text)
+    for arch, conf in keyword_archetypes.items():
+        if arch not in archetypes or conf > archetypes[arch]:
+            archetypes[arch] = conf
+
+    primary_archetype = max(archetypes, key=archetypes.get) if archetypes else None
+
+    # Apply signal injections from ALL detected archetypes
+    for arch in archetypes:
+        adj = effective_adjustments.get(arch, {})
+        for sig, conf in adj.get("inject_signals", {}).items():
+            if sig not in signal_confidences:
+                signal_confidences[sig] = conf
+                archetype_adj_applied[f"injected_signal:{sig}"] = conf
+    if archetypes:
+        signals = list(signal_confidences.keys())  # Refresh after injection
+
     # Compute risk dimensions
     impact, impact_reasons = assess_impact(text)
     reversibility, rev_reasons = assess_reversibility(text)
     novelty, nov_reasons = assess_novelty(text, signals, ambiguous)
+
+    # Apply MAXIMUM impact bonus from ALL detected archetypes
+    # Core infrastructure/framework changes have broad impact even without file references
+    if archetypes:
+        max_bonus = 0
+        max_bonus_arch = None
+        for arch in archetypes:
+            adj = effective_adjustments.get(arch, {})
+            bonus = adj.get("impact_bonus", 0)
+            if bonus > max_bonus:
+                max_bonus = bonus
+                max_bonus_arch = arch
+        if max_bonus > 0 and max_bonus_arch:
+            adj = effective_adjustments.get(max_bonus_arch, {})
+            old_impact = impact
+            impact = min(impact + max_bonus, 3)
+            if impact > old_impact:
+                impact_reasons.append(
+                    f"archetype:{max_bonus_arch} +{max_bonus} "
+                    f"({adj.get('description', 'type-specific adjustment')})"
+                )
+                archetype_adj_applied["impact_bonus"] = max_bonus
+                archetype_adj_applied["impact_bonus_from"] = max_bonus_arch
 
     # Build explanation
     explanation = []
@@ -920,6 +1183,18 @@ def analyze_input(
         impact, reversibility, novelty, text,
         component_overrides=effective_overrides.component_overrides or None,
     )
+
+    # Apply MAXIMUM minimum complexity floor from ALL detected archetypes
+    if archetypes:
+        max_min_complexity = 0
+        for arch in archetypes:
+            adj = effective_adjustments.get(arch, {})
+            max_min_complexity = max(max_min_complexity, adj.get("min_complexity", 0))
+        if complexity < max_min_complexity:
+            archetype_adj_applied["min_complexity_applied"] = {
+                "from": complexity, "to": max_min_complexity
+            }
+            complexity = max_min_complexity
 
     if effective_overrides.component_overrides:
         overrides_applied["component_overrides"] = effective_overrides.component_overrides
@@ -983,6 +1258,9 @@ def analyze_input(
         fallback_agents=fallbacks,
         is_ambiguous=ambiguous,
         confidence=confidence,
+        archetypes=archetypes,
+        primary_archetype=primary_archetype,
+        archetype_adjustments_applied=archetype_adj_applied,
         flags=flags,
         overrides_applied=overrides_applied,
     )
@@ -1011,12 +1289,17 @@ def main():
     parser.add_argument("--team-size", type=int, default=1, help="Team size context")
     parser.add_argument("--customer-type", choices=["internal", "external", "enterprise"],
                         default="internal", help="Customer type context")
+    parser.add_argument("--archetype-hints", type=str, default=None,
+                        help="JSON dict of archetype hints from dynamic analysis. "
+                             "Format: {\"archetype-name\": {\"confidence\": 0.8, "
+                             "\"impact_bonus\": 2, \"inject_signals\": {}, "
+                             "\"min_complexity\": 3, \"description\": \"why\"}}")
 
     args = parser.parse_args()
 
     if args.stdin:
         text = sys.stdin.read()
-    elif args.text:
+    elif args.text is not None:
         text = args.text
     else:
         parser.error("Provide text or --stdin")
@@ -1028,7 +1311,16 @@ def main():
         customer_type=args.customer_type,
     )
 
-    analysis = analyze_input(text, args.plugin_dir, overrides=overrides, context=context)
+    # Parse archetype hints from command layer
+    hints = None
+    if args.archetype_hints:
+        try:
+            hints = json.loads(args.archetype_hints)
+        except json.JSONDecodeError:
+            logger.warning(f"Invalid archetype hints JSON, ignoring: {args.archetype_hints}")
+
+    analysis = analyze_input(text, args.plugin_dir, overrides=overrides, context=context,
+                             archetype_hints=hints)
 
     if args.json:
         # Convert RoutingInfo objects to dicts for JSON serialization
@@ -1058,6 +1350,18 @@ def main():
             print(f"  Explanation:")
             for exp in dims.explanation:
                 print(f"    - {exp}")
+        if analysis.archetypes:
+            print()
+            print(f"Project Archetypes:")
+            for arch, conf in sorted(analysis.archetypes.items(), key=lambda x: -x[1]):
+                primary = " (primary)" if arch == analysis.primary_archetype else ""
+                adj = ARCHETYPE_ADJUSTMENTS.get(arch, {})
+                desc = adj.get("description", "")
+                print(f"  {arch}: {conf:.1%}{primary}")
+                if desc and arch == analysis.primary_archetype:
+                    print(f"    {desc}")
+            if analysis.archetype_adjustments_applied:
+                print(f"  Adjustments applied: {analysis.archetype_adjustments_applied}")
         if analysis.flags:
             print()
             print(f"Flags:")

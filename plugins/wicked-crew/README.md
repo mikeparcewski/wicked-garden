@@ -136,6 +136,31 @@ The scorer also detects 12 signal categories that determine which specialists to
 
 Keywords ending with `*` are stem-matched: `migrat*` catches "migrate", "migration", and "migrating".
 
+#### Project Archetypes
+
+Scoring adjusts based on the **type of project** being changed. Different archetypes have different quality dimensions -- what matters for a content site is different from what matters for infrastructure.
+
+| Archetype | Quality Focus | Impact Bonus | Min Complexity |
+|-----------|--------------|--------------|----------------|
+| infrastructure-framework | Core execution paths affect all downstream users | +2 | 3 |
+| compliance-regulated | Audit trails, policy adherence, and risk documentation | +2 | 3 |
+| monorepo-platform | Cross-package impact, shared dependencies, versioning | +2 | 3 |
+| content-heavy | Messaging consistency, factual accuracy, brand voice | +1 | 2 |
+| ui-heavy | Design consistency, UX coherence, accessibility | +1 | 2 |
+| api-backend | Integration surface, contract stability, schema safety | +1 | 2 |
+| data-pipeline | Data quality, lineage tracing, downstream effects | +1 | 2 |
+| mobile-app | Platform constraints, UX patterns, release cycles | +1 | 2 |
+| ml-ai | Model quality, training data, evaluation rigor | +1 | 3 |
+| real-time | Latency, concurrency, state synchronization | +1 | 2 |
+
+**How it works**: When starting or executing a project, crew runs a dynamic pre-analysis that reads project files (CLAUDE.md, package.json, etc.), queries memories, and analyzes codebase structure to detect archetypes. This happens BEFORE signal analysis.
+
+**Dynamic archetypes**: Beyond the built-in list, commands can define custom archetypes at runtime via `--archetype-hints`. A marketing team's landing page project can get a "marketing-landing-page" archetype that injects product and UX signals, even though that archetype isn't built-in.
+
+**Holistic merging**: When multiple archetypes are detected, MAX adjustments apply from ALL of them. A project that's both infrastructure-framework AND compliance-regulated gets the highest impact bonus and minimum complexity floor from both.
+
+**Example**: Modifying crew's scoring engine scored 1/7 without archetypes (no file references = zero impact). With infrastructure-framework archetype, it scores 3/7 because core execution path changes inherently have broad downstream impact regardless of code complexity.
+
 ### Graceful Degradation
 
 Crew works fully standalone with built-in agents. Specialist plugins enhance it when available:
@@ -191,6 +216,12 @@ Crew works fully standalone with built-in agents. Specialist plugins enhance it 
 | `implementer` | Code generation | Build phase |
 | `reviewer` | Quality assurance | Review phase, no specialist |
 | `orchestrator` | Multi-agent coordination | Complex phases |
+| `execution-orchestrator` | Execute phase orchestration | Multi-step execution workflows |
+| `qe-orchestrator` | Test strategy orchestration | Test-strategy phase |
+| `value-orchestrator` | Value delivery orchestration | Review and evidence phases |
+| `delivery-manager` | Sprint management, velocity | Delivery tracking |
+| `progress-tracker` | Task completion forecasting | Progress monitoring |
+| `stakeholder-reporter` | Multi-stakeholder communication | Status reporting |
 
 ## Evidence Tracking
 
@@ -209,6 +240,45 @@ Autonomy modes via `/wicked-crew:profile`:
 - **ask-first**: Pause at every decision
 - **balanced** (default): Auto-proceed on minor decisions
 - **just-finish**: Maximum autonomy with guardrails
+
+## Data API
+
+This plugin exposes data via the standard Plugin Data API. Sources are declared in `wicked.json`.
+
+| Source | Capabilities | Description |
+|--------|-------------|-------------|
+| projects | list, get | Crew workflow projects with phase tracking |
+| phases | list, get | Project phase execution history and status |
+| signals | list, search, stats | Signal detection library for project analysis |
+| feedback | list, stats | Project outcome records and signal accuracy metrics |
+| specialists | list, get | Installed specialist plugins with capabilities |
+
+Query via the workbench gateway:
+```
+GET /api/v1/data/wicked-crew/{source}/{verb}
+```
+
+Or directly via CLI:
+```bash
+python3 scripts/api.py {verb} {source} [--limit N] [--offset N] [--query Q]
+```
+
+## Integration
+
+| Plugin | What It Adds | Without It |
+|--------|-------------|------------|
+| wicked-jam | Multi-perspective brainstorming during clarify/design phases | Facilitator agent handles clarification inline |
+| wicked-qe | Test strategy, code analysis, and quality gates | Basic review agent covers quality checks |
+| wicked-product | Business strategy, UX review, and requirements analysis | Generic researcher handles product questions |
+| wicked-platform | Security review, compliance checks, and DevSecOps | Security concerns flagged but not deeply analyzed |
+| wicked-engineering | Architecture review, code review, and debugging | Implementer agent handles engineering work |
+| wicked-data | Data engineering review and pipeline analysis | Data-related phases skipped |
+| wicked-delivery | Progress tracking, risk monitoring, and reporting | Status tracked via task tools only |
+| wicked-agentic | Agentic architecture review and safety audit | Agentic patterns not specifically reviewed |
+| wicked-kanban | Task persistence and board visualization | Tasks tracked in-session only |
+| wicked-mem | Cross-session memory for decisions and patterns | No memory persistence between sessions |
+| wicked-search | Code search for impact analysis and blast radius | Grep/Glob used as fallback |
+| wicked-startah | Third-party CLI sign-off (Codex, Gemini) and caching | Human review only, no caching |
 
 ## License
 
