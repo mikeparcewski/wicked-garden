@@ -6,14 +6,14 @@
   },
   "personas": [
     {
+      "name": "Customer Advocate",
+      "focus": "Customer needs, pain points, feedback synthesis",
+      "agent": "agents/customer-advocate.md"
+    },
+    {
       "name": "Product Manager",
       "focus": "Roadmap planning, prioritization, trade-offs, business value alignment",
       "agent": "agents/product-manager.md"
-    },
-    {
-      "name": "UX Designer",
-      "focus": "User flows, interaction patterns, information architecture, usability",
-      "agent": "agents/ux-designer.md"
     },
     {
       "name": "Requirements Analyst",
@@ -21,14 +21,14 @@
       "agent": "agents/requirements-analyst.md"
     },
     {
+      "name": "UX Designer",
+      "focus": "User flows, interaction patterns, information architecture, usability",
+      "agent": "agents/ux-designer.md"
+    },
+    {
       "name": "Business Strategist",
       "focus": "ROI analysis, value proposition, competitive positioning",
       "agent": "agents/business-strategist.md"
-    },
-    {
-      "name": "Customer Advocate",
-      "focus": "Customer needs, pain points, feedback synthesis",
-      "agent": "agents/customer-advocate.md"
     }
   ],
   "enhances": [

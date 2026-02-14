@@ -57,6 +57,26 @@ Expected: HTTP 200 with JSON body containing `"status": "ok"`
 
 Each step runs independently. Exit code 0 = PASS, non-zero = FAIL.
 
+## Skills
+
+| Skill | Description |
+|-------|-------------|
+| `scenario-authoring` | Guide for writing E2E test scenarios in wicked-scenarios format |
+
+## Agents
+
+| Agent | Description |
+|-------|-------------|
+| `scenario-runner` | Autonomous scenario execution agent that reads scenarios, discovers tools, and reports results |
+
+## Integration
+
+| Plugin | Enhancement | Without It |
+|--------|-------------|------------|
+| wicked-startah | CLI tool discovery and installation | Manual tool setup |
+| wicked-search | Find test targets (endpoints, components) | Manual target identification |
+| wicked-qe | Test strategy alignment and coverage analysis | No strategy validation |
+
 ## Writing Scenarios
 
 See the [scenario-authoring skill](skills/scenario-authoring/SKILL.md) for the full authoring guide.

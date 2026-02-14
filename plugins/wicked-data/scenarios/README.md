@@ -144,7 +144,7 @@ Each scenario answers: "Would I actually use this feature in production?"
 wicked-data scenarios demonstrate integration with:
 
 - **wicked-data:numbers**: Large file SQL analysis (scenario 06)
-- **wicked-cache**: Caching profiling results (mentioned in scenarios)
+- **wicked-startah**: Caching profiling results (mentioned in scenarios)
 - **wicked-kanban**: Documenting issues as tasks (scenarios 02, 03, 05)
 - **wicked-mem**: Storing analysis patterns (mentioned in scenarios)
 - **wicked-search**: Finding existing pipeline code (scenario 03)
