@@ -1,8 +1,8 @@
 """
 Wicked Workbench Server
 
-A2UI-powered dashboard server that combines UI components from wicked-garden plugins
-into unified, AI-generated interfaces.
+Plugin data gateway and dashboard for wicked-garden.
+Discovers plugins, proxies data API requests, and provides data model introspection.
 """
 
 import os
@@ -22,10 +22,5 @@ def main():
     uvicorn.run(app, host=host, port=port)
 
 
-from .app import app
-from .catalog_loader import CatalogLoader
-from .prompt_generator import PromptGenerator
-from .bridges import MCPBridge, MCPClient
-
-__all__ = ["main", "app", "CatalogLoader", "PromptGenerator", "MCPBridge", "MCPClient"]
+__all__ = ["main"]
 __version__ = "0.2.0"

@@ -36,17 +36,19 @@ More installed plugins = more dashboard components available.
 | `/workbench` | Start, stop, or check the server | `/workbench start` |
 | `dashboard` skill | Generate A2UI dashboards from natural language | "Create a sprint board" |
 
-## Available Components by Plugin
+## Integration
 
-| Plugin | Dashboard Components |
-|--------|---------------------|
-| wicked-kanban | Task boards, swimlanes, dependency graphs |
-| wicked-mem | Memory panels, decision logs |
-| wicked-data | Data profiling, quality metrics |
-| wicked-engineering | Code health, architecture diagrams |
-| wicked-delivery | Sprint boards, burndown charts |
-| wicked-product | Roadmaps, UX audits, feedback panels |
-| wicked-platform | Pipeline status, security scans |
+| Plugin | Enhancement | Without It |
+|--------|-------------|------------|
+| wicked-kanban | Task boards, swimlanes, dependency graphs | No task data source |
+| wicked-mem | Memory panels, decision logs | No memory data source |
+| wicked-crew | Project phase tracking, workflow dashboards | No project data source |
+| wicked-search | Code navigation, symbol graphs, lineage viz | No code data source |
+| wicked-data | Data profiling, quality metrics | No data insights |
+| wicked-engineering | Code health, architecture diagrams | No engineering metrics |
+| wicked-delivery | Sprint boards, burndown charts | No delivery tracking |
+| wicked-product | Roadmaps, UX audits, feedback panels | No product insights |
+| wicked-platform | Pipeline status, security scans | No platform metrics |
 
 ## Configuration
 
