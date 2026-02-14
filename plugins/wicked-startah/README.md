@@ -14,7 +14,7 @@ No API keys needed for core skills. Optional keys unlock multi-AI features.
 
 ## What You Get
 
-### Skills (Ready Immediately)
+### Skills (9 Ready Immediately)
 
 | Skill | What It Does | Example |
 |-------|-------------|---------|
@@ -26,6 +26,7 @@ No API keys needed for core skills. Optional keys unlock multi-AI features.
 | `/gemini-cli` | Google Gemini integration | `/gemini-cli` |
 | `/codex-cli` | OpenAI Codex integration | `/codex-cli` |
 | `/opencode-cli` | Multi-provider AI coding | `/opencode-cli` |
+| `/caching` | Unified caching infrastructure with namespace isolation and TTL | `cache.set("key", value, ttl_seconds=300)` |
 
 ### MCP Servers (Auto-Configured)
 

@@ -1,7 +1,7 @@
 {
   "name": "wicked-startah",
   "version": "0.4.0",
-  "description": "Opinionated starter kit with MCP servers and plugin recommendations for a productive Claude Code setup",
+  "description": "Zero-config starter kit with MCP servers, shared caching infrastructure, and plugin recommendations for a productive Claude Code setup",
   "author": {
     "name": "Mike Parcewski"
   },
@@ -14,6 +14,9 @@
     "productivity",
     "setup",
     "voice",
-    "humanize"
+    "humanize",
+    "cache",
+    "caching",
+    "infrastructure"
   ]
 }

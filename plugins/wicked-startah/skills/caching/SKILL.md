@@ -9,7 +9,7 @@ triggers:
   - "store between sessions"
   - "cache invalidation"
   - "TTL expiration"
-  - "wicked-cache"
+  - "wicked-startah"
   - "namespace cache"
 ---
 
@@ -23,8 +23,8 @@ Unified cache API for Wicked Garden plugins.
 import sys
 from pathlib import Path
 
-# Add wicked-cache to path
-cache_path = Path.home() / ".claude" / "plugins" / "wicked-cache" / "scripts"
+# Add wicked-startah to path
+cache_path = Path.home() / ".claude" / "plugins" / "wicked-startah" / "scripts"
 sys.path.insert(0, str(cache_path))
 
 from cache import namespace
@@ -66,13 +66,15 @@ For specific use cases, read the appropriate guide from `references/`:
 | Caching API responses | `references/api-response-caching.md` |
 | Choosing invalidation strategy | `references/invalidation-strategies.md` |
 
-## Commands
+## Cache Management
+
+Cache operations are available via the startah scripts:
 
 ```bash
-/wicked-cache:setup              # Initialize
-/wicked-cache:cache list         # List keys
-/wicked-cache:cache stats        # Statistics
-/wicked-cache:cache clear <ns>   # Clear namespace
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cache_setup.py"           # Initialize
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cache_list.py"            # List keys
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cache_stats.py"           # Statistics
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cache_clear.py" <ns>      # Clear namespace
 ```
 
 ## Security
