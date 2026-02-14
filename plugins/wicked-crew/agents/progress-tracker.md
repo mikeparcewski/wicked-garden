@@ -19,7 +19,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Task tracking**: Use wicked-kanban for task status
 - **Memory**: Use wicked-mem to recall velocity patterns
 - **Search**: Use wicked-search to find completion evidence
-- **Reporting**: Use wicked-delivery:report for completion metrics
+- **Reporting**: Use crew evidence tracking for completion metrics
 
 If a wicked-* tool is available, prefer it over manual approaches.
 
@@ -33,8 +33,8 @@ Check kanban board:
 ```
 
 Or query directly:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" list
+```
+TaskList()
 ```
 
 ### 2. Calculate Completion Metrics
@@ -77,10 +77,12 @@ For each milestone:
 ### 6. Update Kanban
 
 Add progress analysis:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
-  "Progress Update" "{task_id}" \
-  "[progress-tracker] Progress Analysis
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append findings:
+
+[progress-tracker] Progress Analysis
 
 **Completion**: {percent}%
 **Throughput**: {tasks}/day (avg)
@@ -106,6 +108,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
 | {name} | {date} | {percent}% | {date} | {G/Y/R} |
 
 **Next Update**: {date}"
+)
 ```
 
 ### 7. Generate Progress Report

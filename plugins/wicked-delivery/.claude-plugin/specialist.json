@@ -2,45 +2,33 @@
   "specialist": {
     "name": "wicked-delivery",
     "role": "project-management",
-    "description": "Delivery and project management specialist for reporting, progress tracking, cost optimization, and rollout coordination."
+    "description": "Feature delivery tactics specialist for A/B test design, progressive rollouts, and delivery risk monitoring."
   },
   "personas": [
     {
-      "name": "Delivery Manager",
-      "focus": "Sprint management, velocity tracking, blocker resolution, delivery cadence",
-      "agent": "agents/delivery-manager.md"
+      "name": "Experiment Designer",
+      "focus": "A/B test design, statistical rigor, sample sizing, hypothesis formulation",
+      "agent": "agents/experiment-designer.md"
     },
     {
-      "name": "Stakeholder Reporter",
-      "focus": "Status communication, executive reporting, decision support",
-      "agent": "agents/stakeholder-reporter.md"
+      "name": "Rollout Manager",
+      "focus": "Progressive rollouts, canary deployments, feature flags, rollback criteria",
+      "agent": "agents/rollout-manager.md"
     },
     {
       "name": "Risk Monitor",
       "focus": "Delivery risk tracking, escalation management, dependency chains",
       "agent": "agents/risk-monitor.md"
-    },
-    {
-      "name": "Rollout Manager",
-      "focus": "Progressive rollouts, canary deployments, feature flags",
-      "agent": "agents/rollout-manager.md"
-    },
-    {
-      "name": "Cost Optimizer",
-      "focus": "Cloud cost optimization, right-sizing, reserved capacity",
-      "agent": "agents/cost-optimizer.md"
     }
   ],
   "enhances": [
     {
-      "phase": "*",
+      "phase": "build",
       "trigger": "crew:phase:started:success",
-      "response": "delivery:status:reported:success",
+      "response": "delivery:risk:monitored:success",
       "capabilities": [
-        "progress-tracking",
-        "status-reporting",
         "risk-monitoring",
-        "delivery-forecasting"
+        "rollout-planning"
       ]
     },
     {
@@ -48,21 +36,18 @@
       "trigger": "crew:phase:started:success",
       "response": "delivery:review:completed:success",
       "capabilities": [
-        "delivery-assessment",
         "rollout-planning",
-        "cost-analysis"
+        "experiment-design"
       ]
     }
   ],
   "hooks": {
     "subscribes": [
-      "crew:phase:started:success",
-      "crew:project:completed:success"
+      "crew:phase:started:success"
     ],
     "publishes": [
-      "delivery:status:reported:success",
-      "delivery:review:completed:success",
-      "delivery:risk:escalated:success"
+      "delivery:risk:escalated:success",
+      "delivery:review:completed:success"
     ]
   },
   "skills": [
