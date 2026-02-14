@@ -106,18 +106,53 @@ Defining the outcome and success criteria.
 - [ ] Scope boundaries
 ```
 
-### 5. Analyze Input with Smart Decisioning
+### 5. Dynamic Archetype Pre-Analysis
 
-Run smart decisioning on the project description:
+**Before running signal analysis, dynamically detect what TYPE of project this is.** Quality means different things for different projects — a content site needs messaging consistency, a UI app needs design coherence, infrastructure needs reliability, ML needs evaluation rigor.
+
+1. **Read project descriptor files** in the working directory (any that exist):
+   - `CLAUDE.md`, `GEMINI.md`, `agent.md`, `README.md`
+   - `package.json`, `pyproject.toml`, `Cargo.toml` for tech stack
+   - `.claude-plugin/plugin.json` if it's a plugin project
+
+2. **Query memories** (if wicked-mem available):
+   ```
+   /wicked-mem:recall "project type and quality dimensions for this codebase" --limit 5
+   ```
+
+3. **Analyze codebase structure** (if wicked-search available):
+   - `/wicked-search:scout` for pattern detection (component library? API routes? data pipelines? content templates?)
+
+4. **Build archetype hints** as JSON — define what quality dimensions matter for this project:
+   ```json
+   {
+     "archetype-name": {
+       "confidence": 0.8,
+       "impact_bonus": 2,
+       "inject_signals": {"architecture": 0.3},
+       "min_complexity": 3,
+       "description": "Why this archetype matters for quality"
+     }
+   }
+   ```
+   You can use built-in archetypes (content-heavy, ui-heavy, api-backend, infrastructure-framework, data-pipeline, mobile-app, ml-ai, compliance-regulated, monorepo-platform, real-time) OR define new ones dynamically.
+
+5. **Store archetype hints** in project.json as `archetype_hints` for reuse at checkpoints.
+
+### 5.5 Analyze Input with Smart Decisioning
+
+Run smart decisioning with archetype hints:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" analyze --project-dir . --json "{description}"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json \
+  --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
+  "{description}"
 ```
 
 This returns:
 - **signals**: Detected signal types (security, performance, product, etc.)
-- **complexity**: Score 0-7 (low/medium/high)
-- **ambiguous**: Whether clarification is needed
+- **complexity**: Score 0-7, adjusted by archetype (impact bonus, min complexity floor)
+- **archetypes**: Detected project archetypes with confidence scores
 - **recommended_specialists**: Which plugins would help
 - **memory_payload**: (if significant) A payload for the caller to store via `/wicked-mem:store`
 
@@ -136,7 +171,8 @@ Store analysis in project.json:
   "current_phase": "clarify",
   "signals_detected": ["security", "data"],
   "complexity_score": 4,
-  "specialists_recommended": ["wicked-qe", "wicked-product"]
+  "specialists_recommended": ["wicked-qe", "wicked-product"],
+  "archetype_hints": {}
 }
 ```
 

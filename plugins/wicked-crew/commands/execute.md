@@ -52,13 +52,127 @@ Orphaned tasks = tasks without recent activity that are blocking phase completio
 
 If no tasks found via TaskList, check for manual TODO tracking in phase status files and recover accordingly.
 
+### 2.5 Gather Context via wicked-smaht (if available)
+
+Before starting phase work, assemble structured context from the ecosystem. This ensures specialists and fallback agents receive rich context — not just raw deliverable text.
+
+```bash
+# Discover wicked-smaht (graceful degradation if not installed)
+SMAHT_PLUGIN_ROOT=$(find ~/.claude/plugins/cache/wicked-garden/wicked-smaht -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
+
+if [ -n "$SMAHT_PLUGIN_ROOT" ]; then
+  # Build context package for current phase
+  cd "${SMAHT_PLUGIN_ROOT}" && uv run python scripts/context_package.py build \
+    --task "Execute {current_phase} phase for {project-name}" \
+    --project "{project-name}" \
+    --prompt
+fi
+```
+
+Include the context package output in ALL subagent Task() dispatches. If wicked-smaht is not available, proceed with project.json signals and deliverable text only.
+
+### 2.6 Orchestrator-Only Principle
+
+**CRITICAL: The main agent is an ORCHESTRATOR only.** It must NOT perform complex analysis, implementation, or review work inline. Instead:
+
+- **ALL processing** goes through subagent `Task()` dispatches to specialists or fallback agents
+- The main agent ONLY: reads project state, makes routing decisions, dispatches subagents, tracks task lifecycle, and reports progress
+- Manage context through tools (TaskList, TaskGet, Read) — do NOT accumulate large working state in the main conversation
+- When in doubt, delegate to a subagent rather than doing work inline
+
+This principle applies to EVERY phase. Even "simple" tasks should be dispatched to a subagent so the main agent stays lean and can always access the latest state via tools.
+
 ### 3. Load User Preferences (if exists)
 
 Check for `~/.something-wicked/wicked-crew/preferences.yaml` for:
 - Autonomy level (ask-first, balanced, just-finish)
 - Communication style
 
-### 4. Load Signal Analysis
+### 4. Dynamic Archetype Pre-Analysis
+
+**BEFORE loading signal analysis, dynamically detect project archetypes.** Quality means different things for different projects — a content site needs messaging consistency, a UI app needs design coherence, infrastructure needs reliability. Static keyword matching is a fallback; this dynamic analysis is the primary path.
+
+#### 4.1 Discover Project Context
+
+Use the Explore agent or direct tool calls to gather context about the project being worked on:
+
+1. **Read project descriptor files** (any that exist):
+   - `CLAUDE.md`, `GEMINI.md`, `agent.md`, `README.md` in the target directory
+   - `package.json`, `pyproject.toml`, `Cargo.toml` for tech stack detection
+   - `.claude-plugin/plugin.json` if it's a plugin project
+
+2. **Query memories** (if wicked-mem available):
+   ```
+   /wicked-mem:recall "project type and quality dimensions for {project-name}" --limit 5
+   ```
+   Past decisions about this project's quality standards, review patterns, and architecture choices inform archetype detection.
+
+3. **Analyze codebase structure** (if wicked-search available):
+   - `/wicked-search:scout` for common patterns (component library? API routes? data pipelines?)
+   - `/wicked-search:blast-radius` on files being changed to understand impact scope
+
+4. **Check for past crew projects** on the same codebase to inherit archetype context
+
+#### 4.2 Classify Archetypes
+
+From the gathered context, classify the project into one or more archetypes. Each archetype defines what "quality" means for that project type:
+
+- **What dimensions of quality matter most** (code quality? content accuracy? design consistency? data integrity? security compliance?)
+- **What review processes are needed** (code review? UX review? content review? accessibility audit?)
+- **What testing strategies apply** (unit tests? visual regression? content validation? load testing?)
+
+Build archetype hints as a JSON dict. Known archetypes have built-in adjustments; but you can define NEW archetypes dynamically based on what you discover:
+
+```json
+{
+  "infrastructure-framework": {
+    "confidence": 0.9,
+    "impact_bonus": 2,
+    "inject_signals": {"architecture": 0.3},
+    "min_complexity": 3,
+    "description": "Modifying core execution paths that affect all downstream users"
+  },
+  "design-system": {
+    "confidence": 0.7,
+    "impact_bonus": 1,
+    "inject_signals": {"ux": 0.4},
+    "min_complexity": 2,
+    "description": "Component library changes need visual consistency review"
+  }
+}
+```
+
+#### 4.3 Cache and Pass Hints
+
+**Cache hints in project.json** so checkpoints can reuse them without re-running the full discovery:
+
+```json
+{
+  "archetype_hints": {
+    "infrastructure-framework": {
+      "confidence": 0.9,
+      "impact_bonus": 2,
+      "inject_signals": {"architecture": 0.3},
+      "min_complexity": 3,
+      "description": "Core execution paths"
+    }
+  }
+}
+```
+
+At checkpoints (Section 4.5), **reuse cached hints** unless signal re-analysis detects significant changes (new signals or complexity increase >= 2). If the project context changes substantially, re-run the full discovery and update the cache.
+
+Include archetype hints when calling smart_decisioning:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json \
+  --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
+  "{description}"
+```
+
+The script merges external hints with keyword detection, applies adjustments from ALL detected archetypes holistically (max impact_bonus, union of injected signals, max min_complexity).
+
+### 4.4 Load Signal Analysis
 
 Read project.json for:
 - **signals_detected**: What types of work were identified
@@ -76,7 +190,7 @@ When a checkpoint phase completes:
 1. **Gather phase artifacts**: Read all files in `phases/{phase}/` and any deliverables produced
 2. **Re-run signal analysis** on the combined project description + phase artifacts:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" analyze --project-dir . --json "{combined text summary of deliverables}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "{combined text summary of deliverables}"
    ```
 3. **Compare signals AND complexity**: Diff new `signals` against project.json `signals_detected`, AND compare new `complexity` against `complexity_score`
 4. **If new signals found OR complexity increased**:
