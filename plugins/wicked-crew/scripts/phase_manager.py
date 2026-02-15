@@ -459,6 +459,20 @@ def main():
         print(f"Project not found: {args.project}")
         return
 
+    # Check if project is archived (refuse execution)
+    project_dir = get_project_dir(args.project)
+    project_file = project_dir / "project.json"
+    if project_file.exists():
+        try:
+            with open(project_file) as f:
+                project_data = json.load(f)
+            if project_data.get("archived", False):
+                print(f"Error: Cannot execute phase operations on archived project: {args.project}")
+                print("Use 'python3 api.py unarchive projects {name}' to unarchive first.")
+                return
+        except (json.JSONDecodeError, OSError):
+            pass
+
     if args.action == "status":
         if not state:
             print(f"No project: {args.project}")

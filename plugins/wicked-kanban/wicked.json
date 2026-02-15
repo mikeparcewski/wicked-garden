@@ -43,6 +43,14 @@
       "capabilities": [
         "list"
       ]
+    },
+    {
+      "name": "comments",
+      "description": "Task comments and annotations",
+      "capabilities": [
+        "list",
+        "create"
+      ]
     }
   ]
 }

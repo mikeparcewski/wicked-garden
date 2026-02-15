@@ -34,7 +34,7 @@ from kanban import get_store
 # ==================== Shared Helpers ====================
 
 VALID_VERBS = {"list", "get", "search", "stats", "create", "update", "delete"}
-VALID_SOURCES = {"projects", "tasks", "initiatives", "activity"}
+VALID_SOURCES = {"projects", "tasks", "initiatives", "activity", "comments"}
 
 
 def _meta(source, total, limit=100, offset=0):
@@ -88,7 +88,21 @@ def cli_list(source, args):
     """Handle list verb."""
     store = get_store()
 
-    if source == "projects":
+    if source == "comments":
+        if not args.task_id:
+            _error("--task-id required for comments", "MISSING_TASK_ID")
+        if not args.project:
+            _error("--project required for comments", "MISSING_PROJECT")
+
+        task = store.get_task(args.project, args.task_id)
+        if not task:
+            _error("Task not found", "NOT_FOUND", resource="tasks", id=args.task_id)
+
+        comments = task.get("comments", [])
+        data = _paginate(comments, args.limit, args.offset)
+        print(json.dumps({"data": data, "meta": _meta(source, len(comments), args.limit, args.offset)}, indent=2))
+
+    elif source == "projects":
         projects = store.list_projects()
         data = _paginate(projects, args.limit, args.offset)
         print(json.dumps({"data": data, "meta": _meta(source, len(projects), args.limit, args.offset)}, indent=2))
@@ -211,7 +225,48 @@ def cli_create(source, args):
     store = get_store()
     data = _read_input()
 
-    if source == "projects":
+    if source == "comments":
+        task_id = data.get("task_id") or getattr(args, "task_id", None)
+        project_id = data.get("project_id") or getattr(args, "project", None)
+
+        if not task_id:
+            _error("task_id required for comment creation", "MISSING_TASK_ID")
+        if not project_id:
+            _error("project_id required for comment creation", "MISSING_PROJECT")
+        # Accept both "text" and "body" for the comment content (normalize to "text")
+        comment_text = data.get("text") or data.get("body")
+        if not comment_text:
+            _error("'text' field required for comment creation", "MISSING_FIELD", field="text")
+
+        task = store.get_task(project_id, task_id)
+        if not task:
+            _error("Task not found", "NOT_FOUND", resource="tasks", id=task_id)
+
+        # Create comment object (matches existing stored format: text, author, created_at)
+        comment = {
+            "id": str(__import__('uuid').uuid4())[:8],
+            "text": comment_text,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "author": data.get("author", "system")
+        }
+
+        # Add to task's comments array
+        if "comments" not in task:
+            task["comments"] = []
+        task["comments"].append(comment)
+        task["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        # Save task
+        from pathlib import Path
+        task_file = Path.home() / ".something-wicked" / "wicked-kanban" / "projects" / project_id / "tasks" / f"{task_id}.json"
+        task_file.write_text(json.dumps(task, indent=2))
+
+        # Log activity
+        store._log_activity(project_id, "comment_added", task_id=task_id, comment_id=comment["id"], text=comment_text)
+
+        print(json.dumps({"data": comment, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "projects":
         _validate_required(data, "name")
         result = store.create_project(
             name=data["name"],
@@ -624,12 +679,13 @@ def main():
     # CLI verbs (read + write)
     for verb in sorted(VALID_VERBS):
         sub = subparsers.add_parser(verb, help=f'{verb} data from kanban')
-        sub.add_argument('source', help='Data source (projects, tasks, initiatives, activity)')
+        sub.add_argument('source', help='Data source (projects, tasks, initiatives, activity, comments)')
         if verb in ('get', 'update', 'delete'):
             sub.add_argument('id', nargs='?', help='Resource ID')
         sub.add_argument('--limit', type=int, default=100, help='Limit results (default: 100)')
         sub.add_argument('--offset', type=int, default=0, help='Skip first N results')
         sub.add_argument('--project', help='Filter by project ID')
+        sub.add_argument('--task-id', help='Task ID (for comments)')
         sub.add_argument('--query', help='Search query (for search verb)')
         sub.add_argument('--filter', help='Filter expression')
 

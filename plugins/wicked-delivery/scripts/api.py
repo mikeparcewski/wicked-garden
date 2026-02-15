@@ -9,6 +9,7 @@ CLI mode (standard Plugin Data API):
 import argparse
 import glob
 import json
+import re
 import statistics
 import subprocess
 import sys
@@ -336,6 +337,77 @@ def _compute_cost(tasks, metrics, cost_model):
 # ==================== Metrics Computation ====================
 
 
+def _compute_effort_allocation(tasks):
+    """Compute effort allocation by phase and signal from tasks."""
+    crew_projects = _query_crew_projects()
+
+    # Build task -> crew project mapping
+    task_project_map = {}
+    if crew_projects:
+        for project in crew_projects:
+            project_name = project.get("name", "")
+            signals = project.get("signals_detected", [])
+            # Map tasks by subject prefix matching
+            for task in tasks:
+                subject = task.get("name", "")
+                # Match pattern: "{Phase}: {project-name} - {description}"
+                phase_match = re.match(r'(?i)^(clarify|design|test-strategy|build|test|review)[\s:-]+(.*?)\s*-', subject)
+                if phase_match and project_name.lower() in phase_match.group(2).lower():
+                    task_project_map[task.get("id")] = {
+                        "project": project_name,
+                        "signals": signals
+                    }
+
+    # Compute by-phase breakdown
+    by_phase = {}
+    phase_pattern = re.compile(r'(?i)^(clarify|design|test-strategy|build|test|review)[\s:-]')
+    for task in tasks:
+        subject = task.get("name", "")
+        match = phase_pattern.match(subject)
+        if match:
+            phase = match.group(1).lower()
+            swimlane = task.get("swimlane", "unknown")
+            is_complete = swimlane == "done"
+
+            if phase not in by_phase:
+                by_phase[phase] = {"task_count": 0, "completed": 0}
+            by_phase[phase]["task_count"] += 1
+            if is_complete:
+                by_phase[phase]["completed"] += 1
+
+    # Add percentages
+    total_tasks = sum(p["task_count"] for p in by_phase.values())
+    for phase_data in by_phase.values():
+        phase_data["pct"] = round(phase_data["task_count"] / total_tasks, 2) if total_tasks > 0 else 0
+
+    # Compute by-signal breakdown
+    by_signal = {}
+    for task in tasks:
+        task_id = task.get("id")
+        if task_id in task_project_map:
+            signals = task_project_map[task_id].get("signals", [])
+            for signal in signals:
+                if signal not in by_signal:
+                    by_signal[signal] = {"task_count": 0}
+                by_signal[signal]["task_count"] += 1
+
+    # Add percentages to signals
+    for signal_data in by_signal.values():
+        signal_data["pct"] = round(signal_data["task_count"] / total_tasks, 2) if total_tasks > 0 else 0
+
+    result = {
+        "by_phase": by_phase,
+        "by_signal": by_signal if crew_projects else {},
+        "total_tasks": total_tasks,
+        "_source": "computed from kanban tasks + crew project.json"
+    }
+
+    if not crew_projects:
+        result["_note"] = "Signal breakdown unavailable (wicked-crew not available)"
+
+    return result
+
+
 def _compute_metrics(tasks, cost_model=None):
     """Compute all delivery metrics from raw task data."""
     now = datetime.now(timezone.utc)
@@ -490,8 +562,12 @@ def _compute_metrics(tasks, cost_model=None):
     crew_projects = _query_crew_projects()
     if crew_projects is not None:
         sources_queried.append("crew")
-        completed_projects = [p for p in crew_projects if (p.get("phases") or {}).values() and
-                             all(ph.get("status") in ("approved", "skipped") for ph in (p.get("phases") or {}).values())]
+        completed_projects = []
+        for p in crew_projects:
+            phases = p.get("phases")
+            if phases and isinstance(phases, dict) and phases.values():
+                if all(ph.get("status") in ("approved", "skipped") for ph in phases.values()):
+                    completed_projects.append(p)
         metrics["project_completion"] = {
             "total_projects": len(crew_projects),
             "completed_projects": len(completed_projects),
@@ -522,6 +598,9 @@ def _compute_metrics(tasks, cost_model=None):
         "queried": sources_queried,
         "unavailable": sources_unavailable,
     }
+
+    # --- Effort Allocation (R5) ---
+    metrics["effort_allocation"] = _compute_effort_allocation(tasks)
 
     return metrics
 

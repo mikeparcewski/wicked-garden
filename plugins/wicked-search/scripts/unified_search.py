@@ -462,17 +462,33 @@ except ImportError:
 # Configuration
 # =============================================================================
 
-def get_index_dir() -> Path:
-    """Get the index storage directory."""
+def get_index_dir(project: str = None) -> Path:
+    """
+    Get the index storage directory.
+
+    If project is specified, returns ~/.something-wicked/wicked-search/projects/{project}/
+    Otherwise, returns ~/.something-wicked/wicked-search/ (backward compatible)
+    """
     home = Path.home()
-    index_dir = home / ".something-wicked" / "wicked-search"
+    base_dir = home / ".something-wicked" / "wicked-search"
+
+    if project:
+        # Validate project name
+        if not project or len(project) > 64:
+            raise ValueError(f"Invalid project name: {project}")
+        if not all(c.isalnum() or c == '-' for c in project):
+            raise ValueError(f"Project name must be alphanumeric + hyphens: {project}")
+        index_dir = base_dir / "projects" / project
+    else:
+        index_dir = base_dir
+
     index_dir.mkdir(parents=True, exist_ok=True)
     return index_dir
 
 
-def get_extracted_dir() -> Path:
+def get_extracted_dir(project: str = None) -> Path:
     """Get the directory for extracted document text."""
-    extracted_dir = get_index_dir() / "extracted"
+    extracted_dir = get_index_dir(project) / "extracted"
     extracted_dir.mkdir(parents=True, exist_ok=True)
     return extracted_dir
 
@@ -1426,8 +1442,9 @@ class CodeParser:
 class UnifiedSearchIndex:
     """Main class managing the unified code + doc index (JSONL-only)."""
 
-    def __init__(self, root_path: Path):
+    def __init__(self, root_path: Path, project: str = None):
         self.root_path = root_path.resolve()
+        self.project = project
         self.jsonl_searcher: Optional[JsonlSearcher] = None
         self._index_metadata: Optional[IndexMetadata] = None
 
@@ -1516,11 +1533,11 @@ class UnifiedSearchIndex:
 
     def _get_jsonl_index_path(self) -> Path:
         """Get path for JSONL index file."""
-        return get_index_dir() / f"{self._path_hash()}.jsonl"
+        return get_index_dir(self.project) / f"{self._path_hash()}.jsonl"
 
     def _get_metadata_path(self) -> Path:
         """Get path for index metadata file."""
-        return get_index_dir() / f"{self._path_hash()}_meta.json"
+        return get_index_dir(self.project) / f"{self._path_hash()}_meta.json"
 
     def _parse_file_to_nodes(self, path: Path) -> List["JsonlGraphNode"]:
         """Parse a single file into JSONL GraphNode objects.
@@ -1818,6 +1835,162 @@ class UnifiedSearchIndex:
     # Symbol Graph Indexing (JSP/HTML/Entity support)
     # =========================================================================
 
+    def _extract_docstring(self, file_path: str, line_start: int) -> Optional[str]:
+        """
+        Extract first docstring or comment from source file around symbol's line_start.
+
+        Returns the first meaningful docstring/comment found, or None.
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                lines = f.readlines()
+
+            # Look backward from line_start to find docstring
+            # Python: triple quotes """..."""
+            # Java/JS/TS: /** ... */ or // comments
+            start_idx = max(0, line_start - 10)  # Look up to 10 lines back
+            end_idx = min(len(lines), line_start + 3)  # Look up to 3 lines forward
+
+            # Check for Python docstring
+            for i in range(start_idx, end_idx):
+                line = lines[i].strip()
+                if line.startswith('"""') or line.startswith("'''"):
+                    # Single-line docstring
+                    if line.count('"""') >= 2 or line.count("'''") >= 2:
+                        return line.strip('"\' ')
+                    # Multi-line docstring
+                    doc_lines = [line.strip('"\' ')]
+                    for j in range(i + 1, min(len(lines), i + 20)):
+                        next_line = lines[j].strip()
+                        if next_line.endswith('"""') or next_line.endswith("'''"):
+                            doc_lines.append(next_line.strip('"\' '))
+                            break
+                        doc_lines.append(next_line)
+                    return ' '.join(doc_lines).strip()
+
+            # Check for JavaDoc /** ... */
+            for i in range(start_idx, end_idx):
+                line = lines[i].strip()
+                if line.startswith('/**'):
+                    doc_lines = []
+                    for j in range(i, min(len(lines), i + 20)):
+                        doc_line = lines[j].strip()
+                        # Remove comment markers
+                        doc_line = doc_line.lstrip('/*').rstrip('*/').lstrip('*').strip()
+                        if doc_line:
+                            doc_lines.append(doc_line)
+                        if '*/' in lines[j]:
+                            break
+                    return ' '.join(doc_lines).strip()
+
+            # Check for single-line // comments
+            for i in range(start_idx, line_start + 1):
+                line = lines[i].strip()
+                if line.startswith('//'):
+                    return line.lstrip('/').strip()
+
+        except Exception:
+            pass
+
+        return None
+
+    def _infer_symbol_type(self, symbol: "Symbol") -> str:
+        """
+        Infer symbol type category using deterministic rules.
+
+        Returns one of: test, configuration, data-model, controller, service, utility, general
+        """
+        path_lower = symbol.file_path.lower()
+        name = symbol.name
+        sym_type = symbol.type.value if hasattr(symbol.type, 'value') else str(symbol.type)
+
+        # Test detection
+        if ('test/' in path_lower or 'spec/' in path_lower or
+            name.startswith('test_') or name.startswith('Test')):
+            return "test"
+
+        # Configuration detection
+        if ('config/' in path_lower or 'Config' in name or 'Settings' in name):
+            return "configuration"
+
+        # Data model detection (class types in model/entity/schema dirs)
+        if sym_type.lower() in ('class', 'entity', 'interface'):
+            if any(x in path_lower for x in ['model/', 'entity/', 'schema/']):
+                return "data-model"
+
+        # Controller detection (class names ending with Controller/Handler/Router)
+        if sym_type.lower() in ('class', 'controller'):
+            if any(name.endswith(suffix) for suffix in ['Controller', 'Handler', 'Router']):
+                return "controller"
+
+        # Service detection (class names ending with Service/Manager/Provider)
+        if sym_type.lower() in ('class', 'service'):
+            if any(name.endswith(suffix) for suffix in ['Service', 'Manager', 'Provider']):
+                return "service"
+
+        # Utility detection
+        if any(x in path_lower for x in ['util/', 'helper/', 'lib/']):
+            return "utility"
+
+        return "general"
+
+    def _extract_domains(self, file_path: str) -> List[str]:
+        """
+        Extract domain tags from directory path.
+
+        Returns list of domain keywords found in path (auth, api, db, cache, etc.)
+        """
+        # Domain keywords to match
+        domain_keywords = {
+            'auth', 'api', 'db', 'database', 'cache', 'queue', 'email',
+            'payment', 'user', 'admin', 'search', 'config', 'notification',
+            'billing', 'analytics', 'report', 'export', 'import'
+        }
+
+        # Skip generic directory names
+        skip_dirs = {'src', 'lib', 'main', 'java', 'python', 'scripts', 'test', 'tests'}
+
+        # Extract path components
+        path = Path(file_path)
+        parts = [p.lower() for p in path.parts]
+
+        domains = []
+        for part in parts:
+            # Check for exact match
+            if part in domain_keywords:
+                domains.append(part)
+            # Check for substring match (e.g., 'authentication' contains 'auth')
+            elif not part in skip_dirs:
+                for keyword in domain_keywords:
+                    if keyword in part and part not in skip_dirs:
+                        domains.append(keyword)
+                        break
+
+        return list(set(domains))  # Remove duplicates
+
+    def _enrich_symbol(self, symbol: "Symbol") -> "Symbol":
+        """
+        Add enrichment fields to a symbol: inferred_type, description, domains.
+
+        Args:
+            symbol: Symbol instance from adapter parsing
+
+        Returns:
+            Symbol with enrichment fields populated
+        """
+        # Infer type category
+        symbol.inferred_type = self._infer_symbol_type(symbol)
+
+        # Extract description from source
+        if symbol.file_path and symbol.line_start:
+            symbol.description = self._extract_docstring(symbol.file_path, symbol.line_start)
+
+        # Extract domain tags from path
+        if symbol.file_path:
+            symbol.domains = self._extract_domains(symbol.file_path)
+
+        return symbol
+
     def build_symbol_graph(self, resolve: bool = True) -> Optional["SymbolGraph"]:
         """
         Build a Symbol Graph from Java, JSP, HTML, and code files.
@@ -1863,9 +2036,11 @@ class UnifiedSearchIndex:
                         stats["files_by_adapter"][adapter_name] = \
                             stats["files_by_adapter"].get(adapter_name, 0) + 1
 
-                # Add symbols to graph
+                # Add symbols to graph (with enrichment)
                 for sym in symbols:
-                    graph.add_symbol(sym)
+                    # Enrich symbol with inferred_type, description, domains
+                    enriched_sym = self._enrich_symbol(sym)
+                    graph.add_symbol(enriched_sym)
                     stats["symbols"] += 1
 
             except Exception as e:
@@ -1912,11 +2087,11 @@ class UnifiedSearchIndex:
 
     def _get_symbol_graph_path(self) -> Path:
         """Get path for Symbol Graph JSON export."""
-        return get_index_dir() / f"{self._path_hash()}_graph.json"
+        return get_index_dir(self.project) / f"{self._path_hash()}_graph.json"
 
     def _get_symbol_db_path(self) -> Path:
         """Get path for Symbol Graph SQLite export."""
-        return get_index_dir() / f"{self._path_hash()}_graph.db"
+        return get_index_dir(self.project) / f"{self._path_hash()}_graph.db"
 
     def blast_radius_jsonl(self, symbol: str, depth: int = 2) -> Dict[str, Any]:
         """Compute blast radius using JSONL index (grep-based lookup).
@@ -2302,6 +2477,7 @@ async def main():
                              help="Export graph to wicked-cache for cross-plugin access")
     index_parser.add_argument("--skip-graph", action="store_true",
                              help="Skip Symbol Graph + linker pipeline (JSONL only, faster)")
+    index_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # search
     search_parser = subparsers.add_parser("search", help="Search everything")
@@ -2392,12 +2568,15 @@ async def main():
     # Get project path
     project_path = Path(args.path if hasattr(args, 'path') else '.').resolve()
 
+    # Get project name if specified
+    project_name = getattr(args, 'project', None)
+
     # Create index
-    index = UnifiedSearchIndex(project_path)
+    index = UnifiedSearchIndex(project_path, project_name)
 
     if args.command == "index":
         project_path = Path(args.path).resolve()
-        index = UnifiedSearchIndex(project_path)
+        index = UnifiedSearchIndex(project_path, project_name)
         print(f"Indexing {project_path}...")
 
         if not HAS_JSONL_MODULES:

@@ -17,6 +17,8 @@ Usage:
     python3 api.py get graph <id>
     python3 api.py search graph --query "ClassName" [--limit N]
     python3 api.py stats graph
+    python3 api.py traverse graph <id> [--depth N] [--direction both|in|out]
+    python3 api.py hotspots graph [--limit N] [--layer LAYER] [--type TYPE]
     python3 api.py list lineage [--limit N]
     python3 api.py search lineage --query "source_id" [--limit N]
     python3 api.py list services [--limit N]
@@ -30,18 +32,43 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 INDEX_DIR = Path.home() / ".something-wicked" / "wicked-search"
-VALID_SOURCES = {"symbols", "documents", "references", "graph", "lineage", "services"}
+VALID_SOURCES = {"symbols", "documents", "references", "graph", "lineage", "services", "projects"}
 
 
-def _meta(source, total, limit=100, offset=0):
+def _validate_project_name(name: str) -> bool:
+    """Validate project name: alphanumeric + hyphens, max 64 chars."""
+    if not name or len(name) > 64:
+        return False
+    return all(c.isalnum() or c == '-' for c in name)
+
+
+def _get_index_dir(project: str = None) -> Path:
+    """
+    Get index directory for a project or default.
+
+    If project is specified, returns ~/.something-wicked/wicked-search/projects/{project}/
+    Otherwise, returns ~/.something-wicked/wicked-search/ (backward compatible)
+    """
+    if project:
+        if not _validate_project_name(project):
+            _error("Invalid project name", "INVALID_PROJECT_NAME",
+                   project=project, rule="alphanumeric + hyphens, max 64 chars")
+        return INDEX_DIR / "projects" / project
+    return INDEX_DIR
+
+
+def _meta(source, total, limit=100, offset=0, **extra):
     """Build standard meta block."""
-    return {
+    meta = {
         "total": total,
         "limit": limit,
         "offset": offset,
         "source": source,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    # Add extra fields like warning, project
+    meta.update(extra)
+    return meta
 
 
 def _error(message, code, **details):
@@ -53,13 +80,14 @@ def _error(message, code, **details):
     sys.exit(1)
 
 
-def _load_jsonl_index():
+def _load_jsonl_index(project: str = None):
     """Load all JSONL index files and return nodes."""
-    if not INDEX_DIR.exists():
+    index_dir = _get_index_dir(project)
+    if not index_dir.exists():
         return []
 
     nodes = []
-    for jsonl_file in INDEX_DIR.glob("*.jsonl"):
+    for jsonl_file in index_dir.glob("*.jsonl"):
         try:
             with open(jsonl_file) as f:
                 for line in f:
@@ -169,16 +197,17 @@ def _search_nodes(nodes, query):
     return [r[1] for r in results]
 
 
-def _find_graph_dbs():
-    """Find all *_graph.db files under INDEX_DIR."""
-    if not INDEX_DIR.exists():
+def _find_graph_dbs(project: str = None):
+    """Find all *_graph.db files under index directory."""
+    index_dir = _get_index_dir(project)
+    if not index_dir.exists():
         return []
-    return list(INDEX_DIR.glob("*_graph.db"))
+    return list(index_dir.glob("*_graph.db"))
 
 
-def _query_graph_dbs(query, params=()):
+def _query_graph_dbs(query, params=(), project: str = None):
     """Execute SQL query across all graph DBs and merge results."""
-    dbs = _find_graph_dbs()
+    dbs = _find_graph_dbs(project)
     if not dbs:
         return []
 
@@ -211,11 +240,12 @@ def _enrich_with_layer(items):
     return items
 
 
-def _get_db_stats():
+def _get_db_stats(project: str = None):
     """Get stats from SQLite graph DBs if available."""
     stats = {"db_files": 0, "total_symbols": 0, "total_refs": 0}
+    index_dir = _get_index_dir(project)
     try:
-        for db_file in INDEX_DIR.glob("*_graph.db"):
+        for db_file in index_dir.glob("*_graph.db"):
             stats["db_files"] += 1
             try:
                 conn = sqlite3.connect(str(db_file), timeout=5.0)
@@ -238,8 +268,69 @@ def _get_db_stats():
     return stats
 
 
+def cmd_list_projects(args):
+    """List all projects with stats."""
+    projects_dir = INDEX_DIR / "projects"
+
+    if not projects_dir.exists():
+        # No projects directory - return empty or check for default index
+        default_stats = _get_db_stats(None)
+        if default_stats["total_symbols"] > 0:
+            # There's a default/legacy index
+            data = [{
+                "name": "default",
+                "symbol_count": default_stats["total_symbols"],
+                "file_count": default_stats["db_files"],
+                "last_indexed": None  # Not tracked in legacy
+            }]
+            print(json.dumps({"data": data, "meta": _meta("projects", 1)}, indent=2))
+        else:
+            print(json.dumps({"data": [], "meta": _meta("projects", 0)}, indent=2))
+        return
+
+    projects = []
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+
+        project_name = project_dir.name
+        if not _validate_project_name(project_name):
+            continue
+
+        # Get stats for this project
+        db_stats = _get_db_stats(project_name)
+
+        # Try to get last indexed time from DB files
+        last_indexed = None
+        dbs = _find_graph_dbs(project_name)
+        if dbs:
+            # Get most recent mtime
+            mtimes = [db.stat().st_mtime for db in dbs]
+            if mtimes:
+                last_indexed = datetime.fromtimestamp(max(mtimes), timezone.utc).isoformat()
+
+        projects.append({
+            "name": project_name,
+            "symbol_count": db_stats["total_symbols"],
+            "file_count": db_stats["db_files"],
+            "last_indexed": last_indexed
+        })
+
+    # Sort by name
+    projects.sort(key=lambda p: p["name"])
+
+    print(json.dumps({"data": projects, "meta": _meta("projects", len(projects))}, indent=2))
+
+
 def cmd_list(source, args):
     """List items from a source."""
+    project = getattr(args, 'project', None)
+
+    # Handle projects source separately
+    if source == "projects":
+        cmd_list_projects(args)
+        return
+
     if source in ("graph", "lineage", "services"):
         # SQLite-based sources
         if source == "graph":
@@ -274,7 +365,7 @@ def cmd_list(source, args):
             LIMIT ? OFFSET ?
             """
             params.extend([sql_limit, sql_offset])
-            items = _query_graph_dbs(query, tuple(params))
+            items = _query_graph_dbs(query, tuple(params), project)
 
             # Always compute layer from type in Python (works with any DB schema)
             _enrich_with_layer(items)
@@ -286,25 +377,32 @@ def cmd_list(source, args):
 
         elif source == "lineage":
             query = "SELECT * FROM lineage_paths ORDER BY id LIMIT ? OFFSET ?"
-            items = _query_graph_dbs(query, (args.limit, args.offset))
+            items = _query_graph_dbs(query, (args.limit, args.offset), project)
 
         elif source == "services":
             query = "SELECT * FROM service_nodes ORDER BY name LIMIT ? OFFSET ?"
-            items = _query_graph_dbs(query, (args.limit, args.offset))
+            items = _query_graph_dbs(query, (args.limit, args.offset), project)
             # Enrich each service with its connections
             for service in items:
                 service_id = service.get("id")
                 if service_id:
                     conn_query = "SELECT * FROM service_connections WHERE source_service_id = ?"
-                    connections = _query_graph_dbs(conn_query, (service_id,))
+                    connections = _query_graph_dbs(conn_query, (service_id,), project)
                     service["connections"] = connections
 
+        # Add warning if project specified but doesn't exist
+        meta_extra = {}
+        if project:
+            index_dir = _get_index_dir(project)
+            if not index_dir.exists() or not list(index_dir.glob("*_graph.db")):
+                meta_extra["warning"] = f"Project '{project}' not found or has no indexes"
+
         total = len(items)
-        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset, **meta_extra)}, indent=2))
         return
 
     # JSONL-based sources
-    nodes = _load_jsonl_index()
+    nodes = _load_jsonl_index(project)
 
     if source == "symbols":
         items = [n for n in nodes if n.get("domain") == "code"]
@@ -326,10 +424,12 @@ def cmd_list(source, args):
 
 def cmd_get(source, item_id, args):
     """Get a specific item by ID."""
+    project = getattr(args, 'project', None)
+
     if source == "graph":
         # Get symbol from graph DB
         symbol_query = "SELECT * FROM symbols WHERE id = ?"
-        symbols = _query_graph_dbs(symbol_query, (item_id,))
+        symbols = _query_graph_dbs(symbol_query, (item_id,), project)
 
         if not symbols:
             _error("Item not found", "NOT_FOUND", resource=source, id=item_id)
@@ -344,7 +444,7 @@ def cmd_get(source, item_id, args):
         deps = []
         for query in dep_queries:
             try:
-                deps = _query_graph_dbs(query, (item_id,))
+                deps = _query_graph_dbs(query, (item_id,), project)
                 if deps:
                     break
             except Exception:
@@ -358,7 +458,7 @@ def cmd_get(source, item_id, args):
         dependents = []
         for query in dependent_queries:
             try:
-                dependents = _query_graph_dbs(query, (item_id,))
+                dependents = _query_graph_dbs(query, (item_id,), project)
                 if dependents:
                     break
             except Exception:
@@ -371,7 +471,7 @@ def cmd_get(source, item_id, args):
         return
 
     # JSONL-based sources
-    nodes = _load_jsonl_index()
+    nodes = _load_jsonl_index(project)
 
     for node in nodes:
         nid = node.get("id") or node.get("name")
@@ -384,6 +484,8 @@ def cmd_get(source, item_id, args):
 
 def cmd_search(source, args):
     """Search items."""
+    project = getattr(args, 'project', None)
+
     if not args.query:
         _error("--query required for search", "MISSING_QUERY")
 
@@ -415,7 +517,7 @@ def cmd_search(source, args):
         LIMIT ? OFFSET ?
         """
         params.extend([sql_limit, sql_offset])
-        results = _query_graph_dbs(query, tuple(params))
+        results = _query_graph_dbs(query, tuple(params), project)
 
         # Always compute layer from type in Python (works with any DB schema)
         _enrich_with_layer(results)
@@ -437,13 +539,13 @@ def cmd_search(source, args):
         LIMIT ? OFFSET ?
         """
         pattern = f"%{args.query}%"
-        results = _query_graph_dbs(query, (pattern, pattern, args.limit, args.offset))
+        results = _query_graph_dbs(query, (pattern, pattern, args.limit, args.offset), project)
         total = len(results)
         print(json.dumps({"data": results, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
         return
 
     # JSONL-based sources
-    nodes = _load_jsonl_index()
+    nodes = _load_jsonl_index(project)
 
     if source == "symbols":
         nodes = [n for n in nodes if n.get("domain") == "code"]
@@ -460,11 +562,232 @@ def cmd_search(source, args):
     print(json.dumps({"data": data, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
 
 
+def cmd_traverse(source, item_id, args):
+    """Traverse graph from a symbol."""
+    project = getattr(args, 'project', None)
+
+    if source != "graph":
+        _error("traverse verb only supported for graph source", "UNSUPPORTED_VERB",
+               source=source, verb="traverse")
+
+    # Validate depth
+    depth = getattr(args, 'depth', 1)
+    if depth < 1 or depth > 3:
+        _error("Depth must be between 1 and 3", "INVALID_DEPTH", depth=depth)
+
+    direction = getattr(args, 'direction', 'both')
+    if direction not in ('both', 'in', 'out'):
+        _error("Direction must be 'both', 'in', or 'out'", "INVALID_DIRECTION", direction=direction)
+
+    # Find the root symbol first
+    symbol_query = "SELECT * FROM symbols WHERE id = ?"
+    symbols = _query_graph_dbs(symbol_query, (item_id,), project)
+
+    if not symbols:
+        _error("Symbol not found", "NOT_FOUND", id=item_id)
+
+    root = symbols[0]
+
+    # BFS traversal - collect all symbol IDs that should be in the result
+    visited_nodes = {item_id}  # Start with root
+    visited_edges = set()
+    queue = [(item_id, 0)]
+
+    # Get all graph DBs for querying
+    dbs = _find_graph_dbs(project)
+    if not dbs:
+        _error("No graph databases found", "NO_GRAPH_DB")
+
+    while queue:
+        current_id, current_depth = queue.pop(0)
+
+        if current_depth >= depth:
+            continue
+
+        # Query outgoing refs if direction is 'out' or 'both'
+        if direction in ('out', 'both'):
+            out_queries = [
+                "SELECT target_id, ref_type FROM symbol_references WHERE source_id = ?",
+                "SELECT target_id, ref_type FROM refs WHERE source_id = ?"
+            ]
+            for query in out_queries:
+                refs = _query_graph_dbs(query, (current_id,), project)
+                for ref in refs:
+                    target_id = ref['target_id']
+                    edge_key = (current_id, target_id, ref['ref_type'])
+                    if edge_key not in visited_edges:
+                        visited_edges.add(edge_key)
+                        if target_id not in visited_nodes:
+                            visited_nodes.add(target_id)
+                            queue.append((target_id, current_depth + 1))
+
+        # Query incoming refs if direction is 'in' or 'both'
+        if direction in ('in', 'both'):
+            in_queries = [
+                "SELECT source_id, ref_type FROM symbol_references WHERE target_id = ?",
+                "SELECT source_id, ref_type FROM refs WHERE target_id = ?"
+            ]
+            for query in in_queries:
+                refs = _query_graph_dbs(query, (current_id,), project)
+                for ref in refs:
+                    source_id = ref['source_id']
+                    edge_key = (source_id, current_id, ref['ref_type'])
+                    if edge_key not in visited_edges:
+                        visited_edges.add(edge_key)
+                        if source_id not in visited_nodes:
+                            visited_nodes.add(source_id)
+                            queue.append((source_id, current_depth + 1))
+
+    # Fetch full symbol objects for all visited nodes (except root)
+    nodes = []
+    visited_nodes.discard(item_id)  # Don't include root in nodes list
+
+    for node_id in sorted(visited_nodes):
+        node_query = "SELECT id, name, type, qualified_name, file_path, line_start, line_end FROM symbols WHERE id = ?"
+        node_results = _query_graph_dbs(node_query, (node_id,), project)
+        if node_results:
+            nodes.append(node_results[0])
+
+    # Build edge list with line numbers
+    edges = []
+    for source_id, target_id, ref_type in sorted(visited_edges):
+        # Try to get line number from refs table
+        line_queries = [
+            "SELECT line FROM symbol_references WHERE source_id = ? AND target_id = ? AND ref_type = ?",
+            "SELECT line FROM refs WHERE source_id = ? AND target_id = ? AND ref_type = ?"
+        ]
+        line = 0
+        for query in line_queries:
+            line_results = _query_graph_dbs(query, (source_id, target_id, ref_type), project)
+            if line_results and 'line' in line_results[0]:
+                line = line_results[0]['line'] or 0
+                break
+
+        edges.append({
+            "source_id": source_id,
+            "target_id": target_id,
+            "ref_type": ref_type,
+            "line": line
+        })
+
+    result = {
+        "data": {
+            "root": root,
+            "nodes": nodes,
+            "edges": edges
+        },
+        "meta": {
+            "source": "graph",
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "depth": depth,
+            "direction": direction
+        }
+    }
+
+    print(json.dumps(result, indent=2))
+
+
+def cmd_hotspots(source, args):
+    """Find hotspot symbols with high connectivity."""
+    project = getattr(args, 'project', None)
+
+    if source != "graph":
+        _error("hotspots verb only supported for graph source", "UNSUPPORTED_VERB",
+               source=source, verb="hotspots")
+
+    # Build query to get symbols with their in/out degree counts
+    # We need to LEFT JOIN to count refs in both directions
+    query = """
+    WITH ref_counts AS (
+        SELECT
+            s.id,
+            s.type,
+            s.name,
+            s.file_path,
+            COALESCE(out_refs.cnt, 0) as out_count,
+            COALESCE(in_refs.cnt, 0) as in_count
+        FROM symbols s
+        LEFT JOIN (
+            SELECT source_id, COUNT(*) as cnt
+            FROM refs
+            GROUP BY source_id
+        ) out_refs ON s.id = out_refs.source_id
+        LEFT JOIN (
+            SELECT target_id, COUNT(*) as cnt
+            FROM refs
+            GROUP BY target_id
+        ) in_refs ON s.id = in_refs.target_id
+
+        UNION ALL
+
+        SELECT
+            s.id,
+            s.type,
+            s.name,
+            s.file_path,
+            COALESCE(out_refs.cnt, 0) as out_count,
+            COALESCE(in_refs.cnt, 0) as in_count
+        FROM symbols s
+        LEFT JOIN (
+            SELECT source_id, COUNT(*) as cnt
+            FROM symbol_references
+            GROUP BY source_id
+        ) out_refs ON s.id = out_refs.source_id
+        LEFT JOIN (
+            SELECT target_id, COUNT(*) as cnt
+            FROM symbol_references
+            GROUP BY target_id
+        ) in_refs ON s.id = in_refs.target_id
+    )
+    SELECT
+        id,
+        type,
+        name,
+        file_path,
+        MAX(in_count) as in_count,
+        MAX(out_count) as out_count,
+        MAX(in_count) + MAX(out_count) as total_count
+    FROM ref_counts
+    GROUP BY id, type, name, file_path
+    HAVING total_count > 0
+    ORDER BY total_count DESC, id
+    """
+
+    items = _query_graph_dbs(query, (), project)
+
+    # Enrich with layer
+    _enrich_with_layer(items)
+
+    # Apply filters
+    items = _apply_filters(items, args)
+
+    # Apply pagination
+    total = len(items)
+    limit = getattr(args, 'limit', 20)
+    offset = getattr(args, 'offset', 0)
+    data = items[offset:offset + limit]
+
+    result = {
+        "data": data,
+        "meta": {
+            "source": "graph",
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+    }
+
+    print(json.dumps(result, indent=2))
+
+
 def cmd_stats(source, args):
     """Get statistics."""
+    project = getattr(args, 'project', None)
+
     if source == "graph":
         # Graph DB statistics
-        dbs = _find_graph_dbs()
+        dbs = _find_graph_dbs(project)
         if not dbs:
             stats = {
                 "total_symbols": 0,
@@ -530,7 +853,7 @@ def cmd_stats(source, args):
 
     if source == "services":
         # Services statistics
-        dbs = _find_graph_dbs()
+        dbs = _find_graph_dbs(project)
         if not dbs:
             stats = {
                 "total_services": 0,
@@ -591,8 +914,8 @@ def cmd_stats(source, args):
         return
 
     # JSONL-based sources
-    nodes = _load_jsonl_index()
-    db_stats = _get_db_stats()
+    nodes = _load_jsonl_index(project)
+    db_stats = _get_db_stats(project)
 
     code_nodes = [n for n in nodes if n.get("domain") == "code"]
     doc_nodes = [n for n in nodes if n.get("domain") == "doc"]
@@ -606,7 +929,8 @@ def cmd_stats(source, args):
         by_type[str(t)] = by_type.get(str(t), 0) + 1
 
     # Count index files
-    jsonl_count = len(list(INDEX_DIR.glob("*.jsonl"))) if INDEX_DIR.exists() else 0
+    index_dir = _get_index_dir(project)
+    jsonl_count = len(list(index_dir.glob("*.jsonl"))) if index_dir.exists() else 0
 
     stats = {
         "total_nodes": len(nodes),
@@ -625,17 +949,21 @@ def main():
     parser = argparse.ArgumentParser(description="Wicked Search Data API")
     subparsers = parser.add_subparsers(dest="verb")
 
-    for verb in ("list", "get", "search", "stats"):
+    for verb in ("list", "get", "search", "stats", "traverse", "hotspots"):
         sub = subparsers.add_parser(verb)
-        sub.add_argument("source", help="Data source (symbols, documents, references, graph, lineage, services)")
+        sub.add_argument("source", help="Data source (symbols, documents, references, graph, lineage, services, projects)")
         if verb == "get":
             sub.add_argument("id", nargs="?", help="Item ID")
-        sub.add_argument("--limit", type=int, default=100)
+        if verb == "traverse":
+            sub.add_argument("id", nargs="?", help="Symbol ID to traverse from")
+            sub.add_argument("--depth", type=int, default=1, help="Traversal depth (1-3)")
+            sub.add_argument("--direction", default="both", help="Direction: both, in, out")
+        sub.add_argument("--limit", type=int, default=100 if verb != "hotspots" else 20)
         sub.add_argument("--offset", type=int, default=0)
         sub.add_argument("--project", help="Filter by project")
         sub.add_argument("--query", help="Search query")
         sub.add_argument("--filter", help="Filter expression")
-        if verb in ("list", "search"):
+        if verb in ("list", "search", "hotspots"):
             sub.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
             sub.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
 
@@ -659,6 +987,12 @@ def main():
         cmd_search(args.source, args)
     elif args.verb == "stats":
         cmd_stats(args.source, args)
+    elif args.verb == "traverse":
+        if not args.id:
+            _error("ID required for traverse verb", "MISSING_ID")
+        cmd_traverse(args.source, args.id, args)
+    elif args.verb == "hotspots":
+        cmd_hotspots(args.source, args)
 
 
 if __name__ == "__main__":
