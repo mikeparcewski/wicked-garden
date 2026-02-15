@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2026-02-15
+
+### Chores
+- release: wicked-delivery v0.6.0 (86413a5)
+
 ## [0.6.0] - 2026-02-15
 
 ### Features

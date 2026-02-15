@@ -1,16 +1,20 @@
-# Release wicked-smaht v2.6.0
+# Release wicked-startah v0.5.0
 
-**Date**: 2026-02-14
-**Component**: wicked-smaht
+**Date**: 2026-02-15
+**Component**: wicked-startah
 
 ## Summary
 
-This release includes: 5 new feature(s).
+This release includes: 9 new feature(s).
 
 ## Changes
 
 ### Features
 
+- feat(delivery): setup command and configurable settings (b38164e)
+- feat(delivery): configurable cost estimation and delta-triggered commentary (48d7267)
+- feat(delivery,search): data gateway metrics and graph exposure (d95cb70)
+- feat(workbench,kanban,mem,crew): data gateway write operations and specialist reviewer routing (7490f97)
 - feat(jam,smaht): evidence-based decision lifecycle and cross-session memory (4ab158a)
 - feat(wicked-smaht): add delegation and startah adapters, improve routing and hooks (a7185e5)
 - feat: Plugin Data API v1.0.0 — wicked.json replaces catalog.json (95ebf21)
@@ -32,8 +36,16 @@ This release includes: 5 new feature(s).
 
 ### Chores
 
+- release: wicked-delivery v0.6.0 (86413a5)
+- chore: remove stale release notes from previous version (c0cdff9)
+- release: wicked-delivery v0.5.0 (9b1872a)
+- release: wicked-delivery v0.4.0, wicked-search v1.3.0 (8125a6c)
+- release: wicked-workbench v0.5.0, wicked-kanban v0.7.0, wicked-mem v0.6.0, wicked-crew v0.12.0 (16eef1f)
+- Merge pull request #2 from mikeparcewski/dependabot/uv/plugins/wicked-workbench/server/cryptography-46.0.5 (1489682)
+- release: wicked-jam v0.3.0, wicked-smaht v2.6.0 (2b1245a)
 - chore: CLAUDE.md conventions, search/patch fixes, data ontology command, test scaffolding (11aaf2d)
 - release: wicked-crew v0.11.0 (12c7f1f)
+- chore(deps): Bump cryptography in /plugins/wicked-workbench/server (62707ff)
 - Merge remote-tracking branch 'origin/main' (f1f0e12)
 - release: bump 18 plugins (bc1a9ed)
 - Merge pull request #1 from arturl/main (6eefef4)
@@ -47,5 +59,5 @@ This release includes: 5 new feature(s).
 claude marketplace add wickedagile/wicked-garden
 
 # Then install the plugin
-claude plugin install wicked-smaht@wicked-garden
+claude plugin install wicked-startah@wicked-garden
 ```
