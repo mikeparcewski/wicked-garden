@@ -16,19 +16,67 @@ from pathlib import Path
 
 VALID_SOURCES = {"metrics", "commentary"}
 VALID_VERBS = {"stats", "list"}
-ROLLING_WINDOW_DAYS = 14
-AGING_THRESHOLD_DAYS = 7
 STORAGE_DIR = Path.home() / ".something-wicked" / "wicked-delivery"
 COST_MODEL_PATH = STORAGE_DIR / "cost_model.json"
+SETTINGS_PATH = STORAGE_DIR / "settings.json"
 COMMENTARY_CACHE_PATH = STORAGE_DIR / "commentary_cache.json"
 
-# Delta thresholds for commentary regeneration
-DELTA_COMPLETION_RATE = 0.10   # 10% shift
-DELTA_CYCLE_TIME_P95 = 0.25   # 25% shift
-DELTA_THROUGHPUT = 0.20        # 20% shift
-DELTA_AGING_LOW = 10           # crossing below this
-DELTA_AGING_HIGH = 20          # crossing above this
-COMMENTARY_COOLDOWN_MINUTES = 15
+# Defaults — overridden by settings.json if present
+_DEFAULTS = {
+    "rolling_window_days": 14,
+    "aging_threshold_days": 7,
+    "commentary": {
+        "cooldown_minutes": 15,
+        "thresholds": {
+            "completion_rate": 0.10,
+            "cycle_time_p95": 0.25,
+            "throughput": 0.20,
+            "aging_low": 10,
+            "aging_high": 20,
+        },
+    },
+}
+
+
+def _load_settings():
+    """Load settings from settings.json, merged with defaults."""
+    settings = json.loads(json.dumps(_DEFAULTS))  # deep copy
+    if not SETTINGS_PATH.exists():
+        return settings
+    try:
+        with open(SETTINGS_PATH) as f:
+            user = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return settings
+
+    # Merge top-level scalars
+    for k in ("rolling_window_days", "aging_threshold_days"):
+        if k in user:
+            settings[k] = user[k]
+
+    # Merge commentary section
+    if "commentary" in user and isinstance(user["commentary"], dict):
+        uc = user["commentary"]
+        if "cooldown_minutes" in uc:
+            settings["commentary"]["cooldown_minutes"] = uc["cooldown_minutes"]
+        if "thresholds" in uc and isinstance(uc["thresholds"], dict):
+            for tk in settings["commentary"]["thresholds"]:
+                if tk in uc["thresholds"]:
+                    settings["commentary"]["thresholds"][tk] = uc["thresholds"][tk]
+
+    return settings
+
+
+# Load once at module level
+_settings = _load_settings()
+ROLLING_WINDOW_DAYS = _settings["rolling_window_days"]
+AGING_THRESHOLD_DAYS = _settings["aging_threshold_days"]
+DELTA_COMPLETION_RATE = _settings["commentary"]["thresholds"]["completion_rate"]
+DELTA_CYCLE_TIME_P95 = _settings["commentary"]["thresholds"]["cycle_time_p95"]
+DELTA_THROUGHPUT = _settings["commentary"]["thresholds"]["throughput"]
+DELTA_AGING_LOW = _settings["commentary"]["thresholds"]["aging_low"]
+DELTA_AGING_HIGH = _settings["commentary"]["thresholds"]["aging_high"]
+COMMENTARY_COOLDOWN_MINUTES = _settings["commentary"]["cooldown_minutes"]
 
 
 def _meta(source, total, limit=100, offset=0):

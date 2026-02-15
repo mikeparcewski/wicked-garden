@@ -25,6 +25,7 @@ claude plugin install wicked-delivery@wicked-garden
 | Command | What It Does | Example |
 |---------|-------------|---------|
 | `/wicked-delivery:report` | Generate delivery reports | `/wicked-delivery:report sprint-health` |
+| `/wicked-delivery:setup` | Configure cost model, commentary, and metrics | `/wicked-delivery:setup` |
 
 ## Skills
 
@@ -88,9 +89,19 @@ python3 scripts/api.py list commentary
 
 **Metrics**: Returns throughput (tasks/day over 14-day rolling window), cycle time (avg/median/p50/p75/p95 in hours), backlog health (aging count, oldest, average age), and completion rate. Requires wicked-kanban for task data; gracefully returns `{"available": false}` when kanban is not installed.
 
-**Cost estimation** (opt-in): Create `~/.something-wicked/wicked-delivery/cost_model.json` with `priority_costs` and optional `complexity_costs`. When configured, `stats metrics` includes cost/ROI fields.
+**Cost estimation** (opt-in): Run `/wicked-delivery:setup` or manually create `~/.something-wicked/wicked-delivery/cost_model.json`:
 
-**Commentary**: Auto-refreshed by a PostToolUse hook on task changes. Regenerates when metrics cross thresholds (completion rate >10%, cycle time p95 >25%, throughput >20%, backlog aging crossing boundaries) with a 15-minute cooldown.
+```json
+{
+  "currency": "USD",
+  "priority_costs": { "P0": 2.50, "P1": 1.50, "P2": 0.75, "P3": 0.40 },
+  "complexity_costs": { "0": 0.50, "1": 0.75, "2": 1.00, "3": 1.50, "4": 2.00, "5": 3.00, "6": 4.50, "7": 6.00 }
+}
+```
+
+When configured, `stats metrics` includes cost/ROI fields. Without this file, no cost data is returned.
+
+**Commentary**: Auto-refreshed by a PostToolUse hook on task changes. Regenerates when metrics cross configurable thresholds with a cooldown period. Default thresholds: completion rate >10%, cycle time p95 >25%, throughput >20%, backlog aging crossing 10/20. Tune via `/wicked-delivery:setup` or `~/.something-wicked/wicked-delivery/settings.json`.
 
 ## Integration
 
