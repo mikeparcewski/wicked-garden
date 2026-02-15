@@ -604,70 +604,52 @@ def cmd_traverse(source, item_id, args):
         if current_depth >= depth:
             continue
 
-        # Query outgoing refs if direction is 'out' or 'both'
+        # Query outgoing refs (refs table only — symbol_references is a view over refs)
         if direction in ('out', 'both'):
-            out_queries = [
-                "SELECT target_id, ref_type FROM symbol_references WHERE source_id = ?",
-                "SELECT target_id, ref_type FROM refs WHERE source_id = ?"
-            ]
-            for query in out_queries:
-                refs = _query_graph_dbs(query, (current_id,), project)
-                for ref in refs:
-                    target_id = ref['target_id']
-                    edge_key = (current_id, target_id, ref['ref_type'])
-                    if edge_key not in visited_edges:
-                        visited_edges.add(edge_key)
-                        if target_id not in visited_nodes:
-                            visited_nodes.add(target_id)
-                            queue.append((target_id, current_depth + 1))
+            refs = _query_graph_dbs(
+                "SELECT target_id, ref_type FROM refs WHERE source_id = ?",
+                (current_id,), project)
+            for ref in refs:
+                target_id = ref['target_id']
+                edge_key = (current_id, target_id, ref['ref_type'])
+                if edge_key not in visited_edges:
+                    visited_edges.add(edge_key)
+                    if target_id not in visited_nodes:
+                        visited_nodes.add(target_id)
+                        queue.append((target_id, current_depth + 1))
 
-        # Query incoming refs if direction is 'in' or 'both'
+        # Query incoming refs
         if direction in ('in', 'both'):
-            in_queries = [
-                "SELECT source_id, ref_type FROM symbol_references WHERE target_id = ?",
-                "SELECT source_id, ref_type FROM refs WHERE target_id = ?"
-            ]
-            for query in in_queries:
-                refs = _query_graph_dbs(query, (current_id,), project)
-                for ref in refs:
-                    source_id = ref['source_id']
-                    edge_key = (source_id, current_id, ref['ref_type'])
-                    if edge_key not in visited_edges:
-                        visited_edges.add(edge_key)
-                        if source_id not in visited_nodes:
-                            visited_nodes.add(source_id)
-                            queue.append((source_id, current_depth + 1))
+            refs = _query_graph_dbs(
+                "SELECT source_id, ref_type FROM refs WHERE target_id = ?",
+                (current_id,), project)
+            for ref in refs:
+                source_id = ref['source_id']
+                edge_key = (source_id, current_id, ref['ref_type'])
+                if edge_key not in visited_edges:
+                    visited_edges.add(edge_key)
+                    if source_id not in visited_nodes:
+                        visited_nodes.add(source_id)
+                        queue.append((source_id, current_depth + 1))
 
-    # Fetch full symbol objects for all visited nodes (except root)
-    nodes = []
+    # Batch fetch full symbol objects for all visited nodes (except root)
     visited_nodes.discard(item_id)  # Don't include root in nodes list
+    nodes = []
+    if visited_nodes:
+        sorted_ids = sorted(visited_nodes)
+        placeholders = ",".join("?" for _ in sorted_ids)
+        node_query = f"SELECT id, name, type, qualified_name, file_path, line_start, line_end FROM symbols WHERE id IN ({placeholders})"
+        nodes = _query_graph_dbs(node_query, tuple(sorted_ids), project)
+        nodes.sort(key=lambda n: n.get("id", ""))
 
-    for node_id in sorted(visited_nodes):
-        node_query = "SELECT id, name, type, qualified_name, file_path, line_start, line_end FROM symbols WHERE id = ?"
-        node_results = _query_graph_dbs(node_query, (node_id,), project)
-        if node_results:
-            nodes.append(node_results[0])
-
-    # Build edge list with line numbers
+    # Build edge list (refs table does not store line numbers, so line=0)
     edges = []
     for source_id, target_id, ref_type in sorted(visited_edges):
-        # Try to get line number from refs table
-        line_queries = [
-            "SELECT line FROM symbol_references WHERE source_id = ? AND target_id = ? AND ref_type = ?",
-            "SELECT line FROM refs WHERE source_id = ? AND target_id = ? AND ref_type = ?"
-        ]
-        line = 0
-        for query in line_queries:
-            line_results = _query_graph_dbs(query, (source_id, target_id, ref_type), project)
-            if line_results and 'line' in line_results[0]:
-                line = line_results[0]['line'] or 0
-                break
-
         edges.append({
             "source_id": source_id,
             "target_id": target_id,
             "ref_type": ref_type,
-            "line": line
+            "line": 0
         })
 
     result = {
@@ -696,65 +678,36 @@ def cmd_hotspots(source, args):
         _error("hotspots verb only supported for graph source", "UNSUPPORTED_VERB",
                source=source, verb="hotspots")
 
-    # Build query to get symbols with their in/out degree counts
-    # We need to LEFT JOIN to count refs in both directions
+    # Build query using refs table only (symbol_references is a view over refs,
+    # so UNION ALL would double-count)
     query = """
-    WITH ref_counts AS (
-        SELECT
-            s.id,
-            s.type,
-            s.name,
-            s.file_path,
-            COALESCE(out_refs.cnt, 0) as out_count,
-            COALESCE(in_refs.cnt, 0) as in_count
-        FROM symbols s
-        LEFT JOIN (
-            SELECT source_id, COUNT(*) as cnt
-            FROM refs
-            GROUP BY source_id
-        ) out_refs ON s.id = out_refs.source_id
-        LEFT JOIN (
-            SELECT target_id, COUNT(*) as cnt
-            FROM refs
-            GROUP BY target_id
-        ) in_refs ON s.id = in_refs.target_id
-
-        UNION ALL
-
-        SELECT
-            s.id,
-            s.type,
-            s.name,
-            s.file_path,
-            COALESCE(out_refs.cnt, 0) as out_count,
-            COALESCE(in_refs.cnt, 0) as in_count
-        FROM symbols s
-        LEFT JOIN (
-            SELECT source_id, COUNT(*) as cnt
-            FROM symbol_references
-            GROUP BY source_id
-        ) out_refs ON s.id = out_refs.source_id
-        LEFT JOIN (
-            SELECT target_id, COUNT(*) as cnt
-            FROM symbol_references
-            GROUP BY target_id
-        ) in_refs ON s.id = in_refs.target_id
-    )
     SELECT
-        id,
-        type,
-        name,
-        file_path,
-        MAX(in_count) as in_count,
-        MAX(out_count) as out_count,
-        MAX(in_count) + MAX(out_count) as total_count
-    FROM ref_counts
-    GROUP BY id, type, name, file_path
-    HAVING total_count > 0
+        s.id,
+        s.type,
+        s.name,
+        s.file_path,
+        COALESCE(in_refs.cnt, 0) as in_count,
+        COALESCE(out_refs.cnt, 0) as out_count,
+        COALESCE(in_refs.cnt, 0) + COALESCE(out_refs.cnt, 0) as total_count
+    FROM symbols s
+    LEFT JOIN (
+        SELECT source_id, COUNT(*) as cnt
+        FROM refs
+        GROUP BY source_id
+    ) out_refs ON s.id = out_refs.source_id
+    LEFT JOIN (
+        SELECT target_id, COUNT(*) as cnt
+        FROM refs
+        GROUP BY target_id
+    ) in_refs ON s.id = in_refs.target_id
+    WHERE COALESCE(in_refs.cnt, 0) + COALESCE(out_refs.cnt, 0) > 0
     ORDER BY total_count DESC, id
     """
 
     items = _query_graph_dbs(query, (), project)
+
+    # Re-sort after cross-DB merge (SQL ORDER BY applies per-DB only)
+    items.sort(key=lambda x: (-x.get('total_count', 0), x.get('id', '')))
 
     # Enrich with layer
     _enrich_with_layer(items)
