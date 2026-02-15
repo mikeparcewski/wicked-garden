@@ -55,6 +55,31 @@ claude plugin install wicked-search@wicked-garden
 | `/wicked-search:validate` | Validate index accuracy | `/wicked-search:validate --deep` |
 | `/wicked-search:quality` | Agent-based quality crew to 95%+ accuracy | `/wicked-search:quality` |
 
+### Graph API
+
+| Verb | What It Does | Example |
+|------|-------------|---------|
+| `traverse` | BFS graph traversal from a symbol with depth/direction control | `api.py traverse graph <id> --depth 2 --direction both` |
+| `hotspots` | Rank symbols by connectivity (in-degree + out-degree) | `api.py hotspots graph --limit 10 --type entity` |
+
+### Multi-Project Isolation
+
+Index multiple codebases separately with `--project`:
+
+```bash
+# Index with project scoping
+/wicked-search:index /path/to/project --project my-project
+
+# Query a specific project
+api.py list graph --project my-project
+api.py hotspots graph --project my-project
+
+# List all indexed projects
+api.py list projects
+```
+
+Project names: alphanumeric + hyphens, max 64 chars. Without `--project`, uses the legacy flat index (backward compatible).
+
 ## What Makes It Different
 
 Unlike grep or IDE search, wicked-search understands your application's architecture:
@@ -115,9 +140,12 @@ This plugin exposes data via the standard Plugin Data API. Sources are declared 
 | symbols | list, get, search, stats | Code symbols (functions, classes, methods) from indexed projects |
 | documents | list, search | Indexed documents (markdown, PDF, Office) with frontmatter |
 | references | list, search | Cross-references between symbols and documents |
-| graph | list, get, search, stats | Symbol dependency graph from SQLite with deps/dependents relationships |
+| graph | list, get, search, stats, traverse, hotspots | Symbol dependency graph with BFS traversal and connectivity ranking |
 | lineage | list, search | Precomputed data lineage paths (source to sink traces) with confidence |
 | services | list, stats | Detected service nodes and connections from infrastructure analysis |
+| projects | list | Indexed projects with symbol counts and last-indexed timestamps |
+
+All sources support `--project` for multi-project isolation. Symbols include enrichment fields: `inferred_type` (test, configuration, data-model, controller, service, utility, general), `description` (first docstring/comment), and `domains` (path-inferred tags like auth, api, db).
 
 Query via the workbench gateway:
 ```

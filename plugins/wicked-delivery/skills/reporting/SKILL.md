@@ -41,6 +41,7 @@ A format-agnostic analyzer that generates comprehensive delivery reports from pr
 - **Multi-Perspective**: Generates insights from 3 or 6 specialized personas
 - **Delivery-Focused**: Provides actionable reports for project stakeholders
 - **Data-Driven**: Leverages wicked-data for intelligent data processing
+- **Effort Allocation**: Breaks down task effort by crew phase and signal dimension
 
 ## Personas
 

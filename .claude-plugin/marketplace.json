@@ -19,7 +19,7 @@
     {
       "name": "wicked-search",
       "source": "./plugins/wicked-search",
-      "description": "Unified code and document search with Symbol Graph and cross-plugin graph export. Multi-ORM data lineage, cross-layer linking, blast radius analysis, and wicked-cache integration.",
+      "description": "Unified code and document search with Symbol Graph, graph traversal, hotspot detection, and multi-project isolation. Multi-ORM data lineage, cross-layer linking, blast radius analysis, symbol enrichment, and wicked-cache integration.",
       "version": "1.6.0"
     },
     {
@@ -31,13 +31,13 @@
     {
       "name": "wicked-kanban",
       "source": "./plugins/wicked-kanban",
-      "description": "Persistent kanban board that survives across sessions. Auto-syncs Claude Code's TaskCreate/TaskUpdate to a durable board with git commit linking, activity audit trail, and sprint grouping. Built-in tasks reset each session \u2014 kanban remembers everything.",
+      "description": "Persistent kanban board that survives across sessions. Auto-syncs Claude Code's TaskCreate/TaskUpdate to a durable board with git commit linking, task comments API, activity audit trail, and sprint grouping. Built-in tasks reset each session \u2014 kanban remembers everything.",
       "version": "0.10.0"
     },
     {
       "name": "wicked-crew",
       "source": "./plugins/wicked-crew",
-      "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates (value, strategy, execution).",
+      "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates, project archiving, and signal-based specialist routing.",
       "version": "0.15.0"
     },
     {
@@ -91,7 +91,7 @@
     {
       "name": "wicked-delivery",
       "source": "./plugins/wicked-delivery",
-      "description": "Delivery management expertise spanning PMO, onboarding, experimentation, and FinOps. Includes delivery managers, cost analysts, and rollout coordinators.",
+      "description": "Delivery management expertise spanning PMO, experimentation, effort allocation, and risk monitoring. Includes delivery managers, cost analysts, rollout coordinators, and phase/signal effort breakdowns.",
       "version": "0.8.0"
     },
     {
