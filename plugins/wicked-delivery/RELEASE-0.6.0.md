@@ -1,4 +1,4 @@
-# Release wicked-delivery v0.5.0
+# Release wicked-delivery v0.6.0
 
 **Date**: 2026-02-15
 **Component**: wicked-delivery
@@ -11,11 +11,12 @@ This release includes: 1 new feature(s).
 
 ### Features
 
-- feat(delivery): configurable cost estimation and delta-triggered commentary (48d7267)
+- feat(delivery): setup command and configurable settings (b38164e)
 
 ### Chores
 
-- release: wicked-delivery v0.4.0, wicked-search v1.3.0 (8125a6c)
+- chore: remove stale release notes from previous version (c0cdff9)
+- release: wicked-delivery v0.5.0 (9b1872a)
 
 ## Installation
 
