@@ -7,7 +7,9 @@
       "description": "Crew workflow projects with phase tracking",
       "capabilities": [
         "list",
-        "get"
+        "get",
+        "create",
+        "update"
       ]
     },
     {
@@ -15,7 +17,8 @@
       "description": "Project phase execution history and status",
       "capabilities": [
         "list",
-        "get"
+        "get",
+        "update"
       ]
     },
     {

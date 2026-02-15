@@ -6,6 +6,9 @@ CLI mode (standard Plugin Data API):
     python3 api.py get tasks <task-id> --project abc123
     python3 api.py search tasks --query "bug" --project abc123
     python3 api.py stats tasks --project abc123
+    python3 api.py create tasks < payload.json
+    python3 api.py update tasks <task-id> < payload.json
+    python3 api.py delete tasks <task-id> --project abc123
     python3 api.py list projects
     python3 api.py list initiatives --project abc123
     python3 api.py list activity --project abc123 --limit 20
@@ -28,9 +31,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from kanban import get_store
 
 
-# ==================== CLI Mode ====================
+# ==================== Shared Helpers ====================
 
-VALID_VERBS = {"list", "get", "search", "stats"}
+VALID_VERBS = {"list", "get", "search", "stats", "create", "update", "delete"}
 VALID_SOURCES = {"projects", "tasks", "initiatives", "activity"}
 
 
@@ -57,6 +60,28 @@ def _error(message, code, **details):
 def _paginate(items, limit, offset):
     """Apply pagination to a list."""
     return items[offset:offset + limit]
+
+
+def _read_input():
+    """Read JSON input from stdin for write operations."""
+    if sys.stdin.isatty():
+        return {}
+    try:
+        raw = sys.stdin.read()
+        return json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError:
+        _error("Invalid JSON input", "INVALID_INPUT")
+
+
+def _validate_required(data, *fields):
+    """Validate required fields are present in input data."""
+    missing = [f for f in fields if f not in data or data[f] is None]
+    if missing:
+        _error("Validation failed", "VALIDATION_ERROR",
+               fields={f: "required field missing" for f in missing})
+
+
+# ==================== Read Handlers ====================
 
 
 def cli_list(source, args):
@@ -178,6 +203,144 @@ def cli_stats(source, args):
     print(json.dumps({"data": stats, "meta": _meta(source, 1)}, indent=2))
 
 
+# ==================== Write Handlers ====================
+
+
+def cli_create(source, args):
+    """Handle create verb — reads JSON from stdin."""
+    store = get_store()
+    data = _read_input()
+
+    if source == "projects":
+        _validate_required(data, "name")
+        result = store.create_project(
+            name=data["name"],
+            description=data.get("description", ""),
+            repo_path=data.get("repo_path", ""),
+        )
+        if not result:
+            _error("Failed to create project", "CREATE_FAILED", resource="projects")
+        print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "tasks":
+        project_id = data.get("project_id") or getattr(args, "project", None)
+        if not project_id:
+            _error("project_id required for task creation", "MISSING_PROJECT")
+        _validate_required(data, "name")
+        result = store.create_task(
+            project_id=project_id,
+            name=data["name"],
+            swimlane=data.get("swimlane", "todo"),
+            priority=data.get("priority"),
+            description=data.get("description"),
+            initiative_id=data.get("initiative_id"),
+            depends_on=data.get("depends_on"),
+            metadata=data.get("metadata"),
+        )
+        if not result:
+            _error("Failed to create task", "CREATE_FAILED", resource="tasks")
+        print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "initiatives":
+        project_id = data.get("project_id") or getattr(args, "project", None)
+        if not project_id:
+            _error("project_id required for initiative creation", "MISSING_PROJECT")
+        _validate_required(data, "name")
+        result = store.create_initiative(
+            project_id=project_id,
+            name=data["name"],
+            goal=data.get("goal"),
+            status=data.get("status", "planning"),
+            start_date=data.get("start_date"),
+            end_date=data.get("end_date"),
+        )
+        if not result:
+            _error("Failed to create initiative", "CREATE_FAILED", resource="initiatives")
+        print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "activity":
+        _error("create not supported for activity (auto-generated)", "UNSUPPORTED_VERB", source=source)
+
+
+def cli_update(source, item_id, args):
+    """Handle update verb — reads JSON from stdin."""
+    store = get_store()
+    data = _read_input()
+
+    if source == "projects":
+        result = store.update_project(item_id, **{
+            k: v for k, v in data.items()
+            if k in ("name", "description", "repo_path", "archived")
+        })
+        if not result:
+            _error("Project not found", "NOT_FOUND", resource="projects", id=item_id)
+        print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "tasks":
+        project_id = data.pop("project_id", None) or getattr(args, "project", None)
+        if not project_id:
+            _error("project_id required for task update", "MISSING_PROJECT")
+        allowed = {"name", "description", "swimlane", "order", "priority",
+                    "initiative_id", "assigned_to", "depends_on", "metadata"}
+        updates = {k: v for k, v in data.items() if k in allowed}
+        result = store.update_task(project_id, item_id, **updates)
+        if not result:
+            _error("Task not found", "NOT_FOUND", resource="tasks", id=item_id)
+        print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "initiatives":
+        project_id = data.pop("project_id", None) or getattr(args, "project", None)
+        if not project_id:
+            _error("project_id required for initiative update", "MISSING_PROJECT")
+        allowed = {"name", "goal", "status", "start_date", "end_date"}
+        updates = {k: v for k, v in data.items() if k in allowed}
+        result = store.update_initiative(project_id, item_id, **updates)
+        if not result:
+            _error("Initiative not found", "NOT_FOUND", resource="initiatives", id=item_id)
+        print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "activity":
+        _error("update not supported for activity", "UNSUPPORTED_VERB", source=source)
+
+
+def cli_delete(source, item_id, args):
+    """Handle delete verb."""
+    store = get_store()
+
+    if source == "projects":
+        result = store.delete_project(item_id)
+        if not result:
+            _error("Project not found", "NOT_FOUND", resource="projects", id=item_id)
+        print(json.dumps({"data": {"deleted": True, "id": item_id}, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "tasks":
+        # Read project_id from stdin or args
+        data = _read_input() if not sys.stdin.isatty() else {}
+        project_id = data.get("project_id") or getattr(args, "project", None)
+        if not project_id:
+            _error("project_id required for task deletion", "MISSING_PROJECT")
+        result = store.delete_task(project_id, item_id)
+        if not result:
+            _error("Task not found", "NOT_FOUND", resource="tasks", id=item_id)
+        print(json.dumps({"data": {"deleted": True, "id": item_id}, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "initiatives":
+        data = _read_input() if not sys.stdin.isatty() else {}
+        project_id = data.get("project_id") or getattr(args, "project", None)
+        if not project_id:
+            _error("project_id required for initiative deletion", "MISSING_PROJECT")
+        result = store.delete_initiative(project_id, item_id)
+        if not result:
+            _error("Initiative not found", "NOT_FOUND", resource="initiatives", id=item_id)
+        print(json.dumps({"data": {"deleted": True, "id": item_id}, "meta": _meta(source, 1)}, indent=2))
+
+    elif source == "activity":
+        _error("delete not supported for activity", "UNSUPPORTED_VERB", source=source)
+
+
+# ==================== CLI Router ====================
+
+
 def run_cli(args):
     """Execute CLI mode."""
     verb = args.verb
@@ -197,6 +360,16 @@ def run_cli(args):
         cli_search(source, args)
     elif verb == "stats":
         cli_stats(source, args)
+    elif verb == "create":
+        cli_create(source, args)
+    elif verb == "update":
+        if not args.id:
+            _error("ID required for update verb", "MISSING_ID")
+        cli_update(source, args.id, args)
+    elif verb == "delete":
+        if not args.id:
+            _error("ID required for delete verb", "MISSING_ID")
+        cli_delete(source, args.id, args)
 
 
 # ==================== HTTP Mode (legacy, unchanged) ====================
@@ -448,11 +621,11 @@ def main():
 
     subparsers = parser.add_subparsers(dest='verb')
 
-    # CLI verbs
-    for verb in VALID_VERBS:
+    # CLI verbs (read + write)
+    for verb in sorted(VALID_VERBS):
         sub = subparsers.add_parser(verb, help=f'{verb} data from kanban')
         sub.add_argument('source', help='Data source (projects, tasks, initiatives, activity)')
-        if verb == 'get':
+        if verb in ('get', 'update', 'delete'):
             sub.add_argument('id', nargs='?', help='Resource ID')
         sub.add_argument('--limit', type=int, default=100, help='Limit results (default: 100)')
         sub.add_argument('--offset', type=int, default=0, help='Skip first N results')
