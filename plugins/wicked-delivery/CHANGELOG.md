@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0] - 2026-02-15
+
+### Features
+- feat(delivery): configurable cost estimation and delta-triggered commentary (48d7267)
+
+### Chores
+- release: wicked-delivery v0.4.0, wicked-search v1.3.0 (8125a6c)
+
 ## [0.4.0] - 2026-02-15
 
 ### Features
