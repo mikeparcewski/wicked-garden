@@ -14,7 +14,7 @@
       "name": "wicked-mem",
       "source": "./plugins/wicked-mem",
       "description": "Structured memory with signal-based recall. Unlike built-in memory, wicked-mem categorizes memories by type (episodic, decision, procedural, preference), decays stale memories automatically, and only injects context when your question signals need it \u2014 preventing context bloat.",
-      "version": "0.5.0"
+      "version": "0.6.0"
     },
     {
       "name": "wicked-search",
@@ -32,13 +32,13 @@
       "name": "wicked-kanban",
       "source": "./plugins/wicked-kanban",
       "description": "Persistent kanban board that survives across sessions. Auto-syncs Claude Code's TaskCreate/TaskUpdate to a durable board with git commit linking, activity audit trail, and sprint grouping. Built-in tasks reset each session \u2014 kanban remembers everything.",
-      "version": "0.6.0"
+      "version": "0.7.0"
     },
     {
       "name": "wicked-crew",
       "source": "./plugins/wicked-crew",
       "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates (value, strategy, execution).",
-      "version": "0.11.0"
+      "version": "0.12.0"
     },
     {
       "name": "wicked-jam",
@@ -62,7 +62,7 @@
       "name": "wicked-workbench",
       "source": "./plugins/wicked-workbench",
       "description": "Build-your-own dashboard for wicked-garden plugins using A2UI protocol. Combines components from kanban, memory, and other plugins into unified, AI-generated interfaces.",
-      "version": "0.4.0"
+      "version": "0.5.0"
     },
     {
       "name": "wicked-qe",
