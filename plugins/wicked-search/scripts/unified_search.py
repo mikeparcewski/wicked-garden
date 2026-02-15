@@ -128,6 +128,51 @@ class JsonlSearcher:
             return node.node_type.value
         return str(node.node_type)
 
+    def _get_node_layer(self, node) -> str:
+        """Get architectural layer for a node based on its type."""
+        node_type = self._get_node_type(node).lower()
+
+        # Map node types to layers (similar to SymbolGraph.get_layer())
+        layer_map = {
+            # Backend types
+            'class': 'backend',
+            'function': 'backend',
+            'method': 'backend',
+            'interface': 'backend',
+            'struct': 'backend',
+            'enum': 'backend',
+            'enum_type': 'backend',
+            'type': 'backend',
+            'trait': 'backend',
+            'entity': 'backend',
+            'entity_field': 'backend',
+            'controller': 'backend',
+            'controller_method': 'backend',
+            'service': 'backend',
+            'dao': 'backend',
+            # Database types
+            'table': 'database',
+            'column': 'database',
+            # Frontend types
+            'import': 'frontend',
+            'component': 'frontend',
+            'component_prop': 'frontend',
+            'route': 'frontend',
+            'form_field': 'frontend',
+            'event_handler': 'frontend',
+            'data_binding': 'frontend',
+            # View types
+            'jsp_page': 'view',
+            'html_page': 'view',
+            'el_expression': 'view',
+            'form_binding': 'view',
+            'jstl_variable': 'view',
+            'taglib': 'view',
+            'doc_section': 'view',
+            'doc_page': 'view',
+        }
+        return layer_map.get(node_type, 'unknown')
+
     def _resolve_symbol(self, symbol: str, suggest_limit: int = 5) -> Tuple[Optional[Any], List[Dict[str, Any]]]:
         """Resolve a symbol to a node using hybrid lookup.
 
@@ -204,6 +249,7 @@ class JsonlSearcher:
                         'name': node.name,
                         'type': self._get_node_type(node),
                         'domain': node.domain,
+                        'layer': self._get_node_layer(node),
                         'file_path': node.file,
                         'line_start': node.line_start,
                         'line_end': node.line_end,
@@ -2262,12 +2308,16 @@ async def main():
     search_parser.add_argument("query", help="Search query")
     search_parser.add_argument("--path", "-p", default=".", help="Project path")
     search_parser.add_argument("--limit", "-n", type=int, default=10, help="Max results")
+    search_parser.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
+    search_parser.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
 
     # code
     code_parser = subparsers.add_parser("code", help="Search code only")
     code_parser.add_argument("query", help="Search query")
     code_parser.add_argument("--path", "-p", default=".", help="Project path")
     code_parser.add_argument("--limit", "-n", type=int, default=10, help="Max results")
+    code_parser.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
+    code_parser.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
 
     # docs
     docs_parser = subparsers.add_parser("docs", help="Search docs only")
@@ -2304,6 +2354,7 @@ async def main():
     # stats
     stats_parser = subparsers.add_parser("stats", help="Show statistics")
     stats_parser.add_argument("--path", "-p", default=".", help="Project path")
+    stats_parser.add_argument("--group-by", help="Group statistics by field (e.g., 'layer', 'type')")
 
     # graph (Symbol Graph specific)
     graph_parser = subparsers.add_parser("graph", help="Build and query Symbol Graph")
@@ -2476,11 +2527,29 @@ async def main():
             return
 
         if args.command == "search":
-            results = searcher.search_all(args.query, args.limit)
+            results = searcher.search_all(args.query, args.limit * 10)  # Get more results for filtering
+
+            # Apply layer/type filters
+            if hasattr(args, 'layer') and args.layer:
+                results = [r for r in results if r.get("layer", "").lower() == args.layer.lower()]
+            if hasattr(args, 'type') and args.type:
+                results = [r for r in results if r.get("type", "").upper() == args.type.upper()]
+
+            # Apply limit after filtering
+            results = results[:args.limit]
             print(format_results(results, "Search Results"))
 
         elif args.command == "code":
-            results = searcher.search_code(args.query, args.limit)
+            results = searcher.search_code(args.query, args.limit * 10)  # Get more results for filtering
+
+            # Apply layer/type filters
+            if hasattr(args, 'layer') and args.layer:
+                results = [r for r in results if r.get("layer", "").lower() == args.layer.lower()]
+            if hasattr(args, 'type') and args.type:
+                results = [r for r in results if r.get("type", "").upper() == args.type.upper()]
+
+            # Apply limit after filtering
+            results = results[:args.limit]
             print(format_results(results, "Code Results"))
 
         elif args.command == "docs":
@@ -2698,6 +2767,33 @@ async def main():
                 print(f"\n  By domain: {stats['domains']}")
             if stats.get('node_types'):
                 print(f"\n  Node types: {stats['node_types']}")
+
+            # Handle --group-by option
+            if hasattr(args, 'group_by') and args.group_by:
+                group_by = args.group_by.lower()
+                if group_by in ('layer', 'type'):
+                    # Calculate grouping from the searcher
+                    if searcher:
+                        searcher._load_index()
+                        groups: Dict[str, int] = {}
+                        total = len(searcher._nodes)
+
+                        if group_by == 'layer':
+                            for node in searcher._nodes.values():
+                                layer = searcher._get_node_layer(node)
+                                groups[layer] = groups.get(layer, 0) + 1
+                        elif group_by == 'type':
+                            for node in searcher._nodes.values():
+                                node_type = searcher._get_node_type(node)
+                                groups[node_type] = groups.get(node_type, 0) + 1
+
+                        print(f"\n  Grouped by {group_by}:")
+                        for key in sorted(groups.keys()):
+                            count = groups[key]
+                            percentage = (count / total * 100) if total > 0 else 0
+                            print(f"    {key}: {count} ({percentage:.1f}%)")
+                else:
+                    print(f"\n  Warning: Unsupported group-by field '{args.group_by}'. Use 'layer' or 'type'.")
 
 
 if __name__ == "__main__":
