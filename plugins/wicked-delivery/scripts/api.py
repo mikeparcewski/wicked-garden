@@ -7,6 +7,7 @@ CLI mode (standard Plugin Data API):
     python3 api.py list commentary
 """
 import argparse
+import glob
 import json
 import statistics
 import subprocess
@@ -135,6 +136,67 @@ def _discover_kanban_api():
 
     kanban_dirs = sorted(cache_root.glob("wicked-kanban/*/scripts/api.py"), reverse=True)
     return kanban_dirs[0] if kanban_dirs else None
+
+
+def _discover_plugin_api(plugin_name, script_name="api.py"):
+    """Discover latest version of a plugin API script in cache."""
+    cache_root = Path.home() / ".claude" / "plugins" / "cache" / "wicked-garden"
+    pattern = str(cache_root / plugin_name / "*" / "scripts" / script_name)
+    matches = sorted(glob.glob(pattern), reverse=True)
+    return Path(matches[0]) if matches else None
+
+
+def _query_crew_projects():
+    """Get project completion data from wicked-crew."""
+    crew_api = _discover_plugin_api("wicked-crew")
+    if not crew_api:
+        return None
+    try:
+        result = subprocess.run(
+            [sys.executable, str(crew_api), "list", "projects"],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            return data.get("data", [])
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+def _query_crew_signal_stats():
+    """Get signal statistics from wicked-crew."""
+    crew_api = _discover_plugin_api("wicked-crew")
+    if not crew_api:
+        return None
+    try:
+        result = subprocess.run(
+            [sys.executable, str(crew_api), "stats", "signals"],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            return data.get("data", {})
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+def _query_mem_stats():
+    """Get memory statistics from wicked-mem."""
+    mem_script = _discover_plugin_api("wicked-mem", "memory.py")
+    if not mem_script:
+        return None
+    try:
+        result = subprocess.run(
+            [sys.executable, str(mem_script), "stats"],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
+        pass
+    return None
 
 
 def _get_kanban_tasks(project_id=None):
@@ -274,7 +336,7 @@ def _compute_cost(tasks, metrics, cost_model):
 # ==================== Metrics Computation ====================
 
 
-def _compute_metrics(tasks):
+def _compute_metrics(tasks, cost_model=None):
     """Compute all delivery metrics from raw task data."""
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=ROLLING_WINDOW_DAYS)
@@ -326,7 +388,7 @@ def _compute_metrics(tasks):
     total = len(done_tasks) + len(todo_tasks) + len(in_progress)
     rate = round(len(done_tasks) / total, 3) if total > 0 else 0
 
-    return {
+    metrics = {
         "computed_at": now.isoformat(),
         "throughput": {
             "tasks_per_day": tasks_per_day,
@@ -356,6 +418,112 @@ def _compute_metrics(tasks):
             "total": total,
         },
     }
+
+    # --- Velocity Trend (F11) ---
+    velocity_trend = []
+    for day_offset in range(ROLLING_WINDOW_DAYS):
+        day = (now - timedelta(days=day_offset)).date()
+        day_str = day.isoformat()
+        day_created = sum(1 for t in tasks if _parse_iso(t.get("created_at", "")) and _parse_iso(t.get("created_at", "")).date() == day)
+        day_completed = sum(1 for t in done_tasks if _parse_iso(t.get("updated_at", "")) and _parse_iso(t.get("updated_at", "")).date() == day)
+        velocity_trend.append({"date": day_str, "created": day_created, "completed": day_completed})
+    metrics["velocity_trend"] = list(reversed(velocity_trend))  # chronological order
+
+    # --- Improvement (F12) ---
+    # Compare current week vs previous week for key metrics
+    week_ago = now - timedelta(days=7)
+    two_weeks_ago = now - timedelta(days=14)
+
+    current_week_done = [t for t in done_tasks if _parse_iso(t.get("updated_at", "")) and _parse_iso(t.get("updated_at", "")) >= week_ago]
+    prev_week_done = [t for t in done_tasks if _parse_iso(t.get("updated_at", "")) and two_weeks_ago <= _parse_iso(t.get("updated_at", "")) < week_ago]
+
+    current_throughput = len(current_week_done) / 7 if current_week_done else 0
+    prev_throughput = len(prev_week_done) / 7 if prev_week_done else 0
+
+    metrics["improvement"] = {
+        "throughput_wow": round(_pct_delta(prev_throughput, current_throughput) or 0, 3),
+        "completion_count_current": len(current_week_done),
+        "completion_count_previous": len(prev_week_done),
+    }
+
+    # --- Effort Distribution (F13) ---
+    effort_by_priority = {}
+    for t in tasks:
+        p = t.get("priority", (t.get("metadata") or {}).get("priority", "unset"))
+        effort_by_priority[p] = effort_by_priority.get(p, 0) + 1
+
+    effort_by_swimlane = {}
+    for t in tasks:
+        sw = t.get("swimlane", "unknown")
+        effort_by_swimlane[sw] = effort_by_swimlane.get(sw, 0) + 1
+
+    metrics["effort"] = {
+        "by_priority": effort_by_priority,
+        "by_status": effort_by_swimlane,
+        "total_tasks": len(tasks),
+    }
+
+    # --- Value (F14) ---
+    metrics["value"] = {
+        "features_shipped": len([t for t in done_tasks if "feature" in t.get("name", "").lower() or "feat" in t.get("name", "").lower()]),
+        "bugs_resolved": len([t for t in done_tasks if "bug" in t.get("name", "").lower() or "fix" in t.get("name", "").lower()]),
+        "total_completed": len(done_tasks),
+    }
+
+    # --- Cost Trend (F16) ---
+    if cost_model:
+        cost_trend = []
+        priority_costs = cost_model.get("priority_costs", {})
+        for day_offset in range(ROLLING_WINDOW_DAYS):
+            day = (now - timedelta(days=day_offset)).date()
+            day_str = day.isoformat()
+            day_tasks = [t for t in done_tasks if _parse_iso(t.get("updated_at", "")) and _parse_iso(t.get("updated_at", "")).date() == day]
+            day_cost = sum(float(priority_costs.get(t.get("priority", "P2"), 0.75)) for t in day_tasks)
+            cost_trend.append({"date": day_str, "cost": round(day_cost, 2), "task_count": len(day_tasks)})
+        metrics["cost_trend"] = list(reversed(cost_trend))
+
+    # --- Multi-source integration (F15) ---
+    sources_queried = ["kanban"]
+    sources_unavailable = []
+
+    # Crew integration
+    crew_projects = _query_crew_projects()
+    if crew_projects is not None:
+        sources_queried.append("crew")
+        completed_projects = [p for p in crew_projects if (p.get("phases") or {}).values() and
+                             all(ph.get("status") in ("approved", "skipped") for ph in (p.get("phases") or {}).values())]
+        metrics["project_completion"] = {
+            "total_projects": len(crew_projects),
+            "completed_projects": len(completed_projects),
+            "completion_rate": round(len(completed_projects) / len(crew_projects), 3) if crew_projects else 0,
+        }
+
+        signal_stats = _query_crew_signal_stats()
+        if signal_stats:
+            metrics["signal_coverage"] = {
+                "total_signals": signal_stats.get("total_signals", 0),
+                "categories": signal_stats.get("categories", {}),
+            }
+    else:
+        sources_unavailable.append("crew")
+
+    # Mem integration
+    mem_stats = _query_mem_stats()
+    if mem_stats is not None:
+        sources_queried.append("mem")
+        metrics["knowledge"] = {
+            "total_memories": mem_stats.get("total", 0),
+            "by_type": mem_stats.get("by_type", {}),
+        }
+    else:
+        sources_unavailable.append("mem")
+
+    metrics["_sources"] = {
+        "queried": sources_queried,
+        "unavailable": sources_unavailable,
+    }
+
+    return metrics
 
 
 # ==================== Commentary Engine ====================
@@ -563,7 +731,8 @@ def cmd_stats(source, args):
 
     if not tasks:
         # No tasks — return zero metrics
-        metrics = _compute_metrics([])
+        cost_model = _load_cost_model()
+        metrics = _compute_metrics([], cost_model)
         print(json.dumps({"data": metrics, "meta": _meta(source, 1)}, indent=2))
         return
 
@@ -580,11 +749,13 @@ def cmd_stats(source, args):
         except Exception:
             pass
 
+    # Load cost model (needed for both metrics and cost computation)
+    cost_model = _load_cost_model()
+
     # Compute metrics
-    metrics = _compute_metrics(tasks)
+    metrics = _compute_metrics(tasks, cost_model)
 
     # Add cost if configured
-    cost_model = _load_cost_model()
     if cost_model:
         metrics["cost"] = _compute_cost(tasks, metrics, cost_model)
 
