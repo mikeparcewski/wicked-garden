@@ -4,9 +4,16 @@
   "sources": [
     {
       "name": "metrics",
-      "description": "Computed delivery metrics (throughput, cycle time, backlog health, completion rate) from kanban task data",
+      "description": "Computed delivery metrics (throughput, cycle time, backlog health, completion rate, optional cost/ROI) from kanban task data",
       "capabilities": [
         "stats"
+      ]
+    },
+    {
+      "name": "commentary",
+      "description": "Rule-based delivery insights from metric deltas, auto-refreshed on task changes",
+      "capabilities": [
+        "list"
       ]
     }
   ]

@@ -4,6 +4,7 @@
 CLI mode (standard Plugin Data API):
     python3 api.py stats metrics
     python3 api.py stats metrics --project abc123
+    python3 api.py list commentary
 """
 import argparse
 import json
@@ -13,10 +14,21 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-VALID_SOURCES = {"metrics"}
-VALID_VERBS = {"stats"}
+VALID_SOURCES = {"metrics", "commentary"}
+VALID_VERBS = {"stats", "list"}
 ROLLING_WINDOW_DAYS = 14
 AGING_THRESHOLD_DAYS = 7
+STORAGE_DIR = Path.home() / ".something-wicked" / "wicked-delivery"
+COST_MODEL_PATH = STORAGE_DIR / "cost_model.json"
+COMMENTARY_CACHE_PATH = STORAGE_DIR / "commentary_cache.json"
+
+# Delta thresholds for commentary regeneration
+DELTA_COMPLETION_RATE = 0.10   # 10% shift
+DELTA_CYCLE_TIME_P95 = 0.25   # 25% shift
+DELTA_THROUGHPUT = 0.20        # 20% shift
+DELTA_AGING_LOW = 10           # crossing below this
+DELTA_AGING_HIGH = 20          # crossing above this
+COMMENTARY_COOLDOWN_MINUTES = 15
 
 
 def _meta(source, total, limit=100, offset=0):
@@ -131,6 +143,86 @@ def _cache_key(tasks):
     return f"metrics:{task_count}:{latest}"
 
 
+# ==================== Cost Model ====================
+
+
+def _load_cost_model():
+    """Load cost model from JSON config. Returns None if not configured."""
+    if not COST_MODEL_PATH.exists():
+        return None
+
+    try:
+        with open(COST_MODEL_PATH) as f:
+            model = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Warning: Invalid cost model at {COST_MODEL_PATH}: {e}", file=sys.stderr)
+        return None
+
+    # Validate required fields
+    if not isinstance(model, dict):
+        print("Warning: cost_model.json must be a JSON object", file=sys.stderr)
+        return None
+
+    if "priority_costs" not in model or not isinstance(model["priority_costs"], dict):
+        print("Warning: cost_model.json missing valid priority_costs", file=sys.stderr)
+        return None
+
+    return model
+
+
+def _compute_cost(tasks, metrics, cost_model):
+    """Compute cost estimation from task data and cost model."""
+    priority_costs = cost_model["priority_costs"]
+    complexity_costs = cost_model.get("complexity_costs", {})
+    currency = cost_model.get("currency", "USD")
+
+    by_priority = {}
+    total = 0.0
+
+    for p_key, unit_cost in priority_costs.items():
+        try:
+            unit = float(unit_cost)
+        except (ValueError, TypeError):
+            continue
+        count = sum(1 for t in tasks if t.get("priority") == p_key)
+        subtotal = round(count * unit, 2)
+        by_priority[p_key] = {
+            "count": count,
+            "unit_cost": unit,
+            "subtotal": subtotal,
+        }
+        total += subtotal
+
+    # Complexity costs (applied per-task if task has metadata.complexity)
+    complexity_total = 0.0
+    if complexity_costs:
+        for t in tasks:
+            task_complexity = None
+            meta = t.get("metadata", {})
+            if isinstance(meta, dict):
+                task_complexity = meta.get("complexity")
+            if task_complexity is not None:
+                cost = complexity_costs.get(str(task_complexity), 0)
+                try:
+                    complexity_total += float(cost)
+                except (ValueError, TypeError):
+                    pass
+
+    total_estimated = round(total + complexity_total, 2)
+    completed_count = metrics.get("throughput", {}).get("completed_count", 0)
+    roi = round(completed_count / total_estimated, 3) if total_estimated > 0 else 0
+
+    return {
+        "total_estimated": total_estimated,
+        "by_priority": by_priority,
+        "complexity_total": round(complexity_total, 2),
+        "roi": roi,
+        "roi_description": "completed_tasks / total_estimated_cost",
+        "currency": currency,
+        "cost_model_source": str(COST_MODEL_PATH),
+    }
+
+
 # ==================== Metrics Computation ====================
 
 
@@ -218,6 +310,190 @@ def _compute_metrics(tasks):
     }
 
 
+# ==================== Commentary Engine ====================
+
+
+def _pct_delta(old, new):
+    """Compute percentage delta. Returns None if old is 0."""
+    if old == 0:
+        return None
+    return (new - old) / abs(old)
+
+
+def _generate_commentary(metrics, previous_snapshot=None):
+    """Generate rule-based delivery insights from metrics and deltas."""
+    entries = []
+    now = datetime.now(timezone.utc).isoformat()
+    is_baseline = previous_snapshot is None
+
+    throughput = metrics.get("throughput", {})
+    cycle_time = metrics.get("cycle_time", {})
+    backlog = metrics.get("backlog_health", {})
+    completion = metrics.get("completion_rate", {})
+
+    if is_baseline:
+        # First run — generate informational baseline entries
+        entries.append({
+            "category": "baseline",
+            "severity": "info",
+            "message": f"Baseline established: {throughput.get('tasks_per_day', 0)} tasks/day, "
+                       f"{completion.get('rate', 0):.1%} completion rate, "
+                       f"{backlog.get('aging_count', 0)} aging tasks.",
+            "metric": "all",
+            "previous_value": None,
+            "current_value": None,
+            "delta_pct": None,
+            "generated_at": now,
+        })
+        return entries
+
+    prev = previous_snapshot.get("metrics_snapshot", {})
+    prev_throughput = prev.get("throughput", {})
+    prev_cycle = prev.get("cycle_time", {})
+    prev_backlog = prev.get("backlog_health", {})
+    prev_completion = prev.get("completion_rate", {})
+
+    # --- Completion rate ---
+    old_rate = prev_completion.get("rate", 0)
+    new_rate = completion.get("rate", 0)
+    delta = _pct_delta(old_rate, new_rate)
+    if delta is not None and abs(delta) > DELTA_COMPLETION_RATE:
+        direction = "increased" if delta > 0 else "decreased"
+        severity = "positive" if delta > 0 else "warning"
+        entries.append({
+            "category": "completion_rate",
+            "severity": severity,
+            "message": f"Completion rate {direction} by {abs(delta):.1%} "
+                       f"(from {old_rate:.1%} to {new_rate:.1%}).",
+            "metric": "completion_rate.rate",
+            "previous_value": old_rate,
+            "current_value": new_rate,
+            "delta_pct": round(delta, 3),
+            "generated_at": now,
+        })
+
+    # --- Cycle time p95 ---
+    old_p95 = prev_cycle.get("p95", 0)
+    new_p95 = cycle_time.get("p95", 0)
+    delta = _pct_delta(old_p95, new_p95)
+    if delta is not None and abs(delta) > DELTA_CYCLE_TIME_P95:
+        direction = "increased" if delta > 0 else "decreased"
+        severity = "warning" if delta > 0 else "positive"
+        entries.append({
+            "category": "cycle_time",
+            "severity": severity,
+            "message": f"Cycle time p95 {direction} by {abs(delta):.1%} "
+                       f"(from {old_p95:.1f}h to {new_p95:.1f}h). "
+                       f"{'Investigate outliers.' if delta > 0 else 'Workflow improving.'}",
+            "metric": "cycle_time.p95",
+            "previous_value": old_p95,
+            "current_value": new_p95,
+            "delta_pct": round(delta, 3),
+            "generated_at": now,
+        })
+
+    # --- Throughput ---
+    old_tpd = prev_throughput.get("tasks_per_day", 0)
+    new_tpd = throughput.get("tasks_per_day", 0)
+    delta = _pct_delta(old_tpd, new_tpd)
+    if delta is not None and abs(delta) > DELTA_THROUGHPUT:
+        direction = "increased" if delta > 0 else "decreased"
+        severity = "positive" if delta > 0 else "warning"
+        entries.append({
+            "category": "throughput",
+            "severity": severity,
+            "message": f"Throughput {direction} by {abs(delta):.1%} "
+                       f"(from {old_tpd} to {new_tpd} tasks/day).",
+            "metric": "throughput.tasks_per_day",
+            "previous_value": old_tpd,
+            "current_value": new_tpd,
+            "delta_pct": round(delta, 3),
+            "generated_at": now,
+        })
+
+    # --- Backlog aging threshold crossing ---
+    old_aging = prev_backlog.get("aging_count", 0)
+    new_aging = backlog.get("aging_count", 0)
+    crossed_up = old_aging < DELTA_AGING_HIGH and new_aging >= DELTA_AGING_HIGH
+    crossed_down = old_aging >= DELTA_AGING_HIGH and new_aging < DELTA_AGING_LOW
+    if crossed_up:
+        entries.append({
+            "category": "backlog_health",
+            "severity": "warning",
+            "message": f"Backlog aging count crossed {DELTA_AGING_HIGH} threshold "
+                       f"(from {old_aging} to {new_aging}). Consider triaging stale tasks.",
+            "metric": "backlog_health.aging_count",
+            "previous_value": old_aging,
+            "current_value": new_aging,
+            "delta_pct": None,
+            "generated_at": now,
+        })
+    elif crossed_down:
+        entries.append({
+            "category": "backlog_health",
+            "severity": "positive",
+            "message": f"Backlog aging count dropped below {DELTA_AGING_LOW} "
+                       f"(from {old_aging} to {new_aging}). Backlog is healthy.",
+            "metric": "backlog_health.aging_count",
+            "previous_value": old_aging,
+            "current_value": new_aging,
+            "delta_pct": None,
+            "generated_at": now,
+        })
+
+    # If no thresholds crossed, note stability
+    if not entries:
+        entries.append({
+            "category": "stable",
+            "severity": "info",
+            "message": "All metrics within normal ranges. No significant changes detected.",
+            "metric": "all",
+            "previous_value": None,
+            "current_value": None,
+            "delta_pct": None,
+            "generated_at": now,
+        })
+
+    return entries
+
+
+def _load_commentary_cache():
+    """Load previous commentary cache from disk."""
+    if not COMMENTARY_CACHE_PATH.exists():
+        return None
+    try:
+        with open(COMMENTARY_CACHE_PATH) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _save_commentary_cache(metrics, entries):
+    """Save commentary + metrics snapshot to disk."""
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    cache = {
+        "metrics_snapshot": metrics,
+        "commentary": entries,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        with open(COMMENTARY_CACHE_PATH, "w") as f:
+            json.dump(cache, f, indent=2)
+    except OSError as e:
+        print(f"Warning: Could not save commentary cache: {e}", file=sys.stderr)
+
+
+def _should_regenerate_commentary(previous_cache):
+    """Check if cooldown has elapsed since last commentary generation."""
+    if previous_cache is None:
+        return True
+    generated = _parse_iso(previous_cache.get("generated_at"))
+    if generated is None:
+        return True
+    elapsed = (datetime.now(timezone.utc) - generated).total_seconds() / 60
+    return elapsed >= COMMENTARY_COOLDOWN_MINUTES
+
+
 # ==================== CLI Handlers ====================
 
 
@@ -259,6 +535,11 @@ def cmd_stats(source, args):
     # Compute metrics
     metrics = _compute_metrics(tasks)
 
+    # Add cost if configured
+    cost_model = _load_cost_model()
+    if cost_model:
+        metrics["cost"] = _compute_cost(tasks, metrics, cost_model)
+
     # Store in cache
     if cache:
         try:
@@ -267,6 +548,31 @@ def cmd_stats(source, args):
             pass
 
     print(json.dumps({"data": metrics, "meta": _meta(source, 1)}, indent=2))
+
+
+def cmd_list(source, args):
+    """Handle list verb for commentary source."""
+    if source != "commentary":
+        _error(f"list not supported for source: {source}", "INVALID_VERB", source=source)
+
+    cache = _load_commentary_cache()
+    if cache is None:
+        print(json.dumps({
+            "data": [],
+            "meta": _meta(source, 0, limit=args.limit, offset=args.offset),
+        }, indent=2))
+        return
+
+    entries = cache.get("commentary", [])
+    total = len(entries)
+    offset = getattr(args, "offset", 0)
+    limit = getattr(args, "limit", 100)
+    page = entries[offset:offset + limit]
+
+    print(json.dumps({
+        "data": page,
+        "meta": _meta(source, total, limit=limit, offset=offset),
+    }, indent=2))
 
 
 # ==================== Main ====================
@@ -278,7 +584,7 @@ def main():
 
     for verb in sorted(VALID_VERBS):
         sub = subparsers.add_parser(verb)
-        sub.add_argument("source", help="Data source (metrics)")
+        sub.add_argument("source", help="Data source (metrics, commentary)")
         sub.add_argument("--project", help="Filter by kanban project ID")
         sub.add_argument("--limit", type=int, default=100)
         sub.add_argument("--offset", type=int, default=0)
@@ -299,6 +605,8 @@ def main():
 
     if args.verb == "stats":
         cmd_stats(args.source, args)
+    elif args.verb == "list":
+        cmd_list(args.source, args)
 
 
 if __name__ == "__main__":
