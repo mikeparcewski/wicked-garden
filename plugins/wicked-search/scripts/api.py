@@ -81,6 +81,75 @@ def _filter_by_domain(nodes, domain):
     return [n for n in nodes if n.get("domain") == domain]
 
 
+def _get_layer_for_type(node_type):
+    """Get architectural layer for a node type."""
+    node_type_lower = str(node_type).lower()
+
+    # Map node types to layers (similar to SymbolGraph.get_layer())
+    layer_map = {
+        # Backend types
+        'class': 'backend',
+        'function': 'backend',
+        'method': 'backend',
+        'interface': 'backend',
+        'struct': 'backend',
+        'enum': 'backend',
+        'enum_type': 'backend',
+        'type': 'backend',
+        'trait': 'backend',
+        'entity': 'backend',
+        'entity_field': 'backend',
+        'controller': 'backend',
+        'controller_method': 'backend',
+        'service': 'backend',
+        'dao': 'backend',
+        # Database types
+        'table': 'database',
+        'column': 'database',
+        # Frontend types
+        'import': 'frontend',
+        'component': 'frontend',
+        'component_prop': 'frontend',
+        'route': 'frontend',
+        'form_field': 'frontend',
+        'event_handler': 'frontend',
+        'data_binding': 'frontend',
+        # View types
+        'jsp_page': 'view',
+        'html_page': 'view',
+        'el_expression': 'view',
+        'form_binding': 'view',
+        'jstl_variable': 'view',
+        'taglib': 'view',
+        'doc_section': 'view',
+        'doc_page': 'view',
+    }
+    return layer_map.get(node_type_lower, 'unknown')
+
+
+def _apply_filters(items, args):
+    """Apply --layer and --type filters to items."""
+    if hasattr(args, 'layer') and args.layer:
+        filtered = []
+        for item in items:
+            # Get layer from item or calculate it
+            item_layer = item.get('layer')
+            if not item_layer:
+                item_type = item.get('type') or item.get('node_type')
+                if item_type:
+                    item_layer = _get_layer_for_type(item_type)
+                    item['layer'] = item_layer  # Add layer to output
+            if item_layer and item_layer.lower() == args.layer.lower():
+                filtered.append(item)
+        items = filtered
+
+    if hasattr(args, 'type') and args.type:
+        items = [item for item in items
+                if (item.get('type') or item.get('node_type', '')).upper() == args.type.upper()]
+
+    return items
+
+
 def _search_nodes(nodes, query):
     """Simple text search across node names and metadata."""
     query_lower = query.lower()
@@ -134,6 +203,14 @@ def _query_graph_dbs(query, params=()):
     return all_results
 
 
+def _enrich_with_layer(items):
+    """Compute layer from type for each item (always works regardless of DB schema)."""
+    for item in items:
+        if not item.get('layer'):
+            item['layer'] = _get_layer_for_type(item.get('type', ''))
+    return items
+
+
 def _get_db_stats():
     """Get stats from SQLite graph DBs if available."""
     stats = {"db_files": 0, "total_symbols": 0, "total_refs": 0}
@@ -166,13 +243,46 @@ def cmd_list(source, args):
     if source in ("graph", "lineage", "services"):
         # SQLite-based sources
         if source == "graph":
-            query = """
+            # Build SQL query — never reference 'layer' column (may not exist in older DBs)
+            where_clauses = []
+            params = []
+
+            if hasattr(args, 'type') and args.type:
+                where_clauses.append("UPPER(s.type) = UPPER(?)")
+                params.append(args.type)
+
+            where_str = ""
+            if where_clauses:
+                where_str = "WHERE " + " AND ".join(where_clauses)
+
+            layer_filter = hasattr(args, 'layer') and args.layer
+
+            if layer_filter:
+                # Layer filtering done in Python (column may not exist in older DBs).
+                # Over-fetch with a capped limit to balance correctness vs performance.
+                sql_limit = min((args.offset + args.limit) * 10, 10000)
+                sql_offset = 0
+            else:
+                sql_limit = args.limit
+                sql_offset = args.offset
+
+            query = f"""
             SELECT s.id, s.type, s.name, s.qualified_name, s.file_path, s.line_start
             FROM symbols s
+            {where_str}
             ORDER BY s.name
             LIMIT ? OFFSET ?
             """
-            items = _query_graph_dbs(query, (args.limit, args.offset))
+            params.extend([sql_limit, sql_offset])
+            items = _query_graph_dbs(query, tuple(params))
+
+            # Always compute layer from type in Python (works with any DB schema)
+            _enrich_with_layer(items)
+
+            # Apply layer filter and pagination in Python
+            if layer_filter:
+                items = [i for i in items if i.get('layer', '').lower() == args.layer.lower()]
+                items = items[args.offset:args.offset + args.limit]
 
         elif source == "lineage":
             query = "SELECT * FROM lineage_paths ORDER BY id LIMIT ? OFFSET ?"
@@ -205,6 +315,9 @@ def cmd_list(source, args):
         items = [n for n in nodes if n.get("type") in ("import", "reference", "ref", "cross_ref")]
     else:
         items = nodes
+
+    # Apply filters
+    items = _apply_filters(items, args)
 
     total = len(items)
     data = items[args.offset:args.offset + args.limit]
@@ -275,14 +388,43 @@ def cmd_search(source, args):
         _error("--query required for search", "MISSING_QUERY")
 
     if source == "graph":
-        # Search symbols in graph DBs
-        query = """
+        # Search symbols in graph DBs — never reference 'layer' column in SQL
+        where_clauses = ["(name LIKE ? OR qualified_name LIKE ?)"]
+        params = [f"%{args.query}%", f"%{args.query}%"]
+
+        if hasattr(args, 'type') and args.type:
+            where_clauses.append("UPPER(type) = UPPER(?)")
+            params.append(args.type)
+
+        where_str = " AND ".join(where_clauses)
+
+        layer_filter = hasattr(args, 'layer') and args.layer
+
+        if layer_filter:
+            # Layer filtering done in Python (column may not exist in older DBs).
+            # Over-fetch with a capped limit to balance correctness vs performance.
+            sql_limit = min((args.offset + args.limit) * 10, 10000)
+            sql_offset = 0
+        else:
+            sql_limit = args.limit
+            sql_offset = args.offset
+
+        query = f"""
         SELECT * FROM symbols
-        WHERE name LIKE ? OR qualified_name LIKE ?
+        WHERE {where_str}
         LIMIT ? OFFSET ?
         """
-        pattern = f"%{args.query}%"
-        results = _query_graph_dbs(query, (pattern, pattern, args.limit, args.offset))
+        params.extend([sql_limit, sql_offset])
+        results = _query_graph_dbs(query, tuple(params))
+
+        # Always compute layer from type in Python (works with any DB schema)
+        _enrich_with_layer(results)
+
+        # Apply layer filter and pagination in Python
+        if layer_filter:
+            results = [r for r in results if r.get('layer', '').lower() == args.layer.lower()]
+            results = results[args.offset:args.offset + args.limit]
+
         total = len(results)
         print(json.dumps({"data": results, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
         return
@@ -309,6 +451,10 @@ def cmd_search(source, args):
         nodes = [n for n in nodes if n.get("domain") == "doc"]
 
     results = _search_nodes(nodes, args.query)
+
+    # Apply filters
+    results = _apply_filters(results, args)
+
     total = len(results)
     data = results[args.offset:args.offset + args.limit]
     print(json.dumps({"data": data, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
@@ -489,6 +635,9 @@ def main():
         sub.add_argument("--project", help="Filter by project")
         sub.add_argument("--query", help="Search query")
         sub.add_argument("--filter", help="Filter expression")
+        if verb in ("list", "search"):
+            sub.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
+            sub.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
 
     args = parser.parse_args()
 
