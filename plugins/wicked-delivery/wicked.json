@@ -1,4 +1,13 @@
 {
   "$schema": "wicked-data/1.0.0",
-  "sources": []
+  "api_script": "scripts/api.py",
+  "sources": [
+    {
+      "name": "metrics",
+      "description": "Computed delivery metrics (throughput, cycle time, backlog health, completion rate) from kanban task data",
+      "capabilities": [
+        "stats"
+      ]
+    }
+  ]
 }

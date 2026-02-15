@@ -65,6 +65,26 @@ claude plugin install wicked-delivery@wicked-garden
 | `rollout-manager` | Progressive rollouts, canary deployments, feature flags |
 | `risk-monitor` | Delivery risk tracking, escalation management, dependency chains |
 
+## Data API
+
+This plugin exposes computed delivery metrics via the standard Plugin Data API. Sources are declared in `wicked.json`.
+
+| Source | Capabilities | Description |
+|--------|-------------|-------------|
+| metrics | stats | Computed delivery metrics (throughput, cycle time, backlog health, completion rate) from kanban task data |
+
+Query via the workbench gateway:
+```
+GET /api/v1/data/wicked-delivery/metrics/stats
+```
+
+Or directly via CLI:
+```bash
+python3 scripts/api.py stats metrics [--project PROJECT_ID]
+```
+
+Returns throughput (tasks/day over 14-day rolling window), cycle time (avg/median/p50/p75/p95 in hours), backlog health (aging count, oldest, average age), and completion rate. Requires wicked-kanban for task data; gracefully returns `{"available": false}` when kanban is not installed.
+
 ## Integration
 
 Works standalone. Enhanced with:
