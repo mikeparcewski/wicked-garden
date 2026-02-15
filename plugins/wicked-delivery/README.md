@@ -71,19 +71,26 @@ This plugin exposes computed delivery metrics via the standard Plugin Data API. 
 
 | Source | Capabilities | Description |
 |--------|-------------|-------------|
-| metrics | stats | Computed delivery metrics (throughput, cycle time, backlog health, completion rate) from kanban task data |
+| metrics | stats | Computed delivery metrics (throughput, cycle time, backlog health, completion rate, optional cost/ROI) from kanban task data |
+| commentary | list | Rule-based delivery insights from metric deltas, auto-refreshed on task changes |
 
 Query via the workbench gateway:
 ```
 GET /api/v1/data/wicked-delivery/metrics/stats
+GET /api/v1/data/wicked-delivery/commentary/list
 ```
 
 Or directly via CLI:
 ```bash
 python3 scripts/api.py stats metrics [--project PROJECT_ID]
+python3 scripts/api.py list commentary
 ```
 
-Returns throughput (tasks/day over 14-day rolling window), cycle time (avg/median/p50/p75/p95 in hours), backlog health (aging count, oldest, average age), and completion rate. Requires wicked-kanban for task data; gracefully returns `{"available": false}` when kanban is not installed.
+**Metrics**: Returns throughput (tasks/day over 14-day rolling window), cycle time (avg/median/p50/p75/p95 in hours), backlog health (aging count, oldest, average age), and completion rate. Requires wicked-kanban for task data; gracefully returns `{"available": false}` when kanban is not installed.
+
+**Cost estimation** (opt-in): Create `~/.something-wicked/wicked-delivery/cost_model.json` with `priority_costs` and optional `complexity_costs`. When configured, `stats metrics` includes cost/ROI fields.
+
+**Commentary**: Auto-refreshed by a PostToolUse hook on task changes. Regenerates when metrics cross thresholds (completion rate >10%, cycle time p95 >25%, throughput >20%, backlog aging crossing boundaries) with a 15-minute cooldown.
 
 ## Integration
 
