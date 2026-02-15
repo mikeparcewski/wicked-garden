@@ -573,19 +573,44 @@ TaskUpdate(taskId="{id}", status="completed",
 
 #### Specialist Sign-Off (Priority 2)
 
-If no third-party CLI is available, use the most relevant specialist:
+**CRITICAL: Always check specialist discovery before falling back to generic.**
 
-| Phase | Specialist Sign-Off |
-|-------|-------------------|
-| clarify | `/wicked-product:elicit` (validate requirements) |
-| design | `/wicked-engineering:arch` (validate architecture) |
-| test-strategy | `/wicked-crew:gate strategy` (validate test strategy) |
-| build | `/wicked-engineering:review` (validate implementation) |
-| review | `/wicked-crew:gate execution` (validate release readiness) |
+If no third-party CLI is available, use installed specialists dynamically:
+
+1. **Discover available specialists**:
+   ```bash
+   python3 "{CREW_PLUGIN_ROOT}/scripts/specialist_discovery.py" --json
+   ```
+
+2. **Filter to reviewers**: Select specialists whose `enhances` list includes the current phase or `"*"`
+
+3. **Cross-reference signals**: Prioritize specialists that match `signals_detected` from project.json (e.g., security signals → wicked-platform:security-engineer)
+
+4. **Dispatch ALL matching specialists in parallel** (not just first match):
+   ```
+   # Example: build phase with security signals
+   Task(subagent_type="wicked-engineering:senior-engineer",
+        prompt="Review {phase} phase deliverables for {project-name}. {deliverables}")
+   Task(subagent_type="wicked-platform:security-engineer",
+        prompt="Security review of {phase} deliverables. Signals: {signals}")
+   ```
+
+5. **Aggregate results**: Combine findings from all specialist reviews. If ANY specialist returns REJECT, the overall result is REJECT.
+
+**Phase-to-specialist dispatch reference** (use discovery as source of truth):
+
+| Phase | Primary Specialist Agent | Signal-Based Additions |
+|-------|------------------------|----------------------|
+| clarify | `wicked-product:requirements-analyst` | — |
+| design | `wicked-engineering:solution-architect` | `wicked-agentic:architect` (if agentic signals) |
+| test-strategy | `wicked-qe:test-strategist` | — |
+| build | `wicked-engineering:senior-engineer` | `wicked-platform:security-engineer` (if security signals) |
+| test | `wicked-qe:test-automation-engineer` | — |
+| review | `wicked-engineering:senior-engineer` + `wicked-qe:code-analyzer` | `wicked-platform:security-engineer` (if security signals) |
 
 #### Generic Sign-Off (Priority 3)
 
-If no specialist available:
+If no specialist is installed for the current phase, fall back to generic:
 ```
 Task(subagent_type="wicked-crew:reviewer",
      prompt="Sign-off review for {phase} phase of {project-name}.

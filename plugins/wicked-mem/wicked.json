@@ -9,7 +9,10 @@
         "list",
         "get",
         "search",
-        "stats"
+        "stats",
+        "create",
+        "update",
+        "delete"
       ]
     }
   ]

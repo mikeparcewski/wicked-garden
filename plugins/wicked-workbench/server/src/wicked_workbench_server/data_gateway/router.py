@@ -1,24 +1,30 @@
 """Data Gateway REST API router.
 
 Provides:
-  GET /api/v1/data/plugins          — List all plugins with data sources
-  GET /api/v1/data/{plugin}         — Get plugin data source info
-  GET /api/v1/data/{plugin}/{source}/{verb}      — Proxy to plugin api.py
-  GET /api/v1/data/{plugin}/{source}/{verb}/{id} — Proxy with ID (for get)
-  POST /api/v1/data/refresh         — Refresh plugin discovery
+  GET  /api/v1/data/plugins                          — List all plugins with data sources
+  GET  /api/v1/data/{plugin}                         — Get plugin data source info
+  GET  /api/v1/data/{plugin}/{source}/{verb}         — Proxy read to plugin api.py
+  GET  /api/v1/data/{plugin}/{source}/{verb}/{id}    — Proxy read with ID (for get)
+  POST /api/v1/data/{plugin}/{source}/create         — Create a resource
+  PUT  /api/v1/data/{plugin}/{source}/update/{id}    — Update a resource
+  DELETE /api/v1/data/{plugin}/{source}/delete/{id}  — Delete a resource
+  POST /api/v1/data/refresh                          — Refresh plugin discovery
 """
 import asyncio
 import json
 import sys
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 
 from .discovery import PluginDataRegistry
 
 router = APIRouter(prefix="/api/v1/data", tags=["data-gateway"])
 
-VALID_VERBS = {"list", "get", "search", "stats"}
+READ_VERBS = {"list", "get", "search", "stats"}
+WRITE_VERBS = {"create", "update", "delete"}
+VALID_VERBS = READ_VERBS | WRITE_VERBS
 
 _registry: Optional[PluginDataRegistry] = None
 
@@ -36,6 +42,54 @@ def _get_registry() -> PluginDataRegistry:
     if _registry is None:
         raise HTTPException(500, {"error": "Data gateway not initialized", "code": "NOT_INITIALIZED"})
     return _registry
+
+
+async def _run_subprocess(cmd, input_data=None, timeout=10.0):
+    """Run a plugin api.py subprocess and return parsed JSON result."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE if input_data is not None else None,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(input=input_data), timeout=timeout
+        )
+
+        if proc.returncode != 0:
+            try:
+                error_data = json.loads(stderr.decode())
+                raise HTTPException(400, error_data)
+            except json.JSONDecodeError:
+                raise HTTPException(500, {
+                    "error": "Plugin API returned non-zero exit",
+                    "code": "PLUGIN_ERROR",
+                    "stderr": stderr.decode()[:500],
+                })
+
+        return json.loads(stdout.decode())
+
+    except asyncio.TimeoutError:
+        raise HTTPException(504, {"error": "Plugin API timeout (10s)", "code": "TIMEOUT"})
+    except json.JSONDecodeError:
+        raise HTTPException(500, {"error": "Invalid JSON from plugin API", "code": "INVALID_JSON"})
+
+
+def _enrich_meta(result, plugin, source, verb=None, item_id=None):
+    """Add gateway metadata to a plugin response."""
+    if "meta" not in result:
+        result["meta"] = {}
+    result["meta"]["plugin"] = plugin
+    result["meta"]["source"] = source
+    if verb:
+        result["meta"]["verb"] = verb
+    if item_id:
+        result["meta"]["item_id"] = item_id
+    return result
+
+
+# ==================== Read Routes ====================
 
 
 @router.get("/plugins")
@@ -91,15 +145,16 @@ async def proxy_data_request(
     project: Optional[str] = None,
     filter: Optional[str] = None,
 ):
-    """Proxy a data request to a plugin's api.py via subprocess."""
+    """Proxy a read request to a plugin's api.py via subprocess."""
     reg = _get_registry()
 
-    # Validate verb
-    if verb not in VALID_VERBS:
+    # Only allow read verbs on GET
+    if verb not in READ_VERBS:
         raise HTTPException(400, {
-            "error": f"Invalid verb '{verb}'",
+            "error": f"Invalid read verb '{verb}'",
             "code": "INVALID_VERB",
-            "valid_verbs": sorted(VALID_VERBS),
+            "valid_verbs": sorted(READ_VERBS),
+            "hint": "Use POST/PUT/DELETE for write operations",
         })
 
     # Validate request
@@ -127,48 +182,75 @@ async def proxy_data_request(
     if filter:
         cmd.extend(["--filter", filter])
 
-    # Run subprocess
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+    result = await _run_subprocess(cmd)
+    return _enrich_meta(result, plugin, source)
 
-        if proc.returncode != 0:
-            try:
-                error_data = json.loads(stderr.decode())
-                raise HTTPException(400, error_data)
-            except json.JSONDecodeError:
-                raise HTTPException(500, {
-                    "error": "Plugin API returned non-zero exit",
-                    "code": "PLUGIN_ERROR",
-                    "stderr": stderr.decode()[:500],
-                })
 
-        result = json.loads(stdout.decode())
+# ==================== Write Routes ====================
 
-        # Enrich meta with gateway info
-        if "meta" not in result:
-            result["meta"] = {}
-        result["meta"]["plugin"] = plugin
-        result["meta"]["source"] = source
 
-        return result
+@router.post("/{plugin}/{source}/create")
+async def create_resource(plugin: str, source: str, request: Request):
+    """Create a new resource via plugin api.py."""
+    reg = _get_registry()
+    verb = "create"
 
-    except asyncio.TimeoutError:
-        raise HTTPException(504, {
-            "error": "Plugin API timeout (10s)",
-            "code": "TIMEOUT",
-            "plugin": plugin,
-        })
-    except json.JSONDecodeError:
-        raise HTTPException(500, {
-            "error": "Invalid JSON from plugin API",
-            "code": "INVALID_JSON",
-            "plugin": plugin,
-        })
+    error = reg.validate_request(plugin, source, verb)
+    if error:
+        status = 404 if "not found" in error.lower() else 403
+        raise HTTPException(status, {"error": error, "code": "CAPABILITY_NOT_SUPPORTED"})
+
+    body = await request.json()
+    api_script = reg.get_api_script(plugin)
+    cmd = [sys.executable, api_script, verb, source]
+    input_data = json.dumps(body).encode()
+
+    result = await _run_subprocess(cmd, input_data=input_data)
+    return JSONResponse(
+        content=_enrich_meta(result, plugin, source, verb=verb),
+        status_code=201,
+    )
+
+
+@router.put("/{plugin}/{source}/update/{item_id}")
+async def update_resource(plugin: str, source: str, item_id: str, request: Request):
+    """Update an existing resource via plugin api.py."""
+    reg = _get_registry()
+    verb = "update"
+
+    error = reg.validate_request(plugin, source, verb)
+    if error:
+        status = 404 if "not found" in error.lower() else 403
+        raise HTTPException(status, {"error": error, "code": "CAPABILITY_NOT_SUPPORTED"})
+
+    body = await request.json()
+    api_script = reg.get_api_script(plugin)
+    cmd = [sys.executable, api_script, verb, source, item_id]
+    input_data = json.dumps(body).encode()
+
+    result = await _run_subprocess(cmd, input_data=input_data)
+    return _enrich_meta(result, plugin, source, verb=verb, item_id=item_id)
+
+
+@router.delete("/{plugin}/{source}/delete/{item_id}")
+async def delete_resource(plugin: str, source: str, item_id: str):
+    """Delete a resource via plugin api.py."""
+    reg = _get_registry()
+    verb = "delete"
+
+    error = reg.validate_request(plugin, source, verb)
+    if error:
+        status = 404 if "not found" in error.lower() else 403
+        raise HTTPException(status, {"error": error, "code": "CAPABILITY_NOT_SUPPORTED"})
+
+    api_script = reg.get_api_script(plugin)
+    cmd = [sys.executable, api_script, verb, source, item_id]
+
+    result = await _run_subprocess(cmd)
+    return _enrich_meta(result, plugin, source, verb=verb, item_id=item_id)
+
+
+# ==================== Management ====================
 
 
 @router.post("/refresh")
