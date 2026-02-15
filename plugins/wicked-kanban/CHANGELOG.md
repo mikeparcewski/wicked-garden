@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.0] - 2026-02-15
+
+### Features
+- feat: enrich plugin Data APIs with graph traversal, hotspots, multi-project isolation, and more (ba7cb5a)
+
+### Bug Fixes
+- fix: address review findings in plugin API enhancements (81dacde)
+
+### Chores
+- release: wicked-crew v0.14.0, wicked-delivery v0.7.0, wicked-search v1.5.0, wicked-kanban v0.9.0 (0e06628)
+
 ## [0.9.0] - 2026-02-15
 
 ### Features
