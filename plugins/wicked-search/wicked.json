@@ -35,7 +35,9 @@
         "list",
         "get",
         "search",
-        "stats"
+        "stats",
+        "traverse",
+        "hotspots"
       ]
     },
     {
@@ -52,6 +54,13 @@
       "capabilities": [
         "list",
         "stats"
+      ]
+    },
+    {
+      "name": "projects",
+      "description": "Multi-project isolation - list indexed projects with metadata",
+      "capabilities": [
+        "list"
       ]
     }
   ]

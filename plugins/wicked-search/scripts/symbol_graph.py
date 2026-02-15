@@ -124,6 +124,10 @@ class Symbol:
     line_end: Optional[int] = None      # Ending line
     metadata: Dict[str, Any] = field(default_factory=dict)
     label: Optional[str] = None         # Human-readable label for data dictionary
+    # Enrichment fields (optional, added for better categorization and discovery)
+    inferred_type: Optional[str] = None # Rule-based categorization: test, configuration, data-model, etc.
+    description: Optional[str] = None    # First docstring/comment from source
+    domains: Optional[List[str]] = None  # Domain tags from directory path
 
     def __hash__(self):
         return hash(self.id)
@@ -174,7 +178,7 @@ class Symbol:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
+        result = {
             "id": self.id,
             "type": self.type.value if isinstance(self.type, Enum) else self.type,
             "name": self.name,
@@ -186,6 +190,14 @@ class Symbol:
             "layer": self.get_layer(),
             "metadata": self.metadata,
         }
+        # Include enrichment fields if present
+        if self.inferred_type is not None:
+            result["inferred_type"] = self.inferred_type
+        if self.description is not None:
+            result["description"] = self.description
+        if self.domains is not None:
+            result["domains"] = self.domains
+        return result
 
 
 @dataclass
@@ -520,7 +532,10 @@ class SymbolGraph:
                 line_end INTEGER,
                 label TEXT,
                 layer TEXT,
-                metadata TEXT
+                metadata TEXT,
+                inferred_type TEXT,
+                description TEXT,
+                domains TEXT
             );
 
             CREATE TABLE refs (
@@ -614,8 +629,9 @@ class SymbolGraph:
         for symbol in self.symbols.values():
             cursor.execute("""
                 INSERT INTO symbols (id, type, name, qualified_name, file_path,
-                                    line_start, line_end, label, layer, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    line_start, line_end, label, layer, metadata,
+                                    inferred_type, description, domains)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 symbol.id,
                 symbol.type.value if isinstance(symbol.type, Enum) else symbol.type,
@@ -627,6 +643,9 @@ class SymbolGraph:
                 symbol.label,
                 symbol.get_layer(),
                 json.dumps(symbol.metadata),
+                symbol.inferred_type,
+                symbol.description,
+                json.dumps(symbol.domains) if symbol.domains else None,
             ))
 
         # Insert references

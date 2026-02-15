@@ -96,6 +96,7 @@ def _load_project(project_dir):
                 "phase_plan": data.get("phase_plan", []),
                 "created_at": data.get("created_at"),
                 "phases": data.get("phases", {}),
+                "archived": data.get("archived", False),
             }
         except (json.JSONDecodeError, OSError):
             pass
@@ -155,6 +156,10 @@ def cmd_list_projects(args):
             continue
         p = _load_project(d)
         if p:
+            # Filter archived projects unless --include-archived flag is set
+            is_archived = p.get("archived", False)
+            if is_archived and not getattr(args, "include_archived", False):
+                continue
             projects.append(p)
 
     total = len(projects)
@@ -263,10 +268,59 @@ def cmd_update_project(name, args):
 
     data = _read_input()
     allowed = {"current_phase", "signals_detected", "complexity_score",
-               "specialists_recommended", "phase_plan", "phase_plan_mode", "status"}
+               "specialists_recommended", "phase_plan", "phase_plan_mode", "status", "archived"}
     for k, v in data.items():
         if k in allowed:
             project_data[k] = v
+
+    _save_project_json(pd, project_data)
+    print(json.dumps({"data": project_data, "meta": _meta("projects", 1)}, indent=2))
+
+
+def cmd_archive_project(name, args):
+    """Archive a project (set archived=true)."""
+    _validate_safe_name(name)
+    pd = PROJECTS_DIR / name
+    if not pd.exists():
+        _error("Project not found", "NOT_FOUND", resource="projects", id=name)
+
+    pj = pd / "project.json"
+    if not pj.exists():
+        _error("project.json not found", "READ_ERROR", resource="projects", id=name)
+
+    try:
+        with open(pj) as f:
+            project_data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        _error("Could not read project.json", "READ_ERROR", resource="projects", id=name)
+
+    project_data["archived"] = True
+    project_data["archived_at"] = datetime.now(timezone.utc).isoformat()
+
+    _save_project_json(pd, project_data)
+    print(json.dumps({"data": project_data, "meta": _meta("projects", 1)}, indent=2))
+
+
+def cmd_unarchive_project(name, args):
+    """Unarchive a project (set archived=false)."""
+    _validate_safe_name(name)
+    pd = PROJECTS_DIR / name
+    if not pd.exists():
+        _error("Project not found", "NOT_FOUND", resource="projects", id=name)
+
+    pj = pd / "project.json"
+    if not pj.exists():
+        _error("project.json not found", "READ_ERROR", resource="projects", id=name)
+
+    try:
+        with open(pj) as f:
+            project_data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        _error("Could not read project.json", "READ_ERROR", resource="projects", id=name)
+
+    project_data["archived"] = False
+    if "archived_at" in project_data:
+        del project_data["archived_at"]
 
     _save_project_json(pd, project_data)
     print(json.dumps({"data": project_data, "meta": _meta("projects", 1)}, indent=2))
@@ -706,10 +760,10 @@ def main():
     parser = argparse.ArgumentParser(description="Wicked Crew Data API")
     subparsers = parser.add_subparsers(dest="verb")
 
-    for verb in ("list", "get", "search", "stats", "create", "update", "delete"):
+    for verb in ("list", "get", "search", "stats", "create", "update", "delete", "archive", "unarchive"):
         sub = subparsers.add_parser(verb)
         sub.add_argument("source", help="Data source")
-        if verb in ("get", "update", "delete"):
+        if verb in ("get", "update", "delete", "archive", "unarchive"):
             sub.add_argument("id", nargs="?", help="Resource ID/name")
         sub.add_argument("--limit", type=int, default=100)
         sub.add_argument("--offset", type=int, default=0)
@@ -718,6 +772,7 @@ def main():
         sub.add_argument("--query", help="Search query")
         sub.add_argument("--filter", help="Filter expression")
         sub.add_argument("--include-status", action="store_true", help="Include status.md content (for phases get)")
+        sub.add_argument("--include-archived", action="store_true", help="Include archived projects (for list projects)")
 
     args = parser.parse_args()
 
@@ -793,6 +848,26 @@ def main():
 
     elif args.verb == "delete":
         _error("Delete not supported for crew resources (use archive instead)", "UNSUPPORTED_VERB")
+
+    elif args.verb == "archive":
+        if not args.id:
+            _error("ID required for archive verb", "MISSING_ID")
+        handlers = {
+            "projects": lambda a: cmd_archive_project(a.id, a),
+        }
+        if args.source not in handlers:
+            _error(f"Archive not supported for {args.source}", "UNSUPPORTED_VERB")
+        handlers[args.source](args)
+
+    elif args.verb == "unarchive":
+        if not args.id:
+            _error("ID required for unarchive verb", "MISSING_ID")
+        handlers = {
+            "projects": lambda a: cmd_unarchive_project(a.id, a),
+        }
+        if args.source not in handlers:
+            _error(f"Unarchive not supported for {args.source}", "UNSUPPORTED_VERB")
+        handlers[args.source](args)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,9 @@
         "list",
         "get",
         "create",
-        "update"
+        "update",
+        "archive",
+        "unarchive"
       ]
     },
     {
