@@ -20,7 +20,7 @@
       "name": "wicked-search",
       "source": "./plugins/wicked-search",
       "description": "Unified code and document search with Symbol Graph and cross-plugin graph export. Multi-ORM data lineage, cross-layer linking, blast radius analysis, and wicked-cache integration.",
-      "version": "1.4.0"
+      "version": "1.5.0"
     },
     {
       "name": "wicked-patch",
@@ -32,13 +32,13 @@
       "name": "wicked-kanban",
       "source": "./plugins/wicked-kanban",
       "description": "Persistent kanban board that survives across sessions. Auto-syncs Claude Code's TaskCreate/TaskUpdate to a durable board with git commit linking, activity audit trail, and sprint grouping. Built-in tasks reset each session \u2014 kanban remembers everything.",
-      "version": "0.8.0"
+      "version": "0.9.0"
     },
     {
       "name": "wicked-crew",
       "source": "./plugins/wicked-crew",
       "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates (value, strategy, execution).",
-      "version": "0.13.0"
+      "version": "0.14.0"
     },
     {
       "name": "wicked-jam",
@@ -92,7 +92,7 @@
       "name": "wicked-delivery",
       "source": "./plugins/wicked-delivery",
       "description": "Delivery management expertise spanning PMO, onboarding, experimentation, and FinOps. Includes delivery managers, cost analysts, and rollout coordinators.",
-      "version": "0.6.1"
+      "version": "0.7.0"
     },
     {
       "name": "wicked-smaht",
