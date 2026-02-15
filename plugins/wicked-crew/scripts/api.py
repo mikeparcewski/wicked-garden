@@ -7,8 +7,11 @@ Usage:
     python3 api.py create projects < payload.json
     python3 api.py update projects <name> < payload.json
     python3 api.py list phases --project <name> [--limit N]
-    python3 api.py get phases <phase-name> --project <name>
+    python3 api.py get phases <phase-name> --project <name> [--include-status]
     python3 api.py update phases <phase-name> --project <name> < payload.json
+    python3 api.py list artifacts --project <name> --phase <phase-name> [--limit N]
+    python3 api.py get artifacts <artifact-name> --project <name> --phase <phase-name>
+    python3 api.py update artifacts <artifact-name> --project <name> --phase <phase-name> < payload.json
     python3 api.py list signals [--limit N] [--offset N]
     python3 api.py search signals --query Q
     python3 api.py stats signals
@@ -19,6 +22,7 @@ Usage:
 """
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,7 +32,7 @@ PROJECTS_DIR = CREW_BASE / "projects"
 FEEDBACK_DIR = CREW_BASE / "feedback"
 SCRIPT_DIR = Path(__file__).parent
 SIGNALS_FILE = SCRIPT_DIR / "data" / "default_signals.jsonl"
-VALID_SOURCES = {"projects", "phases", "signals", "feedback", "specialists"}
+VALID_SOURCES = {"projects", "phases", "signals", "feedback", "specialists", "artifacts"}
 
 
 def _meta(source, total, limit=100, offset=0):
@@ -160,6 +164,7 @@ def cmd_list_projects(args):
 
 def cmd_get_project(name, args):
     """Get a specific project."""
+    _validate_safe_name(name)
     pd = PROJECTS_DIR / name
     if not pd.exists():
         _error("Project not found", "NOT_FOUND", resource="projects", id=name)
@@ -274,6 +279,7 @@ def cmd_list_phases(args):
     if not args.project:
         _error("--project required for phases", "MISSING_PROJECT")
 
+    _validate_safe_name(args.project)
     pd = PROJECTS_DIR / args.project
     if not pd.exists():
         _error("Project not found", "NOT_FOUND", resource="projects", id=args.project)
@@ -303,6 +309,8 @@ def cmd_get_phase(phase_name, args):
     if not args.project:
         _error("--project required for phase get", "MISSING_PROJECT")
 
+    _validate_safe_name(args.project)
+    _validate_safe_name(phase_name, field="phase_name")
     pd = PROJECTS_DIR / args.project
     if not pd.exists():
         _error("Project not found", "NOT_FOUND", resource="projects", id=args.project)
@@ -321,13 +329,16 @@ def cmd_get_phase(phase_name, args):
         **phase_data,
     }
 
-    # Include status.md content if available
-    status_md = pd / "phases" / phase_name / "status.md"
-    if status_md.exists():
-        try:
-            result["status_detail"] = status_md.read_text()[:2000]
-        except OSError:
-            pass
+    # Include status.md content if --include-status flag is provided
+    if args.include_status:
+        status_md = pd / "phases" / phase_name / "status.md"
+        if status_md.exists():
+            try:
+                result["status_detail"] = status_md.read_text()[:2000]
+            except OSError:
+                result["status_detail"] = None
+        else:
+            result["status_detail"] = None
 
     print(json.dumps({"data": result, "meta": _meta("phases", 1)}, indent=2))
 
@@ -507,6 +518,130 @@ def cmd_stats_feedback(args):
     print(json.dumps({"data": data, "meta": _meta("feedback", len(items))}, indent=2))
 
 
+# === Artifacts ===
+
+def cmd_list_artifacts(args):
+    """List files in a phase directory."""
+    if not args.project:
+        _error("--project required for artifacts", "MISSING_PROJECT")
+    if not args.phase:
+        _error("--phase required for artifacts", "MISSING_PHASE")
+
+    _validate_safe_name(args.project)
+    _validate_safe_name(args.phase, field="phase")
+
+    pd = PROJECTS_DIR / args.project / "phases" / args.phase
+    if not pd.exists():
+        _error("Phase directory not found", "NOT_FOUND", resource="artifacts", id=f"{args.project}/{args.phase}")
+
+    artifacts = []
+    for f in sorted(pd.iterdir()):
+        if f.is_file():
+            stat = f.stat()
+            artifacts.append({
+                "name": f.name,
+                "size": stat.st_size,
+                "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                "type": f.suffix.lstrip(".") or "unknown",
+            })
+
+    total = len(artifacts)
+    data = artifacts[args.offset:args.offset + args.limit]
+    print(json.dumps({"data": data, "meta": _meta("artifacts", total, args.limit, args.offset)}, indent=2))
+
+
+def cmd_get_artifact(artifact_name, args):
+    """Get a specific artifact file content."""
+    if not args.project:
+        _error("--project required for artifact get", "MISSING_PROJECT")
+    if not args.phase:
+        _error("--phase required for artifact get", "MISSING_PHASE")
+
+    _validate_safe_name(args.project)
+    _validate_safe_name(args.phase, field="phase")
+    # Validate artifact name — no path traversal
+    if ".." in artifact_name or "/" in artifact_name or "\\" in artifact_name:
+        _error("Invalid artifact name", "VALIDATION_ERROR", field="artifact_name")
+
+    artifact_path = PROJECTS_DIR / args.project / "phases" / args.phase / artifact_name
+    base_dir = PROJECTS_DIR / args.project / "phases" / args.phase
+
+    # Security: ensure resolved path is within the phase directory
+    if not artifact_path.resolve().is_relative_to(base_dir.resolve()):
+        _error("Path traversal detected", "VALIDATION_ERROR", field="artifact_name")
+
+    if not artifact_path.exists():
+        _error("Artifact not found", "NOT_FOUND", resource="artifacts", id=artifact_name)
+
+    try:
+        content = artifact_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        _error(f"Could not read artifact: {e}", "READ_ERROR", resource="artifacts", id=artifact_name)
+
+    result = {
+        "name": artifact_name,
+        "phase": args.phase,
+        "project": args.project,
+        "size": artifact_path.stat().st_size,
+        "modified": datetime.fromtimestamp(artifact_path.stat().st_mtime, tz=timezone.utc).isoformat(),
+        "content": content,
+    }
+    print(json.dumps({"data": result, "meta": _meta("artifacts", 1)}, indent=2))
+
+
+def cmd_update_artifact(artifact_name, args):
+    """Update (overwrite) an artifact file. Reads content from stdin JSON."""
+    if not args.project:
+        _error("--project required for artifact update", "MISSING_PROJECT")
+    if not args.phase:
+        _error("--phase required for artifact update", "MISSING_PHASE")
+
+    _validate_safe_name(args.project)
+    _validate_safe_name(args.phase, field="phase")
+    if ".." in artifact_name or "/" in artifact_name or "\\" in artifact_name:
+        _error("Invalid artifact name", "VALIDATION_ERROR", field="artifact_name")
+
+    phase_dir = PROJECTS_DIR / args.project / "phases" / args.phase
+    if not phase_dir.exists():
+        _error("Phase directory not found", "NOT_FOUND", resource="artifacts", id=f"{args.project}/{args.phase}")
+
+    artifact_path = phase_dir / artifact_name
+    if not artifact_path.resolve().is_relative_to(phase_dir.resolve()):
+        _error("Path traversal detected", "VALIDATION_ERROR", field="artifact_name")
+
+    # Read content from stdin
+    try:
+        payload = json.load(sys.stdin)
+        if not isinstance(payload, dict):
+            _error("Expected JSON object with 'content' field", "VALIDATION_ERROR")
+        content = payload.get("content", "")
+        if not isinstance(content, str):
+            _error("'content' field must be a string", "VALIDATION_ERROR")
+    except json.JSONDecodeError as e:
+        _error(f"Invalid JSON input: {e}", "VALIDATION_ERROR")
+
+    # Atomic write: tmp file + rename
+    import tempfile
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=str(phase_dir), suffix=".tmp")
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, str(artifact_path))
+    except OSError as e:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        _error(f"Write failed: {e}", "WRITE_ERROR")
+
+    result = {
+        "name": artifact_name,
+        "phase": args.phase,
+        "project": args.project,
+        "size": len(content.encode("utf-8")),
+        "modified": datetime.now(timezone.utc).isoformat(),
+    }
+    print(json.dumps({"data": result, "meta": _meta("artifacts", 1)}, indent=2))
+
+
 # === Specialists ===
 
 def _discover_specialists():
@@ -579,8 +714,10 @@ def main():
         sub.add_argument("--limit", type=int, default=100)
         sub.add_argument("--offset", type=int, default=0)
         sub.add_argument("--project", help="Project name (for phases)")
+        sub.add_argument("--phase", help="Phase name (for artifacts)")
         sub.add_argument("--query", help="Search query")
         sub.add_argument("--filter", help="Filter expression")
+        sub.add_argument("--include-status", action="store_true", help="Include status.md content (for phases get)")
 
     args = parser.parse_args()
 
@@ -600,6 +737,7 @@ def main():
             "signals": cmd_list_signals,
             "feedback": cmd_list_feedback,
             "specialists": cmd_list_specialists,
+            "artifacts": cmd_list_artifacts,
         }
         handlers[args.source](args)
 
@@ -610,6 +748,7 @@ def main():
             "projects": lambda a: cmd_get_project(a.id, a),
             "phases": lambda a: cmd_get_phase(a.id, a),
             "specialists": lambda a: cmd_get_specialist(a.id, a),
+            "artifacts": lambda a: cmd_get_artifact(a.id, a),
         }
         if args.source not in handlers:
             _error(f"Get not supported for {args.source}", "UNSUPPORTED_VERB")
@@ -646,6 +785,7 @@ def main():
         handlers = {
             "projects": lambda a: cmd_update_project(a.id, a),
             "phases": lambda a: cmd_update_phase(a.id, a),
+            "artifacts": lambda a: cmd_update_artifact(a.id, a),
         }
         if args.source not in handlers:
             _error(f"Update not supported for {args.source}", "UNSUPPORTED_VERB")
