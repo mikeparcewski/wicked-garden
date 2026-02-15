@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0] - 2026-02-15
+
+### Features
+- feat(delivery): setup command and configurable settings (b38164e)
+
+### Chores
+- chore: remove stale release notes from previous version (c0cdff9)
+- release: wicked-delivery v0.5.0 (9b1872a)
+
 ## [0.5.0] - 2026-02-15
 
 ### Features
