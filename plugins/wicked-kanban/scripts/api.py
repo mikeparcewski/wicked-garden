@@ -21,6 +21,7 @@ import argparse
 import json
 import os
 import sys
+import uuid
 from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -244,22 +245,18 @@ def cli_create(source, args):
 
         # Create comment object (matches existing stored format: text, author, created_at)
         comment = {
-            "id": str(__import__('uuid').uuid4())[:8],
+            "id": str(uuid.uuid4())[:8],
             "text": comment_text,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "author": data.get("author", "system")
         }
 
-        # Add to task's comments array
-        if "comments" not in task:
+        # Add to task's comments array via store methods (transaction-safe)
+        if not isinstance(task.get("comments"), list):
             task["comments"] = []
         task["comments"].append(comment)
         task["updated_at"] = datetime.now(timezone.utc).isoformat()
-
-        # Save task
-        from pathlib import Path
-        task_file = Path.home() / ".something-wicked" / "wicked-kanban" / "projects" / project_id / "tasks" / f"{task_id}.json"
-        task_file.write_text(json.dumps(task, indent=2))
+        store._write_json(store._task_file(project_id, task_id), task)
 
         # Log activity
         store._log_activity(project_id, "comment_added", task_id=task_id, comment_id=comment["id"], text=comment_text)
