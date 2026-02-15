@@ -247,7 +247,7 @@ This plugin exposes data via the standard Plugin Data API. Sources are declared 
 
 | Source | Capabilities | Description |
 |--------|-------------|-------------|
-| projects | list, get | Crew workflow projects with phase tracking |
+| projects | list, get, create, update, archive, unarchive | Crew workflow projects with phase tracking and lifecycle management |
 | phases | list, get | Project phase execution history and status |
 | signals | list, search, stats | Signal detection library for project analysis |
 | feedback | list, stats | Project outcome records and signal accuracy metrics |
@@ -262,6 +262,26 @@ Or directly via CLI:
 ```bash
 python3 scripts/api.py {verb} {source} [--limit N] [--offset N] [--query Q]
 ```
+
+### Project Archiving
+
+Archive completed or paused projects to keep `list projects` clean:
+
+```bash
+# Archive a project
+python3 scripts/api.py archive projects my-project
+
+# List only active projects (default)
+python3 scripts/api.py list projects
+
+# Include archived projects
+python3 scripts/api.py list projects --include-archived
+
+# Unarchive to reactivate
+python3 scripts/api.py unarchive projects my-project
+```
+
+Phase operations are blocked on archived projects. Archiving is idempotent.
 
 ## Integration
 

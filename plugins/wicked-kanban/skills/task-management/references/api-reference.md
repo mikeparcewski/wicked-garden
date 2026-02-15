@@ -161,6 +161,20 @@ Add a comment to a project (not a specific task).
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-project-comment PROJECT_ID "Comment text"
 ```
 
+## Comments via Data API
+
+List and create comments through the Data API:
+
+```bash
+# List comments on a task
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/api.py list comments --project PROJECT_ID --task-id TASK_ID
+
+# Create a comment via stdin JSON
+echo '{"text": "Comment text"}' | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/api.py create comments --project PROJECT_ID --task-id TASK_ID
+```
+
+Comment fields: `id`, `text`, `author`, `created_at`. Accepts both `text` and `body` as input (normalizes to `text`).
+
 ## Search
 
 Search tasks across projects.

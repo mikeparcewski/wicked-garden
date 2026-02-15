@@ -93,6 +93,19 @@ Crew discovers specialists via `specialist.json` in each plugin.
 **Deliverables**: Review findings, recommendations, sign-off
 **Specialists**: strategy, qe, compliance (if regulated)
 
+## Project Lifecycle
+
+Projects can be archived when complete or paused:
+
+```bash
+python3 scripts/api.py archive projects <name>    # Sets archived=true
+python3 scripts/api.py unarchive projects <name>  # Reactivates
+python3 scripts/api.py list projects              # Excludes archived by default
+python3 scripts/api.py list projects --include-archived
+```
+
+Phase operations are blocked on archived projects.
+
 ## Commands Reference
 
 | Command | Purpose |

@@ -72,7 +72,7 @@ This plugin exposes computed delivery metrics via the standard Plugin Data API. 
 
 | Source | Capabilities | Description |
 |--------|-------------|-------------|
-| metrics | stats | Computed delivery metrics (throughput, cycle time, backlog health, completion rate, optional cost/ROI) from kanban task data |
+| metrics | stats | Computed delivery metrics (throughput, cycle time, backlog health, completion rate, effort allocation, optional cost/ROI) from kanban task data |
 | commentary | list | Rule-based delivery insights from metric deltas, auto-refreshed on task changes |
 
 Query via the workbench gateway:
@@ -87,7 +87,9 @@ python3 scripts/api.py stats metrics [--project PROJECT_ID]
 python3 scripts/api.py list commentary
 ```
 
-**Metrics**: Returns throughput (tasks/day over 14-day rolling window), cycle time (avg/median/p50/p75/p95 in hours), backlog health (aging count, oldest, average age), and completion rate. Requires wicked-kanban for task data; gracefully returns `{"available": false}` when kanban is not installed.
+**Metrics**: Returns throughput (tasks/day over 14-day rolling window), cycle time (avg/median/p50/p75/p95 in hours), backlog health (aging count, oldest, average age), completion rate, and effort allocation. Requires wicked-kanban for task data; gracefully returns `{"available": false}` when kanban is not installed.
+
+**Effort Allocation**: Breaks down task distribution by crew phase (clarify, design, test-strategy, build, test, review) and by signal dimension (security, architecture, data, etc.) from crew project signals. Detects phases from task subject prefixes and maps signals via crew's `project.json`. Available when both wicked-kanban and wicked-crew are installed.
 
 **Cost estimation** (opt-in): Run `/wicked-delivery:setup` or manually create `~/.something-wicked/wicked-delivery/cost_model.json`:
 

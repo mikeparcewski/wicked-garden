@@ -94,12 +94,43 @@ After indexing, extracted document text is cached at:
 
 Read these files to get full document content for context.
 
+## Graph Analysis
+
+### Traverse
+BFS traversal from a symbol, returning full node/edge objects:
+```bash
+python3 api.py traverse graph <symbol-id> --depth 2 --direction both
+```
+- `--depth`: 1-3 (default 1, max 3)
+- `--direction`: `both`, `in`, `out`
+- Returns root node, connected nodes, and typed edges
+
+### Hotspots
+Rank symbols by total connectivity (in-degree + out-degree):
+```bash
+python3 api.py hotspots graph --limit 10 --layer backend --type entity
+```
+- Supports `--layer` and `--type` filters
+- Default limit: 20, sorted by total_count descending
+
+### Multi-Project
+All verbs support `--project` for multi-codebase isolation:
+```bash
+python3 api.py list projects                        # List indexed projects
+python3 api.py hotspots graph --project my-app      # Query specific project
+```
+
+### Symbol Enrichment
+Symbols indexed after v1.6.0 include: `inferred_type` (test, configuration, data-model, controller, service, utility, general), `description` (first docstring/comment), and `domains` (path-derived tags).
+
 ## Tips
 
 1. **Index first**: Always run `/wicked-search:index` before searching
 2. **Be specific**: More specific queries = better results
 3. **Check cross-refs**: Use `/refs` to discover code-doc relationships
 4. **Read cached docs**: For full context, read the extracted .txt files
+5. **Use hotspots**: Find high-coupling symbols that are change-risk candidates
+6. **Use traverse**: Understand a symbol's neighborhood before refactoring
 
 ## Supported File Types
 

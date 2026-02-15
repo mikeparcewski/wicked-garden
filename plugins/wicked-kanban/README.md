@@ -93,6 +93,7 @@ This plugin exposes data via the standard Plugin Data API. Sources are declared 
 | tasks | list, get, search, stats | Kanban tasks with status, priority, and metadata |
 | initiatives | list, get | Project initiatives for grouping tasks |
 | activity | list | Recent task activity and changes |
+| comments | list, create | Task comments and annotations (requires `--task-id` and `--project`) |
 
 Query via the workbench gateway:
 ```
