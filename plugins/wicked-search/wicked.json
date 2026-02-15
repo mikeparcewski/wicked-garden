@@ -27,6 +27,32 @@
         "list",
         "search"
       ]
+    },
+    {
+      "name": "graph",
+      "description": "Symbol dependency graph from SQLite with deps/dependents relationships",
+      "capabilities": [
+        "list",
+        "get",
+        "search",
+        "stats"
+      ]
+    },
+    {
+      "name": "lineage",
+      "description": "Precomputed data lineage paths (source to sink traces) with confidence",
+      "capabilities": [
+        "list",
+        "search"
+      ]
+    },
+    {
+      "name": "services",
+      "description": "Detected service nodes and connections from infrastructure analysis",
+      "capabilities": [
+        "list",
+        "stats"
+      ]
     }
   ]
 }

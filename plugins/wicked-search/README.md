@@ -115,6 +115,9 @@ This plugin exposes data via the standard Plugin Data API. Sources are declared 
 | symbols | list, get, search, stats | Code symbols (functions, classes, methods) from indexed projects |
 | documents | list, search | Indexed documents (markdown, PDF, Office) with frontmatter |
 | references | list, search | Cross-references between symbols and documents |
+| graph | list, get, search, stats | Symbol dependency graph from SQLite with deps/dependents relationships |
+| lineage | list, search | Precomputed data lineage paths (source to sink traces) with confidence |
+| services | list, stats | Detected service nodes and connections from infrastructure analysis |
 
 Query via the workbench gateway:
 ```
