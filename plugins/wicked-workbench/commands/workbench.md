@@ -22,7 +22,7 @@ Launch or manage the Wicked Workbench dashboard.
 if curl -s http://localhost:18889/health > /dev/null 2>&1; then
   echo "Workbench already running at http://localhost:18889"
 else
-  uvx wicked-workbench-server &
+  uvx --from wicked-workbench-server wicked-workbench &
   sleep 2
   echo "Workbench started at http://localhost:18889"
 fi
@@ -38,10 +38,10 @@ pkill -f "wicked-workbench-server" || echo "Workbench not running"
 
 ```bash
 if curl -s http://localhost:18889/health > /dev/null 2>&1; then
-  echo "✅ Workbench running"
-  curl -s http://localhost:18889/api/catalogs | jq '.catalogs[] | "\(.id): \(.components | length) components"'
+  echo "Workbench running"
+  curl -s http://localhost:18889/api/v1/data/plugins | jq '{plugins: .meta.total_plugins, sources: .meta.total_sources}'
 else
-  echo "❌ Workbench not running"
+  echo "Workbench not running"
 fi
 ```
 
@@ -59,10 +59,9 @@ open http://localhost:18889/
 **Status**: Running
 **URL**: http://localhost:18889
 
-**Available Catalogs**:
-- kanban: 4 components
-- memory: 3 components
+**Data Sources**: 7 plugins, 24 sources
 
+Query data via the gateway: GET /api/v1/data/{plugin}/{source}/{verb}
 Generate dashboards by asking Claude Code to create A2UI views.
 ```
 

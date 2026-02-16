@@ -9,26 +9,28 @@ estimated_minutes: 8
 
 # End-to-End Task Dashboard Generation
 
-Demonstrates the complete workflow from natural language request to rendered dashboard. Claude Code generates A2UI JSON, Workbench renders it, and live task data is fetched from the kanban MCP server.
+Demonstrates the complete workflow from natural language request to rendered dashboard. Claude Code generates A2UI JSON, Workbench renders it, and live task data is fetched from the data gateway.
 
 ## Setup
 
-Ensure wicked-kanban is installed and has some tasks:
+Ensure wicked-kanban is installed and has some tasks. In Claude Code:
 
-```bash
-# Install kanban if needed
-pip install wicked-kanban
-
-# In Claude Code, create test tasks
-/wicked-kanban:task create "Fix authentication bug" --priority high
-/wicked-kanban:task create "Update documentation" --priority medium
-/wicked-kanban:task create "Refactor API layer" --priority high
+```
+/wicked-kanban:new-task "Fix authentication bug"
+/wicked-kanban:new-task "Update documentation"
+/wicked-kanban:new-task "Refactor API layer"
 ```
 
 Start Workbench:
 
+```
+/wicked-workbench:workbench start
+```
+
+Verify tasks are accessible via the data gateway:
+
 ```bash
-wicked-workbench
+curl -s http://localhost:18889/api/v1/data/wicked-kanban/tasks/list | jq '.items | length'
 ```
 
 ## Steps
@@ -43,16 +45,16 @@ Show my high priority tasks in a dashboard
 
 ### 2. Claude Code Generates A2UI
 
-Claude Code reads kanban catalog, generates A2UI with TaskList component, and sends to POST /api/render.
+Claude Code queries the data gateway for task data, generates A2UI with TaskList component, and sends to POST /api/render.
 
 ### 3. Verify Dashboard Rendered
 
 Open http://localhost:18889 to see dashboard with task data.
 
-### 4. Check Current Document
+### 4. Query Tasks Directly via Gateway
 
 ```bash
-curl http://localhost:18889/api/current
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/list?limit=10" | jq '.items[] | {subject, status}'
 ```
 
 ## Expected Outcome
@@ -64,27 +66,30 @@ Generates and sends A2UI to Workbench.
 POST /api/render processes the A2UI.
 
 ### Step 3: Browser View
-Shows high priority tasks with live data from kanban MCP server.
+Shows tasks with live data fetched via the plugin data gateway.
 
-### Step 4: Current Document
-Returns surfaceId, catalogId, components, and timestamp.
+### Step 4: Direct Gateway Query
+```json
+[
+  {"subject": "Fix authentication bug", "status": "pending"},
+  {"subject": "Update documentation", "status": "pending"},
+  {"subject": "Refactor API layer", "status": "pending"}
+]
+```
 
 ## Success Criteria
 
-- [ ] Claude Code successfully reads kanban catalog
-- [ ] A2UI JSON is generated with TaskList component
+- [ ] Tasks are accessible via data gateway endpoint
+- [ ] Claude Code generates A2UI with task components
 - [ ] POST /api/render returns 200 OK
 - [ ] Dashboard appears at http://localhost:18889
-- [ ] Live task data is displayed (from kanban MCP server)
-- [ ] Only high priority tasks are shown (filter applied)
-- [ ] /api/current returns the rendered document
+- [ ] Live task data is displayed from the data gateway
+- [ ] Task filtering works (by status, priority, etc.)
 
 ## Value Demonstrated
 
-**Natural language to dashboard**: Users describe what they want to see, Claude Code generates the appropriate dashboard structure, no manual JSON writing required.
+**Natural language to dashboard**: Users describe what they want to see, Claude Code generates the appropriate dashboard structure.
 
-**Component catalog system**: Claude Code knows which components are available (TaskList, Text, Column) by reading the catalog, ensuring it generates valid A2UI.
+**Unified data gateway**: Task data is fetched through the workbench data gateway, providing a single API surface for all plugin data.
 
-**Live data integration**: Dashboard shows current task data from the kanban MCP server, not static snapshots.
-
-**Real-world use**: Project managers can quickly visualize filtered task views without writing code or SQL. "Show blocked tasks", "Show tasks due this week", "Show my team's tasks" all work the same way.
+**Real-world use**: Project managers can quickly visualize filtered task views without writing code. "Show blocked tasks", "Show tasks due this week" all work the same way.

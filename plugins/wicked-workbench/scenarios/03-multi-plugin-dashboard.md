@@ -1,7 +1,7 @@
 ---
 name: multi-plugin-dashboard
 title: Multi-Plugin Dashboard Composition
-description: Combine components from multiple plugins in a single dashboard
+description: Combine data from multiple plugins in a single dashboard via the data gateway
 type: integration
 difficulty: intermediate
 estimated_minutes: 12
@@ -9,74 +9,65 @@ estimated_minutes: 12
 
 # Multi-Plugin Dashboard Composition
 
-Demonstrates composing a dashboard from components provided by multiple plugins. This proves Workbench can orchestrate data fetching from multiple MCP servers and render a unified view.
+Demonstrates composing a dashboard using data from multiple plugins via the data gateway. This proves Workbench can orchestrate data fetching from multiple sources and render a unified view.
 
 ## Setup
 
-Install multiple plugins with component catalogs:
+Ensure multiple plugins with data sources are installed. Verify with:
 
 ```bash
-pip install wicked-kanban wicked-mem
+curl -s http://localhost:18889/api/v1/data/plugins | jq '.plugins[] | .name'
 ```
 
-Create test data in both systems:
+Create test data in both systems. In Claude Code:
 
-```bash
-# Create tasks
-/wicked-kanban:task create "Implement user auth" --priority high
-/wicked-kanban:task create "Add logging" --priority medium --status blocked
-
-# Store memories
+```
+/wicked-kanban:new-task "Implement user auth"
+/wicked-kanban:new-task "Add logging"
 /wicked-mem:store "Decided to use JWT for authentication" --type decision
 /wicked-mem:store "Auth implementation should handle refresh tokens" --type requirement
 ```
 
 Start Workbench:
 
-```bash
-wicked-workbench
+```
+/wicked-workbench:workbench start
 ```
 
 ## Steps
 
-### 1. Verify Multiple Catalogs Available
+### 1. Verify Multiple Data Sources Available
 
 ```bash
-curl http://localhost:18889/api/catalogs | jq '.[] | .catalogId'
+curl -s http://localhost:18889/api/v1/data/plugins | jq '.plugins[] | {name, sources: [.sources[].name]}'
 ```
 
-Expected:
-```
-"workbench"
-"kanban"
-"memory"
+Expected: Multiple plugins with their data sources listed.
+
+### 2. Query Data from Multiple Plugins
+
+```bash
+# Tasks from kanban
+curl -s http://localhost:18889/api/v1/data/wicked-kanban/tasks/list | jq '.items | length'
+
+# Memories from mem
+curl -s http://localhost:18889/api/v1/data/wicked-mem/memories/list | jq '.items | length'
 ```
 
-### 2. Request Multi-Plugin Dashboard
+### 3. Request Multi-Plugin Dashboard
 
 In Claude Code:
 
 ```
 Create a dashboard showing:
-- High priority tasks from kanban
+- Tasks from kanban
 - Recent decisions from memory
 Put them side by side
 ```
 
-### 3. Claude Generates Composed A2UI
+### 4. Verify Dashboard Uses Multiple Sources
 
-Claude generates A2UI with components from multiple catalogs:
-- Row/Column layout (workbench catalog)
-- TaskList component (kanban catalog)
-- MemoryList component (memory catalog)
-
-### 4. Verify Data from Both Sources
-
-Check MCP connections:
-
-```bash
-curl http://localhost:18889/api/servers
-```
+Claude generates A2UI referencing data from both kanban and memory data sources.
 
 ### 5. View Rendered Dashboard
 
@@ -84,29 +75,30 @@ Open http://localhost:18889 to see both data sources rendered together.
 
 ## Expected Outcome
 
-### Step 1: Multiple Catalogs
-Returns: `"workbench"`, `"kanban"`, `"memory"`
+### Step 1: Multiple Data Sources
+```json
+[
+  {"name": "wicked-kanban", "sources": ["projects", "tasks", "initiatives", "activity", "comments"]},
+  {"name": "wicked-mem", "sources": ["memories", "sessions"]},
+  {"name": "wicked-crew", "sources": ["projects", "phases", "specialists", "artifacts", "signals"]}
+]
+```
 
-### Step 2: Claude Response
-Generates A2UI combining components from both plugins.
+### Step 2: Data from Both Sources
+Tasks and memories are both accessible via the gateway.
 
-### Step 3: Multi-Source A2UI
-- Layout: Row, Column, Text (workbench)
-- Data: TaskList (kanban), MemoryList (memory)
-
-### Step 4: MCP Server Status
-Both kanban (port 18888) and memory (port 18890) show "connected".
+### Step 3: Multi-Source Dashboard
+Claude generates A2UI combining task and memory data.
 
 ### Step 5: Rendered Dashboard
-Two columns: High Priority Tasks (left) + Recent Decisions (right)
+Two sections: Tasks (left) + Decisions (right)
 
 ## Success Criteria
 
-- [ ] Multiple component catalogs are discovered
-- [ ] Claude Code generates A2UI using components from 2+ catalogs
-- [ ] Layout components (Row, Column) structure the dashboard
-- [ ] TaskList fetches data from kanban MCP server
-- [ ] MemoryList fetches data from memory MCP server
+- [ ] Data gateway discovers multiple plugins with data sources
+- [ ] Tasks are queryable via `/api/v1/data/wicked-kanban/tasks/list`
+- [ ] Memories are queryable via `/api/v1/data/wicked-mem/memories/list`
+- [ ] Claude Code generates A2UI using data from 2+ plugins
 - [ ] Both data sources render in the same dashboard
 - [ ] Dashboard shows current data from both sources
 
@@ -114,8 +106,6 @@ Two columns: High Priority Tasks (left) + Recent Decisions (right)
 
 **Cross-plugin composition**: Users can create dashboards that combine data from multiple sources without worrying about API integration details.
 
-**Unified data view**: Instead of switching between tools, see related information in one place. Example: tasks + relevant decisions, tasks + relevant documentation, tasks + data quality metrics.
+**Unified data gateway**: A single API surface (`/api/v1/data/{plugin}/{source}/{verb}`) provides access to all plugin data, simplifying dashboard data fetching.
 
-**Catalog-driven design**: Adding new plugins with component catalogs automatically makes their components available for dashboard composition. No code changes to Workbench required.
-
-**Real-world use**: Executive dashboards combining metrics from multiple systems, sprint planning views showing tasks + team velocity + recent decisions, incident response dashboards showing alerts + runbooks + recent changes.
+**Real-world use**: Executive dashboards combining metrics from multiple systems, sprint planning views showing tasks + recent decisions, incident response dashboards showing alerts + runbooks.
