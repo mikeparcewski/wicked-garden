@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.1] - 2026-02-16
+
+### Bug Fixes
+- fix: resolve 5 reported issues across workbench, mem, and kanban plugins (be46dab)
+
+### Documentation
+- docs: update READMEs, skills, and marketplace for plugin API enhancements (0c5093a)
+
+### Chores
+- release: wicked-crew v0.15.0, wicked-delivery v0.8.0, wicked-search v1.6.0, wicked-kanban v0.10.0 (59f7f71)
+
 ## [0.7.0] - 2026-02-15
 
 ### Features
