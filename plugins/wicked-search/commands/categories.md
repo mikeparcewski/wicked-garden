@@ -1,11 +1,11 @@
 ---
-description: Show symbol categories — types, layers, and directory groupings
+description: Show symbol categories — types, layers, directory groupings, and cross-category relationships
 argument-hint: "[--project <name>]"
 ---
 
 # /wicked-search:categories
 
-Show how indexed symbols break down by type, architectural layer, and directory.
+Show how indexed symbols break down by type, architectural layer, and directory — plus how categories relate to each other via references.
 
 ## Instructions
 
@@ -19,7 +19,7 @@ Show how indexed symbols break down by type, architectural layer, and directory.
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/api.py categories symbols --project "<project>"
    ```
 
-2. Present results in three sections:
+2. Present results in five sections:
 
    **By Layer** — architectural layers (backend, frontend, database, view):
    | Layer | Symbols |
@@ -39,7 +39,23 @@ Show how indexed symbols break down by type, architectural layer, and directory.
    | controllers | 200 |
    | models | 150 |
 
-3. Highlight the dominant layer and any imbalances (e.g., many backend symbols but zero database symbols may indicate missing schema indexing).
+   **Layer Relationships** — how architectural layers connect (from `data.relationships.by_layer`):
+   | Source | Target | Ref Type | Count |
+   |--------|--------|----------|-------|
+   | backend | database | queries | 340 |
+   | frontend | backend | calls | 210 |
+
+   **Directory Relationships** — top cross-directory connections (from `data.relationships.by_directory`):
+   | Source | Target | Ref Type | Count |
+   |--------|--------|----------|-------|
+   | controllers | services | calls | 120 |
+   | services | models | imports | 95 |
+
+3. Highlight:
+   - The dominant layer and any imbalances
+   - Strongest cross-layer relationships (which layers are tightly coupled)
+   - Directory clusters that have high interconnection (potential modules)
+   - Any unexpected relationship patterns (e.g., view layer directly querying database)
 
 ## Example
 
