@@ -1,6 +1,6 @@
 {
   "name": "wicked-platform",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Platform engineering expertise spanning DevSecOps, observability, and compliance. Includes SREs, security engineers, compliance officers, and infrastructure specialists.",
   "author": {
     "name": "Mike Parcewski"

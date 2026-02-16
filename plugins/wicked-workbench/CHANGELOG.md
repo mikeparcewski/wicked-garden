@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.0] - 2026-02-16
+
+### Features
+- feat: workbench dashboard skill refs, scenario rewrites, and cleanup (8e21970)
+
+### Bug Fixes
+- fix: kanban board isolation, MEMORY.md write blocking, and hook event corrections (afb3f87)
+
+### Chores
+- release: wicked-search v1.7.0, wicked-workbench v0.8.0 (be7cbea)
+
 ## [0.8.0] - 2026-02-16
 
 ### Features
