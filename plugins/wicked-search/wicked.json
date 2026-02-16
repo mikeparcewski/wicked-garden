@@ -9,7 +9,8 @@
         "list",
         "get",
         "search",
-        "stats"
+        "stats",
+        "categories"
       ]
     },
     {
@@ -37,7 +38,8 @@
         "search",
         "stats",
         "traverse",
-        "hotspots"
+        "hotspots",
+        "impact"
       ]
     },
     {
@@ -61,6 +63,14 @@
       "description": "Multi-project isolation - list indexed projects with metadata",
       "capabilities": [
         "list"
+      ]
+    },
+    {
+      "name": "code",
+      "description": "Source file content and IDE integration for indexed projects",
+      "capabilities": [
+        "content",
+        "ide-url"
       ]
     }
   ]

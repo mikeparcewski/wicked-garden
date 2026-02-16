@@ -9,6 +9,7 @@ Usage:
     python3 api.py search symbols --query "ClassName" [--limit N]
     python3 api.py get symbols <id>
     python3 api.py stats symbols
+    python3 api.py categories symbols [--limit N]
     python3 api.py list documents [--limit N]
     python3 api.py search documents --query "readme" [--limit N]
     python3 api.py list references [--limit N]
@@ -19,10 +20,13 @@ Usage:
     python3 api.py stats graph
     python3 api.py traverse graph <id> [--depth N] [--direction both|in|out]
     python3 api.py hotspots graph [--limit N] [--layer LAYER] [--type TYPE]
+    python3 api.py impact graph <column_id>
     python3 api.py list lineage [--limit N]
     python3 api.py search lineage --query "source_id" [--limit N]
     python3 api.py list services [--limit N]
     python3 api.py stats services
+    python3 api.py content code <file_path> [--line-start N] [--line-end N]
+    python3 api.py ide-url code <file_path> [--line N] [--ide vscode|idea|cursor]
 """
 import argparse
 import json
@@ -32,7 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 INDEX_DIR = Path.home() / ".something-wicked" / "wicked-search"
-VALID_SOURCES = {"symbols", "documents", "references", "graph", "lineage", "services", "projects"}
+VALID_SOURCES = {"symbols", "documents", "references", "graph", "lineage", "services", "projects", "code"}
 
 
 def _validate_project_name(name: str) -> bool:
@@ -734,6 +738,290 @@ def cmd_hotspots(source, args):
     print(json.dumps(result, indent=2))
 
 
+def _get_project_root(project=None):
+    """Get project root path from index metadata files."""
+    index_dir = _get_index_dir(project)
+    if not index_dir.exists():
+        return None
+    for meta_file in index_dir.glob("*_meta.json"):
+        try:
+            with open(meta_file) as f:
+                meta = json.loads(f.read())
+            root = meta.get("root_path")
+            if root:
+                return root
+        except (OSError, json.JSONDecodeError):
+            continue
+    return None
+
+
+def _resolve_file_path(relative_path, project=None):
+    """Resolve a relative file path to absolute using project root or DB lookup."""
+    # Already absolute
+    if relative_path.startswith("/") and Path(relative_path).exists():
+        return relative_path
+
+    # Try project root from metadata
+    root = _get_project_root(project)
+    if root:
+        candidate = Path(root) / relative_path
+        if candidate.exists():
+            return str(candidate)
+
+    # Try DB lookup — find a symbol whose file_path ends with this relative path
+    dbs = _find_graph_dbs(project)
+    for db_file in dbs:
+        try:
+            conn = sqlite3.connect(str(db_file), timeout=5.0)
+            cursor = conn.execute(
+                "SELECT file_path FROM symbols WHERE file_path LIKE ? LIMIT 1",
+                (f"%{relative_path}",))
+            row = cursor.fetchone()
+            conn.close()
+            if row and Path(row[0]).exists():
+                return row[0]
+        except Exception:
+            continue
+
+    return None
+
+
+def _infer_language(file_path):
+    """Infer programming language from file extension."""
+    ext_map = {
+        ".java": "java", ".jsp": "jsp", ".xml": "xml", ".sql": "sql",
+        ".py": "python", ".js": "javascript", ".ts": "typescript",
+        ".tsx": "tsx", ".jsx": "jsx", ".html": "html", ".htm": "html",
+        ".css": "css", ".scss": "scss", ".json": "json", ".yaml": "yaml",
+        ".yml": "yaml", ".md": "markdown", ".properties": "properties",
+        ".sh": "bash", ".rb": "ruby", ".go": "go", ".rs": "rust",
+        ".c": "c", ".cpp": "cpp", ".h": "c", ".hpp": "cpp",
+    }
+    ext = Path(file_path).suffix.lower()
+    return ext_map.get(ext, "text")
+
+
+def cmd_categories(source, args):
+    """Aggregate symbols (pages) by category with counts."""
+    project = getattr(args, 'project', None)
+
+    if source != "symbols":
+        _error("categories verb only supported for symbols source", "UNSUPPORTED_VERB",
+               source=source, verb="categories")
+
+    # Query: get all jsp_page symbols grouped by directory category
+    # Also count fields (el_expression + form_binding) per page via refs
+    dbs = _find_graph_dbs(project)
+
+    if not dbs:
+        print(json.dumps({"data": [], "meta": _meta(source, 0)}, indent=2))
+        return
+
+    # Step 1: Get all JSP pages
+    pages = _query_graph_dbs(
+        "SELECT id, file_path FROM symbols WHERE type = 'jsp_page'",
+        (), project)
+
+    # Step 2: Count fields (el_expression + form_binding) per page
+    field_counts = _query_graph_dbs(
+        """SELECT s2.file_path, COUNT(*) as cnt
+           FROM symbols s2
+           WHERE s2.type IN ('el_expression', 'form_binding')
+           GROUP BY s2.file_path""",
+        (), project)
+    fields_by_file = {r["file_path"]: r["cnt"] for r in field_counts}
+
+    # Step 3: Derive category from file path
+    # Pattern: extract first meaningful directory after WEB-INF/pages/ or WEB-INF/jsp/ or webapp/
+    categories = {}
+    for page in pages:
+        fp = page.get("file_path", "")
+        parts = fp.replace("\\", "/").split("/")
+
+        # Find category: first dir after known markers
+        cat = "other"
+        for i, part in enumerate(parts):
+            if part in ("pages", "jsp", "jsp-client", "views"):
+                remaining = parts[i + 1:]
+                if len(remaining) > 1:
+                    cat = remaining[0]
+                elif len(remaining) == 1:
+                    cat = "root"
+                break
+            if part == "webapp":
+                remaining = parts[i + 1:]
+                # Skip WEB-INF if present
+                if remaining and remaining[0] == "WEB-INF":
+                    remaining = remaining[1:]
+                # Skip pages/jsp/views if present
+                if remaining and remaining[0] in ("pages", "jsp", "jsp-client", "views"):
+                    remaining = remaining[1:]
+                if len(remaining) > 1:
+                    cat = remaining[0]
+                elif len(remaining) == 1:
+                    cat = "root"
+                break
+
+        if cat not in categories:
+            categories[cat] = {"category": cat, "page_count": 0, "total_fields": 0}
+        categories[cat]["page_count"] += 1
+        categories[cat]["total_fields"] += fields_by_file.get(fp, 0)
+
+    data = sorted(categories.values(), key=lambda c: -c["page_count"])
+
+    # Apply pagination
+    total = len(data)
+    data = data[args.offset:args.offset + args.limit]
+    print(json.dumps({"data": data, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+
+
+def cmd_impact(source, item_id, args):
+    """Reverse lineage from a database column to all UI fields it feeds."""
+    project = getattr(args, 'project', None)
+
+    if source != "graph":
+        _error("impact verb only supported for graph source", "UNSUPPORTED_VERB",
+               source=source, verb="impact")
+
+    # Parse table.column from item_id
+    # Frontend sends "TABLE.COLUMN", DB stores "db::TABLE.COLUMN"
+    if "." in item_id:
+        parts = item_id.split(".", 1)
+        table = parts[0]
+        column = parts[1]
+    else:
+        table = ""
+        column = item_id
+
+    # Try both ID formats
+    column_ids = [f"db::{item_id}", item_id]
+
+    # Step 1: Find entity_fields that maps_to this column (reverse: entity_field -> column)
+    entity_fields = []
+    for col_id in column_ids:
+        ef = _query_graph_dbs(
+            "SELECT source_id FROM refs WHERE target_id = ? AND ref_type = 'maps_to'",
+            (col_id,), project)
+        entity_fields.extend(ef)
+        if entity_fields:
+            break
+
+    # Step 2: For each entity_field, find UI fields that binds_to it
+    affected_fields = []
+    seen_ids = set()
+    for ef in entity_fields:
+        ef_id = ef["source_id"]
+        # Get the field path from entity_field name (e.g., "Entity.fieldName")
+        ef_info = _query_graph_dbs(
+            "SELECT name, qualified_name FROM symbols WHERE id = ?",
+            (ef_id,), project)
+        field_path = ef_info[0]["qualified_name"] if ef_info and ef_info[0].get("qualified_name") else (
+            ef_info[0]["name"] if ef_info else ef_id)
+
+        # Find binds_to refs pointing at this entity_field
+        bindings = _query_graph_dbs(
+            "SELECT source_id FROM refs WHERE target_id = ? AND ref_type = 'binds_to'",
+            (ef_id,), project)
+
+        for binding in bindings:
+            ui_id = binding["source_id"]
+            if ui_id in seen_ids:
+                continue
+            seen_ids.add(ui_id)
+
+            # Get symbol info for this UI field
+            sym = _query_graph_dbs(
+                "SELECT id, name, file_path FROM symbols WHERE id = ?",
+                (ui_id,), project)
+            if sym:
+                affected_fields.append({
+                    "ui_field_id": sym[0]["id"],
+                    "field_path": field_path,
+                    "jsp_file": sym[0]["file_path"],
+                })
+
+    result = {
+        "table": table,
+        "column": column,
+        "total_affected": len(affected_fields),
+        "affected_fields": affected_fields,
+    }
+    print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+
+
+def cmd_content(source, item_id, args):
+    """Read source file content for inline display."""
+    project = getattr(args, 'project', None)
+
+    if source != "code":
+        _error("content verb only supported for code source", "UNSUPPORTED_VERB",
+               source=source, verb="content")
+
+    # Resolve to absolute path
+    abs_path = _resolve_file_path(item_id, project)
+    if not abs_path or not Path(abs_path).exists():
+        _error("File not found", "NOT_FOUND", path=item_id)
+
+    line_start = getattr(args, 'line_start', None)
+    line_end = getattr(args, 'line_end', None)
+
+    try:
+        with open(abs_path, "r", errors="replace") as f:
+            lines = f.readlines()
+    except OSError as e:
+        _error(f"Cannot read file: {e}", "READ_ERROR", path=abs_path)
+
+    total_lines = len(lines)
+
+    if line_start is not None:
+        ls = max(1, line_start)
+        le = min(total_lines, line_end) if line_end else total_lines
+    else:
+        ls = 1
+        le = total_lines
+
+    content = "".join(lines[ls - 1:le])
+    language = _infer_language(abs_path)
+
+    result = {
+        "path": item_id,
+        "content": content,
+        "line_start": ls,
+        "line_end": le,
+        "language": language,
+    }
+    print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+
+
+def cmd_ide_url(source, item_id, args):
+    """Generate IDE deep link URL."""
+    project = getattr(args, 'project', None)
+
+    if source != "code":
+        _error("ide-url verb only supported for code source", "UNSUPPORTED_VERB",
+               source=source, verb="ide-url")
+
+    line = getattr(args, 'line', 1)
+    ide = getattr(args, 'ide', 'vscode') or 'vscode'
+
+    # Resolve to absolute path
+    abs_path = _resolve_file_path(item_id, project)
+    if not abs_path:
+        _error("File not found", "NOT_FOUND", path=item_id)
+
+    if ide == "vscode":
+        url = f"vscode://file{abs_path}:{line}"
+    elif ide == "idea":
+        url = f"idea://open?file={abs_path}&line={line}"
+    elif ide == "cursor":
+        url = f"cursor://file{abs_path}:{line}"
+    else:
+        _error(f"Unsupported IDE: {ide}", "INVALID_IDE",
+               ide=ide, supported=["vscode", "idea", "cursor"])
+
+    print(json.dumps({"data": {"url": url}, "meta": _meta(source, 1)}, indent=2))
+
+
 def cmd_stats(source, args):
     """Get statistics."""
     project = getattr(args, 'project', None)
@@ -902,15 +1190,22 @@ def main():
     parser = argparse.ArgumentParser(description="Wicked Search Data API")
     subparsers = parser.add_subparsers(dest="verb")
 
-    for verb in ("list", "get", "search", "stats", "traverse", "hotspots"):
+    all_verbs = ("list", "get", "search", "stats", "traverse", "hotspots",
+                  "categories", "impact", "content", "ide-url")
+    for verb in all_verbs:
         sub = subparsers.add_parser(verb)
-        sub.add_argument("source", help="Data source (symbols, documents, references, graph, lineage, services, projects)")
-        if verb == "get":
+        sub.add_argument("source", help="Data source (symbols, documents, references, graph, lineage, services, projects, code)")
+        if verb in ("get", "traverse", "impact", "content", "ide-url"):
             sub.add_argument("id", nargs="?", help="Item ID")
         if verb == "traverse":
-            sub.add_argument("id", nargs="?", help="Symbol ID to traverse from")
             sub.add_argument("--depth", type=int, default=1, help="Traversal depth (1-3)")
             sub.add_argument("--direction", default="both", help="Direction: both, in, out")
+        if verb == "content":
+            sub.add_argument("--line-start", type=int, default=None, dest="line_start", help="First line to return")
+            sub.add_argument("--line-end", type=int, default=None, dest="line_end", help="Last line to return")
+        if verb == "ide-url":
+            sub.add_argument("--line", type=int, default=1, help="Line number")
+            sub.add_argument("--ide", default="vscode", help="Target IDE (vscode, idea, cursor)")
         sub.add_argument("--limit", type=int, default=100 if verb != "hotspots" else 20)
         sub.add_argument("--offset", type=int, default=0)
         sub.add_argument("--project", help="Filter by project")
@@ -946,6 +1241,20 @@ def main():
         cmd_traverse(args.source, args.id, args)
     elif args.verb == "hotspots":
         cmd_hotspots(args.source, args)
+    elif args.verb == "categories":
+        cmd_categories(args.source, args)
+    elif args.verb == "impact":
+        if not args.id:
+            _error("ID required for impact verb", "MISSING_ID")
+        cmd_impact(args.source, args.id, args)
+    elif args.verb == "content":
+        if not args.id:
+            _error("ID required for content verb", "MISSING_ID")
+        cmd_content(args.source, args.id, args)
+    elif args.verb == "ide-url":
+        if not args.id:
+            _error("ID required for ide-url verb", "MISSING_ID")
+        cmd_ide_url(args.source, args.id, args)
 
 
 if __name__ == "__main__":
