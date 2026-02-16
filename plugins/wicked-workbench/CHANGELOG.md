@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0] - 2026-02-16
+
+### Features
+- feat: add categories, impact, content, and ide-url API verbs (030ffc6)
+
+### Chores
+- release: batch bump 14 plugins to patch (7af7913)
+- release: wicked-workbench v0.7.2 (ab35680)
+
 ## [0.7.2] - 2026-02-16
 
 ### Bug Fixes

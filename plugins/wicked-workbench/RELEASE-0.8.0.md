@@ -1,21 +1,22 @@
-# Release wicked-workbench v0.7.2
+# Release wicked-workbench v0.8.0
 
 **Date**: 2026-02-16
 **Component**: wicked-workbench
 
 ## Summary
 
-This release includes: 1 bug fix(es).
+This release includes: 1 new feature(s).
 
 ## Changes
 
-### Bug Fixes
+### Features
 
-- fix: workbench proxy item_id path handling and traverse forwarding (077441a)
+- feat: add categories, impact, content, and ide-url API verbs (030ffc6)
 
 ### Chores
 
-- release: wicked-workbench v0.7.1, wicked-mem v0.8.1, wicked-kanban v0.10.1 (62adb4d)
+- release: batch bump 14 plugins to patch (7af7913)
+- release: wicked-workbench v0.7.2 (ab35680)
 
 ## Installation
 
