@@ -165,7 +165,9 @@ cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/v2/orchestrator.py gather "$
 
 ### Hook Events
 
-Valid hook events: `SessionStart`, `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `PreCompact`, `Stop`. **`TaskCompleted` is NOT a valid event** — scripts bound to it silently never fire.
+Valid hook events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `TaskCompleted`, `SubagentStart`, `SubagentStop`, `Stop`, `PreCompact`, `Notification`, `PermissionRequest`, `TeammateIdle`, `SessionEnd`.
+
+`TaskCompleted` fires when a task is marked completed. Exit code 2 prevents completion and feeds stderr back to the model. Does not use matchers.
 
 Matchers specify tool names: `"*"` for all, or specific like `"TaskCreate"`, `"Write"`, `"Edit"`.
 
