@@ -61,8 +61,15 @@ def main():
         sys.exit(0)
 
     # Find kanban task: try task_map by subject first, then by task_id, then search
+    # Handle both old format (string) and enriched format (dict with kanban_id)
     task_map = state.get("task_map", {})
-    kanban_task_id = task_map.get(task_subject) or task_map.get(task_id)
+
+    def _resolve(entry):
+        if isinstance(entry, dict):
+            return entry.get("kanban_id")
+        return entry
+
+    kanban_task_id = _resolve(task_map.get(task_subject)) or _resolve(task_map.get(task_id))
 
     if not kanban_task_id:
         results = store.search(task_subject, project_id)
@@ -80,7 +87,7 @@ def main():
 
         # Update task_map with task_id if we only had subject mapping
         if task_id and task_id not in task_map:
-            state["task_map"][task_id] = kanban_task_id
+            state["task_map"][task_id] = {"kanban_id": kanban_task_id, "initiative_id": None}
             save_sync_state(state)
 
     sys.exit(0)

@@ -25,23 +25,37 @@
         ]
       }
     ],
-    "PostToolUse": [
+    "PreToolUse": [
       {
         "matcher": "Edit|Write",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Check if the tool input in $ARGUMENTS targets a file path containing 'MEMORY.md'. If yes, respond {\"decision\": \"If you wrote learnings, decisions, or patterns to MEMORY.md, also store them via /wicked-mem:store for structured recall with types, tags, and TTL. MEMORY.md is a quick-reference summary — wicked-mem is the source of truth.\"}. If the file is NOT a MEMORY.md file, respond {}.",
-            "timeout": 10
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/block_memory_md.py\"",
+            "timeout": 3000
           }
         ]
-      },
+      }
+    ],
+    "PostToolUse": [
       {
         "matcher": "TaskUpdate",
         "hooks": [
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_checkpoint.py\"",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py\"",
             "timeout": 3000
           }
         ]

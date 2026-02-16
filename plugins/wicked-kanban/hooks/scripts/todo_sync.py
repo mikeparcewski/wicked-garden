@@ -7,6 +7,7 @@ Makes wicked-kanban the source of truth for all task management.
 
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -82,6 +83,49 @@ def infer_priority(content: str) -> str:
         if any(kw in content_lower for kw in keywords):
             return priority
     return "P2"
+
+
+def parse_crew_initiative(subject: str) -> str | None:
+    """Extract crew project name from task subject convention.
+
+    Crew tasks follow: "Phase: project-name - description"
+    e.g. "Clarify: fix-kanban-board-isolation - Define outcome"
+    Returns the project name or None if subject doesn't match.
+    """
+    match = re.match(r'^[A-Za-z-]+:\s+([a-zA-Z0-9][a-zA-Z0-9_-]*)\s+-\s+', subject)
+    if match:
+        return match.group(1)
+    return None
+
+
+def resolve_task_map_entry(entry) -> tuple[str | None, str | None]:
+    """Extract kanban_id and initiative_id from a task_map entry.
+
+    Handles both old format (string) and new enriched format (dict).
+    """
+    if isinstance(entry, dict):
+        return entry.get("kanban_id"), entry.get("initiative_id")
+    if isinstance(entry, str):
+        return entry, None
+    return None, None
+
+
+def migrate_task_map(state: dict):
+    """Inline migration: convert old flat task_map entries to enriched format.
+
+    Old: {"subject": "kanban_task_id"}
+    New: {"subject": {"kanban_id": "kanban_task_id", "initiative_id": "init_id"}}
+
+    Entries without a known initiative_id get None (backfilled on next update).
+    """
+    task_map = state.get("task_map", {})
+    migrated = False
+    for key, value in task_map.items():
+        if isinstance(value, str):
+            task_map[key] = {"kanban_id": value, "initiative_id": None}
+            migrated = True
+    if migrated:
+        state["task_map"] = task_map
 
 
 def get_or_create_project(store, state: dict) -> str:
@@ -197,12 +241,13 @@ def sync_task_create(store, project_id: str, initiative_id: str,
     )
 
     if task:
-        # Store mapping
-        # Note: We don't have the Claude task ID yet - it's created after this hook
-        # We'll use subject as key for now
-        state.setdefault("task_map", {})[subject] = task["id"]
+        # Store enriched mapping with initiative context
+        state.setdefault("task_map", {})[subject] = {
+            "kanban_id": task["id"],
+            "initiative_id": initiative_id
+        }
 
-        # Set as active task
+        # Set as active task with correct initiative
         store.set_active_context(
             project_id=project_id,
             active_task_id=task["id"],
@@ -225,16 +270,21 @@ def sync_task_update(store, project_id: str, tool_input: dict, state: dict) -> d
     add_blocks = tool_input.get("addBlocks", [])
     metadata = tool_input.get("metadata")
 
-    # Find kanban task ID from mapping
+    # Find kanban task ID and initiative from enriched mapping
     kanban_task_id = None
+    task_initiative_id = None
+    task_map = state.get("task_map", {})
 
     # Try direct mapping by Claude task ID
-    task_map = state.get("task_map", {})
-    kanban_task_id = task_map.get(task_id)
+    entry = task_map.get(task_id)
+    if entry:
+        kanban_task_id, task_initiative_id = resolve_task_map_entry(entry)
 
     # Try by subject if we stored it that way
     if not kanban_task_id and subject:
-        kanban_task_id = task_map.get(subject)
+        entry = task_map.get(subject)
+        if entry:
+            kanban_task_id, task_initiative_id = resolve_task_map_entry(entry)
 
     if not kanban_task_id:
         # Try to find by searching
@@ -269,13 +319,13 @@ def sync_task_update(store, project_id: str, tool_input: dict, state: dict) -> d
 
             # addBlockedBy = tasks that must complete before this one
             for blocker_id in add_blocked_by:
-                blocker_kanban_id = task_map.get(blocker_id)
+                blocker_kanban_id, _ = resolve_task_map_entry(task_map.get(blocker_id))
                 if blocker_kanban_id:
                     current_deps.add(blocker_kanban_id)
 
             # addBlocks = tasks that depend on this one (reverse: add this task as dep on them)
             for blocked_id in add_blocks:
-                blocked_kanban_id = task_map.get(blocked_id)
+                blocked_kanban_id, _ = resolve_task_map_entry(task_map.get(blocked_id))
                 if blocked_kanban_id:
                     blocked_task = store.get_task(project_id, blocked_kanban_id)
                     if blocked_task:
@@ -306,9 +356,12 @@ def sync_task_update(store, project_id: str, tool_input: dict, state: dict) -> d
     if updates:
         task = store.update_task(project_id, kanban_task_id, **updates)
         if task:
-            # Update active context
+            # Update active context — preserve the task's original initiative
             if status == "in_progress":
-                store.set_active_context(active_task_id=kanban_task_id)
+                ctx = {"active_task_id": kanban_task_id}
+                if task_initiative_id:
+                    ctx["initiative_id"] = task_initiative_id
+                store.set_active_context(**ctx)
             elif status == "completed":
                 store.set_active_context(active_task_id=None)
 
@@ -333,11 +386,11 @@ def sync_todo_write(store, project_id: str, initiative_id: str,
 
         # Check if already exists
         task_map = state.get("task_map", {})
-        existing_id = task_map.get(content)
+        existing_kanban_id, _ = resolve_task_map_entry(task_map.get(content))
 
-        if existing_id:
+        if existing_kanban_id:
             # Update existing
-            store.update_task(project_id, existing_id, swimlane=swimlane)
+            store.update_task(project_id, existing_kanban_id, swimlane=swimlane)
         else:
             # Create new
             task = store.create_task(
@@ -350,7 +403,10 @@ def sync_todo_write(store, project_id: str, initiative_id: str,
                 metadata={"source": "TodoWrite"}
             )
             if task:
-                state.setdefault("task_map", {})[content] = task["id"]
+                state.setdefault("task_map", {})[content] = {
+                    "kanban_id": task["id"],
+                    "initiative_id": initiative_id
+                }
 
         synced += 1
 
@@ -374,17 +430,24 @@ def main():
     store = get_store()
     state = load_sync_state()
 
+    # Inline migration: convert old flat task_map entries to enriched format
+    migrate_task_map(state)
+
     # Get or create project
     project_id = get_or_create_project(store, state)
     if not project_id:
         print(json.dumps({"continue": True}))
         sys.exit(0)
 
-    # Get or create initiative — route by task metadata
+    # Get or create initiative — route by task metadata, then crew subject, then "Issues"
     initiative_name = None
     if tool_name in ("TaskCreate", "TodoWrite"):
         metadata = tool_input.get("metadata", {}) or {}
         initiative_name = metadata.get("initiative")
+        # Fallback: parse crew project name from task subject convention
+        if not initiative_name and tool_name == "TaskCreate":
+            subject = tool_input.get("subject", "")
+            initiative_name = parse_crew_initiative(subject)
     initiative_id = get_or_create_initiative(store, project_id, state,
                                              initiative_name=initiative_name)
 
