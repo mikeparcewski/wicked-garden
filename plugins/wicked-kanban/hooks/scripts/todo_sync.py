@@ -339,6 +339,43 @@ def sync_task_update(store, project_id: str, tool_input: dict, state: dict) -> d
     if metadata:
         updates["metadata"] = metadata
 
+        # Process lifecycle extension fields from metadata
+        if "comment" in metadata and isinstance(metadata["comment"], str):
+            store.add_comment(project_id, kanban_task_id, metadata["comment"])
+
+        if "artifacts" in metadata and isinstance(metadata["artifacts"], list):
+            # Dedupe: check existing artifacts by path before adding
+            kanban_task_for_artifacts = store.get_task(project_id, kanban_task_id)
+            existing_paths = set()
+            if kanban_task_for_artifacts:
+                existing_paths = {
+                    a.get("path", "") for a in kanban_task_for_artifacts.get("artifacts", [])
+                }
+            for artifact_path in metadata["artifacts"]:
+                if isinstance(artifact_path, str) and artifact_path and artifact_path not in existing_paths:
+                    existing_paths.add(artifact_path)
+                    name = Path(artifact_path).name
+                    store.add_artifact(project_id, kanban_task_id,
+                                       name=name, artifact_type="file",
+                                       path=artifact_path)
+
+        if "priority" in metadata:
+            updates["priority"] = metadata["priority"]
+
+        if "assigned_to" in metadata:
+            updates["assigned_to"] = metadata["assigned_to"]
+
+        if "outcome" in metadata:
+            # Determine the base description: prefer explicit description param, else fetch current
+            base_desc = description if description else None
+            if base_desc is None:
+                kanban_task_for_outcome = store.get_task(project_id, kanban_task_id)
+                base_desc = (kanban_task_for_outcome.get("description", "") or "") if kanban_task_for_outcome else ""
+            else:
+                base_desc = base_desc or ""
+            if "## Outcome" not in base_desc:
+                updates["description"] = base_desc + f"\n\n## Outcome\n{metadata['outcome']}"
+
     # Build a meaningful comment instead of just "Status changed to: X"
     comment_parts = []
     if status:

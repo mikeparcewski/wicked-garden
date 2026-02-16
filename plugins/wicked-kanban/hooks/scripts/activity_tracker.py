@@ -148,7 +148,7 @@ def main():
 
     tool_name = hook_input.get("tool_name", "")
     tool_input = hook_input.get("tool_input", {})
-    tool_result = hook_input.get("tool_result", {})
+    tool_result = hook_input.get("tool_response", hook_input.get("tool_result", {}))
 
     store = get_store()
     result = {"continue": True}
