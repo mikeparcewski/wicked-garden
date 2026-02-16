@@ -32,7 +32,7 @@
       "name": "wicked-kanban",
       "source": "./plugins/wicked-kanban",
       "description": "Persistent kanban board that survives across sessions. Auto-syncs Claude Code's TaskCreate/TaskUpdate to a durable board with git commit linking, task comments API, activity audit trail, and sprint grouping. Built-in tasks reset each session \u2014 kanban remembers everything.",
-      "version": "0.11.0"
+      "version": "0.12.0"
     },
     {
       "name": "wicked-crew",
