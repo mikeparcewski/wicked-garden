@@ -133,7 +133,7 @@ async def get_plugin(plugin: str):
 
 
 @router.get("/{plugin}/{source}/{verb}")
-@router.get("/{plugin}/{source}/{verb}/{item_id}")
+@router.get("/{plugin}/{source}/{verb}/{item_id:path}")
 async def proxy_data_request(
     plugin: str,
     source: str,
@@ -167,14 +167,14 @@ async def proxy_data_request(
         status = 404 if "not found" in error.lower() else 400
         raise HTTPException(status, {"error": error, "code": "INVALID_REQUEST"})
 
-    if verb == "get" and not item_id:
-        raise HTTPException(400, {"error": "ID required for get verb", "code": "MISSING_ID"})
+    if verb in ("get", "traverse") and not item_id:
+        raise HTTPException(400, {"error": f"ID required for {verb} verb", "code": "MISSING_ID"})
 
     # Build command
     api_script = reg.get_api_script(plugin)
     cmd = [sys.executable, api_script, verb, source]
 
-    if verb == "get" and item_id:
+    if item_id:
         cmd.append(item_id)
 
     cmd.extend(["--limit", str(limit)])
@@ -224,7 +224,7 @@ async def create_resource(plugin: str, source: str, request: Request):
     )
 
 
-@router.put("/{plugin}/{source}/update/{item_id}")
+@router.put("/{plugin}/{source}/update/{item_id:path}")
 async def update_resource(plugin: str, source: str, item_id: str, request: Request):
     """Update an existing resource via plugin api.py."""
     reg = _get_registry()
@@ -244,7 +244,7 @@ async def update_resource(plugin: str, source: str, item_id: str, request: Reque
     return _enrich_meta(result, plugin, source, verb=verb, item_id=item_id)
 
 
-@router.delete("/{plugin}/{source}/delete/{item_id}")
+@router.delete("/{plugin}/{source}/delete/{item_id:path}")
 async def delete_resource(plugin: str, source: str, item_id: str):
     """Delete a resource via plugin api.py."""
     reg = _get_registry()
