@@ -20,13 +20,13 @@
       "name": "wicked-search",
       "source": "./plugins/wicked-search",
       "description": "Unified code and document search with Symbol Graph, graph traversal, hotspot detection, and multi-project isolation. Multi-ORM data lineage, cross-layer linking, blast radius analysis, symbol enrichment, and wicked-cache integration.",
-      "version": "1.6.0"
+      "version": "1.6.1"
     },
     {
       "name": "wicked-patch",
       "source": "./plugins/wicked-patch",
       "description": "Language-agnostic code generation and change propagation using symbol graphs. 12 generators (Java, Python, TypeScript, Go, C#, Ruby, Kotlin, Rust, PHP, Perl, JSP, SQL) with safety validation and transactional rollback.",
-      "version": "1.3.0"
+      "version": "1.3.1"
     },
     {
       "name": "wicked-kanban",
@@ -38,25 +38,25 @@
       "name": "wicked-crew",
       "source": "./plugins/wicked-crew",
       "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates, project archiving, and signal-based specialist routing.",
-      "version": "0.15.0"
+      "version": "0.15.1"
     },
     {
       "name": "wicked-jam",
       "source": "./plugins/wicked-jam",
       "description": "AI-powered brainstorming with dynamic focus groups. Generate diverse perspectives on ideas through persona-based discussion rounds.",
-      "version": "0.5.0"
+      "version": "0.5.1"
     },
     {
       "name": "wicked-data",
       "source": "./plugins/wicked-data",
       "description": "Data engineering specialist for pipeline design, data analysis, ML guidance, and analytics architecture. Includes CSV/Excel analysis with DuckDB SQL querying.",
-      "version": "0.5.0"
+      "version": "0.5.1"
     },
     {
       "name": "wicked-startah",
       "source": "./plugins/wicked-startah",
       "description": "Opinionated starter kit with MCP servers and plugin recommendations for a productive Claude Code setup",
-      "version": "0.6.0"
+      "version": "0.6.1"
     },
     {
       "name": "wicked-workbench",
@@ -68,49 +68,49 @@
       "name": "wicked-qe",
       "source": "./plugins/wicked-qe",
       "description": "Quality Engineering specialist for test strategy, scenario generation, test automation, and shift-left quality practices.",
-      "version": "0.5.0"
+      "version": "0.5.1"
     },
     {
       "name": "wicked-engineering",
       "source": "./plugins/wicked-engineering",
       "description": "Engineering expertise with commands for planning, review, debugging, architecture, and docs. Includes senior engineers, architects, and technical writers.",
-      "version": "0.9.0"
+      "version": "0.9.1"
     },
     {
       "name": "wicked-product",
       "source": "./plugins/wicked-product",
       "description": "Product and design expertise spanning requirements, UX, customer voice, and business strategy. Includes product managers, designers, researchers, and strategists.",
-      "version": "0.4.0"
+      "version": "0.4.1"
     },
     {
       "name": "wicked-platform",
       "source": "./plugins/wicked-platform",
       "description": "Platform engineering expertise spanning DevSecOps, observability, and compliance. Includes SREs, security engineers, compliance officers, and infrastructure specialists.",
-      "version": "0.4.0"
+      "version": "0.4.1"
     },
     {
       "name": "wicked-delivery",
       "source": "./plugins/wicked-delivery",
       "description": "Delivery management expertise spanning PMO, experimentation, effort allocation, and risk monitoring. Includes delivery managers, cost analysts, rollout coordinators, and phase/signal effort breakdowns.",
-      "version": "0.8.0"
+      "version": "0.8.1"
     },
     {
       "name": "wicked-smaht",
       "source": "./plugins/wicked-smaht",
       "description": "Ecosystem multiplier \u2014 automatically gathers context from installed plugins (memories, tasks, code search, brainstorms) before Claude responds. The more plugins you install, the smarter it gets. Confidence-based routing: fast path for simple queries, comprehensive assembly for complex ones.",
-      "version": "2.8.0"
+      "version": "2.8.1"
     },
     {
       "name": "wicked-agentic",
       "source": "./plugins/wicked-agentic",
       "description": "Agentic architecture review, design guidance, and optimization for AI systems built with LLMs, agents, and workflows. Detects frameworks, analyzes agent topologies, scores patterns, and provides actionable recommendations.",
-      "version": "1.3.0"
+      "version": "1.3.1"
     },
     {
       "name": "wicked-scenarios",
       "source": "./plugins/wicked-scenarios",
       "description": "E2E testing via human and agent-readable markdown scenarios that orchestrate lightweight open-source CLI tools. Covers API, browser, performance, infrastructure, security, and accessibility testing with graceful degradation when tools are missing.",
-      "version": "0.4.0"
+      "version": "0.4.1"
     }
   ]
 }

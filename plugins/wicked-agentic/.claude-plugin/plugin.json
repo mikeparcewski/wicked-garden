@@ -1,6 +1,6 @@
 {
   "name": "wicked-agentic",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Agentic architecture review, design guidance, and optimization for AI systems built with LLMs, agents, and workflows. Detects frameworks, analyzes agent topologies, scores patterns, and provides actionable recommendations.",
   "author": {
     "name": "Mike Parcewski"

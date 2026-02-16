@@ -1,6 +1,6 @@
 {
   "name": "wicked-qe",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Quality Engineering specialist for test strategy, scenario generation, test automation, and shift-left quality practices. Enables faster delivery through early quality validation.",
   "author": {
     "name": "Mike Parcewski"
