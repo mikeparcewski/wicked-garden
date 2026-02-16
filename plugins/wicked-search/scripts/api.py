@@ -840,8 +840,50 @@ def _derive_directory_category(file_path):
     return "root"
 
 
+def _query_cross_category_relationships(project, category_fn):
+    """Query relationships between categories, returning edge list with ref_type counts.
+
+    Args:
+        project: project filter or None
+        category_fn: function(file_path) -> category string
+
+    Returns list of {"source": cat, "target": cat, "ref_type": str, "count": int}
+    """
+    # Join refs with symbols on both sides to get source/target file paths + ref_type
+    # Try refs table first (canonical), fall back to symbol_references
+    ref_query = """
+        SELECT s1.file_path as source_path, s2.file_path as target_path,
+               r.ref_type, COUNT(*) as cnt
+        FROM refs r
+        JOIN symbols s1 ON r.source_id = s1.id
+        JOIN symbols s2 ON r.target_id = s2.id
+        WHERE s1.file_path != s2.file_path
+        GROUP BY s1.file_path, s2.file_path, r.ref_type
+    """
+    rows = _query_graph_dbs(ref_query, (), project)
+    if not rows:
+        # Try symbol_references as fallback
+        ref_query = ref_query.replace("FROM refs r", "FROM symbol_references r")
+        rows = _query_graph_dbs(ref_query, (), project)
+
+    # Aggregate by category pair + ref_type
+    edges = {}
+    for row in rows:
+        src_cat = category_fn(row["source_path"])
+        tgt_cat = category_fn(row["target_path"])
+        if src_cat == tgt_cat:
+            continue  # Skip intra-category refs
+        key = (src_cat, tgt_cat, row["ref_type"])
+        edges[key] = edges.get(key, 0) + row["cnt"]
+
+    return sorted(
+        [{"source": k[0], "target": k[1], "ref_type": k[2], "count": v}
+         for k, v in edges.items()],
+        key=lambda e: -e["count"])
+
+
 def cmd_categories(source, args):
-    """Aggregate symbols by type and directory category."""
+    """Aggregate symbols by type and directory category with cross-category relationships."""
     project = getattr(args, 'project', None)
 
     if source != "symbols":
@@ -878,12 +920,34 @@ def cmd_categories(source, args):
         [{"category": k, "symbol_count": v} for k, v in dir_categories.items()],
         key=lambda c: -c["symbol_count"])
 
+    # Cross-category relationships by directory
+    dir_relationships = _query_cross_category_relationships(project, _derive_directory_category)
+
+    # Cross-layer relationships (group by layer instead of directory)
+    def _layer_from_path(file_path):
+        """Derive layer for a file by its most common symbol type."""
+        # Use a simple heuristic: map file extension / path patterns to layers
+        fp = file_path.lower()
+        if any(x in fp for x in ("/views/", "/pages/", "/templates/", "/jsp/", ".jsp", ".html", ".hbs")):
+            return "view"
+        if any(x in fp for x in ("/migrations/", "/schema", "/sql/", ".sql")):
+            return "database"
+        if any(x in fp for x in ("/components/", "/ui/", "/frontend/", ".tsx", ".jsx", ".vue", ".svelte")):
+            return "frontend"
+        return "backend"
+
+    layer_relationships = _query_cross_category_relationships(project, _layer_from_path)
+
     data = {
         "by_type": type_rows,
         "by_layer": sorted(
             [{"layer": k, "symbol_count": v} for k, v in layer_counts.items()],
             key=lambda c: -c["symbol_count"]),
         "by_directory": dir_data[:args.limit],
+        "relationships": {
+            "by_directory": dir_relationships[:args.limit],
+            "by_layer": layer_relationships,
+        },
     }
 
     total = len(type_rows) + len(layer_counts) + len(dir_categories)
