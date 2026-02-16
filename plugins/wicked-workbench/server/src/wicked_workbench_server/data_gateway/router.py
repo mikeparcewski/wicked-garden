@@ -22,7 +22,7 @@ from .discovery import PluginDataRegistry
 
 router = APIRouter(prefix="/api/v1/data", tags=["data-gateway"])
 
-READ_VERBS = {"list", "get", "search", "stats", "traverse", "hotspots"}
+READ_VERBS = {"list", "get", "search", "stats", "traverse", "hotspots", "categories", "impact", "content", "ide-url"}
 WRITE_VERBS = {"create", "update", "delete"}
 VALID_VERBS = READ_VERBS | WRITE_VERBS
 
@@ -148,6 +148,10 @@ async def proxy_data_request(
     direction: Optional[str] = Query(None, pattern="^(both|in|out)$"),
     layer: Optional[str] = None,
     type: Optional[str] = None,
+    line_start: Optional[int] = Query(None, ge=1),
+    line_end: Optional[int] = Query(None, ge=1),
+    line: Optional[int] = Query(None, ge=1),
+    ide: Optional[str] = Query(None, pattern="^(vscode|idea|cursor)$"),
 ):
     """Proxy a read request to a plugin's api.py via subprocess."""
     reg = _get_registry()
@@ -167,7 +171,8 @@ async def proxy_data_request(
         status = 404 if "not found" in error.lower() else 400
         raise HTTPException(status, {"error": error, "code": "INVALID_REQUEST"})
 
-    if verb in ("get", "traverse") and not item_id:
+    id_required_verbs = {"get", "traverse", "impact", "content", "ide-url"}
+    if verb in id_required_verbs and not item_id:
         raise HTTPException(400, {"error": f"ID required for {verb} verb", "code": "MISSING_ID"})
 
     # Build command
@@ -193,6 +198,14 @@ async def proxy_data_request(
         cmd.extend(["--layer", layer])
     if type:
         cmd.extend(["--type", type])
+    if line_start is not None:
+        cmd.extend(["--line-start", str(line_start)])
+    if line_end is not None:
+        cmd.extend(["--line-end", str(line_end)])
+    if line is not None:
+        cmd.extend(["--line", str(line)])
+    if ide:
+        cmd.extend(["--ide", ide])
 
     result = await _run_subprocess(cmd)
     return _enrich_meta(result, plugin, source)
