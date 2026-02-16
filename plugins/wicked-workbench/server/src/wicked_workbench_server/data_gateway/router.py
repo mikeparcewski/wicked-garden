@@ -22,7 +22,7 @@ from .discovery import PluginDataRegistry
 
 router = APIRouter(prefix="/api/v1/data", tags=["data-gateway"])
 
-READ_VERBS = {"list", "get", "search", "stats"}
+READ_VERBS = {"list", "get", "search", "stats", "traverse", "hotspots"}
 WRITE_VERBS = {"create", "update", "delete"}
 VALID_VERBS = READ_VERBS | WRITE_VERBS
 
@@ -144,6 +144,10 @@ async def proxy_data_request(
     query: Optional[str] = None,
     project: Optional[str] = None,
     filter: Optional[str] = None,
+    depth: Optional[int] = Query(None, ge=1, le=10),
+    direction: Optional[str] = Query(None, pattern="^(both|in|out)$"),
+    layer: Optional[str] = None,
+    type: Optional[str] = None,
 ):
     """Proxy a read request to a plugin's api.py via subprocess."""
     reg = _get_registry()
@@ -181,6 +185,14 @@ async def proxy_data_request(
         cmd.extend(["--project", project])
     if filter:
         cmd.extend(["--filter", filter])
+    if depth is not None:
+        cmd.extend(["--depth", str(depth)])
+    if direction:
+        cmd.extend(["--direction", direction])
+    if layer:
+        cmd.extend(["--layer", layer])
+    if type:
+        cmd.extend(["--type", type])
 
     result = await _run_subprocess(cmd)
     return _enrich_meta(result, plugin, source)
