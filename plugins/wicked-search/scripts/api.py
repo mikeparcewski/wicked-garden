@@ -801,77 +801,92 @@ def _infer_language(file_path):
     return ext_map.get(ext, "text")
 
 
+def _derive_directory_category(file_path):
+    """Derive a category from file path using the first meaningful directory."""
+    parts = file_path.replace("\\", "/").split("/")
+
+    # Known framework markers to skip past
+    skip_markers = {"src", "main", "java", "kotlin", "scala", "python", "lib",
+                    "WEB-INF", "META-INF", "resources", "static", "public",
+                    "app", "internal", "pkg", "cmd"}
+    view_markers = {"pages", "jsp", "jsp-client", "views", "templates", "webapp"}
+
+    # Strategy 1: Skip past known markers to find first meaningful dir
+    for i, part in enumerate(parts):
+        if part in view_markers:
+            remaining = parts[i + 1:]
+            if remaining and remaining[0] in ("WEB-INF",):
+                remaining = remaining[1:]
+            if remaining and remaining[0] in view_markers:
+                remaining = remaining[1:]
+            if len(remaining) > 1:
+                return remaining[0]
+            return "root"
+
+    # Strategy 2: Find first dir after src/main/... pattern
+    for i, part in enumerate(parts):
+        if part == "src" and i + 2 < len(parts):
+            # Skip src/main/java/com/... → use package-level dir
+            rest = parts[i + 1:]
+            meaningful = [p for p in rest[:-1] if p not in skip_markers]
+            if meaningful:
+                return meaningful[0]
+
+    # Strategy 3: Use top-level directory (skip common roots)
+    meaningful = [p for p in parts[:-1] if p and p not in skip_markers and not p.startswith(".")]
+    if meaningful:
+        return meaningful[0]
+
+    return "root"
+
+
 def cmd_categories(source, args):
-    """Aggregate symbols (pages) by category with counts."""
+    """Aggregate symbols by type and directory category."""
     project = getattr(args, 'project', None)
 
     if source != "symbols":
         _error("categories verb only supported for symbols source", "UNSUPPORTED_VERB",
                source=source, verb="categories")
 
-    # Query: get all jsp_page symbols grouped by directory category
-    # Also count fields (el_expression + form_binding) per page via refs
     dbs = _find_graph_dbs(project)
 
     if not dbs:
         print(json.dumps({"data": [], "meta": _meta(source, 0)}, indent=2))
         return
 
-    # Step 1: Get all JSP pages
-    pages = _query_graph_dbs(
-        "SELECT id, file_path FROM symbols WHERE type = 'jsp_page'",
+    # Group by symbol type
+    type_rows = _query_graph_dbs(
+        "SELECT type, COUNT(*) as count FROM symbols GROUP BY type ORDER BY count DESC",
         (), project)
 
-    # Step 2: Count fields (el_expression + form_binding) per page
-    field_counts = _query_graph_dbs(
-        """SELECT s2.file_path, COUNT(*) as cnt
-           FROM symbols s2
-           WHERE s2.type IN ('el_expression', 'form_binding')
-           GROUP BY s2.file_path""",
+    # Group by layer
+    layer_counts = {}
+    for row in type_rows:
+        layer = _get_layer_for_type(row["type"])
+        layer_counts[layer] = layer_counts.get(layer, 0) + row["count"]
+
+    # Group by directory category
+    all_symbols = _query_graph_dbs(
+        "SELECT file_path FROM symbols",
         (), project)
-    fields_by_file = {r["file_path"]: r["cnt"] for r in field_counts}
+    dir_categories = {}
+    for sym in all_symbols:
+        cat = _derive_directory_category(sym.get("file_path", ""))
+        dir_categories[cat] = dir_categories.get(cat, 0) + 1
 
-    # Step 3: Derive category from file path
-    # Pattern: extract first meaningful directory after WEB-INF/pages/ or WEB-INF/jsp/ or webapp/
-    categories = {}
-    for page in pages:
-        fp = page.get("file_path", "")
-        parts = fp.replace("\\", "/").split("/")
+    dir_data = sorted(
+        [{"category": k, "symbol_count": v} for k, v in dir_categories.items()],
+        key=lambda c: -c["symbol_count"])
 
-        # Find category: first dir after known markers
-        cat = "other"
-        for i, part in enumerate(parts):
-            if part in ("pages", "jsp", "jsp-client", "views"):
-                remaining = parts[i + 1:]
-                if len(remaining) > 1:
-                    cat = remaining[0]
-                elif len(remaining) == 1:
-                    cat = "root"
-                break
-            if part == "webapp":
-                remaining = parts[i + 1:]
-                # Skip WEB-INF if present
-                if remaining and remaining[0] == "WEB-INF":
-                    remaining = remaining[1:]
-                # Skip pages/jsp/views if present
-                if remaining and remaining[0] in ("pages", "jsp", "jsp-client", "views"):
-                    remaining = remaining[1:]
-                if len(remaining) > 1:
-                    cat = remaining[0]
-                elif len(remaining) == 1:
-                    cat = "root"
-                break
+    data = {
+        "by_type": type_rows,
+        "by_layer": sorted(
+            [{"layer": k, "symbol_count": v} for k, v in layer_counts.items()],
+            key=lambda c: -c["symbol_count"]),
+        "by_directory": dir_data[:args.limit],
+    }
 
-        if cat not in categories:
-            categories[cat] = {"category": cat, "page_count": 0, "total_fields": 0}
-        categories[cat]["page_count"] += 1
-        categories[cat]["total_fields"] += fields_by_file.get(fp, 0)
-
-    data = sorted(categories.values(), key=lambda c: -c["page_count"])
-
-    # Apply pagination
-    total = len(data)
-    data = data[args.offset:args.offset + args.limit]
+    total = len(type_rows) + len(layer_counts) + len(dir_categories)
     print(json.dumps({"data": data, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
 
 
