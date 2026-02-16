@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from memory import MemoryStore, MemoryType, Importance, get_store
 
-VALID_SOURCES = {"memories"}
+VALID_SOURCES = {"memories", "projects"}
 
 
 def _meta(source, total, limit=100, offset=0):
@@ -79,6 +79,16 @@ def _memory_to_dict(m):
 
 
 # ==================== Read Handlers ====================
+
+
+def cmd_list_projects(args):
+    """List all projects that have stored memories."""
+    store = get_store()
+    projects = store.list_projects()
+    data = [{"name": p} for p in projects]
+    total = len(data)
+    page = data[args.offset:args.offset + args.limit]
+    print(json.dumps({"data": page, "meta": _meta("projects", total, args.limit, args.offset)}, indent=2))
 
 
 def cmd_list(args):
@@ -281,7 +291,10 @@ def main():
                source=args.source, valid=list(VALID_SOURCES))
 
     if args.verb == "list":
-        cmd_list(args)
+        if args.source == "projects":
+            cmd_list_projects(args)
+        else:
+            cmd_list(args)
     elif args.verb == "get":
         if not args.id:
             _error("ID required for get verb", "MISSING_ID")

@@ -219,13 +219,18 @@ class KanbanStore:
     def list_projects(self) -> List[Dict]:
         """List all projects (metadata only)."""
         projects = []
+        if not self.projects_path.exists():
+            return projects
         for project_dir in self.projects_path.iterdir():
             if project_dir.is_dir():
                 project = self._read_json(project_dir / "project.json")
                 if project:
-                    # Add task count from index
                     index = self._load_index(project["id"])
                     project["task_count"] = len(index.get("all", []))
+                    by_swimlane = index.get("by_swimlane", {})
+                    project["todo_count"] = len(by_swimlane.get("todo", []))
+                    project["in_progress_count"] = len(by_swimlane.get("in_progress", []))
+                    project["done_count"] = len(by_swimlane.get("done", []))
                     projects.append(project)
         return sorted(projects, key=lambda p: p.get("created_at", ""), reverse=True)
 
@@ -708,12 +713,17 @@ class KanbanStore:
     # ==================== Activity ====================
 
     def get_activity(self, project_id: str, date_str: str = None,
-                     limit: int = 100) -> List[Dict]:
+                     limit: int = 100, **kwargs) -> List[Dict]:
         """Get activity log entries."""
+        # Support 'date' as alias for 'date_str' (HTTP handler compat)
+        if date_str is None:
+            date_str = kwargs.get("date")
         if date_str:
             files = [self._activity_file(project_id, date_str)]
         else:
             activity_dir = self._activity_dir(project_id)
+            if not activity_dir.exists():
+                return []
             files = sorted(activity_dir.glob("*.jsonl"), reverse=True)
 
         entries = []
