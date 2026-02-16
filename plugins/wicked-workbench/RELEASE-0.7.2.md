@@ -1,4 +1,4 @@
-# Release wicked-workbench v0.7.1
+# Release wicked-workbench v0.7.2
 
 **Date**: 2026-02-16
 **Component**: wicked-workbench
@@ -11,15 +11,11 @@ This release includes: 1 bug fix(es).
 
 ### Bug Fixes
 
-- fix: resolve 5 reported issues across workbench, mem, and kanban plugins (be46dab)
-
-### Documentation
-
-- docs: update READMEs, skills, and marketplace for plugin API enhancements (0c5093a)
+- fix: workbench proxy item_id path handling and traverse forwarding (077441a)
 
 ### Chores
 
-- release: wicked-crew v0.15.0, wicked-delivery v0.8.0, wicked-search v1.6.0, wicked-kanban v0.10.0 (59f7f71)
+- release: wicked-workbench v0.7.1, wicked-mem v0.8.1, wicked-kanban v0.10.1 (62adb4d)
 
 ## Installation
 

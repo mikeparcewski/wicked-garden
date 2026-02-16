@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.2] - 2026-02-16
+
+### Bug Fixes
+- fix: workbench proxy item_id path handling and traverse forwarding (077441a)
+
+### Chores
+- release: wicked-workbench v0.7.1, wicked-mem v0.8.1, wicked-kanban v0.10.1 (62adb4d)
+
 ## [0.7.1] - 2026-02-16
 
 ### Bug Fixes
