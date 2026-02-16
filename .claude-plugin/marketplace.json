@@ -20,7 +20,7 @@
       "name": "wicked-search",
       "source": "./plugins/wicked-search",
       "description": "Unified code and document search with Symbol Graph, graph traversal, hotspot detection, and multi-project isolation. Multi-ORM data lineage, cross-layer linking, blast radius analysis, symbol enrichment, and wicked-cache integration.",
-      "version": "1.6.1"
+      "version": "1.7.0"
     },
     {
       "name": "wicked-patch",
@@ -62,7 +62,7 @@
       "name": "wicked-workbench",
       "source": "./plugins/wicked-workbench",
       "description": "Build-your-own dashboard for wicked-garden plugins using A2UI protocol. Combines components from kanban, memory, and other plugins into unified, AI-generated interfaces.",
-      "version": "0.7.2"
+      "version": "0.8.0"
     },
     {
       "name": "wicked-qe",

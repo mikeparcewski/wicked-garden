@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0] - 2026-02-16
+
+### Features
+- feat: add categories, impact, content, and ide-url API verbs (030ffc6)
+
+### Chores
+- release: batch bump 14 plugins to patch (7af7913)
+
 ## [1.6.1] - 2026-02-16
 
 ### Bug Fixes
