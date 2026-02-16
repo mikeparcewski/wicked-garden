@@ -62,7 +62,7 @@
       "name": "wicked-workbench",
       "source": "./plugins/wicked-workbench",
       "description": "Build-your-own dashboard for wicked-garden plugins using A2UI protocol. Combines components from kanban, memory, and other plugins into unified, AI-generated interfaces.",
-      "version": "0.7.1"
+      "version": "0.7.2"
     },
     {
       "name": "wicked-qe",

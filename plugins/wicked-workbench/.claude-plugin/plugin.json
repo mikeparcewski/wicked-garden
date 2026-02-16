@@ -1,6 +1,6 @@
 {
   "name": "wicked-workbench",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Plugin data gateway and dashboard for wicked-garden. Discovers plugin data sources via wicked.json and provides a unified API for querying across plugins.",
   "author": {
     "name": "Mike Parcewski"
