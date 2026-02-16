@@ -1,109 +1,169 @@
 ---
-name: custom-catalog-component
-title: Custom Component Catalog Extension
-description: Create and use a custom component catalog from a plugin
+name: custom-data-source
+title: Custom Plugin Data Source Extension
+description: Create a plugin with custom data sources discoverable by the data gateway
 type: integration
 difficulty: advanced
 estimated_minutes: 15
 ---
 
-# Custom Component Catalog Extension
+# Custom Plugin Data Source Extension
 
-Demonstrates how plugins can extend Workbench by providing custom component catalogs. This proves the extensibility model: any plugin can define new components that Claude Code can use to generate dashboards.
+Demonstrates how plugins can expose data to the Workbench data gateway by declaring sources in `wicked.json` and implementing an `api.py` script. This proves the extensibility model: any plugin can provide data that dashboards can consume.
 
 ## Setup
 
-We'll create a minimal plugin with a custom catalog:
+We'll create a minimal plugin with a custom data source.
 
 ### 1. Create Plugin Directory
 
 ```bash
-mkdir -p ~/.claude/plugins/demo-metrics/.claude-plugin
+mkdir -p /tmp/demo-metrics/.claude-plugin
+mkdir -p /tmp/demo-metrics/scripts
 ```
 
-### 2. Create catalog.json
-
-Create `~/.claude/plugins/demo-metrics/.claude-plugin/catalog.json` with:
-- MetricCard component: props for label, value, trend, color
-- MetricGrid component: grid layout accepting MetricCard children
-- show-metrics intent
-
-(See full catalog.json example in wicked-workbench README)
-
-### 3. Restart Workbench
+### 2. Create plugin.json
 
 ```bash
-# Stop and restart to discover the new catalog
-wicked-workbench
+cat > /tmp/demo-metrics/.claude-plugin/plugin.json << 'EOF'
+{
+  "name": "demo-metrics",
+  "version": "0.1.0",
+  "description": "Demo plugin exposing custom metrics data"
+}
+EOF
+```
+
+### 3. Create wicked.json
+
+```bash
+cat > /tmp/demo-metrics/wicked.json << 'EOF'
+{
+  "$schema": "wicked-data/1.0.0",
+  "api_script": "scripts/api.py",
+  "sources": [
+    {
+      "name": "metrics",
+      "description": "Application performance metrics",
+      "capabilities": ["list", "get", "stats"]
+    }
+  ]
+}
+EOF
+```
+
+### 4. Create api.py
+
+```bash
+cat > /tmp/demo-metrics/scripts/api.py << 'PYEOF'
+#!/usr/bin/env python3
+"""Demo metrics API for wicked-workbench data gateway."""
+import json
+import sys
+
+def main():
+    verb = sys.argv[1] if len(sys.argv) > 1 else "list"
+    source = sys.argv[2] if len(sys.argv) > 2 else "metrics"
+
+    if verb == "list":
+        print(json.dumps({
+            "items": [
+                {"name": "active_users", "value": 1523, "trend": "up"},
+                {"name": "error_rate", "value": 0.05, "trend": "down"},
+                {"name": "response_time_ms", "value": 245, "trend": "stable"}
+            ],
+            "total": 3
+        }))
+    elif verb == "stats":
+        print(json.dumps({
+            "total_metrics": 3,
+            "healthy": 3,
+            "degraded": 0
+        }))
+    else:
+        print(json.dumps({"error": f"Unknown verb: {verb}"}), file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+PYEOF
+chmod +x /tmp/demo-metrics/scripts/api.py
+```
+
+### 5. Restart Workbench with Plugin Path
+
+```bash
+WICKED_PLUGINS_DIR=/tmp uvx --from wicked-workbench-server wicked-workbench
 ```
 
 ## Steps
 
-### 1. Verify Custom Catalog Discovered
+### 1. Verify Custom Data Source Discovered
 
 ```bash
-curl http://localhost:18889/api/catalogs | jq '.[] | select(.catalogId == "demo-metrics")'
+curl -s http://localhost:18889/api/v1/data/plugins | jq '.plugins[] | select(.name == "demo-metrics")'
 ```
 
-### 2. View Catalog Details
+### 2. Query Custom Data Source
 
 ```bash
-curl http://localhost:18889/api/catalogs/demo-metrics | jq .
+curl -s http://localhost:18889/api/v1/data/demo-metrics/metrics/list | jq .
 ```
 
-### 3. Generate Dashboard Using Custom Component
+### 3. Get Stats
+
+```bash
+curl -s http://localhost:18889/api/v1/data/demo-metrics/metrics/stats | jq .
+```
+
+### 4. Generate Dashboard Using Custom Data
 
 In Claude Code:
 
 ```
-Create a metrics dashboard showing:
-- Active users: 1,523 (up trend, green)
-- Error rate: 0.05% (down trend, green)
-- Response time: 245ms (neutral, blue)
+Create a metrics dashboard showing application performance metrics
 ```
-
-### 4. Verify A2UI Uses Custom Components
-
-Claude generates A2UI using MetricGrid with 3 MetricCard children, each with label, value, trend, and color props.
-
-### 5. View Dashboard
-
-Open http://localhost:18889 to see the rendered metrics.
 
 ## Expected Outcome
 
-### Step 1: Catalog Discovery
-Returns catalogId "demo-metrics" with componentCount: 2
+### Step 1: Discovery
+```json
+{
+  "name": "demo-metrics",
+  "schema_version": "1.0.0",
+  "sources": [{"name": "metrics", "capabilities": ["list", "get", "stats"]}]
+}
+```
 
-### Step 2: Catalog Details
-Shows MetricCard and MetricGrid components with full prop definitions.
+### Step 2: List Metrics
+```json
+{
+  "items": [
+    {"name": "active_users", "value": 1523, "trend": "up"},
+    {"name": "error_rate", "value": 0.05, "trend": "down"},
+    {"name": "response_time_ms", "value": 245, "trend": "stable"}
+  ]
+}
+```
 
-### Step 3: Dashboard Generation
-Claude creates dashboard using demo-metrics components.
-
-### Step 4: Custom Component Usage
-A2UI uses MetricGrid and MetricCard from custom catalog.
-
-### Step 5: Rendered Dashboard
-3 metric cards in grid layout with labels, values, and trends.
+### Step 3: Stats
+```json
+{"total_metrics": 3, "healthy": 3, "degraded": 0}
+```
 
 ## Success Criteria
 
-- [ ] Custom catalog.json is created in plugin directory
-- [ ] Workbench discovers the new catalog on startup
-- [ ] GET /api/catalogs includes "demo-metrics"
-- [ ] GET /api/catalogs/demo-metrics returns full component definitions
-- [ ] Claude Code reads the catalog and understands when to use these components
-- [ ] Claude generates A2UI using MetricCard and MetricGrid components
-- [ ] Dashboard renders with custom components
-- [ ] Component props (label, value, trend, color) are respected
+- [ ] `wicked.json` is created with data source declaration
+- [ ] `api.py` script handles list and stats verbs
+- [ ] Workbench discovers the new data source on startup
+- [ ] GET `/api/v1/data/plugins` includes "demo-metrics"
+- [ ] GET `/api/v1/data/demo-metrics/metrics/list` returns metrics data
+- [ ] GET `/api/v1/data/demo-metrics/metrics/stats` returns summary
 
 ## Value Demonstrated
 
-**Plugin extensibility**: Any plugin can define custom components by creating a catalog.json. No changes to Workbench code required.
+**Plugin extensibility**: Any plugin can expose data by creating `wicked.json` + `scripts/api.py`. No changes to Workbench code required.
 
-**AI-friendly component design**: Component descriptions in the catalog teach Claude Code when and how to use each component. Good descriptions = better dashboard generation.
+**Standard API contract**: All plugins use the same verb-based API pattern (list, get, search, stats, create, update, delete), making data access predictable.
 
-**Rapid prototyping**: Create new dashboard component types in minutes. Define the component contract in JSON, Claude Code can immediately use it.
-
-**Real-world use**: Custom monitoring dashboards (SRE metrics), business KPI dashboards (revenue, growth), engineering metrics (build times, test coverage), data quality dashboards (profiling results, validation status).
+**Real-world use**: Custom monitoring data, business KPIs, engineering metrics, data quality results — all accessible through the unified data gateway.

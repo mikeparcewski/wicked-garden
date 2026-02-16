@@ -1,7 +1,7 @@
 ---
 name: server-startup-health
 title: Server Startup and Health Check
-description: Verify Workbench server starts and discovers plugin ecosystem
+description: Verify Workbench server starts and discovers plugin data sources
 type: setup
 difficulty: basic
 estimated_minutes: 5
@@ -9,20 +9,14 @@ estimated_minutes: 5
 
 # Server Startup and Health Check
 
-Verifies that Workbench starts successfully, exposes its API, and discovers the plugin ecosystem. This proves the foundation for all dashboard rendering workflows.
+Verifies that Workbench starts successfully, exposes its API, and discovers plugin data sources via the data gateway.
 
 ## Setup
 
-No additional setup required. Ensure you have wicked-workbench installed:
+No additional setup required. Ensure you have the workbench server available:
 
 ```bash
-pip install wicked-workbench
-```
-
-Optionally install plugins with component catalogs:
-
-```bash
-pip install wicked-kanban wicked-mem
+uvx --from wicked-workbench-server wicked-workbench --help
 ```
 
 ## Steps
@@ -32,13 +26,13 @@ pip install wicked-kanban wicked-mem
 In Claude Code:
 
 ```
-/wicked-workbench:workbench
+/wicked-workbench:workbench start
 ```
 
 Or directly from terminal:
 
 ```bash
-wicked-workbench
+uvx --from wicked-workbench-server wicked-workbench
 ```
 
 ### 2. Verify Health Endpoint
@@ -47,102 +41,83 @@ wicked-workbench
 curl http://localhost:18889/health
 ```
 
-### 3. Check Component Catalogs
+### 3. Check Data Sources
 
 ```bash
-curl http://localhost:18889/api/catalogs
+curl http://localhost:18889/api/v1/data/plugins
 ```
 
-### 4. Check MCP Server Status
+### 4. Check Legacy Plugin Discovery
+
+```bash
+curl http://localhost:18889/api/plugins
+```
+
+### 5. Check MCP Server Status
 
 ```bash
 curl http://localhost:18889/api/servers
-```
-
-### 5. Verify Server is Ready
-
-```bash
-curl http://localhost:18889/api/prompt
 ```
 
 ## Expected Outcome
 
 ### Step 1: Server Startup
 ```
-Starting Wicked Workbench on http://127.0.0.1:18889
-Plugin directory: ~/.claude/plugins
-Database: ~/.wicked-workbench/workbench.db
+Starting Wicked Workbench at http://127.0.0.1:18889
+Dashboard UI: http://127.0.0.1:18889/
+API docs: http://127.0.0.1:18889/docs
 ```
 
 ### Step 2: Health Check
 ```json
 {
-  "status": "ok",
-  "version": "0.2.0",
-  "uptime": 5
+  "status": "healthy",
+  "service": "wicked-workbench"
 }
 ```
 
-### Step 3: Component Catalogs
-```json
-[
-  {
-    "catalogId": "workbench",
-    "version": "1.0.0",
-    "description": "Built-in demo components",
-    "componentCount": 8
-  },
-  {
-    "catalogId": "kanban",
-    "version": "1.0.0",
-    "description": "Task management components",
-    "componentCount": 5
-  },
-  {
-    "catalogId": "memory",
-    "version": "1.0.0",
-    "description": "Memory and context components",
-    "componentCount": 3
-  }
-]
-```
-
-Note: If no plugins are installed, you'll only see the `workbench` built-in catalog.
-
-### Step 4: MCP Server Status
+### Step 3: Data Sources
 ```json
 {
-  "kanban": {
-    "status": "connected",
-    "port": 18888,
-    "lastPing": "2026-02-05T10:30:00Z"
-  },
-  "memory": {
-    "status": "connected",
-    "port": 18890,
-    "lastPing": "2026-02-05T10:30:00Z"
+  "plugins": [
+    {
+      "name": "wicked-kanban",
+      "schema_version": "1.0.0",
+      "sources": [
+        {"name": "projects", "description": "...", "capabilities": ["list", "get", "create", "update", "delete"]},
+        {"name": "tasks", "description": "...", "capabilities": ["list", "get", "search", "stats", "create", "update", "delete"]}
+      ]
+    }
+  ],
+  "meta": {
+    "total_plugins": 7,
+    "total_sources": 24,
+    "schema_version": "1.0.0"
   }
 }
 ```
 
-### Step 5: A2UI Prompt
-Should return a detailed system prompt explaining how to generate A2UI JSON from component catalogs.
+Note: Actual plugin count depends on which plugins are installed and have `wicked.json` with data sources.
+
+### Step 4: Legacy Plugin Discovery
+Returns list of all installed wicked-garden plugins with metadata from their `plugin.json`.
+
+### Step 5: MCP Server Status
+Returns status of configured MCP server connections (may be empty if none configured).
 
 ## Success Criteria
 
 - [ ] Server starts without errors
-- [ ] Health endpoint returns `{"status": "ok"}`
-- [ ] At least one catalog is discovered (built-in `workbench` catalog)
-- [ ] MCP server status endpoint responds (may show no servers if none running)
-- [ ] A2UI prompt endpoint returns generation instructions
+- [ ] Health endpoint returns `{"status": "healthy"}`
+- [ ] Data gateway discovers at least one plugin with data sources
+- [ ] MCP server status endpoint responds
 - [ ] Server is accessible at http://localhost:18889
+- [ ] Dashboard UI loads in browser
 
 ## Value Demonstrated
 
-**Zero-configuration startup**: Workbench starts with no configuration required and automatically discovers installed plugins and their component catalogs.
+**Zero-configuration startup**: Workbench starts with no configuration required and automatically discovers installed plugins and their data sources.
 
-**Plugin ecosystem awareness**: The `/api/catalogs` endpoint shows Workbench has successfully scanned the plugin directory and loaded component definitions that Claude Code can use.
+**Plugin data gateway**: The `/api/v1/data/plugins` endpoint shows all plugins that expose data via `wicked.json`, enabling unified data access across the ecosystem.
 
-**MCP integration readiness**: The `/api/servers` endpoint shows which data sources are available for live dashboard data.
-
-**Real-world use**: Before generating dashboards, you can verify what components and data sources are available, ensuring Claude Code has the building blocks it needs.
+**Real-world use**: Before generating dashboards, verify what data sources are available, ensuring Claude Code has the building blocks it needs.

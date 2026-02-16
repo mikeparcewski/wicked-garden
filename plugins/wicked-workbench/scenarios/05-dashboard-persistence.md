@@ -1,123 +1,122 @@
 ---
 name: dashboard-persistence
-title: Dashboard Persistence and Retrieval
-description: Save, list, and reload dashboards across sessions
+title: Dashboard Data Refresh and Multi-Source Queries
+description: Refresh plugin discovery and query multiple data sources
 type: dashboard
 difficulty: intermediate
 estimated_minutes: 8
 ---
 
-# Dashboard Persistence and Retrieval
+# Dashboard Data Refresh and Multi-Source Queries
 
-Demonstrates saving dashboards to the Workbench database so they can be reloaded in future sessions. This proves dashboards are not ephemeral - they're persistent artifacts that can be shared and revisited.
+Demonstrates the data gateway's refresh mechanism and complex multi-source queries. This proves the gateway maintains an up-to-date view of the plugin ecosystem and supports rich data access patterns.
 
 ## Setup
 
-Ensure Workbench is running with database enabled (default):
+Ensure Workbench is running:
 
-```bash
-wicked-workbench
+```
+/wicked-workbench:workbench start
 ```
 
-Create some test data:
+Create some test data. In Claude Code:
 
-```bash
-# In Claude Code
-/wicked-kanban:task create "Deploy to production" --priority high
-/wicked-kanban:task create "Fix critical bug" --priority high
-/wicked-kanban:task create "Update docs" --priority low
+```
+/wicked-kanban:new-task "Deploy to production"
+/wicked-kanban:new-task "Fix critical bug"
+/wicked-kanban:new-task "Update docs"
 ```
 
 ## Steps
 
-### 1. Generate Initial Dashboard
-
-In Claude Code:
-
-```
-Create a dashboard showing high priority tasks
-```
-
-Claude generates and sends A2UI to Workbench. Dashboard appears at http://localhost:18889.
-
-### 2. Save the Dashboard
+### 1. Check Current Data Sources
 
 ```bash
-curl -X POST http://localhost:18889/api/dashboards \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "High Priority Tasks",
-    "description": "Dashboard showing all high priority tasks from kanban",
-    "tags": ["tasks", "priority", "kanban"]
-  }'
+curl -s http://localhost:18889/api/v1/data/plugins | jq '.meta'
 ```
 
-This saves the currently displayed dashboard.
-
-### 3. List Saved Dashboards
+### 2. Query with Filters
 
 ```bash
-curl http://localhost:18889/api/dashboards | jq .
+# Search tasks
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/search?query=bug" | jq '.items'
+
+# Get task stats
+curl -s http://localhost:18889/api/v1/data/wicked-kanban/tasks/stats | jq .
 ```
 
-### 4. Generate a Different Dashboard
+### 3. Refresh Plugin Discovery
 
-In Claude Code:
-
-```
-Show all tasks grouped by status
+```bash
+curl -X POST http://localhost:18889/api/v1/data/refresh | jq .
 ```
 
-This replaces the current dashboard view.
+### 4. Query with Pagination
 
-### 5. Reload the Saved Dashboard
+```bash
+# First page
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/list?limit=2&offset=0" | jq '.items | length'
 
-Get dashboard by ID and send its document to /api/render to restore the view.
+# Second page
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/list?limit=2&offset=2" | jq '.items | length'
+```
 
-### 6. Update Dashboard Metadata
+### 5. Cross-Plugin Data Assembly
 
-Update name and tags via PUT /api/dashboards/{id}.
+Query multiple sources to build a composite view:
+
+```bash
+# Tasks
+curl -s http://localhost:18889/api/v1/data/wicked-kanban/tasks/list?limit=5
+
+# Related memories
+curl -s "http://localhost:18889/api/v1/data/wicked-mem/memories/search?query=deploy"
+
+# Project context
+curl -s http://localhost:18889/api/v1/data/wicked-crew/projects/list
+```
 
 ## Expected Outcome
 
-### Step 1: Dashboard Generation
-Dashboard appears showing high priority tasks.
+### Step 1: Current Sources
+```json
+{
+  "total_plugins": 7,
+  "total_sources": 24,
+  "schema_version": "1.0.0"
+}
+```
 
-### Step 2: Save Response
-Returns dashboard ID with metadata (name, description, tags, timestamps).
+### Step 2: Filtered Results
+Search returns matching tasks; stats returns aggregated counts.
 
-### Step 3: List Dashboards
-Shows saved dashboard with preview (component count, data sources).
+### Step 3: Refresh
+```json
+{
+  "status": "refreshed",
+  "plugins": 7
+}
+```
 
-### Step 4: Different Dashboard
-Browser shows new dashboard (tasks by status).
+### Step 4: Pagination
+First page returns 2 items, second page returns remaining items.
 
-### Step 5: Restored Dashboard
-Original high priority dashboard is re-rendered.
-
-### Step 6: Update Response
-Returns updated metadata with new timestamp.
+### Step 5: Cross-Plugin Data
+Multiple API calls return data from different plugins, ready for dashboard composition.
 
 ## Success Criteria
 
-- [ ] Dashboard can be saved via POST /api/dashboards
-- [ ] Save returns dashboard ID
-- [ ] Saved dashboards appear in GET /api/dashboards list
-- [ ] Dashboard metadata (name, description, tags) is persisted
-- [ ] Dashboard A2UI document is persisted
-- [ ] Saved dashboard can be retrieved by ID
-- [ ] Retrieved dashboard can be re-rendered via /api/render
-- [ ] Dashboard metadata can be updated via PUT /api/dashboards/{id}
-- [ ] Dashboards persist across Workbench restarts
+- [ ] Data source count matches installed plugins with wicked.json
+- [ ] Search verb filters results by query string
+- [ ] Stats verb returns aggregated data
+- [ ] POST /refresh re-discovers plugins without restart
+- [ ] Pagination (limit/offset) works correctly
+- [ ] Multiple data sources can be queried independently
 
 ## Value Demonstrated
 
-**Dashboard as artifact**: Dashboards aren't just transient views - they're saved configurations that can be revisited, shared, and version-controlled.
+**Live data gateway**: The refresh endpoint ensures new plugins are discovered without restarting the server.
 
-**Session independence**: Generate a dashboard once, reload it anytime. No need to regenerate A2UI from Claude Code each time.
+**Rich query patterns**: Search, stats, pagination, and filtering provide flexible data access for dashboard generation.
 
-**Dashboard library**: Build up a collection of useful dashboards over time. "Sprint Planning", "Production Metrics", "Data Quality Overview", etc.
-
-**Collaboration**: Save a dashboard configuration and share the ID with teammates. Everyone sees the same view structure with their own live data.
-
-**Real-world use**: Standard reporting dashboards that teams check daily, incident response dashboards pre-configured for common scenarios, executive dashboards showing key metrics, onboarding dashboards showing new team member relevant views.
+**Cross-plugin assembly**: Claude Code can query multiple sources in parallel to build comprehensive dashboards from diverse plugin data.

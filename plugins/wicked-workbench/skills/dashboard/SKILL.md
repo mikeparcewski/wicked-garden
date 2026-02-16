@@ -2,7 +2,7 @@
 name: dashboard
 description: |
   Generate and render A2UI dashboards from wicked-garden plugins.
-  Claude Code generates the dashboard layout, workbench renders it with live MCP data.
+  Claude Code generates the dashboard layout, workbench renders it with live plugin data.
 ---
 
 # Dashboard Skill
@@ -16,6 +16,10 @@ Generate visual dashboards combining data from multiple wicked-garden plugins.
 - "Create a dashboard for sprint planning"
 - "Visualize my project status"
 
+## References
+
+- [Installation & Setup](refs/installation.md) — where the code lives, install methods, configuration, troubleshooting
+
 ## Instructions
 
 ### 1. Check Server Status
@@ -27,18 +31,33 @@ curl -s http://localhost:18889/health
 If not running, start it:
 
 ```bash
-uvx wicked-workbench-server &
+uvx --from wicked-workbench-server wicked-workbench &
 ```
 
-### 2. Get Available Components
+### 2. Get Available Data Sources
 
-Fetch the catalog to see what components are available:
+Fetch discovered plugins and their data sources:
 
 ```bash
-curl -s http://localhost:18889/api/catalogs
+curl -s http://localhost:18889/api/v1/data/plugins
 ```
 
-### 3. Generate A2UI Document
+### 3. Query Plugin Data
+
+Use the data gateway to fetch live data for your dashboard:
+
+```bash
+# List tasks
+curl -s http://localhost:18889/api/v1/data/wicked-kanban/tasks/list
+
+# Search memories
+curl -s "http://localhost:18889/api/v1/data/wicked-mem/memories/search?query=decisions"
+
+# Get project phases
+curl -s http://localhost:18889/api/v1/data/wicked-crew/phases/list
+```
+
+### 4. Generate A2UI Document
 
 Based on the user's request, generate an A2UI document. Example structure:
 
@@ -53,7 +72,7 @@ Based on the user's request, generate an A2UI document. Example structure:
 ]
 ```
 
-### 4. Send to Workbench
+### 5. Send to Workbench
 
 ```bash
 curl -X POST http://localhost:18889/api/render \
@@ -61,11 +80,11 @@ curl -X POST http://localhost:18889/api/render \
   -d '{"document": <your A2UI JSON>, "fetch_data": true}'
 ```
 
-### 5. Present Results
+### 6. Present Results
 
 - Dashboard URL: http://localhost:18889
 - Components rendered
-- Data fetched from MCP servers
+- Data fetched via the plugin data gateway
 
 ## Component Mapping
 
@@ -79,9 +98,14 @@ curl -X POST http://localhost:18889/api/render \
 
 ## Integration
 
-Works standalone. Enhanced with:
+Works standalone. Enhanced with any plugin that declares data sources in `wicked.json`:
 
 | Plugin | Data Source |
 |--------|-------------|
-| wicked-kanban | Tasks via MCP (port 18888) |
-| wicked-mem | Memories via MCP (port 18890) |
+| wicked-kanban | Tasks, projects, initiatives, activity, comments |
+| wicked-mem | Memories, sessions |
+| wicked-crew | Projects, phases, specialists, artifacts, signals |
+| wicked-search | Symbols, documents, graph, lineage, coverage, layers, hotspots |
+| wicked-delivery | Sprints, metrics |
+| wicked-smaht | Context assembly |
+| wicked-jam | Decisions |
