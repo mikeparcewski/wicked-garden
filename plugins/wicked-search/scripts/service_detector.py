@@ -276,7 +276,10 @@ class ServiceDetector:
         """)
 
         for row in cursor.fetchall():
-            metadata = json.loads(row['metadata']) if row['metadata'] else {}
+            try:
+                metadata = json.loads(row['metadata']) if row['metadata'] else {}
+            except (json.JSONDecodeError, TypeError):
+                metadata = {}
             self._process_code_pattern(row['file_path'], metadata)
 
         conn.close()

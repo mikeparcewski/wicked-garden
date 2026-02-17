@@ -160,7 +160,7 @@ def _get_layer_for_type(node_type):
 
 
 def _apply_filters(items, args):
-    """Apply --layer and --type filters to items."""
+    """Apply --layer, --type, and --category filters to items."""
     if hasattr(args, 'layer') and args.layer:
         filtered = []
         for item in items:
@@ -178,6 +178,9 @@ def _apply_filters(items, args):
     if hasattr(args, 'type') and args.type:
         items = [item for item in items
                 if (item.get('type') or item.get('node_type', '')).upper() == args.type.upper()]
+
+    if hasattr(args, 'category') and args.category:
+        items = [i for i in items if _derive_directory_category(i.get('file_path', '') or i.get('file', '')) == args.category]
 
     return items
 
@@ -351,10 +354,10 @@ def cmd_list(source, args):
                 where_str = "WHERE " + " AND ".join(where_clauses)
 
             layer_filter = hasattr(args, 'layer') and args.layer
+            category_filter = hasattr(args, 'category') and args.category
 
-            if layer_filter:
-                # Layer filtering done in Python (column may not exist in older DBs).
-                # Over-fetch with a capped limit to balance correctness vs performance.
+            if layer_filter or category_filter:
+                # Python-side filtering: over-fetch to ensure correct pagination
                 sql_limit = min((args.offset + args.limit) * 10, 10000)
                 sql_offset = 0
             else:
@@ -374,9 +377,16 @@ def cmd_list(source, args):
             # Always compute layer from type in Python (works with any DB schema)
             _enrich_with_layer(items)
 
-            # Apply layer filter and pagination in Python
+            # Apply layer filter in Python (column may not exist in older DBs)
             if layer_filter:
                 items = [i for i in items if i.get('layer', '').lower() == args.layer.lower()]
+
+            # Apply category filter in Python
+            if category_filter:
+                items = [i for i in items if _derive_directory_category(i.get('file_path', '') or i.get('file', '')) == args.category]
+
+            # Paginate after all Python-side filters
+            if layer_filter or category_filter:
                 items = items[args.offset:args.offset + args.limit]
 
         elif source == "lineage":
@@ -505,10 +515,10 @@ def cmd_search(source, args):
         where_str = " AND ".join(where_clauses)
 
         layer_filter = hasattr(args, 'layer') and args.layer
+        category_filter = hasattr(args, 'category') and args.category
 
-        if layer_filter:
-            # Layer filtering done in Python (column may not exist in older DBs).
-            # Over-fetch with a capped limit to balance correctness vs performance.
+        if layer_filter or category_filter:
+            # Python-side filtering: over-fetch to ensure correct pagination
             sql_limit = min((args.offset + args.limit) * 10, 10000)
             sql_offset = 0
         else:
@@ -526,9 +536,16 @@ def cmd_search(source, args):
         # Always compute layer from type in Python (works with any DB schema)
         _enrich_with_layer(results)
 
-        # Apply layer filter and pagination in Python
+        # Apply layer filter in Python (column may not exist in older DBs)
         if layer_filter:
             results = [r for r in results if r.get('layer', '').lower() == args.layer.lower()]
+
+        # Apply category filter in Python
+        if category_filter:
+            results = [r for r in results if _derive_directory_category(r.get('file_path', '') or r.get('file', '')) == args.category]
+
+        # Paginate after all Python-side filters
+        if layer_filter or category_filter:
             results = results[args.offset:args.offset + args.limit]
 
         total = len(results)
@@ -1293,6 +1310,7 @@ def main():
         if verb in ("list", "search", "hotspots"):
             sub.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
             sub.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
+            sub.add_argument("--category", help="Filter by directory category (e.g., portlets, api, service)")
 
     args = parser.parse_args()
 
