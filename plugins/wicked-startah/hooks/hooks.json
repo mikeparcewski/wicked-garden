@@ -1,5 +1,5 @@
 {
-  "description": "Hooks for wicked-startah: setup verification on session start",
+  "description": "Hooks for wicked-startah: setup verification and issue reporting",
   "hooks": {
     "SessionStart": [
       {
@@ -9,6 +9,43 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py\"",
             "timeout": 2000
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/auto_issue_reporter.py\"",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/auto_issue_reporter.py\"",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session_outcome_checker.py\"",
+            "async": true,
+            "timeout": 30000
           }
         ]
       }

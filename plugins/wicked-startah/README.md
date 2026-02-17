@@ -14,7 +14,7 @@ No API keys needed for core skills. Optional keys unlock multi-AI features.
 
 ## What You Get
 
-### Skills (9 Ready Immediately)
+### Skills (10 Ready Immediately)
 
 | Skill | What It Does | Example |
 |-------|-------------|---------|
@@ -27,6 +27,7 @@ No API keys needed for core skills. Optional keys unlock multi-AI features.
 | `/codex-cli` | OpenAI Codex integration | `/codex-cli` |
 | `/opencode-cli` | Multi-provider AI coding | `/opencode-cli` |
 | `/caching` | Unified caching infrastructure with namespace isolation and TTL | `cache.set("key", value, ttl_seconds=300)` |
+| `/issue-reporting` | Auto-detect and file GitHub issues for bugs, UX friction, unmet outcomes | `/wicked-startah:report-issue bug` |
 
 ### MCP Servers (Auto-Configured)
 
@@ -78,6 +79,7 @@ Skills work as guides even without CLIs installed.
 | wicked-kanban | Shared context for multi-AI conversations | Manual note-taking |
 | wicked-mem | Persistent decision storage | Session-only context |
 | wicked-engineering | Architecture expertise for design reviews | No specialized agents |
+| `gh` CLI | Auto-file issues to GitHub | Issues saved locally for manual filing |
 
 ## License
 
