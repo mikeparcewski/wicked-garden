@@ -56,7 +56,7 @@
       "name": "wicked-startah",
       "source": "./plugins/wicked-startah",
       "description": "Opinionated starter kit with MCP servers and plugin recommendations for a productive Claude Code setup",
-      "version": "0.7.0"
+      "version": "0.8.0"
     },
     {
       "name": "wicked-workbench",
