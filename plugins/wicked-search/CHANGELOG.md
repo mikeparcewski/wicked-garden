@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.1] - 2026-02-17
+
+### Features
+- feat(wicked-startah): add GitHub issue reporting skill, hooks, and command (63b9515)
+
+### Bug Fixes
+- fix(wicked-search): fix graph domain, refs import, and categories performance (96286f8)
+
+### Chores
+- release: wicked-startah v0.8.0 (2b7e538)
+- release: wicked-search v2.0.0 (e07c996)
+
 ## [2.0.0] - 2026-02-17
 
 ### Breaking Changes
