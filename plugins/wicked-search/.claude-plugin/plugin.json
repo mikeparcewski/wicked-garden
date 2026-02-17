@@ -1,6 +1,6 @@
 {
   "name": "wicked-search",
-  "version": "1.9.0",
+  "version": "2.0.0",
   "description": "Unified code and document search with reasoning capabilities. Multi-ORM data lineage (JPA, SQLAlchemy, Django, TypeORM, Prisma, ActiveRecord, Entity Framework, GORM), impact analysis, service map detection, and coverage reporting. Cross-layer linking and cross-plugin graph export via wicked-cache.",
   "author": {
     "name": "Mike Parcewski"

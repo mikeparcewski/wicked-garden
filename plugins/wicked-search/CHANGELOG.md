@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.0.0] - 2026-02-16
+
+### BREAKING CHANGES
+- Remove all legacy backends (JSONL, graph DBs) — UnifiedQueryEngine is the sole query backend
+- All commands now require unified.db; no fallback to JSONL or separate graph databases
+- Removed `fallback_to_jsonl` config flag
+- Removed `JsonlSearcher` class and all JSONL-based search/refs/blast-radius code paths
+
+### Features
+- Single unified SQLite database as sole query backend for all endpoints
+- Auto-migration during `index` command builds unified.db from JSONL + graph sources
+- Multi-tier ranked search: exact → prefix → FTS5 → qualified_name
+- `list_refs()` and `search_refs()` methods with LEFT JOIN for orphan ref handling
+- Name-to-ID resolution for `refs` and `blast-radius` commands (accepts symbol names)
+- Direct `get_symbol()` lookup for `get` verb (faster than search fallback)
+
+### Improvements
+- api.py reduced from 1843 to 845 lines (54% reduction)
+- unified_search.py reduced by 450 lines (JsonlSearcher removal)
+- Stats display uses engine's actual keys (`total_symbols`, `total_refs`, `by_domain`, `by_ref_type`)
+- Blast-radius display uses engine's `by_depth` structure with depth-level grouping
+- Quoted column identifiers in dynamic SQL for schema safety
+- Broadened error handling in engine initialization
+
+### Bug Fixes
+- Fixed ref_type vocabulary to match stored plural forms (calls, imports, extends, depends_on)
+- Fixed `depends_on` display labels: `depended_on_by` / `depends_on` (not misleading `defined_by`)
+- Fixed `find_references()` return type annotation: `Dict` not `List[Dict]`
+- Fixed orphan refs (431K/963K) causing empty results with INNER JOIN → LEFT JOIN with COALESCE
+
 ## [1.9.0] - 2026-02-16
 
 ### Features

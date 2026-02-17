@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,372 +65,8 @@ except ImportError:
     AdapterRegistry = None
 
 
-class JsonlSearcher:
-    """Fast JSONL-based searcher using streaming file reads and fuzzy matching."""
 
-    def __init__(self, jsonl_path: Path):
-        self.jsonl_path = jsonl_path
-        self._name_index: Dict[str, List[str]] = {}  # name -> [node_ids]
-        self._nodes: Dict[str, JsonlGraphNode] = {}  # node_id -> node
-        self._loaded = False
 
-    def _load_index(self):
-        """Load all nodes into memory for fast search."""
-        if self._loaded or not self.jsonl_path.exists():
-            return
-
-        with open(self.jsonl_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    node = JsonlGraphNode.model_validate_json(line)
-                    self._nodes[node.id] = node
-                    # Build name index
-                    if node.name not in self._name_index:
-                        self._name_index[node.name] = []
-                    self._name_index[node.name].append(node.id)
-                except Exception:
-                    continue
-
-        self._loaded = True
-
-    def search_all(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Fuzzy search across all nodes."""
-        self._load_index()
-        return self._fuzzy_search(query, list(self._name_index.keys()), limit)
-
-    def search_code(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Fuzzy search code nodes only."""
-        self._load_index()
-        code_names = [
-            name for name, ids in self._name_index.items()
-            if any(self._nodes.get(nid) and self._nodes[nid].domain == 'code'
-                   for nid in ids)
-        ]
-        results = self._fuzzy_search(query, code_names, limit * 2)
-        return [r for r in results if r.get('domain') == 'code'][:limit]
-
-    def search_docs(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Fuzzy search document nodes only."""
-        self._load_index()
-        doc_names = [
-            name for name, ids in self._name_index.items()
-            if any(self._nodes.get(nid) and self._nodes[nid].domain == 'doc'
-                   for nid in ids)
-        ]
-        results = self._fuzzy_search(query, doc_names, limit * 2)
-        return [r for r in results if r.get('domain') == 'doc'][:limit]
-
-    def _get_node_type(self, node) -> str:
-        """Get node type as string, handling both enum and string values."""
-        if hasattr(node.node_type, 'value'):
-            return node.node_type.value
-        return str(node.node_type)
-
-    def _get_node_layer(self, node) -> str:
-        """Get architectural layer for a node based on its type."""
-        node_type = self._get_node_type(node).lower()
-
-        # Map node types to layers (similar to SymbolGraph.get_layer())
-        layer_map = {
-            # Backend types
-            'class': 'backend',
-            'function': 'backend',
-            'method': 'backend',
-            'interface': 'backend',
-            'struct': 'backend',
-            'enum': 'backend',
-            'enum_type': 'backend',
-            'type': 'backend',
-            'trait': 'backend',
-            'entity': 'backend',
-            'entity_field': 'backend',
-            'controller': 'backend',
-            'controller_method': 'backend',
-            'service': 'backend',
-            'dao': 'backend',
-            # Database types
-            'table': 'database',
-            'column': 'database',
-            # Frontend types
-            'import': 'frontend',
-            'component': 'frontend',
-            'component_prop': 'frontend',
-            'route': 'frontend',
-            'form_field': 'frontend',
-            'event_handler': 'frontend',
-            'data_binding': 'frontend',
-            # View types
-            'jsp_page': 'view',
-            'html_page': 'view',
-            'el_expression': 'view',
-            'form_binding': 'view',
-            'jstl_variable': 'view',
-            'taglib': 'view',
-            'doc_section': 'view',
-            'doc_page': 'view',
-        }
-        return layer_map.get(node_type, 'unknown')
-
-    def _resolve_symbol(self, symbol: str, suggest_limit: int = 5) -> Tuple[Optional[Any], List[Dict[str, Any]]]:
-        """Resolve a symbol to a node using hybrid lookup.
-
-        Tries in order:
-        1. Exact ID match (full path::symbol format)
-        2. Exact name match
-        3. Case-insensitive name match
-        4. Fuzzy name match (returns suggestions)
-
-        Args:
-            symbol: Symbol to look up (name or full ID)
-            suggest_limit: Max fuzzy suggestions to return
-
-        Returns:
-            Tuple of (matched_node, suggestions)
-            - If exact match found: (node, [])
-            - If no exact match: (None, [fuzzy_suggestions])
-        """
-        self._load_index()
-
-        # 1. Try exact ID match
-        if symbol in self._nodes:
-            return self._nodes[symbol], []
-
-        # 2. Try exact name match
-        if symbol in self._name_index:
-            node_ids = self._name_index[symbol]
-            if node_ids:
-                return self._nodes.get(node_ids[0]), []
-
-        # 3. Try case-insensitive name match
-        symbol_lower = symbol.lower()
-        for name, node_ids in self._name_index.items():
-            if name.lower() == symbol_lower and node_ids:
-                return self._nodes.get(node_ids[0]), []
-
-        # 4. Try fuzzy search for suggestions (filter for quality)
-        # Only consider names with length >= half the query length
-        min_len = max(3, len(symbol) // 2)
-        candidate_keys = [k for k in self._name_index.keys() if len(k) >= min_len]
-
-        suggestions = self._fuzzy_search(symbol, candidate_keys, suggest_limit * 2)
-
-        # Filter to keep only high-quality matches (score >= 70)
-        quality_suggestions = [s for s in suggestions if s.get('score', 0) >= 70]
-
-        return None, quality_suggestions[:suggest_limit]
-
-    def _fuzzy_search(self, query: str, keys: List[str], limit: int) -> List[Dict[str, Any]]:
-        """Internal fuzzy search implementation."""
-        if not keys:
-            return []
-
-        results = process.extract(
-            query,
-            keys,
-            scorer=fuzz.WRatio,
-            limit=limit,
-            score_cutoff=50.0
-        )
-
-        formatted = []
-        seen_ids = set()
-
-        for match, score, _ in results:
-            node_ids = self._name_index.get(match, [])
-            for node_id in node_ids:
-                if node_id in seen_ids:
-                    continue
-                node = self._nodes.get(node_id)
-                if node:
-                    formatted.append({
-                        'id': node.id,
-                        'name': node.name,
-                        'type': self._get_node_type(node),
-                        'domain': node.domain,
-                        'layer': self._get_node_layer(node),
-                        'file_path': node.file,
-                        'line_start': node.line_start,
-                        'line_end': node.line_end,
-                        'score': score,
-                        'match_type': 'name',
-                    })
-                    seen_ids.add(node_id)
-
-        return sorted(formatted, key=lambda x: x['score'], reverse=True)[:limit]
-
-    def find_references(self, symbol: str) -> Dict[str, Any]:
-        """Find all references to/from a symbol using hybrid lookup.
-
-        Uses hybrid resolution: exact ID -> exact name -> fuzzy suggestions.
-        """
-        node, suggestions = self._resolve_symbol(symbol)
-
-        if not node:
-            return {
-                "error": f"Symbol '{symbol}' not found",
-                "suggestions": suggestions,
-            }
-
-        node_id = node.id
-
-        refs = {
-            "inherited_by": [],
-            "called_by": [],
-            "inherits": [],
-            "calls": [],
-        }
-
-        # Outgoing: what this node uses
-        for call in node.calls:
-            if call.target_id and call.target_id in self._nodes:
-                target = self._nodes[call.target_id]
-                refs['calls'].append({
-                    'id': target.id,
-                    'name': target.name,
-                    'type': self._get_node_type(target),
-                    'file_path': target.file,
-                })
-
-        # Outgoing: inheritance
-        for base in node.bases:
-            # Find the base class node
-            for nid, n in self._nodes.items():
-                if n.name == base.rsplit('.', 1)[-1] and self._get_node_type(n) in ('class', 'interface'):
-                    refs['inherits'].append({
-                        'id': n.id,
-                        'name': n.name,
-                        'type': self._get_node_type(n),
-                        'file_path': n.file,
-                    })
-                    break
-
-        # Incoming: what uses this node (from dependents)
-        for dep_id in node.dependents:
-            dep = self._nodes.get(dep_id)
-            if not dep:
-                continue
-            # Check if it's a call or inheritance relationship
-            for call in dep.calls:
-                if call.target_id == node_id:
-                    refs['called_by'].append({
-                        'id': dep.id,
-                        'name': dep.name,
-                        'type': self._get_node_type(dep),
-                        'file_path': dep.file,
-                    })
-                    break
-            else:
-                # Check inheritance
-                if node.name in [b.rsplit('.', 1)[-1] for b in dep.bases]:
-                    refs['inherited_by'].append({
-                        'id': dep.id,
-                        'name': dep.name,
-                        'type': self._get_node_type(dep),
-                        'file_path': dep.file,
-                    })
-
-        return refs
-
-    def blast_radius(self, symbol: str, depth: int = 2,
-                     edge_types: Optional[str] = None,
-                     direction: str = "both") -> Dict[str, Any]:
-        """Compute blast radius using hybrid lookup.
-
-        Uses hybrid resolution: exact ID -> exact name -> fuzzy suggestions.
-
-        Args:
-            symbol: Symbol name or ID to analyze
-            depth: Traversal depth
-            edge_types: Comma-separated edge types to follow (calls,binds_to,maps_to,etc)
-            direction: "downstream", "upstream", or "both"
-        """
-        start_node, suggestions = self._resolve_symbol(symbol)
-
-        if not start_node:
-            return {
-                "error": f"Symbol '{symbol}' not found",
-                "suggestions": suggestions,
-            }
-
-        # Parse edge types filter
-        allowed_types = None
-        if edge_types:
-            allowed_types = set(t.strip().lower() for t in edge_types.split(","))
-
-        dependents: Set[str] = set()
-        dependencies: Set[str] = set()
-
-        # BFS for dependents (upstream - what uses this symbol)
-        if direction in ("upstream", "both"):
-            queue = [start_node.id]
-            for _ in range(depth):
-                next_queue = []
-                for nid in queue:
-                    node = self._nodes.get(nid)
-                    if node:
-                        for dep_id in node.dependents:
-                            if dep_id not in dependents:
-                                # For JSONL format, we don't have edge type info on dependents
-                                # This is a limitation - Symbol Graph has richer edge data
-                                dependents.add(dep_id)
-                                next_queue.append(dep_id)
-                queue = next_queue
-
-        # BFS for dependencies (downstream - what this symbol affects)
-        if direction in ("downstream", "both"):
-            queue = [start_node.id]
-            for _ in range(depth):
-                next_queue = []
-                for nid in queue:
-                    node = self._nodes.get(nid)
-                    if node:
-                        for call in node.calls:
-                            if call.target_id and call.target_id not in dependencies:
-                                # Filter by edge type if specified
-                                if allowed_types:
-                                    call_type = getattr(call, 'call_type', 'calls')
-                                    if call_type not in allowed_types:
-                                        continue
-                                dependencies.add(call.target_id)
-                                next_queue.append(call.target_id)
-                queue = next_queue
-
-        return {
-            "symbol": symbol,
-            "node_id": start_node.id,
-            "dependents": sorted(dependents),
-            "dependencies": sorted(dependencies),
-            "edge_types": edge_types,
-            "direction": direction,
-        }
-
-    def get_stats(self) -> Dict[str, Any]:
-        """Get index statistics."""
-        self._load_index()
-
-        node_types: Dict[str, int] = {}
-        domains: Dict[str, int] = {"code": 0, "doc": 0}
-
-        for node in self._nodes.values():
-            t = self._get_node_type(node)
-            node_types[t] = node_types.get(t, 0) + 1
-            if node.domain in domains:
-                domains[node.domain] += 1
-
-        # Count cross-references
-        total_refs = sum(len(n.dependents) for n in self._nodes.values())
-
-        return {
-            "total_nodes": len(self._nodes),
-            "total_edges": total_refs,
-            "domains": domains,
-            "node_types": node_types,
-            "code_symbols": domains.get('code', 0),
-            "doc_sections": domains.get('doc', 0),
-        }
 
 # Try to import kreuzberg for document extraction
 try:
@@ -1445,13 +1082,10 @@ class UnifiedSearchIndex:
     def __init__(self, root_path: Path, project: str = None):
         self.root_path = root_path.resolve()
         self.project = project
-        self.jsonl_searcher: Optional[JsonlSearcher] = None
         self._index_metadata: Optional[IndexMetadata] = None
 
         self.doc_extractor = DocumentExtractor() if HAS_KREUZBERG else None
         self.code_parser = CodeParser() if HAS_TREESITTER else None
-
-        self._jsonl_loaded = False
 
     def _path_hash(self) -> str:
         """Generate hash for index filename."""
@@ -2093,100 +1727,22 @@ class UnifiedSearchIndex:
         """Get path for Symbol Graph SQLite export."""
         return get_index_dir(self.project) / f"{self._path_hash()}_graph.db"
 
-    def blast_radius_jsonl(self, symbol: str, depth: int = 2) -> Dict[str, Any]:
-        """Compute blast radius using JSONL index (grep-based lookup).
+    def _get_unified_db_path(self) -> Path:
+        """Get path for Unified SQLite database."""
+        return get_index_dir(self.project) / "unified.db"
 
-        Args:
-            symbol: Symbol name or ID to analyze.
-            depth: How many levels of dependencies to traverse.
+    def _get_unified_engine(self):
+        """Get UnifiedQueryEngine, fall back to None if unavailable."""
+        db_path = self._get_unified_db_path()
+        if db_path.exists():
+            try:
+                from query_builder import UnifiedQueryEngine
+                return UnifiedQueryEngine(str(db_path))
+            except (ImportError, Exception):
+                return None
+        return None
 
-        Returns:
-            Dict with 'dependencies' and 'dependents' lists.
-        """
-        if not HAS_JSONL_MODULES:
-            # Fallback to legacy
-            if self.searcher:
-                matches = self.searcher.search_code(symbol, 1)
-                if matches:
-                    return self.searcher.blast_radius(matches[0]['id'], depth)
-            return {}
 
-        jsonl_path = self._get_jsonl_index_path()
-        if not jsonl_path.exists():
-            return {"error": "No JSONL index found"}
-
-        # Load nodes lazily
-        node_cache: Dict[str, JsonlGraphNode] = {}
-
-        def load_node(node_id: str) -> Optional[JsonlGraphNode]:
-            if node_id in node_cache:
-                return node_cache[node_id]
-
-            # Search for the node
-            with open(jsonl_path, 'r') as f:
-                for line in f:
-                    if f'"{node_id}"' in line or f'"name":"{symbol}"' in line:
-                        try:
-                            node = JsonlGraphNode.model_validate_json(line.strip())
-                            node_cache[node.id] = node
-                            if node.id == node_id or node.name == symbol:
-                                return node
-                        except Exception:
-                            pass
-            return None
-
-        # Find the starting node
-        start_node = load_node(symbol)
-        if not start_node:
-            # Try searching by name
-            with open(jsonl_path, 'r') as f:
-                for line in f:
-                    if f'"name":"{symbol}"' in line:
-                        try:
-                            node = JsonlGraphNode.model_validate_json(line.strip())
-                            node_cache[node.id] = node
-                            start_node = node
-                            break
-                        except Exception:
-                            pass
-
-        if not start_node:
-            return {"error": f"Symbol '{symbol}' not found"}
-
-        # BFS for dependents (impact - what uses this)
-        dependents: Set[str] = set()
-        queue = [start_node.id]
-        for _ in range(depth):
-            next_queue = []
-            for nid in queue:
-                node = load_node(nid)
-                if node:
-                    for dep_id in node.dependents:
-                        if dep_id not in dependents:
-                            dependents.add(dep_id)
-                            next_queue.append(dep_id)
-            queue = next_queue
-
-        # BFS for dependencies (what this uses)
-        dependencies: Set[str] = set()
-        queue = [start_node.id]
-        for _ in range(depth):
-            next_queue = []
-            for nid in queue:
-                node = load_node(nid)
-                if node:
-                    for call in node.calls:
-                        if call.target_id and call.target_id not in dependencies:
-                            dependencies.add(call.target_id)
-                            next_queue.append(call.target_id)
-            queue = next_queue
-
-        return {
-            "symbol": symbol,
-            "node_id": start_node.id,
-            "dependents": sorted(dependents),
-            "dependencies": sorted(dependencies),
-        }
 
     def blast_radius_graph(
         self,
@@ -2377,44 +1933,23 @@ class UnifiedSearchIndex:
         jsonl_path = self._get_jsonl_index_path()
 
         if jsonl_path.exists():
-            # Load JSONL searcher
-            self.load_jsonl()
             return False
         else:
             if verbose:
                 print("No index found. Building index...", file=sys.stderr)
             await self.build_index_jsonl(force=True)
-            self.load_jsonl()
             return True
-
-    def load_jsonl(self) -> bool:
-        """Load JSONL index for fast search."""
-        if self._jsonl_loaded:
-            return True
-
-        jsonl_path = self._get_jsonl_index_path()
-        if not jsonl_path.exists():
-            return False
-
-        if not HAS_JSONL_MODULES:
-            return False
-
-        self.jsonl_searcher = JsonlSearcher(jsonl_path)
-        self._jsonl_loaded = True
-        return True
 
     def get_stats(self) -> Dict[str, Any]:
         """Get index statistics."""
-        if not self._jsonl_loaded:
-            self.load_jsonl()
-        if self.jsonl_searcher:
-            stats = self.jsonl_searcher.get_stats()
+        engine = self._get_unified_engine()
+        if engine:
+            stats = engine.get_stats()
             stats["root_path"] = str(self.root_path)
-            stats["files_indexed"] = stats.get("total_nodes", 0)
-            stats["format"] = "jsonl"
+            stats["format"] = "unified_sqlite"
             return stats
 
-        return {"error": "No index loaded", "format": "none"}
+        return {"error": "No unified database found. Run /wicked-search:index first.", "format": "none"}
 
 
 # =============================================================================
@@ -2551,13 +2086,9 @@ async def main():
     # Handle db-path (no project path needed)
     if args.command == "db-path":
         index_dir = get_index_dir()
-        dbs = list(index_dir.glob("*.db"))
-        if dbs:
-            db_path = str(max(dbs, key=lambda p: p.stat().st_mtime))
-            exists = True
-        else:
-            db_path = str(index_dir / "unified_search.db")
-            exists = False
+        unified_db = index_dir / "unified.db"
+        db_path = str(unified_db)
+        exists = unified_db.exists()
         if getattr(args, 'json', False):
             print(json.dumps({"db_path": db_path, "exists": exists}))
         else:
@@ -2649,6 +2180,32 @@ async def main():
         elif build_graph and not HAS_SYMBOL_GRAPH:
             print("Note: Symbol Graph modules not available, JSONL index only", file=sys.stderr)
 
+        # Auto-build unified SQLite database
+        print("\nBuilding unified database...")
+        migration_script = Path(__file__).parent / "migration.py"
+        unified_db_path = index._get_unified_db_path()
+
+        # Find graph DB if it exists
+        graph_dbs = list(get_index_dir(project_name).glob("*_graph.db"))
+
+        cmd = [
+            sys.executable, str(migration_script),
+            "--jsonl-dir", str(get_index_dir(project_name)),
+            "--output", str(unified_db_path),
+        ]
+        if graph_dbs:
+            cmd.extend(["--existing-db", str(graph_dbs[0])])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                report = json.loads(result.stdout)
+                print(f"  Unified DB: {report['stats']['symbols_total']} symbols, {report['stats']['refs_total']} refs")
+            else:
+                print(f"  Warning: Unified DB build failed: {result.stderr[:200]}", file=sys.stderr)
+        except Exception as e:
+            print(f"  Warning: Unified DB build failed: {str(e)[:200]}", file=sys.stderr)
+
     elif args.command == "graph":
         # Symbol Graph specific command
         if not HAS_SYMBOL_GRAPH:
@@ -2699,14 +2256,14 @@ async def main():
         # Auto-ensure fresh index (builds if missing)
         await index.ensure_fresh(verbose=True)
 
-        # Use JSONL searcher
-        searcher = index.jsonl_searcher
-        if not searcher:
-            print("Error: Could not load index", file=sys.stderr)
+        # Load unified engine (v2.0: sole backend)
+        engine = index._get_unified_engine()
+        if not engine:
+            print("Error: No unified database found. Run /wicked-search:index first.", file=sys.stderr)
             return
 
         if args.command == "search":
-            results = searcher.search_all(args.query, args.limit * 10)  # Get more results for filtering
+            results = engine.search_all(args.query, limit=args.limit * 10, offset=0)
 
             # Apply layer/type filters
             if hasattr(args, 'layer') and args.layer:
@@ -2719,7 +2276,7 @@ async def main():
             print(format_results(results, "Search Results"))
 
         elif args.command == "code":
-            results = searcher.search_code(args.query, args.limit * 10)  # Get more results for filtering
+            results = engine.search_code(args.query, limit=args.limit * 10)
 
             # Apply layer/type filters
             if hasattr(args, 'layer') and args.layer:
@@ -2732,11 +2289,37 @@ async def main():
             print(format_results(results, "Code Results"))
 
         elif args.command == "docs":
-            results = searcher.search_docs(args.query, args.limit)
+            results = engine.search_docs(args.query, limit=args.limit)
             print(format_results(results, "Document Results"))
 
         elif args.command == "refs":
-            refs = searcher.find_references(args.symbol)
+            # Resolve symbol name to ID: try exact ID first, then search by name
+            symbol_input = args.symbol
+            symbol_id = symbol_input
+            sym = engine.get_symbol(symbol_input)
+            if not sym:
+                # Not a direct ID — search by name to resolve
+                candidates = engine.search_code(symbol_input, limit=5)
+                if not candidates:
+                    candidates = engine.search_all(symbol_input, limit=5)
+                if candidates:
+                    symbol_id = candidates[0]['id']
+                # else: pass through and let find_references return empty
+
+            raw_refs = engine.find_references(symbol_id)
+            # Adapt engine format {incoming, outgoing} to display format
+            # Migration stores ref_types as: calls, imports, extends, depends_on
+            refs = {}
+            for r in raw_refs.get('incoming', []):
+                rt = r.get('ref_type', 'unknown')
+                key_map = {'calls': 'called_by', 'imports': 'imported_by', 'extends': 'inherited_by', 'depends_on': 'depended_on_by'}
+                key = key_map.get(rt, f'{rt}_by')
+                refs.setdefault(key, []).append(r)
+            for r in raw_refs.get('outgoing', []):
+                rt = r.get('ref_type', 'unknown')
+                key_map = {'calls': 'calls', 'imports': 'imports', 'extends': 'inherits', 'depends_on': 'depends_on'}
+                key = key_map.get(rt, rt)
+                refs.setdefault(key, []).append(r)
 
             # Handle not found with suggestions
             if refs.get('error'):
@@ -2772,9 +2355,9 @@ async def main():
                 for r in refs['imported_by']:
                     print(f"  - {r.get('name', '?')} ({r.get('type', '?')})")
 
-            if refs.get('defined_by'):
-                print("\nDefined by:")
-                for r in refs['defined_by']:
+            if refs.get('depended_on_by'):
+                print("\nDepended on by:")
+                for r in refs['depended_on_by']:
                     print(f"  - {r.get('name', '?')} ({r.get('type', '?')})")
 
             # Outgoing relationships (what this symbol uses)
@@ -2793,9 +2376,9 @@ async def main():
                 for r in refs['imports']:
                     print(f"  - {r.get('name', '?')} ({r.get('type', '?')})")
 
-            if refs.get('defines'):
-                print("\nDefines:")
-                for r in refs['defines']:
+            if refs.get('depends_on'):
+                print("\nDepends on:")
+                for r in refs['depends_on']:
                     print(f"  - {r.get('name', '?')} ({r.get('type', '?')})")
 
             # Check if no refs found
@@ -2805,17 +2388,15 @@ async def main():
 
         elif args.command == "impl":
             # Find the doc section
-            matches = searcher.search_docs(args.section, 1)
+            matches = engine.search_docs(args.section, limit=1)
             if not matches:
                 print(f"Doc section '{args.section}' not found")
                 return
 
             node_id = matches[0]['id']
-            # impl requires legacy searcher for now (doc cross-refs)
-            if index.searcher and hasattr(index.searcher, 'find_implementations'):
-                implementations = index.searcher.find_implementations(node_id)
-            else:
-                implementations = []
+            # Find code symbols that reference this doc section
+            refs = engine.find_references(node_id)
+            implementations = refs.get('incoming', [])
 
             print(f"\nImplementations of: {args.section}")
             print("-" * 60)
@@ -2895,82 +2476,86 @@ async def main():
                     print("  No lineage found")
 
             else:
-                # Use standard JSONL-based blast radius
-                result = searcher.blast_radius(
-                    args.symbol,
-                    depth=args.depth,
-                    edge_types=edge_types_str,
-                    direction=direction
+                # Resolve symbol name to ID for blast_radius
+                symbol_input = args.symbol
+                symbol_id = symbol_input
+                sym = engine.get_symbol(symbol_input)
+                if not sym:
+                    candidates = engine.search_code(symbol_input, limit=5)
+                    if not candidates:
+                        candidates = engine.search_all(symbol_input, limit=5)
+                    if candidates:
+                        symbol_id = candidates[0]['id']
+                    else:
+                        print(f"\nSymbol '{symbol_input}' not found")
+                        return
+
+                result = engine.blast_radius(
+                    symbol_id,
+                    max_depth=args.depth
                 )
-                if result.get('error'):
-                    print(f"\n{result['error']}")
-                    if result.get('suggestions'):
-                        print("\nDid you mean one of these?")
-                        for s in result['suggestions'][:5]:
-                            print(f"  - {s['name']} ({s['type']}) - score: {s['score']:.0f}")
-                    return
 
                 print(f"\nBlast Radius for: {args.symbol}")
                 if edge_types_str:
                     print(f"Edge types: {edge_types_str}")
                 print(f"Direction: {direction}")
                 print("-" * 60)
+                print(f"  Total affected: {result.get('total_affected', 0)}")
 
-                if direction in ("downstream", "both") and result.get('dependencies'):
-                    print(f"\nDownstream (what it affects): {len(result['dependencies'])}")
-                    for dep in result['dependencies'][:20]:  # Limit output
-                        print(f"  - {dep}")
-                    if len(result['dependencies']) > 20:
-                        print(f"  ... and {len(result['dependencies']) - 20} more")
-
-                if direction in ("upstream", "both") and result.get('dependents'):
-                    print(f"\nUpstream (what affects it): {len(result['dependents'])}")
-                    for dep in result['dependents'][:20]:  # Limit output
-                        print(f"  - {dep}")
-                    if len(result['dependents']) > 20:
-                        print(f"  ... and {len(result['dependents']) - 20} more")
-
-                if not result.get('dependencies') and not result.get('dependents'):
+                by_depth = result.get('by_depth', {})
+                if by_depth:
+                    for depth_level in sorted(by_depth.keys()):
+                        symbols = by_depth[depth_level]
+                        label = "Root" if depth_level == 0 else f"Depth {depth_level}"
+                        print(f"\n  {label}: {len(symbols)} symbol(s)")
+                        for sym in symbols[:20]:
+                            name = sym.get('name', sym.get('id', '?'))
+                            stype = sym.get('type', '?')
+                            fpath = sym.get('file_path', '?')
+                            print(f"    - {name} ({stype}) in {fpath}")
+                        if len(symbols) > 20:
+                            print(f"    ... and {len(symbols) - 20} more")
+                else:
                     print("  No dependencies or dependents found")
 
         elif args.command == "stats":
             stats = index.get_stats()
+            total_symbols = stats.get('total_symbols', 0)
+            total_refs = stats.get('total_refs', 0)
             print(f"\nIndex Statistics for: {stats.get('root_path', str(project_path))}")
             print("-" * 60)
             print(f"  Format: {stats.get('format', 'unknown')}")
-            print(f"  Total nodes: {stats.get('total_nodes', 0)}")
-            print(f"  Total edges: {stats.get('total_edges', 0)}")
-            print(f"  Code symbols: {stats.get('code_symbols', 0)}")
-            print(f"  Doc sections: {stats.get('doc_sections', 0)}")
-            if stats.get('domains'):
-                print(f"\n  By domain: {stats['domains']}")
-            if stats.get('node_types'):
-                print(f"\n  Node types: {stats['node_types']}")
+            print(f"  Total symbols: {total_symbols}")
+            print(f"  Total refs: {total_refs}")
+            if stats.get('by_domain'):
+                print(f"  Code symbols: {stats['by_domain'].get('code', 0)}")
+                print(f"  Doc sections: {stats['by_domain'].get('doc', 0)}")
+                print(f"\n  By domain: {stats['by_domain']}")
+            if stats.get('by_ref_type'):
+                print(f"\n  By ref type: {stats['by_ref_type']}")
+            if stats.get('lineage_paths'):
+                print(f"  Lineage paths: {stats['lineage_paths']}")
+            if stats.get('services'):
+                print(f"  Services: {stats['services']}")
 
             # Handle --group-by option
             if hasattr(args, 'group_by') and args.group_by:
                 group_by = args.group_by.lower()
                 if group_by in ('layer', 'type'):
-                    # Calculate grouping from the searcher
-                    if searcher:
-                        searcher._load_index()
-                        groups: Dict[str, int] = {}
-                        total = len(searcher._nodes)
-
-                        if group_by == 'layer':
-                            for node in searcher._nodes.values():
-                                layer = searcher._get_node_layer(node)
-                                groups[layer] = groups.get(layer, 0) + 1
-                        elif group_by == 'type':
-                            for node in searcher._nodes.values():
-                                node_type = searcher._get_node_type(node)
-                                groups[node_type] = groups.get(node_type, 0) + 1
-
-                        print(f"\n  Grouped by {group_by}:")
-                        for key in sorted(groups.keys()):
-                            count = groups[key]
+                    if group_by == 'layer' and stats.get('by_layer'):
+                        print(f"\n  Grouped by layer:")
+                        total = total_symbols or 1
+                        for key, count in sorted(stats['by_layer'].items()):
                             percentage = (count / total * 100) if total > 0 else 0
                             print(f"    {key}: {count} ({percentage:.1f}%)")
+                    elif group_by == 'type' and stats.get('by_type'):
+                        print(f"\n  Grouped by type:")
+                        total = total_symbols or 1
+                        for key, count in sorted(stats['by_type'].items()):
+                            percentage = (count / total * 100) if total > 0 else 0
+                            print(f"    {key}: {count} ({percentage:.1f}%)")
+                    else:
+                        print(f"\n  No {group_by} breakdown available in stats")
                 else:
                     print(f"\n  Warning: Unsupported group-by field '{args.group_by}'. Use 'layer' or 'type'.")
 

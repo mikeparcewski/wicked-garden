@@ -71,7 +71,7 @@ class UnifiedQueryEngine:
             'name': row['name'],
             'type': row['type'],
             'qualified_name': row['qualified_name'],
-            'file': row['file_path'],
+            'file_path': row['file_path'],
             'line_start': row['line_start'],
             'line_end': row['line_end'],
             'domain': row['domain'],
@@ -79,6 +79,15 @@ class UnifiedQueryEngine:
             'category': row['category'],
             'content': row['content'],
             'metadata': self._parse_metadata(row['metadata'])
+        }
+
+    @staticmethod
+    def _orphan_ref_dict(peer_id: str) -> Dict:
+        """Build a minimal symbol dict for refs whose peer is not in the symbols table."""
+        return {
+            'id': peer_id, 'name': peer_id, 'type': 'unknown',
+            'qualified_name': '', 'file_path': '', 'line_start': None, 'line_end': None,
+            'domain': 'unknown', 'layer': 'unknown', 'category': '', 'content': '', 'metadata': {}
         }
 
     @staticmethod
@@ -304,41 +313,101 @@ class UnifiedQueryEngine:
 
         return results
 
-    def find_references(self, symbol_id: str) -> List[Dict]:
+    def find_references(self, symbol_id: str) -> Dict:
         """Find bidirectional references for a symbol."""
         cursor = self.conn.cursor()
 
         # Outgoing refs (this symbol references others)
+        # LEFT JOIN so orphan refs (target not in symbols) are still returned
         cursor.execute("""
-            SELECT s.*, r.ref_type, 'outgoing' as direction
+            SELECT s.*, r.ref_type, r.target_id as _ref_peer_id, 'outgoing' as direction
             FROM symbol_refs r
-            JOIN symbols s ON r.target_id = s.id
+            LEFT JOIN symbols s ON r.target_id = s.id
             WHERE r.source_id = ?
         """, (symbol_id,))
 
         outgoing = []
         for row in cursor.fetchall():
-            result = self._row_to_dict(row)
+            if row['id'] is not None:
+                result = self._row_to_dict(row)
+            else:
+                result = self._orphan_ref_dict(row['_ref_peer_id'])
             result['ref_type'] = row['ref_type']
             result['direction'] = 'outgoing'
             outgoing.append(result)
 
         # Incoming refs (others reference this symbol)
+        # LEFT JOIN so orphan refs (source not in symbols) are still returned
         cursor.execute("""
-            SELECT s.*, r.ref_type, 'incoming' as direction
+            SELECT s.*, r.ref_type, r.source_id as _ref_peer_id, 'incoming' as direction
             FROM symbol_refs r
-            JOIN symbols s ON r.source_id = s.id
+            LEFT JOIN symbols s ON r.source_id = s.id
             WHERE r.target_id = ?
         """, (symbol_id,))
 
         incoming = []
         for row in cursor.fetchall():
-            result = self._row_to_dict(row)
+            if row['id'] is not None:
+                result = self._row_to_dict(row)
+            else:
+                result = self._orphan_ref_dict(row['_ref_peer_id'])
             result['ref_type'] = row['ref_type']
             result['direction'] = 'incoming'
             incoming.append(result)
 
         return {'outgoing': outgoing, 'incoming': incoming}
+
+    def list_refs(self, limit: int = 100, offset: int = 0) -> List[Dict]:
+        """List reference edges with source and target symbol info."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT r.source_id, r.target_id, r.ref_type,
+                   s1.name as source_name, s1.type as source_type, s1.file_path as source_file,
+                   s2.name as target_name, s2.type as target_type, s2.file_path as target_file
+            FROM symbol_refs r
+            LEFT JOIN symbols s1 ON r.source_id = s1.id
+            LEFT JOIN symbols s2 ON r.target_id = s2.id
+            ORDER BY r.rowid
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
+
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'source_id': row['source_id'],
+                'target_id': row['target_id'],
+                'ref_type': row['ref_type'],
+                'source': {'name': row['source_name'] or row['source_id'], 'type': row['source_type'] or 'unknown', 'file_path': row['source_file'] or ''},
+                'target': {'name': row['target_name'] or row['target_id'], 'type': row['target_type'] or 'unknown', 'file_path': row['target_file'] or ''}
+            })
+        return results
+
+    def search_refs(self, query: str, limit: int = 100, offset: int = 0) -> List[Dict]:
+        """Search reference edges by symbol name or ref_type."""
+        cursor = self.conn.cursor()
+        pattern = f"%{query}%"
+        cursor.execute("""
+            SELECT r.source_id, r.target_id, r.ref_type,
+                   s1.name as source_name, s1.type as source_type, s1.file_path as source_file,
+                   s2.name as target_name, s2.type as target_type, s2.file_path as target_file
+            FROM symbol_refs r
+            LEFT JOIN symbols s1 ON r.source_id = s1.id
+            LEFT JOIN symbols s2 ON r.target_id = s2.id
+            WHERE COALESCE(s1.name, r.source_id) LIKE ? OR COALESCE(s2.name, r.target_id) LIKE ? OR r.ref_type LIKE ?
+            ORDER BY r.rowid
+            LIMIT ? OFFSET ?
+        """, (pattern, pattern, pattern, limit, offset))
+
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'source_id': row['source_id'],
+                'target_id': row['target_id'],
+                'ref_type': row['ref_type'],
+                'source': {'name': row['source_name'] or row['source_id'], 'type': row['source_type'] or 'unknown', 'file_path': row['source_file'] or ''},
+                'target': {'name': row['target_name'] or row['target_id'], 'type': row['target_type'] or 'unknown', 'file_path': row['target_file'] or ''}
+            })
+        return results
 
     def blast_radius(self, symbol_id: str, max_depth: int = 3) -> Dict:
         """BFS traversal to find all downstream dependents."""
@@ -506,6 +575,561 @@ class UnifiedQueryEngine:
             'categories': categories,
             'relationships': relationships
         }
+
+    def traverse(
+        self,
+        symbol_id: str,
+        depth: int = 3,
+        direction: str = 'both'
+    ) -> Dict:
+        """
+        BFS graph traversal from a symbol.
+
+        Args:
+            symbol_id: Starting symbol ID
+            depth: Maximum hops (default 3)
+            direction: 'outgoing' (source→target), 'incoming' (target→source), 'both'
+
+        Returns:
+            {
+                "root": {...symbol dict...},
+                "nodes": [...symbol dicts...],
+                "edges": [...ref dicts with source_id, target_id, ref_type...]
+            }
+        """
+        if direction not in ('outgoing', 'incoming', 'both'):
+            raise ValueError(f"Invalid direction: {direction}")
+
+        cursor = self.conn.cursor()
+
+        # Get root symbol
+        cursor.execute("SELECT * FROM symbols WHERE id = ?", (symbol_id,))
+        root_row = cursor.fetchone()
+        if not root_row:
+            return {'root': None, 'nodes': [], 'edges': []}
+
+        root = self._row_to_dict(root_row)
+
+        visited = set()
+        nodes = []
+        edges = []
+        queue = deque([(symbol_id, 0)])
+
+        while queue:
+            current_id, current_depth = queue.popleft()
+
+            if current_id in visited or current_depth > depth:
+                continue
+
+            visited.add(current_id)
+
+            # Get symbol details
+            cursor.execute("SELECT * FROM symbols WHERE id = ?", (current_id,))
+            row = cursor.fetchone()
+            if row:
+                nodes.append(self._row_to_dict(row))
+
+            # Traverse based on direction
+            if current_depth < depth:
+                if direction in ('outgoing', 'both'):
+                    cursor.execute("""
+                        SELECT target_id, ref_type
+                        FROM symbol_refs
+                        WHERE source_id = ?
+                    """, (current_id,))
+
+                    for ref_row in cursor.fetchall():
+                        target_id = ref_row['target_id']
+                        edges.append({
+                            'source_id': current_id,
+                            'target_id': target_id,
+                            'ref_type': ref_row['ref_type']
+                        })
+                        if target_id not in visited:
+                            queue.append((target_id, current_depth + 1))
+
+                if direction in ('incoming', 'both'):
+                    cursor.execute("""
+                        SELECT source_id, ref_type
+                        FROM symbol_refs
+                        WHERE target_id = ?
+                    """, (current_id,))
+
+                    for ref_row in cursor.fetchall():
+                        source_id = ref_row['source_id']
+                        edges.append({
+                            'source_id': source_id,
+                            'target_id': current_id,
+                            'ref_type': ref_row['ref_type']
+                        })
+                        if source_id not in visited:
+                            queue.append((source_id, current_depth + 1))
+
+        return {
+            'root': root,
+            'nodes': nodes,
+            'edges': edges
+        }
+
+    def hotspots(
+        self,
+        limit: int = 20,
+        offset: int = 0,
+        layer_filter: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        category_filter: Optional[str] = None
+    ) -> List[Dict]:
+        """
+        Most-referenced symbols.
+
+        Returns list of symbols with in_count, out_count, total_count.
+        Sorted by total_count DESC.
+        """
+        cursor = self.conn.cursor()
+
+        conditions = []
+        params = []
+
+        if layer_filter:
+            conditions.append("s.layer = ?")
+            params.append(layer_filter)
+
+        if type_filter:
+            conditions.append("s.type = ?")
+            params.append(type_filter)
+
+        if category_filter:
+            conditions.append("s.category = ?")
+            params.append(category_filter)
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+        cursor.execute(f"""
+            SELECT
+                s.*,
+                COALESCE(incoming.count, 0) as in_count,
+                COALESCE(outgoing.count, 0) as out_count,
+                COALESCE(incoming.count, 0) + COALESCE(outgoing.count, 0) as total_count
+            FROM symbols s
+            LEFT JOIN (
+                SELECT target_id, COUNT(*) as count
+                FROM symbol_refs
+                GROUP BY target_id
+            ) incoming ON s.id = incoming.target_id
+            LEFT JOIN (
+                SELECT source_id, COUNT(*) as count
+                FROM symbol_refs
+                GROUP BY source_id
+            ) outgoing ON s.id = outgoing.source_id
+            WHERE {where_clause}
+            ORDER BY total_count DESC
+            LIMIT ? OFFSET ?
+        """, (*params, limit, offset))
+
+        results = []
+        for row in cursor.fetchall():
+            result = self._row_to_dict(row)
+            result['in_count'] = row['in_count']
+            result['out_count'] = row['out_count']
+            result['total_count'] = row['total_count']
+            results.append(result)
+
+        return results
+
+    def impact_analysis(self, symbol_id: str) -> Dict:
+        """
+        Reverse lineage from a symbol (typically DB column) up to UI.
+
+        Follows ref_type='maps_to' and 'binds_to' chains.
+
+        Returns:
+            {
+                "root": {...symbol dict...},
+                "layers": [{"layer": "data", "symbols": [...]}, ...],
+                "paths": [[symbol_id1, symbol_id2, ...], ...]
+            }
+        """
+        cursor = self.conn.cursor()
+
+        # Get root symbol
+        cursor.execute("SELECT * FROM symbols WHERE id = ?", (symbol_id,))
+        root_row = cursor.fetchone()
+        if not root_row:
+            return {'root': None, 'layers': [], 'paths': []}
+
+        root = self._row_to_dict(root_row)
+
+        # BFS traversal following maps_to and binds_to
+        visited = set()
+        by_layer = defaultdict(list)
+        paths = []
+        queue = deque([([symbol_id], symbol_id)])
+
+        while queue:
+            path, current_id = queue.popleft()
+
+            if current_id in visited:
+                continue
+
+            visited.add(current_id)
+
+            # Get symbol details
+            cursor.execute("SELECT * FROM symbols WHERE id = ?", (current_id,))
+            row = cursor.fetchone()
+            if row:
+                symbol = self._row_to_dict(row)
+                by_layer[symbol['layer']].append(symbol)
+
+            # Find upward references (incoming maps_to and binds_to)
+            cursor.execute("""
+                SELECT source_id, ref_type
+                FROM symbol_refs
+                WHERE target_id = ?
+                  AND ref_type IN ('maps_to', 'binds_to')
+            """, (current_id,))
+
+            has_upstream = False
+            for ref_row in cursor.fetchall():
+                source_id = ref_row['source_id']
+                if source_id not in visited:
+                    new_path = path + [source_id]
+                    queue.append((new_path, source_id))
+                    has_upstream = True
+
+            # If no upstream refs, this is a terminal path
+            if not has_upstream and len(path) > 1:
+                paths.append(path)
+
+        # Convert by_layer to sorted list
+        layers = []
+        for layer_name in sorted(by_layer.keys()):
+            layers.append({
+                'layer': layer_name,
+                'symbols': by_layer[layer_name]
+            })
+
+        return {
+            'root': root,
+            'layers': layers,
+            'paths': paths
+        }
+
+    def list_lineage(self, limit: int = 20, offset: int = 0) -> List[Dict]:
+        """
+        List lineage paths from lineage_paths table.
+
+        Joins with symbols for source/sink details.
+        """
+        cursor = self.conn.cursor()
+
+        # Check if lineage_paths table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='lineage_paths'
+        """)
+
+        if not cursor.fetchone():
+            return []
+
+        cursor.execute("""
+            SELECT
+                lp.id,
+                lp.source_id,
+                lp.sink_id,
+                lp.path_length,
+                lp.min_confidence,
+                lp.is_complete,
+                s1.name as source_name,
+                s1.qualified_name as source_qualified_name,
+                s1.layer as source_layer,
+                s2.name as sink_name,
+                s2.qualified_name as sink_qualified_name,
+                s2.layer as sink_layer
+            FROM lineage_paths lp
+            JOIN symbols s1 ON lp.source_id = s1.id
+            JOIN symbols s2 ON lp.sink_id = s2.id
+            ORDER BY lp.path_length DESC, lp.id
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
+
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'id': row['id'],
+                'source_id': row['source_id'],
+                'sink_id': row['sink_id'],
+                'path_length': row['path_length'],
+                'min_confidence': row['min_confidence'],
+                'is_complete': bool(row['is_complete']),
+                'source': {
+                    'name': row['source_name'],
+                    'qualified_name': row['source_qualified_name'],
+                    'layer': row['source_layer']
+                },
+                'sink': {
+                    'name': row['sink_name'],
+                    'qualified_name': row['sink_qualified_name'],
+                    'layer': row['sink_layer']
+                }
+            })
+
+        return results
+
+    def search_lineage(self, query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
+        """
+        Search lineage paths by source/sink symbol names.
+
+        WHERE source symbol name LIKE query OR sink symbol name LIKE query
+        """
+        cursor = self.conn.cursor()
+
+        # Check if lineage_paths table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='lineage_paths'
+        """)
+
+        if not cursor.fetchone():
+            return []
+
+        cursor.execute("""
+            SELECT
+                lp.id,
+                lp.source_id,
+                lp.sink_id,
+                lp.path_length,
+                lp.min_confidence,
+                lp.is_complete,
+                s1.name as source_name,
+                s1.qualified_name as source_qualified_name,
+                s1.layer as source_layer,
+                s2.name as sink_name,
+                s2.qualified_name as sink_qualified_name,
+                s2.layer as sink_layer
+            FROM lineage_paths lp
+            JOIN symbols s1 ON lp.source_id = s1.id
+            JOIN symbols s2 ON lp.sink_id = s2.id
+            WHERE s1.name LIKE '%' || ? || '%'
+               OR s2.name LIKE '%' || ? || '%'
+            ORDER BY lp.path_length DESC, lp.id
+            LIMIT ? OFFSET ?
+        """, (query, query, limit, offset))
+
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'id': row['id'],
+                'source_id': row['source_id'],
+                'sink_id': row['sink_id'],
+                'path_length': row['path_length'],
+                'min_confidence': row['min_confidence'],
+                'is_complete': bool(row['is_complete']),
+                'source': {
+                    'name': row['source_name'],
+                    'qualified_name': row['source_qualified_name'],
+                    'layer': row['source_layer']
+                },
+                'sink': {
+                    'name': row['sink_name'],
+                    'qualified_name': row['sink_qualified_name'],
+                    'layer': row['sink_layer']
+                }
+            })
+
+        return results
+
+    def list_services(self, limit: int = 20, offset: int = 0) -> List[Dict]:
+        """
+        List service nodes enriched with connection counts.
+
+        Joins with service_connections for connection stats.
+        """
+        cursor = self.conn.cursor()
+
+        # Check if service_nodes table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='service_nodes'
+        """)
+
+        if not cursor.fetchone():
+            return []
+
+        cursor.execute("""
+            SELECT
+                sn.id,
+                sn.name,
+                sn.type,
+                sn.metadata,
+                COUNT(DISTINCT sc_out.id) as outgoing_connections,
+                COUNT(DISTINCT sc_in.id) as incoming_connections
+            FROM service_nodes sn
+            LEFT JOIN service_connections sc_out ON sn.id = sc_out.source_service_id
+            LEFT JOIN service_connections sc_in ON sn.id = sc_in.target_service_id
+            GROUP BY sn.id, sn.name, sn.type, sn.metadata
+            ORDER BY sn.name
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
+
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'id': row['id'],
+                'name': row['name'],
+                'type': row['type'],
+                'metadata': self._parse_metadata(row['metadata']),
+                'outgoing_connections': row['outgoing_connections'],
+                'incoming_connections': row['incoming_connections']
+            })
+
+        return results
+
+    def get_stats(self) -> Dict:
+        """
+        Aggregate statistics about the unified DB.
+
+        Returns:
+            {
+                "total_symbols": int,
+                "total_refs": int,
+                "by_type": {...},
+                "by_layer": {...},
+                "by_domain": {...},
+                "by_ref_type": {...},
+                "lineage_paths": int,
+                "services": int
+            }
+        """
+        cursor = self.conn.cursor()
+
+        stats = {}
+
+        # Total symbols
+        cursor.execute("SELECT COUNT(*) as count FROM symbols")
+        stats['total_symbols'] = cursor.fetchone()['count']
+
+        # Total refs
+        cursor.execute("SELECT COUNT(*) as count FROM symbol_refs")
+        stats['total_refs'] = cursor.fetchone()['count']
+
+        # By type
+        cursor.execute("""
+            SELECT type, COUNT(*) as count
+            FROM symbols
+            GROUP BY type
+            ORDER BY count DESC
+        """)
+        stats['by_type'] = {row['type']: row['count'] for row in cursor.fetchall()}
+
+        # By layer
+        cursor.execute("""
+            SELECT layer, COUNT(*) as count
+            FROM symbols
+            GROUP BY layer
+            ORDER BY count DESC
+        """)
+        stats['by_layer'] = {row['layer']: row['count'] for row in cursor.fetchall()}
+
+        # By domain
+        cursor.execute("""
+            SELECT domain, COUNT(*) as count
+            FROM symbols
+            GROUP BY domain
+            ORDER BY count DESC
+        """)
+        stats['by_domain'] = {row['domain']: row['count'] for row in cursor.fetchall()}
+
+        # By ref_type
+        cursor.execute("""
+            SELECT ref_type, COUNT(*) as count
+            FROM symbol_refs
+            GROUP BY ref_type
+            ORDER BY count DESC
+        """)
+        stats['by_ref_type'] = {row['ref_type']: row['count'] for row in cursor.fetchall()}
+
+        # Lineage paths count (if table exists)
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='lineage_paths'
+        """)
+        if cursor.fetchone():
+            cursor.execute("SELECT COUNT(*) as count FROM lineage_paths")
+            stats['lineage_paths'] = cursor.fetchone()['count']
+        else:
+            stats['lineage_paths'] = 0
+
+        # Services count (if table exists)
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='service_nodes'
+        """)
+        if cursor.fetchone():
+            cursor.execute("SELECT COUNT(*) as count FROM service_nodes")
+            stats['services'] = cursor.fetchone()['count']
+        else:
+            stats['services'] = 0
+
+        return stats
+
+    def get_symbol_with_refs(self, symbol_id: str) -> Optional[Dict]:
+        """
+        Get a single symbol enriched with dependencies and dependents.
+
+        Queries symbol_refs for outgoing (dependencies) and incoming (dependents).
+
+        Returns symbol dict with:
+            - dependencies: list of {symbol, ref_type}
+            - dependents: list of {symbol, ref_type}
+        """
+        cursor = self.conn.cursor()
+
+        # Get base symbol
+        cursor.execute("SELECT * FROM symbols WHERE id = ?", (symbol_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        symbol = self._row_to_dict(row)
+
+        # Get dependencies (outgoing refs)
+        # LEFT JOIN so orphan refs (target not in symbols) are still returned
+        cursor.execute("""
+            SELECT s.*, r.ref_type, r.target_id as _ref_peer_id
+            FROM symbol_refs r
+            LEFT JOIN symbols s ON r.target_id = s.id
+            WHERE r.source_id = ?
+        """, (symbol_id,))
+
+        dependencies = []
+        for dep_row in cursor.fetchall():
+            dep = self._row_to_dict(dep_row) if dep_row['id'] is not None else self._orphan_ref_dict(dep_row['_ref_peer_id'])
+            dependencies.append({
+                'symbol': dep,
+                'ref_type': dep_row['ref_type']
+            })
+
+        # Get dependents (incoming refs)
+        # LEFT JOIN so orphan refs (source not in symbols) are still returned
+        cursor.execute("""
+            SELECT s.*, r.ref_type, r.source_id as _ref_peer_id
+            FROM symbol_refs r
+            LEFT JOIN symbols s ON r.source_id = s.id
+            WHERE r.target_id = ?
+        """, (symbol_id,))
+
+        dependents = []
+        for dep_row in cursor.fetchall():
+            dep = self._row_to_dict(dep_row) if dep_row['id'] is not None else self._orphan_ref_dict(dep_row['_ref_peer_id'])
+            dependents.append({
+                'symbol': dep,
+                'ref_type': dep_row['ref_type']
+            })
+
+        symbol['dependencies'] = dependencies
+        symbol['dependents'] = dependents
+
+        return symbol
 
     def close(self):
         """Close database connection."""
