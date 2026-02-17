@@ -508,6 +508,9 @@ class UnifiedQueryEngine:
         """
         Get category statistics with cross-category relationships.
 
+        Uses pre-aggregated cache tables if available (populated during migration),
+        falling back to live queries for older databases.
+
         Returns:
             {
                 "categories": [{"name": "auth", "count": 45, "layers": {...}}, ...],
@@ -516,7 +519,66 @@ class UnifiedQueryEngine:
         """
         cursor = self.conn.cursor()
 
-        # Category stats
+        # Check if both cache tables exist
+        cursor.execute("""
+            SELECT COUNT(*) FROM sqlite_master
+            WHERE type='table' AND name IN ('symbol_categories_cache', 'category_relationships_cache')
+        """)
+        has_cache = cursor.fetchone()[0] == 2
+
+        if has_cache:
+            return self._get_categories_cached(cursor)
+        return self._get_categories_live(cursor)
+
+    def _get_categories_cached(self, cursor) -> Dict:
+        """Read from pre-aggregated cache tables, aggregating across domains."""
+        cursor.execute("""
+            SELECT category, symbol_count, layers
+            FROM symbol_categories_cache
+        """)
+
+        # Aggregate across domains to match live behavior (which has no domain filter)
+        cat_map = {}
+        for row in cursor.fetchall():
+            cat_name = row['category']
+            try:
+                row_layers = json.loads(row['layers']) if row['layers'] else {}
+            except (json.JSONDecodeError, TypeError):
+                row_layers = {}
+            if cat_name not in cat_map:
+                cat_map[cat_name] = {'count': 0, 'layers': {}}
+            cat_map[cat_name]['count'] += row['symbol_count']
+            for layer, cnt in row_layers.items():
+                cat_map[cat_name]['layers'][layer] = cat_map[cat_name]['layers'].get(layer, 0) + cnt
+
+        categories = sorted(
+            [{'name': k, 'count': v['count'], 'layers': v['layers']} for k, v in cat_map.items()],
+            key=lambda x: x['count'],
+            reverse=True
+        )
+
+        # Cross-category relationships from cache
+        cursor.execute("""
+            SELECT from_category, to_category, ref_count
+            FROM category_relationships_cache
+            ORDER BY ref_count DESC
+        """)
+
+        relationships = []
+        for row in cursor.fetchall():
+            relationships.append({
+                'from': row['from_category'],
+                'to': row['to_category'],
+                'count': row['ref_count']
+            })
+
+        return {
+            'categories': categories,
+            'relationships': relationships
+        }
+
+    def _get_categories_live(self, cursor) -> Dict:
+        """Fallback: live aggregation for databases without cache tables."""
         cursor.execute("""
             SELECT category, COUNT(*) as count
             FROM symbols

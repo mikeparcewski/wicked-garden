@@ -234,8 +234,28 @@ def create_schema(conn: sqlite3.Connection):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_conn_source ON service_connections(source_service_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_conn_target ON service_connections(target_service_id)")
 
+    # Pre-aggregated categories cache (populated after migration)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS symbol_categories_cache (
+            category TEXT NOT NULL,
+            domain TEXT NOT NULL DEFAULT 'code',
+            symbol_count INTEGER NOT NULL,
+            layers TEXT NOT NULL,
+            PRIMARY KEY (category, domain)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS category_relationships_cache (
+            from_category TEXT NOT NULL,
+            to_category TEXT NOT NULL,
+            ref_count INTEGER NOT NULL,
+            PRIMARY KEY (from_category, to_category)
+        )
+    """)
+
     # Schema version for compatibility gates
-    cursor.execute("PRAGMA user_version = 200")
+    cursor.execute("PRAGMA user_version = 201")
 
     conn.commit()
 
@@ -490,29 +510,38 @@ def import_graph_db(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int,
         line_start = row['line_start'] if has_line_start else 0
         line_end = row['line_end'] if has_line_end else line_start
 
-        # Derive domain from 'domain' or 'domains' column
-        if has_domain:
-            domain = row['domain'] or 'code'
-        elif has_domains:
-            domains_val = row['domains']
-            if domains_val:
-                # domains is JSON array like '["user"]' — take first
-                try:
-                    domains_list = json.loads(domains_val) if isinstance(domains_val, str) else domains_val
-                    domain = domains_list[0] if isinstance(domains_list, list) and domains_list else 'code'
-                except (json.JSONDecodeError, TypeError):
-                    domain = 'code'
-            else:
-                domain = 'code'
-        else:
-            domain = 'code'
-
         content = row['content'] if has_content else ''
         # Use description as content fallback
         if not content and has_description:
             content = row['description'] or ''
 
         metadata = row['metadata'] if has_metadata else None
+
+        # Graph DB symbols are always code-domain; preserve app-level domains as metadata
+        original_domain = None
+        if has_domain:
+            original_domain = row['domain']
+        elif has_domains:
+            domains_val = row['domains']
+            if domains_val:
+                try:
+                    domains_list = json.loads(domains_val) if isinstance(domains_val, str) else domains_val
+                    original_domain = domains_list[0] if isinstance(domains_list, list) and domains_list else None
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+        domain = 'code'  # All graph symbols are code
+
+        # Preserve non-standard app domains in metadata
+        if original_domain and original_domain not in ('code', 'doc'):
+            try:
+                existing_meta = json.loads(metadata) if metadata else {}
+                if not isinstance(existing_meta, dict):
+                    existing_meta = {'_original_metadata': existing_meta}
+            except (json.JSONDecodeError, TypeError):
+                existing_meta = {}
+            existing_meta['app_domain'] = original_domain
+            metadata = json.dumps(existing_meta)
 
         # Compute layer: use existing layer column or derive from type
         if has_layer and row['layer']:
@@ -546,11 +575,20 @@ def import_graph_db(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int,
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, symbol_batch)
 
-    # Import refs if table exists
+    # Import refs from graph DB tables: 'refs' and 'derived_refs' (ohio_graph.db),
+    # plus 'symbol_refs' for backward compatibility with older graph DBs
     ref_count = 0
-    graph_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='symbol_refs'")
-    if graph_cursor.fetchone():
-        graph_cursor.execute("SELECT source_id, target_id, ref_type FROM symbol_refs")
+    for ref_table in ('refs', 'derived_refs', 'symbol_refs'):
+        graph_cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (ref_table,)
+        )
+        if not graph_cursor.fetchone():
+            continue
+
+        graph_cursor.execute(
+            f"SELECT source_id, target_id, ref_type FROM {ref_table}"
+        )
         ref_batch = []
         for row in graph_cursor.fetchall():
             ref_batch.append((row['source_id'], row['target_id'], row['ref_type']))
@@ -696,6 +734,63 @@ def import_graph_extras(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[
     return (lineage_count, service_nodes_count, service_connections_count)
 
 
+def populate_categories_cache(conn: sqlite3.Connection):
+    """Pre-aggregate category stats and cross-category relationships into cache tables."""
+    cursor = conn.cursor()
+
+    # Clear existing cache
+    cursor.execute("DELETE FROM symbol_categories_cache")
+    cursor.execute("DELETE FROM category_relationships_cache")
+
+    # Aggregate categories with layer distribution per domain
+    cursor.execute("""
+        SELECT category, domain, layer, COUNT(*) as cnt
+        FROM symbols
+        WHERE category IS NOT NULL
+        GROUP BY category, domain, layer
+    """)
+
+    # Build nested dict: {(category, domain): {layer: count}}
+    cat_layers = {}
+    cat_counts = {}
+    for row in cursor.fetchall():
+        key = (row['category'], row['domain'])
+        if key not in cat_layers:
+            cat_layers[key] = {}
+            cat_counts[key] = 0
+        cat_layers[key][row['layer']] = row['cnt']
+        cat_counts[key] += row['cnt']
+
+    # Insert into cache
+    cache_rows = []
+    for (category, domain), layers in cat_layers.items():
+        cache_rows.append((
+            category, domain, cat_counts[(category, domain)],
+            json.dumps(layers)
+        ))
+
+    cursor.executemany("""
+        INSERT INTO symbol_categories_cache (category, domain, symbol_count, layers)
+        VALUES (?, ?, ?, ?)
+    """, cache_rows)
+
+    # Aggregate cross-category relationships
+    cursor.execute("""
+        INSERT INTO category_relationships_cache (from_category, to_category, ref_count)
+        SELECT s1.category, s2.category, COUNT(*)
+        FROM symbol_refs r
+        JOIN symbols s1 ON r.source_id = s1.id
+        JOIN symbols s2 ON r.target_id = s2.id
+        WHERE s1.category IS NOT NULL
+          AND s2.category IS NOT NULL
+          AND s1.category != s2.category
+        GROUP BY s1.category, s2.category
+        HAVING COUNT(*) > 2
+    """)
+
+    conn.commit()
+
+
 def verify_migration(conn: sqlite3.Connection) -> Dict:
     """Verify migration integrity and return stats."""
     cursor = conn.cursor()
@@ -742,6 +837,13 @@ def verify_migration(conn: sqlite3.Connection) -> Dict:
     cursor.execute("SELECT COUNT(*) FROM service_connections")
     stats['service_connections'] = cursor.fetchone()[0]
 
+    # Categories cache stats
+    cursor.execute("SELECT COUNT(*) FROM symbol_categories_cache")
+    stats['categories_cached'] = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM category_relationships_cache")
+    stats['category_relationships_cached'] = cursor.fetchone()[0]
+
     return stats
 
 
@@ -777,6 +879,9 @@ def main():
         if args.existing_db:
             graph_symbols, graph_refs = import_graph_db(conn, args.existing_db)
             graph_lineage, graph_services, graph_connections = import_graph_extras(conn, args.existing_db)
+
+        # Populate categories cache (after all symbols + refs imported)
+        populate_categories_cache(conn)
 
         # Verify
         stats = verify_migration(conn)
