@@ -19,7 +19,6 @@ import os
 import sqlite3
 import sys
 import tempfile
-from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
@@ -36,9 +35,6 @@ TYPE_TO_LAYER = {
     'file': 'unknown', 'module': 'unknown', 'variable': 'unknown', 'constant': 'unknown',
     'document': 'unknown', 'section': 'unknown', 'heading': 'unknown', 'doc_page': 'unknown', 'doc_section': 'unknown',
 }
-
-# Directories to skip when extracting category
-SKIP_DIRS = {'src', 'main', 'java', 'webapp', 'WEB-INF', 'pages', 'resources', 'test', 'tests', 'lib', 'vendor'}
 
 
 def create_schema(conn: sqlite3.Connection):
@@ -187,6 +183,56 @@ def create_schema(conn: sqlite3.Connection):
             VALUES (new.rowid, new.id, new.name, new.content);
         END
     """)
+
+    # Lineage paths table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS lineage_paths (
+            id TEXT PRIMARY KEY,
+            source_id TEXT NOT NULL,
+            sink_id TEXT NOT NULL,
+            path_length INTEGER NOT NULL,
+            min_confidence TEXT NOT NULL,
+            is_complete BOOLEAN NOT NULL DEFAULT 0,
+            gaps TEXT,
+            steps TEXT NOT NULL,
+            FOREIGN KEY (source_id) REFERENCES symbols(id),
+            FOREIGN KEY (sink_id) REFERENCES symbols(id)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lineage_source ON lineage_paths(source_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lineage_sink ON lineage_paths(sink_id)")
+
+    # Service nodes table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_nodes (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            technology TEXT,
+            metadata TEXT,
+            inferred_from TEXT
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_name ON service_nodes(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_type ON service_nodes(type)")
+
+    # Service connections table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_connections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_service_id TEXT NOT NULL,
+            target_service_id TEXT NOT NULL,
+            connection_type TEXT NOT NULL,
+            protocol TEXT,
+            evidence TEXT,
+            confidence TEXT NOT NULL DEFAULT 'medium',
+            FOREIGN KEY (source_service_id) REFERENCES service_nodes(id),
+            FOREIGN KEY (target_service_id) REFERENCES service_nodes(id),
+            UNIQUE(source_service_id, target_service_id, connection_type)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_conn_source ON service_connections(source_service_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_conn_target ON service_connections(target_service_id)")
 
     # Schema version for compatibility gates
     cursor.execute("PRAGMA user_version = 200")
@@ -414,8 +460,6 @@ def import_graph_db(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int,
     # Build SELECT dynamically based on available columns
     # Required: id, name, type, file_path, line_start
     # Optional: qualified_name, line_end, domain/domains, content, metadata, layer, label, description
-    select_parts = ["id", "name", "type"]
-
     has_qualified_name = 'qualified_name' in columns
     has_file_path = 'file_path' in columns
     has_line_start = 'line_start' in columns
@@ -425,14 +469,14 @@ def import_graph_db(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int,
     has_content = 'content' in columns
     has_metadata = 'metadata' in columns
     has_layer = 'layer' in columns
-    has_label = 'label' in columns
     has_description = 'description' in columns
 
     graph_cursor.execute("SELECT * FROM symbols LIMIT 0")
     col_names = [desc[0] for desc in graph_cursor.description]
 
-    # Fetch all rows
-    graph_cursor.execute(f"SELECT {','.join(col_names)} FROM symbols")
+    # Fetch all rows - quote identifiers for safety
+    quoted_cols = [f'"{c}"' for c in col_names]
+    graph_cursor.execute(f"SELECT {','.join(quoted_cols)} FROM symbols")
 
     symbol_count = 0
     symbol_batch = []
@@ -533,6 +577,125 @@ def import_graph_db(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int,
     return (symbol_count, ref_count)
 
 
+def import_graph_extras(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int, int, int]:
+    """Import lineage_paths, service_nodes, and service_connections from graph DB.
+
+    Returns (lineage_count, service_nodes_count, service_connections_count).
+    """
+    if not graph_db_path.exists():
+        return (0, 0, 0)
+
+    graph_conn = sqlite3.connect(str(graph_db_path))
+    graph_conn.row_factory = sqlite3.Row
+    graph_cursor = graph_conn.cursor()
+    cursor = conn.cursor()
+
+    lineage_count = 0
+    service_nodes_count = 0
+    service_connections_count = 0
+
+    # Import lineage_paths if it exists
+    graph_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='lineage_paths'")
+    if graph_cursor.fetchone():
+        graph_cursor.execute("SELECT * FROM lineage_paths")
+        lineage_batch = []
+        for row in graph_cursor.fetchall():
+            lineage_batch.append((
+                row['id'],
+                row['source_id'],
+                row['sink_id'],
+                row['path_length'],
+                row['min_confidence'],
+                row['is_complete'],
+                row['gaps'] if 'gaps' in row.keys() else None,
+                row['steps']
+            ))
+            lineage_count += 1
+
+            if len(lineage_batch) >= 10000:
+                cursor.executemany("""
+                    INSERT OR IGNORE INTO lineage_paths
+                    (id, source_id, sink_id, path_length, min_confidence, is_complete, gaps, steps)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, lineage_batch)
+                lineage_batch = []
+
+        if lineage_batch:
+            cursor.executemany("""
+                INSERT OR IGNORE INTO lineage_paths
+                (id, source_id, sink_id, path_length, min_confidence, is_complete, gaps, steps)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, lineage_batch)
+
+    # Import service_nodes if it exists
+    graph_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='service_nodes'")
+    if graph_cursor.fetchone():
+        graph_cursor.execute("SELECT * FROM service_nodes")
+        service_batch = []
+        for row in graph_cursor.fetchall():
+            service_batch.append((
+                row['id'],
+                row['name'],
+                row['type'],
+                row['technology'] if 'technology' in row.keys() else None,
+                row['metadata'] if 'metadata' in row.keys() else None,
+                row['inferred_from'] if 'inferred_from' in row.keys() else None
+            ))
+            service_nodes_count += 1
+
+            if len(service_batch) >= 10000:
+                cursor.executemany("""
+                    INSERT OR IGNORE INTO service_nodes
+                    (id, name, type, technology, metadata, inferred_from)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, service_batch)
+                service_batch = []
+
+        if service_batch:
+            cursor.executemany("""
+                INSERT OR IGNORE INTO service_nodes
+                (id, name, type, technology, metadata, inferred_from)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, service_batch)
+
+    # Import service_connections if it exists
+    graph_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='service_connections'")
+    if graph_cursor.fetchone():
+        graph_cursor.execute("SELECT * FROM service_connections")
+        conn_batch = []
+        for row in graph_cursor.fetchall():
+            # Note: Skip 'id' column since it's AUTOINCREMENT in destination
+            conn_batch.append((
+                row['source_service_id'],
+                row['target_service_id'],
+                row['connection_type'],
+                row['protocol'] if 'protocol' in row.keys() else None,
+                row['evidence'] if 'evidence' in row.keys() else None,
+                row['confidence'] if 'confidence' in row.keys() else 'medium'
+            ))
+            service_connections_count += 1
+
+            if len(conn_batch) >= 10000:
+                cursor.executemany("""
+                    INSERT OR IGNORE INTO service_connections
+                    (source_service_id, target_service_id, connection_type, protocol, evidence, confidence)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, conn_batch)
+                conn_batch = []
+
+        if conn_batch:
+            cursor.executemany("""
+                INSERT OR IGNORE INTO service_connections
+                (source_service_id, target_service_id, connection_type, protocol, evidence, confidence)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, conn_batch)
+
+    conn.commit()
+    graph_conn.close()
+
+    return (lineage_count, service_nodes_count, service_connections_count)
+
+
 def verify_migration(conn: sqlite3.Connection) -> Dict:
     """Verify migration integrity and return stats."""
     cursor = conn.cursor()
@@ -567,6 +730,18 @@ def verify_migration(conn: sqlite3.Connection) -> Dict:
     cursor.execute("SELECT COUNT(*) FROM symbols_fts")
     stats['fts_rows'] = cursor.fetchone()[0]
 
+    # Lineage paths count
+    cursor.execute("SELECT COUNT(*) FROM lineage_paths")
+    stats['lineage_paths'] = cursor.fetchone()[0]
+
+    # Service nodes count
+    cursor.execute("SELECT COUNT(*) FROM service_nodes")
+    stats['service_nodes'] = cursor.fetchone()[0]
+
+    # Service connections count
+    cursor.execute("SELECT COUNT(*) FROM service_connections")
+    stats['service_connections'] = cursor.fetchone()[0]
+
     return stats
 
 
@@ -598,8 +773,10 @@ def main():
 
         # Import existing graph DB if provided
         graph_symbols, graph_refs = (0, 0)
+        graph_lineage, graph_services, graph_connections = (0, 0, 0)
         if args.existing_db:
             graph_symbols, graph_refs = import_graph_db(conn, args.existing_db)
+            graph_lineage, graph_services, graph_connections = import_graph_extras(conn, args.existing_db)
 
         # Verify
         stats = verify_migration(conn)
@@ -641,6 +818,9 @@ def main():
             'jsonl_refs': jsonl_refs,
             'graph_symbols': graph_symbols,
             'graph_refs': graph_refs,
+            'graph_lineage': graph_lineage,
+            'graph_services': graph_services,
+            'graph_connections': graph_connections,
             'stats': stats
         }
 

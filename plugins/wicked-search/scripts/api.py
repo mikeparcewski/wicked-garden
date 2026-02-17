@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Wicked Search Data API — standard Plugin Data API interface.
 
-Reads from JSONL index files and SQLite graph DBs under ~/.something-wicked/wicked-search/.
+Reads from unified.db SQLite database under ~/.something-wicked/wicked-search/.
 Stdlib-only — no tree-sitter or other dependencies needed for queries.
 
 Usage:
@@ -30,10 +30,11 @@ Usage:
 """
 import argparse
 import json
-import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+from query_builder import UnifiedQueryEngine
 
 INDEX_DIR = Path.home() / ".something-wicked" / "wicked-search"
 VALID_SOURCES = {"symbols", "documents", "references", "graph", "lineage", "services", "projects", "code"}
@@ -61,6 +62,24 @@ def _get_index_dir(project: str = None) -> Path:
     return INDEX_DIR
 
 
+def _find_unified_db(project: str = None) -> Path:
+    """Find unified.db for a project or default."""
+    index_dir = _get_index_dir(project)
+    return index_dir / "unified.db"
+
+
+def _get_unified_engine(project: str = None):
+    """Get UnifiedQueryEngine for current project."""
+    db_path = _find_unified_db(project)
+    if not db_path.exists():
+        return None
+
+    try:
+        return UnifiedQueryEngine(str(db_path))
+    except Exception:
+        return None
+
+
 def _meta(source, total, limit=100, offset=0, **extra):
     """Build standard meta block."""
     meta = {
@@ -84,195 +103,6 @@ def _error(message, code, **details):
     sys.exit(1)
 
 
-def _load_jsonl_index(project: str = None):
-    """Load all JSONL index files and return nodes."""
-    index_dir = _get_index_dir(project)
-    if not index_dir.exists():
-        return []
-
-    nodes = []
-    for jsonl_file in index_dir.glob("*.jsonl"):
-        try:
-            with open(jsonl_file) as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        node = json.loads(line)
-                        nodes.append(node)
-                    except json.JSONDecodeError:
-                        continue
-        except OSError:
-            continue
-    return nodes
-
-
-def _filter_by_domain(nodes, domain):
-    """Filter nodes by domain (code/doc)."""
-    return [n for n in nodes if n.get("domain") == domain]
-
-
-def _get_layer_for_type(node_type):
-    """Get architectural layer for a node type."""
-    node_type_lower = str(node_type).lower()
-
-    # Map node types to layers (similar to SymbolGraph.get_layer())
-    layer_map = {
-        # Backend types
-        'class': 'backend',
-        'function': 'backend',
-        'method': 'backend',
-        'interface': 'backend',
-        'struct': 'backend',
-        'enum': 'backend',
-        'enum_type': 'backend',
-        'type': 'backend',
-        'trait': 'backend',
-        'entity': 'backend',
-        'entity_field': 'backend',
-        'controller': 'backend',
-        'controller_method': 'backend',
-        'service': 'backend',
-        'dao': 'backend',
-        # Database types
-        'table': 'database',
-        'column': 'database',
-        # Frontend types
-        'import': 'frontend',
-        'component': 'frontend',
-        'component_prop': 'frontend',
-        'route': 'frontend',
-        'form_field': 'frontend',
-        'event_handler': 'frontend',
-        'data_binding': 'frontend',
-        # View types
-        'jsp_page': 'view',
-        'html_page': 'view',
-        'el_expression': 'view',
-        'form_binding': 'view',
-        'jstl_variable': 'view',
-        'taglib': 'view',
-        'doc_section': 'view',
-        'doc_page': 'view',
-    }
-    return layer_map.get(node_type_lower, 'unknown')
-
-
-def _apply_filters(items, args):
-    """Apply --layer, --type, and --category filters to items."""
-    if hasattr(args, 'layer') and args.layer:
-        filtered = []
-        for item in items:
-            # Get layer from item or calculate it
-            item_layer = item.get('layer')
-            if not item_layer:
-                item_type = item.get('type') or item.get('node_type')
-                if item_type:
-                    item_layer = _get_layer_for_type(item_type)
-                    item['layer'] = item_layer  # Add layer to output
-            if item_layer and item_layer.lower() == args.layer.lower():
-                filtered.append(item)
-        items = filtered
-
-    if hasattr(args, 'type') and args.type:
-        items = [item for item in items
-                if (item.get('type') or item.get('node_type', '')).upper() == args.type.upper()]
-
-    if hasattr(args, 'category') and args.category:
-        items = [i for i in items if _derive_directory_category(i.get('file_path', '') or i.get('file', '')) == args.category]
-
-    return items
-
-
-def _search_nodes(nodes, query):
-    """Simple text search across node names and metadata."""
-    query_lower = query.lower()
-    results = []
-    for node in nodes:
-        name = (node.get("name") or "").lower()
-        node_type = (node.get("type") or node.get("node_type") or "").lower()
-        file_path = (node.get("file") or node.get("file_path") or "").lower()
-        # Score: exact match > starts with > contains
-        if query_lower == name:
-            results.append((0, node))
-        elif name.startswith(query_lower):
-            results.append((1, node))
-        elif query_lower in name or query_lower in file_path or query_lower in node_type:
-            results.append((2, node))
-    results.sort(key=lambda x: x[0])
-    return [r[1] for r in results]
-
-
-def _find_graph_dbs(project: str = None):
-    """Find all *_graph.db files under index directory."""
-    index_dir = _get_index_dir(project)
-    if not index_dir.exists():
-        return []
-    return list(index_dir.glob("*_graph.db"))
-
-
-def _query_graph_dbs(query, params=(), project: str = None):
-    """Execute SQL query across all graph DBs and merge results."""
-    dbs = _find_graph_dbs(project)
-    if not dbs:
-        return []
-
-    all_results = []
-    for db_file in dbs:
-        try:
-            conn = sqlite3.connect(str(db_file), timeout=5.0)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute(query, params)
-            rows = cursor.fetchall()
-            # Convert Row objects to dicts
-            for row in rows:
-                all_results.append(dict(row))
-            conn.close()
-        except sqlite3.OperationalError:
-            # Table doesn't exist in this DB, skip
-            continue
-        except Exception:
-            # Other errors, skip this DB
-            continue
-
-    return all_results
-
-
-def _enrich_with_layer(items):
-    """Compute layer from type for each item (always works regardless of DB schema)."""
-    for item in items:
-        if not item.get('layer'):
-            item['layer'] = _get_layer_for_type(item.get('type', ''))
-    return items
-
-
-def _get_db_stats(project: str = None):
-    """Get stats from SQLite graph DBs if available."""
-    stats = {"db_files": 0, "total_symbols": 0, "total_refs": 0}
-    index_dir = _get_index_dir(project)
-    try:
-        for db_file in index_dir.glob("*_graph.db"):
-            stats["db_files"] += 1
-            try:
-                conn = sqlite3.connect(str(db_file), timeout=5.0)
-                cursor = conn.execute("SELECT COUNT(*) FROM symbols")
-                stats["total_symbols"] += cursor.fetchone()[0]
-                try:
-                    cursor = conn.execute("SELECT COUNT(*) FROM symbol_references")
-                    stats["total_refs"] += cursor.fetchone()[0]
-                except Exception:
-                    try:
-                        cursor = conn.execute("SELECT COUNT(*) FROM refs")
-                        stats["total_refs"] += cursor.fetchone()[0]
-                    except Exception:
-                        pass
-                conn.close()
-            except Exception:
-                continue
-    except ImportError:
-        pass
-    return stats
 
 
 def cmd_list_projects(args):
@@ -280,19 +110,25 @@ def cmd_list_projects(args):
     projects_dir = INDEX_DIR / "projects"
 
     if not projects_dir.exists():
-        # No projects directory - return empty or check for default index
-        default_stats = _get_db_stats(None)
-        if default_stats["total_symbols"] > 0:
-            # There's a default/legacy index
-            data = [{
-                "name": "default",
-                "symbol_count": default_stats["total_symbols"],
-                "file_count": default_stats["db_files"],
-                "last_indexed": None  # Not tracked in legacy
-            }]
-            print(json.dumps({"data": data, "meta": _meta("projects", 1)}, indent=2))
-        else:
-            print(json.dumps({"data": [], "meta": _meta("projects", 0)}, indent=2))
+        # No projects directory - check for default unified.db
+        default_db = _find_unified_db(None)
+        if default_db.exists():
+            # Get mtime
+            last_indexed = datetime.fromtimestamp(default_db.stat().st_mtime, timezone.utc).isoformat()
+            # Get stats
+            engine = _get_unified_engine(None)
+            if engine:
+                stats = engine.get_stats()
+                data = [{
+                    "name": "default",
+                    "symbol_count": stats.get('total_symbols', 0),
+                    "file_count": 1,
+                    "last_indexed": last_indexed
+                }]
+                print(json.dumps({"data": data, "meta": _meta("projects", 1)}, indent=2))
+                return
+
+        print(json.dumps({"data": [], "meta": _meta("projects", 0)}, indent=2))
         return
 
     projects = []
@@ -304,24 +140,24 @@ def cmd_list_projects(args):
         if not _validate_project_name(project_name):
             continue
 
-        # Get stats for this project
-        db_stats = _get_db_stats(project_name)
+        # Get unified.db for this project
+        db_path = _find_unified_db(project_name)
+        if not db_path.exists():
+            continue
 
-        # Try to get last indexed time from DB files
-        last_indexed = None
-        dbs = _find_graph_dbs(project_name)
-        if dbs:
-            # Get most recent mtime
-            mtimes = [db.stat().st_mtime for db in dbs]
-            if mtimes:
-                last_indexed = datetime.fromtimestamp(max(mtimes), timezone.utc).isoformat()
+        # Get mtime
+        last_indexed = datetime.fromtimestamp(db_path.stat().st_mtime, timezone.utc).isoformat()
 
-        projects.append({
-            "name": project_name,
-            "symbol_count": db_stats["total_symbols"],
-            "file_count": db_stats["db_files"],
-            "last_indexed": last_indexed
-        })
+        # Get stats
+        engine = _get_unified_engine(project_name)
+        if engine:
+            stats = engine.get_stats()
+            projects.append({
+                "name": project_name,
+                "symbol_count": stats.get('total_symbols', 0),
+                "file_count": 1,
+                "last_indexed": last_indexed
+            })
 
     # Sort by name
     projects.sort(key=lambda p: p["name"])
@@ -338,162 +174,123 @@ def cmd_list(source, args):
         cmd_list_projects(args)
         return
 
-    if source in ("graph", "lineage", "services"):
-        # SQLite-based sources
-        if source == "graph":
-            # Build SQL query — never reference 'layer' column (may not exist in older DBs)
-            where_clauses = []
-            params = []
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No unified database found. Run /wicked-search:index first.", "NO_DATABASE")
 
-            if hasattr(args, 'type') and args.type:
-                where_clauses.append("UPPER(s.type) = UPPER(?)")
-                params.append(args.type)
+    if source == "graph":
+        type_filter = getattr(args, 'type', None)
+        layer_filter = getattr(args, 'layer', None)
+        category_filter = getattr(args, 'category', None)
 
-            where_str = ""
-            if where_clauses:
-                where_str = "WHERE " + " AND ".join(where_clauses)
-
-            layer_filter = hasattr(args, 'layer') and args.layer
-            category_filter = hasattr(args, 'category') and args.category
-
-            if layer_filter or category_filter:
-                # Python-side filtering: over-fetch to ensure correct pagination
-                sql_limit = min((args.offset + args.limit) * 10, 10000)
-                sql_offset = 0
-            else:
-                sql_limit = args.limit
-                sql_offset = args.offset
-
-            query = f"""
-            SELECT s.id, s.type, s.name, s.qualified_name, s.file_path, s.line_start
-            FROM symbols s
-            {where_str}
-            ORDER BY s.name
-            LIMIT ? OFFSET ?
-            """
-            params.extend([sql_limit, sql_offset])
-            items = _query_graph_dbs(query, tuple(params), project)
-
-            # Always compute layer from type in Python (works with any DB schema)
-            _enrich_with_layer(items)
-
-            # Apply layer filter in Python (column may not exist in older DBs)
-            if layer_filter:
-                items = [i for i in items if i.get('layer', '').lower() == args.layer.lower()]
-
-            # Apply category filter in Python
-            if category_filter:
-                items = [i for i in items if _derive_directory_category(i.get('file_path', '') or i.get('file', '')) == args.category]
-
-            # Paginate after all Python-side filters
-            if layer_filter or category_filter:
-                items = items[args.offset:args.offset + args.limit]
-
-        elif source == "lineage":
-            query = "SELECT * FROM lineage_paths ORDER BY id LIMIT ? OFFSET ?"
-            items = _query_graph_dbs(query, (args.limit, args.offset), project)
-
-        elif source == "services":
-            query = "SELECT * FROM service_nodes ORDER BY name LIMIT ? OFFSET ?"
-            items = _query_graph_dbs(query, (args.limit, args.offset), project)
-            # Enrich each service with its connections
-            for service in items:
-                service_id = service.get("id")
-                if service_id:
-                    conn_query = "SELECT * FROM service_connections WHERE source_service_id = ?"
-                    connections = _query_graph_dbs(conn_query, (service_id,), project)
-                    service["connections"] = connections
-
-        # Add warning if project specified but doesn't exist
-        meta_extra = {}
-        if project:
-            index_dir = _get_index_dir(project)
-            if not index_dir.exists() or not list(index_dir.glob("*_graph.db")):
-                meta_extra["warning"] = f"Project '{project}' not found or has no indexes"
+        items = engine.list_symbols(
+            limit=args.limit,
+            offset=args.offset,
+            type_filter=type_filter,
+            layer_filter=layer_filter,
+            category_filter=category_filter,
+            domain_filter='code'
+        )
 
         total = len(items)
-        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset, **meta_extra)}, indent=2))
-        return
+        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
 
-    # JSONL-based sources
-    nodes = _load_jsonl_index(project)
+    elif source == "lineage":
+        items = engine.list_lineage(limit=args.limit, offset=args.offset)
+        total = len(items)
+        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
 
-    if source == "symbols":
-        items = [n for n in nodes if n.get("domain") == "code"]
+    elif source == "services":
+        items = engine.list_services(limit=args.limit, offset=args.offset)
+        total = len(items)
+        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+
+    elif source == "symbols":
+        layer_filter = getattr(args, 'layer', None)
+        type_filter = getattr(args, 'type', None)
+        category_filter = getattr(args, 'category', None)
+
+        items = engine.list_symbols(
+            limit=args.limit,
+            offset=args.offset,
+            domain_filter='code',
+            layer_filter=layer_filter,
+            type_filter=type_filter,
+            category_filter=category_filter
+        )
+
+        total = len(items)
+        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+
     elif source == "documents":
-        items = [n for n in nodes if n.get("domain") == "doc"]
+        items = engine.list_symbols(
+            limit=args.limit,
+            offset=args.offset,
+            domain_filter='doc'
+        )
+
+        total = len(items)
+        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+
     elif source == "references":
-        # References are cross-reference entries
-        items = [n for n in nodes if n.get("type") in ("import", "reference", "ref", "cross_ref")]
+        items = engine.list_refs(limit=args.limit, offset=args.offset)
+        total = len(items)
+        print(json.dumps({"data": items, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+
     else:
-        items = nodes
-
-    # Apply filters
-    items = _apply_filters(items, args)
-
-    total = len(items)
-    data = items[args.offset:args.offset + args.limit]
-    print(json.dumps({"data": data, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+        _error(f"Unsupported source: {source}", "UNSUPPORTED_SOURCE", source=source)
 
 
 def cmd_get(source, item_id, args):
     """Get a specific item by ID."""
     project = getattr(args, 'project', None)
 
-    if source == "graph":
-        # Get symbol from graph DB
-        symbol_query = "SELECT * FROM symbols WHERE id = ?"
-        symbols = _query_graph_dbs(symbol_query, (item_id,), project)
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No unified database found. Run /wicked-search:index first.", "NO_DATABASE")
 
-        if not symbols:
+    if source == "graph":
+        symbol = engine.get_symbol_with_refs(item_id)
+        if not symbol:
             _error("Item not found", "NOT_FOUND", resource=source, id=item_id)
 
-        symbol = symbols[0]
-
-        # Get dependencies (outgoing refs)
-        dep_queries = [
-            "SELECT target_id, ref_type, confidence FROM symbol_references WHERE source_id = ?",
-            "SELECT target_id, ref_type, confidence FROM refs WHERE source_id = ?"
-        ]
+        # Convert dependencies/dependents to legacy format
         deps = []
-        for query in dep_queries:
-            try:
-                deps = _query_graph_dbs(query, (item_id,), project)
-                if deps:
-                    break
-            except Exception:
-                continue
+        for dep in symbol.get('dependencies', []):
+            deps.append({
+                'target_id': dep['symbol']['id'],
+                'ref_type': dep['ref_type'],
+                'confidence': None
+            })
 
-        # Get dependents (incoming refs)
-        dependent_queries = [
-            "SELECT source_id, ref_type, confidence FROM symbol_references WHERE target_id = ?",
-            "SELECT source_id, ref_type, confidence FROM refs WHERE target_id = ?"
-        ]
         dependents = []
-        for query in dependent_queries:
-            try:
-                dependents = _query_graph_dbs(query, (item_id,), project)
-                if dependents:
-                    break
-            except Exception:
-                continue
+        for dep in symbol.get('dependents', []):
+            dependents.append({
+                'source_id': dep['symbol']['id'],
+                'ref_type': dep['ref_type'],
+                'confidence': None
+            })
 
-        symbol["dependencies"] = deps
-        symbol["dependents"] = dependents
+        symbol['dependencies'] = deps
+        symbol['dependents'] = dependents
 
         print(json.dumps({"data": symbol, "meta": _meta(source, 1)}, indent=2))
-        return
 
-    # JSONL-based sources
-    nodes = _load_jsonl_index(project)
-
-    for node in nodes:
-        nid = node.get("id") or node.get("name")
-        if nid == item_id:
-            print(json.dumps({"data": node, "meta": _meta(source, 1)}, indent=2))
+    else:
+        # Direct ID lookup first, then fallback to search
+        result = engine.get_symbol(item_id)
+        if result:
+            print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
             return
 
-    _error("Item not found", "NOT_FOUND", resource=source, id=item_id)
+        # Fallback: search by name
+        results = engine.search_all(item_id, limit=10)
+        for node in results:
+            if node.get("id") == item_id or node.get("name") == item_id:
+                print(json.dumps({"data": node, "meta": _meta(source, 1)}, indent=2))
+                return
+
+        _error("Item not found", "NOT_FOUND", resource=source, id=item_id)
 
 
 def cmd_search(source, args):
@@ -503,84 +300,76 @@ def cmd_search(source, args):
     if not args.query:
         _error("--query required for search", "MISSING_QUERY")
 
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No unified database found. Run /wicked-search:index first.", "NO_DATABASE")
+
     if source == "graph":
-        # Search symbols in graph DBs — never reference 'layer' column in SQL
-        where_clauses = ["(name LIKE ? OR qualified_name LIKE ?)"]
-        params = [f"%{args.query}%", f"%{args.query}%"]
+        # Use search_code() to stay consistent with list graph (domain='code')
+        fetch_limit = args.limit + args.offset
+        results = engine.search_code(args.query, limit=fetch_limit)
 
-        if hasattr(args, 'type') and args.type:
-            where_clauses.append("UPPER(type) = UPPER(?)")
-            params.append(args.type)
+        # Apply additional filters if needed
+        type_filter = getattr(args, 'type', None)
+        layer_filter = getattr(args, 'layer', None)
+        category_filter = getattr(args, 'category', None)
 
-        where_str = " AND ".join(where_clauses)
-
-        layer_filter = hasattr(args, 'layer') and args.layer
-        category_filter = hasattr(args, 'category') and args.category
-
-        if layer_filter or category_filter:
-            # Python-side filtering: over-fetch to ensure correct pagination
-            sql_limit = min((args.offset + args.limit) * 10, 10000)
-            sql_offset = 0
-        else:
-            sql_limit = args.limit
-            sql_offset = args.offset
-
-        query = f"""
-        SELECT * FROM symbols
-        WHERE {where_str}
-        LIMIT ? OFFSET ?
-        """
-        params.extend([sql_limit, sql_offset])
-        results = _query_graph_dbs(query, tuple(params), project)
-
-        # Always compute layer from type in Python (works with any DB schema)
-        _enrich_with_layer(results)
-
-        # Apply layer filter in Python (column may not exist in older DBs)
+        if type_filter:
+            results = [r for r in results if r.get('type', '').upper() == type_filter.upper()]
         if layer_filter:
-            results = [r for r in results if r.get('layer', '').lower() == args.layer.lower()]
-
-        # Apply category filter in Python
+            results = [r for r in results if r.get('layer', '').lower() == layer_filter.lower()]
         if category_filter:
-            results = [r for r in results if _derive_directory_category(r.get('file_path', '') or r.get('file', '')) == args.category]
+            results = [r for r in results if r.get('category', '') == category_filter]
 
-        # Paginate after all Python-side filters
-        if layer_filter or category_filter:
-            results = results[args.offset:args.offset + args.limit]
+        results = results[args.offset:args.offset + args.limit]
+        total = len(results)
+        print(json.dumps({"data": results, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+
+    elif source == "lineage":
+        results = engine.search_lineage(args.query, limit=args.limit, offset=args.offset)
+        total = len(results)
+        print(json.dumps({"data": results, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+
+    elif source == "symbols":
+        # Over-fetch to support offset + Python-side filters
+        fetch_limit = args.limit + args.offset
+        results = engine.search_code(args.query, limit=fetch_limit)
+
+        # Apply additional filters
+        layer_filter = getattr(args, 'layer', None)
+        type_filter = getattr(args, 'type', None)
+        category_filter = getattr(args, 'category', None)
+
+        if type_filter:
+            results = [r for r in results if r.get('type', '').upper() == type_filter.upper()]
+        if layer_filter:
+            results = [r for r in results if r.get('layer', '').lower() == layer_filter.lower()]
+        if category_filter:
+            results = [r for r in results if r.get('category', '') == category_filter]
+
+        # Apply offset
+        results = results[args.offset:args.offset + args.limit]
 
         total = len(results)
         print(json.dumps({"data": results, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
-        return
 
-    if source == "lineage":
-        # Search lineage paths
-        query = """
-        SELECT * FROM lineage_paths
-        WHERE source_id LIKE ? OR sink_id LIKE ?
-        LIMIT ? OFFSET ?
-        """
-        pattern = f"%{args.query}%"
-        results = _query_graph_dbs(query, (pattern, pattern, args.limit, args.offset), project)
-        total = len(results)
-        print(json.dumps({"data": results, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
-        return
-
-    # JSONL-based sources
-    nodes = _load_jsonl_index(project)
-
-    if source == "symbols":
-        nodes = [n for n in nodes if n.get("domain") == "code"]
     elif source == "documents":
-        nodes = [n for n in nodes if n.get("domain") == "doc"]
+        fetch_limit = args.limit + args.offset
+        results = engine.search_docs(args.query, limit=fetch_limit)
 
-    results = _search_nodes(nodes, args.query)
+        # Apply offset
+        results = results[args.offset:args.offset + args.limit]
 
-    # Apply filters
-    results = _apply_filters(results, args)
+        total = len(results)
+        print(json.dumps({"data": results, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
 
-    total = len(results)
-    data = results[args.offset:args.offset + args.limit]
-    print(json.dumps({"data": data, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+    elif source == "references":
+        results = engine.search_refs(args.query, limit=args.limit, offset=args.offset)
+        total = len(results)
+        print(json.dumps({"data": results, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
+
+    else:
+        _error(f"Unsupported source: {source}", "UNSUPPORTED_SOURCE", source=source)
 
 
 def cmd_traverse(source, item_id, args):
@@ -600,80 +389,31 @@ def cmd_traverse(source, item_id, args):
     if direction not in ('both', 'in', 'out'):
         _error("Direction must be 'both', 'in', or 'out'", "INVALID_DIRECTION", direction=direction)
 
-    # Find the root symbol first
-    symbol_query = "SELECT * FROM symbols WHERE id = ?"
-    symbols = _query_graph_dbs(symbol_query, (item_id,), project)
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No unified database found. Run /wicked-search:index first.", "NO_DATABASE")
 
-    if not symbols:
+    # Map 'in'/'out' to 'incoming'/'outgoing'
+    engine_direction = direction
+    if direction == 'in':
+        engine_direction = 'incoming'
+    elif direction == 'out':
+        engine_direction = 'outgoing'
+
+    result = engine.traverse(item_id, depth=depth, direction=engine_direction)
+
+    if not result.get('root'):
         _error("Symbol not found", "NOT_FOUND", id=item_id)
 
-    root = symbols[0]
+    root = result['root']
+    nodes = result['nodes']
+    edges = result['edges']
 
-    # BFS traversal - collect all symbol IDs that should be in the result
-    visited_nodes = {item_id}  # Start with root
-    visited_edges = set()
-    queue = [(item_id, 0)]
+    # Add line field to edges for legacy format compatibility
+    for edge in edges:
+        edge['line'] = 0
 
-    # Get all graph DBs for querying
-    dbs = _find_graph_dbs(project)
-    if not dbs:
-        _error("No graph databases found", "NO_GRAPH_DB")
-
-    while queue:
-        current_id, current_depth = queue.pop(0)
-
-        if current_depth >= depth:
-            continue
-
-        # Query outgoing refs (refs table only — symbol_references is a view over refs)
-        if direction in ('out', 'both'):
-            refs = _query_graph_dbs(
-                "SELECT target_id, ref_type FROM refs WHERE source_id = ?",
-                (current_id,), project)
-            for ref in refs:
-                target_id = ref['target_id']
-                edge_key = (current_id, target_id, ref['ref_type'])
-                if edge_key not in visited_edges:
-                    visited_edges.add(edge_key)
-                    if target_id not in visited_nodes:
-                        visited_nodes.add(target_id)
-                        queue.append((target_id, current_depth + 1))
-
-        # Query incoming refs
-        if direction in ('in', 'both'):
-            refs = _query_graph_dbs(
-                "SELECT source_id, ref_type FROM refs WHERE target_id = ?",
-                (current_id,), project)
-            for ref in refs:
-                source_id = ref['source_id']
-                edge_key = (source_id, current_id, ref['ref_type'])
-                if edge_key not in visited_edges:
-                    visited_edges.add(edge_key)
-                    if source_id not in visited_nodes:
-                        visited_nodes.add(source_id)
-                        queue.append((source_id, current_depth + 1))
-
-    # Batch fetch full symbol objects for all visited nodes (except root)
-    visited_nodes.discard(item_id)  # Don't include root in nodes list
-    nodes = []
-    if visited_nodes:
-        sorted_ids = sorted(visited_nodes)
-        placeholders = ",".join("?" for _ in sorted_ids)
-        node_query = f"SELECT id, name, type, qualified_name, file_path, line_start, line_end FROM symbols WHERE id IN ({placeholders})"
-        nodes = _query_graph_dbs(node_query, tuple(sorted_ids), project)
-        nodes.sort(key=lambda n: n.get("id", ""))
-
-    # Build edge list (refs table does not store line numbers, so line=0)
-    edges = []
-    for source_id, target_id, ref_type in sorted(visited_edges):
-        edges.append({
-            "source_id": source_id,
-            "target_id": target_id,
-            "ref_type": ref_type,
-            "line": 0
-        })
-
-    result = {
+    output = {
         "data": {
             "root": root,
             "nodes": nodes,
@@ -688,7 +428,7 @@ def cmd_traverse(source, item_id, args):
         }
     }
 
-    print(json.dumps(result, indent=2))
+    print(json.dumps(output, indent=2))
 
 
 def cmd_hotspots(source, args):
@@ -699,57 +439,29 @@ def cmd_hotspots(source, args):
         _error("hotspots verb only supported for graph source", "UNSUPPORTED_VERB",
                source=source, verb="hotspots")
 
-    # Build query using refs table only (symbol_references is a view over refs,
-    # so UNION ALL would double-count)
-    query = """
-    SELECT
-        s.id,
-        s.type,
-        s.name,
-        s.file_path,
-        COALESCE(in_refs.cnt, 0) as in_count,
-        COALESCE(out_refs.cnt, 0) as out_count,
-        COALESCE(in_refs.cnt, 0) + COALESCE(out_refs.cnt, 0) as total_count
-    FROM symbols s
-    LEFT JOIN (
-        SELECT source_id, COUNT(*) as cnt
-        FROM refs
-        GROUP BY source_id
-    ) out_refs ON s.id = out_refs.source_id
-    LEFT JOIN (
-        SELECT target_id, COUNT(*) as cnt
-        FROM refs
-        GROUP BY target_id
-    ) in_refs ON s.id = in_refs.target_id
-    WHERE COALESCE(in_refs.cnt, 0) + COALESCE(out_refs.cnt, 0) > 0
-    ORDER BY total_count DESC, id
-    """
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No unified database found. Run /wicked-search:index first.", "NO_DATABASE")
 
-    items = _query_graph_dbs(query, (), project)
-
-    # Re-sort after cross-DB merge (SQL ORDER BY applies per-DB only)
-    items.sort(key=lambda x: (-x.get('total_count', 0), x.get('id', '')))
-
-    # Enrich with layer
-    _enrich_with_layer(items)
-
-    # Apply filters
-    items = _apply_filters(items, args)
-
-    # Apply pagination
-    total = len(items)
     limit = getattr(args, 'limit', 20)
     offset = getattr(args, 'offset', 0)
-    data = items[offset:offset + limit]
+    layer_filter = getattr(args, 'layer', None)
+    type_filter = getattr(args, 'type', None)
+    category_filter = getattr(args, 'category', None)
+
+    items = engine.hotspots(
+        limit=limit,
+        offset=offset,
+        layer_filter=layer_filter,
+        type_filter=type_filter,
+        category_filter=category_filter
+    )
+
+    total = len(items)
 
     result = {
-        "data": data,
-        "meta": {
-            "source": "graph",
-            "total": total,
-            "limit": limit,
-            "offset": offset
-        }
+        "data": items,
+        "meta": _meta("graph", total, limit, offset)
     }
 
     print(json.dumps(result, indent=2))
@@ -785,20 +497,15 @@ def _resolve_file_path(relative_path, project=None):
         if candidate.exists():
             return str(candidate)
 
-    # Try DB lookup — find a symbol whose file_path ends with this relative path
-    dbs = _find_graph_dbs(project)
-    for db_file in dbs:
+    # Try DB lookup using unified engine
+    engine = _get_unified_engine(project)
+    if engine:
         try:
-            conn = sqlite3.connect(str(db_file), timeout=5.0)
-            cursor = conn.execute(
-                "SELECT file_path FROM symbols WHERE file_path LIKE ? LIMIT 1",
-                (f"%{relative_path}",))
-            row = cursor.fetchone()
-            conn.close()
-            if row and Path(row[0]).exists():
-                return row[0]
+            results = engine.search_code(relative_path, limit=1)
+            if results and Path(results[0].get('file_path', '')).exists():
+                return results[0]['file_path']
         except Exception:
-            continue
+            pass
 
     return None
 
@@ -818,85 +525,6 @@ def _infer_language(file_path):
     return ext_map.get(ext, "text")
 
 
-def _derive_directory_category(file_path):
-    """Derive a category from file path using the first meaningful directory."""
-    parts = file_path.replace("\\", "/").split("/")
-
-    # Known framework markers to skip past
-    skip_markers = {"src", "main", "java", "kotlin", "scala", "python", "lib",
-                    "WEB-INF", "META-INF", "resources", "static", "public",
-                    "app", "internal", "pkg", "cmd"}
-    view_markers = {"pages", "jsp", "jsp-client", "views", "templates", "webapp"}
-
-    # Strategy 1: Skip past known markers to find first meaningful dir
-    for i, part in enumerate(parts):
-        if part in view_markers:
-            remaining = parts[i + 1:]
-            if remaining and remaining[0] in ("WEB-INF",):
-                remaining = remaining[1:]
-            if remaining and remaining[0] in view_markers:
-                remaining = remaining[1:]
-            if len(remaining) > 1:
-                return remaining[0]
-            return "root"
-
-    # Strategy 2: Find first dir after src/main/... pattern
-    for i, part in enumerate(parts):
-        if part == "src" and i + 2 < len(parts):
-            # Skip src/main/java/com/... → use package-level dir
-            rest = parts[i + 1:]
-            meaningful = [p for p in rest[:-1] if p not in skip_markers]
-            if meaningful:
-                return meaningful[0]
-
-    # Strategy 3: Use top-level directory (skip common roots)
-    meaningful = [p for p in parts[:-1] if p and p not in skip_markers and not p.startswith(".")]
-    if meaningful:
-        return meaningful[0]
-
-    return "root"
-
-
-def _query_cross_category_relationships(project, category_fn):
-    """Query relationships between categories, returning edge list with ref_type counts.
-
-    Args:
-        project: project filter or None
-        category_fn: function(file_path) -> category string
-
-    Returns list of {"source": cat, "target": cat, "ref_type": str, "count": int}
-    """
-    # Join refs with symbols on both sides to get source/target file paths + ref_type
-    # Try refs table first (canonical), fall back to symbol_references
-    ref_query = """
-        SELECT s1.file_path as source_path, s2.file_path as target_path,
-               r.ref_type, COUNT(*) as cnt
-        FROM refs r
-        JOIN symbols s1 ON r.source_id = s1.id
-        JOIN symbols s2 ON r.target_id = s2.id
-        WHERE s1.file_path != s2.file_path
-        GROUP BY s1.file_path, s2.file_path, r.ref_type
-    """
-    rows = _query_graph_dbs(ref_query, (), project)
-    if not rows:
-        # Try symbol_references as fallback
-        ref_query = ref_query.replace("FROM refs r", "FROM symbol_references r")
-        rows = _query_graph_dbs(ref_query, (), project)
-
-    # Aggregate by category pair + ref_type
-    edges = {}
-    for row in rows:
-        src_cat = category_fn(row["source_path"])
-        tgt_cat = category_fn(row["target_path"])
-        if src_cat == tgt_cat:
-            continue  # Skip intra-category refs
-        key = (src_cat, tgt_cat, row["ref_type"])
-        edges[key] = edges.get(key, 0) + row["cnt"]
-
-    return sorted(
-        [{"source": k[0], "target": k[1], "ref_type": k[2], "count": v}
-         for k, v in edges.items()],
-        key=lambda e: -e["count"])
 
 
 def cmd_categories(source, args):
@@ -907,67 +535,52 @@ def cmd_categories(source, args):
         _error("categories verb only supported for symbols source", "UNSUPPORTED_VERB",
                source=source, verb="categories")
 
-    dbs = _find_graph_dbs(project)
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No unified database found. Run /wicked-search:index first.", "NO_DATABASE")
 
-    if not dbs:
-        print(json.dumps({"data": [], "meta": _meta(source, 0)}, indent=2))
-        return
+    categories = engine.get_categories()
 
-    # Group by symbol type
-    type_rows = _query_graph_dbs(
-        "SELECT type, COUNT(*) as count FROM symbols GROUP BY type ORDER BY count DESC",
-        (), project)
+    # Convert to legacy format
+    by_directory = categories.get('categories', [])
+    for cat in by_directory:
+        cat['category'] = cat.pop('name')
+        cat['symbol_count'] = cat.pop('count')
+        cat.pop('layers', None)
 
-    # Group by layer
-    layer_counts = {}
-    for row in type_rows:
-        layer = _get_layer_for_type(row["type"])
-        layer_counts[layer] = layer_counts.get(layer, 0) + row["count"]
+    relationships_dir = []
+    for rel in categories.get('relationships', []):
+        relationships_dir.append({
+            'source': rel['from'],
+            'target': rel['to'],
+            'ref_type': 'cross_ref',
+            'count': rel['count']
+        })
 
-    # Group by directory category
-    all_symbols = _query_graph_dbs(
-        "SELECT file_path FROM symbols",
-        (), project)
-    dir_categories = {}
-    for sym in all_symbols:
-        cat = _derive_directory_category(sym.get("file_path", ""))
-        dir_categories[cat] = dir_categories.get(cat, 0) + 1
+    # Get stats for by_type and by_layer
+    stats = engine.get_stats()
 
-    dir_data = sorted(
-        [{"category": k, "symbol_count": v} for k, v in dir_categories.items()],
-        key=lambda c: -c["symbol_count"])
+    type_rows = []
+    for type_name, count in stats.get('by_type', {}).items():
+        type_rows.append({'type': type_name, 'count': count})
+    type_rows.sort(key=lambda x: -x['count'])
 
-    # Cross-category relationships by directory
-    dir_relationships = _query_cross_category_relationships(project, _derive_directory_category)
-
-    # Cross-layer relationships (group by layer instead of directory)
-    def _layer_from_path(file_path):
-        """Derive layer for a file by its most common symbol type."""
-        # Use a simple heuristic: map file extension / path patterns to layers
-        fp = file_path.lower()
-        if any(x in fp for x in ("/views/", "/pages/", "/templates/", "/jsp/", ".jsp", ".html", ".hbs")):
-            return "view"
-        if any(x in fp for x in ("/migrations/", "/schema", "/sql/", ".sql")):
-            return "database"
-        if any(x in fp for x in ("/components/", "/ui/", "/frontend/", ".tsx", ".jsx", ".vue", ".svelte")):
-            return "frontend"
-        return "backend"
-
-    layer_relationships = _query_cross_category_relationships(project, _layer_from_path)
+    layer_rows = []
+    for layer_name, count in stats.get('by_layer', {}).items():
+        layer_rows.append({'layer': layer_name, 'symbol_count': count})
+    layer_rows.sort(key=lambda x: -x['symbol_count'])
 
     data = {
         "by_type": type_rows,
-        "by_layer": sorted(
-            [{"layer": k, "symbol_count": v} for k, v in layer_counts.items()],
-            key=lambda c: -c["symbol_count"]),
-        "by_directory": dir_data[:args.limit],
+        "by_layer": layer_rows,
+        "by_directory": by_directory[:args.limit],
         "relationships": {
-            "by_directory": dir_relationships[:args.limit],
-            "by_layer": layer_relationships,
+            "by_directory": relationships_dir[:args.limit],
+            "by_layer": [],
         },
     }
 
-    total = len(type_rows) + len(layer_counts) + len(dir_categories)
+    total = len(type_rows) + len(layer_rows) + len(by_directory)
     print(json.dumps({"data": data, "meta": _meta(source, total, args.limit, args.offset)}, indent=2))
 
 
@@ -979,8 +592,11 @@ def cmd_impact(source, item_id, args):
         _error("impact verb only supported for graph source", "UNSUPPORTED_VERB",
                source=source, verb="impact")
 
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No unified database found. Run /wicked-search:index first.", "NO_DATABASE")
+
     # Parse table.column from item_id
-    # Frontend sends "TABLE.COLUMN", DB stores "db::TABLE.COLUMN"
     if "." in item_id:
         parts = item_id.split(".", 1)
         table = parts[0]
@@ -992,48 +608,37 @@ def cmd_impact(source, item_id, args):
     # Try both ID formats
     column_ids = [f"db::{item_id}", item_id]
 
-    # Step 1: Find entity_fields that maps_to this column (reverse: entity_field -> column)
-    entity_fields = []
+    # Try each ID format
+    impact_result = None
     for col_id in column_ids:
-        ef = _query_graph_dbs(
-            "SELECT source_id FROM refs WHERE target_id = ? AND ref_type = 'maps_to'",
-            (col_id,), project)
-        entity_fields.extend(ef)
-        if entity_fields:
-            break
+        try:
+            impact_result = engine.impact_analysis(col_id)
+            if impact_result and impact_result.get('root'):
+                break
+        except Exception:
+            continue
 
-    # Step 2: For each entity_field, find UI fields that binds_to it
+    if not impact_result or not impact_result.get('root'):
+        # Return empty result
+        result = {
+            "table": table,
+            "column": column,
+            "total_affected": 0,
+            "affected_fields": [],
+        }
+        print(json.dumps({"data": result, "meta": _meta(source, 1)}, indent=2))
+        return
+
+    # Convert to legacy format
     affected_fields = []
-    seen_ids = set()
-    for ef in entity_fields:
-        ef_id = ef["source_id"]
-        # Get the field path from entity_field name (e.g., "Entity.fieldName")
-        ef_info = _query_graph_dbs(
-            "SELECT name, qualified_name FROM symbols WHERE id = ?",
-            (ef_id,), project)
-        field_path = ef_info[0]["qualified_name"] if ef_info and ef_info[0].get("qualified_name") else (
-            ef_info[0]["name"] if ef_info else ef_id)
-
-        # Find binds_to refs pointing at this entity_field
-        bindings = _query_graph_dbs(
-            "SELECT source_id FROM refs WHERE target_id = ? AND ref_type = 'binds_to'",
-            (ef_id,), project)
-
-        for binding in bindings:
-            ui_id = binding["source_id"]
-            if ui_id in seen_ids:
-                continue
-            seen_ids.add(ui_id)
-
-            # Get symbol info for this UI field
-            sym = _query_graph_dbs(
-                "SELECT id, name, file_path FROM symbols WHERE id = ?",
-                (ui_id,), project)
-            if sym:
+    for layer_group in impact_result.get('layers', []):
+        for symbol in layer_group.get('symbols', []):
+            # Only include UI layer symbols
+            if symbol.get('layer') in ('view', 'frontend'):
                 affected_fields.append({
-                    "ui_field_id": sym[0]["id"],
-                    "field_path": field_path,
-                    "jsp_file": sym[0]["file_path"],
+                    "ui_field_id": symbol['id'],
+                    "field_path": symbol.get('qualified_name', symbol['name']),
+                    "jsp_file": symbol.get('file_path', '')
                 })
 
     result = {
@@ -1122,164 +727,49 @@ def cmd_stats(source, args):
     """Get statistics."""
     project = getattr(args, 'project', None)
 
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No unified database found. Run /wicked-search:index first.", "NO_DATABASE")
+
+    stats = engine.get_stats()
+
     if source == "graph":
-        # Graph DB statistics
-        dbs = _find_graph_dbs(project)
-        if not dbs:
-            stats = {
-                "total_symbols": 0,
-                "total_refs": 0,
-                "by_type": {},
-                "by_ref_type": {},
-                "db_files": 0
-            }
-            print(json.dumps({"data": stats, "meta": _meta(source, 1)}, indent=2))
-            return
-
-        total_symbols = 0
-        total_refs = 0
-        by_type = {}
-        by_ref_type = {}
-
-        for db_file in dbs:
-            try:
-                conn = sqlite3.connect(str(db_file), timeout=5.0)
-                conn.row_factory = sqlite3.Row
-
-                # Count symbols
-                cursor = conn.execute("SELECT COUNT(*) as cnt FROM symbols")
-                total_symbols += cursor.fetchone()["cnt"]
-
-                # Count by symbol type
-                cursor = conn.execute("SELECT type, COUNT(*) as cnt FROM symbols GROUP BY type")
-                for row in cursor.fetchall():
-                    t = row["type"]
-                    by_type[t] = by_type.get(t, 0) + row["cnt"]
-
-                # Count refs (try both table names)
-                ref_table = None
-                for table_name in ("symbol_references", "refs"):
-                    try:
-                        cursor = conn.execute(f"SELECT COUNT(*) as cnt FROM {table_name}")
-                        total_refs += cursor.fetchone()["cnt"]
-                        ref_table = table_name
-                        break
-                    except sqlite3.OperationalError:
-                        continue
-
-                # Count by ref type
-                if ref_table:
-                    cursor = conn.execute(f"SELECT ref_type, COUNT(*) as cnt FROM {ref_table} GROUP BY ref_type")
-                    for row in cursor.fetchall():
-                        rt = row["ref_type"]
-                        by_ref_type[rt] = by_ref_type.get(rt, 0) + row["cnt"]
-
-                conn.close()
-            except Exception:
-                continue
-
-        stats = {
-            "total_symbols": total_symbols,
-            "total_refs": total_refs,
-            "by_type": by_type,
-            "by_ref_type": by_ref_type,
-            "db_files": len(dbs)
+        output_stats = {
+            "total_symbols": stats.get('total_symbols', 0),
+            "total_refs": stats.get('total_refs', 0),
+            "by_type": stats.get('by_type', {}),
+            "by_ref_type": stats.get('by_ref_type', {}),
+            "db_files": 1
         }
-        print(json.dumps({"data": stats, "meta": _meta(source, 1)}, indent=2))
-        return
+        print(json.dumps({"data": output_stats, "meta": _meta(source, 1)}, indent=2))
 
-    if source == "services":
-        # Services statistics
-        dbs = _find_graph_dbs(project)
-        if not dbs:
-            stats = {
-                "total_services": 0,
-                "total_connections": 0,
-                "by_type": {},
-                "by_technology": {}
-            }
-            print(json.dumps({"data": stats, "meta": _meta(source, 1)}, indent=2))
-            return
-
-        total_services = 0
-        total_connections = 0
-        by_type = {}
-        by_technology = {}
-
-        for db_file in dbs:
-            try:
-                conn = sqlite3.connect(str(db_file), timeout=5.0)
-                conn.row_factory = sqlite3.Row
-
-                # Count services
-                try:
-                    cursor = conn.execute("SELECT COUNT(*) as cnt FROM service_nodes")
-                    total_services += cursor.fetchone()["cnt"]
-
-                    # Count by type
-                    cursor = conn.execute("SELECT type, COUNT(*) as cnt FROM service_nodes GROUP BY type")
-                    for row in cursor.fetchall():
-                        t = row["type"]
-                        by_type[t] = by_type.get(t, 0) + row["cnt"]
-
-                    # Count by technology
-                    cursor = conn.execute("SELECT technology, COUNT(*) as cnt FROM service_nodes WHERE technology IS NOT NULL GROUP BY technology")
-                    for row in cursor.fetchall():
-                        tech = row["technology"]
-                        by_technology[tech] = by_technology.get(tech, 0) + row["cnt"]
-                except sqlite3.OperationalError:
-                    pass
-
-                # Count connections
-                try:
-                    cursor = conn.execute("SELECT COUNT(*) as cnt FROM service_connections")
-                    total_connections += cursor.fetchone()["cnt"]
-                except sqlite3.OperationalError:
-                    pass
-
-                conn.close()
-            except Exception:
-                continue
-
-        stats = {
-            "total_services": total_services,
-            "total_connections": total_connections,
-            "by_type": by_type,
-            "by_technology": by_technology
+    elif source == "services":
+        output_stats = {
+            "total_services": stats.get('services', 0),
+            "total_connections": 0,
+            "by_type": {},
+            "by_technology": {}
         }
-        print(json.dumps({"data": stats, "meta": _meta(source, 1)}, indent=2))
-        return
+        print(json.dumps({"data": output_stats, "meta": _meta(source, 1)}, indent=2))
 
-    # JSONL-based sources
-    nodes = _load_jsonl_index(project)
-    db_stats = _get_db_stats(project)
+    elif source == "symbols":
+        output_stats = {
+            "total_symbols": stats.get('total_symbols', 0),
+            "by_type": stats.get('by_type', {}),
+            "by_layer": stats.get('by_layer', {})
+        }
+        print(json.dumps({"data": output_stats, "meta": _meta(source, 1)}, indent=2))
 
-    code_nodes = [n for n in nodes if n.get("domain") == "code"]
-    doc_nodes = [n for n in nodes if n.get("domain") == "doc"]
+    elif source == "documents":
+        # Count doc domain symbols
+        doc_count = stats.get('by_domain', {}).get('doc', 0)
+        output_stats = {
+            "total_documents": doc_count
+        }
+        print(json.dumps({"data": output_stats, "meta": _meta(source, 1)}, indent=2))
 
-    # Count by type
-    by_type = {}
-    for n in nodes:
-        t = n.get("type") or n.get("node_type") or "unknown"
-        if hasattr(t, "value"):
-            t = t.value
-        by_type[str(t)] = by_type.get(str(t), 0) + 1
-
-    # Count index files
-    index_dir = _get_index_dir(project)
-    jsonl_count = len(list(index_dir.glob("*.jsonl"))) if index_dir.exists() else 0
-
-    stats = {
-        "total_nodes": len(nodes),
-        "code_symbols": len(code_nodes),
-        "documents": len(doc_nodes),
-        "by_type": by_type,
-        "index_files": jsonl_count,
-        "graph_dbs": db_stats["db_files"],
-        "graph_symbols": db_stats["total_symbols"],
-        "graph_refs": db_stats["total_refs"],
-    }
-    print(json.dumps({"data": stats, "meta": _meta(source, 1)}, indent=2))
+    else:
+        _error(f"Unsupported source for stats: {source}", "UNSUPPORTED_SOURCE", source=source)
 
 
 def main():
