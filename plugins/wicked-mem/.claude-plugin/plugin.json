@@ -1,6 +1,6 @@
 {
   "name": "wicked-mem",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "Structured memory with signal-based recall. Unlike built-in memory, wicked-mem categorizes memories by type (episodic, decision, procedural, preference), decays stale memories automatically, and only injects context when your question signals need it \u2014 preventing context bloat.",
   "author": {
     "name": "Mike Parcewski"

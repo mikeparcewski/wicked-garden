@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.0] - 2026-02-19
+
+### Features
+- feat: resolve frontend migration plugin features (#6) (60ffc00)
+
+### Chores
+- release: wicked-search v2.0.1 (b5883a0)
+
 ## [2.0.1] - 2026-02-17
 
 ### Features
