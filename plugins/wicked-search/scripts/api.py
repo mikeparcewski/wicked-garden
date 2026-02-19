@@ -30,6 +30,7 @@ Usage:
 """
 import argparse
 import json
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,11 +69,33 @@ def _find_unified_db(project: str = None) -> Path:
     return index_dir / "unified.db"
 
 
+REQUIRED_SCHEMA_VERSION = 202
+
+
+def _check_schema_version(db_path: Path):
+    """Warn to stderr if the database schema is outdated."""
+    try:
+        conn = sqlite3.connect(str(db_path))
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        conn.close()
+        if version < REQUIRED_SCHEMA_VERSION:
+            print(
+                f"WARNING: Index schema v{version} is outdated (need v{REQUIRED_SCHEMA_VERSION}). "
+                f"Lineage queries may return empty results. "
+                f"Please reindex with: /wicked-search:index <project-path>",
+                file=sys.stderr
+            )
+    except Exception:
+        pass
+
+
 def _get_unified_engine(project: str = None):
     """Get UnifiedQueryEngine for current project."""
     db_path = _find_unified_db(project)
     if not db_path.exists():
         return None
+
+    _check_schema_version(db_path)
 
     try:
         return UnifiedQueryEngine(str(db_path))

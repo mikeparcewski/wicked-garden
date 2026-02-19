@@ -20,7 +20,7 @@
       "name": "wicked-search",
       "source": "./plugins/wicked-search",
       "description": "Unified code and document search with Symbol Graph, graph traversal, hotspot detection, and multi-project isolation. Multi-ORM data lineage, cross-layer linking, blast radius analysis, symbol enrichment, and wicked-cache integration.",
-      "version": "2.1.0"
+      "version": "2.1.1"
     },
     {
       "name": "wicked-patch",

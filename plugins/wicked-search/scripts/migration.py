@@ -184,17 +184,18 @@ def create_schema(conn: sqlite3.Connection):
         END
     """)
 
-    # Lineage paths table
+    # Lineage paths table (matches symbol_graph.py + lineage_tracer.py schema)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS lineage_paths (
             id TEXT PRIMARY KEY,
             source_id TEXT NOT NULL,
             sink_id TEXT NOT NULL,
-            path_length INTEGER NOT NULL,
-            min_confidence TEXT NOT NULL,
-            is_complete BOOLEAN NOT NULL DEFAULT 0,
+            path_nodes TEXT,
+            path_length INTEGER,
+            min_confidence TEXT,
+            is_complete INTEGER DEFAULT 0,
             gaps TEXT,
-            steps TEXT NOT NULL,
+            computed_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (source_id) REFERENCES symbols(id),
             FOREIGN KEY (sink_id) REFERENCES symbols(id)
         )
@@ -254,8 +255,8 @@ def create_schema(conn: sqlite3.Connection):
         )
     """)
 
-    # Schema version for compatibility gates
-    cursor.execute("PRAGMA user_version = 201")
+    # Schema version for compatibility gates (bump on schema changes; users reindex)
+    cursor.execute("PRAGMA user_version = 202")
 
     conn.commit()
 
@@ -657,6 +658,12 @@ def import_graph_extras(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[
     # Import lineage_paths if it exists
     graph_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='lineage_paths'")
     if graph_cursor.fetchone():
+        # Detect column names in source graph DB (may have path_nodes or steps)
+        graph_cursor.execute("PRAGMA table_info(lineage_paths)")
+        graph_cols = {r[1] for r in graph_cursor.fetchall()}
+        path_col = 'path_nodes' if 'path_nodes' in graph_cols else 'steps'
+        has_computed_at = 'computed_at' in graph_cols
+
         graph_cursor.execute("SELECT * FROM lineage_paths")
         lineage_batch = []
         for row in graph_cursor.fetchall():
@@ -664,27 +671,28 @@ def import_graph_extras(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[
                 row['id'],
                 row['source_id'],
                 row['sink_id'],
+                row[path_col] if path_col in row.keys() else None,
                 row['path_length'],
                 row['min_confidence'],
                 row['is_complete'],
                 row['gaps'] if 'gaps' in row.keys() else None,
-                row['steps']
+                row['computed_at'] if has_computed_at and 'computed_at' in row.keys() else None,
             ))
             lineage_count += 1
 
             if len(lineage_batch) >= 10000:
                 cursor.executemany("""
                     INSERT OR IGNORE INTO lineage_paths
-                    (id, source_id, sink_id, path_length, min_confidence, is_complete, gaps, steps)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, source_id, sink_id, path_nodes, path_length, min_confidence, is_complete, gaps, computed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, lineage_batch)
                 lineage_batch = []
 
         if lineage_batch:
             cursor.executemany("""
                 INSERT OR IGNORE INTO lineage_paths
-                (id, source_id, sink_id, path_length, min_confidence, is_complete, gaps, steps)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, source_id, sink_id, path_nodes, path_length, min_confidence, is_complete, gaps, computed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, lineage_batch)
 
     # Import service_nodes if it exists
