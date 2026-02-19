@@ -490,6 +490,8 @@ def import_graph_db(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int,
     has_metadata = 'metadata' in columns
     has_layer = 'layer' in columns
     has_description = 'description' in columns
+    has_label = 'label' in columns
+    has_inferred_type = 'inferred_type' in columns
 
     graph_cursor.execute("SELECT * FROM symbols LIMIT 0")
     col_names = [desc[0] for desc in graph_cursor.description]
@@ -541,6 +543,26 @@ def import_graph_db(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int,
             except (json.JSONDecodeError, TypeError):
                 existing_meta = {}
             existing_meta['app_domain'] = original_domain
+            metadata = json.dumps(existing_meta)
+
+        # R4: Merge graph DB enrichment fields into metadata JSON
+        enrichment = {}
+        if has_label and row['label']:
+            enrichment['label'] = row['label']
+        if has_inferred_type and row['inferred_type']:
+            enrichment['inferred_type'] = row['inferred_type']
+        if has_description and row['description']:
+            enrichment['description'] = row['description']
+        if has_domains and row['domains']:
+            enrichment['domains'] = row['domains']
+        if enrichment:
+            try:
+                existing_meta = json.loads(metadata) if metadata else {}
+                if not isinstance(existing_meta, dict):
+                    existing_meta = {'_original_metadata': existing_meta}
+            except (json.JSONDecodeError, TypeError):
+                existing_meta = {}
+            existing_meta.update(enrichment)
             metadata = json.dumps(existing_meta)
 
         # Compute layer: use existing layer column or derive from type
@@ -866,6 +888,7 @@ def main():
 
     try:
         conn = sqlite3.connect(temp_path)
+        conn.row_factory = sqlite3.Row
 
         # Create schema
         create_schema(conn)
