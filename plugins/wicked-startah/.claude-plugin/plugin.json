@@ -1,6 +1,6 @@
 {
   "name": "wicked-startah",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Zero-config starter kit with MCP servers, shared caching infrastructure, and plugin recommendations for a productive Claude Code setup",
   "author": {
     "name": "Mike Parcewski"

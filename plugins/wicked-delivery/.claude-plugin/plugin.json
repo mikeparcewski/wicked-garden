@@ -1,6 +1,6 @@
 {
   "name": "wicked-delivery",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "Feature delivery tactics: A/B test design, progressive rollouts, and delivery risk monitoring. Focused on how features ship safely.",
   "author": {
     "name": "Mike Parcewski"

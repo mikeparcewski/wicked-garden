@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0] - 2026-02-19
+
+### Features
+- feat: resolve frontend migration plugin features (#6) (60ffc00)
+
+### Bug Fixes
+- fix(wicked-search): fix graph domain, refs import, and categories performance (96286f8)
+
+### Chores
+- release: wicked-search v2.0.1 (b5883a0)
+- release: wicked-startah v0.8.0 (2b7e538)
+
 ## [0.8.0] - 2026-02-17
 
 ### Breaking Changes

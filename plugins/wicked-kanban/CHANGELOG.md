@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.0] - 2026-02-19
+
+### Breaking Changes
+- feat(wicked-search)!: v2.0 — single unified SQLite backend, remove legacy code (92fb403)
+
+### Features
+- feat: resolve frontend migration plugin features (#6) (60ffc00)
+- feat(wicked-startah): add GitHub issue reporting skill, hooks, and command (63b9515)
+- feat(wicked-search): add unified SQLite query layer merging graph DB and JSONL index (14fc856)
+
+### Bug Fixes
+- fix(wicked-search): fix graph domain, refs import, and categories performance (96286f8)
+
+### Chores
+- release: wicked-search v2.0.1 (b5883a0)
+- release: wicked-startah v0.8.0 (2b7e538)
+- release: wicked-search v2.0.0 (e07c996)
+- release: wicked-kanban v0.12.0 (d6fcf76)
+
 ## [0.12.0] - 2026-02-16
 
 ### Features
