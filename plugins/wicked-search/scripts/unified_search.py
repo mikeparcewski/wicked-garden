@@ -2021,6 +2021,7 @@ async def main():
     search_parser.add_argument("--limit", "-n", type=int, default=10, help="Max results")
     search_parser.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
     search_parser.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
+    search_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # code
     code_parser = subparsers.add_parser("code", help="Search code only")
@@ -2029,6 +2030,7 @@ async def main():
     code_parser.add_argument("--limit", "-n", type=int, default=10, help="Max results")
     code_parser.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
     code_parser.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
+    code_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # docs
     docs_parser = subparsers.add_parser("docs", help="Search docs only")
@@ -2057,6 +2059,9 @@ async def main():
                              default="both", help="Traversal direction (default: both)")
     blast_parser.add_argument("--use-graph", "-g", action="store_true",
                              help="Use Symbol Graph for cross-layer lineage (Java/JSP/HTML/DB)")
+    blast_parser.add_argument("--format", choices=["flat", "graph"], default="flat",
+                             help="Output format: flat (default, human-readable) or graph (JSON with nodes/edges)")
+    blast_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # db-path
     dbpath_parser = subparsers.add_parser("db-path", help="Show database file path")
@@ -2066,6 +2071,7 @@ async def main():
     stats_parser = subparsers.add_parser("stats", help="Show statistics")
     stats_parser.add_argument("--path", "-p", default=".", help="Project path")
     stats_parser.add_argument("--group-by", help="Group statistics by field (e.g., 'layer', 'type')")
+    stats_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # graph (Symbol Graph specific)
     graph_parser = subparsers.add_parser("graph", help="Build and query Symbol Graph")
@@ -2413,6 +2419,8 @@ async def main():
             direction = getattr(args, 'direction', 'both')
             use_graph = getattr(args, 'use_graph', False)
 
+            output_format = getattr(args, 'format', 'flat')
+
             if use_graph:
                 # Use Symbol Graph SQLite for cross-layer lineage (Java/JSP/HTML/DB)
                 result = index.blast_radius_graph(
@@ -2421,6 +2429,11 @@ async def main():
                     edge_types=edge_types_str,
                     direction=direction
                 )
+
+                if output_format == 'graph':
+                    # Output raw graph result as JSON for programmatic consumption
+                    print(json.dumps(result, indent=2))
+                    return
 
                 if result.get('error'):
                     print(f"\n{result['error']}")
@@ -2476,7 +2489,7 @@ async def main():
                     print("  No lineage found")
 
             else:
-                # Resolve symbol name to ID for blast_radius
+                # Resolve symbol name to ID for blast_radius / traverse
                 symbol_input = args.symbol
                 symbol_id = symbol_input
                 sym = engine.get_symbol(symbol_input)
@@ -2489,6 +2502,23 @@ async def main():
                     else:
                         print(f"\nSymbol '{symbol_input}' not found")
                         return
+
+                if output_format == 'graph':
+                    # Map blast-radius direction to traverse direction
+                    traverse_direction = direction
+                    if direction == 'downstream':
+                        traverse_direction = 'outgoing'
+                    elif direction == 'upstream':
+                        traverse_direction = 'incoming'
+                    # 'both' maps directly
+
+                    result = engine.traverse(
+                        symbol_id,
+                        depth=args.depth,
+                        direction=traverse_direction
+                    )
+                    print(json.dumps(result, indent=2))
+                    return
 
                 result = engine.blast_radius(
                     symbol_id,

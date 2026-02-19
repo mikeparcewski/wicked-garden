@@ -17,6 +17,7 @@ Usage:
 import json
 import sqlite3
 from collections import defaultdict, deque
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -504,6 +505,25 @@ class UnifiedQueryEngine:
         row = cursor.fetchone()
         return self._row_to_dict(row) if row else None
 
+    def update_symbol_metadata(self, symbol_id: str, updates: dict):
+        """Merge updates into a symbol's metadata JSON blob."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT metadata FROM symbols WHERE id = ?", (symbol_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        try:
+            existing = json.loads(row['metadata'] or '{}')
+            if not isinstance(existing, dict):
+                existing = {}
+        except (json.JSONDecodeError, TypeError):
+            existing = {}
+        existing.update(updates)
+        cursor.execute("UPDATE symbols SET metadata = ?, updated_at = ? WHERE id = ?",
+                       (json.dumps(existing), datetime.utcnow().isoformat(), symbol_id))
+        self.conn.commit()
+        return existing
+
     def get_categories(self) -> Dict:
         """
         Get category statistics with cross-category relationships.
@@ -656,7 +676,9 @@ class UnifiedQueryEngine:
             {
                 "root": {...symbol dict...},
                 "nodes": [...symbol dicts...],
-                "edges": [...ref dicts with source_id, target_id, ref_type...]
+                "edges": [...ref dicts with source_id, target_id, ref_type...],
+                "depth_reached": int,   # max depth actually visited
+                "truncated": bool       # True if nodes at max_depth had unvisited neighbors
             }
         """
         if direction not in ('outgoing', 'incoming', 'both'):
@@ -668,7 +690,7 @@ class UnifiedQueryEngine:
         cursor.execute("SELECT * FROM symbols WHERE id = ?", (symbol_id,))
         root_row = cursor.fetchone()
         if not root_row:
-            return {'root': None, 'nodes': [], 'edges': []}
+            return {'root': None, 'nodes': [], 'edges': [], 'depth_reached': 0, 'truncated': False}
 
         root = self._row_to_dict(root_row)
 
@@ -676,6 +698,8 @@ class UnifiedQueryEngine:
         nodes = []
         edges = []
         queue = deque([(symbol_id, 0)])
+        depth_reached = 0
+        truncated = False
 
         while queue:
             current_id, current_depth = queue.popleft()
@@ -684,6 +708,9 @@ class UnifiedQueryEngine:
                 continue
 
             visited.add(current_id)
+
+            if current_depth > depth_reached:
+                depth_reached = current_depth
 
             # Get symbol details
             cursor.execute("SELECT * FROM symbols WHERE id = ?", (current_id,))
@@ -727,10 +754,28 @@ class UnifiedQueryEngine:
                         if source_id not in visited:
                             queue.append((source_id, current_depth + 1))
 
+            elif current_depth == depth:
+                # At the depth boundary: check if this node has unvisited neighbors
+                if direction in ('outgoing', 'both'):
+                    cursor.execute("""
+                        SELECT target_id FROM symbol_refs WHERE source_id = ?
+                    """, (current_id,))
+                    if any(r['target_id'] not in visited for r in cursor.fetchall()):
+                        truncated = True
+
+                if direction in ('incoming', 'both'):
+                    cursor.execute("""
+                        SELECT source_id FROM symbol_refs WHERE target_id = ?
+                    """, (current_id,))
+                    if any(r['source_id'] not in visited for r in cursor.fetchall()):
+                        truncated = True
+
         return {
             'root': root,
             'nodes': nodes,
-            'edges': edges
+            'edges': edges,
+            'depth_reached': depth_reached,
+            'truncated': truncated
         }
 
     def hotspots(

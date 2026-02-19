@@ -408,6 +408,8 @@ def cmd_traverse(source, item_id, args):
     root = result['root']
     nodes = result['nodes']
     edges = result['edges']
+    depth_reached = result.get('depth_reached', 0)
+    truncated = result.get('truncated', False)
 
     # Add line field to edges for legacy format compatibility
     for edge in edges:
@@ -417,13 +419,17 @@ def cmd_traverse(source, item_id, args):
         "data": {
             "root": root,
             "nodes": nodes,
-            "edges": edges
+            "edges": edges,
+            "depth_reached": depth_reached,
+            "truncated": truncated
         },
         "meta": {
             "source": "graph",
             "node_count": len(nodes),
             "edge_count": len(edges),
             "depth": depth,
+            "depth_reached": depth_reached,
+            "truncated": truncated,
             "direction": direction
         }
     }
@@ -772,16 +778,52 @@ def cmd_stats(source, args):
         _error(f"Unsupported source for stats: {source}", "UNSUPPORTED_SOURCE", source=source)
 
 
+def _read_input():
+    """Read JSON input from stdin for write operations."""
+    if sys.stdin.isatty():
+        return {}
+    try:
+        raw = sys.stdin.read()
+        return json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError:
+        _error("Invalid JSON input", "INVALID_INPUT")
+
+
+def cmd_update_symbol(args, data):
+    """Update metadata on an existing symbol."""
+    symbol_id = data.get("id") or getattr(args, "id", None)
+    if not symbol_id:
+        _error("Symbol ID required for update verb", "MISSING_ID")
+
+    metadata_updates = data.get("metadata", {})
+    if not isinstance(metadata_updates, dict):
+        _error("metadata must be a JSON object", "INVALID_INPUT", field="metadata")
+    project = getattr(args, "project", None)
+
+    engine = _get_unified_engine(project)
+    if not engine:
+        _error("No search index found", "NO_INDEX")
+
+    result = engine.update_symbol_metadata(symbol_id, metadata_updates)
+    if result is None:
+        _error(f"Symbol not found: {symbol_id}", "NOT_FOUND", id=symbol_id)
+
+    print(json.dumps({
+        "data": {"id": symbol_id, "metadata": result},
+        "meta": _meta("symbols", 1)
+    }, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Wicked Search Data API")
     subparsers = parser.add_subparsers(dest="verb")
 
     all_verbs = ("list", "get", "search", "stats", "traverse", "hotspots",
-                  "categories", "impact", "content", "ide-url")
+                  "categories", "impact", "content", "ide-url", "update")
     for verb in all_verbs:
         sub = subparsers.add_parser(verb)
         sub.add_argument("source", help="Data source (symbols, documents, references, graph, lineage, services, projects, code)")
-        if verb in ("get", "traverse", "impact", "content", "ide-url"):
+        if verb in ("get", "traverse", "impact", "content", "ide-url", "update"):
             sub.add_argument("id", nargs="?", help="Item ID")
         if verb == "traverse":
             sub.add_argument("--depth", type=int, default=1, help="Traversal depth (1-3)")
@@ -842,6 +884,13 @@ def main():
         if not args.id:
             _error("ID required for ide-url verb", "MISSING_ID")
         cmd_ide_url(args.source, args.id, args)
+    elif args.verb == "update":
+        if args.source == "symbols":
+            data = _read_input()
+            cmd_update_symbol(args, data)
+        else:
+            _error(f"update not supported for source: {args.source}", "UNSUPPORTED_VERB",
+                   source=args.source, verb="update")
 
 
 if __name__ == "__main__":

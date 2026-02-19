@@ -386,18 +386,41 @@ def _compute_effort_allocation(tasks):
         task_id = task.get("id")
         if task_id in task_project_map:
             signals = task_project_map[task_id].get("signals", [])
+            is_complete = task.get("swimlane", "") == "done"
             for signal in signals:
                 if signal not in by_signal:
-                    by_signal[signal] = {"task_count": 0}
+                    by_signal[signal] = {"task_count": 0, "completed": 0}
                 by_signal[signal]["task_count"] += 1
+                if is_complete:
+                    by_signal[signal]["completed"] += 1
 
     # Add percentages to signals
     for signal_data in by_signal.values():
         signal_data["pct"] = round(signal_data["task_count"] / total_tasks, 2) if total_tasks > 0 else 0
 
+    # Compute feature vs bug breakdown and active threads in a single pass
+    feature_vs_bug = {"features": 0, "bugs": 0, "other": 0}
+    active_threads = {}
+    phase_pattern = re.compile(r'(?i)^(clarify|design|test-strategy|build|test|review)')
+    for task in tasks:
+        name_lower = task.get("name", "").lower()
+        if any(kw in name_lower for kw in ["feat", "feature", "add", "enhance"]):
+            feature_vs_bug["features"] += 1
+        elif any(kw in name_lower for kw in ["fix", "bug", "error", "broken"]):
+            feature_vs_bug["bugs"] += 1
+        else:
+            feature_vs_bug["other"] += 1
+        if task.get("swimlane") == "in_progress":
+            phase_match = phase_pattern.match(name_lower)
+            if phase_match:
+                phase = phase_match.group(1).lower()
+                active_threads[phase] = active_threads.get(phase, 0) + 1
+
     result = {
         "by_phase": by_phase,
         "by_signal": by_signal if crew_projects else {},
+        "feature_vs_bug": feature_vs_bug,
+        "active_threads": active_threads,
         "total_tasks": total_tasks,
         "_source": "computed from kanban tasks + crew project.json"
     }
