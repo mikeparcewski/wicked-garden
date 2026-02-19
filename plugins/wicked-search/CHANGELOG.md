@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.1] - 2026-02-19
+
+### Bug Fixes
+- fix: align lineage_paths schema across migration.py, symbol_graph.py, and lineage_tracer.py — lineage API was returning empty results
+- fix: import_graph_extras auto-detects source column names (path_nodes vs legacy steps)
+
+### Features
+- feat: schema version check warns users to reindex when DB is outdated
+
+### Chores
+- chore: bump PRAGMA user_version 201 → 202
+
 ## [2.1.0] - 2026-02-19
 
 ### Features
