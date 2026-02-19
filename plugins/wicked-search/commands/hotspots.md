@@ -11,7 +11,7 @@ Identify hotspot symbols ranked by total reference count (incoming + outgoing). 
 
 1. Run the hotspots query via the data API:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/api.py hotspots graph --limit ${limit:-20} ${layer:+--layer "$layer"} ${type:+--type "$type"} ${category:+--category "$category"}
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/api.py hotspots graph --limit "${limit:-20}" ${layer:+--layer "${layer}"} ${type:+--type "${type}"} ${category:+--category "${category}"}
    ```
 
    With no arguments, returns the top 20 most-connected symbols across the whole codebase.
