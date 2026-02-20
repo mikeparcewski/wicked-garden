@@ -9,6 +9,7 @@ E2E testing written as human-readable markdown scenarios that orchestrate 9 ligh
 | `/wicked-scenarios:run` | Execute a test scenario |
 | `/wicked-scenarios:list` | List available scenarios with tool availability |
 | `/wicked-scenarios:check` | Validate scenario format |
+| `/wicked-scenarios:setup` | Install required CLI tools for scenarios |
 
 ## Categories
 
@@ -21,9 +22,53 @@ E2E testing written as human-readable markdown scenarios that orchestrate 9 ligh
 | security | semgrep | Static code analysis |
 | a11y | pa11y | WCAG accessibility |
 
+## Prerequisites
+
+Scenarios use lightweight CLI tools. Run `/wicked-scenarios:setup` to auto-detect and install missing tools, or install manually:
+
+### macOS (Homebrew)
+
+```bash
+brew install hurl hey k6 trivy semgrep
+npm i -g pa11y agent-browser
+npm i -D @playwright/test && npx playwright install
+```
+
+### Linux (apt + npm)
+
+```bash
+# npm-based tools (all platforms)
+npm i -g pa11y agent-browser
+npm i -D @playwright/test && npx playwright install
+pip install semgrep
+
+# Platform-specific (see tool docs for latest install instructions)
+# hurl: https://hurl.dev/docs/installation.html
+# k6:   https://grafana.com/docs/k6/latest/set-up/install-k6/
+# hey:  https://github.com/rakyll/hey
+# trivy: https://aquasecurity.github.io/trivy/latest/getting-started/installation/
+```
+
+### Tool Reference
+
+| Tool | Category | Required By | Install |
+|------|----------|-------------|---------|
+| curl | api | api-health-check | Pre-installed |
+| hurl | api | api-health-check (optional) | `brew install hurl` |
+| playwright | browser | browser-page-audit | `npm i -D @playwright/test` |
+| agent-browser | browser | browser-page-audit (optional) | `npm i -g agent-browser` |
+| hey | perf | perf-load-test | `brew install hey` |
+| k6 | perf | perf-load-test (optional) | `brew install k6` |
+| trivy | infra | infra-container-scan | `brew install trivy` |
+| semgrep | security | security-sast-scan | `brew install semgrep` |
+| pa11y | a11y | a11y-wcag-check | `npm i -g pa11y` |
+
 ## Quick Start
 
 ```bash
+# Install missing tools
+/wicked-scenarios:setup
+
 # List available scenarios and tool status
 /wicked-scenarios:list
 
