@@ -72,10 +72,20 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Session middleware for OAuth state management
+# Session middleware for OAuth state management — no hardcoded default
+_session_secret = os.environ.get("SESSION_SECRET_KEY", "")
+if not _session_secret:
+    import secrets as _secrets
+    _session_secret = _secrets.token_urlsafe(32)
+    import sys as _sys
+    print(
+        "[Workbench] WARNING: SESSION_SECRET_KEY not set. Using a random key "
+        "(sessions will not persist across restarts).",
+        file=_sys.stderr,
+    )
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("SESSION_SECRET_KEY", "change-me-in-production-please")
+    secret_key=_session_secret,
 )
 
 app.add_middleware(

@@ -201,21 +201,24 @@ class PropagationEngine:
 
         # Find direct impacts (symbols that reference or are referenced by source)
         direct_refs = self._get_direct_references(cursor, source["id"])
-        for ref in direct_refs:
-            if ref["ref_type"] in include_refs or not include_refs:
-                symbol = self._get_symbol(cursor, ref["related_id"])
-                if symbol:
-                    plan.direct_impacts.append(AffectedSymbol(
-                        id=symbol["id"],
-                        name=symbol["name"],
-                        type=symbol["type"],
-                        file_path=symbol["file_path"],
-                        line_start=symbol.get("line_start", 0),
-                        line_end=symbol.get("line_end"),
-                        metadata=json.loads(symbol.get("metadata") or "{}"),
-                        impact_type="direct",
-                        distance=1,
-                    ))
+        # Batch-fetch all referenced symbols to avoid N+1 queries
+        filtered_refs = [r for r in direct_refs if r["ref_type"] in include_refs or not include_refs]
+        ref_ids = [r["related_id"] for r in filtered_refs]
+        symbols_by_id = self._get_symbols_batch(cursor, ref_ids)
+        for ref in filtered_refs:
+            symbol = symbols_by_id.get(ref["related_id"])
+            if symbol:
+                plan.direct_impacts.append(AffectedSymbol(
+                    id=symbol["id"],
+                    name=symbol["name"],
+                    type=symbol["type"],
+                    file_path=symbol["file_path"],
+                    line_start=symbol.get("line_start", 0),
+                    line_end=symbol.get("line_end"),
+                    metadata=json.loads(symbol.get("metadata") or "{}"),
+                    impact_type="direct",
+                    distance=1,
+                ))
 
         # Trace upstream (who uses/depends on this symbol)
         if rules.get("propagate_upstream", True):
@@ -314,6 +317,24 @@ class PropagationEngine:
         )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def _get_symbols_batch(self, cursor, symbol_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Get multiple symbols by ID in a single query.
+
+        Returns a dict mapping symbol_id -> symbol dict.
+        """
+        if not symbol_ids:
+            return {}
+        placeholders = ",".join("?" * len(symbol_ids))
+        cursor.execute(
+            f"""
+            SELECT id, name, type, file_path, line_start, line_end, metadata, layer
+            FROM symbols
+            WHERE id IN ({placeholders})
+            """,
+            symbol_ids,
+        )
+        return {row["id"]: dict(row) for row in cursor.fetchall()}
 
     def _get_direct_references(
         self,
@@ -444,6 +465,7 @@ class PropagationEngine:
         """Trace upstream dependencies (who depends on this symbol).
 
         Queries all reference tables to ensure cross-file edges are followed.
+        Uses batch symbol lookups to avoid N+1 queries.
         """
         affected = []
         visited = {symbol_id}
@@ -457,13 +479,18 @@ class PropagationEngine:
             # Collect upstream symbol IDs from all reference tables
             upstream_ids = self._find_upstream_ids(cursor, current_id)
 
-            for related_id, ref_type in upstream_ids:
-                if related_id in visited:
-                    continue
-                if ref_types and ref_type not in ref_types:
-                    continue
+            # Filter and batch-fetch symbols
+            candidates = [
+                (rid, rtype) for rid, rtype in upstream_ids
+                if rid not in visited and (not ref_types or rtype in ref_types)
+            ]
+            if not candidates:
+                continue
+            batch_ids = [rid for rid, _ in candidates]
+            symbols_by_id = self._get_symbols_batch(cursor, batch_ids)
 
-                symbol = self._get_symbol(cursor, related_id)
+            for related_id, ref_type in candidates:
+                symbol = symbols_by_id.get(related_id)
                 if not symbol:
                     continue
 
@@ -537,6 +564,7 @@ class PropagationEngine:
         """Trace downstream dependencies (what this symbol flows to).
 
         Queries all reference tables to ensure cross-file edges are followed.
+        Uses batch symbol lookups to avoid N+1 queries.
         """
         affected = []
         visited = {symbol_id}
@@ -550,13 +578,18 @@ class PropagationEngine:
             # Collect downstream symbol IDs from all reference tables
             downstream_ids = self._find_downstream_ids(cursor, current_id)
 
-            for related_id, ref_type in downstream_ids:
-                if related_id in visited:
-                    continue
-                if ref_types and ref_type not in ref_types:
-                    continue
+            # Filter and batch-fetch symbols
+            candidates = [
+                (rid, rtype) for rid, rtype in downstream_ids
+                if rid not in visited and (not ref_types or rtype in ref_types)
+            ]
+            if not candidates:
+                continue
+            batch_ids = [rid for rid, _ in candidates]
+            symbols_by_id = self._get_symbols_batch(cursor, batch_ids)
 
-                symbol = self._get_symbol(cursor, related_id)
+            for related_id, ref_type in candidates:
+                symbol = symbols_by_id.get(related_id)
                 if not symbol:
                     continue
 

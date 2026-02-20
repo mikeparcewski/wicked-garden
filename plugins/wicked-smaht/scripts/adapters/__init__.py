@@ -16,12 +16,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
-def _parse_version(v: str) -> tuple:
-    """Parse semver string to comparable tuple."""
+def _parse_version(v: str) -> Optional[tuple]:
+    """Parse semver string to comparable tuple. Returns None for unparseable versions."""
+    # Strip common prefixes
+    v = v.lstrip("vV")
     match = re.match(r"(\d+)\.(\d+)\.(\d+)", v)
     if match:
         return tuple(int(x) for x in match.groups())
-    return (0, 0, 0)
+    return None
 
 
 def discover_script(plugin_name: str, script_name: str) -> Optional[Path]:
@@ -38,7 +40,9 @@ def discover_script(plugin_name: str, script_name: str) -> Optional[Path]:
         versions = []
         for d in cache_base.iterdir():
             if d.is_dir():
-                versions.append((_parse_version(d.name), d))
+                parsed = _parse_version(d.name)
+                if parsed is not None:
+                    versions.append((parsed, d))
         if versions:
             versions.sort(key=lambda x: x[0], reverse=True)
             script = versions[0][1] / "scripts" / script_name

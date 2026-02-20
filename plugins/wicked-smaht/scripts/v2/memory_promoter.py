@@ -65,14 +65,20 @@ def _discover_mem_script() -> Optional[Path]:
     return None
 
 
-def _run_mem_store(script: Path, content: str, mem_type: str = "semantic") -> bool:
+def _run_mem_store(script: Path, title: str, content: str, mem_type: str = "episodic") -> bool:
     """Store a memory via wicked-mem's memory.py script.
 
+    The CLI requires --title and --content flags (not positional args).
     Returns True on success, False on failure.
     """
     try:
         result = subprocess.run(
-            [sys.executable, str(script), "store", content, "--type", mem_type],
+            [
+                sys.executable, str(script), "store",
+                "--title", title,
+                "--content", content,
+                "--type", mem_type,
+            ],
             capture_output=True,
             text=True,
             timeout=10,
@@ -168,13 +174,14 @@ class MemoryPromoter:
         failed = 0
 
         for fact in candidates:
-            # Build memory content with context
-            mem_type = "decision" if fact.type == "decision" else "semantic"
+            # Build memory title and content
+            mem_type = "decision" if fact.type == "decision" else "episodic"
+            title = f"[{fact.type}] {fact.content[:80]}"
             content = fact.content
             if fact.entities:
                 content += f" (entities: {', '.join(fact.entities[:3])})"
 
-            success = _run_mem_store(mem_script, content, mem_type)
+            success = _run_mem_store(mem_script, title, content, mem_type)
             if success:
                 self._promoted_ids.add(fact.id)
                 promoted += 1
