@@ -191,6 +191,61 @@ class SqlGenerator(BaseGenerator):
         type_map = self._get_type_map(dialect)
         return type_map.get(generic_type.lower(), "VARCHAR(255)")
 
+    def _resolve_table_name(self, symbol: Dict[str, Any], file_content: str) -> str:
+        """Resolve the table name from symbol metadata or file content.
+
+        When the symbol is a column or field, symbol['name'] is the column name,
+        not the table name. We check metadata first, then try to extract the table
+        name from CREATE TABLE statements in the file content.
+        """
+        metadata = symbol.get("metadata", {})
+        # Explicit metadata takes priority
+        table_name = metadata.get("table_name") or metadata.get("table") or metadata.get("parent_name")
+        if table_name:
+            return table_name
+
+        # If symbol is a table type, its name IS the table name
+        sym_type = symbol.get("type", "").lower()
+        if sym_type == "table":
+            return symbol.get("name", "UNKNOWN_TABLE")
+
+        # For columns/fields, try to extract table name from file content
+        match = re.search(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)", file_content, re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+        return "UNKNOWN_TABLE"
+
+    def _next_migration_path(self, file_path: str, description: str) -> str:
+        """Generate the next migration file path in a migration directory.
+
+        If file_path looks like a migration file (e.g., 001_create_users.sql),
+        generate a new file in the same directory with the next sequence number.
+        """
+        p = Path(file_path)
+        parent = p.parent
+
+        # Detect numbered migration pattern: NNN_description.sql
+        match = re.match(r'^(\d+)', p.name)
+        if match:
+            # Find the highest existing migration number in the directory
+            max_num = 0
+            try:
+                for f in parent.iterdir():
+                    m = re.match(r'^(\d+)', f.name)
+                    if m:
+                        max_num = max(max_num, int(m.group(1)))
+            except OSError:
+                max_num = int(match.group(1))
+
+            next_num = max_num + 1
+            width = len(match.group(1))
+            slug = re.sub(r'[^a-z0-9]+', '_', description.lower()).strip('_')
+            return str(parent / f"{str(next_num).zfill(width)}_{slug}.sql")
+
+        # Not a migration directory — append to existing file
+        return file_path
+
     def _add_column(
         self,
         change_spec: ChangeSpec,
@@ -198,19 +253,17 @@ class SqlGenerator(BaseGenerator):
         file_content: str,
         dialect: str,
     ) -> List[Patch]:
-        """Generate ALTER TABLE ADD COLUMN statement."""
+        """Generate ALTER TABLE ADD COLUMN statement as a new migration file."""
         patches = []
         field_spec = change_spec.field_spec
         if not field_spec:
             return patches
 
-        lines = file_content.split("\n")
         file_path = symbol.get("file_path", "")
-        metadata = symbol.get("metadata", {})
 
-        # Get table name
-        table_name = metadata.get("table_name") or metadata.get("table") or symbol.get("name", "UNKNOWN_TABLE")
-        column_name = field_spec.column_name or self._to_snake_case(field_spec.name).upper()
+        # Get table name (resolve from parent/file, not symbol name for columns)
+        table_name = self._resolve_table_name(symbol, file_content)
+        column_name = field_spec.column_name or self._to_snake_case(field_spec.name)
         sql_type = self._map_type(field_spec.type, dialect)
 
         # Build ALTER TABLE statement
@@ -226,27 +279,46 @@ class SqlGenerator(BaseGenerator):
         else:
             alter_stmt = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {sql_type}{nullable}{default};"
 
-        # Find insertion point (end of file or after last statement)
-        insert_line = len(lines) - 1
-        for i in range(len(lines) - 1, -1, -1):
-            if lines[i].strip():
-                insert_line = i
-                break
+        # Generate new migration file path if in a migration directory
+        migration_path = self._next_migration_path(
+            file_path, f"add_{column_name}_to_{table_name}"
+        )
 
-        # Add comment for context
-        comment = f"\n-- Add column {column_name} to {table_name}"
-        new_content = f"{comment}\n{alter_stmt}"
+        if migration_path != file_path:
+            # New migration file
+            new_content = f"-- Add column {column_name} to {table_name}\n{alter_stmt}\n"
+            patches.append(Patch(
+                file_path=migration_path,
+                line_start=1,
+                line_end=0,
+                old_content="",
+                new_content=new_content,
+                description=f"New migration: add column '{column_name}' to '{table_name}'",
+                symbol_id=symbol.get("id"),
+                confidence="high",
+            ))
+        else:
+            # Append to existing file
+            lines = file_content.split("\n")
+            insert_line = len(lines) - 1
+            for i in range(len(lines) - 1, -1, -1):
+                if lines[i].strip():
+                    insert_line = i
+                    break
 
-        patches.append(Patch(
-            file_path=file_path,
-            line_start=insert_line + 2,
-            line_end=insert_line + 1,
-            old_content="",
-            new_content=new_content,
-            description=f"Add column '{column_name}' to '{table_name}'",
-            symbol_id=symbol.get("id"),
-            confidence="high",
-        ))
+            comment = f"\n-- Add column {column_name} to {table_name}"
+            new_content = f"{comment}\n{alter_stmt}"
+
+            patches.append(Patch(
+                file_path=file_path,
+                line_start=insert_line + 2,
+                line_end=insert_line + 1,
+                old_content="",
+                new_content=new_content,
+                description=f"Add column '{column_name}' to '{table_name}'",
+                symbol_id=symbol.get("id"),
+                confidence="high",
+            ))
 
         return patches
 
@@ -257,18 +329,16 @@ class SqlGenerator(BaseGenerator):
         file_content: str,
         dialect: str,
     ) -> List[Patch]:
-        """Generate ALTER TABLE DROP COLUMN statement."""
+        """Generate ALTER TABLE DROP COLUMN statement as a new migration file."""
         patches = []
         field_name = change_spec.old_name or (change_spec.field_spec.name if change_spec.field_spec else None)
         if not field_name:
             return patches
 
-        lines = file_content.split("\n")
         file_path = symbol.get("file_path", "")
-        metadata = symbol.get("metadata", {})
 
-        table_name = metadata.get("table_name") or metadata.get("table") or symbol.get("name", "UNKNOWN_TABLE")
-        column_name = self._to_snake_case(field_name).upper()
+        table_name = self._resolve_table_name(symbol, file_content)
+        column_name = self._to_snake_case(field_name)
 
         if dialect == "oracle":
             alter_stmt = f"ALTER TABLE {table_name} DROP ({column_name});"
@@ -277,26 +347,62 @@ class SqlGenerator(BaseGenerator):
         else:
             alter_stmt = f"ALTER TABLE {table_name} DROP COLUMN {column_name};"
 
-        # Find insertion point
-        insert_line = len(lines) - 1
-        for i in range(len(lines) - 1, -1, -1):
-            if lines[i].strip():
-                insert_line = i
-                break
+        # Check for related indexes to drop
+        index_stmts = []
+        for line in file_content.split("\n"):
+            idx_match = re.search(
+                rf'CREATE\s+INDEX\s+(\w+)\s+ON\s+\w+\s*\(\s*{re.escape(column_name)}\s*\)',
+                line, re.IGNORECASE,
+            )
+            if idx_match:
+                idx_name = idx_match.group(1)
+                index_stmts.append(f"DROP INDEX IF EXISTS {idx_name};")
 
-        comment = f"\n-- Drop column {column_name} from {table_name}"
-        new_content = f"{comment}\n{alter_stmt}"
+        # Generate new migration file path if in a migration directory
+        migration_path = self._next_migration_path(
+            file_path, f"remove_{column_name}"
+        )
 
-        patches.append(Patch(
-            file_path=file_path,
-            line_start=insert_line + 2,
-            line_end=insert_line + 1,
-            old_content="",
-            new_content=new_content,
-            description=f"Drop column '{column_name}' from '{table_name}'",
-            symbol_id=symbol.get("id"),
-            confidence="high",
-        ))
+        if migration_path != file_path:
+            # New migration file
+            content_lines = [f"-- Remove {column_name} from {table_name}"]
+            content_lines.extend(index_stmts)
+            content_lines.append(alter_stmt)
+            content_lines.append("")
+            patches.append(Patch(
+                file_path=migration_path,
+                line_start=1,
+                line_end=0,
+                old_content="",
+                new_content="\n".join(content_lines),
+                description=f"New migration: drop column '{column_name}' from '{table_name}'",
+                symbol_id=symbol.get("id"),
+                confidence="high",
+            ))
+        else:
+            # Append to existing file
+            lines = file_content.split("\n")
+            insert_line = len(lines) - 1
+            for i in range(len(lines) - 1, -1, -1):
+                if lines[i].strip():
+                    insert_line = i
+                    break
+
+            content_parts = [f"\n-- Drop column {column_name} from {table_name}"]
+            content_parts.extend(index_stmts)
+            content_parts.append(alter_stmt)
+            new_content = "\n".join(content_parts)
+
+            patches.append(Patch(
+                file_path=file_path,
+                line_start=insert_line + 2,
+                line_end=insert_line + 1,
+                old_content="",
+                new_content=new_content,
+                description=f"Drop column '{column_name}' from '{table_name}'",
+                symbol_id=symbol.get("id"),
+                confidence="high",
+            ))
 
         return patches
 
@@ -316,11 +422,10 @@ class SqlGenerator(BaseGenerator):
 
         lines = file_content.split("\n")
         file_path = symbol.get("file_path", "")
-        metadata = symbol.get("metadata", {})
 
-        table_name = metadata.get("table_name") or metadata.get("table") or symbol.get("name", "UNKNOWN_TABLE")
-        old_column = self._to_snake_case(old_name).upper()
-        new_column = self._to_snake_case(new_name).upper()
+        table_name = self._resolve_table_name(symbol, file_content)
+        old_column = self._to_snake_case(old_name)
+        new_column = self._to_snake_case(new_name)
 
         if dialect == "oracle":
             alter_stmt = f"ALTER TABLE {table_name} RENAME COLUMN {old_column} TO {new_column};"
@@ -370,10 +475,9 @@ class SqlGenerator(BaseGenerator):
 
         lines = file_content.split("\n")
         file_path = symbol.get("file_path", "")
-        metadata = symbol.get("metadata", {})
 
-        table_name = metadata.get("table_name") or metadata.get("table") or symbol.get("name", "UNKNOWN_TABLE")
-        column_name = field_spec.column_name or self._to_snake_case(field_spec.name).upper()
+        table_name = self._resolve_table_name(symbol, file_content)
+        column_name = field_spec.column_name or self._to_snake_case(field_spec.name)
         sql_type = self._map_type(field_spec.type, dialect)
         nullable = "" if field_spec.nullable else " NOT NULL"
 
