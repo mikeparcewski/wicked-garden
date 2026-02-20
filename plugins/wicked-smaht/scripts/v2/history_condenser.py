@@ -190,6 +190,7 @@ class HistoryCondenser:
                 "assistant": turn.assistant,
                 "timestamp": turn.timestamp,
                 "tools_used": turn.tools_used,
+                "intent_type": turn.intent_type,
             }))
         self._atomic_write(turns_path, "\n".join(lines))
 
