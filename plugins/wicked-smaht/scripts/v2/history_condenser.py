@@ -93,8 +93,15 @@ class HistoryCondenser:
     MAX_PREFERENCES = 5
 
     def __init__(self, session_id: str):
+        # Validate session_id to prevent path traversal
+        if not re.match(r'^[a-zA-Z0-9_-]+$', session_id):
+            raise ValueError(f"Invalid session_id: must be alphanumeric, hyphens, or underscores")
         self.session_id = session_id
-        self.session_dir = Path.home() / ".something-wicked" / "wicked-smaht" / "sessions" / session_id
+        base = Path.home() / ".something-wicked" / "wicked-smaht" / "sessions"
+        self.session_dir = base / session_id
+        # Double-check resolved path stays within sessions directory
+        if not str(self.session_dir.resolve()).startswith(str(base.resolve())):
+            raise ValueError(f"Invalid session_id: path traversal detected")
         self.session_dir.mkdir(parents=True, exist_ok=True)
 
         self.summary = self._load_summary()
