@@ -1,119 +1,118 @@
 ---
 name: fact-extraction
-title: Fact Extraction and Ledger
-description: Automatic extraction of decisions, discoveries, and artifacts from conversation
+title: Decision Detection and Topic Tracking
+description: Automatic extraction of decisions and topics from conversation turns into summary.json
 type: feature
 difficulty: intermediate
 estimated_minutes: 5
 ---
 
-# Fact Extraction and Ledger
+# Decision Detection and Topic Tracking
 
-Test that wicked-smaht automatically extracts structured facts from conversation turns.
+Test that wicked-smaht automatically detects decisions and topics from conversation turns and persists them in summary.json.
 
 ## Setup
 
-Start a Claude Code session and have a conversation that includes decisions, discoveries, and artifact creation.
+Start a Claude Code session. The HistoryCondenser initializes a session directory under `~/.something-wicked/wicked-smaht/sessions/{session_id}/` on first use.
+
+Identify your session ID:
+
+```bash
+echo $CLAUDE_SESSION_ID
+```
 
 ## Steps
 
-1. **Make a decision**
+1. **Make a decision using a recognized pattern**
    ```
    Let's use JWT tokens for authentication instead of session cookies.
    ```
 
-   **Expected**: Decision fact extracted with subject="JWT tokens", predicate="use for authentication"
+   **Expected**: Decision extracted via "let's use" regex pattern and added to `decisions` in summary.json.
 
-2. **Document a discovery**
+2. **Make a second decision**
    ```
-   I found that the bug was caused by the token refresh not updating the expiry time.
-   ```
-
-   **Expected**: Discovery fact extracted with subject="token refresh bug"
-
-3. **Create an artifact**
-
-   Have Claude create or edit a file:
-   ```
-   Create a new file src/auth/jwt_validator.py with the token validation logic.
+   We'll use Redis for the session store.
    ```
 
-   **Expected**: Artifact fact extracted from Write tool result
+   **Expected**: Second decision ("we'll use redis for the session store") appended to `decisions` list. Up to 5 decisions retained.
 
-4. **Solve a problem**
+3. **Trigger topic extraction**
    ```
-   Great, that fixed the authentication issue!
+   I'm working on the auth.py and jwt_validator.py files.
    ```
 
-   **Expected**: Problem_solved fact extracted
+   **Expected**: Topics list updated with "auth.py", "jwt_validator.py", and "auth" keyword.
 
-5. **View extracted facts**
+4. **Inspect summary.json**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/facts.jsonl
+   cat ~/.something-wicked/wicked-smaht/sessions/*/summary.json
    ```
 
-6. **Check entity indexing**
+   Expected structure:
+   ```json
+   {
+     "topics": ["auth.py", "jwt_validator.py", "auth"],
+     "decisions": [
+       "use jwt tokens for authentication instead of session cookies",
+       "use redis for the session store"
+     ],
+     "preferences": [],
+     "open_threads": [],
+     "current_task": "",
+     "active_constraints": [],
+     "file_scope": ["auth.py", "jwt_validator.py"],
+     "open_questions": []
+   }
+   ```
 
-   Facts should be indexed by entity for O(1) lookup:
+5. **Inspect turns.jsonl**
    ```bash
-   grep "jwt" ~/.something-wicked/wicked-smaht/sessions/*/facts.jsonl
+   cat ~/.something-wicked/wicked-smaht/sessions/*/turns.jsonl
    ```
+
+   **Expected**: Each turn recorded as a JSON object with `user`, `assistant`, `timestamp`, and `tools_used` fields. Rolling window of last 5 turns.
+
+6. **Verify keyword concept extraction**
+   ```
+   Let's improve the authentication and security setup.
+   ```
+
+   **Expected**: "authentication" and "security" appear in topics (concept keywords are matched from a fixed list).
 
 ## Expected Outcome
 
-- Facts extracted from user prompts (decisions, discoveries)
-- Facts extracted from tool results (artifacts)
-- Each fact has UUID-based ID
-- Facts include source attribution ("user", "tool:Write", etc.)
-- Facts indexed by entity for fast lookup
+- Decision phrases ("let's use", "we'll use", "decided on", "chose") are extracted via regex
+- File mentions (`.py`, `.ts`, `.js`, `.md`) are tracked as topics and file_scope
+- Concept keywords (auth, caching, testing, debugging, etc.) are tracked as topics
+- summary.json is written atomically after each turn
+- turns.jsonl contains a rolling window of up to 5 turns
 
-## Fact Types
+## Decision Extraction Patterns
 
-| Type | Pattern | Confidence |
-|------|---------|------------|
-| decision | "let's use", "going with", "decided to" | 0.7 |
-| discovery | "found that", "turns out", "realized" | 0.6 |
-| artifact | Write/Edit tool creates file | 1.0 |
-| problem_solved | "fixed", "solved", "resolved" | 0.8 |
-| context | Read tool accesses file | 0.5 |
+| Pattern | Example Input | Extracted Decision |
+|---------|--------------|-------------------|
+| `let's use/go with/do` | "Let's use JWT" | "use jwt" |
+| `we'll use` | "We'll use Redis" | "use redis for..." |
+| `decided on` | "Decided on Postgres" | "postgres" |
+| `chose` | "Chose the monorepo" | "the monorepo" |
 
-## Fact Data Structure
-
-```json
-{
-  "id": "f-3-user-550e8400-e29b-41d4-a716-446655440000",
-  "type": "decision",
-  "subject": "JWT tokens",
-  "predicate": "use for authentication instead of session cookies",
-  "entities": ["JWT", "authentication", "session cookies"],
-  "turn": 3,
-  "source": "user",
-  "excerpt": "Let's use JWT tokens for authentication instead of session cookies.",
-  "confidence": 0.7
-}
-```
+Matches are length-filtered: must be 10–100 characters to be captured.
 
 ## Success Criteria
 
 - [ ] Decision detected from "let's use" pattern
-- [ ] Discovery detected from "found that" pattern
-- [ ] Artifact fact created when file is written
-- [ ] Problem_solved fact created on "fixed" pattern
-- [ ] Facts have full UUID IDs (not truncated)
-- [ ] Facts indexed by entity
-- [ ] facts.jsonl contains all extracted facts
+- [ ] Decision detected from "we'll use" pattern
+- [ ] File mentions appear in topics and file_scope
+- [ ] Concept keywords (auth, security) appear in topics
+- [ ] summary.json exists and is valid JSON
+- [ ] turns.jsonl contains at least one turn record
+- [ ] summary.json capped at 5 decisions (oldest removed when full)
 
 ## Value Demonstrated
 
-Conversations contain valuable information that's usually lost:
-- What decisions were made and why
-- What was discovered during debugging
-- What files were created or modified
-- What problems were solved
-
-wicked-smaht's fact extraction:
-1. **Automatic capture** - No manual "remember this" commands needed
-2. **Structured format** - Subject/predicate/entity triples for querying
-3. **Provenance tracking** - Know where each fact came from
-4. **Entity indexing** - O(1) lookup by file, symbol, or concept
-5. **Session-scoped** - Facts persist for the session, then promote to wicked-mem
+Decisions made during a session are automatically captured without manual "remember this" commands:
+1. **Automatic capture** — No user action needed
+2. **Regex-based extraction** — Deterministic, fast, no LLM cost
+3. **Session persistence** — Survives tool calls and long conversations
+4. **Cross-session seed** — Decisions surface in session_meta.json for future sessions to reference

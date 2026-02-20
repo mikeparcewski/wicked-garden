@@ -158,9 +158,13 @@ class PatchSet:
             if patch.file_path not in by_file:
                 by_file[patch.file_path] = []
             by_file[patch.file_path].append(patch)
-        # Sort patches within each file by line number (descending for safe application)
+        # Sort patches within each file by line number (descending for safe application).
+        # enumerate() provides a stable secondary key so same-position patches
+        # preserve their original generation order after reversal.
         for patches in by_file.values():
-            patches.sort(key=lambda p: p.line_start, reverse=True)
+            indexed = list(enumerate(patches))
+            indexed.sort(key=lambda t: (t[1].line_start, t[0]), reverse=True)
+            patches[:] = [p for _, p in indexed]
         return by_file
 
     def to_dict(self) -> Dict[str, Any]:

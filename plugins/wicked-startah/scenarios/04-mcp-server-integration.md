@@ -1,162 +1,208 @@
 ---
 name: mcp-server-integration
-title: MCP Server Integration Validation
-description: Validates that bundled MCP servers (atlassian, context7) are functional and accessible
+title: Context7 MCP Server Integration Validation
+description: Validates that the bundled context7 MCP server is functional — library lookup, doc retrieval, and error handling
 type: integration
 difficulty: intermediate
-estimated_minutes: 15
+estimated_minutes: 12
 ---
 
-# MCP Server Integration Validation
+# Context7 MCP Server Integration Validation
 
-Tests that the auto-installed MCP servers (atlassian, context7) are properly configured and functional within Claude Code sessions.
+Tests that the context7 MCP server bundled by wicked-startah is correctly configured and usable within Claude Code sessions. context7 provides live, up-to-date library documentation for thousands of packages — replacing stale knowledge-cutoff data with fresh docs on demand.
+
+wicked-startah bundles only context7. There is no atlassian MCP server in this plugin.
 
 ## Setup
 
-Ensure wicked-startah is installed:
+Ensure wicked-startah is installed and context7 is configured:
 
 ```bash
-# Verify plugin installation
+# Verify plugin is installed
 claude plugin list | grep wicked-startah
 
-# Check MCP configuration
-cat ~/.claude/mcp.json | grep -E '"atlassian"|"context7"'
+# Check context7 MCP configuration
+cat ~/.claude/mcp.json | grep -A 6 '"context7"'
+```
+
+Expected context7 configuration:
+```json
+"context7": {
+  "type": "stdio",
+  "command": "npx",
+  "args": ["-y", "@upstash/context7-mcp@latest"],
+  "env": {}
+}
 ```
 
 ## Steps
 
-1. **Verify MCP server configuration**
+### 1. Verify MCP Server Configuration Parameters
 
-   ```bash
-   # Check atlassian MCP server
-   cat ~/.claude/mcp.json | jq '.atlassian'
+```bash
+cat ~/.claude/mcp.json | python3 -c "import json,sys; cfg = json.load(sys.stdin); c7 = cfg.get('context7', {}); print('type:', c7.get('type')); print('command:', c7.get('command')); print('args:', c7.get('args'))"
+```
 
-   # Check context7 MCP server
-   cat ~/.claude/mcp.json | jq '.context7'
-   ```
+Expected:
+- `type: stdio`
+- `command: npx`
+- `args: ["-y", "@upstash/context7-mcp@latest"]`
 
-   Expected: Both servers configured with:
-   - `type: "stdio"`
-   - `command: "npx"`
-   - Valid args array
-   - Empty env object
+### 2. Test Library Lookup — Resolve a Library ID
 
-2. **Test context7 MCP server (no auth required)**
+In a Claude Code conversation:
 
-   In Claude Code conversation:
-   ```
-   Use the context7 MCP server to search for documentation about React hooks.
-   ```
+```
+Use the context7 MCP server to find the library ID for the Python requests library.
+```
 
-   Expected: Claude accesses context7 and retrieves documentation about React hooks.
+Expected: Claude calls context7's `resolve-library-id` tool and returns a context7-compatible library ID (e.g., `/psf/requests` or similar). The library should be found with a description, snippet count, and reputation score.
 
-3. **Verify context7 functionality**
+### 3. Test Documentation Retrieval
 
-   In Claude Code conversation:
-   ```
-   Use context7 to find:
-   1. Latest Python requests library documentation
-   2. PostgreSQL connection pooling best practices
-   3. Stripe webhook signature verification
-   ```
+In a Claude Code conversation:
 
-   Expected: Context7 returns relevant documentation for each query.
+```
+Use context7 to get documentation about how to use sessions and connection pooling in the Python requests library.
+```
 
-4. **Test atlassian MCP server (requires auth)**
+Expected:
+- Claude calls `resolve-library-id` first to get the library ID
+- Then calls `get-library-docs` with the resolved ID and query
+- Returns relevant documentation excerpts with code examples
+- Documentation is current and accurate (not from Claude's training data)
 
-   ```bash
-   # Authenticate with Atlassian (if not already done)
-   npx @anthropic/mcp-server-atlassian auth
-   ```
+### 4. Test Multi-Query Documentation Retrieval
 
-   In Claude Code conversation:
-   ```
-   List my recent Jira issues using the atlassian MCP server.
-   ```
+In a Claude Code conversation:
 
-   Expected:
-   - If authenticated: Claude retrieves Jira issues
-   - If not authenticated: Claude indicates authentication is required and provides instructions
+```
+Using context7, find documentation for:
+1. React useEffect cleanup functions
+2. FastAPI dependency injection
+3. PostgreSQL connection pooling with asyncpg
+```
 
-5. **Verify error handling for unavailable servers**
+Expected: Claude makes three separate context7 calls (or parallel calls if supported) and returns relevant documentation for each. All three queries should return results — these are well-documented libraries with high coverage in context7.
 
-   ```bash
-   # Temporarily rename mcp.json to test fallback
-   mv ~/.claude/mcp.json ~/.claude/mcp.json.backup
-   ```
+### 5. Test Version-Specific Query (if applicable)
 
-   In Claude Code conversation:
-   ```
-   Try to use the context7 MCP server.
-   ```
+In a Claude Code conversation:
 
-   Expected: Claude gracefully handles missing MCP configuration.
+```
+Use context7 to find documentation about authentication in Next.js. I need to know whether this applies to the App Router or Pages Router.
+```
 
-   ```bash
-   # Restore mcp.json
-   mv ~/.claude/mcp.json.backup ~/.claude/mcp.json
-   ```
+Expected: Documentation retrieved and includes version context (App Router vs Pages Router distinction). context7 tracks library versions and can surface version-specific information.
 
-6. **Test MCP server commands are available**
+### 6. Test Error Handling — Unknown Library
 
-   In Claude Code conversation:
-   ```
-   What MCP servers are currently available?
-   ```
+In a Claude Code conversation:
 
-   Expected: Claude lists atlassian and context7 (and any other configured servers).
+```
+Use context7 to find documentation for a library called "nonexistent-fictional-library-xyz".
+```
 
-7. **Verify MCP server version strategy**
+Expected: Claude gracefully handles the case where context7 cannot resolve the library ID. It should report that no matching library was found rather than hallucinating documentation. This validates that context7 is doing live lookups rather than falling back to training data.
 
-   ```bash
-   # Check that context7 uses @latest
-   grep -A 3 '"context7"' ~/.claude/mcp.json | grep "@latest"
-   ```
+### 7. Test Error Handling — MCP Server Unavailable
 
-   Expected: context7 configured with `@latest` version tag for auto-updates.
+```bash
+# Temporarily corrupt context7 config to test fallback behavior
+python3 -c "
+import json
+with open('$HOME/.claude/mcp.json') as f:
+    cfg = json.load(f)
+cfg['context7']['command'] = 'nonexistent-command'
+with open('/tmp/mcp-backup.json', 'w') as f:
+    json.dump(cfg, f, indent=2)
+import shutil
+shutil.copy('$HOME/.claude/mcp.json', '/tmp/mcp-original.json')
+with open('$HOME/.claude/mcp.json', 'w') as f:
+    json.dump(cfg, f, indent=2)
+print('Config corrupted for test')
+"
+```
 
-8. **Test real-world context7 usage**
+Open a new Claude Code session and attempt to use context7:
 
-   In Claude Code conversation:
-   ```
-   I'm implementing OAuth2 authentication with PKCE flow. Use context7 to find:
-   1. OAuth2 PKCE specification details
-   2. Common implementation pitfalls
-   3. Security best practices
-   ```
+```
+Try to use context7 to look up Python documentation.
+```
 
-   Expected: Context7 retrieves relevant OAuth2/PKCE documentation and provides accurate information.
+Expected: Claude reports that context7 is unavailable or failed to start, and either attempts fallback or explains that MCP server is not accessible. Claude should NOT silently return training-data documentation as if context7 responded.
+
+```bash
+# Restore original config
+cp /tmp/mcp-original.json ~/.claude/mcp.json
+echo "Config restored"
+```
+
+### 8. Test Version Strategy — Latest Tag
+
+Verify context7 uses `@latest` for automatic updates:
+
+```bash
+cat ~/.claude/mcp.json | python3 -c "
+import json, sys
+cfg = json.load(sys.stdin)
+args = cfg.get('context7', {}).get('args', [])
+has_latest = any('@latest' in a for a in args)
+print('Uses @latest:', has_latest)
+print('Args:', args)
+"
+```
+
+Expected: `Uses @latest: True`. The `@upstash/context7-mcp@latest` arg ensures the MCP server auto-updates when npx fetches it, so users always get the latest documentation coverage without manual updates.
+
+### 9. Real-World Integration Test
+
+In a Claude Code conversation, simulate a realistic development task that benefits from context7:
+
+```
+I'm implementing JWT authentication in a FastAPI application. Use context7 to find:
+1. How to install and configure python-jose for JWT handling
+2. FastAPI's security utilities for OAuth2 password flow
+3. How to set token expiration correctly
+
+Then give me a minimal working example combining all three.
+```
+
+Expected:
+- Claude makes context7 calls for each query
+- Returns accurate, current documentation from all three areas
+- Synthesizes a working code example based on live docs rather than potentially outdated training data
+- Total time for all context7 calls should be under 30 seconds
 
 ## Expected Outcome
 
-- Both MCP servers (atlassian, context7) are configured correctly
-- context7 works without authentication and retrieves documentation
-- atlassian requires authentication (expected behavior)
-- MCP servers accessible within Claude Code conversations
-- Error handling works gracefully for missing/failing servers
-- context7 uses @latest for automatic updates
-- Real-world queries return useful, accurate documentation
+- context7 MCP server is correctly configured with `@upstash/context7-mcp@latest`
+- Library ID resolution works for well-known packages (requests, React, FastAPI, asyncpg)
+- Documentation retrieval returns current, accurate content with code examples
+- Unknown library queries fail gracefully without hallucination
+- MCP unavailability is reported clearly, not silently worked around
+- `@latest` version tag confirmed for automatic update behavior
+- Real-world multi-query integration completes in reasonable time
 
 ## Success Criteria
 
-- [ ] atlassian MCP server configured in mcp.json with correct parameters
-- [ ] context7 MCP server configured in mcp.json with correct parameters
-- [ ] context7 accessible without authentication
-- [ ] context7 retrieves documentation for test queries
-- [ ] atlassian requires authentication (or works if already authenticated)
-- [ ] Claude can list available MCP servers
-- [ ] Error handling works when MCP servers unavailable
-- [ ] context7 uses @latest version tag
-- [ ] Real-world OAuth2 query returns accurate documentation
-- [ ] MCP operations complete within reasonable time (< 30 seconds)
+- [ ] context7 configured in mcp.json with correct type, command, and args
+- [ ] `@upstash/context7-mcp@latest` present in args (auto-update strategy)
+- [ ] Library ID resolution succeeds for Python requests library
+- [ ] Documentation retrieval returns content for requests connection pooling
+- [ ] Multi-query test returns results for React, FastAPI, and asyncpg
+- [ ] Unknown library query fails gracefully (no hallucination)
+- [ ] MCP unavailability reported clearly when server command is invalid
+- [ ] Real-world JWT/FastAPI integration test completes under 30 seconds
+- [ ] No atlassian or other unexpected MCP server present from this plugin
 
 ## Value Demonstrated
 
-This scenario proves wicked-startah provides **zero-configuration access to essential MCP servers**:
+context7 transforms Claude Code from an assistant with a knowledge cutoff into a **connected assistant with live documentation access**:
 
-- **context7** gives instant access to up-to-date documentation for thousands of libraries without manual searching or outdated docs
-- **atlassian** enables Jira/Confluence integration for teams using Atlassian tools
-- **No manual setup** - MCP servers configured automatically on plugin installation
-- **Version strategy** (@latest) ensures users get improvements without manual updates
+- **No more stale docs**: Library docs fetched fresh rather than from training data
+- **Version awareness**: context7 tracks library versions and surfaces version-specific information
+- **Zero configuration**: Bundled by wicked-startah — npx handles installation on first use
+- **Auto-updates**: `@latest` tag means improved library coverage arrives automatically
 
-This transforms Claude Code from "code assistant with static knowledge" to **connected assistant with live documentation and project management integration**.
+The gap between "Claude thinks this API works this way" and "this is how the API actually works today" is where documentation-related bugs come from. context7 closes that gap.

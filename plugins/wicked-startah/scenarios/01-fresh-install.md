@@ -1,106 +1,152 @@
 ---
 name: fresh-install
 title: Fresh Installation and First Session
-description: Validates plugin installation, MCP server configuration, and first-session setup flow
+description: Validates plugin installation, hook execution, MCP configuration, and skill availability
 type: integration
 difficulty: basic
-estimated_minutes: 10
+estimated_minutes: 8
 ---
 
 # Fresh Installation and First Session
 
-Tests the complete installation flow including MCP server configuration, hook execution, and recommended plugin prompts.
+Tests the complete installation flow: hook runs silently on session start, context7 MCP server is configured, and all skills are accessible. wicked-startah has a deliberately quiet startup — no nag messages, no setup wizard. Its value is in what it configures and provides, not in what it announces.
 
 ## Setup
 
-Start with a clean Claude Code environment (or isolated test environment):
-
 ```bash
-# Optional: Create a test project directory
+# Create a test project directory
 mkdir -p /tmp/wicked-startah-test
-cd /tmp/wicked-startah-test
-
-# Ensure no previous setup marker exists
-rm -rf ~/.something-wicked/wicked-startah/setup-complete
 ```
 
 ## Steps
 
-1. **Install the plugin**
-   ```bash
-   claude plugin install wicked-startah@wicked-garden
-   ```
+### 1. Install the Plugin
 
-   Expected: Plugin installed successfully, shows version 0.1.4 or later.
+```bash
+claude plugin install wicked-startah@wicked-garden
+```
 
-2. **Verify MCP servers are configured**
-   ```bash
-   cat ~/.claude/mcp.json | grep -A 10 '"atlassian"'
-   cat ~/.claude/mcp.json | grep -A 10 '"context7"'
-   ```
+Expected: Plugin installed successfully, shows version 0.8.0 or later.
 
-   Expected: Both `atlassian` and `context7` MCP servers are present with correct configuration.
+### 2. Verify MCP Server Configuration
 
-3. **Start a new Claude Code session**
+wicked-startah bundles context7 as the only MCP server. Verify it was added to your project or global MCP configuration:
 
-   Open a new conversation in Claude Code.
+```bash
+cat ~/.claude/mcp.json | grep -A 5 '"context7"'
+```
 
-   Expected: SessionStart hook triggers and displays setup message offering recommended plugins.
+Expected: context7 is present with the following configuration:
+```json
+"context7": {
+  "type": "stdio",
+  "command": "npx",
+  "args": ["-y", "@upstash/context7-mcp@latest"],
+  "env": {}
+}
+```
 
-4. **Verify hook message content**
+Note: There is no atlassian MCP server bundled with this plugin. context7 is the only MCP server wicked-startah configures.
 
-   The message should contain:
-   - Mention of "wicked-startah detected"
-   - List of recommended plugins from claude-plugins-official
-   - Instructions to run `/wicked-startah:help` or create marker file
+### 3. Start a New Claude Code Session
 
-5. **Check skills are available**
-   ```bash
-   ls ~/.claude/plugins/wicked-startah/skills/
-   ```
+Open a new conversation in Claude Code.
 
-   Expected: Should list: `ai-conversation`, `codex-cli`, `gemini-cli`, `opencode-cli`
+Expected: SessionStart hook fires and completes within 2 seconds (2000ms timeout). No output message is displayed — the hook is intentionally silent. The session starts normally without any setup prompt, recommendations, or nag messages.
 
-6. **Verify skill documentation is readable**
-   ```bash
-   head -20 ~/.claude/plugins/wicked-startah/skills/gemini-cli/SKILL.md
-   ```
+### 4. Verify Hook Executed Without Error
 
-   Expected: Valid YAML frontmatter with name and description, followed by skill content.
+The session start hook reads stdin and returns `{"continue": true}`. Verify no hook errors appear in the Claude Code output during session initialization.
 
-7. **Create setup marker to test skip behavior**
-   ```bash
-   mkdir -p ~/.something-wicked/wicked-startah
-   touch ~/.something-wicked/wicked-startah/setup-complete
-   ```
+Expected: Session starts cleanly. No hook failure notifications. The hook's job is to stay out of the way.
 
-8. **Start another session**
+### 5. Verify Skills Are Available
 
-   Open a new conversation in Claude Code.
+Check which skills the plugin provides:
 
-   Expected: No setup prompt (hook runs but exits silently because marker exists).
+```bash
+ls ~/.claude/plugins/wicked-startah/skills/
+```
+
+Expected — the following skills should be listed:
+- `agent-browser` — browser automation via agent-browser CLI
+- `ai-conversation` — multi-AI orchestration with kanban as shared memory
+- `caching` — unified caching infrastructure for plugins
+- `codex-cli` — OpenAI Codex CLI integration for code review
+- `gemini-cli` — Gemini CLI integration for multi-model analysis
+- `integration-discovery` — capability router for tool selection decisions
+- `issue-reporting` — automated GitHub issue filing from session failures
+- `opencode-cli` — OpenCode CLI integration with multi-provider support
+- `runtime-exec` — smart script execution with package manager detection
+- `wickedizer` — content humanizer and voice alignment tool
+
+### 6. Verify Skill Documentation Is Valid
+
+Spot-check a few skills for valid structure:
+
+```bash
+head -15 ~/.claude/plugins/wicked-startah/skills/ai-conversation/SKILL.md
+head -10 ~/.claude/plugins/wicked-startah/skills/codex-cli/SKILL.md
+head -10 ~/.claude/plugins/wicked-startah/skills/runtime-exec/SKILL.md
+```
+
+Expected: Each file starts with valid YAML frontmatter containing `name` and `description` fields, followed by skill content. No file should be empty or malformed.
+
+### 7. Verify Hook Scripts Are Present
+
+```bash
+ls ~/.claude/plugins/wicked-startah/hooks/scripts/
+```
+
+Expected:
+- `auto_issue_reporter.py` — fires on PostToolUseFailure to track tool errors
+- `session_outcome_checker.py` — fires async on Stop to assess session outcomes
+
+### 8. Verify Issue Reporting Command
+
+```bash
+cat ~/.claude/plugins/wicked-startah/commands/report-issue.md | head -5
+```
+
+Expected: Command file exists with valid YAML frontmatter.
+
+### 9. Verify Cache Infrastructure Is Present
+
+```bash
+ls ~/.claude/plugins/wicked-startah/scripts/
+```
+
+Expected: Cache scripts present — `cache.py`, `cache_setup.py`, `cache_stats.py`, `cache_list.py`, `cache_clear.py`.
+
+### 10. Confirm Session Runs Normally
+
+Open a second new conversation in Claude Code.
+
+Expected: Hook fires again silently. Session starts identically to the first. There is no state from the previous session that changes behavior — wicked-startah's startup is stateless and always silent.
 
 ## Expected Outcome
 
 - Plugin installs without errors
-- MCP servers (atlassian, context7) are configured in mcp.json
-- First session displays setup prompt with plugin recommendations
-- All four skills are installed and accessible
-- Subsequent sessions after marker creation show no setup prompt
-- Hook executes quickly (under 10 seconds timeout)
+- context7 MCP server is configured (the only bundled MCP server)
+- SessionStart hook fires and completes silently within 2 seconds
+- All 10 skills are installed and have valid YAML frontmatter
+- Hook scripts exist for issue reporting and session outcome tracking
+- Cache infrastructure scripts are present
+- Subsequent sessions behave identically — no first-run vs. repeat-run difference in startup behavior
 
 ## Success Criteria
 
 - [ ] Plugin installation completes successfully
-- [ ] atlassian MCP server is configured in mcp.json
-- [ ] context7 MCP server is configured in mcp.json
-- [ ] SessionStart hook displays setup message on first session
-- [ ] Setup message includes recommended plugins list
-- [ ] All four skills (ai-conversation, codex-cli, gemini-cli, opencode-cli) are installed
-- [ ] Each skill has valid YAML frontmatter
-- [ ] Creating setup marker suppresses future setup prompts
-- [ ] Hook completes within timeout (10 seconds)
+- [ ] context7 MCP server configured in mcp.json with `@upstash/context7-mcp@latest`
+- [ ] No atlassian or other MCP server erroneously added
+- [ ] SessionStart hook fires without errors (no failure notification in Claude Code)
+- [ ] Hook completes within 2 seconds (no timeout)
+- [ ] No setup message, nag, or prompt displayed on session start
+- [ ] All 10 skills present: agent-browser, ai-conversation, caching, codex-cli, gemini-cli, integration-discovery, issue-reporting, opencode-cli, runtime-exec, wickedizer
+- [ ] Each skill has valid YAML frontmatter with name and description
+- [ ] Hook scripts present: auto_issue_reporter.py, session_outcome_checker.py
+- [ ] Cache scripts present: cache.py, cache_setup.py, cache_stats.py, cache_list.py, cache_clear.py
 
 ## Value Demonstrated
 
-This scenario proves wicked-startah provides a **zero-configuration onboarding experience** for Claude Code users. New users get essential MCP servers and are guided to recommended plugins without manual configuration, reducing setup time from hours to minutes.
+wicked-startah provides a **low-friction installation experience**: install once, get context7 MCP server configured automatically, and have 10 specialized skills available immediately. The deliberate silence of the SessionStart hook respects the user's workflow — no onboarding interruptions, no setup wizards, just capability that's there when you need it.

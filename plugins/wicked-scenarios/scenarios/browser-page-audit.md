@@ -46,7 +46,7 @@ import { test, expect } from '@playwright/test';
 test('page has expected content', async ({ page }) => {
   await page.goto('https://example.com');
   await expect(page.locator('h1')).toHaveText('Example Domain');
-  await expect(page.locator('p')).toContainText('for use in illustrative examples');
+  await expect(page.locator('p').first()).toContainText('for use in illustrative examples in documents');
 });
 PW_EOF
 npx playwright test "${TMPDIR:-/tmp}/wicked-scenario-pw"/content.spec.ts --reporter=line

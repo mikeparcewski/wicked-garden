@@ -452,7 +452,7 @@ class MemoryStore:
 
         # Filter by tags
         if tags:
-            memories = [m for m in memories if any(t in m.tags for t in tags)]
+            memories = [m for m in memories if all(t in m.tags for t in tags)]
 
         # Filter by status
         if not include_archived:

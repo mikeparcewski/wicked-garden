@@ -1,292 +1,161 @@
 ---
 name: new-developer-onboarding
-title: New Developer Onboarding
-description: Complete onboarding flow for a developer new to an unfamiliar codebase
+title: New Developer Onboarding via Delivery Reporting
+description: Use delivery reports to orient a new developer to team velocity, blockers, and project health
 type: workflow
 difficulty: basic
 estimated_minutes: 8
 ---
 
-# New Developer Onboarding
+# New Developer Onboarding via Delivery Reporting
 
-This scenario validates that wicked-delivery can effectively onboard a new developer to an unfamiliar codebase, providing orientation, personalized learning paths, and actionable first tasks.
+This scenario validates that wicked-delivery helps new developers quickly understand team health, delivery patterns, and current blockers using the `/wicked-delivery:report` command. Rather than navigating unfamiliar codebases blind, new developers can read the delivery picture first.
 
 ## Setup
 
-Create a realistic Python API project that a new developer would need to understand:
+Create a realistic project export that a new developer would receive from their team lead:
 
 ```bash
-# Create test project directory
-mkdir -p ~/test-wicked-delivery/ecommerce-api
-cd ~/test-wicked-delivery/ecommerce-api
+# Create test directory
+mkdir -p /tmp/wicked-delivery-onboarding
 
-# Initialize as a git repo with basic structure
-git init
-
-# Create README
-cat > README.md <<'EOF'
-# E-Commerce API
-
-A Python FastAPI backend for processing orders.
-
-## Quick Start
-```bash
-pip install -r requirements.txt
-uvicorn src.main:app --reload
-```
-
-## Architecture
-- `src/` - Application source code
-- `tests/` - Test suite
-- `docs/` - Additional documentation
+# Create a sprint export in CSV format (simulating a GitHub Issues or Jira export)
+cat > /tmp/wicked-delivery-onboarding/team-status.csv <<'EOF'
+id,title,status,priority,assignee,labels,created_at,updated_at,closed_at
+101,Set up CI pipeline,done,P1,alice,infrastructure,2024-11-01,2024-11-03,2024-11-03
+102,Implement user auth,done,P0,bob,feature,2024-11-01,2024-11-05,2024-11-05
+103,Add rate limiting,in_progress,P1,alice,infrastructure,2024-11-05,2024-11-12,
+104,Migrate legacy endpoints,in_progress,P1,carol,tech-debt,2024-11-04,2024-11-13,
+105,Write API documentation,todo,P2,unassigned,docs,2024-11-06,2024-11-06,
+106,Integrate payment provider,blocked,P0,bob,feature,2024-11-02,2024-11-13,
+107,Add search functionality,todo,P2,unassigned,feature,2024-11-08,2024-11-08,
+108,Fix session timeout bug,done,P0,carol,bug,2024-11-07,2024-11-09,2024-11-09
 EOF
 
-# Create requirements.txt
-cat > requirements.txt <<'EOF'
-fastapi==0.104.0
-uvicorn==0.24.0
-sqlalchemy==2.0.23
-pydantic==2.5.0
-pytest==7.4.3
-EOF
-
-# Create main application structure
-mkdir -p src/api src/services src/models src/db tests docs
-
-# Create main entry point
-cat > src/main.py <<'EOF'
-from fastapi import FastAPI
-from src.api import orders, products, users
-
-app = FastAPI(title="E-Commerce API", version="1.0.0")
-
-app.include_router(orders.router, prefix="/orders", tags=["orders"])
-app.include_router(products.router, prefix="/products", tags=["products"])
-app.include_router(users.router, prefix="/users", tags=["users"])
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-EOF
-
-# Create orders API
-cat > src/api/orders.py <<'EOF'
-from fastapi import APIRouter, Depends, HTTPException
-from src.services.order_service import OrderService
-from src.models.order import Order, OrderCreate
-
-router = APIRouter()
-
-@router.post("/", response_model=Order)
-def create_order(order: OrderCreate, service: OrderService = Depends()):
-    return service.create_order(order)
-
-@router.get("/{order_id}", response_model=Order)
-def get_order(order_id: int, service: OrderService = Depends()):
-    order = service.get_order(order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return order
-EOF
-
-# Create order service
-cat > src/services/order_service.py <<'EOF'
-from src.db.repository import OrderRepository
-from src.models.order import OrderCreate
-
-class OrderService:
-    def __init__(self):
-        self.repository = OrderRepository()
-
-    def create_order(self, order_data: OrderCreate):
-        # Validate inventory
-        # Calculate pricing
-        # Create order record
-        return self.repository.create(order_data)
-
-    def get_order(self, order_id: int):
-        return self.repository.get(order_id)
-EOF
-
-# Create order model
-cat > src/models/order.py <<'EOF'
-from pydantic import BaseModel
-from typing import List
-from datetime import datetime
-
-class OrderItem(BaseModel):
-    product_id: int
-    quantity: int
-    price: float
-
-class OrderCreate(BaseModel):
-    user_id: int
-    items: List[OrderItem]
-
-class Order(BaseModel):
-    id: int
-    user_id: int
-    items: List[OrderItem]
-    total: float
-    status: str
-    created_at: datetime
-EOF
-
-# Create __init__.py files
-touch src/__init__.py src/api/__init__.py src/services/__init__.py src/models/__init__.py src/db/__init__.py
-
-# Create a simple test file
-cat > tests/test_orders.py <<'EOF'
-import pytest
-from fastapi.testclient import TestClient
-from src.main import app
-
-client = TestClient(app)
-
-def test_health_check():
-    response = client.get("/health")
-    assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
-
-def test_create_order():
-    order_data = {
-        "user_id": 1,
-        "items": [{"product_id": 1, "quantity": 2, "price": 29.99}]
-    }
-    # Would test order creation
-    pass
-EOF
-
-# Commit the initial structure
-git add -A
-git commit -m "Initial project structure"
-
-echo "Setup complete. Project created at ~/test-wicked-delivery/ecommerce-api"
+echo "Setup complete. Export at /tmp/wicked-delivery-onboarding/team-status.csv"
 ```
 
 ## Steps
 
-### 1. Orient to the Codebase
+### 1. Configure Delivery Metrics (Optional First-Time Setup)
 
-Use the onboarding-guide agent to get oriented:
-
-```
-Task tool: subagent_type="wicked-delivery:onboarding-guide"
-prompt="I just joined the team and need to understand this e-commerce API project. Help me get oriented."
-```
-
-**Expected Output**:
-- Project overview (E-Commerce API, FastAPI backend)
-- Technology stack identification (Python, FastAPI, SQLAlchemy, Pydantic)
-- Project structure explanation
-- Key entry points identified (src/main.py)
-- Getting started steps (install deps, run uvicorn)
-
-### 2. Get Detailed Code Explanation
-
-Ask for explanation of a specific component:
+If this is a first run, configure the cost model and cadence:
 
 ```
-Task tool: subagent_type="wicked-delivery:codebase-narrator"
-prompt="Explain how the order creation flow works, from API endpoint to database"
+/wicked-delivery:setup
 ```
 
 **Expected Output**:
-- Clear narrative of the order flow
-- Step-by-step explanation: API route -> Service -> Repository
-- Code snippets with file paths
-- Design pattern identification (Service layer, Repository pattern)
-- Related components mentioned
+- Interactive prompts for cost model type (skip or configure)
+- Commentary sensitivity selection (Balanced recommended)
+- Rolling window selection (14 days recommended)
+- Aging threshold selection (7 days recommended)
+- Settings written to `~/.something-wicked/wicked-delivery/settings.json`
 
-### 3. Request Personalized Learning Path
+Skip this step if settings already exist.
 
-Get a customized learning plan:
+### 2. Generate a Delivery Report for the New Developer
 
-```
-Task tool: subagent_type="wicked-delivery:onboarding-guide"
-prompt="I'm experienced with Django but new to FastAPI. Create a learning path for me to become productive on this codebase."
-```
-
-**Expected Output**:
-- Assessment acknowledgment (Django experience -> FastAPI transition)
-- Phased learning plan:
-  - Phase 1: Foundation (FastAPI basics, dependency injection)
-  - Phase 2: Exploration (trace a request, read tests)
-  - Phase 3: Contribution (first PR)
-- Specific file paths to study
-- Time estimates for each phase
-
-### 4. Get First Task Recommendations
-
-Ask for actionable first contributions:
+Run the report command against the sprint export:
 
 ```
-Task tool: subagent_type="wicked-delivery:onboarding-guide"
-prompt="What should my first contribution be? Give me something I can complete today."
+/wicked-delivery:report /tmp/wicked-delivery-onboarding/team-status.csv
 ```
 
 **Expected Output**:
-- 2-3 specific task suggestions, such as:
-  - Add missing docstrings to order_service.py
-  - Complete the test_create_order test
-  - Add input validation to OrderCreate model
-- Each task includes:
-  - File location
-  - What to change
-  - How to verify success
-  - Estimated time (<2 hours)
+- Three persona reports generated: Delivery Lead, Engineering Lead, Product Lead
+- Each report analyzes the same data from a different stakeholder lens
+- Dry Boston-style commentary on any obvious patterns (lopsided assignments, aging items)
 
-### 5. Verify Memory Integration (if available)
+**Delivery Lead perspective should highlight**:
+- Sprint completion rate (3/8 = 37% done)
+- 1 blocked P0 task (payment provider integration)
+- 2 unassigned items (documentation, search)
+- Aging items flagged (tasks untouched for 7+ days)
 
-If wicked-mem is installed:
+**Engineering Lead perspective should highlight**:
+- Tech debt item in progress (legacy endpoint migration)
+- Capacity: two engineers with open items nearing sprint end
+- Risk from P0 block affecting a feature dependency
+
+**Product Lead perspective should highlight**:
+- P0 feature blocked (payment provider) — high user impact
+- Unassigned documentation gap
+- Two P2 features not yet started
+
+### 3. Get a Comprehensive View
+
+Run with `--all` to also get QE, Architecture, and DevSecOps perspectives:
 
 ```
-Task tool: subagent_type="wicked-delivery:onboarding-guide"
-prompt="What did I learn in my last session?"
+/wicked-delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --all
 ```
 
 **Expected Output**:
-- Recall of previous orientation session
-- Suggestion to continue from where left off
-- Progress tracking acknowledgment
+- Six persona reports generated
+- QE Lead: test coverage gaps, defect density from bug count
+- Architecture Lead: technical debt load vs. feature work ratio
+- DevSecOps Lead: infrastructure tasks, security-adjacent concerns (auth, rate limiting)
+
+### 4. Focus on What Matters Most to a New Developer
+
+Run a focused analysis on just the delivery and product perspectives:
+
+```
+/wicked-delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --personas delivery-lead,product-lead
+```
+
+**Expected Output**:
+- Two-persona report: leaner output suitable for a quick read
+- Delivery Lead and Product Lead sections only
+- Same data, reduced noise
+
+### 5. Save Output for Reference
+
+Run with output directory to save the reports:
+
+```
+/wicked-delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --output /tmp/wicked-delivery-onboarding/reports/
+```
+
+**Expected Output**:
+- Report files written to specified directory
+- Manifest file listing generated reports
+- Confirmation of file paths
 
 ## Expected Outcome
 
-- Developer receives clear, actionable orientation in unfamiliar codebase
-- Learning path is personalized based on stated experience level
-- First tasks are achievable and build confidence
-- Code explanations transform complexity into understandable narratives
-- All recommendations include specific file paths and concrete steps
-- Integration with wicked-mem (if available) provides cross-session continuity
+- New developer understands current team delivery health in minutes
+- Blockers surfaced immediately without reading every ticket
+- Multiple stakeholder perspectives reveal different angles on the same data
+- Reports are professional enough to share with a team lead or manager
+- Plugin works standalone with a simple CSV export — no special tooling required
 
 ## Success Criteria
 
-- [ ] Orient skill produces TL;DR summary of project purpose
-- [ ] Technology stack correctly identified (Python, FastAPI, SQLAlchemy)
-- [ ] Project structure mapped with directory explanations
-- [ ] Key entry point (src/main.py) identified
-- [ ] Getting started steps are executable (pip install, uvicorn)
-- [ ] Code explanation follows request flow end-to-end
-- [ ] Learning path has distinct phases with time estimates
-- [ ] First task recommendations include specific file paths
-- [ ] All suggestions are actionable (not "read the code" generic advice)
-- [ ] If wicked-mem available: previous session recalled correctly
+- [ ] `/wicked-delivery:setup` completes and writes settings to `~/.something-wicked/wicked-delivery/`
+- [ ] `/wicked-delivery:report` accepts CSV file path and processes it without errors
+- [ ] Default run generates 3 persona reports (Delivery Lead, Engineering Lead, Product Lead)
+- [ ] `--all` flag generates 6 persona reports
+- [ ] `--personas` flag limits output to specified personas
+- [ ] `--output` flag writes reports to a directory with a manifest
+- [ ] Blocked P0 task surfaced as a critical finding
+- [ ] Unassigned items identified
+- [ ] Aging items flagged based on settings thresholds
+- [ ] Report content is professional and stakeholder-appropriate
 
 ## Value Demonstrated
 
-**Real-world value**: New developer onboarding is one of the most expensive activities in software teams. Studies show it takes 3-6 months for developers to become fully productive on a new codebase. This time is spent wandering through unfamiliar code, asking colleagues questions, and making false starts.
+A new developer joining a team typically spends their first days asking colleagues for context: "What are we working on? What's blocked? Where should I focus?" wicked-delivery's reporting capability answers these questions in minutes by analyzing existing project exports.
 
-wicked-delivery's onboarding capabilities compress this ramp-up time by:
-
-1. **Immediate orientation**: Instead of spending days figuring out project structure, developers get a clear map in minutes
-2. **Personalized paths**: Learning recommendations adapt to the developer's existing skills (Django -> FastAPI transition)
-3. **Actionable first tasks**: Developers contribute value on day one instead of feeling lost
-4. **Continuous context**: With wicked-mem integration, progress persists across sessions - no starting from scratch
-
-For teams with frequent hiring, contractor onboarding, or internal mobility, this capability pays for itself quickly. A new developer who contributes their first PR in day one instead of week two represents significant productivity gain.
+The multi-persona report gives a new developer:
+1. **Team health at a glance** — completion rate, blockers, aging items
+2. **Stakeholder framing** — understands what a delivery lead, engineering lead, and product lead each care about
+3. **Actionable context** — knows which P0 blocker to ask about, which unassigned items they could pick up
+4. **No special setup** — works with any CSV export from Jira, GitHub Issues, Linear, or Asana
 
 ## Cleanup
 
 ```bash
-rm -rf ~/test-wicked-delivery/ecommerce-api
+rm -rf /tmp/wicked-delivery-onboarding
 ```

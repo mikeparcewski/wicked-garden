@@ -1,15 +1,15 @@
 ---
 name: task-dashboard-generation
-title: End-to-End Task Dashboard Generation
-description: Generate and render a task dashboard from natural language request
-type: dashboard
+title: Task Data Gateway Querying
+description: Query task data from wicked-kanban via the data gateway with filtering, stats, and search
+type: feature
 difficulty: basic
 estimated_minutes: 8
 ---
 
-# End-to-End Task Dashboard Generation
+# Task Data Gateway Querying
 
-Demonstrates the complete workflow from natural language request to rendered dashboard. Claude Code generates A2UI JSON, Workbench renders it, and live task data is fetched from the data gateway.
+Demonstrates querying task data from wicked-kanban through the Workbench data gateway. Claude uses the gateway endpoints to fetch, filter, and summarize tasks on request.
 
 ## Setup
 
@@ -27,69 +27,119 @@ Start Workbench:
 /wicked-workbench:workbench start
 ```
 
-Verify tasks are accessible via the data gateway:
+Verify the kanban data source is discovered:
 
 ```bash
-curl -s http://localhost:18889/api/v1/data/wicked-kanban/tasks/list | jq '.items | length'
+curl -s http://localhost:18889/api/v1/data/plugins | python3 -m json.tool | grep wicked-kanban
 ```
 
 ## Steps
 
-### 1. Request Dashboard from Claude Code
+### 1. List Tasks via Data Gateway
+
+```bash
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/list" | python3 -m json.tool
+```
+
+**Expected**: JSON response with `items` array containing task objects and a `meta` block:
+```json
+{
+  "items": [
+    {"subject": "Fix authentication bug", "status": "pending", ...},
+    {"subject": "Update documentation", "status": "pending", ...},
+    {"subject": "Refactor API layer", "status": "pending", ...}
+  ],
+  "meta": {
+    "plugin": "wicked-kanban",
+    "source": "tasks",
+    "verb": "list"
+  }
+}
+```
+
+### 2. Apply Limit and Offset Pagination
+
+```bash
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/list?limit=2&offset=0" | python3 -m json.tool
+```
+
+**Expected**: Only 2 items returned. Increase `offset=2` to get the next page.
+
+### 3. Filter Tasks by Status
+
+```bash
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/list?filter=pending" | python3 -m json.tool
+```
+
+**Expected**: Only tasks with `status=pending` returned.
+
+### 4. Get Task Stats
+
+```bash
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/stats" | python3 -m json.tool
+```
+
+**Expected**: Aggregated counts by status showing the breakdown of pending, in_progress, and completed tasks.
+
+### 5. Search Tasks by Keyword
+
+```bash
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/search?query=auth" | python3 -m json.tool
+```
+
+**Expected**: Tasks matching "auth" in their subject or description.
+
+### 6. Request a Task Summary from Claude Code
 
 In Claude Code conversation:
 
 ```
-Show my high priority tasks in a dashboard
+Show me my pending tasks and give me a summary of what needs attention.
 ```
 
-### 2. Claude Code Generates A2UI
+**Expected**: Claude queries the data gateway (`/api/v1/data/wicked-kanban/tasks/list?filter=pending`) and formats the results as a readable summary. No rendering endpoint is involved — Claude presents the data as markdown or prose.
 
-Claude Code queries the data gateway for task data, generates A2UI with TaskList component, and sends to POST /api/render.
+### 7. Verify Gateway Metadata on All Responses
 
-### 3. Verify Dashboard Rendered
-
-Open http://localhost:18889 to see dashboard with task data.
-
-### 4. Query Tasks Directly via Gateway
+Every gateway response includes a `meta` block added by `_enrich_meta()`:
 
 ```bash
-curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/list?limit=10" | jq '.items[] | {subject, status}'
+curl -s "http://localhost:18889/api/v1/data/wicked-kanban/tasks/list" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('meta', {}))"
 ```
+
+**Expected**: `{"plugin": "wicked-kanban", "source": "tasks"}` present in every response.
 
 ## Expected Outcome
 
-### Step 1: Claude Code Response
-Generates and sends A2UI to Workbench.
+- Data gateway discovers wicked-kanban as a data plugin
+- Tasks are accessible via `/api/v1/data/wicked-kanban/tasks/list`
+- Filtering, pagination (`limit`/`offset`), and search via `query` parameter all work
+- Stats verb returns aggregated counts
+- Claude can fetch and summarize task data when asked in natural language
+- No `POST /api/render` endpoint exists — Claude formats data as text/markdown inline
 
-### Step 2: Dashboard Rendered
-POST /api/render processes the A2UI.
+## Valid Read Verbs for Task Data
 
-### Step 3: Browser View
-Shows tasks with live data fetched via the plugin data gateway.
-
-### Step 4: Direct Gateway Query
-```json
-[
-  {"subject": "Fix authentication bug", "status": "pending"},
-  {"subject": "Update documentation", "status": "pending"},
-  {"subject": "Refactor API layer", "status": "pending"}
-]
-```
+| Verb | URL | Purpose |
+|------|-----|---------|
+| `list` | `/api/v1/data/wicked-kanban/tasks/list` | All tasks (paginated) |
+| `get` | `/api/v1/data/wicked-kanban/tasks/get/{id}` | Single task by ID |
+| `search` | `/api/v1/data/wicked-kanban/tasks/search?query=...` | Keyword search |
+| `stats` | `/api/v1/data/wicked-kanban/tasks/stats` | Aggregated counts |
 
 ## Success Criteria
 
-- [ ] Tasks are accessible via data gateway endpoint
-- [ ] Claude Code generates A2UI with task components
-- [ ] POST /api/render returns 200 OK
-- [ ] Dashboard appears at http://localhost:18889
-- [ ] Live task data is displayed from the data gateway
-- [ ] Task filtering works (by status, priority, etc.)
+- [ ] `/api/v1/data/plugins` lists wicked-kanban as a data source
+- [ ] Tasks are returned from the `list` verb
+- [ ] `limit` and `offset` pagination parameters are respected
+- [ ] `filter` parameter narrows results by status
+- [ ] `search` verb returns keyword-matched tasks
+- [ ] `stats` verb returns aggregated counts by status
+- [ ] Every response includes a `meta` block with `plugin` and `source`
+- [ ] Claude can describe task data from a natural language request
 
 ## Value Demonstrated
 
-**Natural language to dashboard**: Users describe what they want to see, Claude Code generates the appropriate dashboard structure.
+**Unified data gateway**: Task data is fetched through a single API surface (`/api/v1/data/{plugin}/{source}/{verb}`), providing consistent querying, filtering, and pagination across all plugins.
 
-**Unified data gateway**: Task data is fetched through the workbench data gateway, providing a single API surface for all plugin data.
-
-**Real-world use**: Project managers can quickly visualize filtered task views without writing code. "Show blocked tasks", "Show tasks due this week" all work the same way.
+**Real-world use**: Project managers can ask Claude to summarize task state. "Show blocked tasks", "Show tasks updated today" — Claude queries the gateway and responds in natural language.
