@@ -183,9 +183,15 @@ class PythonGenerator(BaseGenerator):
         return patches
 
     def _camel_to_snake(self, name: str) -> str:
-        """Convert camelCase to snake_case for Python naming conventions."""
-        result = re.sub(r"([A-Z])", r"_\1", name)
-        return result.lstrip("_").lower()
+        """Convert camelCase to snake_case for Python naming conventions.
+
+        Handles acronyms correctly: userID -> user_id, HTMLParser -> html_parser.
+        """
+        # First pass: handle transitions between consecutive uppercase and uppercase+lowercase
+        result = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+        # Second pass: handle transitions from lowercase/digit to uppercase
+        result = re.sub(r"([a-z\d])([A-Z])", r"\1_\2", result)
+        return result.lower()
 
     def _rename_field(
         self,

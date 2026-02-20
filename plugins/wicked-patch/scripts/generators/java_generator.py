@@ -484,32 +484,48 @@ class JavaGenerator(BaseGenerator):
         indentation = self._detect_indentation(lines, class_start, class_end)
         getter_name = f"get{self._capitalize(field_spec.name)}"
 
-        # Find a validate method or the last method to insert validation logic
+        # Find a validate method and extract its parameter name
         validate_method_end = -1
+        param_name = None
         for i in range(class_start + 1, class_end):
             if "validate" in lines[i].lower() and "(" in lines[i]:
-                # Find end of this method
+                # Extract parameter name from method signature
+                param_match = re.search(r'\(\s*\w+\s+(\w+)\s*\)', lines[i])
+                if param_match:
+                    param_name = param_match.group(1)
+                # Find end of this method (j > i ensures we're past the opening brace)
                 brace_count = 0
                 for j in range(i, class_end + 1):
                     brace_count += lines[j].count("{") - lines[j].count("}")
-                    if brace_count <= 0:
+                    if j > i and brace_count <= 0:
                         validate_method_end = j
                         break
                 break
 
         if validate_method_end > 0:
             # Insert validation check before the closing brace of the validate method
-            insert_at = validate_method_end
+            insert_at = validate_method_end - 1
         else:
             # Insert as a new method before class closing brace
             insert_at = class_end - 1
+
+        # Derive the object variable name: from method parameter, class name, or generic
+        if not param_name:
+            class_name = symbol.get("name", "")
+            if class_name.endswith("Service"):
+                entity = class_name[:-len("Service")]
+            elif class_name.endswith("Controller"):
+                entity = class_name[:-len("Controller")]
+            else:
+                entity = class_name
+            param_name = entity[0].lower() + entity[1:] if entity else "request"
 
         # Build validation code
         if not field_spec.nullable:
             validation_lines = [
                 "",
                 f"{indentation}// Validate {field_spec.name}",
-                f"{indentation}if (payment.{getter_name}() == null || payment.{getter_name}().isEmpty()) {{",
+                f"{indentation}if ({param_name}.{getter_name}() == null || {param_name}.{getter_name}().isEmpty()) {{",
                 f'{indentation}    throw new IllegalArgumentException("{self._capitalize(field_spec.name)} is required");',
                 f"{indentation}}}",
             ]
@@ -517,7 +533,7 @@ class JavaGenerator(BaseGenerator):
             validation_lines = [
                 "",
                 f"{indentation}// Validate {field_spec.name} if provided",
-                f"{indentation}if (payment.{getter_name}() != null && payment.{getter_name}().isEmpty()) {{",
+                f"{indentation}if ({param_name}.{getter_name}() != null && {param_name}.{getter_name}().isEmpty()) {{",
                 f'{indentation}    throw new IllegalArgumentException("{self._capitalize(field_spec.name)} cannot be empty");',
                 f"{indentation}}}",
             ]

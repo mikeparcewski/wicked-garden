@@ -152,9 +152,9 @@ class Orchestrator:
             pass
         return {"items_pre_loaded": 0, "queries_made": 0, "estimated_turns_saved": 0}
 
-    def add_turn(self, user_msg: str, assistant_msg: str, tools_used: list[str] = None):
+    def add_turn(self, user_msg: str, assistant_msg: str, tools_used: list[str] = None, intent_type: str = ""):
         """Record a turn in session history."""
-        self.condenser.add_turn(user_msg, assistant_msg, tools_used)
+        self.condenser.add_turn(user_msg, assistant_msg, tools_used, intent_type=intent_type)
 
 
 def main():
