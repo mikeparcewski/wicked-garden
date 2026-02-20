@@ -137,7 +137,7 @@ def install_commands(results):
     """Return grouped install commands for missing tools."""
     missing = {name: r for name, r in results.items() if not r["available"]}
     if not missing:
-        return {"missing": 0, "commands": {}}
+        return {"missing": 0, "tools": [], "groups": {}, "platform": _detect_platform()}
 
     # Group by package manager type
     brew_cmds = []
@@ -156,21 +156,23 @@ def install_commands(results):
         elif cmd.startswith("pip "):
             pip_cmds.append(cmd)
         else:
-            other_cmds.append({"tool": name, "command": cmd})
+            other_cmds.append(cmd)
 
-    # Merge brew installs into single command
+    # Merge brew installs into single command (deduplicated)
     brew_packages = []
     for cmd in brew_cmds:
         brew_packages.extend(cmd.replace("brew install ", "").split())
+    brew_packages = list(dict.fromkeys(brew_packages))
     merged_brew = f"brew install {' '.join(brew_packages)}" if brew_packages else None
 
+    # All groups use uniform list[str] type
     groups = {}
     if merged_brew:
-        groups["brew"] = merged_brew
-    for cmd in npm_cmds:
-        groups.setdefault("npm", []).append(cmd)
-    for cmd in pip_cmds:
-        groups.setdefault("pip", []).append(cmd)
+        groups["brew"] = [merged_brew]
+    if npm_cmds:
+        groups["npm"] = npm_cmds
+    if pip_cmds:
+        groups["pip"] = pip_cmds
     if other_cmds:
         groups["other"] = other_cmds
 
