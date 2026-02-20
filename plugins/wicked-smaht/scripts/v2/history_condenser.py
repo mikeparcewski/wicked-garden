@@ -11,6 +11,9 @@ Storage:
 ~/.something-wicked/wicked-smaht/sessions/{session_id}/
 ├── summary.json       # Session summary (persistent)
 ├── turns.jsonl        # Recent turns (rolling buffer)
+├── facts.jsonl        # Structured facts (via FactExtractor)
+├── lanes.jsonl        # Parallel work lanes (via LaneTracker)
+├── promoted.json      # Promotion tracking (via MemoryPromoter)
 └── condensed.md       # Last condensed output (cache)
 """
 
@@ -98,6 +101,23 @@ class HistoryCondenser:
         self.turn_buffer: deque[Turn] = deque(maxlen=self.TURN_WINDOW_SIZE)
         self._load_turns()
 
+        # Initialize structured fact extraction
+        try:
+            from .fact_extractor import FactExtractor
+            self.fact_extractor = FactExtractor(self.session_dir)
+        except ImportError:
+            self.fact_extractor = None
+
+        # Initialize multi-lane tracking
+        try:
+            from .lane_tracker import LaneTracker
+            self.lane_tracker = LaneTracker(self.session_dir)
+        except ImportError:
+            self.lane_tracker = None
+
+        # Memory promoter is initialized lazily
+        self._memory_promoter = None
+
     def _load_summary(self) -> SessionSummary:
         """Load session summary from disk."""
         summary_path = self.session_dir / "summary.json"
@@ -175,6 +195,33 @@ class HistoryCondenser:
         self.turn_buffer.append(turn)
         self._update_summary(turn)
         self.save()
+
+        # Structured fact extraction
+        if self.fact_extractor:
+            try:
+                self.fact_extractor.extract_from_turn(
+                    user_msg, assistant_msg, turn_index=len(self.turn_buffer)
+                )
+            except Exception:
+                pass  # Graceful degradation
+
+        # Multi-lane tracking
+        if self.lane_tracker:
+            try:
+                # Check for task switch
+                new_task = self.lane_tracker.detect_lane_switch(user_msg)
+                if new_task:
+                    self.lane_tracker.create_lane(new_task)
+                elif not self.lane_tracker.get_active_lane() and self.summary.current_task:
+                    # Auto-create first lane from current task
+                    self.lane_tracker.create_lane(self.summary.current_task)
+                else:
+                    self.lane_tracker.update_active_lane(user_msg, assistant_msg)
+
+                # Apply priority decay to stale lanes
+                self.lane_tracker.apply_priority_decay()
+            except Exception:
+                pass  # Graceful degradation
 
     def _update_summary(self, turn: Turn):
         """Update session summary with new turn."""
@@ -356,6 +403,23 @@ class HistoryCondenser:
         lines.append(self.summary.to_markdown())
         lines.append("")
 
+        # Lane context
+        if self.lane_tracker:
+            lane_md = self.lane_tracker.to_markdown()
+            if lane_md:
+                lines.append("### Work Lanes")
+                lines.append(lane_md)
+                lines.append("")
+
+        # Recent facts
+        if self.fact_extractor and self.fact_extractor.facts:
+            recent = self.fact_extractor.get_recent_facts(5)
+            if recent:
+                lines.append("### Recent Facts")
+                for fact in recent:
+                    lines.append(f"- [{fact.type}] {fact.content}")
+                lines.append("")
+
         # Recent turns
         if self.turn_buffer:
             lines.append("### Recent Turns")
@@ -408,7 +472,7 @@ class HistoryCondenser:
 
     def get_session_state(self) -> dict:
         """Get full session state — the 'ticket rail' for context assembly."""
-        return {
+        state = {
             "session_id": self.session_id,
             "turn_count": len(self.turn_buffer),
             "topics": self.summary.topics,
@@ -420,6 +484,35 @@ class HistoryCondenser:
             "has_decisions": len(self.summary.decisions) > 0,
             "has_open_threads": len(self.summary.open_threads) > 0,
         }
+
+        # Add fact summary
+        if self.fact_extractor:
+            state["facts"] = self.fact_extractor.to_summary()
+
+        # Add lane state
+        if self.lane_tracker:
+            state["lanes"] = self.lane_tracker.get_state()
+
+        return state
+
+    def promote_to_memory(self, dry_run: bool = False) -> dict:
+        """Promote high-value facts to wicked-mem.
+
+        Called on session end or on demand to push decisions/discoveries
+        to wicked-mem for cross-session persistence.
+        """
+        if not self.fact_extractor:
+            return {"status": "fact_extractor_not_available"}
+
+        try:
+            from .memory_promoter import MemoryPromoter
+            if self._memory_promoter is None:
+                self._memory_promoter = MemoryPromoter(self.session_dir, self.fact_extractor)
+            return self._memory_promoter.promote(dry_run=dry_run)
+        except ImportError:
+            return {"status": "memory_promoter_not_available"}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
 
     def persist_session_meta(self):
         """Persist session metadata for cross-session recall.
@@ -444,7 +537,29 @@ class HistoryCondenser:
             "current_task": self.summary.current_task,
             "files_touched": self.summary.file_scope[:10],
         }
+
+        # Include fact summary if available
+        if self.fact_extractor and self.fact_extractor.facts:
+            meta["facts_extracted"] = len(self.fact_extractor.facts)
+            meta["fact_types"] = {
+                t: len([f for f in self.fact_extractor.facts if f.type == t])
+                for t in set(f.type for f in self.fact_extractor.facts)
+            }
+
+        # Include lane summary if available
+        if self.lane_tracker and self.lane_tracker.lanes:
+            meta["lanes"] = len(self.lane_tracker.lanes)
+            meta["completed_lanes"] = sum(
+                1 for l in self.lane_tracker.lanes if l.status == "completed"
+            )
+
         self._atomic_write(meta_path, json.dumps(meta, indent=2))
+
+        # Promote facts to wicked-mem on session end
+        try:
+            self.promote_to_memory()
+        except Exception:
+            pass  # Graceful degradation — promotion is best-effort
 
     @staticmethod
     def load_recent_sessions(max_sessions: int = 3) -> list[dict]:

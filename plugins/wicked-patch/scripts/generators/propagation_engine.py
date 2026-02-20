@@ -97,37 +97,39 @@ class PropagationEngine:
     coordinates generators to produce patches for each file.
     """
 
-    # Map change types to how they propagate
+    # Map change types to how they propagate.
+    # include_refs: reference types to follow. Empty set means follow all types.
+    # Cross-file ref types from additional tables: calls, imports, extends, uses
     PROPAGATION_RULES = {
         ChangeType.ADD_FIELD: {
             "propagate_downstream": True,   # Add to UI bindings, tests
             "propagate_upstream": False,    # Don't add to callers
-            "include_refs": {"binds_to", "maps_to", "uses"},
+            "include_refs": {"binds_to", "maps_to", "uses", "extends", "imports"},
         },
         ChangeType.REMOVE_FIELD: {
             "propagate_downstream": True,   # Remove from UI, tests
             "propagate_upstream": True,     # Update callers
-            "include_refs": {"binds_to", "maps_to", "uses", "calls"},
+            "include_refs": {"binds_to", "maps_to", "uses", "calls", "extends", "imports"},
         },
         ChangeType.RENAME_FIELD: {
             "propagate_downstream": True,
             "propagate_upstream": True,
-            "include_refs": {"binds_to", "maps_to", "uses", "calls"},
+            "include_refs": {"binds_to", "maps_to", "uses", "calls", "extends", "imports"},
         },
         ChangeType.MODIFY_FIELD: {
             "propagate_downstream": True,
             "propagate_upstream": False,
-            "include_refs": {"binds_to", "maps_to"},
+            "include_refs": {"binds_to", "maps_to", "extends"},
         },
         ChangeType.ADD_VALIDATION: {
             "propagate_downstream": True,   # Add to UI validation
             "propagate_upstream": False,
-            "include_refs": {"binds_to"},
+            "include_refs": {"binds_to", "extends"},
         },
         ChangeType.ADD_COLUMN: {
             "propagate_downstream": False,  # DB is the sink
             "propagate_upstream": True,     # Update entity
-            "include_refs": {"maps_to"},
+            "include_refs": {"maps_to", "extends"},
         },
     }
 
@@ -318,30 +320,117 @@ class PropagationEngine:
         cursor,
         symbol_id: str
     ) -> List[Dict[str, Any]]:
-        """Get all references to/from a symbol."""
+        """Get all references to/from a symbol across all reference tables.
+
+        Queries multiple tables to ensure cross-file references are captured:
+        - refs: Primary reference table with confidence and evidence
+        - symbol_refs: Unified bidirectional cross-reference table
+        - symbol_calls: Call graph edges
+        - symbol_imports: Import relationships
+        - symbol_bases: Inheritance/extension relationships
+        - symbol_dependents: Reverse dependency edges
+        - derived_refs: Computed/inferred references from reasoning
+        """
         results = []
+        seen_pairs: Set[Tuple[str, str]] = set()
 
-        # Outgoing references
+        def _add_result(related_id: str, ref_type: str, direction: str, confidence: str = "medium"):
+            key = (related_id, ref_type)
+            if key not in seen_pairs:
+                seen_pairs.add(key)
+                results.append({
+                    "related_id": related_id,
+                    "ref_type": ref_type,
+                    "confidence": confidence,
+                    "direction": direction,
+                })
+
+        # 1. Primary refs table (has confidence + evidence)
         cursor.execute(
-            """
-            SELECT target_id as related_id, ref_type, confidence, 'outgoing' as direction
-            FROM refs
-            WHERE source_id = ?
-            """,
+            "SELECT target_id, ref_type, confidence FROM refs WHERE source_id = ?",
             (symbol_id,)
         )
-        results.extend(dict(row) for row in cursor.fetchall())
+        for row in cursor.fetchall():
+            _add_result(row["target_id"], row["ref_type"], "outgoing", row["confidence"] or "medium")
 
-        # Incoming references
         cursor.execute(
-            """
-            SELECT source_id as related_id, ref_type, confidence, 'incoming' as direction
-            FROM refs
-            WHERE target_id = ?
-            """,
+            "SELECT source_id, ref_type, confidence FROM refs WHERE target_id = ?",
             (symbol_id,)
         )
-        results.extend(dict(row) for row in cursor.fetchall())
+        for row in cursor.fetchall():
+            _add_result(row["source_id"], row["ref_type"], "incoming", row["confidence"] or "medium")
+
+        # 2. symbol_refs table (unified cross-reference lookup)
+        for tbl_query in [
+            ("SELECT target_id, ref_type FROM symbol_refs WHERE source_id = ?", "outgoing", "target_id"),
+            ("SELECT source_id, ref_type FROM symbol_refs WHERE target_id = ?", "incoming", "source_id"),
+        ]:
+            try:
+                cursor.execute(tbl_query[0], (symbol_id,))
+                for row in cursor.fetchall():
+                    _add_result(row[tbl_query[2]], row["ref_type"], tbl_query[1])
+            except sqlite3.OperationalError:
+                pass  # Table may not exist in older schemas
+
+        # 3. symbol_calls table (call graph)
+        for tbl_query in [
+            ("SELECT target_id FROM symbol_calls WHERE symbol_id = ?", "outgoing", "calls"),
+            ("SELECT symbol_id FROM symbol_calls WHERE target_id = ?", "incoming", "calls"),
+        ]:
+            try:
+                cursor.execute(tbl_query[0], (symbol_id,))
+                for row in cursor.fetchall():
+                    _add_result(row[0], tbl_query[2], tbl_query[1])
+            except sqlite3.OperationalError:
+                pass
+
+        # 4. symbol_imports table
+        for tbl_query in [
+            ("SELECT target_id FROM symbol_imports WHERE symbol_id = ?", "outgoing", "imports"),
+            ("SELECT symbol_id FROM symbol_imports WHERE target_id = ?", "incoming", "imports"),
+        ]:
+            try:
+                cursor.execute(tbl_query[0], (symbol_id,))
+                for row in cursor.fetchall():
+                    _add_result(row[0], tbl_query[2], tbl_query[1])
+            except sqlite3.OperationalError:
+                pass
+
+        # 5. symbol_bases table (inheritance)
+        for tbl_query in [
+            ("SELECT base_id FROM symbol_bases WHERE symbol_id = ?", "outgoing", "extends"),
+            ("SELECT symbol_id FROM symbol_bases WHERE base_id = ?", "incoming", "extends"),
+        ]:
+            try:
+                cursor.execute(tbl_query[0], (symbol_id,))
+                for row in cursor.fetchall():
+                    _add_result(row[0], tbl_query[2], tbl_query[1])
+            except sqlite3.OperationalError:
+                pass
+
+        # 6. symbol_dependents table (reverse dependencies)
+        for tbl_query in [
+            ("SELECT dependent_id FROM symbol_dependents WHERE symbol_id = ?", "outgoing", "uses"),
+            ("SELECT symbol_id FROM symbol_dependents WHERE dependent_id = ?", "incoming", "uses"),
+        ]:
+            try:
+                cursor.execute(tbl_query[0], (symbol_id,))
+                for row in cursor.fetchall():
+                    _add_result(row[0], tbl_query[2], tbl_query[1])
+            except sqlite3.OperationalError:
+                pass
+
+        # 7. derived_refs table (computed/inferred references)
+        for tbl_query in [
+            ("SELECT target_id, ref_type, confidence FROM derived_refs WHERE source_id = ?", "outgoing", "target_id"),
+            ("SELECT source_id, ref_type, confidence FROM derived_refs WHERE target_id = ?", "incoming", "source_id"),
+        ]:
+            try:
+                cursor.execute(tbl_query[0], (symbol_id,))
+                for row in cursor.fetchall():
+                    _add_result(row[tbl_query[2]], row["ref_type"], tbl_query[1], row["confidence"] or "medium")
+            except sqlite3.OperationalError:
+                pass
 
         return results
 
@@ -352,7 +441,10 @@ class PropagationEngine:
         ref_types: Set[str],
         max_depth: int,
     ) -> List[AffectedSymbol]:
-        """Trace upstream dependencies (who depends on this symbol)."""
+        """Trace upstream dependencies (who depends on this symbol).
+
+        Queries all reference tables to ensure cross-file edges are followed.
+        """
         affected = []
         visited = {symbol_id}
         queue = [(symbol_id, 0)]
@@ -362,36 +454,78 @@ class PropagationEngine:
             if depth >= max_depth:
                 continue
 
-            # Find symbols that reference current
-            cursor.execute(
-                """
-                SELECT r.source_id, r.ref_type, r.confidence,
-                       s.id, s.name, s.type, s.file_path, s.line_start, s.line_end, s.metadata
-                FROM refs r
-                JOIN symbols s ON r.source_id = s.id
-                WHERE r.target_id = ?
-                """,
-                (current_id,)
-            )
+            # Collect upstream symbol IDs from all reference tables
+            upstream_ids = self._find_upstream_ids(cursor, current_id)
 
-            for row in cursor.fetchall():
-                if row["source_id"] not in visited:
-                    if not ref_types or row["ref_type"] in ref_types:
-                        visited.add(row["source_id"])
-                        affected.append(AffectedSymbol(
-                            id=row["id"],
-                            name=row["name"],
-                            type=row["type"],
-                            file_path=row["file_path"],
-                            line_start=row.get("line_start", 0),
-                            line_end=row.get("line_end"),
-                            metadata=json.loads(row.get("metadata") or "{}"),
-                            impact_type="upstream",
-                            distance=depth + 1,
-                        ))
-                        queue.append((row["source_id"], depth + 1))
+            for related_id, ref_type in upstream_ids:
+                if related_id in visited:
+                    continue
+                if ref_types and ref_type not in ref_types:
+                    continue
+
+                symbol = self._get_symbol(cursor, related_id)
+                if not symbol:
+                    continue
+
+                visited.add(related_id)
+                affected.append(AffectedSymbol(
+                    id=symbol["id"],
+                    name=symbol["name"],
+                    type=symbol["type"],
+                    file_path=symbol["file_path"],
+                    line_start=symbol.get("line_start", 0),
+                    line_end=symbol.get("line_end"),
+                    metadata=json.loads(symbol.get("metadata") or "{}"),
+                    impact_type="upstream",
+                    distance=depth + 1,
+                ))
+                queue.append((related_id, depth + 1))
 
         return affected
+
+    def _find_upstream_ids(
+        self,
+        cursor,
+        symbol_id: str,
+    ) -> List[Tuple[str, str]]:
+        """Find all upstream symbol IDs from all reference tables.
+
+        Returns list of (related_id, ref_type) tuples.
+        """
+        results = []
+        seen = set()
+
+        # Queries that find "who references this symbol" (incoming edges)
+        queries = [
+            # refs table
+            ("SELECT source_id, ref_type FROM refs WHERE target_id = ?", "source_id"),
+            # symbol_refs table
+            ("SELECT source_id, ref_type FROM symbol_refs WHERE target_id = ?", "source_id"),
+            # symbol_calls: who calls this
+            ("SELECT symbol_id, 'calls' FROM symbol_calls WHERE target_id = ?", "symbol_id"),
+            # symbol_imports: who imports this
+            ("SELECT symbol_id, 'imports' FROM symbol_imports WHERE target_id = ?", "symbol_id"),
+            # symbol_bases: who extends this (children)
+            ("SELECT symbol_id, 'extends' FROM symbol_bases WHERE base_id = ?", "symbol_id"),
+            # symbol_dependents: who depends on this
+            ("SELECT dependent_id, 'uses' FROM symbol_dependents WHERE symbol_id = ?", "dependent_id"),
+            # derived_refs
+            ("SELECT source_id, ref_type FROM derived_refs WHERE target_id = ?", "source_id"),
+        ]
+
+        for query, id_col in queries:
+            try:
+                cursor.execute(query, (symbol_id,))
+                for row in cursor.fetchall():
+                    rid = row[0]
+                    rtype = row[1] if len(row) > 1 else "uses"
+                    if rid not in seen:
+                        seen.add(rid)
+                        results.append((rid, rtype))
+            except sqlite3.OperationalError:
+                pass  # Table may not exist
+
+        return results
 
     def _trace_downstream(
         self,
@@ -400,7 +534,10 @@ class PropagationEngine:
         ref_types: Set[str],
         max_depth: int,
     ) -> List[AffectedSymbol]:
-        """Trace downstream dependencies (what this symbol flows to)."""
+        """Trace downstream dependencies (what this symbol flows to).
+
+        Queries all reference tables to ensure cross-file edges are followed.
+        """
         affected = []
         visited = {symbol_id}
         queue = [(symbol_id, 0)]
@@ -410,36 +547,78 @@ class PropagationEngine:
             if depth >= max_depth:
                 continue
 
-            # Find symbols that current references
-            cursor.execute(
-                """
-                SELECT r.target_id, r.ref_type, r.confidence,
-                       s.id, s.name, s.type, s.file_path, s.line_start, s.line_end, s.metadata
-                FROM refs r
-                JOIN symbols s ON r.target_id = s.id
-                WHERE r.source_id = ?
-                """,
-                (current_id,)
-            )
+            # Collect downstream symbol IDs from all reference tables
+            downstream_ids = self._find_downstream_ids(cursor, current_id)
 
-            for row in cursor.fetchall():
-                if row["target_id"] not in visited:
-                    if not ref_types or row["ref_type"] in ref_types:
-                        visited.add(row["target_id"])
-                        affected.append(AffectedSymbol(
-                            id=row["id"],
-                            name=row["name"],
-                            type=row["type"],
-                            file_path=row["file_path"],
-                            line_start=row.get("line_start", 0),
-                            line_end=row.get("line_end"),
-                            metadata=json.loads(row.get("metadata") or "{}"),
-                            impact_type="downstream",
-                            distance=depth + 1,
-                        ))
-                        queue.append((row["target_id"], depth + 1))
+            for related_id, ref_type in downstream_ids:
+                if related_id in visited:
+                    continue
+                if ref_types and ref_type not in ref_types:
+                    continue
+
+                symbol = self._get_symbol(cursor, related_id)
+                if not symbol:
+                    continue
+
+                visited.add(related_id)
+                affected.append(AffectedSymbol(
+                    id=symbol["id"],
+                    name=symbol["name"],
+                    type=symbol["type"],
+                    file_path=symbol["file_path"],
+                    line_start=symbol.get("line_start", 0),
+                    line_end=symbol.get("line_end"),
+                    metadata=json.loads(symbol.get("metadata") or "{}"),
+                    impact_type="downstream",
+                    distance=depth + 1,
+                ))
+                queue.append((related_id, depth + 1))
 
         return affected
+
+    def _find_downstream_ids(
+        self,
+        cursor,
+        symbol_id: str,
+    ) -> List[Tuple[str, str]]:
+        """Find all downstream symbol IDs from all reference tables.
+
+        Returns list of (related_id, ref_type) tuples.
+        """
+        results = []
+        seen = set()
+
+        # Queries that find "what this symbol references" (outgoing edges)
+        queries = [
+            # refs table
+            ("SELECT target_id, ref_type FROM refs WHERE source_id = ?", "target_id"),
+            # symbol_refs table
+            ("SELECT target_id, ref_type FROM symbol_refs WHERE source_id = ?", "target_id"),
+            # symbol_calls: what this calls
+            ("SELECT target_id, 'calls' FROM symbol_calls WHERE symbol_id = ?", "target_id"),
+            # symbol_imports: what this imports
+            ("SELECT target_id, 'imports' FROM symbol_imports WHERE symbol_id = ?", "target_id"),
+            # symbol_bases: what this extends (parents)
+            ("SELECT base_id, 'extends' FROM symbol_bases WHERE symbol_id = ?", "base_id"),
+            # symbol_dependents: what this is a dependency of
+            ("SELECT symbol_id, 'uses' FROM symbol_dependents WHERE dependent_id = ?", "symbol_id"),
+            # derived_refs
+            ("SELECT target_id, ref_type FROM derived_refs WHERE source_id = ?", "target_id"),
+        ]
+
+        for query, id_col in queries:
+            try:
+                cursor.execute(query, (symbol_id,))
+                for row in cursor.fetchall():
+                    rid = row[0]
+                    rtype = row[1] if len(row) > 1 else "uses"
+                    if rid not in seen:
+                        seen.add(rid)
+                        results.append((rid, rtype))
+            except sqlite3.OperationalError:
+                pass  # Table may not exist
+
+        return results
 
     def _generate_file_patches(
         self,
