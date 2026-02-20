@@ -111,14 +111,14 @@ class HistoryCondenser:
 
         # Initialize structured fact extraction
         try:
-            from .fact_extractor import FactExtractor
+            from fact_extractor import FactExtractor
             self.fact_extractor = FactExtractor(self.session_dir)
         except ImportError:
             self.fact_extractor = None
 
         # Initialize multi-lane tracking
         try:
-            from .lane_tracker import LaneTracker
+            from lane_tracker import LaneTracker
             self.lane_tracker = LaneTracker(self.session_dir)
         except ImportError:
             self.lane_tracker = None
@@ -515,7 +515,7 @@ class HistoryCondenser:
             return {"status": "fact_extractor_not_available"}
 
         try:
-            from .memory_promoter import MemoryPromoter
+            from memory_promoter import MemoryPromoter
             if self._memory_promoter is None:
                 self._memory_promoter = MemoryPromoter(self.session_dir, self.fact_extractor)
             return self._memory_promoter.promote(dry_run=dry_run)
