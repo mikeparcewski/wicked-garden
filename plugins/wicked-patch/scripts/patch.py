@@ -103,12 +103,64 @@ def get_default_db_path() -> Path:
     return Path.home() / ".something-wicked" / "wicked-search" / "unified_search.db"
 
 
-def format_plan(plan: PropagationPlan) -> str:
+def _assess_risk(plan: PropagationPlan, change_type: str = "") -> dict:
+    """Assess risk level, confidence, and breaking change potential."""
+    total = len(plan.all_affected)
+    files = len(plan.files_affected)
+    upstream = len(plan.upstream_impacts)
+
+    # Determine risk level
+    if change_type in ("remove_field", "rename_field"):
+        if upstream > 5 or files > 3:
+            risk_level = "HIGH"
+        elif upstream > 0 or files > 1:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+    elif change_type == "add_field":
+        risk_level = "LOW"
+    else:
+        if total > 10 or files > 4:
+            risk_level = "HIGH"
+        elif total > 5 or files > 2:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+
+    # Determine confidence
+    if total > 0 and files > 0:
+        confidence = "HIGH"
+    elif total > 0:
+        confidence = "MEDIUM"
+    else:
+        confidence = "LOW"
+
+    # Detect breaking changes
+    breaking = change_type in ("remove_field", "rename_field") and upstream > 0
+
+    # Check for test files in impacts
+    test_refs = sum(
+        1 for s in plan.all_affected
+        if s.file_path and ("test" in s.file_path.lower() or "spec" in s.file_path.lower())
+    )
+
+    return {
+        "risk_level": risk_level,
+        "confidence": confidence,
+        "breaking": breaking,
+        "test_coverage": "GOOD" if test_refs > 0 else "NONE",
+        "test_refs": test_refs,
+    }
+
+
+def format_plan(plan: PropagationPlan, change_type: str = "") -> str:
     """Format a propagation plan for display."""
+    risk = _assess_risk(plan, change_type)
+
     lines = [
-        "═" * 60,
+        "=" * 60,
         "PROPAGATION PLAN",
-        "═" * 60,
+        "=" * 60,
         "",
         f"Source: {plan.source_symbol.name}",
         f"  Type: {plan.source_symbol.type}",
@@ -120,7 +172,7 @@ def format_plan(plan: PropagationPlan) -> str:
     if plan.direct_impacts:
         lines.append(f"Direct Impacts ({len(plan.direct_impacts)}):")
         for s in plan.direct_impacts[:10]:
-            lines.append(f"  • {s.name} ({s.type}) @ {Path(s.file_path).name if s.file_path else 'N/A'}")
+            lines.append(f"  - {s.name} ({s.type}) @ {Path(s.file_path).name if s.file_path else 'N/A'}")
         if len(plan.direct_impacts) > 10:
             lines.append(f"  ... and {len(plan.direct_impacts) - 10} more")
         lines.append("")
@@ -128,7 +180,7 @@ def format_plan(plan: PropagationPlan) -> str:
     if plan.upstream_impacts:
         lines.append(f"Upstream Impacts ({len(plan.upstream_impacts)}):")
         for s in plan.upstream_impacts[:10]:
-            lines.append(f"  • {s.name} ({s.type}) @ {Path(s.file_path).name if s.file_path else 'N/A'}")
+            lines.append(f"  - {s.name} ({s.type}) @ {Path(s.file_path).name if s.file_path else 'N/A'}")
         if len(plan.upstream_impacts) > 10:
             lines.append(f"  ... and {len(plan.upstream_impacts) - 10} more")
         lines.append("")
@@ -136,15 +188,27 @@ def format_plan(plan: PropagationPlan) -> str:
     if plan.downstream_impacts:
         lines.append(f"Downstream Impacts ({len(plan.downstream_impacts)}):")
         for s in plan.downstream_impacts[:10]:
-            lines.append(f"  • {s.name} ({s.type}) @ {Path(s.file_path).name if s.file_path else 'N/A'}")
+            lines.append(f"  - {s.name} ({s.type}) @ {Path(s.file_path).name if s.file_path else 'N/A'}")
         if len(plan.downstream_impacts) > 10:
             lines.append(f"  ... and {len(plan.downstream_impacts) - 10} more")
         lines.append("")
 
+    # Risk assessment section
+    lines.append("-" * 60)
+    lines.append("Risk Assessment:")
+    lines.append(f"  Risk level: {risk['risk_level']}")
+    lines.append(f"  Confidence: {risk['confidence']}")
+    if risk["breaking"]:
+        lines.append(f"  Breaking change: YES (affects {len(plan.upstream_impacts)} upstream dependencies)")
+    else:
+        lines.append(f"  Breaking change: NO")
+    lines.append(f"  Test coverage: {risk['test_coverage']} ({risk['test_refs']} test references found)")
+    lines.append("")
+
     lines.extend([
-        "─" * 60,
+        "-" * 60,
         f"Total: {len(plan.all_affected)} symbols in {len(plan.files_affected)} files",
-        "═" * 60,
+        "=" * 60,
     ])
 
     return "\n".join(lines)
@@ -210,9 +274,10 @@ def cmd_plan(args):
         )
 
         plan = engine.plan_propagation(change_spec, max_depth=args.depth)
-        print(format_plan(plan))
+        print(format_plan(plan, change_type=change_type.value))
 
         if args.json:
+            risk = _assess_risk(plan, change_type.value)
             plan_dict = {
                 "source": {
                     "id": plan.source_symbol.id,
@@ -226,6 +291,7 @@ def cmd_plan(args):
                     "downstream": len(plan.downstream_impacts),
                 },
                 "files_affected": list(plan.files_affected),
+                "risk_assessment": risk,
             }
             print("\n" + json.dumps(plan_dict, indent=2))
 
