@@ -58,6 +58,14 @@ Return a structured summary:
 [Any notable findings or issues]
 ```
 
+For **FAIL** results, include enough detail for GitHub issue filing. Each failure report must contain:
+- The specific criteria that failed and why
+- Error messages or unexpected output (quoted verbatim)
+- What was expected vs what actually happened
+- The scenario file path (`plugins/${plugin}/scenarios/${file}`)
+
+This detail feeds into the `/wg-issue` pipeline — the parent command may auto-file GitHub issues from failure reports.
+
 ## Example Execution
 
 For `/wg-test wicked-mem returning-user`:
