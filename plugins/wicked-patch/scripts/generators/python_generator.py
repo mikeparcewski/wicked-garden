@@ -182,44 +182,69 @@ class PythonGenerator(BaseGenerator):
 
         return patches
 
+    def _camel_to_snake(self, name: str) -> str:
+        """Convert camelCase to snake_case for Python naming conventions."""
+        result = re.sub(r"([A-Z])", r"_\1", name)
+        return result.lstrip("_").lower()
+
     def _rename_field(
         self,
         change_spec: ChangeSpec,
         symbol: Dict[str, Any],
         file_content: str,
     ) -> List[Patch]:
-        """Rename a field across the file."""
+        """Rename a field across the file, converting to snake_case."""
         patches = []
         old_name = change_spec.old_name
         new_name = change_spec.new_name
         if not old_name or not new_name:
             return patches
 
+        # Convert both names to snake_case for Python
+        old_name_py = self._camel_to_snake(old_name)
+        new_name_py = self._camel_to_snake(new_name)
+
         lines = file_content.split("\n")
         file_path = symbol.get("file_path", "")
+
+        # Try both the original name and the snake_case version for matching
+        # (source might already be snake_case or camelCase)
+        old_names = list(dict.fromkeys([old_name_py, old_name]))  # dedupe, prefer snake
+        target_name = new_name_py
 
         for i, line in enumerate(lines):
             modified = False
             new_line = line
 
-            # Field declaration: old_name = ... or old_name: ...
-            if re.match(rf"^\s+{old_name}\s*[:=]", line):
-                new_line = re.sub(rf"^(\s+){old_name}(\s*[:=])", rf"\1{new_name}\2", line)
-                modified = True
-
-            # Attribute access: self.old_name
-            elif f"self.{old_name}" in line:
-                new_line = line.replace(f"self.{old_name}", f"self.{new_name}")
-                modified = True
-
-            # Method parameters and dict keys
-            elif re.search(rf"\b{old_name}\b", line) and i > 0:
-                # Be more careful with general replacements
-                # Only replace if it's clearly a field reference
-                if f'["{old_name}"]' in line or f"['{old_name}']" in line:
-                    new_line = line.replace(f'["{old_name}"]', f'["{new_name}"]')
-                    new_line = new_line.replace(f"['{old_name}']", f"['{new_name}']")
+            for oname in old_names:
+                # Field declaration: old_name = ... or old_name: ...
+                if re.match(rf"^\s+{re.escape(oname)}\s*[:=]", new_line):
+                    new_line = re.sub(
+                        rf"^(\s+){re.escape(oname)}(\s*[:=])",
+                        rf"\1{target_name}\2",
+                        new_line,
+                    )
                     modified = True
+                    break
+
+                # Attribute access: self.old_name
+                if f"self.{oname}" in new_line:
+                    new_line = new_line.replace(f"self.{oname}", f"self.{target_name}")
+                    modified = True
+                    break
+
+                # Bare word-boundary match (dot access like order.status)
+                if re.search(rf"\.{re.escape(oname)}\b", new_line):
+                    new_line = re.sub(rf"\.{re.escape(oname)}\b", f".{target_name}", new_line)
+                    modified = True
+                    break
+
+                # Method parameters and dict keys
+                if f'["{oname}"]' in new_line or f"['{oname}']" in new_line:
+                    new_line = new_line.replace(f'["{oname}"]', f'["{target_name}"]')
+                    new_line = new_line.replace(f"['{oname}']", f"['{target_name}']")
+                    modified = True
+                    break
 
             if modified:
                 patches.append(Patch(
@@ -228,7 +253,7 @@ class PythonGenerator(BaseGenerator):
                     line_end=i + 1,
                     old_content=line,
                     new_content=new_line,
-                    description=f"Rename '{old_name}' to '{new_name}'",
+                    description=f"Rename '{old_name}' to '{target_name}' (snake_case)",
                     symbol_id=symbol.get("id"),
                     confidence="high" if "self." in line else "medium",
                 ))

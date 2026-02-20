@@ -199,6 +199,9 @@ class PropagationEngine:
         rules = self.PROPAGATION_RULES.get(change_spec.change_type, {})
         include_refs = rules.get("include_refs", set())
 
+        # Shared visited set to prevent duplicate symbols across all impact lists
+        visited: Set[str] = {source["id"]}
+
         # Find direct impacts (symbols that reference or are referenced by source)
         direct_refs = self._get_direct_references(cursor, source["id"])
         # Batch-fetch all referenced symbols to avoid N+1 queries
@@ -207,7 +210,8 @@ class PropagationEngine:
         symbols_by_id = self._get_symbols_batch(cursor, ref_ids)
         for ref in filtered_refs:
             symbol = symbols_by_id.get(ref["related_id"])
-            if symbol:
+            if symbol and symbol["id"] not in visited:
+                visited.add(symbol["id"])
                 plan.direct_impacts.append(AffectedSymbol(
                     id=symbol["id"],
                     name=symbol["name"],
@@ -223,14 +227,14 @@ class PropagationEngine:
         # Trace upstream (who uses/depends on this symbol)
         if rules.get("propagate_upstream", True):
             upstream = self._trace_upstream(
-                cursor, source["id"], include_refs, max_depth
+                cursor, source["id"], include_refs, max_depth, visited
             )
             plan.upstream_impacts.extend(upstream)
 
         # Trace downstream (what this symbol flows to)
         if rules.get("propagate_downstream", True):
             downstream = self._trace_downstream(
-                cursor, source["id"], include_refs, max_depth
+                cursor, source["id"], include_refs, max_depth, visited
             )
             plan.downstream_impacts.extend(downstream)
 
@@ -461,6 +465,7 @@ class PropagationEngine:
         symbol_id: str,
         ref_types: Set[str],
         max_depth: int,
+        visited: Optional[Set[str]] = None,
     ) -> List[AffectedSymbol]:
         """Trace upstream dependencies (who depends on this symbol).
 
@@ -468,7 +473,10 @@ class PropagationEngine:
         Uses batch symbol lookups to avoid N+1 queries.
         """
         affected = []
-        visited = {symbol_id}
+        if visited is None:
+            visited = {symbol_id}
+        else:
+            visited.add(symbol_id)
         queue = [(symbol_id, 0)]
 
         while queue:
@@ -560,6 +568,7 @@ class PropagationEngine:
         symbol_id: str,
         ref_types: Set[str],
         max_depth: int,
+        visited: Optional[Set[str]] = None,
     ) -> List[AffectedSymbol]:
         """Trace downstream dependencies (what this symbol flows to).
 
@@ -567,7 +576,10 @@ class PropagationEngine:
         Uses batch symbol lookups to avoid N+1 queries.
         """
         affected = []
-        visited = {symbol_id}
+        if visited is None:
+            visited = {symbol_id}
+        else:
+            visited.add(symbol_id)
         queue = [(symbol_id, 0)]
 
         while queue:
@@ -780,8 +792,14 @@ class PropagationEngine:
         """
         for file_path, patches in patch_set.patches_by_file().items():
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    lines = f.read().split("\n")
+                file_exists = Path(file_path).exists()
+                if file_exists:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        lines = f.read().split("\n")
+                else:
+                    # New file — ensure parent directory exists
+                    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+                    lines = []
 
                 # patches_by_file() returns patches sorted descending by line_start.
                 # Descending order means each patch operates on original line numbers

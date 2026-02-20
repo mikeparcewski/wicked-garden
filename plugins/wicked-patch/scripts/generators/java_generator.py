@@ -101,6 +101,25 @@ class JavaGenerator(BaseGenerator):
 
         return patches
 
+    def _detect_class_role(self, symbol: Dict[str, Any], file_content: str) -> str:
+        """Detect the role of a Java class: entity, service, controller, or dto."""
+        sym_type = symbol.get("type", "").lower()
+        if sym_type in ("service", "controller", "dao"):
+            return sym_type
+
+        name = symbol.get("name", "")
+        content_lower = file_content.lower()
+
+        if "service" in name.lower() or "@service" in content_lower:
+            return "service"
+        if "controller" in name.lower() or "@controller" in content_lower or "@restcontroller" in content_lower:
+            return "controller"
+        if "repository" in name.lower() or "@repository" in content_lower:
+            return "dao"
+        if "@entity" in content_lower or sym_type in ("entity", "entity_field"):
+            return "entity"
+        return "entity"  # default
+
     def _add_field(
         self,
         change_spec: ChangeSpec,
@@ -110,11 +129,8 @@ class JavaGenerator(BaseGenerator):
         """
         Add a field to a Java class/entity.
 
-        Generates:
-        1. Field declaration with annotations
-        2. Getter method
-        3. Setter method
-        4. Imports if needed
+        For entity/DTO classes: generates field declaration + getter + setter.
+        For service/controller classes: generates validation logic instead.
         """
         patches = []
         field_spec = change_spec.field_spec
@@ -126,6 +142,12 @@ class JavaGenerator(BaseGenerator):
 
         # Determine Java type
         java_type = self._map_type(field_spec.type)
+
+        # For service/controller classes, generate validation instead of field
+        class_role = self._detect_class_role(symbol, file_content)
+        if class_role in ("service", "controller"):
+            return self._add_validation_for_field(change_spec, symbol, file_content, java_type)
+
 
         # Find class body insertion point (after last field declaration)
         class_start, class_end = self._find_class_body(lines, symbol)
@@ -168,12 +190,13 @@ class JavaGenerator(BaseGenerator):
             confidence="high",
         ))
 
-        # Build setter
+        # Build setter (same insertion point as getter — descending sort
+        # in patches_by_file() will place setter after getter, both inside class)
         setter_lines = self._build_setter(field_spec, java_type, indentation)
         patches.append(Patch(
             file_path=file_path,
-            line_start=method_insert_line + 2,  # After getter
-            line_end=method_insert_line + 1,
+            line_start=method_insert_line + 1,
+            line_end=method_insert_line,
             old_content="",
             new_content="\n".join(setter_lines),
             description=f"Add setter for '{field_spec.name}'",
@@ -318,23 +341,44 @@ class JavaGenerator(BaseGenerator):
                     confidence="high",
                 ))
 
-        # Update usages of field within the file
+        # Update all usages of field within the file (this.field, bare field refs)
+        class_start, class_end = self._find_class_body(lines, symbol)
         for i, line in enumerate(lines):
-            # Match this.fieldName or fieldName (not in declaration)
+            # Skip lines already patched
+            if any(p.line_start == i + 1 for p in patches):
+                continue
+
+            new_line = line
+            modified = False
+
+            # Match this.fieldName
             if f"this.{old_name}" in line:
-                new_line = line.replace(f"this.{old_name}", f"this.{new_name}")
-                # Avoid duplicate patches
-                if not any(p.line_start == i + 1 for p in patches):
-                    patches.append(Patch(
-                        file_path=file_path,
-                        line_start=i + 1,
-                        line_end=i + 1,
-                        old_content=line,
-                        new_content=new_line,
-                        description=f"Update field reference '{old_name}' to '{new_name}'",
-                        symbol_id=symbol.get("id"),
-                        confidence="medium",
-                    ))
+                new_line = new_line.replace(f"this.{old_name}", f"this.{new_name}")
+                modified = True
+
+            # Match bare field references inside class body (word boundary)
+            if class_start >= 0 and class_start < i <= class_end:
+                if re.search(rf'\b{re.escape(old_name)}\b', new_line):
+                    # Only replace if it's clearly a field ref (not in string literals,
+                    # not a type name, not a local variable declaration)
+                    stripped = new_line.strip()
+                    # Skip lines that declare the field or import statements
+                    if not re.match(r'(private|protected|public)\s+\w+\s+' + re.escape(old_name), stripped) \
+                       and not stripped.startswith("import "):
+                        new_line = re.sub(rf'\b{re.escape(old_name)}\b', new_name, new_line)
+                        modified = True
+
+            if modified:
+                patches.append(Patch(
+                    file_path=file_path,
+                    line_start=i + 1,
+                    line_end=i + 1,
+                    old_content=line,
+                    new_content=new_line,
+                    description=f"Update field reference '{old_name}' to '{new_name}'",
+                    symbol_id=symbol.get("id"),
+                    confidence="medium",
+                ))
 
         return patches
 
@@ -415,6 +459,79 @@ class JavaGenerator(BaseGenerator):
                 symbol_id=symbol.get("id"),
                 confidence="high",
             ))
+
+        return patches
+
+    def _add_validation_for_field(
+        self,
+        change_spec: ChangeSpec,
+        symbol: Dict[str, Any],
+        file_content: str,
+        java_type: str,
+    ) -> List[Patch]:
+        """Add validation logic to a service/controller for a new field."""
+        patches = []
+        field_spec = change_spec.field_spec
+        if not field_spec:
+            return patches
+
+        lines = file_content.split("\n")
+        file_path = symbol.get("file_path", "")
+        class_start, class_end = self._find_class_body(lines, symbol)
+        if class_start < 0:
+            return patches
+
+        indentation = self._detect_indentation(lines, class_start, class_end)
+        getter_name = f"get{self._capitalize(field_spec.name)}"
+
+        # Find a validate method or the last method to insert validation logic
+        validate_method_end = -1
+        for i in range(class_start + 1, class_end):
+            if "validate" in lines[i].lower() and "(" in lines[i]:
+                # Find end of this method
+                brace_count = 0
+                for j in range(i, class_end + 1):
+                    brace_count += lines[j].count("{") - lines[j].count("}")
+                    if brace_count <= 0:
+                        validate_method_end = j
+                        break
+                break
+
+        if validate_method_end > 0:
+            # Insert validation check before the closing brace of the validate method
+            insert_at = validate_method_end
+        else:
+            # Insert as a new method before class closing brace
+            insert_at = class_end - 1
+
+        # Build validation code
+        if not field_spec.nullable:
+            validation_lines = [
+                "",
+                f"{indentation}// Validate {field_spec.name}",
+                f"{indentation}if (payment.{getter_name}() == null || payment.{getter_name}().isEmpty()) {{",
+                f'{indentation}    throw new IllegalArgumentException("{self._capitalize(field_spec.name)} is required");',
+                f"{indentation}}}",
+            ]
+        else:
+            validation_lines = [
+                "",
+                f"{indentation}// Validate {field_spec.name} if provided",
+                f"{indentation}if (payment.{getter_name}() != null && payment.{getter_name}().isEmpty()) {{",
+                f'{indentation}    throw new IllegalArgumentException("{self._capitalize(field_spec.name)} cannot be empty");',
+                f"{indentation}}}",
+            ]
+
+        patches.append(Patch(
+            file_path=file_path,
+            line_start=insert_at + 1,
+            line_end=insert_at,
+            old_content="",
+            new_content="\n".join(validation_lines),
+            description=f"Add validation for '{field_spec.name}' in service",
+            symbol_id=symbol.get("id"),
+            confidence="medium",
+        ))
 
         return patches
 
