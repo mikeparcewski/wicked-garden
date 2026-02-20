@@ -167,7 +167,7 @@ class LaneTracker:
             "security", "deployment", "logging", "monitoring",
         ]
         for concept in concepts:
-            if concept in text_lower and concept not in active.topics:
+            if re.search(rf"\b{re.escape(concept)}\b", text_lower) and concept not in active.topics:
                 active.topics.append(concept)
                 if len(active.topics) > 10:
                     active.topics.pop(0)
