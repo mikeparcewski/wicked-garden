@@ -121,9 +121,9 @@ def cli_list(source, args):
         else:
             tasks = store.list_tasks(args.project)
 
-        # Apply filter if provided (matches against task status)
+        # Apply filter if provided (matches against task swimlane)
         if getattr(args, 'filter', None):
-            tasks = [t for t in tasks if t.get("status") == args.filter]
+            tasks = [t for t in tasks if t.get("swimlane") == args.filter]
 
         data = _paginate(tasks, args.limit, args.offset)
         print(json.dumps({"data": data, "meta": _meta(source, len(tasks), args.limit, args.offset)}, indent=2))
