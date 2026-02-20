@@ -117,12 +117,16 @@ def cli_list(source, args):
                 pid = p.get("id") or p.get("name", "")
                 tasks = store.list_tasks(pid)
                 all_tasks.extend(tasks)
-            data = _paginate(all_tasks, args.limit, args.offset)
-            print(json.dumps({"data": data, "meta": _meta(source, len(all_tasks), args.limit, args.offset)}, indent=2))
+            tasks = all_tasks
         else:
             tasks = store.list_tasks(args.project)
-            data = _paginate(tasks, args.limit, args.offset)
-            print(json.dumps({"data": data, "meta": _meta(source, len(tasks), args.limit, args.offset)}, indent=2))
+
+        # Apply filter if provided (matches against task status)
+        if getattr(args, 'filter', None):
+            tasks = [t for t in tasks if t.get("status") == args.filter]
+
+        data = _paginate(tasks, args.limit, args.offset)
+        print(json.dumps({"data": data, "meta": _meta(source, len(tasks), args.limit, args.offset)}, indent=2))
 
     elif source == "initiatives":
         if not args.project:
