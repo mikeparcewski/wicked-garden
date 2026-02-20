@@ -99,45 +99,45 @@ If there are failures:
 
 #### Filing Issues
 
-For each failure (or selected failures), create a GitHub issue:
+For each failure (or selected failures), use `gh issue create` via Bash. Construct the title, labels, and body from the test results — the template below shows the structure (substitute actual values):
 
-```bash
-gh issue create \
-  --title "test(${plugin_name}): ${scenario_name} scenario failure" \
-  --label "bug" \
-  --label "${plugin_name}" \
-  --body "$(cat <<'EOF'
+**Title**: `test(<plugin>): <scenario> scenario failure`
+**Labels**: `bug`, `<plugin-name>`
+**Body template**:
+
+```markdown
 ## UAT Scenario Failure
 
-**Plugin**: ${plugin_name}
-**Scenario**: ${scenario_name} (`plugins/${plugin_name}/scenarios/${scenario_file}`)
-**Run date**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+**Plugin**: <plugin-name>
+**Scenario**: <scenario-name> (`plugins/<plugin-name>/scenarios/<scenario-file>`)
+**Run date**: <UTC timestamp>
 
 ## Failed Criteria
 
-${failed_criteria_list}
+- <criterion>: FAIL — <reason>
+- <criterion>: FAIL — <reason>
 
 ## Evidence
 
-${failure_evidence_and_notes}
+<failure evidence and notes from test runner>
 
 ## Scenario Description
 
-${scenario_description_from_frontmatter}
+<description from scenario frontmatter>
 
 ## Suggested Resolution
 
-Run \`/wg-issue ${issue_number}\` to start a crew project that resolves this failure.
-EOF
-)"
+Run `/wg-issue <this-issue-number>` to start a crew project that resolves this failure.
 ```
 
-**Grouping**: If multiple scenarios fail for the **same plugin**, combine them into a single issue rather than one per scenario. Title becomes: `test(${plugin_name}): ${count} scenario failures` and the body lists all failed scenarios with their criteria.
+**Two-step filing**: Use `gh issue create` with `--json number` to capture the issue number, then update the body's "Suggested Resolution" section with the actual number via `gh issue edit`.
 
-**Deduplication**: Before filing, check for existing open issues with matching title prefix:
+**Grouping**: If multiple scenarios fail for the **same plugin**, combine them into a single issue rather than one per scenario. Title becomes: `test(<plugin>): <count> scenario failures` and the body lists all failed scenarios with their criteria.
+
+**Deduplication**: Before filing, check for existing open issues with a matching title prefix:
 
 ```bash
-gh issue list --state open --search "test(${plugin_name}): ${scenario_name}" --json number,title --limit 5
+gh issue list --state open --search "test(<plugin-name>):" --json number,title --limit 5
 ```
 
 If a matching issue exists, skip filing and note the existing issue number instead.
@@ -151,9 +151,9 @@ After filing, display:
 
 | # | Plugin | Scenarios | Title |
 |---|--------|-----------|-------|
-| ${number} | ${plugin} | ${count} | ${title} |
+| <number> | <plugin> | <count> | <title> |
 
-Resolve with: `/wg-issue ${number}`
+Resolve with: `/wg-issue <number>`
 ```
 
 ## Examples

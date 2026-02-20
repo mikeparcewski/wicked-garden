@@ -7,6 +7,8 @@ Discovers installed wicked-garden plugins and proxies data API requests.
 
 import json
 import os
+import secrets
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,7 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from .auth import init_db, router as auth_router
+from .auth import init_db, router as auth_router, config
 from .bridges.mcp_bridge import MCPBridge
 from .acp import router as acp_router, init_acp, cleanup_acp
 from .data_gateway import router as data_gateway_router, init_gateway
@@ -31,6 +33,9 @@ mcp_bridge: MCPBridge | None = None
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     global mcp_bridge
+
+    # Validate auth secrets before anything else
+    config.validate()
 
     # Initialize database
     print("[Workbench] Initializing database...")
@@ -75,13 +80,11 @@ app = FastAPI(
 # Session middleware for OAuth state management — no hardcoded default
 _session_secret = os.environ.get("SESSION_SECRET_KEY", "")
 if not _session_secret:
-    import secrets as _secrets
-    _session_secret = _secrets.token_urlsafe(32)
-    import sys as _sys
+    _session_secret = secrets.token_urlsafe(32)
     print(
         "[Workbench] WARNING: SESSION_SECRET_KEY not set. Using a random key "
         "(sessions will not persist across restarts).",
-        file=_sys.stderr,
+        file=sys.stderr,
     )
 app.add_middleware(
     SessionMiddleware,
