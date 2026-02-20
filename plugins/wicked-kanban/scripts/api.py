@@ -109,21 +109,18 @@ def cli_list(source, args):
         print(json.dumps({"data": data, "meta": _meta(source, len(projects), args.limit, args.offset)}, indent=2))
 
     elif source == "tasks":
+        swimlane = getattr(args, 'filter', None)
         if not args.project:
             # List tasks across all projects
             projects = store.list_projects()
             all_tasks = []
             for p in projects:
                 pid = p.get("id") or p.get("name", "")
-                tasks = store.list_tasks(pid)
+                tasks = store.list_tasks(pid, swimlane=swimlane)
                 all_tasks.extend(tasks)
             tasks = all_tasks
         else:
-            tasks = store.list_tasks(args.project)
-
-        # Apply filter if provided (matches against task swimlane)
-        if getattr(args, 'filter', None):
-            tasks = [t for t in tasks if t.get("swimlane") == args.filter]
+            tasks = store.list_tasks(args.project, swimlane=swimlane)
 
         data = _paginate(tasks, args.limit, args.offset)
         print(json.dumps({"data": data, "meta": _meta(source, len(tasks), args.limit, args.offset)}, indent=2))
