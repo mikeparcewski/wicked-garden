@@ -1,7 +1,7 @@
 {
   "name": "wicked-delivery",
   "version": "1.0.0",
-  "description": "Feature delivery tactics: A/B test design, progressive rollouts, and delivery risk monitoring. Focused on how features ship safely.",
+  "description": "Feature delivery specialist covering PMO, onboarding, experimentation, rollout, and FinOps domains. Sprint management, stakeholder reporting, cost analysis, progressive rollouts, and new developer onboarding.",
   "author": {
     "name": "Mike Parcewski"
   },
@@ -12,6 +12,13 @@
     "risk",
     "canary",
     "feature-flag",
-    "ab-test"
+    "ab-test",
+    "pmo",
+    "sprint",
+    "onboarding",
+    "finops",
+    "cost-analysis",
+    "stakeholder-reporting",
+    "forecasting"
   ]
 }

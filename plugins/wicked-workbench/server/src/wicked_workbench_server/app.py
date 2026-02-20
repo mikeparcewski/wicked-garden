@@ -20,6 +20,7 @@ from .auth import init_db, router as auth_router
 from .bridges.mcp_bridge import MCPBridge
 from .acp import router as acp_router, init_acp, cleanup_acp
 from .data_gateway import router as data_gateway_router, init_gateway
+from .render import router as render_router, init_render
 
 
 # Global state
@@ -43,6 +44,10 @@ async def lifespan(app: FastAPI):
     local_repo = Path(plugins_dir).parent if plugins_dir else None
     gateway_reg = init_gateway(local_repo=local_repo)
     print(f"[Workbench] Data Gateway ready with {len(gateway_reg.registry)} data plugins")
+
+    # Initialize A2UI Render Pipeline
+    init_render()
+    print("[Workbench] A2UI Render Pipeline ready")
 
     # Initialize ACP bridge (optional - gracefully degrades if claude-code-acp not installed)
     try:
@@ -85,6 +90,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(acp_router)
 app.include_router(data_gateway_router)
+app.include_router(render_router)
 
 
 # === API Endpoints ===
@@ -271,7 +277,9 @@ async def index():
         <p style="margin-top: 8px;">
             <code>GET /api/v1/data/plugins</code> &mdash; List all data sources<br>
             <code>GET /api/v1/data/{plugin}/{source}/{verb}</code> &mdash; Query data<br>
-            <code>POST /api/v1/data/refresh</code> &mdash; Refresh discovery
+            <code>POST /api/v1/data/refresh</code> &mdash; Refresh discovery<br>
+            <code>POST /api/render</code> &mdash; Submit A2UI document for rendering<br>
+            <code>GET /api/render/surfaces</code> &mdash; List active surfaces
         </p>
     </div>
 

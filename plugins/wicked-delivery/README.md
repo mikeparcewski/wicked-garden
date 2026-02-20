@@ -1,8 +1,8 @@
 # wicked-delivery
 
-Feature delivery tactics: A/B test design, progressive rollouts, and delivery risk monitoring. Focused on how features ship safely.
+Feature delivery specialist covering PMO, onboarding, experimentation, rollout, and FinOps domains.
 
-Design statistically rigorous experiments, plan progressive rollouts with feature flags, and track delivery risks across the project lifecycle.
+Design statistically rigorous experiments, plan progressive rollouts with feature flags, track delivery risks, manage sprints, generate stakeholder reports, analyze cloud costs, and onboard new developers.
 
 ## Quick Start
 
@@ -60,11 +60,36 @@ claude plugin install wicked-delivery@wicked-garden
 
 ## Agents
 
+### Experimentation & Rollout
+
 | Agent | Focus |
 |-------|-------|
 | `experiment-designer` | A/B test design, hypothesis validation, statistical rigor |
 | `rollout-manager` | Progressive rollouts, canary deployments, feature flags |
 | `risk-monitor` | Delivery risk tracking, escalation management, dependency chains |
+
+### PMO
+
+| Agent | Focus |
+|-------|-------|
+| `delivery-manager` | Sprint management, velocity tracking, scope management, cross-team coordination |
+| `progress-tracker` | Milestone tracking, completion forecasting, slippage detection |
+| `stakeholder-reporter` | Multi-perspective stakeholder reports, executive summaries |
+
+### Onboarding
+
+| Agent | Focus |
+|-------|-------|
+| `onboarding-guide` | New developer onboarding, team orientation, contribution pathways |
+| `codebase-narrator` | Codebase structure analysis, architecture walkthroughs |
+
+### FinOps
+
+| Agent | Focus |
+|-------|-------|
+| `finops-analyst` | Cloud cost analysis, billing data interpretation, budget variance |
+| `cost-optimizer` | Cost reduction, right-sizing, idle resource cleanup |
+| `forecast-specialist` | Cost forecasting, timeline prediction, capacity planning |
 
 ## Data API
 
