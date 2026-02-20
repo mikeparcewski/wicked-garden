@@ -424,8 +424,8 @@ class SqlGenerator(BaseGenerator):
         file_path = symbol.get("file_path", "")
 
         table_name = self._resolve_table_name(symbol, file_content)
-        old_column = self._to_snake_case(old_name).upper()
-        new_column = self._to_snake_case(new_name).upper()
+        old_column = self._to_snake_case(old_name)
+        new_column = self._to_snake_case(new_name)
 
         if dialect == "oracle":
             alter_stmt = f"ALTER TABLE {table_name} RENAME COLUMN {old_column} TO {new_column};"
@@ -477,7 +477,7 @@ class SqlGenerator(BaseGenerator):
         file_path = symbol.get("file_path", "")
 
         table_name = self._resolve_table_name(symbol, file_content)
-        column_name = field_spec.column_name or self._to_snake_case(field_spec.name).upper()
+        column_name = field_spec.column_name or self._to_snake_case(field_spec.name)
         sql_type = self._map_type(field_spec.type, dialect)
         nullable = "" if field_spec.nullable else " NOT NULL"
 

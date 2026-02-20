@@ -217,9 +217,9 @@ def format_plan(plan: PropagationPlan, change_type: str = "") -> str:
 def format_patches(patch_set: PatchSet, verbose: bool = False) -> str:
     """Format a patch set for display."""
     lines = [
-        "═" * 60,
+        "=" * 60,
         "GENERATED PATCHES",
-        "═" * 60,
+        "=" * 60,
         "",
         patch_set.summary(),
         "",
@@ -251,7 +251,7 @@ def format_patches(patch_set: PatchSet, verbose: bool = False) -> str:
                         lines.append(f"      + {new_line}")
 
     lines.append("")
-    lines.append("═" * 60)
+    lines.append("=" * 60)
 
     return "\n".join(lines)
 
@@ -477,7 +477,7 @@ def cmd_generators(args):
     """List available generators."""
     print("Available Generators:\n")
     print(f"{'Extension':<12} {'Generator':<12} {'Symbol Types'}")
-    print("─" * 60)
+    print("-" * 60)
     for ext in sorted(GeneratorRegistry.supported_extensions()):
         gen = GeneratorRegistry.list_generators().get(ext)
         if gen:
