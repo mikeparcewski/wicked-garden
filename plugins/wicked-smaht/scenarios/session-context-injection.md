@@ -41,24 +41,23 @@ cat ~/.claude/plugins/*/wicked-smaht/*/hooks/hooks.json | grep SessionStart
    ```
    Should show a new session directory with today's timestamp.
 
-4. **Check session metadata**
+4. **Check session metadata** (written at session end by Stop hook)
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/meta.json | tail -1
+   cat ~/.something-wicked/wicked-smaht/sessions/*/session_meta.json | tail -1
    ```
-   Shows session_id, started_at, status: "active"
+   Shows session_id, start_time, end_time, key_topics
 
 ## Expected Outcome
 
 - New session directory created at `~/.something-wicked/wicked-smaht/sessions/{id}/`
-- meta.json contains session metadata
+- session_meta.json written at session end with session summary
 - Context packet injected into Claude's system prompt
 - Sources queried based on what's available (graceful degradation)
 
 ## Success Criteria
 
 - [ ] Session directory created on startup
-- [ ] meta.json has valid session_id and started_at
-- [ ] Session status is "active"
+- [ ] session_meta.json written at session end with valid session_id and start_time
 - [ ] No errors in hook execution (check Claude terminal)
 - [ ] Context gathered from available sources (may be empty if none installed)
 

@@ -35,6 +35,7 @@ class Turn:
     assistant: str
     timestamp: str = ""
     tools_used: list[str] = field(default_factory=list)
+    intent_type: str = ""
 
     def __post_init__(self):
         if not self.timestamp:
@@ -110,14 +111,14 @@ class HistoryCondenser:
 
         # Initialize structured fact extraction
         try:
-            from .fact_extractor import FactExtractor
+            from fact_extractor import FactExtractor
             self.fact_extractor = FactExtractor(self.session_dir)
         except ImportError:
             self.fact_extractor = None
 
         # Initialize multi-lane tracking
         try:
-            from .lane_tracker import LaneTracker
+            from lane_tracker import LaneTracker
             self.lane_tracker = LaneTracker(self.session_dir)
         except ImportError:
             self.lane_tracker = None
@@ -189,15 +190,17 @@ class HistoryCondenser:
                 "assistant": turn.assistant,
                 "timestamp": turn.timestamp,
                 "tools_used": turn.tools_used,
+                "intent_type": turn.intent_type,
             }))
         self._atomic_write(turns_path, "\n".join(lines))
 
-    def add_turn(self, user_msg: str, assistant_msg: str, tools_used: list[str] = None):
+    def add_turn(self, user_msg: str, assistant_msg: str, tools_used: list[str] = None, intent_type: str = ""):
         """Add a turn and update summary."""
         turn = Turn(
             user=user_msg,
             assistant=assistant_msg,
             tools_used=tools_used or [],
+            intent_type=intent_type,
         )
         self.turn_buffer.append(turn)
         self._update_summary(turn)
@@ -512,7 +515,7 @@ class HistoryCondenser:
             return {"status": "fact_extractor_not_available"}
 
         try:
-            from .memory_promoter import MemoryPromoter
+            from memory_promoter import MemoryPromoter
             if self._memory_promoter is None:
                 self._memory_promoter = MemoryPromoter(self.session_dir, self.fact_extractor)
             return self._memory_promoter.promote(dry_run=dry_run)

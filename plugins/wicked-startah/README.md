@@ -34,7 +34,6 @@ No API keys needed for core skills. Optional keys unlock multi-AI features.
 | Server | Purpose | Auth |
 |--------|---------|------|
 | **Context7** | Up-to-date library docs in every conversation | None needed |
-| **Atlassian** | Jira/Confluence integration | Browser OAuth |
 
 ### Plugin Catalog
 
