@@ -47,7 +47,7 @@ Each scenario is self-contained with:
 All session data is stored at:
 ```
 ~/.something-wicked/wicked-smaht/sessions/{session-id}/
-├── meta.json      # Session metadata
+├── session_meta.json  # Session metadata (written at session end)
 ├── lanes.jsonl    # Intent lanes
 ├── facts.jsonl    # Extracted facts
 └── turns.jsonl    # Turn records
