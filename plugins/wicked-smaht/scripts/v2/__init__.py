@@ -10,7 +10,10 @@ Components:
 - fast_path.py: Pattern-based assembly
 - slow_path.py: Subagent invocation
 - history_condenser.py: Progressive compression
+- fact_extractor.py: Structured fact extraction (facts.jsonl)
+- lane_tracker.py: Multi-lane parallel work tracking
+- memory_promoter.py: Session-to-memory promotion pipeline
 - briefing.py: Output formatting
 """
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
