@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from .fact_extractor import Fact, FactExtractor
+from fact_extractor import Fact, FactExtractor
 
 
 # Fact types eligible for promotion to wicked-mem
