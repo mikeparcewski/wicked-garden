@@ -114,7 +114,7 @@ def _extract_entities(text: str) -> list[str]:
     ]
     text_lower = text.lower()
     for tech in tech_names:
-        if tech.lower() in text_lower and tech not in entities:
+        if re.search(rf"\b{re.escape(tech)}\b", text, re.IGNORECASE) and tech not in entities:
             entities.append(tech)
 
     return entities[:8]
