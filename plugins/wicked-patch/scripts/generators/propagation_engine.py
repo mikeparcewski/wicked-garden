@@ -561,14 +561,19 @@ class PropagationEngine:
         """
         Apply patches to files.
 
-        Patches are applied in reverse line order to maintain line numbers.
+        Patches are applied in reverse line order (descending by line_start)
+        so that earlier patches don't shift the line numbers of later ones.
+        For patches at the same line_start, inserts are applied in the order
+        they were generated (stable sort preserves creation order).
         """
         for file_path, patches in patch_set.patches_by_file().items():
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     lines = f.read().split("\n")
 
-                # Apply patches in reverse order (highest line first)
+                # patches_by_file() returns patches sorted descending by line_start.
+                # Descending order means each patch operates on original line numbers
+                # since later patches (lower lines) haven't been shifted yet.
                 for patch in patches:
                     if patch.is_insert:
                         # Insert new content after line_start

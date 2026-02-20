@@ -1,102 +1,117 @@
 ---
 name: multi-lane-tracking
-title: Multi-Lane Intent Tracking
-description: Concurrent intent tracking with up to 3 active lanes
+title: Topic Switching and Open Thread Tracking
+description: Session summary tracks current_task, topics, and open_threads as you switch between work items
 type: feature
 difficulty: intermediate
 estimated_minutes: 6
 ---
 
-# Multi-Lane Intent Tracking
+# Topic Switching and Open Thread Tracking
 
-Test that wicked-smaht tracks multiple concurrent goals with priority and recency weighting.
+Test that wicked-smaht correctly tracks the current task, accumulates topics across task switches, and preserves open threads in summary.json.
 
 ## Setup
 
-Start a Claude Code session. Work on multiple distinct tasks within the same session.
+Start a Claude Code session. All session state is stored in:
+
+```
+~/.something-wicked/wicked-smaht/sessions/{session_id}/summary.json
+```
 
 ## Steps
 
 1. **Start with a debugging task**
    ```
-   The user login is broken. Users are getting 401 errors after token refresh.
+   I'm working on fixing the user login. Users are getting 401 errors after token refresh.
    ```
 
-   **Expected**: Lane 1 created with type="debugging", focus=["authentication", "token refresh"]
+   **Expected**: `current_task` in summary.json set to something containing "fixing the user login". Topics updated with "authentication" keyword.
 
-2. **Switch to a planning task**
-   ```
-   Let's design the new notification system while we wait for the QA team to test the fix.
-   ```
-
-   **Expected**: Lane 2 created with type="planning", focus=["notification system"]. Lane 1 remains active.
-
-3. **Add a third concurrent task**
-   ```
-   Can you also research how other projects handle rate limiting?
-   ```
-
-   **Expected**: Lane 3 created with type="research", focus=["rate limiting"]. All 3 lanes active.
-
-4. **Return to the first task**
-   ```
-   Back to the auth bug - I think the issue is in the token validation logic.
-   ```
-
-   **Expected**: Lane 1 reactivated and priority boosted. Entities updated with "token validation".
-
-5. **Check lane state**
+2. **Check current_task was captured**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/lanes.jsonl
-   ```
-   Should show 3 lanes with different priorities based on recency.
-
-6. **Add a fourth task (triggers dormancy)**
-   ```
-   We also need to fix the broken email templates.
+   cat ~/.something-wicked/wicked-smaht/sessions/*/summary.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('Task:', d['current_task'])"
    ```
 
-   **Expected**: Lane 4 created. Least-recently-used lane becomes "dormant" (max 3 active).
+3. **Switch to a new task**
+   ```
+   Let's design the new notification system while we wait for QA.
+   ```
+
+   **Expected**: `current_task` updated to the notification task (overwritten, not stacked). Topics accumulate: previous topics remain, "notification" added if it matches the keyword list.
+
+4. **Verify topics accumulate across switches**
+   ```bash
+   cat ~/.something-wicked/wicked-smaht/sessions/*/summary.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('Topics:', d['topics'])"
+   ```
+
+   **Expected**: Topics list contains keywords from both tasks. Topics are not cleared on task switch — they accumulate up to 10 entries.
+
+5. **Add an open thread via the assistant**
+
+   Ask Claude a question that requires a follow-up:
+   ```
+   Should we use WebSockets or polling for the notification delivery?
+   ```
+
+   **Expected**: If Claude asks a clarifying question back, it appears in `open_questions`. The assistant's questions (containing `?`) are tracked when they are 15–150 characters.
+
+6. **Inspect the full session state**
+   ```bash
+   cat ~/.something-wicked/wicked-smaht/sessions/*/summary.json
+   ```
+
+   Expected structure after switching tasks:
+   ```json
+   {
+     "topics": ["authentication", "notification"],
+     "decisions": [],
+     "preferences": [],
+     "open_threads": [],
+     "current_task": "design the new notification system while we wait for qa",
+     "active_constraints": [],
+     "file_scope": [],
+     "open_questions": ["Should we use WebSockets or polling?"]
+   }
+   ```
+
+7. **Verify turns.jsonl shows both tasks**
+   ```bash
+   cat ~/.something-wicked/wicked-smaht/sessions/*/turns.jsonl | python3 -c "import sys,json; [print(json.loads(l)['user'][:60]) for l in sys.stdin if l.strip()]"
+   ```
 
 ## Expected Outcome
 
-- Up to 3 lanes remain active simultaneously
-- Lanes track focus hierarchy (e.g., ["auth system", "JWT", "refresh token"])
-- Returning to a topic reactivates its lane
-- Lane priority decays with inactivity
-- Excess lanes become dormant, not deleted
+- `current_task` is a single string — updated (overwritten) with the most recent task statement
+- `topics` is a flat list that accumulates across all turns (max 10, oldest dropped when full)
+- `open_threads` is managed manually (not auto-populated by turns)
+- `open_questions` captures questions from assistant responses
+- Switching tasks does NOT reset prior topics — they remain in the list
 
-## Lane Data Structure
+## Session Summary Fields
 
-```json
-{
-  "lane_id": "lane-abc123",
-  "type": "debugging",
-  "focus": ["authentication", "token refresh"],
-  "entities": ["src/auth/jwt.py", "TokenValidator"],
-  "priority": 0.8,
-  "turn_created": 1,
-  "turn_last_active": 4,
-  "status": "active"
-}
-```
+| Field | Type | Behavior |
+|-------|------|----------|
+| `current_task` | string | Overwritten on each new task statement |
+| `topics` | list[str] | Accumulates; capped at 10 (oldest removed) |
+| `open_threads` | list[str] | Manual/externally managed |
+| `open_questions` | list[str] | Set from assistant `?` sentences; trimmed to 3 |
+| `file_scope` | list[str] | Files mentioned; capped at 20 (oldest removed) |
 
 ## Success Criteria
 
-- [ ] First task creates Lane 1 with debugging intent
-- [ ] Second task creates Lane 2 without closing Lane 1
-- [ ] Three lanes can be active simultaneously
-- [ ] Returning to first task updates Lane 1 (not creates new lane)
-- [ ] Fourth task causes least-used lane to become dormant
-- [ ] lanes.jsonl contains all lane history
+- [ ] First task statement sets current_task
+- [ ] Second task statement overwrites current_task (not appended)
+- [ ] Topics from both tasks appear in the topics list
+- [ ] Topics list does not exceed 10 entries
+- [ ] Assistant questions appear in open_questions
+- [ ] summary.json is valid JSON after each turn
+- [ ] turns.jsonl shows all turns up to the 5-turn window
 
 ## Value Demonstrated
 
-Developers rarely work on just one thing. You might be debugging a bug, designing a new feature, and researching best practices - all in the same session.
-
-wicked-smaht's multi-lane tracking:
-1. **Maintains context for each goal** - No "forgetting" when you switch tasks
-2. **Smart reactivation** - Recognizes when you return to a previous topic
-3. **Priority decay** - Recently active lanes get more context priority
-4. **Bounded memory** - Max 3 active lanes prevents unbounded growth
-5. **History preserved** - Dormant lanes can be reactivated, nothing is lost
+Developers regularly context-switch mid-session. wicked-smaht's flat session summary captures the essential state without complex parallel structures:
+1. **Current task tracking** — always know what's active
+2. **Topic accumulation** — keywords from all work accumulate for context
+3. **Constraint tracking** — "must", "should", "don't" statements are captured automatically
+4. **Open questions** — assistant follow-up questions are tracked so they don't get lost
