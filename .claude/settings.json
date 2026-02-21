@@ -1,4 +1,19 @@
 {
+  "env": {
+    "SKIP_PLUGIN_MARKETPLACE": "false"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -n \"$CLAUDE_ENV_FILE\" ]; then echo 'export SKIP_PLUGIN_MARKETPLACE=false' >> \"$CLAUDE_ENV_FILE\"; fi; exit 0"
+          }
+        ]
+      }
+    ]
+  },
   "extraKnownMarketplaces": {
     "wicked-garden": {
       "source": {
