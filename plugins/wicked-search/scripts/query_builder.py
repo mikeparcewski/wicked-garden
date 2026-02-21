@@ -411,7 +411,12 @@ class UnifiedQueryEngine:
         return results
 
     def blast_radius(self, symbol_id: str, max_depth: int = 3) -> Dict:
-        """BFS traversal to find all downstream dependents."""
+        """BFS traversal to find all downstream dependents.
+
+        Enhanced to bridge through import nodes: when an import node depends on
+        a symbol, all non-import/non-file symbols in the same file are also
+        considered dependents (since the import makes the whole file dependent).
+        """
         cursor = self.conn.cursor()
 
         visited = set()
@@ -429,8 +434,14 @@ class UnifiedQueryEngine:
             # Get symbol details
             cursor.execute("SELECT * FROM symbols WHERE id = ?", (current_id,))
             row = cursor.fetchone()
-            if row:
-                symbol = self._row_to_dict(row)
+            if not row:
+                continue
+
+            symbol = self._row_to_dict(row)
+            sym_type = symbol.get('type', '')
+
+            # Skip adding import/file nodes to results (they're infrastructure, not real dependents)
+            if sym_type not in ('import', 'file'):
                 by_depth[depth].append(symbol)
 
             # Find dependents (incoming refs)
@@ -442,13 +453,35 @@ class UnifiedQueryEngine:
 
                 for dep_row in cursor.fetchall():
                     dep_id = dep_row['source_id']
-                    if dep_id not in visited:
+                    if dep_id in visited:
+                        continue
+
+                    # Check if the dependent is an import node
+                    cursor.execute("SELECT type, file_path FROM symbols WHERE id = ?", (dep_id,))
+                    dep_sym = cursor.fetchone()
+
+                    if dep_sym and dep_sym['type'] == 'import':
+                        # Bridge through import: add all real symbols in the same file
+                        # (the import makes the whole file a dependent)
+                        visited.add(dep_id)  # Mark import node as visited
+                        file_path = dep_sym['file_path']
+                        cursor.execute("""
+                            SELECT id FROM symbols
+                            WHERE file_path = ? AND type NOT IN ('import', 'file')
+                        """, (file_path,))
+                        for sibling in cursor.fetchall():
+                            if sibling['id'] not in visited:
+                                queue.append((sibling['id'], depth + 1))
+                    else:
                         queue.append((dep_id, depth + 1))
+
+        # Count total affected (excluding import/file nodes)
+        total = sum(len(syms) for syms in by_depth.values())
 
         return {
             'root_id': symbol_id,
             'max_depth': max_depth,
-            'total_affected': len(visited),
+            'total_affected': total,
             'by_depth': dict(by_depth)
         }
 
