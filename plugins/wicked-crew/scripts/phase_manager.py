@@ -14,7 +14,7 @@ import logging
 import re
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field, asdict
 
 # Configure logging
@@ -113,6 +113,7 @@ class ProjectState:
     specialists_recommended: List[str] = field(default_factory=list)
     phase_plan: List[str] = field(default_factory=list)
     phases: Dict[str, PhaseState] = field(default_factory=dict)
+    extras: Dict[str, Any] = field(default_factory=dict)
 
 
 def get_utc_timestamp() -> str:
@@ -160,6 +161,13 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         normalized = resolve_phase(phase_name)
         phases[normalized] = PhaseState(**phase_data)
 
+    known_keys = {
+        "name", "current_phase", "created_at", "version",
+        "signals_detected", "complexity_score", "specialists_recommended",
+        "phase_plan", "phases",
+    }
+    extras = {k: v for k, v in data.items() if k not in known_keys}
+
     return ProjectState(
         name=data["name"],
         current_phase=resolve_phase(data["current_phase"]),
@@ -169,7 +177,8 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         complexity_score=data.get("complexity_score", 0),
         specialists_recommended=data.get("specialists_recommended", []),
         phase_plan=data.get("phase_plan", []),
-        phases=phases
+        phases=phases,
+        extras=extras,
     )
 
 
@@ -257,7 +266,8 @@ def save_project_state(state: ProjectState) -> None:
         "complexity_score": state.complexity_score,
         "specialists_recommended": state.specialists_recommended,
         "phase_plan": state.phase_plan,
-        "phases": {name: asdict(phase) for name, phase in state.phases.items()}
+        "phases": {name: asdict(phase) for name, phase in state.phases.items()},
+        **state.extras,
     }
 
     try:

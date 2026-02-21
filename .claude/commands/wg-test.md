@@ -22,7 +22,21 @@ Parse `$ARGUMENTS` to determine what to test:
 - `plugin-name --all` → Run all scenarios for that plugin
 - `--issues` flag (combinable with any above) → Auto-file GitHub issues for failures via `/wg-issue`
 
-### 2. If Listing Needed
+### 2. Preflight Environment Check
+
+Before running any scenarios, verify the plugin runtime is available:
+
+```bash
+if [ "${SKIP_PLUGIN_MARKETPLACE}" = "true" ]; then
+  echo "SKIP_PLUGIN_MARKETPLACE=true is set — plugin skills will not be registered."
+  echo "Plugin scenarios WILL FAIL because slash commands like /wicked-mem:store cannot resolve."
+  echo "Remove this env var or set SKIP_PLUGIN_MARKETPLACE=false to enable plugin loading."
+fi
+```
+
+If the variable is set, warn the user and ask whether to continue (results will be unreliable) or abort. Use AskUserQuestion with options: "Abort — fix environment first" and "Continue anyway (expect failures)".
+
+### 3. If Listing Needed
 
 ```bash
 # Find plugins with scenarios
@@ -39,7 +53,7 @@ done
 
 Use AskUserQuestion to let user select.
 
-### 3. Execute Scenario via Subagent
+### 4. Execute Scenario via Subagent
 
 **CRITICAL**: Spawn a subagent to execute the scenario. Subagents run in interactive mode where hooks fire naturally.
 
@@ -77,14 +91,14 @@ NOTES: [any observations]
 ---END---
 ```
 
-### 4. Collect and Report Results
+### 5. Collect and Report Results
 
 After subagent completes:
 - Parse the RESULTS section
 - Report pass/fail status
 - If running multiple scenarios, aggregate results
 
-### 5. File GitHub Issues for Failures
+### 6. File GitHub Issues for Failures
 
 **Trigger**: Any scenario has STATUS: FAIL (always when `--issues` flag is set; otherwise ask the user).
 
