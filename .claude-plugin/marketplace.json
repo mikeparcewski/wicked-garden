@@ -5,12 +5,6 @@
   },
   "plugins": [
     {
-      "name": "wicked-cache",
-      "source": "./plugins/wicked-cache",
-      "description": "Shared caching layer for Wicked Garden plugins. Namespace isolation, TTL support, and file-aware invalidation (auto-expires when source files change). Install alongside wicked-search or wicked-mem for faster lookups.",
-      "version": "0.3.0"
-    },
-    {
       "name": "wicked-mem",
       "source": "./plugins/wicked-mem",
       "description": "Structured memory with signal-based recall. Unlike built-in memory, wicked-mem categorizes memories by type (episodic, decision, procedural, preference), decays stale memories automatically, and only injects context when your question signals need it \u2014 preventing context bloat.",
