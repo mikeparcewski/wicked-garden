@@ -153,7 +153,7 @@ Scoring adjusts based on the **type of project** being changed. Different archet
 | ml-ai | Model quality, training data, evaluation rigor | +1 | 3 |
 | real-time | Latency, concurrency, state synchronization | +1 | 2 |
 
-**How it works**: When starting or executing a project, crew runs a dynamic pre-analysis that reads project files (CLAUDE.md, package.json, etc.), queries memories, and analyzes codebase structure to detect archetypes. This happens BEFORE signal analysis.
+**How it works**: When starting or executing a project, crew runs a dynamic pre-analysis that reads project files (AGENTS.md, CLAUDE.md, package.json, etc.), queries memories, and analyzes codebase structure to detect archetypes. AGENTS.md is loaded first for general agent context, then CLAUDE.md for Claude-specific overrides. This happens BEFORE signal analysis.
 
 **Dynamic archetypes**: Beyond the built-in list, commands can define custom archetypes at runtime via `--archetype-hints`. A marketing team's landing page project can get a "marketing-landing-page" archetype that injects product and UX signals, even though that archetype isn't built-in.
 

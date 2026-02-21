@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
-PreToolUse hook - Block direct Write/Edit to MEMORY.md files.
+PreToolUse hook - Block direct Write/Edit to MEMORY.md and AGENTS.md files.
 
 Claude Code's built-in "auto memory" system instructs Claude to write
 learnings to MEMORY.md files. This project uses wicked-mem instead.
 This hook intercepts those writes and redirects to /wicked-mem:store.
+
+AGENTS.md is an open cross-tool standard (https://agents.md/) that is
+shared across AI coding tools. It is read-only — Wicked Garden loads it
+for context but must never modify it.
 """
 
 import json
@@ -38,6 +42,15 @@ def main():
         input_data = json.loads(sys.stdin.read())
         tool_input = input_data.get("tool_input", {})
         file_path = tool_input.get("file_path", "")
+
+        # Block writes to AGENTS.md — it's a shared cross-tool file (read-only)
+        if file_path.endswith("AGENTS.md"):
+            print(_deny(
+                "Do not write to AGENTS.md. It is a cross-tool agent instruction "
+                "file shared with other AI coding tools (Codex, Cursor, Amp, etc.) "
+                "and must remain read-only. Use CLAUDE.md for Claude-specific instructions."
+            ))
+            return
 
         # Block writes to MEMORY.md files or Claude's auto memory directory
         # but NOT to plugin files that happen to have "memory" in the path
