@@ -891,7 +891,7 @@ def create_doc_code_crossrefs(conn: sqlite3.Connection) -> int:
     # Get all doc sections with their names (which often contain symbol references)
     cursor.execute("""
         SELECT id, name, content FROM symbols
-        WHERE domain = 'doc' AND type NOT IN ('file',)
+        WHERE domain = 'doc' AND type != 'file'
     """)
     doc_sections = cursor.fetchall()
 

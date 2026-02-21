@@ -1334,6 +1334,7 @@ class UnifiedSearchIndex:
                 line_start=section.get('line_start', 0),
                 line_end=section.get('line_end', 0),
                 domain="doc",
+                content=section.get('content', ''),
             )
             nodes.append(node)
 
@@ -1353,21 +1354,6 @@ class UnifiedSearchIndex:
         jsonl_path = self._get_jsonl_index_path()
         meta_path = self._get_metadata_path()
 
-        # Early return if index exists and not forcing rebuild
-        if not force and jsonl_path.exists():
-            existing_metadata = self._load_index_metadata()
-            if existing_metadata:
-                return {
-                    "code_files": existing_metadata.file_count,
-                    "doc_files": 0,
-                    "code_symbols": existing_metadata.node_count,
-                    "doc_sections": 0,
-                    "cross_refs": existing_metadata.edge_count,
-                    "skipped": existing_metadata.file_count,
-                    "failed": 0,
-                    "parallel": True,
-                }
-
         code_files, doc_files = self._find_files()
 
         stats = {
@@ -1384,20 +1370,21 @@ class UnifiedSearchIndex:
         jsonl_path = self._get_jsonl_index_path()
         meta_path = self._get_metadata_path()
 
-        # Filter to stale files only (unless force)
-        original_count = len(code_files)
+        # Check for stale files (unless force)
         if not force:
-            code_files = [f for f in code_files if self._is_stale(f)]
-            stats["skipped"] = original_count - len(code_files)
-
-        # If no files need updating and index exists, return existing stats
-        if not code_files and jsonl_path.exists():
-            existing_metadata = self._load_index_metadata()
-            if existing_metadata:
-                stats["code_files"] = existing_metadata.file_count
-                stats["code_symbols"] = existing_metadata.node_count
-                stats["cross_refs"] = existing_metadata.edge_count
-                return stats
+            stale_files = [f for f in code_files if self._is_stale(f)]
+            stale_docs = [f for f in doc_files if self._is_stale(f)] if doc_files else []
+            if not stale_files and not stale_docs and jsonl_path.exists():
+                # Nothing changed — return existing stats
+                existing_metadata = self._load_index_metadata()
+                if existing_metadata:
+                    stats["code_files"] = existing_metadata.file_count
+                    stats["code_symbols"] = existing_metadata.node_count
+                    stats["cross_refs"] = existing_metadata.edge_count
+                    stats["skipped"] = len(code_files)
+                    return stats
+            # Some files changed — re-index all files to maintain JSONL consistency
+            stats["skipped"] = 0
 
         # Pass 1a: Parallel code extraction
         if code_files:
@@ -1918,7 +1905,7 @@ class UnifiedSearchIndex:
 
     async def ensure_fresh(self, verbose: bool = True) -> bool:
         """
-        Ensure JSONL index exists, building if necessary.
+        Ensure JSONL index and unified DB exist, building if necessary.
 
         Args:
             verbose: Print progress messages.
@@ -1931,14 +1918,51 @@ class UnifiedSearchIndex:
             return False
 
         jsonl_path = self._get_jsonl_index_path()
+        unified_db_path = self._get_unified_db_path()
+        rebuilt = False
 
-        if jsonl_path.exists():
-            return False
-        else:
+        if not jsonl_path.exists():
             if verbose:
                 print("No index found. Building index...", file=sys.stderr)
             await self.build_index_jsonl(force=True)
-            return True
+            rebuilt = True
+
+        # Ensure unified DB exists (migration from JSONL → SQLite)
+        if not unified_db_path.exists() and jsonl_path.exists():
+            if verbose:
+                print("Building unified database...", file=sys.stderr)
+            self._run_migration()
+            rebuilt = True
+
+        return rebuilt
+
+    def _run_migration(self, verbose: bool = True):
+        """Run JSONL → unified SQLite migration."""
+        migration_script = Path(__file__).parent / "migration.py"
+        unified_db_path = self._get_unified_db_path()
+
+        # Find graph DB if it exists
+        graph_dbs = list(get_index_dir(self.project).glob("*_graph.db"))
+
+        cmd = [
+            sys.executable, str(migration_script),
+            "--jsonl-dir", str(get_index_dir(self.project)),
+            "--output", str(unified_db_path),
+        ]
+        if graph_dbs:
+            cmd.extend(["--existing-db", str(graph_dbs[0])])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                if verbose:
+                    report = json.loads(result.stdout)
+                    print(f"  Unified DB: {report['stats']['symbols_total']} symbols, "
+                          f"{report['stats']['refs_total']} refs")
+            else:
+                print(f"Warning: Unified DB build failed: {result.stderr[:200]}", file=sys.stderr)
+        except Exception as e:
+            print(f"Warning: Unified DB build failed: {str(e)[:200]}", file=sys.stderr)
 
     def get_stats(self) -> Dict[str, Any]:
         """Get index statistics."""
@@ -2193,29 +2217,7 @@ async def main():
 
         # Auto-build unified SQLite database
         print("\nBuilding unified database...")
-        migration_script = Path(__file__).parent / "migration.py"
-        unified_db_path = index._get_unified_db_path()
-
-        # Find graph DB if it exists
-        graph_dbs = list(get_index_dir(project_name).glob("*_graph.db"))
-
-        cmd = [
-            sys.executable, str(migration_script),
-            "--jsonl-dir", str(get_index_dir(project_name)),
-            "--output", str(unified_db_path),
-        ]
-        if graph_dbs:
-            cmd.extend(["--existing-db", str(graph_dbs[0])])
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-            if result.returncode == 0:
-                report = json.loads(result.stdout)
-                print(f"  Unified DB: {report['stats']['symbols_total']} symbols, {report['stats']['refs_total']} refs")
-            else:
-                print(f"  Warning: Unified DB build failed: {result.stderr[:200]}", file=sys.stderr)
-        except Exception as e:
-            print(f"  Warning: Unified DB build failed: {str(e)[:200]}", file=sys.stderr)
+        index._run_migration()
 
     elif args.command == "graph":
         # Symbol Graph specific command
