@@ -435,7 +435,7 @@ class SqlGenerator(BaseGenerator):
         elif dialect == "sqlserver":
             alter_stmt = f"EXEC sp_rename '{table_name}.{old_column}', '{new_column}', 'COLUMN';"
         elif dialect == "mysql":
-            alter_stmt = f"-- MySQL requires column type; adjust as needed\nALTER TABLE {table_name} RENAME COLUMN {old_column} TO {new_column};"
+            alter_stmt = f"-- RENAME COLUMN requires MySQL 8.0+ / MariaDB 10.5.2+; for older versions use: ALTER TABLE {table_name} CHANGE {old_column} {new_column} <COLUMN_TYPE>;\nALTER TABLE {table_name} RENAME COLUMN {old_column} TO {new_column};"
         else:
             alter_stmt = f"ALTER TABLE {table_name} RENAME COLUMN {old_column} TO {new_column};"
 
