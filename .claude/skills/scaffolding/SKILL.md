@@ -514,3 +514,4 @@ python scripts/scaffold.py hook \
 - Design: `.something-wicked/wicked-feature-dev/specs/something-wicked-v2/design.md` (tools/ section)
 - Naming conventions: `CLAUDE.md` (Naming Conventions section)
 - Component patterns: `CLAUDE.md` (Component Patterns section)
+- Cross-tool context: Plugins that read project descriptor files should load `AGENTS.md` before `CLAUDE.md` (general → specific). `AGENTS.md` is read-only.

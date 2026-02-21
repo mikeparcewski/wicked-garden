@@ -332,7 +332,7 @@ ARCHETYPE_KEYWORDS = {
 # - description: human-readable explanation of why this archetype matters
 #
 # NOTE: This is a FALLBACK set. Commands should do dynamic archetype analysis
-# (querying memories, reading CLAUDE.md/agent.md, using blast-radius) and pass
+# (querying memories, reading AGENTS.md/CLAUDE.md/agent.md, using blast-radius) and pass
 # results via --archetype-hints. These static definitions activate when no
 # external hints are available or when keyword detection finds matches.
 # External hints use the same adjustment format and can define NEW archetypes
@@ -1080,7 +1080,7 @@ def analyze_input(
     #
     # TWO SOURCES (merged):
     # 1. External archetype_hints from command-layer dynamic analysis (preferred)
-    #    - Commands use subagents, memories, CLAUDE.md, blast-radius, etc.
+    #    - Commands use subagents, memories, AGENTS.md/CLAUDE.md, blast-radius, etc.
     #    - Can define NEW archetypes not in ARCHETYPE_ADJUSTMENTS
     #    - Format: {"archetype-name": {"confidence": 0.8, "impact_bonus": 2,
     #      "inject_signals": {"security": 0.3}, "min_complexity": 3,

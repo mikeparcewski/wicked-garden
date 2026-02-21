@@ -183,6 +183,17 @@ def main():
     except Exception as e:
         context_lines.append(f"Session: {session_id} (init error: {str(e)[:30]})")
 
+    # Detect AGENTS.md for cross-tool context (loaded before CLAUDE.md)
+    cwd = Path.cwd()
+    agents_md_exists = (cwd / "AGENTS.md").exists()
+    claude_md_exists = (cwd / "CLAUDE.md").exists()
+    if agents_md_exists and claude_md_exists:
+        context_lines.append("Project context: AGENTS.md + CLAUDE.md detected (general + Claude-specific)")
+    elif agents_md_exists:
+        context_lines.append("Project context: AGENTS.md detected (cross-tool agent instructions)")
+    elif claude_md_exists:
+        context_lines.append("Project context: CLAUDE.md detected")
+
     # Get active project
     project = get_active_project()
     if project:
