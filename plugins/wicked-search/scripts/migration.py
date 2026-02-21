@@ -830,9 +830,9 @@ def _pick_local_candidate(candidates, source_file: str):
     Compares path prefixes up to the 4th directory component to find symbols
     in the same project tree as the source file.
     """
-    # Extract project prefix (first 4 path components, e.g., /tmp/wicked-patch-test/user-service)
+    # Extract project prefix (first 4 path components, e.g., /tmp/wicked-patch-test/)
     parts = source_file.replace("\\", "/").split("/")
-    prefix = "/".join(parts[:min(5, len(parts) - 1)])
+    prefix = "/".join(parts[:min(4, len(parts) - 1)])
 
     for candidate in candidates:
         if candidate["file_path"] and candidate["file_path"].startswith(prefix):

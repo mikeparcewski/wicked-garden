@@ -460,58 +460,54 @@ class PropagationEngine:
             except sqlite3.OperationalError:
                 pass
 
-        # 8. Name-based fallback: find cross-file and cross-language references
-        # that weren't captured by the linker/migration.
-        # This handles two cases:
-        # a) Orphan refs with short-name targets still in the DB
-        # b) Cross-language same-name symbols (Java Order <-> TypeScript Order)
-        if not results:
-            try:
-                # Extract the symbol name from its ID
-                symbol_name = symbol_id.rsplit('::', 1)[-1] if '::' in symbol_id else symbol_id
-                cursor.execute("SELECT file_path FROM symbols WHERE id = ?", (symbol_id,))
-                sym_row = cursor.fetchone()
-                sym_file = sym_row["file_path"] if sym_row else None
+        # 8. Cross-language and name-based reference discovery.
+        # Always runs (not just as fallback) to find:
+        # a) Import nodes referencing this symbol by name
+        # b) Same-name symbols across languages (Java Order <-> TypeScript Order)
+        try:
+            symbol_name = symbol_id.rsplit('::', 1)[-1] if '::' in symbol_id else symbol_id
+            cursor.execute("SELECT file_path FROM symbols WHERE id = ?", (symbol_id,))
+            sym_row = cursor.fetchone()
+            sym_file = sym_row["file_path"] if sym_row else None
 
-                if symbol_name and sym_file:
-                    # Derive project root (first 4 path components) for locality filtering
-                    parts = sym_file.replace("\\", "/").split("/")
-                    project_prefix = "/".join(parts[:min(5, len(parts) - 1)])
+            if symbol_name and sym_file:
+                # Derive project root — use first 4 path components (e.g., /tmp/project-name/)
+                # to match across subdirectories (backend/, frontend/, tests/)
+                parts = sym_file.replace("\\", "/").split("/")
+                project_prefix = "/".join(parts[:min(4, len(parts) - 1)])
 
-                    # a) Find import nodes in the same project that reference this name
+                # a) Find import nodes in the same project that reference this name
+                cursor.execute("""
+                    SELECT DISTINCT s.file_path
+                    FROM symbols s
+                    WHERE s.type = 'import' AND s.name LIKE ?
+                      AND s.file_path LIKE ?
+                      AND s.file_path != ?
+                """, (f'%{symbol_name}', f'{project_prefix}%', sym_file))
+                for row in cursor.fetchall():
                     cursor.execute("""
-                        SELECT DISTINCT s.file_path
-                        FROM symbols s
-                        WHERE s.type = 'import' AND s.name LIKE ?
-                          AND s.file_path LIKE ?
-                          AND s.file_path != ?
-                    """, (f'%{symbol_name}', f'{project_prefix}%', sym_file))
-                    for row in cursor.fetchall():
-                        # Find the class/module in the importing file
-                        cursor.execute("""
-                            SELECT id FROM symbols
-                            WHERE file_path = ?
-                              AND type IN ('class', 'interface', 'module', 'struct')
-                            LIMIT 1
-                        """, (row["file_path"],))
-                        class_row = cursor.fetchone()
-                        if class_row:
-                            _add_result(class_row["id"], "imports", "incoming", "low")
+                        SELECT id FROM symbols
+                        WHERE file_path = ?
+                          AND type IN ('class', 'interface', 'module', 'struct')
+                        LIMIT 1
+                    """, (row["file_path"],))
+                    class_row = cursor.fetchone()
+                    if class_row:
+                        _add_result(class_row["id"], "imports", "incoming", "low")
 
-                    # b) Find same-name symbols in different languages within same project
-                    # (e.g., Java Order class <-> TypeScript Order interface <-> Python Order model)
-                    cursor.execute("""
-                        SELECT id, type, file_path FROM symbols
-                        WHERE name = ?
-                          AND type IN ('class', 'interface', 'struct', 'table')
-                          AND file_path LIKE ?
-                          AND id != ?
-                    """, (symbol_name, f'{project_prefix}%', symbol_id))
-                    for row in cursor.fetchall():
-                        _add_result(row["id"], "maps_to", "outgoing", "low")
+                # b) Find same-name symbols in different languages within same project
+                cursor.execute("""
+                    SELECT id, type, file_path FROM symbols
+                    WHERE name = ?
+                      AND type IN ('class', 'interface', 'struct', 'table')
+                      AND file_path LIKE ?
+                      AND id != ?
+                """, (symbol_name, f'{project_prefix}%', symbol_id))
+                for row in cursor.fetchall():
+                    _add_result(row["id"], "maps_to", "outgoing", "low")
 
-            except (sqlite3.OperationalError, TypeError):
-                pass  # Graceful fallback if tables/columns missing
+        except (sqlite3.OperationalError, TypeError):
+            pass  # Graceful fallback if tables/columns missing
 
         return results
 
