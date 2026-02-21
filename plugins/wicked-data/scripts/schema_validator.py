@@ -57,6 +57,9 @@ def validate_type(value: str, expected_type: str) -> bool:
             return True
         elif expected_type == "boolean":
             return str(value).lower() in ('true', 'false', '1', '0', 'yes', 'no', 't', 'f')
+        elif expected_type == "date":
+            # Date only: YYYY-MM-DD (no time component)
+            return bool(re.match(r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}$', str(value)))
         elif expected_type == "datetime":
             return bool(DATETIME_RE.match(str(value)))
         elif expected_type == "string":
