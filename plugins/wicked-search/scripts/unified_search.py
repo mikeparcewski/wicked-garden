@@ -2375,7 +2375,8 @@ async def main():
                         })
                         total_matches += len(file_matches)
                         files_with_matches.add(rel_path)
-                except Exception:
+                except Exception as e:
+                    print(f"Warning: Could not process {fpath}: {e}", file=sys.stderr)
                     continue
 
         # Format output
