@@ -755,6 +755,7 @@ class MemoryStore:
             "by_type": {},
             "by_status": {},
             "by_scope": {"project": 0, "global": 0},
+            "by_tag": {},
         }
 
         for md_file in self.base_path.rglob("*.md"):
@@ -766,6 +767,8 @@ class MemoryStore:
             stats["by_type"][memory.type] = stats["by_type"].get(memory.type, 0) + 1
             stats["by_status"][memory.status] = stats["by_status"].get(memory.status, 0) + 1
             stats["by_scope"][memory.scope] = stats["by_scope"].get(memory.scope, 0) + 1
+            for tag in memory.tags:
+                stats["by_tag"][tag] = stats["by_tag"].get(tag, 0) + 1
 
         return stats
 
