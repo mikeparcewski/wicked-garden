@@ -787,39 +787,33 @@ def _find_symbol_by_name(cursor, name: str, source_file: str = None):
                  ELSE 2 END
     """
 
-    # Strategy 1: Exact name match
-    cursor.execute(f"""
-        SELECT id, type, domain, file_path FROM symbols
-        WHERE name = ? AND type NOT IN ('file', 'import')
-        {order_clause}
-    """, (name,))
-    candidates = cursor.fetchall()
-
-    if candidates:
-        # If we have a source file, prefer same-project symbols
+    def _query_and_pick(query_name: str):
+        cursor.execute(f"""
+            SELECT id, type, domain, file_path FROM symbols
+            WHERE name = ? AND type NOT IN ('file', 'import')
+            {order_clause}
+        """, (query_name,))
+        candidates = cursor.fetchall()
+        if not candidates:
+            return None
         if source_file and len(candidates) > 1:
             local = _pick_local_candidate(candidates, source_file)
             if local:
                 return local
         return candidates[0]
 
+    # Strategy 1: Exact name match
+    match = _query_and_pick(name)
+    if match:
+        return match
+
     # Strategy 2: Dotted import name — extract last segment
     # e.g., 'com.app.models.User' -> 'User'
     if '.' in name:
         short_name = name.rsplit('.', 1)[-1]
-        cursor.execute(f"""
-            SELECT id, type, domain, file_path FROM symbols
-            WHERE name = ? AND type NOT IN ('file', 'import')
-            {order_clause}
-        """, (short_name,))
-        candidates = cursor.fetchall()
-
-        if candidates:
-            if source_file and len(candidates) > 1:
-                local = _pick_local_candidate(candidates, source_file)
-                if local:
-                    return local
-            return candidates[0]
+        match = _query_and_pick(short_name)
+        if match:
+            return match
 
     return None
 
@@ -827,10 +821,10 @@ def _find_symbol_by_name(cursor, name: str, source_file: str = None):
 def _pick_local_candidate(candidates, source_file: str):
     """From a list of candidate symbols, pick one sharing the same project root.
 
-    Compares path prefixes up to the 4th directory component to find symbols
-    in the same project tree as the source file.
+    Compares path prefixes (up to 4 components, excluding filename) to find
+    symbols in the same project tree as the source file.
     """
-    # Extract project prefix (first 4 path components, e.g., /tmp/wicked-patch-test/)
+    # Extract project prefix (up to 4 path components for project-local matching)
     parts = source_file.replace("\\", "/").split("/")
     prefix = "/".join(parts[:min(4, len(parts) - 1)])
 

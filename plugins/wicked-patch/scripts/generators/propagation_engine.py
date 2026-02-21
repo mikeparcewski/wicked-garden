@@ -471,19 +471,19 @@ class PropagationEngine:
             sym_file = sym_row["file_path"] if sym_row else None
 
             if symbol_name and sym_file:
-                # Derive project root — use first 4 path components (e.g., /tmp/project-name/)
-                # to match across subdirectories (backend/, frontend/, tests/)
+                # Derive project root (up to first 4 path components) for locality filtering
                 parts = sym_file.replace("\\", "/").split("/")
                 project_prefix = "/".join(parts[:min(4, len(parts) - 1)])
 
                 # a) Find import nodes in the same project that reference this name
+                # Use exact match OR dotted suffix to avoid false positives (e.g., SuperUser matching User)
                 cursor.execute("""
                     SELECT DISTINCT s.file_path
                     FROM symbols s
-                    WHERE s.type = 'import' AND s.name LIKE ?
+                    WHERE s.type = 'import' AND (s.name = ? OR s.name LIKE ?)
                       AND s.file_path LIKE ?
                       AND s.file_path != ?
-                """, (f'%{symbol_name}', f'{project_prefix}%', sym_file))
+                """, (symbol_name, f'%.{symbol_name}', f'{project_prefix}%', sym_file))
                 for row in cursor.fetchall():
                     cursor.execute("""
                         SELECT id FROM symbols
