@@ -32,7 +32,8 @@ def main():
         else:
             # Silent startup - no annoying setup nags
             print(json.dumps({"continue": True}))
-    except Exception:
+    except Exception as e:
+        print(f"Error in wicked-startah session_start hook: {e}", file=sys.stderr)
         print(json.dumps({"continue": True}))
 
 

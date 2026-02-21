@@ -44,7 +44,7 @@ def main():
         file_path = tool_input.get("file_path", "")
 
         # Block writes to AGENTS.md — it's a shared cross-tool file (read-only)
-        if file_path.endswith("AGENTS.md"):
+        if file_path.lower().endswith("agents.md"):
             print(_deny(
                 "Do not write to AGENTS.md. It is a cross-tool agent instruction "
                 "file shared with other AI coding tools (Codex, Cursor, Amp, etc.) "

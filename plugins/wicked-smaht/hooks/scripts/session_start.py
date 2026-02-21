@@ -185,14 +185,13 @@ def main():
 
     # Detect AGENTS.md for cross-tool context (loaded before CLAUDE.md)
     cwd = Path.cwd()
-    agents_md = cwd / "AGENTS.md"
-    claude_md = cwd / "CLAUDE.md"
-    if agents_md.exists():
-        if claude_md.exists():
-            context_lines.append("Project context: AGENTS.md + CLAUDE.md detected (general + Claude-specific)")
-        else:
-            context_lines.append("Project context: AGENTS.md detected (cross-tool agent instructions)")
-    elif claude_md.exists():
+    agents_md_exists = (cwd / "AGENTS.md").exists()
+    claude_md_exists = (cwd / "CLAUDE.md").exists()
+    if agents_md_exists and claude_md_exists:
+        context_lines.append("Project context: AGENTS.md + CLAUDE.md detected (general + Claude-specific)")
+    elif agents_md_exists:
+        context_lines.append("Project context: AGENTS.md detected (cross-tool agent instructions)")
+    elif claude_md_exists:
         context_lines.append("Project context: CLAUDE.md detected")
 
     # Get active project
