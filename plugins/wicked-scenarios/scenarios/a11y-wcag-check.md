@@ -23,6 +23,10 @@ export PAGE_URL="${PAGE_URL:-https://example.com}"
 ### Step 1: WCAG 2.1 AA audit (pa11y)
 
 ```bash
+if ! command -v pa11y &>/dev/null; then
+  echo "SKIP: pa11y not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 pa11y --standard WCAG2AA --reporter json "${PAGE_URL}" > "${TMPDIR:-/tmp}/pa11y-results.json" 2>&1
 ```
 
@@ -31,6 +35,10 @@ pa11y --standard WCAG2AA --reporter json "${PAGE_URL}" > "${TMPDIR:-/tmp}/pa11y-
 ### Step 2: Summarize findings (pa11y)
 
 ```bash
+if ! command -v pa11y &>/dev/null; then
+  echo "SKIP: pa11y not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 pa11y --standard WCAG2AA "${PAGE_URL}" 2>&1 | head -20
 ```
 

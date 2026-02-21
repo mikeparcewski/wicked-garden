@@ -16,6 +16,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sqlite3
 import sys
 import tempfile
@@ -764,6 +765,168 @@ def import_graph_extras(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[
     return (lineage_count, service_nodes_count, service_connections_count)
 
 
+def resolve_orphan_refs(conn: sqlite3.Connection) -> int:
+    """Resolve symbol_refs where target_id is an unqualified name (not a real symbol ID).
+
+    During JSONL import, imported_names and some call refs use plain symbol names
+    (e.g., 'DatabaseConnection') as target_id instead of qualified IDs
+    (e.g., '/path/to/file.py::DatabaseConnection'). This function resolves them
+    by matching against actual symbol names in the symbols table.
+
+    Returns:
+        Number of refs resolved.
+    """
+    cursor = conn.cursor()
+
+    # Find orphan refs: target_id doesn't match any symbol ID
+    # These are typically plain names from imported_names or unresolved calls
+    cursor.execute("""
+        SELECT DISTINCT sr.target_id
+        FROM symbol_refs sr
+        LEFT JOIN symbols s ON sr.target_id = s.id
+        WHERE s.id IS NULL
+    """)
+    orphan_targets = [row[0] for row in cursor.fetchall()]
+
+    if not orphan_targets:
+        return 0
+
+    resolved = 0
+
+    for orphan_name in orphan_targets:
+        if not orphan_name or '::' in orphan_name:
+            # Already qualified or empty — skip
+            continue
+
+        # Find symbols with this name (prefer code domain, non-file, non-import types)
+        cursor.execute("""
+            SELECT id, type, domain FROM symbols
+            WHERE name = ? AND type NOT IN ('file', 'import')
+            ORDER BY
+                CASE WHEN domain = 'code' THEN 0 ELSE 1 END,
+                CASE WHEN type IN ('class', 'interface', 'struct') THEN 0
+                     WHEN type IN ('function', 'method') THEN 1
+                     ELSE 2 END
+            LIMIT 1
+        """, (orphan_name,))
+        match = cursor.fetchone()
+
+        if match:
+            resolved_id = match[0]
+            # Update all refs pointing to this orphan name
+            cursor.execute("""
+                UPDATE symbol_refs SET target_id = ?
+                WHERE target_id = ?
+            """, (resolved_id, orphan_name))
+            resolved += cursor.rowcount
+
+    # Also resolve orphan source_ids (less common but possible)
+    cursor.execute("""
+        SELECT DISTINCT sr.source_id
+        FROM symbol_refs sr
+        LEFT JOIN symbols s ON sr.source_id = s.id
+        WHERE s.id IS NULL
+    """)
+    orphan_sources = [row[0] for row in cursor.fetchall()]
+
+    for orphan_name in orphan_sources:
+        if not orphan_name or '::' in orphan_name:
+            continue
+
+        cursor.execute("""
+            SELECT id FROM symbols
+            WHERE name = ? AND type NOT IN ('file', 'import')
+            ORDER BY CASE WHEN domain = 'code' THEN 0 ELSE 1 END
+            LIMIT 1
+        """, (orphan_name,))
+        match = cursor.fetchone()
+
+        if match:
+            cursor.execute("""
+                UPDATE symbol_refs SET source_id = ?
+                WHERE source_id = ?
+            """, (match[0], orphan_name))
+            resolved += cursor.rowcount
+
+    # Clean up any remaining refs that still point to non-existent symbols
+    cursor.execute("""
+        DELETE FROM symbol_refs
+        WHERE target_id NOT IN (SELECT id FROM symbols)
+           OR source_id NOT IN (SELECT id FROM symbols)
+    """)
+
+    conn.commit()
+    return resolved
+
+
+def create_doc_code_crossrefs(conn: sqlite3.Connection) -> int:
+    """Create cross-references between doc sections and code symbols they mention.
+
+    Scans doc section names and content for mentions of code symbol names,
+    creating 'documents' refs from doc sections to the code symbols they reference.
+
+    Returns:
+        Number of cross-references created.
+    """
+    cursor = conn.cursor()
+
+    # Get all code symbols (classes, functions, methods — not files or imports)
+    cursor.execute("""
+        SELECT id, name FROM symbols
+        WHERE domain = 'code' AND type NOT IN ('file', 'import')
+        AND LENGTH(name) >= 3
+    """)
+    code_symbols = cursor.fetchall()
+
+    if not code_symbols:
+        return 0
+
+    # Build a lookup: name -> id (prefer classes/interfaces over methods/functions)
+    name_to_id = {}
+    for row in code_symbols:
+        name = row['name']
+        if name not in name_to_id:
+            name_to_id[name] = row['id']
+
+    # Get all doc sections with their names (which often contain symbol references)
+    cursor.execute("""
+        SELECT id, name, content FROM symbols
+        WHERE domain = 'doc' AND type NOT IN ('file',)
+    """)
+    doc_sections = cursor.fetchall()
+
+    if not doc_sections:
+        return 0
+
+    ref_batch = []
+    seen = set()
+
+    for doc in doc_sections:
+        doc_id = doc['id']
+        doc_name = doc['name'] or ''
+        doc_content = doc['content'] or ''
+        # Combine name and content for matching
+        searchable = f"{doc_name} {doc_content}"
+
+        for sym_name, sym_id in name_to_id.items():
+            # Match symbol names in doc text using word boundaries
+            # Look for backtick-wrapped (`ClassName`) or standalone PascalCase/camelCase names
+            if re.search(r'(?:`' + re.escape(sym_name) + r'`|\b' + re.escape(sym_name) + r'\b)', searchable):
+                ref_key = (doc_id, sym_id)
+                if ref_key not in seen:
+                    seen.add(ref_key)
+                    ref_batch.append((doc_id, sym_id, 'documents'))
+
+    if ref_batch:
+        cursor.executemany("""
+            INSERT OR IGNORE INTO symbol_refs (source_id, target_id, ref_type)
+            VALUES (?, ?, ?)
+        """, ref_batch)
+
+    conn.commit()
+    return len(ref_batch)
+
+
 def populate_categories_cache(conn: sqlite3.Connection):
     """Pre-aggregate category stats and cross-category relationships into cache tables."""
     cursor = conn.cursor()
@@ -910,6 +1073,12 @@ def main():
         if args.existing_db:
             graph_symbols, graph_refs = import_graph_db(conn, args.existing_db)
             graph_lineage, graph_services, graph_connections = import_graph_extras(conn, args.existing_db)
+
+        # Resolve orphan refs (imported_names with plain names instead of IDs)
+        orphan_resolved = resolve_orphan_refs(conn)
+
+        # Create doc-to-code cross-references
+        doc_code_refs = create_doc_code_crossrefs(conn)
 
         # Populate categories cache (after all symbols + refs imported)
         populate_categories_cache(conn)

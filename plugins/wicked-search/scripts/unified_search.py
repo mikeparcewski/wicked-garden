@@ -2073,6 +2073,11 @@ async def main():
     stats_parser.add_argument("--group-by", help="Group statistics by field (e.g., 'layer', 'type')")
     stats_parser.add_argument("--project", help="Project name for multi-project isolation")
 
+    # scout (no index required)
+    scout_parser = subparsers.add_parser("scout", help="Quick pattern reconnaissance (no index needed)")
+    scout_parser.add_argument("pattern", help="Pattern type: api, test, config, auth, db, error-handling, logging, validation, test-patterns")
+    scout_parser.add_argument("--path", "-p", default=".", help="Directory to scout")
+
     # graph (Symbol Graph specific)
     graph_parser = subparsers.add_parser("graph", help="Build and query Symbol Graph")
     graph_parser.add_argument("--path", "-p", default=".", help="Project path")
@@ -2258,6 +2263,144 @@ async def main():
                 graph.export_sqlite(Path(args.export_db))
                 print(f"  Exported SQLite: {args.export_db}")
 
+    elif args.command == "scout":
+        # Scout: quick pattern reconnaissance without indexing
+        scout_path = Path(args.path).resolve()
+        if not scout_path.exists():
+            print(f"Error: Path {scout_path} does not exist", file=sys.stderr)
+            return
+
+        # Define pattern configs: pattern_name -> list of (label, regex, description)
+        SCOUT_PATTERNS = {
+            "api": [
+                ("API Routes", r'@(app\.(get|post|put|delete|patch)|router\.(get|post|put|delete|patch)|RequestMapping|GetMapping|PostMapping|PutMapping|DeleteMapping)', "Route decorators/annotations"),
+                ("API Endpoints", r'(app\.route|@api_view|@action|url\(|path\(|Route\()', "Endpoint definitions"),
+                ("REST Handlers", r'(def (get|post|put|delete|patch|list|create|update|destroy)\(|async def (get|post|put|delete)\()', "HTTP method handlers"),
+            ],
+            "test": [
+                ("Test Classes", r'class\s+Test\w+', "Test class definitions"),
+                ("Test Functions", r'(def\s+test_\w+|it\s*\(|describe\s*\(|test\s*\()', "Test function/block definitions"),
+                ("Assertions", r'(assert\w*\(|expect\(|should\.|assertEqual|assertTrue|assertFalse|assertRaises)', "Assertion statements"),
+                ("Mocks", r'(Mock\(|mock\.|patch\(|@patch|jest\.fn|sinon\.stub|vi\.fn)', "Mock/stub usage"),
+            ],
+            "config": [
+                ("Config Files", r'(\.env|\.ini|\.yaml|\.yml|\.toml|\.cfg|config\.\w+)', "Configuration files (filename match)"),
+                ("Environment Variables", r'(os\.environ|process\.env|getenv\(|ENV\[)', "Environment variable access"),
+                ("Settings Classes", r'(class\s+\w*(Config|Settings|Options)\b|DATABASES\s*=|INSTALLED_APPS)', "Settings/config definitions"),
+            ],
+            "auth": [
+                ("Authentication", r'(authenticate|login|logout|sign_in|sign_out|JWT|Bearer|OAuth|token)', "Auth-related code"),
+                ("Authorization", r'(authorize|permission|role|access_control|@login_required|IsAuthenticated|has_perm)', "Authorization checks"),
+                ("Credentials", r'(password|credential|secret|api_key|auth_token)', "Credential handling"),
+            ],
+            "db": [
+                ("Database Queries", r'(SELECT\s+|INSERT\s+INTO|UPDATE\s+|DELETE\s+FROM|CREATE\s+TABLE)', "SQL statements"),
+                ("ORM Models", r'(class\s+\w+\(.*Model\)|db\.Column|models\.\w+Field|@Entity|@Table)', "ORM model definitions"),
+                ("Migrations", r'(migrate|migration|CreateModel|AddField|AlterField|RunSQL)', "Migration code"),
+            ],
+            "error-handling": [
+                ("Try/Catch Blocks", r'(try\s*:|try\s*\{|catch\s*\(|except\s+)', "Exception handling blocks"),
+                ("Throw/Raise", r'(raise\s+\w+|throw\s+new|throw\s+\w+)', "Error raising statements"),
+                ("Error Types", r'(Error|Exception|ValueError|TypeError|RuntimeError|IOError|KeyError|AttributeError|IndexError)\b', "Error/exception type references"),
+            ],
+            "logging": [
+                ("Logger Imports", r'(import\s+logging|require.*log|from\s+\w+\s+import.*[Ll]ogger)', "Logger imports"),
+                ("Logger Calls", r'(logger\.\w+\(|log\.\w+\(|console\.\w+\(|logging\.\w+\()', "Logging method calls"),
+                ("Log Levels", r'\.(debug|info|warning|warn|error|critical|fatal)\(', "Log level usage"),
+            ],
+            "validation": [
+                ("Validation Models", r'(class\s+\w+\(.*(?:BaseModel|Schema|Validator|Form)\)|@validates|@validator)', "Validation class definitions"),
+                ("Type Checks", r'(isinstance\(|typeof\s+|is_valid\(|validate\(|@field_validator)', "Type/validation checks"),
+                ("Input Sanitization", r'(sanitize|escape|clean|strip_tags|bleach|html\.escape)', "Input sanitization"),
+            ],
+            "test-patterns": [
+                ("Test Classes/Functions", r'(class\s+Test\w+|def\s+test_\w+|describe\s*\(|it\s*\()', "Test definitions"),
+                ("Test Methods", r'def\s+test_\w+\s*\(', "Test method definitions"),
+                ("Assertions", r'(self\.assert\w+|assert\s+|expect\(|should\.|\.to\w*\()', "Assertion patterns"),
+                ("Mocks/Stubs", r'(@patch|Mock\(|mock\.|MagicMock|jest\.fn|sinon|vi\.fn|stub\()', "Mock/stub patterns"),
+            ],
+        }
+
+        pattern_type = args.pattern.lower()
+        if pattern_type not in SCOUT_PATTERNS:
+            print(f"Unknown pattern type: '{pattern_type}'")
+            print(f"Available patterns: {', '.join(sorted(SCOUT_PATTERNS.keys()))}")
+            return
+
+        patterns = SCOUT_PATTERNS[pattern_type]
+
+        # Collect code files (skip binary, hidden, vendor, node_modules)
+        skip_dirs = {'.git', 'node_modules', '__pycache__', '.venv', 'venv', 'vendor', 'dist', 'build', '.tox'}
+        code_extensions = {'.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.go', '.rb', '.rs', '.cs', '.php',
+                          '.c', '.cpp', '.h', '.hpp', '.swift', '.kt', '.scala', '.sh', '.bash',
+                          '.yaml', '.yml', '.json', '.toml', '.ini', '.cfg', '.env', '.md', '.txt'}
+
+        files = []
+        for root, dirs, filenames in os.walk(str(scout_path)):
+            dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith('.')]
+            for fname in filenames:
+                fpath = Path(root) / fname
+                if fpath.suffix.lower() in code_extensions:
+                    files.append(fpath)
+
+        if not files:
+            print(f"No code files found in {scout_path}")
+            return
+
+        # Scan files for patterns
+        results = {}
+        total_matches = 0
+        files_with_matches = set()
+
+        for label, regex, _desc in patterns:
+            results[label] = []
+            compiled = re.compile(regex, re.IGNORECASE)
+
+            for fpath in files:
+                try:
+                    content = fpath.read_text(encoding='utf-8', errors='replace')
+                    lines = content.split('\n')
+                    file_matches = []
+                    for i, line in enumerate(lines, 1):
+                        if compiled.search(line):
+                            file_matches.append((i, line.strip()))
+                    if file_matches:
+                        rel_path = str(fpath.relative_to(scout_path))
+                        results[label].append({
+                            'file': rel_path,
+                            'matches': file_matches,
+                            'count': len(file_matches),
+                        })
+                        total_matches += len(file_matches)
+                        files_with_matches.add(rel_path)
+                except Exception:
+                    continue
+
+        # Format output
+        print(f"\n## Scout: {pattern_type}")
+        print()
+
+        for label, regex, _desc in patterns:
+            section_results = results.get(label, [])
+            if not section_results:
+                continue
+
+            section_total = sum(r['count'] for r in section_results)
+            print(f"### {label}")
+            for r in section_results:
+                if r['count'] == 1:
+                    line_num, line_text = r['matches'][0]
+                    print(f"{r['file']}:{line_num} ({line_text[:60]})")
+                else:
+                    print(f"{r['file']} ({r['count']} matches)")
+                    for line_num, line_text in r['matches'][:5]:
+                        print(f"  :{line_num} {line_text[:70]}")
+                    if r['count'] > 5:
+                        print(f"  ... and {r['count'] - 5} more")
+            print()
+
+        print(f"Summary: {total_matches} {pattern_type} patterns across {len(files_with_matches)} files")
+
     elif args.command in ("search", "code", "docs", "refs", "impl", "blast-radius", "stats"):
         # Auto-ensure fresh index (builds if missing)
         await index.ensure_fresh(verbose=True)
@@ -2314,16 +2457,18 @@ async def main():
 
             raw_refs = engine.find_references(symbol_id)
             # Adapt engine format {incoming, outgoing} to display format
-            # Migration stores ref_types as: calls, imports, extends, depends_on
+            # Migration stores ref_types as: calls, imports, extends, depends_on, documents
             refs = {}
             for r in raw_refs.get('incoming', []):
                 rt = r.get('ref_type', 'unknown')
-                key_map = {'calls': 'called_by', 'imports': 'imported_by', 'extends': 'inherited_by', 'depends_on': 'depended_on_by'}
+                key_map = {'calls': 'called_by', 'imports': 'imported_by', 'extends': 'inherited_by',
+                           'depends_on': 'depended_on_by', 'documents': 'documented_in'}
                 key = key_map.get(rt, f'{rt}_by')
                 refs.setdefault(key, []).append(r)
             for r in raw_refs.get('outgoing', []):
                 rt = r.get('ref_type', 'unknown')
-                key_map = {'calls': 'calls', 'imports': 'imports', 'extends': 'inherits', 'depends_on': 'depends_on'}
+                key_map = {'calls': 'calls', 'imports': 'imports', 'extends': 'inherits',
+                           'depends_on': 'depends_on', 'documents': 'documents'}
                 key = key_map.get(rt, rt)
                 refs.setdefault(key, []).append(r)
 
@@ -2394,15 +2539,33 @@ async def main():
 
         elif args.command == "impl":
             # Find the doc section
-            matches = engine.search_docs(args.section, limit=1)
+            matches = engine.search_docs(args.section, limit=5)
             if not matches:
                 print(f"Doc section '{args.section}' not found")
                 return
 
-            node_id = matches[0]['id']
-            # Find code symbols that reference this doc section
-            refs = engine.find_references(node_id)
-            implementations = refs.get('incoming', [])
+            # Try all matching doc sections to find implementations
+            implementations = []
+            seen_ids = set()
+
+            for match in matches:
+                node_id = match['id']
+                refs = engine.find_references(node_id)
+
+                # Check outgoing refs (doc section → code symbols via 'documents' refs)
+                for r in refs.get('outgoing', []):
+                    if r.get('ref_type') == 'documents' and r.get('id') not in seen_ids:
+                        # Filter to code symbols only (not files/imports)
+                        if r.get('type', '') not in ('file', 'import'):
+                            implementations.append(r)
+                            seen_ids.add(r.get('id'))
+
+                # Also check incoming refs (backward compat: code → doc references)
+                for r in refs.get('incoming', []):
+                    if r.get('id') not in seen_ids:
+                        if r.get('domain', '') == 'code' and r.get('type', '') not in ('file', 'import'):
+                            implementations.append(r)
+                            seen_ids.add(r.get('id'))
 
             print(f"\nImplementations of: {args.section}")
             print("-" * 60)
