@@ -512,7 +512,7 @@ def save_patches(patch_set: PatchSet, output_path: str):
         "files_affected": data.get('files_affected', []),
         "patch_count": len(data.get('patches', [])),
         "has_errors": patch_set.has_errors,
-        "warnings": list(patch_set.warnings) if patch_set.warnings else [],
+        "warnings": patch_set.warnings or [],
     }
     with open(manifest_path, 'w') as f:
         json.dump(manifest, f, indent=2)

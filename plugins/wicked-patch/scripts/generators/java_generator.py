@@ -325,8 +325,8 @@ class JavaGenerator(BaseGenerator):
                                 and l != "}" and l != "{"
                             ]
 
-                            if len(non_accessor_lines) <= 1:
-                                # Method primarily uses this accessor — remove entire method
+                            if len(non_accessor_lines) == 0:
+                                # Method exclusively uses this accessor — remove entire method
                                 removed_methods.add(method_start)
                                 patches.append(Patch(
                                     file_path=file_path,
@@ -364,7 +364,7 @@ class JavaGenerator(BaseGenerator):
         for i in range(line_idx, -1, -1):
             brace_count += lines[i].count("}") - lines[i].count("{")
             stripped = lines[i].strip()
-            if re.match(r'(public|private|protected)\s+', stripped) and "(" in stripped:
+            if re.match(r'((public|private|protected)\s+)?\w+\s+\w+\s*\(', stripped):
                 # Found a method signature — verify we're inside it
                 if brace_count <= 0:
                     return i
@@ -439,7 +439,7 @@ class JavaGenerator(BaseGenerator):
                 new_line = line.replace(old_setter, new_setter)
                 # Also rename the parameter: (Type oldName) -> (Type newName)
                 new_line = re.sub(
-                    rf'\(\s*(\w+)\s+{re.escape(old_name)}\s*\)',
+                    rf'\(\s*([^)]+?)\s+{re.escape(old_name)}\s*\)',
                     rf'(\1 {new_name})',
                     new_line
                 )
