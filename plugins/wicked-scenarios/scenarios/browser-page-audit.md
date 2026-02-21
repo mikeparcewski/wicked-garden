@@ -31,7 +31,7 @@ mkdir -p "${TMPDIR:-/tmp}/wicked-scenario-pw"
 ### Step 1: Page load and title check (playwright)
 
 ```bash
-if ! command -v npx &>/dev/null || ! npx playwright --version &>/dev/null; then
+if ! npx playwright --version &>/dev/null; then
   echo "SKIP: playwright not installed. Run /wicked-scenarios:setup to install."
   exit 0
 fi
@@ -50,7 +50,7 @@ npx playwright test "${TMPDIR:-/tmp}/wicked-scenario-pw"/title.spec.ts --reporte
 ### Step 2: Content verification (playwright)
 
 ```bash
-if ! command -v npx &>/dev/null || ! npx playwright --version &>/dev/null; then
+if ! npx playwright --version &>/dev/null; then
   echo "SKIP: playwright not installed. Run /wicked-scenarios:setup to install."
   exit 0
 fi

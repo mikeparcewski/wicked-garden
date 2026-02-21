@@ -875,6 +875,10 @@ def create_doc_code_crossrefs(conn: sqlite3.Connection) -> int:
         SELECT id, name FROM symbols
         WHERE domain = 'code' AND type NOT IN ('file', 'import')
         AND LENGTH(name) >= 3
+        ORDER BY
+            CASE WHEN type IN ('class', 'interface', 'struct') THEN 0
+                 WHEN type IN ('function', 'method') THEN 1
+                 ELSE 2 END
     """)
     code_symbols = cursor.fetchall()
 
@@ -908,10 +912,13 @@ def create_doc_code_crossrefs(conn: sqlite3.Connection) -> int:
         # Combine name and content for matching
         searchable = f"{doc_name} {doc_content}"
 
-        for sym_name, sym_id in name_to_id.items():
-            # Match symbol names in doc text using word boundaries
-            # Look for backtick-wrapped (`ClassName`) or standalone PascalCase/camelCase names
-            if re.search(r'(?:`' + re.escape(sym_name) + r'`|\b' + re.escape(sym_name) + r'\b)', searchable):
+        # Tokenize once per doc — splitting on non-word chars also strips backticks
+        # so `ClassName` yields "ClassName" as a token
+        tokens = set(t for t in re.split(r'\W+', searchable) if len(t) >= 3)
+
+        for token in tokens:
+            sym_id = name_to_id.get(token)
+            if sym_id is not None:
                 ref_key = (doc_id, sym_id)
                 if ref_key not in seen:
                     seen.add(ref_key)
@@ -1126,6 +1133,8 @@ def main():
             'graph_lineage': graph_lineage,
             'graph_services': graph_services,
             'graph_connections': graph_connections,
+            'orphan_refs_resolved': orphan_resolved,
+            'doc_code_crossrefs': doc_code_refs,
             'stats': stats
         }
 
