@@ -1,6 +1,6 @@
 {
   "name": "wicked-delivery",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Feature delivery specialist covering PMO, onboarding, experimentation, rollout, and FinOps domains. Sprint management, stakeholder reporting, cost analysis, progressive rollouts, and new developer onboarding.",
   "author": {
     "name": "Mike Parcewski"
