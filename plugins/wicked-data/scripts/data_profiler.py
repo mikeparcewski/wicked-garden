@@ -48,9 +48,15 @@ def detect_type(values: List[Any]) -> str:
     if all(str(v).lower() in bool_values for v in non_null[:100]):
         return "boolean"
 
-    # Try datetime
-    datetime_patterns = ['-', '/', ':', 'T']
-    if any(pattern in str(non_null[0]) for pattern in datetime_patterns):
+    # Try datetime — check a sample against common date formats
+    import re
+    datetime_re = re.compile(
+        r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}'   # date part: YYYY-MM-DD
+        r'([T ]\d{1,2}:\d{2}(:\d{2})?)?'   # optional time part
+        r'([Zz]|[+-]\d{2}:?\d{2})?$'       # optional timezone
+    )
+    sample = non_null[:20]
+    if all(datetime_re.match(str(v)) for v in sample):
         return "datetime"
 
     return "string"

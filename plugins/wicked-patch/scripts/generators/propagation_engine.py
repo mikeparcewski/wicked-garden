@@ -371,19 +371,22 @@ class PropagationEngine:
                 })
 
         # 1. Primary refs table (has confidence + evidence)
-        cursor.execute(
-            "SELECT target_id, ref_type, confidence FROM refs WHERE source_id = ?",
-            (symbol_id,)
-        )
-        for row in cursor.fetchall():
-            _add_result(row["target_id"], row["ref_type"], "outgoing", row["confidence"] or "medium")
+        try:
+            cursor.execute(
+                "SELECT target_id, ref_type, confidence FROM refs WHERE source_id = ?",
+                (symbol_id,)
+            )
+            for row in cursor.fetchall():
+                _add_result(row["target_id"], row["ref_type"], "outgoing", row["confidence"] or "medium")
 
-        cursor.execute(
-            "SELECT source_id, ref_type, confidence FROM refs WHERE target_id = ?",
-            (symbol_id,)
-        )
-        for row in cursor.fetchall():
-            _add_result(row["source_id"], row["ref_type"], "incoming", row["confidence"] or "medium")
+            cursor.execute(
+                "SELECT source_id, ref_type, confidence FROM refs WHERE target_id = ?",
+                (symbol_id,)
+            )
+            for row in cursor.fetchall():
+                _add_result(row["source_id"], row["ref_type"], "incoming", row["confidence"] or "medium")
+        except sqlite3.OperationalError:
+            pass  # Table may not exist in older schemas
 
         # 2. symbol_refs table (unified cross-reference lookup)
         for tbl_query in [

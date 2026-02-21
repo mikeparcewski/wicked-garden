@@ -45,7 +45,7 @@ def _load_session(path):
         return {
             "id": path.stem,
             "topic": data.get("topic", ""),
-            "summary": (data.get("synthesis", {}).get("summary", "") or "")[:500],
+            "summary": ((data.get("synthesis") or {}).get("summary", "") or "")[:500],
             "perspectives_count": len(data.get("perspectives", [])),
             "created": data.get("created", ""),
             "project": data.get("project", ""),
@@ -63,12 +63,15 @@ def _load_session_full(path):
         return {
             "id": path.stem,
             "topic": data.get("topic", ""),
-            "synthesis": data.get("synthesis", {}),
+            "synthesis": data.get("synthesis") or {},
             "perspectives": [
                 {
                     "persona": p.get("persona", ""),
                     "role": p.get("role", ""),
                     "response": (p.get("response", "") or "")[:1000],
+                    "position": p.get("position", ""),
+                    "key_concern": p.get("key_concern", ""),
+                    "would_change_mind": p.get("would_change_mind", ""),
                 }
                 for p in perspectives
             ],
