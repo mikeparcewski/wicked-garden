@@ -460,6 +460,55 @@ class PropagationEngine:
             except sqlite3.OperationalError:
                 pass
 
+        # 8. Cross-language and name-based reference discovery.
+        # Always runs (not just as fallback) to find:
+        # a) Import nodes referencing this symbol by name
+        # b) Same-name symbols across languages (Java Order <-> TypeScript Order)
+        try:
+            symbol_name = symbol_id.rsplit('::', 1)[-1] if '::' in symbol_id else symbol_id
+            cursor.execute("SELECT file_path FROM symbols WHERE id = ?", (symbol_id,))
+            sym_row = cursor.fetchone()
+            sym_file = sym_row["file_path"] if sym_row else None
+
+            if symbol_name and sym_file:
+                # Derive project root (up to first 4 path components) for locality filtering
+                parts = sym_file.replace("\\", "/").split("/")
+                project_prefix = "/".join(parts[:min(4, len(parts) - 1)])
+
+                # a) Find import nodes in the same project that reference this name
+                # Use exact match OR dotted suffix to avoid false positives (e.g., SuperUser matching User)
+                cursor.execute("""
+                    SELECT DISTINCT s.file_path
+                    FROM symbols s
+                    WHERE s.type = 'import' AND (s.name = ? OR s.name LIKE ?)
+                      AND s.file_path LIKE ?
+                      AND s.file_path != ?
+                """, (symbol_name, f'%.{symbol_name}', f'{project_prefix}%', sym_file))
+                for row in cursor.fetchall():
+                    cursor.execute("""
+                        SELECT id FROM symbols
+                        WHERE file_path = ?
+                          AND type IN ('class', 'interface', 'module', 'struct')
+                        LIMIT 1
+                    """, (row["file_path"],))
+                    class_row = cursor.fetchone()
+                    if class_row:
+                        _add_result(class_row["id"], "imports", "incoming", "low")
+
+                # b) Find same-name symbols in different languages within same project
+                cursor.execute("""
+                    SELECT id, type, file_path FROM symbols
+                    WHERE name = ?
+                      AND type IN ('class', 'interface', 'struct', 'table')
+                      AND file_path LIKE ?
+                      AND id != ?
+                """, (symbol_name, f'{project_prefix}%', symbol_id))
+                for row in cursor.fetchall():
+                    _add_result(row["id"], "maps_to", "outgoing", "low")
+
+        except (sqlite3.OperationalError, TypeError):
+            pass  # Graceful fallback if tables/columns missing
+
         return results
 
     def _trace_upstream(

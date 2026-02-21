@@ -765,13 +765,89 @@ def import_graph_extras(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[
     return (lineage_count, service_nodes_count, service_connections_count)
 
 
+def _find_symbol_by_name(cursor, name: str, source_file: str = None):
+    """Find a symbol by name with fallback strategies.
+
+    Tries exact name match first, then extracts the short name from dotted
+    import paths (e.g., 'com.app.models.User' -> 'User').
+
+    When multiple candidates match, prefers symbols in the same project directory
+    as the source file (same top-level path prefix).
+
+    Returns:
+        The matched symbol row (id, type, domain, file_path), or None.
+    """
+    # Build the ORDER BY clause with optional project-local preference
+    # If source_file is available, prefer symbols sharing the same project root
+    order_clause = """
+        ORDER BY
+            CASE WHEN domain = 'code' THEN 0 ELSE 1 END,
+            CASE WHEN type IN ('class', 'interface', 'struct') THEN 0
+                 WHEN type IN ('function', 'method') THEN 1
+                 ELSE 2 END
+    """
+
+    def _query_and_pick(query_name: str):
+        cursor.execute(f"""
+            SELECT id, type, domain, file_path FROM symbols
+            WHERE name = ? AND type NOT IN ('file', 'import')
+            {order_clause}
+        """, (query_name,))
+        candidates = cursor.fetchall()
+        if not candidates:
+            return None
+        if source_file and len(candidates) > 1:
+            local = _pick_local_candidate(candidates, source_file)
+            if local:
+                return local
+        return candidates[0]
+
+    # Strategy 1: Exact name match
+    match = _query_and_pick(name)
+    if match:
+        return match
+
+    # Strategy 2: Dotted import name — extract last segment
+    # e.g., 'com.app.models.User' -> 'User'
+    if '.' in name:
+        short_name = name.rsplit('.', 1)[-1]
+        match = _query_and_pick(short_name)
+        if match:
+            return match
+
+    return None
+
+
+def _pick_local_candidate(candidates, source_file: str):
+    """From a list of candidate symbols, pick one sharing the same project root.
+
+    Compares path prefixes (up to 4 components, excluding filename) to find
+    symbols in the same project tree as the source file.
+    """
+    # Extract project prefix (up to 4 path components for project-local matching)
+    parts = source_file.replace("\\", "/").split("/")
+    prefix = "/".join(parts[:min(4, len(parts) - 1)])
+
+    for candidate in candidates:
+        if candidate["file_path"] and candidate["file_path"].startswith(prefix):
+            return candidate
+    return None
+
+
 def resolve_orphan_refs(conn: sqlite3.Connection) -> int:
     """Resolve symbol_refs where target_id is an unqualified name (not a real symbol ID).
 
     During JSONL import, imported_names and some call refs use plain symbol names
-    (e.g., 'DatabaseConnection') as target_id instead of qualified IDs
-    (e.g., '/path/to/file.py::DatabaseConnection'). This function resolves them
-    by matching against actual symbol names in the symbols table.
+    (e.g., 'DatabaseConnection' or 'com.app.models.User') as target_id instead
+    of qualified IDs (e.g., '/path/to/file.py::DatabaseConnection'). This function
+    resolves them by matching against actual symbol names in the symbols table.
+
+    Handles:
+    - Simple names: 'User' -> matched by symbols.name
+    - Dotted imports: 'com.app.models.User' -> extract 'User', match by name
+    - Project-local preference: when multiple symbols match, prefer same-project
+    - UNIQUE conflicts: gracefully handles cases where resolution would create
+      duplicate (source_id, target_id, ref_type) rows
 
     Returns:
         Number of refs resolved.
@@ -779,7 +855,7 @@ def resolve_orphan_refs(conn: sqlite3.Connection) -> int:
     cursor = conn.cursor()
 
     # Find orphan refs: target_id doesn't match any symbol ID
-    # These are typically plain names from imported_names or unresolved calls
+    # Also fetch source_id so we can use project-local matching
     cursor.execute("""
         SELECT DISTINCT sr.target_id
         FROM symbol_refs sr
@@ -798,27 +874,35 @@ def resolve_orphan_refs(conn: sqlite3.Connection) -> int:
             # Already qualified or empty — skip
             continue
 
-        # Find symbols with this name (prefer code domain, non-file, non-import types)
+        # Get a representative source file for project-local matching
         cursor.execute("""
-            SELECT id, type, domain FROM symbols
-            WHERE name = ? AND type NOT IN ('file', 'import')
-            ORDER BY
-                CASE WHEN domain = 'code' THEN 0 ELSE 1 END,
-                CASE WHEN type IN ('class', 'interface', 'struct') THEN 0
-                     WHEN type IN ('function', 'method') THEN 1
-                     ELSE 2 END
+            SELECT s.file_path FROM symbol_refs sr
+            JOIN symbols s ON sr.source_id = s.id
+            WHERE sr.target_id = ?
             LIMIT 1
         """, (orphan_name,))
-        match = cursor.fetchone()
+        source_row = cursor.fetchone()
+        source_file = source_row[0] if source_row else None
+
+        match = _find_symbol_by_name(cursor, orphan_name, source_file)
 
         if match:
             resolved_id = match[0]
-            # Update all refs pointing to this orphan name
+            # Use INSERT OR IGNORE + DELETE to handle UNIQUE constraint conflicts.
+            # If updating target_id would create a duplicate (source_id, resolved_id, ref_type),
+            # the INSERT is silently skipped and the old row is deleted.
             cursor.execute("""
-                UPDATE symbol_refs SET target_id = ?
+                INSERT OR IGNORE INTO symbol_refs (source_id, target_id, ref_type)
+                SELECT source_id, ?, ref_type
+                FROM symbol_refs
                 WHERE target_id = ?
             """, (resolved_id, orphan_name))
-            resolved += cursor.rowcount
+            inserted = cursor.rowcount
+
+            cursor.execute("""
+                DELETE FROM symbol_refs WHERE target_id = ?
+            """, (orphan_name,))
+            resolved += inserted
 
     # Also resolve orphan source_ids (less common but possible)
     cursor.execute("""
@@ -833,22 +917,24 @@ def resolve_orphan_refs(conn: sqlite3.Connection) -> int:
         if not orphan_name or '::' in orphan_name:
             continue
 
-        cursor.execute("""
-            SELECT id FROM symbols
-            WHERE name = ? AND type NOT IN ('file', 'import')
-            ORDER BY CASE WHEN domain = 'code' THEN 0 ELSE 1 END
-            LIMIT 1
-        """, (orphan_name,))
-        match = cursor.fetchone()
+        match = _find_symbol_by_name(cursor, orphan_name)
 
         if match:
             cursor.execute("""
-                UPDATE symbol_refs SET source_id = ?
+                INSERT OR IGNORE INTO symbol_refs (source_id, target_id, ref_type)
+                SELECT ?, target_id, ref_type
+                FROM symbol_refs
                 WHERE source_id = ?
             """, (match[0], orphan_name))
-            resolved += cursor.rowcount
+            inserted = cursor.rowcount
+
+            cursor.execute("""
+                DELETE FROM symbol_refs WHERE source_id = ?
+            """, (orphan_name,))
+            resolved += inserted
 
     # Clean up any remaining refs that still point to non-existent symbols
+    # (external library refs like EasyMock, List, etc. that have no local definition)
     cursor.execute("""
         DELETE FROM symbol_refs
         WHERE target_id NOT IN (SELECT id FROM symbols)
