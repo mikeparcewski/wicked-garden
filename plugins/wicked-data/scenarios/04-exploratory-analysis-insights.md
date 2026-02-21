@@ -58,8 +58,8 @@ Begin with an open exploration of the dataset.
 
 Expected initial output:
 - 25 orders over 21 days
-- 18 unique customers
-- 5 product categories
+- 19 unique customers
+- 4 product categories
 - Order values range from $51.97 to $1,169.99
 - Mix of first-time (44%) and repeat customers (56%)
 

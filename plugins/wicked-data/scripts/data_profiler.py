@@ -14,11 +14,19 @@ Profiles CSV/Excel files to understand:
 import argparse
 import csv
 import json
+import re
 import sys
+import statistics
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from collections import defaultdict
-import statistics
+
+# Shared datetime regex — also used in schema_validator.py
+DATETIME_RE = re.compile(
+    r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}'   # date part: YYYY-MM-DD
+    r'([T ]\d{1,2}:\d{2}(:\d{2})?)?'   # optional time part
+    r'([Zz]|[+-]\d{2}:?\d{2})?$'       # optional timezone
+)
 
 
 def detect_type(values: List[Any]) -> str:
@@ -48,9 +56,9 @@ def detect_type(values: List[Any]) -> str:
     if all(str(v).lower() in bool_values for v in non_null[:100]):
         return "boolean"
 
-    # Try datetime
-    datetime_patterns = ['-', '/', ':', 'T']
-    if any(pattern in str(non_null[0]) for pattern in datetime_patterns):
+    # Try datetime — check a sample against common date formats
+    sample = non_null[:20]
+    if all(DATETIME_RE.match(str(v)) for v in sample):
         return "datetime"
 
     return "string"

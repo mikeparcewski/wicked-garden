@@ -17,6 +17,13 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Shared datetime regex — also used in data_profiler.py (keep in sync)
+DATETIME_RE = re.compile(
+    r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}'   # date part: YYYY-MM-DD
+    r'([T ]\d{1,2}:\d{2}(:\d{2})?)?'   # optional time part
+    r'([Zz]|[+-]\d{2}:?\d{2})?$'       # optional timezone
+)
+
 
 class ValidationError:
     def __init__(self, severity: str, column: str, message: str, row: Optional[int] = None):
@@ -51,8 +58,7 @@ def validate_type(value: str, expected_type: str) -> bool:
         elif expected_type == "boolean":
             return str(value).lower() in ('true', 'false', '1', '0', 'yes', 'no', 't', 'f')
         elif expected_type == "datetime":
-            # Basic datetime check (contains date/time separators)
-            return any(sep in str(value) for sep in ['-', '/', ':', 'T'])
+            return bool(DATETIME_RE.match(str(value)))
         elif expected_type == "string":
             return True
         else:
@@ -65,6 +71,12 @@ def validate_constraints(value: str, constraints: Dict[str, Any], data_type: str
     """Validate value against constraints. Returns error message if invalid."""
     if not constraints:
         return None
+
+    # Check enum/allowed_values constraint
+    allowed = constraints.get("enum") or constraints.get("allowed_values")
+    if allowed and value:
+        if value not in allowed:
+            return f"Value '{value}' is not in allowed values: {allowed}"
 
     # Check unique constraint (requires full dataset - handled separately)
     # Check pattern constraint (regex)

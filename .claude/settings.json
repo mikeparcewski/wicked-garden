@@ -9,7 +9,6 @@
   },
   "enabledPlugins": {
     "wicked-agentic@wicked-garden": true,
-    "wicked-cache@wicked-garden": true,
     "wicked-crew@wicked-garden": true,
     "wicked-data@wicked-garden": true,
     "wicked-delivery@wicked-garden": true,
