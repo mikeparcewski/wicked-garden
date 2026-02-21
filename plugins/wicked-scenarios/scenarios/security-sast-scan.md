@@ -24,6 +24,10 @@ export SCAN_TARGET="${SCAN_TARGET:-.}"
 ### Step 1: OWASP Top 10 scan (semgrep)
 
 ```bash
+if ! command -v semgrep &>/dev/null; then
+  echo "SKIP: semgrep not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 semgrep scan --config p/owasp-top-ten --json --quiet "${SCAN_TARGET}" > "${TMPDIR:-/tmp}/semgrep-results.json" 2>&1
 ```
 
@@ -32,6 +36,10 @@ semgrep scan --config p/owasp-top-ten --json --quiet "${SCAN_TARGET}" > "${TMPDI
 ### Step 2: Security audit ruleset (semgrep)
 
 ```bash
+if ! command -v semgrep &>/dev/null; then
+  echo "SKIP: semgrep not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 semgrep scan --config p/security-audit --json --quiet "${SCAN_TARGET}" 2>&1 | python3 -c "
 import sys, json
 data = json.load(sys.stdin)

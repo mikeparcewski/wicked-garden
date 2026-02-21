@@ -41,6 +41,10 @@ curl -sf --max-time 10 "${API_URL}/get" -H "Accept: application/json" | python3 
 ### Step 3: Detailed assertions with hurl (hurl)
 
 ```bash
+if ! command -v hurl &>/dev/null; then
+  echo "SKIP: hurl not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 cat > "${TMPDIR:-/tmp}/wicked-scenario-hurl.hurl" << 'HURL_EOF'
 GET https://httpbin.org/get
 HTTP 200

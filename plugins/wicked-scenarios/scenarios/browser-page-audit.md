@@ -16,6 +16,11 @@ Verifies that a web page loads successfully, renders expected content, and respo
 ## Setup
 
 ```bash
+# Check required tools
+if ! command -v npx &>/dev/null; then
+  echo "SKIP: npx not available (needed for playwright)"
+  exit 0
+fi
 # Ensure Playwright browsers are installed
 npx playwright install chromium 2>/dev/null || true
 mkdir -p "${TMPDIR:-/tmp}/wicked-scenario-pw"
@@ -26,6 +31,10 @@ mkdir -p "${TMPDIR:-/tmp}/wicked-scenario-pw"
 ### Step 1: Page load and title check (playwright)
 
 ```bash
+if ! command -v npx &>/dev/null || ! npx playwright --version &>/dev/null; then
+  echo "SKIP: playwright not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 cat > "${TMPDIR:-/tmp}/wicked-scenario-pw"/title.spec.ts << 'PW_EOF'
 import { test, expect } from '@playwright/test';
 test('page loads with correct title', async ({ page }) => {
@@ -41,6 +50,10 @@ npx playwright test "${TMPDIR:-/tmp}/wicked-scenario-pw"/title.spec.ts --reporte
 ### Step 2: Content verification (playwright)
 
 ```bash
+if ! command -v npx &>/dev/null || ! npx playwright --version &>/dev/null; then
+  echo "SKIP: playwright not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 cat > "${TMPDIR:-/tmp}/wicked-scenario-pw"/content.spec.ts << 'PW_EOF'
 import { test, expect } from '@playwright/test';
 test('page has expected content', async ({ page }) => {
@@ -57,6 +70,10 @@ npx playwright test "${TMPDIR:-/tmp}/wicked-scenario-pw"/content.spec.ts --repor
 ### Step 3: Snapshot with agent-browser (agent-browser)
 
 ```bash
+if ! command -v agent-browser &>/dev/null; then
+  echo "SKIP: agent-browser not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 agent-browser open https://example.com --headless && agent-browser snapshot
 ```
 

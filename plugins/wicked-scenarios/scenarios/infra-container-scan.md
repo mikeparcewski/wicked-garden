@@ -24,6 +24,10 @@ export IMAGE="alpine:3.19"
 ### Step 1: Vulnerability scan (trivy)
 
 ```bash
+if ! command -v trivy &>/dev/null; then
+  echo "SKIP: trivy not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 trivy image --severity HIGH,CRITICAL --exit-code 0 --format json --output "${TMPDIR:-/tmp}/trivy-results.json" "${IMAGE}" && echo "Scan complete"
 ```
 
@@ -32,6 +36,10 @@ trivy image --severity HIGH,CRITICAL --exit-code 0 --format json --output "${TMP
 ### Step 2: Check for critical vulnerabilities (trivy)
 
 ```bash
+if ! command -v trivy &>/dev/null; then
+  echo "SKIP: trivy not installed. Run /wicked-scenarios:setup to install."
+  exit 0
+fi
 trivy image --severity CRITICAL --exit-code 1 "${IMAGE}"
 ```
 
