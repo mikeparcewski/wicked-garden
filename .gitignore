@@ -117,3 +117,4 @@ COVERAGE_SUMMARY.md
 # Working directories
 experiments/
 phases/
+plugins/wicked-demo-metrics/
