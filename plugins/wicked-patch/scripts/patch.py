@@ -110,13 +110,18 @@ def _assess_risk(plan: PropagationPlan, change_type: str = "") -> dict:
     upstream = len(plan.upstream_impacts)
 
     # Determine risk level
+    risk_reason = None
     if change_type in ("remove_field", "rename_field"):
-        if upstream > 5 or files > 3:
+        if upstream > 10 or files > 6:
             risk_level = "HIGH"
         elif upstream > 0 or files > 1:
             risk_level = "MEDIUM"
         else:
             risk_level = "LOW"
+        # Special case: remove with no internal refs may have external consumers
+        if change_type == "remove_field" and upstream == 0 and total <= 1:
+            risk_level = "HIGH"
+            risk_reason = "no_internal_refs"
     elif change_type == "add_field":
         risk_level = "LOW"
     else:
@@ -150,6 +155,7 @@ def _assess_risk(plan: PropagationPlan, change_type: str = "") -> dict:
         "breaking": breaking,
         "test_coverage": "GOOD" if test_refs > 0 else "NONE",
         "test_refs": test_refs,
+        "risk_reason": risk_reason,
     }
 
 
@@ -203,6 +209,9 @@ def format_plan(plan: PropagationPlan, change_type: str = "") -> str:
     else:
         lines.append(f"  Breaking change: NO")
     lines.append(f"  Test coverage: {risk['test_coverage']} ({risk['test_refs']} test references found)")
+    if risk.get("risk_reason") == "no_internal_refs":
+        lines.append("  WARNING: Field has no internal references — may be used by external API clients or database tools")
+        lines.append("  Audit API contracts and external integrations before proceeding")
     lines.append("")
 
     lines.extend([
@@ -486,11 +495,27 @@ def cmd_generators(args):
 
 
 def save_patches(patch_set: PatchSet, output_path: str):
-    """Save patches to a JSON file."""
+    """Save patches to a JSON file, with a companion manifest.json."""
     data = patch_set.to_dict()
     data['generated_at'] = datetime.now().isoformat()
     with open(output_path, 'w') as f:
         json.dump(data, f, indent=2)
+
+    # Generate manifest.json alongside patches file
+    output_dir = Path(output_path).parent
+    manifest_path = output_dir / "manifest.json"
+    manifest = {
+        "patches_file": Path(output_path).name,
+        "generated_at": data['generated_at'],
+        "change_type": data.get('change_type', ''),
+        "target": data.get('target', ''),
+        "files_affected": data.get('files_affected', []),
+        "patch_count": len(data.get('patches', [])),
+        "has_errors": patch_set.has_errors,
+        "warnings": patch_set.warnings or [],
+    }
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest, f, indent=2)
 
 
 def apply_patches_interactive(
