@@ -111,15 +111,23 @@ def _assess_risk(plan: PropagationPlan, change_type: str = "") -> dict:
 
     # Determine risk level
     risk_reason = None
-    if change_type in ("remove_field", "rename_field"):
+    if change_type == "remove_field":
+        # Field removal is always a breaking change — even if no internal
+        # references are found, external consumers (APIs, serialization,
+        # database tools) may depend on the field.
+        risk_level = "HIGH"
+        if upstream == 0 and total <= 1:
+            risk_reason = "no_internal_refs"
+    elif change_type == "rename_field":
         if upstream > 10 or files > 6:
             risk_level = "HIGH"
         elif upstream > 0 or files > 1:
             risk_level = "MEDIUM"
         else:
             risk_level = "LOW"
-        # Special case: remove with no internal refs may have external consumers
-        if change_type == "remove_field" and upstream == 0 and total <= 1:
+        # Orphaned field rename is as risky as removal — external consumers
+        # may depend on the old name via APIs, serialization, or DB schemas.
+        if upstream == 0 and total <= 1:
             risk_level = "HIGH"
             risk_reason = "no_internal_refs"
     elif change_type == "add_field":
@@ -140,8 +148,12 @@ def _assess_risk(plan: PropagationPlan, change_type: str = "") -> dict:
     else:
         confidence = "LOW"
 
-    # Detect breaking changes
-    breaking = change_type in ("remove_field", "rename_field") and upstream > 0
+    # Detect breaking changes — removal is always breaking regardless of
+    # internal references; renames break when upstream consumers exist.
+    if change_type == "remove_field":
+        breaking = True
+    else:
+        breaking = change_type == "rename_field" and upstream > 0
 
     # Check for test files in impacts
     test_refs = sum(
