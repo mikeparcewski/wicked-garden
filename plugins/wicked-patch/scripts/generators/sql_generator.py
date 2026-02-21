@@ -149,6 +149,8 @@ class SqlGenerator(BaseGenerator):
             patches.extend(self._remove_column(change_spec, symbol, file_content, dialect))
         elif change_spec.change_type == ChangeType.RENAME_FIELD:
             patches.extend(self._rename_column(change_spec, symbol, file_content, dialect))
+        elif change_spec.change_type == ChangeType.RENAME_COLUMN:
+            patches.extend(self._rename_column(change_spec, symbol, file_content, dialect))
         elif change_spec.change_type == ChangeType.MODIFY_FIELD:
             patches.extend(self._modify_column(change_spec, symbol, file_content, dialect))
 
@@ -413,18 +415,19 @@ class SqlGenerator(BaseGenerator):
         file_content: str,
         dialect: str,
     ) -> List[Patch]:
-        """Generate ALTER TABLE RENAME COLUMN statement."""
+        """Generate ALTER TABLE RENAME COLUMN statement as a new migration file."""
         patches = []
         old_name = change_spec.old_name
         new_name = change_spec.new_name
         if not old_name or not new_name:
             return patches
 
-        lines = file_content.split("\n")
         file_path = symbol.get("file_path", "")
 
         table_name = self._resolve_table_name(symbol, file_content)
-        old_column = self._to_snake_case(old_name)
+        # Use explicit column names from field_spec when available, else derive from field names
+        metadata = symbol.get("metadata", {}) if isinstance(symbol, dict) else getattr(symbol, "metadata", {})
+        old_column = metadata.get("column_name") or self._to_snake_case(old_name)
         new_column = self._to_snake_case(new_name)
 
         if dialect == "oracle":
@@ -432,31 +435,50 @@ class SqlGenerator(BaseGenerator):
         elif dialect == "sqlserver":
             alter_stmt = f"EXEC sp_rename '{table_name}.{old_column}', '{new_column}', 'COLUMN';"
         elif dialect == "mysql":
-            # MySQL requires type in CHANGE COLUMN - use VARCHAR as placeholder
             alter_stmt = f"-- MySQL requires column type; adjust as needed\nALTER TABLE {table_name} RENAME COLUMN {old_column} TO {new_column};"
         else:
             alter_stmt = f"ALTER TABLE {table_name} RENAME COLUMN {old_column} TO {new_column};"
 
-        # Find insertion point
-        insert_line = len(lines) - 1
-        for i in range(len(lines) - 1, -1, -1):
-            if lines[i].strip():
-                insert_line = i
-                break
+        # Generate new migration file path if in a migration directory
+        migration_path = self._next_migration_path(
+            file_path, f"rename_{old_column}_to_{new_column}_in_{table_name}"
+        )
 
-        comment = f"\n-- Rename column {old_column} to {new_column} in {table_name}"
-        new_content = f"{comment}\n{alter_stmt}"
+        if migration_path != file_path:
+            # New migration file
+            new_content = f"-- Rename column {old_column} to {new_column} in {table_name}\n{alter_stmt}\n"
+            patches.append(Patch(
+                file_path=migration_path,
+                line_start=1,
+                line_end=0,
+                old_content="",
+                new_content=new_content,
+                description=f"New migration: rename column '{old_column}' to '{new_column}'",
+                symbol_id=symbol.get("id"),
+                confidence="high",
+            ))
+        else:
+            # Not a migration directory — append to existing file
+            lines = file_content.split("\n")
+            insert_line = len(lines) - 1
+            for i in range(len(lines) - 1, -1, -1):
+                if lines[i].strip():
+                    insert_line = i
+                    break
 
-        patches.append(Patch(
-            file_path=file_path,
-            line_start=insert_line + 2,
-            line_end=insert_line + 1,
-            old_content="",
-            new_content=new_content,
-            description=f"Rename column '{old_column}' to '{new_column}'",
-            symbol_id=symbol.get("id"),
-            confidence="high",
-        ))
+            comment = f"\n-- Rename column {old_column} to {new_column} in {table_name}"
+            new_content = f"{comment}\n{alter_stmt}"
+
+            patches.append(Patch(
+                file_path=file_path,
+                line_start=insert_line + 2,
+                line_end=insert_line + 1,
+                old_content="",
+                new_content=new_content,
+                description=f"Rename column '{old_column}' to '{new_column}'",
+                symbol_id=symbol.get("id"),
+                confidence="high",
+            ))
 
         return patches
 
@@ -467,13 +489,12 @@ class SqlGenerator(BaseGenerator):
         file_content: str,
         dialect: str,
     ) -> List[Patch]:
-        """Generate ALTER TABLE MODIFY/ALTER COLUMN statement."""
+        """Generate ALTER TABLE MODIFY/ALTER COLUMN statement as a new migration file."""
         patches = []
         field_spec = change_spec.field_spec
         if not field_spec:
             return patches
 
-        lines = file_content.split("\n")
         file_path = symbol.get("file_path", "")
 
         table_name = self._resolve_table_name(symbol, file_content)
@@ -492,26 +513,46 @@ class SqlGenerator(BaseGenerator):
             if not field_spec.nullable:
                 alter_stmt += f"\nALTER TABLE {table_name} ALTER COLUMN {column_name} SET NOT NULL;"
 
-        # Find insertion point
-        insert_line = len(lines) - 1
-        for i in range(len(lines) - 1, -1, -1):
-            if lines[i].strip():
-                insert_line = i
-                break
+        # Generate new migration file path if in a migration directory
+        migration_path = self._next_migration_path(
+            file_path, f"modify_{column_name}_in_{table_name}"
+        )
 
-        comment = f"\n-- Modify column {column_name} in {table_name}"
-        new_content = f"{comment}\n{alter_stmt}"
+        if migration_path != file_path:
+            # New migration file
+            new_content = f"-- Modify column {column_name} in {table_name}\n{alter_stmt}\n"
+            patches.append(Patch(
+                file_path=migration_path,
+                line_start=1,
+                line_end=0,
+                old_content="",
+                new_content=new_content,
+                description=f"New migration: modify column '{column_name}' type to {sql_type}",
+                symbol_id=symbol.get("id"),
+                confidence="high",
+            ))
+        else:
+            # Not a migration directory — append to existing file
+            lines = file_content.split("\n")
+            insert_line = len(lines) - 1
+            for i in range(len(lines) - 1, -1, -1):
+                if lines[i].strip():
+                    insert_line = i
+                    break
 
-        patches.append(Patch(
-            file_path=file_path,
-            line_start=insert_line + 2,
-            line_end=insert_line + 1,
-            old_content="",
-            new_content=new_content,
-            description=f"Modify column '{column_name}' type to {sql_type}",
-            symbol_id=symbol.get("id"),
-            confidence="high",
-        ))
+            comment = f"\n-- Modify column {column_name} in {table_name}"
+            new_content = f"{comment}\n{alter_stmt}"
+
+            patches.append(Patch(
+                file_path=file_path,
+                line_start=insert_line + 2,
+                line_end=insert_line + 1,
+                old_content="",
+                new_content=new_content,
+                description=f"Modify column '{column_name}' type to {sql_type}",
+                symbol_id=symbol.get("id"),
+                confidence="high",
+            ))
 
         return patches
 
