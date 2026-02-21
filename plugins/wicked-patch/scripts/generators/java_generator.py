@@ -217,7 +217,7 @@ class JavaGenerator(BaseGenerator):
         symbol: Dict[str, Any],
         file_content: str,
     ) -> List[Patch]:
-        """Remove a field and its getter/setter."""
+        """Remove a field and its getter/setter, or remove usages in non-owner files."""
         patches = []
         field_name = change_spec.old_name or (change_spec.field_spec.name if change_spec.field_spec else None)
         if not field_name:
@@ -225,10 +225,13 @@ class JavaGenerator(BaseGenerator):
 
         lines = file_content.split("\n")
         file_path = symbol.get("file_path", "")
+        class_role = self._detect_class_role(symbol, file_content)
 
-        # Find and remove field declaration
+        # Find field declaration (present in owner files: entity, DTO)
         field_start, field_end = self._find_field_declaration(lines, field_name)
+
         if field_start >= 0:
+            # Owner file: remove field declaration + getter + setter
             patches.append(Patch(
                 file_path=file_path,
                 line_start=field_start + 1,
@@ -240,37 +243,141 @@ class JavaGenerator(BaseGenerator):
                 confidence="high",
             ))
 
-        # Find and remove getter
-        getter_name = f"get{self._capitalize(field_name)}"
-        getter_start, getter_end = self._find_method(lines, getter_name)
-        if getter_start >= 0:
-            patches.append(Patch(
-                file_path=file_path,
-                line_start=getter_start + 1,
-                line_end=getter_end + 1,
-                old_content="\n".join(lines[getter_start:getter_end + 1]),
-                new_content="",
-                description=f"Remove getter '{getter_name}'",
-                symbol_id=symbol.get("id"),
-                confidence="high",
-            ))
+            # Find and remove getter
+            getter_name = f"get{self._capitalize(field_name)}"
+            getter_start, getter_end = self._find_method(lines, getter_name)
+            if getter_start >= 0:
+                patches.append(Patch(
+                    file_path=file_path,
+                    line_start=getter_start + 1,
+                    line_end=getter_end + 1,
+                    old_content="\n".join(lines[getter_start:getter_end + 1]),
+                    new_content="",
+                    description=f"Remove getter '{getter_name}'",
+                    symbol_id=symbol.get("id"),
+                    confidence="high",
+                ))
 
-        # Find and remove setter
-        setter_name = f"set{self._capitalize(field_name)}"
-        setter_start, setter_end = self._find_method(lines, setter_name)
-        if setter_start >= 0:
-            patches.append(Patch(
-                file_path=file_path,
-                line_start=setter_start + 1,
-                line_end=setter_end + 1,
-                old_content="\n".join(lines[setter_start:setter_end + 1]),
-                new_content="",
-                description=f"Remove setter '{setter_name}'",
-                symbol_id=symbol.get("id"),
-                confidence="high",
-            ))
+            # Find and remove setter
+            setter_name = f"set{self._capitalize(field_name)}"
+            setter_start, setter_end = self._find_method(lines, setter_name)
+            if setter_start >= 0:
+                patches.append(Patch(
+                    file_path=file_path,
+                    line_start=setter_start + 1,
+                    line_end=setter_end + 1,
+                    old_content="\n".join(lines[setter_start:setter_end + 1]),
+                    new_content="",
+                    description=f"Remove setter '{setter_name}'",
+                    symbol_id=symbol.get("id"),
+                    confidence="high",
+                ))
+        else:
+            # Non-owner file (service, repository, test): remove methods that
+            # exclusively use this field's getter/setter, or remove usage lines
+            getter_name = f"get{self._capitalize(field_name)}"
+            setter_name = f"set{self._capitalize(field_name)}"
+            accessor_names = [getter_name, setter_name]
+
+            patches.extend(
+                self._remove_accessor_usages(lines, accessor_names, file_path, symbol)
+            )
 
         return patches
+
+    def _remove_accessor_usages(
+        self,
+        lines: List[str],
+        accessor_names: List[str],
+        file_path: str,
+        symbol: Dict[str, Any],
+    ) -> List[Patch]:
+        """Remove methods that use deprecated field accessors in non-owner files.
+
+        Two-pass approach:
+        1. Find methods containing accessor calls
+        2. If method body is simple (accessor is the primary logic), remove entire method
+           Otherwise, remove just the accessor lines
+        """
+        patches = []
+        removed_methods = set()  # Track method-start lines scheduled for full removal
+        removed_lines = set()   # Track individual lines scheduled for removal
+
+        for accessor_name in accessor_names:
+            # Find all methods that contain calls to this accessor
+            i = 0
+            while i < len(lines):
+                if accessor_name + "(" in lines[i]:
+                    # Check if this line is inside a method
+                    method_start = self._find_enclosing_method_start(lines, i)
+                    if method_start >= 0 and method_start not in removed_methods:
+                        method_end = self._find_method_end_from(lines, method_start)
+                        if method_end >= 0:
+                            # Count how many non-trivial lines are in the method body
+                            body_lines = [
+                                l.strip() for l in lines[method_start + 1:method_end]
+                                if l.strip() and not l.strip().startswith("//") and l.strip() != "{"
+                            ]
+                            # Count lines that DON'T reference any of the accessors
+                            non_accessor_lines = [
+                                l for l in body_lines
+                                if not any(a + "(" in l for a in accessor_names)
+                                and l != "}" and l != "{"
+                            ]
+
+                            if len(non_accessor_lines) == 0:
+                                # Method exclusively uses this accessor — remove entire method
+                                removed_methods.add(method_start)
+                                patches.append(Patch(
+                                    file_path=file_path,
+                                    line_start=method_start + 1,
+                                    line_end=method_end + 1,
+                                    old_content="\n".join(lines[method_start:method_end + 1]),
+                                    new_content="",
+                                    description=f"Remove method using deprecated accessor '{accessor_name}'",
+                                    symbol_id=symbol.get("id"),
+                                    confidence="medium",
+                                ))
+                            else:
+                                # Mixed method — remove just the lines with accessor calls
+                                for j in range(method_start, method_end + 1):
+                                    if any(a + "(" in lines[j] for a in accessor_names):
+                                        if j not in removed_lines:
+                                            removed_lines.add(j)
+                                            patches.append(Patch(
+                                                file_path=file_path,
+                                                line_start=j + 1,
+                                                line_end=j + 1,
+                                                old_content=lines[j],
+                                                new_content="",
+                                                description=f"Remove usage of deprecated accessor '{accessor_name}'",
+                                                symbol_id=symbol.get("id"),
+                                                confidence="low",
+                                            ))
+                i += 1
+
+        return patches
+
+    def _find_enclosing_method_start(self, lines: List[str], line_idx: int) -> int:
+        """Walk backward from a line to find the enclosing method signature."""
+        brace_count = 0
+        for i in range(line_idx, -1, -1):
+            brace_count += lines[i].count("}") - lines[i].count("{")
+            stripped = lines[i].strip()
+            if re.match(r'((public|private|protected)\s+)?\w+\s+\w+\s*\(', stripped):
+                # Found a method signature — verify we're inside it
+                if brace_count <= 0:
+                    return i
+        return -1
+
+    def _find_method_end_from(self, lines: List[str], method_start: int) -> int:
+        """Find the end of a method starting from the method signature line."""
+        brace_count = 0
+        for i in range(method_start, len(lines)):
+            brace_count += lines[i].count("{") - lines[i].count("}")
+            if i > method_start and brace_count <= 0:
+                return i
+        return -1
 
     def _rename_field(
         self,
@@ -330,13 +437,19 @@ class JavaGenerator(BaseGenerator):
         for i, line in enumerate(lines):
             if old_setter in line and "(" in line:
                 new_line = line.replace(old_setter, new_setter)
+                # Also rename the parameter: (Type oldName) -> (Type newName)
+                new_line = re.sub(
+                    rf'\(\s*([^)]+?)\s+{re.escape(old_name)}\s*\)',
+                    rf'(\1 {new_name})',
+                    new_line
+                )
                 patches.append(Patch(
                     file_path=file_path,
                     line_start=i + 1,
                     line_end=i + 1,
                     old_content=line,
                     new_content=new_line,
-                    description=f"Rename setter '{old_setter}' to '{new_setter}'",
+                    description=f"Rename setter '{old_setter}' to '{new_setter}' and parameter",
                     symbol_id=symbol.get("id"),
                     confidence="high",
                 ))

@@ -131,6 +131,11 @@ class PropagationEngine:
             "propagate_upstream": True,     # Update entity
             "include_refs": {"maps_to", "extends"},
         },
+        ChangeType.RENAME_COLUMN: {
+            "propagate_downstream": False,  # DB is the sink
+            "propagate_upstream": True,     # Update entity refs
+            "include_refs": {"maps_to", "extends"},
+        },
     }
 
     def __init__(self, db_path: Path):
@@ -788,8 +793,33 @@ class PropagationEngine:
                     field_spec=original.field_spec,
                     metadata={**original.metadata, **symbol.metadata},
                 )
+            # SQL table/column: translate ADD_FIELD to ADD_COLUMN
+            if symbol.type in {"table", "column", "migration"}:
+                return ChangeSpec(
+                    change_type=ChangeType.ADD_COLUMN,
+                    target_symbol_id=symbol.id,
+                    field_spec=original.field_spec,
+                    metadata={**original.metadata, **symbol.metadata},
+                )
+            # Python ORM model: pass ADD_FIELD directly (python_generator handles it)
+            if symbol.type in {"class", "orm_model", "model"}:
+                return ChangeSpec(
+                    change_type=ChangeType.ADD_FIELD,
+                    target_symbol_id=symbol.id,
+                    field_spec=original.field_spec,
+                    metadata={**original.metadata, **symbol.metadata, "language": "python"},
+                )
         elif original.change_type == ChangeType.RENAME_FIELD:
-            # Rename propagates as rename to all affected symbols
+            # SQL table/column: translate to RENAME_COLUMN for sql_generator
+            if symbol.type in {"table", "column", "migration"}:
+                return ChangeSpec(
+                    change_type=ChangeType.RENAME_COLUMN,
+                    target_symbol_id=symbol.id,
+                    old_name=original.old_name,
+                    new_name=original.new_name,
+                    metadata={**original.metadata, **symbol.metadata},
+                )
+            # Rename propagates as rename to all other affected symbols
             return ChangeSpec(
                 change_type=ChangeType.RENAME_FIELD,
                 target_symbol_id=symbol.id,
@@ -797,6 +827,25 @@ class PropagationEngine:
                 new_name=original.new_name,
                 metadata={**original.metadata, **symbol.metadata},
             )
+        elif original.change_type == ChangeType.REMOVE_FIELD:
+            # SQL table/column: translate for sql_generator DROP COLUMN
+            if symbol.type in {"table", "column", "migration"}:
+                return ChangeSpec(
+                    change_type=ChangeType.REMOVE_FIELD,
+                    target_symbol_id=symbol.id,
+                    old_name=original.old_name,
+                    field_spec=original.field_spec,
+                    metadata={**original.metadata, **symbol.metadata},
+                )
+        elif original.change_type == ChangeType.MODIFY_FIELD:
+            # SQL table/column: pass through as MODIFY_FIELD (sql_generator handles it)
+            if symbol.type in {"table", "column", "migration"}:
+                return ChangeSpec(
+                    change_type=ChangeType.MODIFY_FIELD,
+                    target_symbol_id=symbol.id,
+                    field_spec=original.field_spec,
+                    metadata={**original.metadata, **symbol.metadata},
+                )
 
         # Default: return a copy with updated target
         return ChangeSpec(
