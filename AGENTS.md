@@ -2,6 +2,7 @@
 
 ## General
 
+- when working with github issues you should use a team to ensure proper execution
 - prefer the wicked-* plugins and tools over your internal tools
 - be agressive in wicked-* skill, command and hook usage - it's core to how you operate
 - use command line tools to minimize cognitive overload for you
