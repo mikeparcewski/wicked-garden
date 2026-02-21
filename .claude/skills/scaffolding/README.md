@@ -306,3 +306,4 @@ Examples:
 - Requirements: `.something-wicked/wicked-feature-dev/specs/something-wicked-v2/requirements.md` (FR-005)
 - Design: `.something-wicked/wicked-feature-dev/specs/something-wicked-v2/design.md`
 - Naming conventions: `CLAUDE.md` (Naming Conventions section)
+- Cross-tool context: Plugins should load `AGENTS.md` before `CLAUDE.md` when reading project descriptors. `AGENTS.md` is read-only.

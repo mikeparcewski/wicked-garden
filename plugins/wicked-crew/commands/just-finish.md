@@ -80,7 +80,7 @@ In "just-finish" mode:
 
 Before loading signal analysis, dynamically detect project archetypes. Quality means different things for different projects. Use the same approach as execute.md:
 
-1. **Read project descriptor files**: CLAUDE.md, README.md, package.json, etc.
+1. **Read project descriptor files**: AGENTS.md, CLAUDE.md, README.md, package.json, etc. (load AGENTS.md first for general context, CLAUDE.md overrides)
 2. **Query memories**: `/wicked-mem:recall "project type and quality dimensions for {project-name}"`
 3. **Analyze codebase**: `/wicked-search:scout` and `/wicked-search:blast-radius` if available
 4. **Classify archetypes** and build hints JSON

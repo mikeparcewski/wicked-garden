@@ -111,7 +111,7 @@ Defining the outcome and success criteria.
 **Before running signal analysis, dynamically detect what TYPE of project this is.** Quality means different things for different projects — a content site needs messaging consistency, a UI app needs design coherence, infrastructure needs reliability, ML needs evaluation rigor.
 
 1. **Read project descriptor files** in the working directory (any that exist):
-   - `CLAUDE.md`, `GEMINI.md`, `agent.md`, `README.md`
+   - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `agent.md`, `README.md` (load `AGENTS.md` first for general agent context, then `CLAUDE.md` for Claude-specific overrides)
    - `package.json`, `pyproject.toml`, `Cargo.toml` for tech stack
    - `.claude-plugin/plugin.json` if it's a plugin project
 

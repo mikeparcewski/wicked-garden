@@ -97,7 +97,7 @@ Check for `~/.something-wicked/wicked-crew/preferences.yaml` for:
 Use the Explore agent or direct tool calls to gather context about the project being worked on:
 
 1. **Read project descriptor files** (any that exist):
-   - `CLAUDE.md`, `GEMINI.md`, `agent.md`, `README.md` in the target directory
+   - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `agent.md`, `README.md` in the target directory (load `AGENTS.md` first for general agent context, then `CLAUDE.md` for Claude-specific overrides)
    - `package.json`, `pyproject.toml`, `Cargo.toml` for tech stack detection
    - `.claude-plugin/plugin.json` if it's a plugin project
 
