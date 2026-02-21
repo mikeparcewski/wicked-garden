@@ -2,14 +2,23 @@
 """PostToolUse hook: Mark files as stale when modified via Write/Edit tools.
 
 Reads the tool input from stdin to extract the file path, then appends it
-to ~/.something-wicked/wicked-search/stale_files.json so the next
-/wicked-search:index run can do an incremental update.
+to a per-project stale file list under
+~/.something-wicked/wicked-search/projects/{project}/stale_files.json
+so the next /wicked-search:index run can do an incremental update.
 """
 import json
 import sys
 from pathlib import Path
 
-STALE_FILE = Path.home() / ".something-wicked" / "wicked-search" / "stale_files.json"
+PROJECT_NAME = Path.cwd().name
+STALE_FILE = (
+    Path.home()
+    / ".something-wicked"
+    / "wicked-search"
+    / "projects"
+    / PROJECT_NAME
+    / "stale_files.json"
+)
 
 
 def main():
@@ -33,24 +42,23 @@ def main():
         print(json.dumps({"ok": True}))
         return
 
-    # Load existing stale files
-    stale_files = []
+    # Load existing stale files into a set for O(1) dedup
+    stale_set = set()
     if STALE_FILE.exists():
         try:
-            stale_files = json.loads(STALE_FILE.read_text())
-            if not isinstance(stale_files, list):
-                stale_files = []
+            existing = json.loads(STALE_FILE.read_text())
+            if isinstance(existing, list):
+                stale_set.update(existing)
         except (json.JSONDecodeError, OSError):
-            stale_files = []
+            pass
 
-    # Add the file if not already tracked
-    if file_path not in stale_files:
-        stale_files.append(file_path)
+    # Add the file
+    stale_set.add(file_path)
 
-    # Write back
+    # Write back as sorted list for deterministic output
     try:
         STALE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        STALE_FILE.write_text(json.dumps(stale_files, indent=2))
+        STALE_FILE.write_text(json.dumps(sorted(stale_set), indent=2))
     except OSError:
         pass  # Fail gracefully
 

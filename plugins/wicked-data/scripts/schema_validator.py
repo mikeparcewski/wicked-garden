@@ -17,6 +17,13 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Shared datetime regex — also used in data_profiler.py (keep in sync)
+DATETIME_RE = re.compile(
+    r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}'   # date part: YYYY-MM-DD
+    r'([T ]\d{1,2}:\d{2}(:\d{2})?)?'   # optional time part
+    r'([Zz]|[+-]\d{2}:?\d{2})?$'       # optional timezone
+)
+
 
 class ValidationError:
     def __init__(self, severity: str, column: str, message: str, row: Optional[int] = None):
@@ -51,14 +58,7 @@ def validate_type(value: str, expected_type: str) -> bool:
         elif expected_type == "boolean":
             return str(value).lower() in ('true', 'false', '1', '0', 'yes', 'no', 't', 'f')
         elif expected_type == "datetime":
-            # Validate against common datetime formats
-            s = str(value)
-            return bool(re.match(
-                r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}'   # date part: YYYY-MM-DD
-                r'([T ]\d{1,2}:\d{2}(:\d{2})?)?'   # optional time part
-                r'([Zz]|[+-]\d{2}:?\d{2})?$',      # optional timezone
-                s
-            ))
+            return bool(DATETIME_RE.match(str(value)))
         elif expected_type == "string":
             return True
         else:
