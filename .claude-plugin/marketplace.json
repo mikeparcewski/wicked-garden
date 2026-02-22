@@ -20,7 +20,7 @@
       "name": "wicked-patch",
       "source": "./plugins/wicked-patch",
       "description": "Language-agnostic code generation and change propagation using symbol graphs. 12 generators (Java, Python, TypeScript, Go, C#, Ruby, Kotlin, Rust, PHP, Perl, JSP, SQL) with safety validation and transactional rollback.",
-      "version": "2.1.0"
+      "version": "2.1.1"
     },
     {
       "name": "wicked-kanban",

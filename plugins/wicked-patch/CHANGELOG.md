@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.1] - 2026-02-21
+
+### Features
+- feat: add AGENTS.md support for cross-tool compatibility (#47) (6eab8bf)
+
+### Bug Fixes
+- fix: address PR review feedback for risk assessment (#48) (cd965f4)
+- fix: make remove_field always HIGH risk in plan assessment (#48) (82d8581)
+
+### Chores
+- Merge pull request #49 from mikeparcewski/fix/48-plan-command-cross-file-impact (755883b)
+- release: bump 17 plugins (408ac5e)
+
 ## [2.1.0] - 2026-02-21
 
 ### Features
