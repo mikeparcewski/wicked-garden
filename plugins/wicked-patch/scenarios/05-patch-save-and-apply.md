@@ -168,6 +168,8 @@ After approval, apply the patches to the codebase:
 /wicked-patch:apply /tmp/wicked-patch-review/.patches/patches.json --skip-git --force
 ```
 
+When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.
+
 ### 7. Verify changes and commit
 
 Check that patches were applied correctly:

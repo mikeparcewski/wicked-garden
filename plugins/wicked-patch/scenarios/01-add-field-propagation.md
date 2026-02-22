@@ -126,6 +126,8 @@ Apply the generated patches:
 /wicked-patch:apply /tmp/wicked-patch-test/user-service/.patches/patches.json --skip-git --force
 ```
 
+When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.
+
 ### 6. Verify changes
 
 Check that the Java entity was updated:

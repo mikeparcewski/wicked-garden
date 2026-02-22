@@ -170,7 +170,7 @@ Preview what will be cleaned up:
 /wicked-patch:plan "models/User.java::User" --change remove_field
 ```
 
-**Expected**: A PROPAGATION PLAN showing User as source with impacts across multiple files. Risk level should be HIGH (remove_field is always HIGH risk, especially with no_internal_refs flag if the graph doesn't link lastLogin references).
+**Expected**: A PROPAGATION PLAN showing User as source with impacts across multiple files. Risk level should be HIGH (remove_field is always HIGH risk). You may also see a `no_internal_refs` warning as a heuristic when the graph shows limited internal references, but this is not specific to any single field.
 
 ### 3. Generate cleanup patches
 
@@ -200,6 +200,8 @@ Execute all cleanup operations:
 ```bash
 /wicked-patch:apply /tmp/wicked-patch-cleanup/.patches/patches.json --skip-git --force
 ```
+
+When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.
 
 ### 6. Verify removal from entity
 

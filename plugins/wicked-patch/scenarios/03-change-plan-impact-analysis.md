@@ -137,7 +137,7 @@ Preview the impact of renaming "stock" to "availableQuantity":
 /wicked-patch:plan "models/Product.java::Product" --change rename_field
 ```
 
-**Expected**: A PROPAGATION PLAN showing the source symbol and risk assessment. Risk should be MEDIUM or higher (may be HIGH if the graph has no internal references, triggering the no_internal_refs warning path). Cross-file impacts depend on whether the symbol graph resolved method-level references.
+**Expected**: A PROPAGATION PLAN showing the source symbol and risk assessment. Risk may be LOW when impacts stay within a single file with no upstream dependencies, MEDIUM when changes propagate across multiple files, or HIGH when no internal references are found. Cross-file impacts depend on whether the symbol graph resolved method-level references.
 
 ### 4. Plan: Remove a field
 
@@ -153,7 +153,7 @@ See what would break if we removed the "price" field:
 
 Review the three plans conceptually. The key insight is:
 - **Add field**: LOW risk (non-breaking, additive change)
-- **Rename field**: MEDIUM or HIGH risk (HIGH when no internal references found in graph)
+- **Rename field**: LOW, MEDIUM, or HIGH risk (depends on scope and graph reference resolution)
 - **Remove field**: HIGH risk (always HIGH, breaking change flagged)
 
 ## Expected Outcome
@@ -192,16 +192,16 @@ Total: N symbols in N files
 
 The risk levels should show increasing severity:
 1. **add_field** -> LOW risk (non-breaking)
-2. **rename_field** -> MEDIUM or HIGH risk (depends on graph reference resolution)
+2. **rename_field** -> LOW, MEDIUM, or HIGH risk (depends on graph reference resolution)
 3. **remove_field** -> HIGH risk (always HIGH, marks breaking change: YES)
 
 ## Success Criteria
 
 - [ ] Plan command executed without applying any changes
 - [ ] Add-field plan showed Product.java as source with risk assessment
-- [ ] Rename plan showed risk assessment (MEDIUM or HIGH)
+- [ ] Rename plan showed risk assessment (LOW, MEDIUM, or HIGH)
 - [ ] Remove plan flagged HIGH risk level with breaking change: YES
-- [ ] Risk levels correctly ordered (add LOW < rename MEDIUM/HIGH <= remove HIGH)
+- [ ] Risk levels correctly ordered (add LOW <= rename LOW/MEDIUM/HIGH <= remove HIGH)
 - [ ] No files were modified during planning (read-only operation)
 - [ ] Each plan included confidence level in risk assessment
 

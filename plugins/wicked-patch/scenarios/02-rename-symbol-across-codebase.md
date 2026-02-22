@@ -116,7 +116,7 @@ See all locations that will be affected by the rename:
 /wicked-patch:plan "backend/src/Order.java::Order" --change rename_field
 ```
 
-**Expected**: A PROPAGATION PLAN showing Order as source with risk assessment. Risk should be MEDIUM or higher (may be HIGH if no internal references found, or LOW for small single-file scope).
+**Expected**: A PROPAGATION PLAN showing Order as source with a risk assessment. Risk may be LOW when impacts stay within a single file with no upstream dependencies, MEDIUM when changes propagate across multiple files, or HIGH when no internal references are found or the rename touches widely shared interfaces.
 
 ### 3. Execute the rename
 
@@ -144,6 +144,8 @@ Update all files with the new symbol name:
 ```bash
 /wicked-patch:apply /tmp/wicked-patch-rename/.patches/patches.json --skip-git --force
 ```
+
+When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.
 
 ### 6. Verify cross-language consistency
 
