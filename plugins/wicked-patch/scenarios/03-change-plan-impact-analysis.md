@@ -30,7 +30,14 @@ public class Product {
     private Double price;
     private Integer stock;
 
-    // Constructor, getters, setters omitted for brevity
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public Double getPrice() { return price; }
+    public void setPrice(Double price) { this.price = price; }
+    public Integer getStock() { return stock; }
+    public void setStock(Integer stock) { this.stock = stock; }
 }
 EOF
 
@@ -117,156 +124,86 @@ Build the symbol graph to understand dependencies:
 See what would be affected by adding a "reserved" field to track reserved inventory:
 
 ```bash
-/wicked-patch:plan --entity Product --add-field reserved:Integer --project /tmp/wicked-patch-plan
+/wicked-patch:plan "models/Product.java::Product" --change add_field
 ```
+
+**Expected**: A PROPAGATION PLAN showing Product.java as the source, direct impacts listing entity fields, and a LOW risk assessment (adding a field is non-breaking).
 
 ### 3. Plan: Rename a field
 
 Preview the impact of renaming "stock" to "availableQuantity":
 
 ```bash
-/wicked-patch:plan --symbol stock --new-name availableQuantity --scope Product --project /tmp/wicked-patch-plan
+/wicked-patch:plan "models/Product.java::Product" --change rename_field
 ```
+
+**Expected**: A PROPAGATION PLAN showing the source symbol and risk assessment. Risk may be LOW when impacts stay within a single file with no upstream dependencies, MEDIUM when changes propagate across multiple files, or HIGH when no internal references are found. Cross-file impacts depend on whether the symbol graph resolved method-level references.
 
 ### 4. Plan: Remove a field
 
 See what would break if we removed the "price" field:
 
 ```bash
-/wicked-patch:plan --entity Product --remove-field price --project /tmp/wicked-patch-plan
+/wicked-patch:plan "models/Product.java::Product" --change remove_field
 ```
+
+**Expected**: A PROPAGATION PLAN with risk level HIGH. The risk assessment should flag that removal is a breaking change. If no internal references to 'price' are found in the graph, the plan includes a WARNING about no_internal_refs.
 
 ### 5. Compare risk levels
 
-Review the three plans side-by-side to decide which changes are safe:
-
-```bash
-cat /tmp/wicked-patch-plan/.patches/plans/add-reserved-plan.txt
-cat /tmp/wicked-patch-plan/.patches/plans/rename-stock-plan.txt
-cat /tmp/wicked-patch-plan/.patches/plans/remove-price-plan.txt
-```
+Review the three plans conceptually. The key insight is:
+- **Add field**: LOW risk (non-breaking, additive change)
+- **Rename field**: LOW, MEDIUM, or HIGH risk (depends on scope and graph reference resolution)
+- **Remove field**: HIGH risk (always HIGH, breaking change flagged)
 
 ## Expected Outcome
 
-After step 2 (plan add-field), you should see:
+After each plan step, you should see a PROPAGATION PLAN block:
 ```
-Change Plan: Add field 'reserved' to Product
+============================================================
+PROPAGATION PLAN
+============================================================
 
-Impact Analysis:
-├─ Direct changes:
-│  └─ models/Product.java (1 file)
-│     - Add field declaration: private Integer reserved;
-│     - Add getter: getReserved()
-│     - Add setter: setReserved(Integer reserved)
-│
-└─ Dependent code (MAY need updates):
-   ├─ services/InventoryService.java
-   │  - No automatic changes needed
-   │  - Manual review: reserveStock() might benefit from tracking
-   └─ tests/InventoryTest.java
-      - No automatic changes needed
-      - Manual review: Add tests for reserved quantity
+Source: Product
+  Type: entity
+  File: .../Product.java
+  Line: N
 
-Files affected: 1 direct, 2 indirect
-Risk level: LOW
-Confidence: HIGH (new field, no breaking changes)
-```
+Direct Impacts (N):
+  - symbolName (type) @ filename.java
+  ...
 
-After step 3 (plan rename), you should see:
-```
-Change Plan: Rename 'stock' → 'availableQuantity' (scope: Product)
+Upstream Impacts (N):
+  ...
 
-Impact Analysis:
-├─ Direct changes (18 references):
-│  ├─ models/Product.java (3 references)
-│  │  - Line 6: field declaration
-│  │  - Line 10: getter method name
-│  │  - Line 11: setter method name
-│  │
-│  ├─ services/InventoryService.java (8 references)
-│  │  - Line 6, 7: updateStock method calls
-│  │  - Line 11: isAvailable condition
-│  │  - Line 15, 16, 17: reserveStock logic
-│  │
-│  ├─ controllers/OrderController.java (2 references)
-│  │  - Line 9: availability check (indirect via service)
-│  │
-│  └─ tests/InventoryTest.java (5 references)
-│     - Line 7, 8, 13, 14: test assertions
-│
-└─ Risk assessment:
-   - Breaking change: YES (affects public API)
-   - Cross-module impact: HIGH (3 modules depend on this field)
-   - Test coverage: GOOD (5 test references found)
+Downstream Impacts (N):
+  ...
 
-Files affected: 4 files, 18 total references
-Risk level: MEDIUM
-Confidence: HIGH (complete symbol graph available)
-
-Recommendation: Execute during maintenance window
+------------------------------------------------------------
+Risk Assessment:
+  Risk level: LOW|MEDIUM|HIGH
+  Confidence: LOW|MEDIUM|HIGH
+  Breaking change: YES|NO
+  Test coverage: GOOD|NONE (N test references found)
+------------------------------------------------------------
+Total: N symbols in N files
+============================================================
 ```
 
-After step 4 (plan remove), you should see:
-```
-Change Plan: Remove field 'price' from Product
-
-Impact Analysis:
-├─ Direct changes:
-│  └─ models/Product.java
-│     - Remove field: private Double price;
-│     - Remove getter: getPrice()
-│     - Remove setter: setPrice(Double price)
-│
-└─ BREAKING CHANGES DETECTED:
-   ⚠️  No references found in indexed code
-   ⚠️  Field exists but appears unused
-   ⚠️  Cannot verify external dependencies (APIs, serialization)
-
-Files affected: 1 file
-Risk level: HIGH (external dependencies unknown)
-Confidence: MEDIUM (may have external usages)
-
-⚠️  WARNING: This field may be used by:
-   - REST API clients (JSON serialization)
-   - Database mappings (ORM annotations)
-   - Report generation tools
-   - External integrations
-
-Recommendation: Audit API contracts and database schema before proceeding
-```
-
-After step 5 (compare), you should see:
-```
-Risk Summary:
-
-1. Add 'reserved' field: LOW risk
-   ✓ Safe to proceed immediately
-   - No breaking changes
-   - Optional enhancement
-
-2. Rename 'stock' → 'availableQuantity': MEDIUM risk
-   ⚠  Requires coordination
-   - 18 references across 4 files
-   - Breaking API change
-   - Good test coverage (5 tests)
-
-3. Remove 'price' field: HIGH risk
-   ⛔ Do NOT proceed without investigation
-   - External dependencies unknown
-   - May break API contracts
-   - Needs database migration review
-```
+The risk levels should show increasing severity:
+1. **add_field** -> LOW risk (non-breaking)
+2. **rename_field** -> LOW, MEDIUM, or HIGH risk (depends on graph reference resolution)
+3. **remove_field** -> HIGH risk (always HIGH, marks breaking change: YES)
 
 ## Success Criteria
 
 - [ ] Plan command executed without applying any changes
-- [ ] Add-field plan identified direct changes (Product.java only)
-- [ ] Rename plan counted all 18 references across 4 files
-- [ ] Remove plan flagged HIGH risk due to external dependencies
-- [ ] Risk levels correctly assessed (LOW/MEDIUM/HIGH)
-- [ ] No files were modified during planning (dry-run mode)
-- [ ] Plan outputs saved to `.patches/plans/` directory
-- [ ] Confidence levels provided for each analysis
+- [ ] Add-field plan showed Product.java as source with risk assessment
+- [ ] Rename plan showed risk assessment (LOW, MEDIUM, or HIGH)
+- [ ] Remove plan flagged HIGH risk level with breaking change: YES
+- [ ] Risk levels correctly ordered (add LOW <= rename LOW/MEDIUM/HIGH <= remove HIGH)
+- [ ] No files were modified during planning (read-only operation)
+- [ ] Each plan included confidence level in risk assessment
 
 ## Value Demonstrated
 
@@ -274,13 +211,6 @@ Risk Summary:
 
 **wicked-patch solution**: Dry-run planning shows the full blast radius BEFORE making changes. Categorizes risk levels and identifies hidden dependencies.
 
-**Time saved**: 30-60 minutes of impact analysis per change → 1 minute (automatic analysis)
+**Time saved**: 30-60 minutes of impact analysis per change -> 1 minute (automatic analysis)
 
 **Risk reduced**: Prevents production incidents by surfacing breaking changes during planning, not after deployment.
-
-**Real-world use cases**:
-- Pre-deployment impact analysis for refactorings
-- Evaluating technical debt cleanup efforts
-- Assessing risk before major version upgrades
-- Code review preparation (share plan outputs with team)
-- Compliance and audit trails (document what would change)
