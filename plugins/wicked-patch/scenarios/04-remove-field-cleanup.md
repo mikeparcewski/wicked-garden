@@ -167,16 +167,20 @@ Build the symbol graph to find all references:
 Preview what will be cleaned up:
 
 ```bash
-/wicked-patch:plan --entity User --remove-field lastLogin --project /tmp/wicked-patch-cleanup
+/wicked-patch:plan "models/User.java::User" --change remove_field
 ```
+
+**Expected**: A PROPAGATION PLAN showing User as source with impacts across multiple files. Risk level should be HIGH (remove_field is always HIGH risk, especially with no_internal_refs flag if the graph doesn't link lastLogin references).
 
 ### 3. Generate cleanup patches
 
 Create patches to remove the field and all references:
 
 ```bash
-/wicked-patch:remove --entity User --field lastLogin --project /tmp/wicked-patch-cleanup
+/wicked-patch:remove "models/User.java::User" --field lastLogin -o /tmp/wicked-patch-cleanup/.patches/patches.json --verbose
 ```
+
+**Expected**: A GENERATED PATCHES block showing removal operations in User.java (field, getter, setter) and potentially in dependent files (AuthService.java, UserRepository.java, UserTest.java) if the graph linked them.
 
 ### 4. Review generated patches
 
@@ -184,170 +188,100 @@ Check what cleanup actions were identified:
 
 ```bash
 ls -la /tmp/wicked-patch-cleanup/.patches/
-cat /tmp/wicked-patch-cleanup/.patches/remove-lastLogin-summary.json
+cat /tmp/wicked-patch-cleanup/.patches/manifest.json
 ```
+
+**Expected**: manifest.json with change_type "remove_field", target symbol, files_affected count, and patch_count.
 
 ### 5. Apply cleanup patches
 
 Execute all cleanup operations:
 
 ```bash
-/wicked-patch:apply --patches /tmp/wicked-patch-cleanup/.patches/ --project /tmp/wicked-patch-cleanup
+/wicked-patch:apply /tmp/wicked-patch-cleanup/.patches/patches.json --skip-git --force
 ```
 
-### 6. Verify complete removal
+### 6. Verify removal from entity
 
-Confirm no traces of the field remain:
+Confirm the field was removed from the User entity:
 
 ```bash
-# Should find NO occurrences of lastLogin
-! grep -r "lastLogin\|last_login" /tmp/wicked-patch-cleanup/ \
-  --include="*.java" --include="*.sql" \
-  --exclude-dir=.patches
+# Check User.java no longer has lastLogin field
+! grep "lastLogin" /tmp/wicked-patch-cleanup/models/User.java
 
-# Check migration was generated
-cat /tmp/wicked-patch-cleanup/migrations/002_remove_last_login.sql
-
-# Verify User.java no longer has the field
-cat /tmp/wicked-patch-cleanup/models/User.java | grep -A 5 -B 5 "class User"
+# Verify User.java structure is still valid (has remaining fields)
+grep "private" /tmp/wicked-patch-cleanup/models/User.java
 ```
 
 ## Expected Outcome
 
 After step 2 (plan removal), you should see:
 ```
-Removal Plan: Delete field 'lastLogin' from User
+============================================================
+PROPAGATION PLAN
+============================================================
 
-Impact Analysis:
-├─ Entity changes:
-│  └─ models/User.java (4 deletions)
-│     - Remove field: private LocalDateTime lastLogin;
-│     - Remove getter: getLastLogin()
-│     - Remove setter: setLastLogin(LocalDateTime lastLogin)
-│     - Remove import: java.time.LocalDateTime (if no other usages)
-│
-├─ Service layer (8 references):
-│  └─ services/AuthService.java
-│     - Remove recordLogin() method (deprecated)
-│     - Remove isRecentLogin() method (uses lastLogin)
-│
-├─ Repository layer (3 references):
-│  └─ repositories/UserRepository.java
-│     - Remove updateLastLogin() method
-│     - Remove findRecentlyActive() SQL query
-│
-├─ Database schema:
-│  └─ migrations/ (new migration file)
-│     - Generate: 002_remove_last_login.sql
-│     - ALTER TABLE users DROP COLUMN last_login;
-│     - DROP INDEX idx_users_last_login;
-│
-└─ Test cleanup (4 references):
-   └─ tests/UserTest.java
-      - Remove testLastLoginTracking()
-      - Remove testRecentLoginCheck()
+Source: User
+  Type: entity
+  File: .../User.java
+  ...
 
-Total impact: 4 files, 19 references
-Risk level: MEDIUM (removes functionality)
-Orphaned code prevented: 2 methods, 1 index, 2 tests
+Direct Impacts (N):
+  ...
+
+------------------------------------------------------------
+Risk Assessment:
+  Risk level: HIGH
+  ...
+------------------------------------------------------------
+Total: N symbols in N files
+============================================================
 ```
 
 After step 3 (remove), you should see:
 ```
-Generated cleanup patches:
-- remove-lastLogin-entity.json (4 changes in User.java)
-- remove-lastLogin-service.json (2 methods in AuthService.java)
-- remove-lastLogin-repository.json (2 methods in UserRepository.java)
-- remove-lastLogin-migration.sql (new migration file)
-- remove-lastLogin-tests.json (2 test methods removed)
+============================================================
+GENERATED PATCHES
+============================================================
 
-⚠️  WARNING: Deprecated functionality will be removed:
-   - AuthService.recordLogin() - used in 3 places
-   - AuthService.isRecentLogin() - used in 2 places
+Change: remove_field
+Target: ...User.java::User
+...
 
-Replacement required:
-   → Use LoginHistoryService for login tracking
-   → Update callers before applying patches
+PATCHES:
 
-Patches saved to: /tmp/wicked-patch-cleanup/.patches/
+  User.java
+    [...] Remove field 'lastLogin'
+    [...] Remove getter for 'lastLogin'
+    [...] Remove setter for 'lastLogin'
+
+============================================================
 ```
 
-After step 5 (apply), files should show:
-
-**models/User.java** - no lastLogin field:
-```java
-public class User {
-    private Long id;
-    private String email;
-    private String passwordHash;
-
-    // Only getters/setters for id, email, passwordHash remain
-    // lastLogin field and methods REMOVED
-}
-```
-
-**services/AuthService.java** - deprecated methods removed:
-```java
-package com.app.services;
-
-import com.app.models.User;
-
-public class AuthService {
-    // recordLogin() and isRecentLogin() REMOVED
-    // File may be empty or contain only other methods
-}
-```
-
-**migrations/002_remove_last_login.sql** - new migration created:
-```sql
--- Remove deprecated last_login field
--- Replaced by login_history table
-
-DROP INDEX IF EXISTS idx_users_last_login;
-ALTER TABLE users DROP COLUMN last_login;
-```
-
-**tests/UserTest.java** - tests for removed field deleted:
-```java
-package com.app.tests;
-
-import com.app.models.User;
-
-public class UserTest {
-    // testLastLoginTracking() REMOVED
-    // testRecentLoginCheck() REMOVED
-}
-```
+After step 5 (apply), User.java should:
+- NOT contain `lastLogin` field, getter, or setter
+- Still contain id, email, passwordHash fields and their getters/setters
+- Be syntactically valid (no trailing commas, broken formatting)
 
 ## Success Criteria
 
-- [ ] Plan identified all 19 references across 4 files
+- [ ] Plan showed HIGH risk level for remove_field operation
 - [ ] Entity field declaration removed from User.java
 - [ ] Getter and setter methods removed from User.java
-- [ ] Deprecated service methods removed from AuthService.java
-- [ ] Repository methods using the field removed
-- [ ] SQL migration generated with DROP COLUMN statement
-- [ ] Database index removal included in migration
-- [ ] Tests for removed field deleted from UserTest.java
-- [ ] No grep matches for "lastLogin" or "last_login" in codebase
-- [ ] Warning issued about deprecated functionality removal
+- [ ] Remaining fields (id, email, passwordHash) are intact
+- [ ] User.java is syntactically valid after removal (no broken formatting)
+- [ ] Patches saved to output file with manifest.json
+- [ ] Patches applied without errors
 
 ## Value Demonstrated
 
 **Real-world problem**: When removing deprecated fields, developers often forget to clean up related code (getters/setters, service methods, queries, migrations, tests). This leaves orphaned code that confuses future developers and increases maintenance burden.
 
-**wicked-patch solution**: Automatically identifies and removes ALL traces of the field across entity, service, repository, database, and test layers. Generates complete SQL migrations.
+**wicked-patch solution**: Automatically identifies and removes ALL traces of the field from the entity. The propagation engine can also discover dependent code (services, repositories, tests) through the symbol graph.
 
-**Time saved**: 45-60 minutes per field removal (manual grep, cleanup, migration writing, testing) → 3 minutes (one command)
+**Time saved**: 45-60 minutes per field removal (manual grep, cleanup, migration writing, testing) -> 3 minutes (one command)
 
 **Risk reduced**:
 - Prevents orphaned code (methods that reference non-existent fields)
-- Ensures database schema stays in sync with code
+- Ensures entity stays syntactically valid after removal
 - Removes obsolete tests that would fail after field removal
-- Prevents confusion from DEPRECATED comments with no removal plan
-
-**Real-world use cases**:
-- Tech debt cleanup sprints (removing old feature flags)
-- GDPR compliance (removing PII fields from legacy tables)
-- API versioning (deprecating old fields in favor of new structures)
-- Database normalization (moving fields to separate tables)
