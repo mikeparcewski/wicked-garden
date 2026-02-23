@@ -326,13 +326,15 @@ Run `/wg-issue <this-issue-number>` to start a crew project that resolves this f
 
 **Two-step filing**: Use `gh issue create` with `--json number` to capture the issue number, then update the body's "Suggested Resolution" section with the actual number via `gh issue edit`.
 
-**Grouping**: If multiple scenarios fail for the **same plugin**, combine them into a single issue rather than one per scenario.
+**Grouping**: If multiple scenarios fail for the **same plugin**, combine them into a single issue rather than one per scenario. Title becomes: `test(<plugin>): <count> scenario failures` and the body lists all failed scenarios with their tasks.
 
 **Deduplication**: Before filing, check for existing open issues with a matching title prefix:
 
 ```bash
 gh issue list --state open --search "test(<plugin-name>):" --json number,title --limit 5
 ```
+
+If a matching issue exists, skip filing and note the existing issue number instead.
 
 #### Post-Filing Summary
 
