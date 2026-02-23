@@ -207,28 +207,42 @@ def main():
                 "or reusable patterns, store them now with /wicked-mem:store."
             )
 
-        # Check if prompt signals need for recall
-        if needs_context(cleaned_prompt):
-            keywords = extract_keywords(cleaned_prompt)
+        # --- Memory injection ---
+        # Two triggers:
+        #   1. Explicit context signals ("remember", "last time", …)
+        #   2. Topical relevance — prompt keywords match stored memories
+        #      even when the user doesn't ask for recall explicitly.
+        keywords = extract_keywords(cleaned_prompt)
+        explicit_recall = needs_context(cleaned_prompt)
 
-            if keywords:
-                pattern = "|".join(keywords[:5])
-                project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-                store = MemoryStore(project)
-                memories = store.search(pattern)
-                memories = [m for m in memories if m.status == MemoryStatus.ACTIVE.value][:2]
+        if keywords:
+            pattern = "|".join(keywords[:5])
+            project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+            store = MemoryStore(project)
+            memories = store.search(pattern)
+            memories = [m for m in memories if m.status == MemoryStatus.ACTIVE.value]
 
-                if memories:
-                    lines = ["[Memory] Relevant:"]
-                    for m in memories:
-                        lines.append(f"  [{m.type}] {m.title}: {m.summary[:100]}...")
-                    if storage_nudge:
-                        lines.append(storage_nudge)
-                    print(json.dumps({
-                        "continue": True,
-                        "systemMessage": "\n".join(lines)
-                    }))
-                    return
+            if not explicit_recall:
+                # For implicit (topical) injection, require at least one
+                # keyword to appear in a memory's tags so we stay precise.
+                memories = [
+                    m for m in memories
+                    if any(kw in (t.lower() for t in m.tags) for kw in keywords)
+                ]
+
+            memories = memories[:2]
+
+            if memories:
+                lines = ["[Memory] Relevant:"]
+                for m in memories:
+                    lines.append(f"  [{m.type}] {m.title}: {m.summary[:100]}...")
+                if storage_nudge:
+                    lines.append(storage_nudge)
+                print(json.dumps({
+                    "continue": True,
+                    "systemMessage": "\n".join(lines)
+                }))
+                return
 
         # No recall needed — emit storage nudge if it's time, otherwise pass through
         if storage_nudge:

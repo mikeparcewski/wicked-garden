@@ -467,26 +467,47 @@ class MemoryStore:
 
         return memories[:limit]
 
-    def search(self, pattern: str, path: Optional[str] = None) -> List[Memory]:
+    def search(self, pattern: str, path: Optional[str] = None,
+               all_projects: bool = False) -> List[Memory]:
         """
         Ripgrep-based pattern search across memories.
 
+        Scoped to global (core/) + current project by default, matching
+        the same scoping behaviour as recall().
+
         Args:
             pattern: Regex pattern (e.g., "auth.*error")
-            path: Optional subdirectory to search
+            path: Optional subdirectory to search (overrides scoping)
+            all_projects: Search ALL projects, not just current
         """
-        search_path = self.base_path
+        # If an explicit path is given, honour it directly
         if path:
-            search_path = self.base_path / path
+            search_paths = [self.base_path / path]
+        else:
+            # Default: core + current project (same as recall)
+            search_paths = [self.base_path / "core"]
+            projects_path = self.base_path / "projects"
+            if all_projects and projects_path.exists():
+                for project_dir in projects_path.iterdir():
+                    if project_dir.is_dir():
+                        search_paths.append(project_dir)
+            elif self.project:
+                search_paths.append(projects_path / self.project)
 
-        matches = self._ripgrep_search(pattern, search_path)
         memories = []
+        seen_ids: set = set()
 
-        for match_path in matches:
-            memory = self._from_markdown(Path(match_path))
-            if memory and memory.status == MemoryStatus.ACTIVE.value:
-                self._update_access(memory)
-                memories.append(memory)
+        for search_path in search_paths:
+            if not search_path.exists():
+                continue
+            matches = self._ripgrep_search(pattern, search_path)
+            for match_path in matches:
+                memory = self._from_markdown(Path(match_path))
+                if memory and memory.status == MemoryStatus.ACTIVE.value:
+                    if memory.id not in seen_ids:
+                        seen_ids.add(memory.id)
+                        self._update_access(memory)
+                        memories.append(memory)
 
         return memories
 

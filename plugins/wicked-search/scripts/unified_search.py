@@ -196,7 +196,14 @@ class DocumentExtractor:
             return "", []
 
     def _parse_sections(self, text: str, file_path: str) -> List[Dict[str, Any]]:
-        """Parse text into sections based on headings."""
+        """Parse text into sections based on headings.
+
+        Detects section boundaries via:
+        - Markdown headings (# Heading)
+        - ALL CAPS lines (6+ chars)
+        - Numbered sections (1. Title, 2. Title) for .txt files
+        - Label lines ending with colon after a blank line
+        """
         sections = []
         lines = text.split('\n')
 
@@ -204,12 +211,24 @@ class DocumentExtractor:
         current_content = []
         line_start = 0
 
-        # Simple heading detection (markdown-style or ALL CAPS)
-        heading_pattern = re.compile(r'^(#{1,6})\s+(.+)$|^([A-Z][A-Z0-9\s]{5,})$')
+        # Heading patterns: markdown, ALL CAPS, numbered sections, colon-labels
+        heading_pattern = re.compile(
+            r'^(#{1,6})\s+(.+)$'            # Markdown headings
+            r'|^([A-Z][A-Z0-9\s]{5,})$'     # ALL CAPS headings
+            r'|^(\d+)\.\s+(.+)$'            # Numbered sections: "1. Title"
+        )
 
         for i, line in enumerate(lines):
-            match = heading_pattern.match(line.strip())
-            if match:
+            stripped = line.strip()
+            match = heading_pattern.match(stripped)
+
+            # Also detect "Label:" lines preceded by a blank line
+            colon_heading = None
+            if (not match and stripped.endswith(':') and len(stripped) > 3
+                    and i > 0 and lines[i - 1].strip() == ''):
+                colon_heading = stripped[:-1].strip()
+
+            if match or colon_heading:
                 # Save previous section
                 if current_section:
                     sections.append({
@@ -221,11 +240,14 @@ class DocumentExtractor:
                     })
 
                 # Start new section
-                if match.group(1):  # Markdown heading
-                    level = len(match.group(1))
+                if colon_heading:
+                    current_section = colon_heading
+                elif match.group(1):  # Markdown heading
                     current_section = match.group(2).strip()
-                else:  # ALL CAPS heading
+                elif match.group(3):  # ALL CAPS heading
                     current_section = match.group(3).strip()
+                elif match.group(4):  # Numbered section
+                    current_section = match.group(5).strip()
 
                 current_content = []
                 line_start = i
