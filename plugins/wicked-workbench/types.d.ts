@@ -26,18 +26,18 @@
  * with gateway-level routing information (plugin, verb, item_id).
  */
 export interface ResponseMeta {
-  /** Total number of matching items reported by the underlying plugin. */
-  total: number | null;
-  /** Page size used for this request. */
-  limit: number | null;
-  /** Zero-based page offset used for this request. */
-  offset: number | null;
+  /** Total number of matching items reported by the underlying plugin. Absent for traverse/impact. */
+  total?: number | null;
+  /** Page size used for this request. Absent for traverse/impact. */
+  limit?: number | null;
+  /** Zero-based page offset used for this request. Absent for traverse/impact. */
+  offset?: number | null;
   /** Data source name within the plugin (e.g. "graph", "symbols", "lineage"). */
   source: string;
   /** Plugin name that handled this request (e.g. "wicked-search"). */
   plugin: string;
-  /** ISO-8601 UTC timestamp from the plugin response. */
-  timestamp: string;
+  /** ISO-8601 UTC timestamp from the plugin response. Absent for traverse/impact. */
+  timestamp?: string;
   /** Read verb used for this request (e.g. "list", "search", "stats", "traverse"). */
   verb?: string | null;
   /** Item ID used for get/traverse/impact/content requests. */

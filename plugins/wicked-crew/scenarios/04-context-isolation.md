@@ -144,7 +144,7 @@ During clarify, manually add confusing information:
 User: "Actually, I'm thinking maybe we should use Redis for rate limiting. Or maybe memory-based? I saw this library called express-rate-limit but I'm not sure if it's good. What do you think about rolling our own solution? I heard Nginx can do this too..."
 ```
 
-Let the facilitator respond and create outcome.md.
+Let the facilitator respond and create the clarify deliverables (`objective.md` and `acceptance-criteria.md`).
 
 Then proceed to design:
 
@@ -157,14 +157,14 @@ Then proceed to design:
 
 The design agent should:
 - **NOT** see the rambling discussion from clarify
-- **ONLY** see `phases/clarify/outcome.md` (the decision)
-- Research patterns based on outcome, not on clarify discussion
+- **ONLY** see `phases/clarify/objective.md` and `phases/clarify/acceptance-criteria.md` (the decisions)
+- Research patterns based on the objective, not on clarify discussion
 - Not be biased by the "Redis or memory or Nginx or custom" confusion
 
 **Verify in design output**:
 - Shows research methodology: searched codebase, evaluated options
 - Makes fresh recommendation based on evidence, not clarify discussion
-- If outcome.md said "use express-rate-limit", design validates that choice
+- If `acceptance-criteria.md` said "use express-rate-limit", design validates that choice
 - Does NOT reference the rambling questions from clarify phase
 
 ### 5. Measure Context Size
@@ -180,10 +180,10 @@ Track token usage across phases to verify SADD reduces context:
 
 **With SADD** (actual - fresh context per phase):
 - Clarify: 5000 tokens
-- Design: ~2000 (outcome.md) + 8000 (research) = 10000 tokens
+- Design: ~2000 (objective.md + acceptance-criteria.md) + 8000 (research) = 10000 tokens
 - QE: ~3000 (design artifacts) + 6000 (scenarios) = 9000 tokens
 - Build: ~4000 (design + QE) + 15000 (implementation) = 19000 tokens
-- Review: ~2000 (outcome) + 5000 (review) = 7000 tokens
+- Review: ~2000 (acceptance-criteria.md) + 5000 (review) = 7000 tokens
 
 **Expected**: Each phase starts with minimal context (only artifacts, not discussion)
 
@@ -216,7 +216,7 @@ Track token usage across phases to verify SADD reduces context:
 - [ ] Subagent context is discarded after task
 
 ### Context Isolation
-- [ ] Design phase only reads outcome.md (not clarify discussion)
+- [ ] Design phase only reads `objective.md` and `acceptance-criteria.md` (not clarify discussion)
 - [ ] Build phase only reads design/QE artifacts (not discussions)
 - [ ] Review phase only reads outcome + final code (not process)
 - [ ] Agents don't reference conversations from previous phases

@@ -122,10 +122,32 @@ export interface GraphStatsData {
 export type GraphStatsResponse = ApiResponse<GraphStatsData>;
 
 // ---------------------------------------------------------------------------
-// graph/search
+// graph/list and graph/search
 // ---------------------------------------------------------------------------
 
+export type GraphListResponse = ApiResponse<SymbolItem[]>;
 export type GraphSearchResponse = ApiResponse<SymbolSearchItem[]>;
+
+// ---------------------------------------------------------------------------
+// graph/get (single symbol with dependencies/dependents)
+// ---------------------------------------------------------------------------
+
+/** A dependency or dependent reference attached to a graph/get result. */
+export interface SymbolRef {
+  /** Target symbol ID (for dependencies) or source symbol ID (for dependents). */
+  target_id?: string;
+  source_id?: string;
+  ref_type: string;
+  confidence: string | null;
+}
+
+/** Response data for `get graph <id>` — a symbol with its references. */
+export interface GraphGetData extends SymbolItem {
+  dependencies: SymbolRef[];
+  dependents: SymbolRef[];
+}
+
+export type GraphGetResponse = ApiResponse<GraphGetData>;
 
 // ---------------------------------------------------------------------------
 // graph/traverse
@@ -202,11 +224,33 @@ export interface ImpactData {
 export type ImpactResponse = ApiResponse<ImpactData>;
 
 // ---------------------------------------------------------------------------
-// symbols/list and symbols/search
+// symbols/list, symbols/get, and symbols/search
 // ---------------------------------------------------------------------------
 
 export type SymbolsListResponse = ApiResponse<SymbolItem[]>;
+export type SymbolsGetResponse = ApiResponse<SymbolItem>;
 export type SymbolsSearchResponse = ApiResponse<SymbolSearchItem[]>;
+
+// ---------------------------------------------------------------------------
+// documents/list and documents/search
+// ---------------------------------------------------------------------------
+
+export type DocumentsListResponse = ApiResponse<SymbolItem[]>;
+export type DocumentsSearchResponse = ApiResponse<SymbolSearchItem[]>;
+
+// ---------------------------------------------------------------------------
+// references/list and references/search
+// ---------------------------------------------------------------------------
+
+/** A symbol reference record (from symbol_refs table). */
+export interface ReferenceItem {
+  source_id: string;
+  target_id: string;
+  ref_type: string;
+}
+
+export type ReferencesListResponse = ApiResponse<ReferenceItem[]>;
+export type ReferencesSearchResponse = ApiResponse<ReferenceItem[]>;
 
 // ---------------------------------------------------------------------------
 // symbols/stats
@@ -281,8 +325,8 @@ export interface LineageRecord {
   sink_id: string;
   /** Number of hops from source to sink. */
   path_length: number;
-  /** Minimum confidence score along the path (0.0–1.0). */
-  min_confidence: number | null;
+  /** Minimum confidence level along the path: "high" | "medium" | "low". */
+  min_confidence: string | null;
   /** True when the complete path from source to sink was resolved. */
   is_complete: boolean;
   source: LineageSide;

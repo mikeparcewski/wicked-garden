@@ -137,7 +137,7 @@ Status: in-progress
 Last Updated: [timestamp]
 
 Deliverables:
-  ✓ phases/clarify/outcome.md
+  ✓ phases/clarify/objective.md
   ⧗ phases/design/architecture.md (in progress)
 ```
 
@@ -155,7 +155,7 @@ Status: in-progress
 Last Updated: [timestamp]
 
 Deliverables:
-  ⧗ phases/clarify/outcome.md (in progress)
+  ⧗ phases/clarify/objective.md (in progress)
 ```
 
 ```bash
@@ -172,7 +172,7 @@ Status: in-progress
 Last Updated: [timestamp]
 
 Deliverables:
-  ⧗ phases/clarify/outcome.md (in progress)
+  ⧗ phases/clarify/objective.md (in progress)
 ```
 
 ### 4. Complete One Project While Others Remain Active
@@ -184,8 +184,8 @@ cd ~/test-wicked-crew/multi-project/api-service
 /wicked-crew:approve clarify
 /wicked-crew:execute  # design
 /wicked-crew:approve design
-/wicked-crew:execute  # qe
-/wicked-crew:approve qe
+/wicked-crew:execute  # test-strategy
+/wicked-crew:approve test-strategy
 /wicked-crew:execute  # build
 /wicked-crew:approve build
 /wicked-crew:execute  # review
