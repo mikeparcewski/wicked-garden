@@ -29,6 +29,21 @@
       "name": "TDD Coach",
       "focus": "Red-green-refactor guidance, test-first development practices",
       "agent": "agents/tdd-coach.md"
+    },
+    {
+      "name": "Acceptance Test Writer",
+      "focus": "Transform scenarios into evidence-gated test plans with concrete assertions",
+      "agent": "agents/acceptance-test-writer.md"
+    },
+    {
+      "name": "Acceptance Test Executor",
+      "focus": "Execute test plans step-by-step, collect evidence artifacts without judgment",
+      "agent": "agents/acceptance-test-executor.md"
+    },
+    {
+      "name": "Acceptance Test Reviewer",
+      "focus": "Evaluate evidence against assertions independently, render verdicts with cause attribution",
+      "agent": "agents/acceptance-test-reviewer.md"
     }
   ],
   "enhances": [
@@ -60,7 +75,8 @@
       "capabilities": [
         "test-quality-review",
         "coverage-review",
-        "flakiness-detection"
+        "flakiness-detection",
+        "acceptance-testing"
       ]
     },
     {
@@ -82,7 +98,8 @@
       "qe:analysis:completed:success",
       "qe:tests:generated:success",
       "qe:review:completed:success",
-      "qe:tdd:cycle:completed:success"
+      "qe:tdd:cycle:completed:success",
+      "qe:acceptance:completed:success"
     ]
   },
   "skills": [
@@ -110,6 +127,11 @@
       "name": "automate",
       "command": "/wicked-qe:automate",
       "description": "Generate test code from scenarios"
+    },
+    {
+      "name": "acceptance",
+      "command": "/wicked-qe:acceptance",
+      "description": "Evidence-gated acceptance testing with Write → Execute → Review pipeline"
     }
   ]
 }
