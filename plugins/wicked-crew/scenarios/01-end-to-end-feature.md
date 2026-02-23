@@ -86,12 +86,14 @@ npm install express --save
   - Which OAuth providers? (Google, GitHub initially)
   - Existing auth preservation? (Yes, keep username/password)
   - User data storage? (Extend existing user model)
-- Creates `outcome.md` with success criteria
+- Creates `objective.md` and `acceptance-criteria.md` with success criteria
 
 **Expected Deliverables**:
 ```
-phases/clarify/outcome.md containing:
-- Desired Outcome: Enable social login without breaking existing auth
+phases/clarify/objective.md containing:
+- Objective: Enable social login without breaking existing auth
+
+phases/clarify/acceptance-criteria.md containing:
 - Success Criteria:
   1. Users can log in via Google OAuth2
   2. Users can log in via GitHub OAuth2
@@ -143,25 +145,25 @@ phases/design/architecture.md containing:
 /wicked-crew:approve design
 ```
 
-**Expected**: Phase advances to "qe"
+**Expected**: Phase advances to "test-strategy"
 
-### 6. QE Phase - Test Strategy
+### 6. Test Strategy Phase - Test Planning
 
 ```bash
 /wicked-crew:execute
 ```
 
-**With wicked-product available**:
-- Dispatches to `/wicked-engineering:review --perspectives qe`
+**With wicked-qe available**:
+- Dispatches to `/wicked-qe:qe` for test strategy
 - Reviews design artifacts from QE perspective
 
-**Without wicked-product (standalone)**:
-- Creates test scenarios inline
-- Identifies edge cases
+**Without wicked-qe (standalone)**:
+- Creates test strategy inline
+- Identifies edge cases and test scenarios
 
 **Expected Deliverables**:
 ```
-phases/qe/test-scenarios.md containing:
+phases/test-strategy/test-strategy.md containing:
 - Happy path: Google login for new user
 - Happy path: GitHub login for existing user
 - Edge case: OAuth provider returns error
@@ -170,10 +172,10 @@ phases/qe/test-scenarios.md containing:
 - Security: CSRF protection
 ```
 
-### 7. Approve QE
+### 7. Approve Test Strategy
 
 ```bash
-/wicked-crew:approve qe
+/wicked-crew:approve test-strategy
 ```
 
 **Expected**: Phase advances to "build"
@@ -190,20 +192,18 @@ phases/qe/test-scenarios.md containing:
 - Updates task status as work completes
 
 **Without wicked-kanban (standalone)**:
-- Uses TodoWrite for task tracking
-- Tracks in `phases/build/tasks.md`
+- Uses TaskCreate/TaskUpdate tools for task tracking
+- Creates tasks dynamically based on implementation needs
 
-**Implementation tasks created**:
-1. Install passport, passport-google-oauth20, passport-github2
-2. Create OAuth configuration in `src/auth/oauth-config.js`
-3. Add OAuth routes to `src/server.js`
-4. Create callback handlers
-5. Implement user profile merging
-6. Add environment variable documentation
+**Implementation tasks created dynamically** (exact tasks depend on complexity analysis):
+- Tasks for OAuth library installation and configuration
+- Tasks for route and callback handler implementation
+- Tasks for user profile merging logic
+- Tasks for environment variable documentation
 
 **Expected Deliverables**:
 - Working OAuth implementation
-- All test scenarios passing
+- All test scenarios from test-strategy phase addressed
 - Documentation updated
 
 ### 9. Approve Build
@@ -220,17 +220,17 @@ phases/qe/test-scenarios.md containing:
 /wicked-crew:execute
 ```
 
-**With wicked-product available**:
+**With wicked-engineering available**:
 - Dispatches to `/wicked-engineering:review` with multiple perspectives
-- Gets feedback from security, engineering, product perspectives
+- Gets feedback from security, engineering, and QE perspectives
 
-**Without wicked-product (standalone)**:
+**Without wicked-engineering (standalone)**:
 - Inline multi-perspective review prompts
-- Reviews against outcome criteria
+- Reviews against acceptance-criteria.md
 
 **Expected Deliverables**:
 ```
-phases/review/findings.md containing:
+phases/review/review-findings.md containing:
 - Engineering: Code quality, patterns consistency
 - Security: OAuth implementation, token handling
 - QE: Test coverage assessment
@@ -255,7 +255,7 @@ phases/review/findings.md containing:
 - Project progresses through all five phases sequentially
 - Each phase requires explicit approval (quality gate)
 - Phase-specific agents/tools are used appropriately
-- Context is maintained across phases (design informs QE, QE informs build)
+- Context is maintained across phases (design informs test strategy, test strategy informs build)
 - Degradation works correctly when plugins unavailable
 - All artifacts are stored persistently in `.something-wicked/wicked-crew/`
 
@@ -264,22 +264,22 @@ phases/review/findings.md containing:
 - [ ] Project created with unique slug-based directory name
 - [ ] All five phases execute in correct order
 - [ ] Approval required between each phase (cannot skip)
-- [ ] Clarify phase produces measurable success criteria
+- [ ] Clarify phase produces `objective.md` and `acceptance-criteria.md`
 - [ ] Design phase references actual codebase patterns
-- [ ] QE phase creates specific test scenarios
-- [ ] Build phase implements according to design and tests
-- [ ] Review phase validates against original outcome
+- [ ] Test strategy phase creates `test-strategy.md` with specific scenarios
+- [ ] Build phase implements according to design and test strategy
+- [ ] Review phase validates against original `acceptance-criteria.md`
 - [ ] Works in standalone mode (no plugins)
-- [ ] Integrates with available plugins (wicked-jam, wicked-search, etc.)
+- [ ] Integrates with available plugins (wicked-jam, wicked-qe, wicked-engineering, etc.)
 - [ ] Project state persists across commands
-- [ ] Final review references outcome.md success criteria
+- [ ] Final review references `acceptance-criteria.md` success criteria
 
 ## Value Demonstrated
 
 **Real-world value**: Software projects often fail because of unclear outcomes, skipped quality gates, or lost context between phases. wicked-crew enforces a structured workflow that prevents "just start coding" syndrome.
 
-By forcing outcome clarification upfront, the team knows what success looks like. By doing QE before build (shift-left testing), bugs are prevented instead of fixed. By maintaining context across phases, decisions made during design inform implementation.
+By forcing outcome clarification upfront, the team knows what success looks like. By doing test strategy before build (shift-left testing), bugs are prevented instead of fixed. By maintaining context across phases, decisions made during design inform implementation.
 
 This replaces ad-hoc project management where developers start coding without clear acceptance criteria, skip testing until the end, and then discover they built the wrong thing. The explicit approval gates ensure stakeholder alignment at key decision points.
 
-For teams using wicked-kanban, wicked-search, and wicked-product, the integration provides seamless orchestration across tools. For teams without those plugins, the graceful degradation ensures the workflow still works with built-in alternatives.
+For teams using wicked-kanban, wicked-search, and wicked-engineering, the integration provides seamless orchestration across tools. For teams without those plugins, the graceful degradation ensures the workflow still works with built-in alternatives.

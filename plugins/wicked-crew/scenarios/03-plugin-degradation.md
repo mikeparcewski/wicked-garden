@@ -146,7 +146,7 @@ Available Integrations:
 - Facilitator agent runs inline (no jam dispatch)
 - Asks structured questions to define outcome
 - Mentions: "Running in degraded mode - inline brainstorming"
-- Still creates valid `outcome.md`
+- Still creates valid `objective.md` and `acceptance-criteria.md`
 
 **Progress to design**:
 ```bash
@@ -164,7 +164,7 @@ Available Integrations:
 **Progress to build**:
 ```bash
 /wicked-crew:approve design
-/wicked-crew:approve qe
+/wicked-crew:approve test-strategy
 /wicked-crew:execute
 ```
 
@@ -209,8 +209,8 @@ Note: All project data stored in ~/.something-wicked/wicked-crew/
 /wicked-crew:approve clarify
 /wicked-crew:execute           # design
 /wicked-crew:approve design
-/wicked-crew:execute           # qe
-/wicked-crew:approve qe
+/wicked-crew:execute           # test-strategy
+/wicked-crew:approve test-strategy
 /wicked-crew:execute           # build
 /wicked-crew:approve build
 /wicked-crew:execute           # review
@@ -257,7 +257,7 @@ The only differences:
 
 ### Functional Equivalence
 - [ ] All five phases work at each degradation level
-- [ ] Clarify produces valid outcome.md regardless of wicked-jam
+- [ ] Clarify produces valid `objective.md` and `acceptance-criteria.md` regardless of wicked-jam
 - [ ] Design finds patterns regardless of wicked-search
 - [ ] Build tracks tasks regardless of wicked-kanban
 - [ ] Review validates regardless of wicked-product

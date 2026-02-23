@@ -101,7 +101,7 @@ Configure autonomy to "just-finish" mode.
      - Export todos to JSON file
      - Import todos from JSON file
      - Preserve existing functionality
-   - Writes `outcome.md` automatically
+   - Writes `objective.md` and `acceptance-criteria.md` automatically
    - Self-approves to design phase
 
 2. **Design Phase** (auto-approves):
@@ -109,15 +109,15 @@ Configure autonomy to "just-finish" mode.
    - Identifies JSON library (stdlib json module)
    - Designs export/import functions matching existing patterns
    - Writes `phases/design/architecture.md`
-   - Self-approves to QE phase
+   - Self-approves to test-strategy phase
 
-3. **QE Phase** (auto-approves):
-   - Creates test scenarios:
+3. **Test Strategy Phase** (auto-approves):
+   - Creates test strategy:
      - Export tasks to JSON file
      - Import tasks from JSON file
      - Handle missing file
      - Handle invalid JSON
-   - Writes `phases/qe/test-scenarios.md`
+   - Writes `phases/test-strategy/test-strategy.md`
    - Self-approves to build phase
 
 4. **Build Phase** (auto-approves):
