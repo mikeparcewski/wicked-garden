@@ -1,22 +1,24 @@
-# Release wicked-scenarios v1.2.0
+# Release wicked-kanban v1.2.0
 
 **Date**: 2026-02-23
-**Component**: wicked-scenarios
+**Component**: wicked-kanban
 
 ## Summary
 
-This release includes: 2 new feature(s), 4 bug fix(es).
+This release includes: 3 new feature(s), 5 bug fix(es).
 
 ## Changes
 
 ### Features
 
-- feat: evidence-gated scenario testing with three-agent architecture (f3a9ed0)
+- feat: add TypeScript type definitions for wicked-search and wicked-workbench APIs (#59 #61) (017c4f0)
+- feat: evidence-gated scenario testing with three-agent architecture (ff4fc7a)
 - feat: add AGENTS.md support for cross-tool compatibility (#47) (6eab8bf)
 
 ### Bug Fixes
 
-- fix: restore grouping title format and deduplication skip logic (2b554bb)
+- fix: resolve scenario spec mismatches and add wicked-agentic scenarios (#62 #63) (4ab91cc)
+- fix: resolve 3 UAT failures + address PR #57 review comments (#58) (9472da7)
 - fix: rewrite wicked-patch scenarios to match actual CLI (#51) (#54) (a58b12d)
 - fix: address PR review feedback for risk assessment (#48) (cd965f4)
 - fix: make remove_field always HIGH risk in plan assessment (#48) (82d8581)
@@ -34,5 +36,5 @@ This release includes: 2 new feature(s), 4 bug fix(es).
 claude marketplace add wickedagile/wicked-garden
 
 # Then install the plugin
-claude plugin install wicked-scenarios@wicked-garden
+claude plugin install wicked-kanban@wicked-garden
 ```

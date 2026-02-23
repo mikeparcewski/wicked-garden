@@ -1,6 +1,6 @@
 {
   "name": "wicked-patch",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Language-agnostic code generation and change propagation using symbol graphs",
   "author": {
     "name": "Mike Parcewski"
