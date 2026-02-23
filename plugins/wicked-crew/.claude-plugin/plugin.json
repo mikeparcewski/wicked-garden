@@ -1,6 +1,6 @@
 {
   "name": "wicked-crew",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects (clarify, design, build, review) with embedded QE gates (value, strategy, execution) using the SADD pattern.",
   "author": {
     "name": "Mike Parcewski"

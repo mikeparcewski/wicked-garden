@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0] - 2026-02-23
+
+### Features
+- feat: add TypeScript type definitions for wicked-search and wicked-workbench APIs (#59 #61) (017c4f0)
+
+### Bug Fixes
+- fix: resolve scenario spec mismatches and add wicked-agentic scenarios (#62 #63) (4ab91cc)
+- fix: resolve 3 UAT failures + address PR #57 review comments (#58) (9472da7)
+
 ## [1.2.0] - 2026-02-23
 
 ### Features
