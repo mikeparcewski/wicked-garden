@@ -1,8 +1,6 @@
 # wicked-data
 
-Data engineering specialists with DuckDB-powered analysis -- run SQL queries on 10GB+ CSV and Excel files with zero database setup. Ask questions in plain English, get SQL plus results with memory-efficient streaming that never chokes on large files.
-
-Beyond ad-hoc queries, wicked-data brings ML pipeline guidance, analytics architecture review, and ETL design into one plugin. Your entire data workflow gets expert-level support from exploration to production.
+Query 10GB+ CSV and Excel files with plain-English questions — no database setup, no loading files into memory, just DuckDB-powered SQL with schema detection and specialist data engineers on demand.
 
 ## Quick Start
 
@@ -10,98 +8,109 @@ Beyond ad-hoc queries, wicked-data brings ML pipeline guidance, analytics archit
 # Install
 claude plugin install wicked-data@wicked-garden
 
-# Analyze a CSV file
-/wicked-data:analyze sales.csv
+# Start an interactive analysis session
+/wicked-data:analyze sales_2024.csv
 
-# Then ask questions in plain English:
-# "What's the total revenue by month?"
-# "Show me the top 10 customers"
-# "Are there any duplicate order IDs?"
+# Ask in plain English — SQL is generated and executed automatically
+# "What's total revenue by month?"
+# "Show me the top 10 customers by order count"
+# "Are there duplicate order IDs?"
 ```
 
-That's it. Claude generates SQL, DuckDB executes it, you get answers.
+## Workflows
+
+### Explore a Large CSV Without Loading It
+
+You have a 4GB transaction file. Instead of loading it into a dataframe or spinning up a database, start an analysis session:
+
+```bash
+/wicked-data:analyze transactions_q4.csv
+```
+
+The data engineer agent profiles the schema, detects column types, samples rows, and opens an interactive session. Ask questions in natural language:
+
+```
+"How many transactions per day over the last 30 days?"
+"Which payment methods have the highest failure rate?"
+"Find rows where amount is null or negative"
+```
+
+DuckDB executes streaming SQL against the file — the full file is never loaded into memory. Results come back in seconds even at scale.
+
+### ETL Pipeline Review
+
+You have an existing pipeline and want an expert review before it goes to production:
+
+```bash
+/wicked-data:pipeline review pipelines/sales_etl/
+```
+
+The data engineer agent examines your transforms, checks for common anti-patterns (full table scans, missing null handling, unbounded windows), and recommends optimizations with specific code changes.
+
+### Find the Right Ontology for Your Dataset
+
+You're building a data catalog and need to map your schema to a standard:
+
+```bash
+/wicked-data:ontology customers.csv
+# Output:
+# Schema.org: Person, PostalAddress match 8/12 columns
+# Industry match: Retail — suggested: GS1, ARTS data model
+# Custom recommendation: 4 columns don't map to public ontologies
+#   → suggested custom namespace: org.yourco.customer.v1
+```
+
+### ML Model Review
+
+Before deploying a churn model to production, run a review:
+
+```bash
+/wicked-data:ml review models/churn_predictor/
+```
+
+The ML engineer agent checks training pipeline integrity, feature leakage, class imbalance handling, and deployment readiness. Output includes a checklist of blockers and recommendations.
 
 ## Commands
 
 | Command | What It Does | Example |
 |---------|-------------|---------|
-| `/wicked-data:analyze` | Interactive analysis session for CSV/Excel | `/wicked-data:analyze sales.csv` |
+| `/wicked-data:analyze` | Interactive DuckDB analysis session for CSV/Excel | `/wicked-data:analyze sales.csv` |
 | `/wicked-data:ontology` | Recommend ontologies based on dataset structure | `/wicked-data:ontology customers.csv` |
-
-## Skills
-
-| Skill | What It Does | Example |
-|-------|-------------|---------|
-| `/wicked-data:numbers` | DuckDB SQL queries on large files | `/wicked-data:numbers transactions.csv` |
-| `/wicked-data:data` | Schema validation and data profiling | `/wicked-data:data profile users.csv` |
-| `/wicked-data:pipeline` | ETL pipeline design and review | `/wicked-data:pipeline review pipelines/etl/` |
-| `/wicked-data:analysis` | Statistical insights and pattern finding | `/wicked-data:analysis explore sales.csv` |
-| `/wicked-data:ml` | ML model guidance and architecture review | `/wicked-data:ml review models/churn/` |
 
 ## When to Use What
 
 | Need | Use This |
 |------|----------|
-| Quick CSV/Excel exploration | `/wicked-data:analyze` |
-| Find matching ontologies for dataset | `/wicked-data:ontology` |
-| SQL queries on large files | `/wicked-data:numbers` |
-| Validate data against a schema | `/wicked-data:data` |
-| Review or design ETL pipelines | `/wicked-data:pipeline` |
-| Find patterns and insights | `/wicked-data:analysis` |
-| Review ML model architecture | `/wicked-data:ml` |
+| Explore or query a CSV/Excel file | `/wicked-data:analyze` |
+| Map a dataset to a public ontology | `/wicked-data:ontology` |
+| Run SQL against large files directly | `/wicked-data:numbers` skill |
+| Validate data quality or schema | `/wicked-data:data` skill |
+| Design or review an ETL pipeline | `/wicked-data:pipeline` skill |
+| Exploratory analysis and pattern finding | `/wicked-data:analysis` skill |
+| ML architecture or pipeline review | `/wicked-data:ml` skill |
 
-## Key Features
+## How It Works
 
-- **No database setup**: Query CSV/Excel files directly with SQL via DuckDB
-- **Memory efficient**: Streams results without loading full files (10GB+ supported)
-- **Natural language**: Ask questions, get SQL queries and results
-- **Auto schema detection**: Infers types, nullability, patterns
-- **Multi-file joins**: Reference multiple files in one query
-
-## Workflows
-
-### Quick CSV Analysis
-
-```bash
-# 1. Start analysis
-/wicked-data:analyze sales_2024.csv
-
-# 2. Ask questions
-"What's the total revenue by month?"
-"Show me the top 5 products by sales"
-"Are there any null email addresses?"
-```
-
-### Ontology Recommendation
-
-```bash
-# Find matching ontologies for your dataset
-/wicked-data:ontology customers.csv
-# Outputs: schema.org, industry-specific, or custom ontology recommendations
-```
-
-### ETL Pipeline Review
-
-```bash
-# Review existing pipeline code
-/wicked-data:pipeline review pipelines/sales_etl/
-```
-
-### ML Model Review
-
-```bash
-# Review model architecture and deployment readiness
-/wicked-data:ml review models/churn_predictor/
-```
+The `analyze` command dispatches to a specialist agent based on your `--focus` flag or inferred intent from the data. The agent uses DuckDB to profile the file, generate SQL for your questions, and stream results — the file is never fully loaded. For GB-scale files, this is the difference between waiting 30 seconds and waiting 3 minutes.
 
 ## Agents
 
 | Agent | Focus |
 |-------|-------|
 | `data-engineer` | ETL pipelines, data quality, schema design |
-| `data-analyst` | Exploration, statistical analysis, insights |
-| `ml-engineer` | Model development, training pipelines, deployment |
+| `data-analyst` | Exploratory analysis, statistical patterns, business insights |
+| `ml-engineer` | Model development, training pipelines, deployment readiness |
 | `analytics-architect` | Data warehouse design, modeling, governance |
+
+## Skills
+
+| Skill | What It Does |
+|-------|-------------|
+| `numbers` | DuckDB SQL queries on large files with schema detection |
+| `data` | Schema validation and data profiling |
+| `pipeline` | ETL pipeline design and review |
+| `analysis` | Statistical insights and pattern finding |
+| `ml` | ML model guidance and architecture review |
 
 ## Prerequisites
 
@@ -109,17 +118,15 @@ That's it. Claude generates SQL, DuckDB executes it, you get answers.
 pip install duckdb openpyxl chardet
 ```
 
-Data profiling scripts use Python stdlib only - no external packages needed.
+Data profiling scripts use Python stdlib only — no external packages needed.
 
 ## Integration
 
-Works standalone. Enhanced with:
-
-| Plugin | Enhancement | Without It |
-|--------|-------------|------------|
+| Plugin | What It Unlocks | Without It |
+|--------|----------------|------------|
 | wicked-crew | Auto-engaged during data-focused phases | Use commands directly |
-| wicked-search | Find existing pipeline code and schemas | Manual discovery |
-| wicked-mem | Store data patterns and architecture decisions | Session-only context |
+| wicked-search | Find existing pipeline code and schemas in your codebase | Manual file discovery |
+| wicked-mem | Store data architecture decisions across sessions | Decisions lost between sessions |
 
 ## License
 

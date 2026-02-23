@@ -1,76 +1,105 @@
 # wicked-kanban
 
-Persistent task board that survives across sessions. Claude Code's built-in tasks reset every time you start a new conversation -- kanban auto-syncs via PostToolUse hooks, links commits to tasks, and maintains sprint grouping and activity audit trails that persist forever. Every TaskCreate and TaskUpdate flows to a durable board with full history.
+Claude Code's built-in tasks reset every session — wicked-kanban auto-syncs every TaskCreate and TaskUpdate to a persistent board with git commit linking, sprint grouping, and a full activity audit trail that survives across every conversation.
 
 ## Quick Start
 
 ```bash
-# Install
+# Install — tasks start syncing automatically
 claude plugin install wicked-kanban@wicked-garden
 
-# That's it - tasks sync automatically via hooks
-# Just use TaskCreate as normal, kanban tracks everything
+# Check your board right now
+/wicked-kanban:board-status
+
+# Name the current session as a sprint or initiative
+/wicked-kanban:name-session "Sprint 14"
 ```
 
-After install, every task you create is automatically synced to a persistent kanban board with activity tracking.
+After install, zero configuration is required. Every `TaskCreate` and `TaskUpdate` you or any agent makes is automatically captured.
 
-### Three Ways to Use
+## Workflows
 
-**1. Automatic (Recommended)** - Tasks sync via hooks, zero effort:
+### Zero-Effort Persistence
+
+The most common workflow is doing nothing differently. Just use Claude's native task tools, and kanban captures everything:
+
+```
+You: "Build the authentication module"
+
+Claude creates tasks:
+  TaskCreate("Design: auth-module - JWT token structure")
+  TaskCreate("Build: auth-module - Login endpoint")
+  TaskCreate("Build: auth-module - Token refresh logic")
+  TaskCreate("Test: auth-module - Auth integration tests")
+```
+
+Those tasks now exist in persistent storage. Start a new session tomorrow:
+
 ```bash
-# Use Claude's built-in task tools as normal
-# Kanban syncs automatically in the background
+/wicked-kanban:board-status
 ```
 
-**2. Slash Commands** - Quick board access:
-```bash
-/wicked-kanban:board-status      # See current board state
-/wicked-kanban:new-task          # Create a task interactively
-/wicked-kanban:name-session      # Name this work session
-/wicked-kanban:start-api         # Start data API for workbench dashboards
+Output:
+```
+Project: my-app (linked to /Users/you/projects/my-app)
+
+IN PROGRESS (1)
+  [P1] Build: auth-module - Login endpoint
+
+TO DO (2)
+  [P1] Build: auth-module - Token refresh logic
+  [P2] Test: auth-module - Auth integration tests
+
+DONE (1)
+  [P1] Design: auth-module - JWT token structure
+      Completed 2026-02-22 · commit a3f91b2
+
+Recent activity: 4 tasks created, 1 completed, 1 git commit linked
 ```
 
-**3. CLI** - Direct access for scripting:
+### Sprint Tracking Across Sessions
+
+Group related work into a named initiative, then track it over days or weeks:
+
 ```bash
-python scripts/kanban.py list-projects
-python scripts/kanban.py list-tasks PROJECT_ID
-python scripts/kanban.py search "authentication"
+# Name the current work period
+/wicked-kanban:name-session "Sprint 14 - Auth Hardening"
+
+# Create tasks — they're automatically grouped under this initiative
+TaskCreate("Build: auth-sprint - Rate limiting on login")
+TaskCreate("Build: auth-sprint - Account lockout policy")
+TaskCreate("Review: auth-sprint - Security audit")
+
+# Check sprint status anytime, any session
+/wicked-kanban:board-status
 ```
+
+### Linking Commits to Work
+
+When you commit code, kanban hooks detect it and link the commit hash to the active task. This creates a traceable connection from requirement to code change to deployment — visible in the audit log and accessible via the Data API.
 
 ## Commands
 
 | Command | What It Does | Example |
 |---------|-------------|---------|
 | `/wicked-kanban:board-status` | Show board with all tasks by status | `/wicked-kanban:board-status` |
-| `/wicked-kanban:new-task` | Create a task interactively | `/wicked-kanban:new-task` |
-| `/wicked-kanban:name-session` | Name the current session/initiative | `/wicked-kanban:name-session "Sprint 3"` |
+| `/wicked-kanban:new-task` | Create a task interactively | `/wicked-kanban:new-task "Fix login timeout" --priority P1` |
+| `/wicked-kanban:name-session` | Name the current session or initiative | `/wicked-kanban:name-session "Sprint 14"` |
 | `/wicked-kanban:start-api` | Start data API for wicked-workbench | `/wicked-kanban:start-api` |
 | `/wicked-kanban:help` | Setup instructions and usage guide | `/wicked-kanban:help` |
 
-## How Automatic Sync Works
+## How It Works
 
-When you use TaskCreate or TaskUpdate, kanban's PostToolUse hook automatically:
+When you or an agent calls `TaskCreate` or `TaskUpdate`, kanban's PostToolUse hook fires automatically:
 
-1. Detects the tool call
-2. Maps your repo to a kanban project (creates one on first use)
-3. Syncs the task to persistent storage
-4. Logs the activity with timestamp
+1. Maps your current repo path to a kanban project (creates one on first use)
+2. Syncs the task to folder-based persistent storage
+3. Logs the event with a timestamp to the daily activity log
+4. If a git commit just happened, links the commit hash to the active task
 
-The hook also tracks git commits and links them to active tasks.
-
-## Key Concepts
-
-| Concept | What It Is |
-|---------|-----------|
-| **Project** | All work for a repository, auto-created on first task |
-| **Swimlanes** | Board columns: `todo`, `in_progress`, `done` |
-| **Priorities** | P0 (critical), P1 (high), P2 (normal), P3 (low) |
-| **Initiatives** | Time-boxed work periods (sprints, sessions) |
-| **Dependencies** | Tasks can block other tasks |
+The hook also watches for session naming via `name-session` to group tasks into initiatives (sprints). No polling, no background daemons — purely event-driven.
 
 ## Storage
-
-Folder-based storage for fast, concurrent access:
 
 ```
 ~/.something-wicked/wicked-kanban/
@@ -78,10 +107,16 @@ Folder-based storage for fast, concurrent access:
 ├── active_context.json      # Current task/session state
 └── projects/{id}/
     ├── project.json         # Project metadata
-    ├── tasks/{id}.json      # Individual tasks
+    ├── tasks/{id}.json      # Individual task files
     ├── initiatives/{id}.json
     └── activity/{date}.jsonl # Daily audit log
 ```
+
+## Skills
+
+| Skill | What It Does |
+|-------|-------------|
+| `task-management` | Guidance for persistent task management and kanban CLI operations |
 
 ## Data API
 
@@ -90,7 +125,7 @@ This plugin exposes data via the standard Plugin Data API. Sources are declared 
 | Source | Capabilities | Description |
 |--------|-------------|-------------|
 | projects | list, get | Kanban projects with metadata and configuration |
-| tasks | list, get, search, stats | Kanban tasks with status, priority, and metadata |
+| tasks | list, get, search, stats | Tasks with status, priority, and metadata |
 | initiatives | list, get | Project initiatives for grouping tasks |
 | activity | list | Recent task activity and changes |
 | comments | list, create | Task comments and annotations (requires `--task-id` and `--project`) |
@@ -107,14 +142,12 @@ python3 scripts/api.py {verb} {source} [--limit N] [--offset N] [--query Q]
 
 ## Integration
 
-Works standalone. Enhanced with:
-
-| Plugin | Enhancement | Without It |
-|--------|-------------|------------|
-| wicked-crew | Tasks auto-grouped by crew project initiative | Manual task organization |
+| Plugin | What It Unlocks | Without It |
+|--------|----------------|------------|
+| wicked-crew | Tasks auto-grouped into crew project initiatives | Manual task organization |
 | wicked-workbench | Visual kanban board dashboard | Text-only board status |
 | wicked-mem | Auto-capture learnings from completed tasks | Manual memory storage |
-| wicked-smaht | Active tasks injected into context | Manual board checks |
+| wicked-smaht | Active tasks injected into context automatically | Manual board checks |
 
 ## License
 

@@ -29,6 +29,11 @@ The `.claude/` directory contains **development tools** (prefixed `wg-`) for bui
 /wg-test wicked-example/scenario-name    # specific scenario
 /wg-test wicked-example --all            # all scenarios
 
+# Resolve GitHub issues via crew workflow
+/wg-issue 42                             # triage + implement + PR for issue #42
+/wg-issue --list                         # list open issues
+/wg-issue --label bug --limit 5          # filter by label
+
 # Release with version bump
 /wg-release plugins/wicked-example --dry-run
 /wg-release plugins/wicked-example --bump minor
@@ -57,6 +62,7 @@ plugins/wicked-example/
 │   └── scripts/             # Hook implementations (Python, stdlib-only)
 ├── scripts/                 # Plugin utilities and APIs
 ├── scenarios/               # Acceptance test scenarios (*.md)
+├── types.d.ts               # TypeScript type defs for API responses (optional)
 ├── README.md                # Must include Integration table
 └── CHANGELOG.md
 ```
@@ -261,6 +267,15 @@ See [SKILLS-GUIDELINES.md](skills/SKILLS-GUIDELINES.md) for full rules.
 - For impact analysis: use `/wicked-search:blast-radius` instead of manual grep chains
 - For data lineage: use `/wicked-search:lineage` — no native equivalent exists
 - **Fallback to Grep/Glob only** when: wicked-search is not installed, searching for simple string literals in known files, or index is not built
+
+## TypeScript Type Definitions
+
+Plugins with data APIs (scripts that return JSON) should include `types.d.ts` at their root with ambient type declarations mirroring the Python API response shapes. These types are consumed by wicked-workbench dashboards and any frontend built against the data gateway.
+
+- Use `export interface` for all types (ambient declarations, no `declare`)
+- Define a generic `ApiResponse<T>` envelope matching the plugin's `{ data, meta }` shape
+- Export named type aliases for each endpoint: `export type GraphStatsResponse = ApiResponse<GraphStatsData>`
+- Existing examples: `plugins/wicked-search/types.d.ts`, `plugins/wicked-workbench/types.d.ts`
 
 ## Security
 
