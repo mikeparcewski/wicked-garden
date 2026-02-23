@@ -488,9 +488,9 @@ class MemoryStore:
             search_paths = [self.base_path / "core"]
             projects_path = self.base_path / "projects"
             if all_projects and projects_path.exists():
-                for project_dir in projects_path.iterdir():
-                    if project_dir.is_dir():
-                        search_paths.append(project_dir)
+                # Search the projects parent dir once (O(1) ripgrep call)
+                # instead of iterating each project subdirectory (O(N)).
+                search_paths.append(projects_path)
             elif self.project:
                 search_paths.append(projects_path / self.project)
 

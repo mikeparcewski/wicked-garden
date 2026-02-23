@@ -39,12 +39,20 @@ cat > "${TMPDIR:-/tmp}/wicked-scenario-pw/index.html" << 'HTML_EOF'
 </html>
 HTML_EOF
 
+# Pick a free port (fall back to 8765 if python one-liner fails)
+SCEN_PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" 2>/dev/null || echo 8765)
+echo "$SCEN_PORT" > "${TMPDIR:-/tmp}/wicked-scenario-pw/port"
+
 # Start a local server in the background
-python3 -m http.server 8765 --directory "${TMPDIR:-/tmp}/wicked-scenario-pw" &
+python3 -m http.server "$SCEN_PORT" --directory "${TMPDIR:-/tmp}/wicked-scenario-pw" &
 SERVER_PID=$!
 echo "$SERVER_PID" > "${TMPDIR:-/tmp}/wicked-scenario-pw/server.pid"
-# Give the server a moment to start
-sleep 1
+
+# Wait for the server to be ready (up to 5 seconds)
+for i in 1 2 3 4 5; do
+  curl -sf "http://localhost:${SCEN_PORT}/" >/dev/null 2>&1 && break
+  sleep 1
+done
 ```
 
 ## Steps
@@ -56,10 +64,11 @@ if ! npx playwright --version &>/dev/null; then
   echo "SKIP: playwright not installed. Run /wicked-scenarios:setup to install."
   exit 0
 fi
-cat > "${TMPDIR:-/tmp}/wicked-scenario-pw"/title.spec.ts << 'PW_EOF'
+SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
+cat > "${TMPDIR:-/tmp}/wicked-scenario-pw"/title.spec.ts << PW_EOF
 import { test, expect } from '@playwright/test';
 test('page loads with correct title', async ({ page }) => {
-  await page.goto('http://localhost:8765/');
+  await page.goto('http://localhost:${SCEN_PORT}/');
   await expect(page).toHaveTitle(/Wicked Test Page/);
 });
 PW_EOF
@@ -75,10 +84,11 @@ if ! npx playwright --version &>/dev/null; then
   echo "SKIP: playwright not installed. Run /wicked-scenarios:setup to install."
   exit 0
 fi
-cat > "${TMPDIR:-/tmp}/wicked-scenario-pw"/content.spec.ts << 'PW_EOF'
+SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
+cat > "${TMPDIR:-/tmp}/wicked-scenario-pw"/content.spec.ts << PW_EOF
 import { test, expect } from '@playwright/test';
 test('page has expected content', async ({ page }) => {
-  await page.goto('http://localhost:8765/');
+  await page.goto('http://localhost:${SCEN_PORT}/');
   await expect(page.locator('h1')).toHaveText('Wicked Garden Scenario Test');
   await expect(page.locator('p').first()).toContainText('browser-page-audit scenario validation');
 });
@@ -95,7 +105,8 @@ if ! command -v agent-browser &>/dev/null; then
   echo "SKIP: agent-browser not installed. Run /wicked-scenarios:setup to install."
   exit 0
 fi
-agent-browser open http://localhost:8765/ --headless && agent-browser snapshot
+SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
+agent-browser open "http://localhost:${SCEN_PORT}/" --headless && agent-browser snapshot
 ```
 
 **Expect**: Exit code 0, page snapshot captured

@@ -218,15 +218,25 @@ class DocumentExtractor:
             r'|^(\d+)\.\s+(.+)$'            # Numbered sections: "1. Title"
         )
 
+        # Common non-heading colon labels that would fragment prose
+        colon_noise = {
+            'note', 'example', 'warning', 'tip', 'info', 'important',
+            'caution', 'see', 'details', 'output', 'input', 'returns',
+            'raises', 'args', 'parameters', 'usage', 'summary',
+        }
+
         for i, line in enumerate(lines):
             stripped = line.strip()
             match = heading_pattern.match(stripped)
 
-            # Also detect "Label:" lines preceded by a blank line
+            # Also detect "Label:" lines preceded by a blank line, but
+            # skip common non-heading labels that would fragment prose.
             colon_heading = None
             if (not match and stripped.endswith(':') and len(stripped) > 3
                     and i > 0 and lines[i - 1].strip() == ''):
-                colon_heading = stripped[:-1].strip()
+                candidate = stripped[:-1].strip()
+                if candidate.lower() not in colon_noise:
+                    colon_heading = candidate
 
             if match or colon_heading:
                 # Save previous section

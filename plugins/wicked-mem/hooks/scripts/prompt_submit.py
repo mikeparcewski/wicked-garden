@@ -224,11 +224,20 @@ def main():
 
             if not explicit_recall:
                 # For implicit (topical) injection, require at least one
-                # keyword to appear in a memory's tags so we stay precise.
-                memories = [
-                    m for m in memories
-                    if any(kw in (t.lower() for t in m.tags) for kw in keywords)
-                ]
+                # keyword to appear in a memory's tags (or title) so we
+                # stay precise.  Allow substring matches so e.g. keyword
+                # "auth" hits tag "authentication".
+                def _topically_relevant(m):
+                    lowered_tags = [t.lower() for t in m.tags]
+                    title_lower = m.title.lower()
+                    for kw in keywords:
+                        if any(kw in tag for tag in lowered_tags):
+                            return True
+                        if kw in title_lower:
+                            return True
+                    return False
+
+                memories = [m for m in memories if _topically_relevant(m)]
 
             memories = memories[:2]
 
