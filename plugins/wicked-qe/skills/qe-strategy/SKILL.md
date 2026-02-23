@@ -57,15 +57,31 @@ Also detects **agent test manipulation**: tests weakened to pass, missing assert
 
 Use: `/wicked-qe:qe-review <test-path>`
 
-## Workflow
+### Acceptance Testing (Evidence-Gated)
+Three-agent pipeline that separates test writing, execution, and review:
+- **Writer**: Reads scenario + implementation → evidence-gated test plan
+- **Executor**: Follows plan, collects artifacts — no judgment
+- **Reviewer**: Evaluates evidence against assertions independently
 
-The recommended QE workflow:
+Catches specification bugs, runtime bugs, and semantic bugs that self-grading misses.
 
+Use: `/wicked-qe:acceptance <scenario>`
+
+## Workflows
+
+### Code Testing Workflow
 ```
 /wicked-qe:scenarios Feature X        # 1. Generate scenarios
 /wicked-qe:qe-plan src/feature/       # 2. Create test plan
 /wicked-qe:automate --framework jest   # 3. Generate test code
 /wicked-qe:qe-review tests/           # 4. Review quality
+```
+
+### Acceptance Testing Workflow
+```
+/wicked-qe:acceptance scenario.md --phase write    # 1. Generate evidence-gated test plan
+# Review the plan, then:
+/wicked-qe:acceptance scenario.md                  # 2. Full Write → Execute → Review pipeline
 ```
 
 ## Agents
@@ -77,6 +93,9 @@ The recommended QE workflow:
 | risk-assessor | Identify risks and failure modes |
 | code-analyzer | Static analysis for testability and quality |
 | tdd-coach | Guide TDD red-green-refactor workflow |
+| acceptance-test-writer | Transform scenarios into evidence-gated test plans |
+| acceptance-test-executor | Execute plans, collect artifacts, no judgment |
+| acceptance-test-reviewer | Evaluate evidence against assertions independently |
 
 ## E2E Scenario Integration
 
