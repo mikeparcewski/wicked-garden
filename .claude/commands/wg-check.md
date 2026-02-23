@@ -109,6 +109,52 @@ done
 **Allowed**: wicked-* references, capability names, example output data
 **Flagged**: Discovery instructions naming specific external tools
 
+### 7. README Style Guide
+
+Validate README against the canonical style guide (see `plugins/wicked-startah/skills/readme-style-guide/`):
+
+```bash
+readme="{path}/README.md"
+
+# 7a. README exists
+if [[ ! -f "$readme" ]]; then
+  echo "ERROR: Missing README.md"
+fi
+
+# 7b. Has tagline (first non-heading, non-empty line after h1)
+tagline=$(awk '/^# /{found=1; next} found && /^[^#|`>]/ && NF{print; exit}' "$readme")
+if [[ -z "$tagline" ]]; then
+  echo "ERROR: No tagline after h1 heading"
+fi
+
+# 7c. Has Quick Start section
+if ! grep -q "## Quick Start" "$readme"; then
+  echo "ERROR: Missing ## Quick Start section"
+fi
+
+# 7d. Has Commands section
+if ! grep -q "## Commands" "$readme"; then
+  echo "ERROR: Missing ## Commands section"
+fi
+
+# 7e. Integration table has "Without It" column
+if ! grep -q "## Integration" "$readme"; then
+  echo "ERROR: Missing ## Integration section"
+elif ! grep -q "Without It" "$readme"; then
+  echo "ERROR: Integration table missing 'Without It' column"
+fi
+
+# 7f. Has at least one code example
+if ! grep -q '```' "$readme"; then
+  echo "WARNING: No code examples in README"
+fi
+
+# 7g. No unresolved template placeholders
+if grep -E '\{(path|verb|source)\}' "$readme" | grep -v '<!--' > /dev/null 2>&1; then
+  echo "WARNING: Unresolved template placeholders found"
+fi
+```
+
 ### Quick Check Output
 
 ```markdown
@@ -123,6 +169,7 @@ done
 | Agent frontmatter | ✓/✗ |
 | Specialist schema | ✓/✗/- |
 | Capability compliance | ✓/✗ |
+| README style guide | ✓/✗ |
 
 **Result**: PASS / FAIL
 
@@ -136,7 +183,7 @@ done
 
 Comprehensive marketplace readiness check. Runs quick check first, then adds:
 
-### 7. Official Validation
+### 8. Official Validation
 
 Invoke the `plugin-dev:plugin-validator` agent via Task tool:
 
@@ -145,7 +192,7 @@ subagent_type: plugin-dev:plugin-validator
 prompt: "Validate the plugin at [path] for structure, configuration, and compliance."
 ```
 
-### 8. Skill Quality Review
+### 9. Skill Quality Review
 
 Invoke the `plugin-dev:skill-reviewer` agent via Task tool:
 
@@ -154,7 +201,7 @@ subagent_type: plugin-dev:skill-reviewer
 prompt: "Review the skills in [path] for quality and best practices."
 ```
 
-### 9. Graceful Degradation
+### 10. Graceful Degradation
 
 Check that plugin works standalone with optional enhancements:
 
@@ -167,7 +214,7 @@ grep -r "try:" "{path}/scripts/" 2>/dev/null | head -3
 grep -r "except" "{path}/scripts/" 2>/dev/null | head -3
 ```
 
-### 10. Product Value Assessment
+### 11. Product Value Assessment
 
 Evaluate (read README and understand the component):
 
