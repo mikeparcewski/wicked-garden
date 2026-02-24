@@ -104,7 +104,7 @@ def main():
     # Read input from stdin
     try:
         input_data = json.loads(sys.stdin.read())
-        prompt = input_data.get("user_prompt", "")
+        prompt = input_data.get("prompt", "")
         session_id = input_data.get("session_id", os.environ.get("CLAUDE_SESSION_ID", "default"))
     except Exception:
         print(json.dumps({"continue": True}))
@@ -132,9 +132,10 @@ def main():
         if result.get("sources") and any(result["sources"]):
             fallback_parts.append(f"Context sources queried: {', '.join(result.get('sources', []))}")
         if fallback_parts:
+            sanitized = '  '.join(fallback_parts).replace('</system-reminder>', '')
             print(json.dumps({
-                "continue": True,
-                "message": f"<system-reminder>\n{'  '.join(fallback_parts)}\n</system-reminder>"
+                "additionalContext": f"<system-reminder>\n{sanitized}\n</system-reminder>",
+                "continue": True
             }))
         else:
             print(json.dumps({"continue": True}))
@@ -162,9 +163,10 @@ def main():
     if context_warning:
         briefing += f"\n\n{context_warning}"
 
+    sanitized_briefing = briefing.replace('</system-reminder>', '')
     output = {
-        "continue": True,
-        "message": f"<system-reminder>\n{header}\n{briefing}\n</system-reminder>"
+        "additionalContext": f"<system-reminder>\n{header}\n{sanitized_briefing}\n</system-reminder>",
+        "continue": True
     }
 
     print(json.dumps(output))
