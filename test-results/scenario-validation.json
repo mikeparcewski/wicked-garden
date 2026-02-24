@@ -1,0 +1,2166 @@
+{
+  "total": 102,
+  "grades": {
+    "PASS": 88,
+    "PASS_WITH_NOTES": 2,
+    "FAIL": 7,
+    "WARN": 5
+  },
+  "by_plugin": {
+    "wicked-agentic": 4,
+    "wicked-crew": 7,
+    "wicked-data": 6,
+    "wicked-delivery": 6,
+    "wicked-engineering": 4,
+    "wicked-jam": 4,
+    "wicked-kanban": 10,
+    "wicked-mem": 9,
+    "wicked-patch": 5,
+    "wicked-platform": 6,
+    "wicked-product": 6,
+    "wicked-qe": 3,
+    "wicked-scenarios": 6,
+    "wicked-search": 10,
+    "wicked-smaht": 7,
+    "wicked-startah": 4,
+    "wicked-workbench": 5
+  },
+  "results": [
+    {
+      "plugin": "wicked-agentic",
+      "scenario": "01-architecture-review",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 205,
+        "success_criteria_count": 9,
+        "code_blocks": 7,
+        "type": "review",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-agentic",
+      "scenario": "02-trust-safety-audit",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 213,
+        "success_criteria_count": 11,
+        "code_blocks": 7,
+        "type": "review",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-agentic",
+      "scenario": "03-framework-comparison",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 185,
+        "success_criteria_count": 10,
+        "code_blocks": 9,
+        "type": "workflow",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-agentic",
+      "scenario": "04-five-layer-design",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 209,
+        "success_criteria_count": 10,
+        "code_blocks": 9,
+        "type": "workflow",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-crew",
+      "scenario": "01-end-to-end-feature",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 286,
+        "success_criteria_count": 12,
+        "code_blocks": 16,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-crew",
+      "scenario": "02-autonomous-completion",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 227,
+        "success_criteria_count": 16,
+        "code_blocks": 8,
+        "type": "workflow",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-crew",
+      "scenario": "03-plugin-degradation",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 294,
+        "success_criteria_count": 21,
+        "code_blocks": 16,
+        "type": "integration",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-crew",
+      "scenario": "04-context-isolation",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 258,
+        "success_criteria_count": 20,
+        "code_blocks": 8,
+        "type": "feature",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-crew",
+      "scenario": "05-multi-project-management",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 295,
+        "success_criteria_count": 19,
+        "code_blocks": 20,
+        "type": "workflow",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-crew",
+      "scenario": "06-archetype-scoring",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 152,
+        "success_criteria_count": 12,
+        "code_blocks": 8,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-crew",
+      "scenario": "07-autonomous-assumptions",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 126,
+        "success_criteria_count": 12,
+        "code_blocks": 4,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-data",
+      "scenario": "01-csv-profiling-analysis",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: data"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 145,
+        "success_criteria_count": 8,
+        "code_blocks": 3,
+        "type": "data",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-data",
+      "scenario": "02-data-quality-assessment",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: data"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 240,
+        "success_criteria_count": 9,
+        "code_blocks": 4,
+        "type": "data",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-data",
+      "scenario": "03-pipeline-design-review",
+      "grade": "PASS_WITH_NOTES",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: pipeline"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /user:pass - plugin not found"
+        }
+      ],
+      "stats": {
+        "line_count": 287,
+        "success_criteria_count": 9,
+        "code_blocks": 4,
+        "type": "pipeline",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-data",
+      "scenario": "04-exploratory-analysis-insights",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 234,
+        "success_criteria_count": 10,
+        "code_blocks": 5,
+        "type": "analysis",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-data",
+      "scenario": "05-ml-model-review",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 310,
+        "success_criteria_count": 9,
+        "code_blocks": 4,
+        "type": "analysis",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-data",
+      "scenario": "06-large-file-sql-analysis",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: data"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 282,
+        "success_criteria_count": 9,
+        "code_blocks": 10,
+        "type": "data",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-delivery",
+      "scenario": "01-new-developer-onboarding",
+      "grade": "PASS",
+      "findings": [],
+      "stats": {
+        "line_count": 162,
+        "success_criteria_count": 10,
+        "code_blocks": 7,
+        "type": "workflow",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-delivery",
+      "scenario": "02-sprint-health-check",
+      "grade": "PASS",
+      "findings": [],
+      "stats": {
+        "line_count": 154,
+        "success_criteria_count": 10,
+        "code_blocks": 6,
+        "type": "workflow",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-delivery",
+      "scenario": "03-ab-test-design",
+      "grade": "PASS",
+      "findings": [],
+      "stats": {
+        "line_count": 272,
+        "success_criteria_count": 10,
+        "code_blocks": 10,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-delivery",
+      "scenario": "04-progressive-rollout",
+      "grade": "PASS",
+      "findings": [],
+      "stats": {
+        "line_count": 278,
+        "success_criteria_count": 12,
+        "code_blocks": 9,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-delivery",
+      "scenario": "05-cloud-cost-analysis",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Value Demonstrated' section"
+        }
+      ],
+      "stats": {
+        "line_count": 210,
+        "success_criteria_count": 8,
+        "code_blocks": 7,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-delivery",
+      "scenario": "06-stakeholder-reporting",
+      "grade": "PASS_WITH_NOTES",
+      "findings": [
+        {
+          "level": "warn",
+          "message": "Integration notes reference unknown plugin: wicked-cache"
+        }
+      ],
+      "stats": {
+        "line_count": 270,
+        "success_criteria_count": 13,
+        "code_blocks": 8,
+        "type": "feature",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-engineering",
+      "scenario": "01-code-review-pr",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 236,
+        "success_criteria_count": 7,
+        "code_blocks": 5,
+        "type": "review",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-engineering",
+      "scenario": "02-systematic-debugging",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 304,
+        "success_criteria_count": 9,
+        "code_blocks": 8,
+        "type": "debugging",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-engineering",
+      "scenario": "03-architecture-analysis",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 351,
+        "success_criteria_count": 9,
+        "code_blocks": 8,
+        "type": "architecture",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-engineering",
+      "scenario": "06-implementation-planning",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 414,
+        "success_criteria_count": 11,
+        "code_blocks": 8,
+        "type": "review",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-jam",
+      "scenario": "01-architecture-decision",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 105,
+        "success_criteria_count": 8,
+        "code_blocks": 3,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-jam",
+      "scenario": "02-product-feedback",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 114,
+        "success_criteria_count": 8,
+        "code_blocks": 3,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-jam",
+      "scenario": "03-refactoring-strategy",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 153,
+        "success_criteria_count": 10,
+        "code_blocks": 3,
+        "type": "workflow",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-jam",
+      "scenario": "04-integration-with-wicked-mem",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 175,
+        "success_criteria_count": 11,
+        "code_blocks": 6,
+        "type": "integration",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "artifacts-and-commits",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 106,
+        "success_criteria_count": 6,
+        "code_blocks": 7,
+        "type": "feature",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "basic-task-workflow",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 91,
+        "success_criteria_count": 6,
+        "code_blocks": 9,
+        "type": "workflow",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "collaboration",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 90,
+        "success_criteria_count": 5,
+        "code_blocks": 7,
+        "type": "integration",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "initiative-planning",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 126,
+        "success_criteria_count": 8,
+        "code_blocks": 11,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "multi-project-coordination",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 167,
+        "success_criteria_count": 7,
+        "code_blocks": 11,
+        "type": "workflow",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "priority-triage",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 114,
+        "success_criteria_count": 6,
+        "code_blocks": 8,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "search-and-discovery",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 96,
+        "success_criteria_count": 5,
+        "code_blocks": 6,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "session-persistence",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 121,
+        "success_criteria_count": 6,
+        "code_blocks": 7,
+        "type": "integration",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "task-dependencies",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 86,
+        "success_criteria_count": 5,
+        "code_blocks": 7,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-kanban",
+      "scenario": "todowrite-sync",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 84,
+        "success_criteria_count": 4,
+        "code_blocks": 6,
+        "type": "integration",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "automatic-learning",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 90,
+        "success_criteria_count": 8,
+        "code_blocks": 1,
+        "type": "integration",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "debug-pattern",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 77,
+        "success_criteria_count": 7,
+        "code_blocks": 3,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "decision-recall",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 69,
+        "success_criteria_count": 6,
+        "code_blocks": 3,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "end-to-end-workflow",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 174,
+        "success_criteria_count": 10,
+        "code_blocks": 5,
+        "type": "workflow",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "memory-lifecycle",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 164,
+        "success_criteria_count": 10,
+        "code_blocks": 11,
+        "type": "feature",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "prompt-context-injection",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 152,
+        "success_criteria_count": 10,
+        "code_blocks": 6,
+        "type": "integration",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "returning-user",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 84,
+        "success_criteria_count": 6,
+        "code_blocks": 5,
+        "type": "workflow",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "session-context-injection",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 116,
+        "success_criteria_count": 7,
+        "code_blocks": 6,
+        "type": "integration",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-mem",
+      "scenario": "tag-based-discovery",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 125,
+        "success_criteria_count": 6,
+        "code_blocks": 11,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-patch",
+      "scenario": "01-add-field-propagation",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: patch"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 219,
+        "success_criteria_count": 6,
+        "code_blocks": 10,
+        "type": "patch",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-patch",
+      "scenario": "02-rename-symbol-across-codebase",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: propagation"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 249,
+        "success_criteria_count": 6,
+        "code_blocks": 10,
+        "type": "propagation",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-patch",
+      "scenario": "03-change-plan-impact-analysis",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: safety"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 217,
+        "success_criteria_count": 7,
+        "code_blocks": 6,
+        "type": "safety",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-patch",
+      "scenario": "04-remove-field-cleanup",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: propagation"
+        }
+      ],
+      "stats": {
+        "line_count": 290,
+        "success_criteria_count": 7,
+        "code_blocks": 9,
+        "type": "propagation",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-patch",
+      "scenario": "05-patch-save-and-apply",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: safety"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 270,
+        "success_criteria_count": 8,
+        "code_blocks": 12,
+        "type": "safety",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-platform",
+      "scenario": "01-ci-workflow-generation",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: devops"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 228,
+        "success_criteria_count": 8,
+        "code_blocks": 5,
+        "type": "devops",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-platform",
+      "scenario": "02-security-vulnerability-scan",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: security"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 286,
+        "success_criteria_count": 8,
+        "code_blocks": 8,
+        "type": "security",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-platform",
+      "scenario": "03-incident-response-triage",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: infrastructure"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 305,
+        "success_criteria_count": 8,
+        "code_blocks": 11,
+        "type": "infrastructure",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-platform",
+      "scenario": "04-compliance-audit-preparation",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: compliance"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 428,
+        "success_criteria_count": 9,
+        "code_blocks": 11,
+        "type": "compliance",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-platform",
+      "scenario": "05-system-health-assessment",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: infrastructure"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 384,
+        "success_criteria_count": 9,
+        "code_blocks": 10,
+        "type": "infrastructure",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-platform",
+      "scenario": "06-workflow-troubleshooting",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: devops"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 407,
+        "success_criteria_count": 8,
+        "code_blocks": 10,
+        "type": "devops",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-product",
+      "scenario": "01-requirements-elicitation",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: requirements"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 125,
+        "success_criteria_count": 8,
+        "code_blocks": 4,
+        "type": "requirements",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-product",
+      "scenario": "02-customer-voice-analysis",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: research"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 166,
+        "success_criteria_count": 8,
+        "code_blocks": 4,
+        "type": "research",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-product",
+      "scenario": "03-accessibility-audit",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: ux"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 221,
+        "success_criteria_count": 9,
+        "code_blocks": 3,
+        "type": "ux",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-product",
+      "scenario": "04-strategic-investment-analysis",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: strategy"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 194,
+        "success_criteria_count": 10,
+        "code_blocks": 3,
+        "type": "strategy",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-product",
+      "scenario": "05-stakeholder-alignment",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: requirements"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 180,
+        "success_criteria_count": 10,
+        "code_blocks": 4,
+        "type": "requirements",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-product",
+      "scenario": "06-ux-flow-review",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: ux"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 271,
+        "success_criteria_count": 10,
+        "code_blocks": 5,
+        "type": "ux",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-qe",
+      "scenario": "01-qe-shift-left",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: testing"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 279,
+        "success_criteria_count": 9,
+        "code_blocks": 7,
+        "type": "testing",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-qe",
+      "scenario": "02-test-generation",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: testing"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 470,
+        "success_criteria_count": 10,
+        "code_blocks": 7,
+        "type": "testing",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-qe",
+      "scenario": "03-acceptance-testing-pipeline",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: testing"
+        }
+      ],
+      "stats": {
+        "line_count": 225,
+        "success_criteria_count": 4,
+        "code_blocks": 12,
+        "type": "testing",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-scenarios",
+      "scenario": "a11y-wcag-check",
+      "grade": "FAIL",
+      "findings": [
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: title"
+        },
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: type"
+        },
+        {
+          "level": "error",
+          "message": "Missing both 'Expected Outcome' and 'Success Criteria' sections"
+        },
+        {
+          "level": "info",
+          "message": "No 'Value Demonstrated' section"
+        }
+      ],
+      "stats": {
+        "line_count": 52,
+        "success_criteria_count": 0,
+        "code_blocks": 4,
+        "type": "unknown",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-scenarios",
+      "scenario": "api-health-check",
+      "grade": "FAIL",
+      "findings": [
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: title"
+        },
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: type"
+        },
+        {
+          "level": "error",
+          "message": "Missing both 'Expected Outcome' and 'Success Criteria' sections"
+        },
+        {
+          "level": "info",
+          "message": "No 'Value Demonstrated' section"
+        }
+      ],
+      "stats": {
+        "line_count": 65,
+        "success_criteria_count": 0,
+        "code_blocks": 5,
+        "type": "unknown",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-scenarios",
+      "scenario": "browser-page-audit",
+      "grade": "FAIL",
+      "findings": [
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: title"
+        },
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: type"
+        },
+        {
+          "level": "error",
+          "message": "Missing both 'Expected Outcome' and 'Success Criteria' sections"
+        },
+        {
+          "level": "info",
+          "message": "No 'Value Demonstrated' section"
+        }
+      ],
+      "stats": {
+        "line_count": 123,
+        "success_criteria_count": 0,
+        "code_blocks": 5,
+        "type": "unknown",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-scenarios",
+      "scenario": "infra-container-scan",
+      "grade": "FAIL",
+      "findings": [
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: title"
+        },
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: type"
+        },
+        {
+          "level": "error",
+          "message": "Missing both 'Expected Outcome' and 'Success Criteria' sections"
+        },
+        {
+          "level": "info",
+          "message": "No 'Value Demonstrated' section"
+        }
+      ],
+      "stats": {
+        "line_count": 53,
+        "success_criteria_count": 0,
+        "code_blocks": 4,
+        "type": "unknown",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-scenarios",
+      "scenario": "perf-load-test",
+      "grade": "FAIL",
+      "findings": [
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: title"
+        },
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: type"
+        },
+        {
+          "level": "error",
+          "message": "Missing both 'Expected Outcome' and 'Success Criteria' sections"
+        },
+        {
+          "level": "info",
+          "message": "No 'Value Demonstrated' section"
+        }
+      ],
+      "stats": {
+        "line_count": 71,
+        "success_criteria_count": 0,
+        "code_blocks": 4,
+        "type": "unknown",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-scenarios",
+      "scenario": "security-sast-scan",
+      "grade": "FAIL",
+      "findings": [
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: title"
+        },
+        {
+          "level": "error",
+          "message": "Missing required frontmatter field: type"
+        },
+        {
+          "level": "error",
+          "message": "Missing both 'Expected Outcome' and 'Success Criteria' sections"
+        },
+        {
+          "level": "info",
+          "message": "No 'Value Demonstrated' section"
+        }
+      ],
+      "stats": {
+        "line_count": 63,
+        "success_criteria_count": 0,
+        "code_blocks": 4,
+        "type": "unknown",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "blast-radius-analysis",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 346,
+        "success_criteria_count": 13,
+        "code_blocks": 10,
+        "type": "workflow",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "code-only-search",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 111,
+        "success_criteria_count": 6,
+        "code_blocks": 4,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "cross-reference-detection",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 216,
+        "success_criteria_count": 8,
+        "code_blocks": 13,
+        "type": "feature",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "docs-only-search",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 129,
+        "success_criteria_count": 6,
+        "code_blocks": 4,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "document-extraction",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 153,
+        "success_criteria_count": 6,
+        "code_blocks": 5,
+        "type": "feature",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "find-implementations",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 196,
+        "success_criteria_count": 8,
+        "code_blocks": 5,
+        "type": "workflow",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "incremental-indexing",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 134,
+        "success_criteria_count": 8,
+        "code_blocks": 7,
+        "type": "feature",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "index-and-search",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 97,
+        "success_criteria_count": 5,
+        "code_blocks": 4,
+        "type": "workflow",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "onboarding-unfamiliar-codebase",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 321,
+        "success_criteria_count": 8,
+        "code_blocks": 13,
+        "type": "workflow",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-search",
+      "scenario": "quick-pattern-scout",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 260,
+        "success_criteria_count": 7,
+        "code_blocks": 10,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-smaht",
+      "scenario": "06-context7-integration",
+      "grade": "FAIL",
+      "findings": [
+        {
+          "level": "error",
+          "message": "Missing YAML frontmatter"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        },
+        {
+          "level": "info",
+          "message": "No 'Value Demonstrated' section"
+        },
+        {
+          "level": "warn",
+          "message": "Success criteria exists but has no checkbox items"
+        }
+      ],
+      "stats": {
+        "line_count": 437,
+        "success_criteria_count": 0,
+        "code_blocks": 7,
+        "type": "unknown",
+        "difficulty": "unknown"
+      }
+    },
+    {
+      "plugin": "wicked-smaht",
+      "scenario": "fact-extraction",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 119,
+        "success_criteria_count": 7,
+        "code_blocks": 8,
+        "type": "feature",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-smaht",
+      "scenario": "graceful-degradation",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 130,
+        "success_criteria_count": 6,
+        "code_blocks": 9,
+        "type": "architecture",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-smaht",
+      "scenario": "intent-based-retrieval",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 98,
+        "success_criteria_count": 6,
+        "code_blocks": 5,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-smaht",
+      "scenario": "memory-promotion",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 145,
+        "success_criteria_count": 7,
+        "code_blocks": 8,
+        "type": "feature",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-smaht",
+      "scenario": "multi-lane-tracking",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 118,
+        "success_criteria_count": 7,
+        "code_blocks": 9,
+        "type": "feature",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-smaht",
+      "scenario": "session-context-injection",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 73,
+        "success_criteria_count": 4,
+        "code_blocks": 3,
+        "type": "integration",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-startah",
+      "scenario": "01-fresh-install",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 153,
+        "success_criteria_count": 10,
+        "code_blocks": 9,
+        "type": "integration",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-startah",
+      "scenario": "02-multi-ai-design-review",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 201,
+        "success_criteria_count": 11,
+        "code_blocks": 10,
+        "type": "workflow",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-startah",
+      "scenario": "03-code-review-comparison",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 205,
+        "success_criteria_count": 10,
+        "code_blocks": 7,
+        "type": "feature",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-startah",
+      "scenario": "04-mcp-server-integration",
+      "grade": "PASS",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        }
+      ],
+      "stats": {
+        "line_count": 209,
+        "success_criteria_count": 9,
+        "code_blocks": 13,
+        "type": "integration",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-workbench",
+      "scenario": "01-server-startup-health",
+      "grade": "WARN",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: setup"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        }
+      ],
+      "stats": {
+        "line_count": 124,
+        "success_criteria_count": 6,
+        "code_blocks": 10,
+        "type": "setup",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-workbench",
+      "scenario": "02-task-dashboard-generation",
+      "grade": "WARN",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        }
+      ],
+      "stats": {
+        "line_count": 146,
+        "success_criteria_count": 8,
+        "code_blocks": 11,
+        "type": "feature",
+        "difficulty": "basic"
+      }
+    },
+    {
+      "plugin": "wicked-workbench",
+      "scenario": "03-multi-plugin-dashboard",
+      "grade": "WARN",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        }
+      ],
+      "stats": {
+        "line_count": 172,
+        "success_criteria_count": 8,
+        "code_blocks": 13,
+        "type": "integration",
+        "difficulty": "intermediate"
+      }
+    },
+    {
+      "plugin": "wicked-workbench",
+      "scenario": "04-custom-catalog-component",
+      "grade": "WARN",
+      "findings": [
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        }
+      ],
+      "stats": {
+        "line_count": 170,
+        "success_criteria_count": 6,
+        "code_blocks": 12,
+        "type": "integration",
+        "difficulty": "advanced"
+      }
+    },
+    {
+      "plugin": "wicked-workbench",
+      "scenario": "05-dashboard-persistence",
+      "grade": "WARN",
+      "findings": [
+        {
+          "level": "info",
+          "message": "Non-standard type: dashboard"
+        },
+        {
+          "level": "info",
+          "message": "No 'Cleanup' section"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        },
+        {
+          "level": "warn",
+          "message": "Skill reference /localhost:18889 - plugin not found"
+        }
+      ],
+      "stats": {
+        "line_count": 123,
+        "success_criteria_count": 6,
+        "code_blocks": 9,
+        "type": "dashboard",
+        "difficulty": "intermediate"
+      }
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "date": "2026-02-24",
+  "total_tests": 25,
+  "total_pass": 20,
+  "total_fail": 5,
+  "note": "Failures are due to scenario docs referencing wrong script names, not actual broken functionality",
+  "plugins": {
+    "wicked-kanban": {
+      "tests": 4,
+      "pass": 3,
+      "fail": 1,
+      "results": [
+        {"test": "create-project", "result": "PASS", "note": "Actual script: kanban.py (not kanban_manager.py)"},
+        {"test": "create-task", "result": "PASS", "note": "Works with project ID from step 1"},
+        {"test": "list-projects", "result": "PASS", "note": "Returns all projects"},
+        {"test": "board-status", "result": "FAIL", "note": "Subcommand doesn't exist in kanban.py; use api.py stats tasks"}
+      ]
+    },
+    "wicked-mem": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "results": [
+        {"test": "store", "result": "PASS", "note": "Requires --title and string --importance (not numeric)"},
+        {"test": "recall", "result": "PASS", "note": "Query finds stored memories"},
+        {"test": "stats", "result": "PASS", "note": "Returns memory store statistics"}
+      ]
+    },
+    "wicked-search": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "results": [
+        {"test": "index-build", "result": "PASS", "note": "Entry point: unified_search.py (not orchestrator.py)"},
+        {"test": "stats", "result": "PASS", "note": "Returns index statistics"},
+        {"test": "code-search", "result": "PASS", "note": "Returns results for valid symbols (KanbanStore)"}
+      ]
+    },
+    "wicked-patch": {
+      "tests": 3,
+      "pass": 0,
+      "fail": 3,
+      "results": [
+        {"test": "import", "result": "FAIL", "note": "Test targeted change_analyzer.py which doesn't exist; patch.py imports fine"},
+        {"test": "help", "result": "FAIL", "note": "Same issue; patch.py --help works correctly"},
+        {"test": "impact-analysis", "result": "FAIL", "note": "Same issue; patch.py plan works correctly"}
+      ],
+      "root_cause": "Scenario docs reference change_analyzer.py but actual script is patch.py"
+    },
+    "wicked-crew": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "results": [
+        {"test": "smart-decisioning", "result": "PASS", "note": "Correctly analyzes descriptions, returns signals/archetype/complexity"},
+        {"test": "phase-manager", "result": "PASS", "note": "CLI: <project> {status,start,complete,...}"},
+        {"test": "phases-json", "result": "PASS", "note": "7 phases loaded from plugins/wicked-crew/phases.json"}
+      ]
+    },
+    "wicked-smaht": {
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "results": [
+        {"test": "context-gather", "result": "PASS", "note": "Fast path ~424ms, 5 adapter sources, research intent detected"},
+        {"test": "route-classify", "result": "PASS", "note": "Correctly classifies prompts (subcommand: route, not classify)"}
+      ]
+    },
+    "wicked-scenarios": {
+      "tests": 3,
+      "pass": 2,
+      "fail": 1,
+      "results": [
+        {"test": "cli-tools", "result": "PASS", "note": "curl available; 6 optional tools not installed (expected)"},
+        {"test": "scenario-validator", "result": "FAIL", "note": "scenario_validator.py doesn't exist; actual script: cli_discovery.py"},
+        {"test": "api-health-check", "result": "PASS", "note": "httpbin.org returns 200"}
+      ]
+    },
+    "wicked-startah": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "results": [
+        {"test": "hooks-valid", "result": "PASS", "note": "hooks.json valid, SessionStart/Stop events configured"},
+        {"test": "session-start-script", "result": "PASS", "note": "session_start.py is valid Python (AST parse)"},
+        {"test": "runtime-exec-skill", "result": "PASS", "note": "SKILL.md present and properly structured"}
+      ]
+    },
+    "specialist-agents": {
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "results": [
+        {"test": "agent-definitions", "result": "PASS", "note": "62 agent .md files across 8 plugins, all have valid frontmatter"}
+      ]
+    }
+  }
+}
