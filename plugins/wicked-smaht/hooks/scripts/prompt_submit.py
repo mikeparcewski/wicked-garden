@@ -132,8 +132,10 @@ def main():
         if result.get("sources") and any(result["sources"]):
             fallback_parts.append(f"Context sources queried: {', '.join(result.get('sources', []))}")
         if fallback_parts:
+            sanitized = '  '.join(fallback_parts).replace('</system-reminder>', '')
             print(json.dumps({
-                "additionalContext": f"<system-reminder>\n{'  '.join(fallback_parts)}\n</system-reminder>"
+                "additionalContext": f"<system-reminder>\n{sanitized}\n</system-reminder>",
+                "continue": True
             }))
         else:
             print(json.dumps({"continue": True}))
@@ -161,8 +163,10 @@ def main():
     if context_warning:
         briefing += f"\n\n{context_warning}"
 
+    sanitized_briefing = briefing.replace('</system-reminder>', '')
     output = {
-        "additionalContext": f"<system-reminder>\n{header}\n{briefing}\n</system-reminder>"
+        "additionalContext": f"<system-reminder>\n{header}\n{sanitized_briefing}\n</system-reminder>",
+        "continue": True
     }
 
     print(json.dumps(output))
