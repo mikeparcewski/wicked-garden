@@ -614,7 +614,7 @@ class TestIntegration(unittest.TestCase):
         self.assertGreater(result.risk_dimensions.novelty, 0)
 
     def test_formula_consistency(self):
-        """Verify composite formula: impact + min(max(rev, nov), 2) + scope + coord <= 7"""
+        """Verify composite formula: impact + min(round(rev*nov*0.22), 2) + scope + coord <= 7"""
         test_inputs = [
             "Fix typo in README",
             "Migrate database schema with breaking API changes",
@@ -629,7 +629,7 @@ class TestIntegration(unittest.TestCase):
             stakeholders = ["team", "manager", "lead", "stakeholder", "customer", "user"]
             coord = 1 if any(kw in text.lower() for kw in stakeholders) else 0
             expected = min(
-                dims.impact + min(max(dims.reversibility, dims.novelty), 2) + scope + coord,
+                dims.impact + min(round(dims.reversibility * dims.novelty * 0.22), 2) + scope + coord,
                 7,
             )
             self.assertEqual(
