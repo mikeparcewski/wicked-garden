@@ -92,7 +92,7 @@
       "name": "wicked-smaht",
       "source": "./plugins/wicked-smaht",
       "description": "Ecosystem multiplier \u2014 automatically gathers context from installed plugins (memories, tasks, code search, brainstorms) before Claude responds. The more plugins you install, the smarter it gets. Confidence-based routing: fast path for simple queries, comprehensive assembly for complex ones.",
-      "version": "3.2.0"
+      "version": "4.0.0"
     },
     {
       "name": "wicked-agentic",

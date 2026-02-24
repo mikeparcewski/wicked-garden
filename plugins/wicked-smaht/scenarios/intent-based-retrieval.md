@@ -1,7 +1,7 @@
 ---
 name: intent-based-retrieval
 title: Intent-Based Context Retrieval
-description: Intent detection adjusts source weights for debugging vs planning vs implementation
+description: Intent detection selects relevant adapters for debugging vs planning vs implementation
 type: feature
 difficulty: basic
 estimated_minutes: 5
@@ -9,7 +9,7 @@ estimated_minutes: 5
 
 # Intent-Based Context Retrieval
 
-Test that wicked-smaht detects query intent and adjusts context retrieval accordingly.
+Test that wicked-smaht detects query intent and selects relevant context adapters accordingly.
 
 ## Setup
 
@@ -24,7 +24,7 @@ Start a Claude Code session in a project with some existing code. The UserPrompt
    Why is the authentication failing? I'm getting a 401 error on login.
    ```
 
-   **Expected**: Intent detected as "debugging" with high confidence. Search source weighted higher for error patterns.
+   **Expected**: Intent detected as "debugging" with high confidence. On the fast path, search, mem, and delegation adapters are selected for error context.
 
 2. **Test planning intent detection**
 
@@ -33,16 +33,16 @@ Start a Claude Code session in a project with some existing code. The UserPrompt
    I need to design the new API for user management. What's our current approach?
    ```
 
-   **Expected**: Intent detected as "planning". wicked-jam and wicked-crew weighted higher for design context.
+   **Expected**: Intent detected as "planning". Escalates to slow path (planning is always comprehensive) — all adapters queried including jam (brainstorms) and crew (project state).
 
 3. **Test implementation intent detection**
 
    Send a prompt with implementation signals:
    ```
-   Add a logout endpoint that invalidates the JWT token.
+   Implement a logout function that creates an endpoint to invalidate JWT tokens.
    ```
 
-   **Expected**: Intent detected as "implementation". wicked-kanban weighted higher for task context.
+   **Expected**: Intent detected as "implementation" with high confidence. On the fast path, search, mem, kanban, context7, startah, and delegation adapters are selected for task context.
 
 4. **Test research intent detection**
 
@@ -51,29 +51,31 @@ Start a Claude Code session in a project with some existing code. The UserPrompt
    How does the caching layer work in this codebase?
    ```
 
-   **Expected**: Intent detected as "research". wicked-search weighted higher.
+   **Expected**: Intent detected as "research" with high confidence. On the fast path, search, mem, context7, startah, and delegation adapters are selected for broad code understanding.
 
 5. **Verify intent in session data**
    ```bash
    cat ~/.something-wicked/wicked-smaht/sessions/*/turns.jsonl | tail -4
    ```
-   Each turn should show `intent_type` field.
+   Each turn should show `intent_type` field. Note: turns.jsonl is populated by the orchestrator's `add_turn()` method during context gathering. Verification requires a live Claude Code session with the UserPromptSubmit hook active.
 
 ## Expected Outcome
 
-- Different intents trigger different retrieval strategies
-- Debugging queries prioritize error context and recent changes
-- Planning queries prioritize design docs and brainstorm sessions
-- Implementation queries prioritize task context and code patterns
-- Research queries prioritize broad search coverage
+- Different intents select different adapter sets for context retrieval
+- Debugging queries select search and mem adapters for error context and recent changes
+- Planning queries escalate to slow path for comprehensive context from all adapters
+- Implementation queries select kanban, search, mem, and context7 for task and code context
+- Research queries select search, mem, context7, and startah for broad coverage
 
 ## Processing Modes
 
-| Confidence | Mode | Latency | Sources |
-|------------|------|---------|---------|
-| High (>0.7) | Fast | <500ms | 1-3 most relevant |
-| Medium (0.4-0.7) | Deep | <1s | All sources |
-| Low (<0.4) | Deep+Broad | >1s | All sources, wider retrieval |
+| Trigger | Mode | Latency | Sources |
+|---------|------|---------|---------|
+| Continuation/confirmation | Hot | <100ms | Session state only |
+| High confidence (>0.7), simple request | Fast | <500ms | Intent-specific adapters (2-6) |
+| Low confidence, planning, competing intents, etc. | Slow | <5s | All adapters + history |
+
+Escalation to slow path triggers on: confidence < 0.5, competing intents, > 5 entities, history reference, planning/design request, novel topic, > 200 words, or compound request.
 
 ## Success Criteria
 
