@@ -18,7 +18,7 @@ flowchart TD
     E --> E1[Impact 0-3\nFile-role taxonomy + integration keywords]
     E --> E2[Reversibility 0-3\nIrreversibility vs mitigators]
     E --> E3[Novelty 0-3\nUnfamiliarity + ambiguity indicators]
-    E1 --> F[Complexity Composition 0-7\nimpact + min(max(reversibility, novelty),2) + scope + coordination]
+    E1 --> F[Complexity Composition 0-7\nimpact + min(round(rev*nov*0.22), 2) + scope + coordination]
     E2 --> F
     E3 --> F
 
