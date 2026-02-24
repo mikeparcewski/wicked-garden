@@ -26,13 +26,13 @@
       "name": "wicked-kanban",
       "source": "./plugins/wicked-kanban",
       "description": "Persistent kanban board that survives across sessions. Auto-syncs Claude Code's TaskCreate/TaskUpdate to a durable board with git commit linking, task comments API, activity audit trail, and sprint grouping. Built-in tasks reset each session \u2014 kanban remembers everything.",
-      "version": "1.2.0"
+      "version": "1.2.1"
     },
     {
       "name": "wicked-crew",
       "source": "./plugins/wicked-crew",
       "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates, project archiving, and signal-based specialist routing.",
-      "version": "1.2.0"
+      "version": "1.2.1"
     },
     {
       "name": "wicked-jam",
