@@ -113,6 +113,8 @@ class ProjectState:
     specialists_recommended: List[str] = field(default_factory=list)
     phase_plan: List[str] = field(default_factory=list)
     phases: Dict[str, PhaseState] = field(default_factory=dict)
+    kanban_initiative: Optional[str] = None
+    kanban_initiative_id: Optional[str] = None
     extras: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -165,6 +167,7 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         "name", "current_phase", "created_at", "version",
         "signals_detected", "complexity_score", "specialists_recommended",
         "phase_plan", "phases",
+        "kanban_initiative", "kanban_initiative_id",
     }
     extras = {k: v for k, v in data.items() if k not in known_keys}
 
@@ -178,6 +181,8 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         specialists_recommended=data.get("specialists_recommended", []),
         phase_plan=data.get("phase_plan", []),
         phases=phases,
+        kanban_initiative=data.get("kanban_initiative"),
+        kanban_initiative_id=data.get("kanban_initiative_id"),
         extras=extras,
     )
 
@@ -267,6 +272,8 @@ def save_project_state(state: ProjectState) -> None:
         "specialists_recommended": state.specialists_recommended,
         "phase_plan": state.phase_plan,
         "phases": {name: asdict(phase) for name, phase in state.phases.items()},
+        "kanban_initiative": state.kanban_initiative,
+        "kanban_initiative_id": state.kanban_initiative_id,
         **state.extras,
     }
 
@@ -495,7 +502,9 @@ def main():
                 "phase_plan": state.phase_plan,
                 "phases": get_phase_status_summary(state),
                 "signals": state.signals_detected,
-                "complexity": state.complexity_score
+                "complexity": state.complexity_score,
+                "kanban_initiative": state.kanban_initiative,
+                "kanban_initiative_id": state.kanban_initiative_id,
             }
             print(json.dumps(summary, indent=2))
         else:

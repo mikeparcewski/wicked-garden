@@ -237,31 +237,40 @@ Initialize task tracking metadata in project.json:
 
 Every crew project should be tracked as a kanban initiative. This provides visibility in the kanban board and dashboards.
 
-**Two default initiatives per repo:**
-1. **"Issues"** — default for general fixes, small tasks, and non-crew work
-2. **One per crew project** — named after the project
+**Goal**: store both the initiative *name* and *UUID* in project.json so session_start can reconnect without a kanban round-trip.
 
-When creating a crew project, ensure kanban has these:
-
-1. **Check for existing "Issues" initiative** in the kanban project for this repo. If none exists, create it:
+1. **Look up existing initiative by name**. If wicked-kanban is installed:
+   ```bash
+   python3 "${KANBAN_PLUGIN_ROOT}/scripts/kanban_initiative.py" lookup "{project-name}"
    ```
-   TaskCreate(subject="Setup: {project-name} - Initialize kanban tracking",
-              description="Create default Issues initiative for this repository",
-              activeForm="Setting up kanban initiatives")
+   Returns: `{"found": true, "initiative_id": "a1b2c3d4", "project_id": "..."}` or `{"found": false}`.
+
+   If wicked-kanban is not installed (`discover_script` returns None), skip all kanban steps gracefully — both IDs remain null.
+
+2. **If not found, create the initiative**:
+   ```bash
+   python3 "${KANBAN_PLUGIN_ROOT}/scripts/kanban_initiative.py" create "{project-name}"
+   ```
+   Returns: `{"initiative_id": "a1b2c3d4", "project_id": "b5c6d7e8"}`.
+
+3. **Ensure "Issues" initiative exists** for this repo:
+   ```bash
+   python3 "${KANBAN_PLUGIN_ROOT}/scripts/kanban_initiative.py" ensure-issues
    ```
 
-2. **All crew tasks must include initiative metadata** so `todo_sync` routes them correctly:
+4. **Store both name and UUID in project.json** as first-class fields:
+   ```json
+   {
+     "kanban_initiative": "{project-name}",
+     "kanban_initiative_id": "{uuid-from-kanban}"
+   }
+   ```
+
+5. **All crew tasks must include initiative metadata**:
    ```
    metadata: {"initiative": "{crew-project-name}"}
    ```
-   Tasks without this metadata go to the "Issues" initiative by default.
-
-3. Store the initiative name in project.json:
-   ```json
-   {
-     "kanban_initiative": "{project-name}"
-   }
-   ```
+   The PreToolUse hook (`pretool_taskcreate.py`) injects this automatically when an active crew project is detected, so explicit metadata is not required in every TaskCreate call — but including it is safe.
 
 This ensures crew project tasks appear grouped under their project initiative on the kanban board, while general fixes/bugs go to "Issues".
 

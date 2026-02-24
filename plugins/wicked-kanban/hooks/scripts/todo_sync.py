@@ -27,6 +27,7 @@ except ImportError:
 DATA_DIR = Path(os.environ.get('WICKED_KANBAN_DATA_DIR',
                                Path.home() / '.something-wicked' / 'wicked-kanban'))
 SYNC_STATE_FILE = DATA_DIR / 'sync_state.json'
+CREW_INITIATIVE_MAP_FILE = DATA_DIR / 'crew_initiative_map.json'
 
 # Status mapping
 STATUS_TO_SWIMLANE = {
@@ -46,6 +47,31 @@ PRIORITY_KEYWORDS = {
 }
 
 
+def load_crew_initiative_map() -> dict:
+    """Load durable crew initiative map from sidecar file.
+
+    Schema: {"version": 1, "entries": {"project-name": {"initiative_id": "...",
+             "project_id": "...", "created_at": "...", "last_seen": "..."}}}
+    """
+    if CREW_INITIATIVE_MAP_FILE.exists():
+        try:
+            data = json.loads(CREW_INITIATIVE_MAP_FILE.read_text())
+            if isinstance(data, dict) and "entries" in data:
+                return data
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {"version": 1, "updated_at": None, "entries": {}}
+
+
+def save_crew_initiative_map(cmap: dict) -> None:
+    """Persist crew initiative map to sidecar file."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    cmap["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    tmp = CREW_INITIATIVE_MAP_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cmap, indent=2))
+    os.replace(tmp, CREW_INITIATIVE_MAP_FILE)
+
+
 def load_sync_state() -> dict:
     """Load sync state mapping Claude task IDs to kanban task IDs."""
     if SYNC_STATE_FILE.exists():
@@ -57,9 +83,11 @@ def load_sync_state() -> dict:
 
 
 def save_sync_state(state: dict):
-    """Save sync state."""
+    """Save sync state with atomic write."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    SYNC_STATE_FILE.write_text(json.dumps(state, indent=2))
+    tmp = SYNC_STATE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=2))
+    os.replace(tmp, SYNC_STATE_FILE)
 
 
 def get_session_id() -> str:
@@ -167,51 +195,86 @@ def get_or_create_initiative(store, project_id: str, state: dict,
                              initiative_name: str = None) -> str:
     """Get or create initiative by name.
 
+    Lookup priority:
+    1. Session initiative_map cache (in-memory for this session)
+    2. crew_initiative_map.json sidecar (durable, cross-session)
+    3. Kanban store list_initiatives() scan
+    4. Create new initiative
+
     Routes tasks to named initiatives:
     - If initiative_name provided (from task metadata): use/create that initiative
     - Otherwise: use/create the default "Issues" initiative
-
-    Every repo gets two default kinds of initiatives:
-    1. "Issues" - general fixes, small tasks, non-crew work
-    2. One per crew project - named after the project
     """
     target_name = initiative_name or "Issues"
+    cmap = load_crew_initiative_map()
 
-    # Check cache: initiative_map stores name -> id
+    # 1. Session cache
     initiative_map = state.get("initiative_map", {})
     cached_id = initiative_map.get(target_name)
     if cached_id:
         initiative = store.get_initiative(project_id, cached_id)
         if initiative:
             return cached_id
+        # Cache stale — fall through
 
-    # Search existing initiatives by name
+    # 2. Durable sidecar (for crew project initiatives, not "Issues")
+    if target_name != "Issues":
+        entry = cmap.get("entries", {}).get(target_name)
+        if entry:
+            sidecar_id = entry.get("initiative_id")
+            if sidecar_id:
+                initiative = store.get_initiative(project_id, sidecar_id)
+                if initiative:
+                    # Warm session cache
+                    initiative_map[target_name] = sidecar_id
+                    state["initiative_map"] = initiative_map
+                    # Update last_seen
+                    entry["last_seen"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    save_crew_initiative_map(cmap)
+                    return sidecar_id
+
+    # 3. Scan kanban store
     try:
         initiatives = store.list_initiatives(project_id) or []
         for init in initiatives:
             if init.get("name") == target_name:
-                initiative_map[target_name] = init["id"]
+                found_id = init["id"]
+                initiative_map[target_name] = found_id
                 state["initiative_map"] = initiative_map
-                return init["id"]
-    except Exception:
-        pass
+                # Persist to sidecar if this is a crew project initiative
+                if target_name != "Issues":
+                    cmap.setdefault("entries", {})[target_name] = {
+                        "initiative_id": found_id,
+                        "project_id": project_id,
+                        "created_at": init.get("created_at", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")),
+                        "last_seen": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    }
+                    save_crew_initiative_map(cmap)
+                return found_id
+    except Exception as e:
+        print(f"[kanban] initiative scan error: {e}", file=sys.stderr)
 
-    # Create new initiative
-    if target_name == "Issues":
-        goal = "General fixes, bugs, and non-project tasks"
-    else:
-        goal = f"Crew project: {target_name}"
+    # 4. Create new initiative
+    goal = "General fixes, bugs, and non-project tasks" if target_name == "Issues" \
+           else f"Crew project: {target_name}"
 
-    initiative = store.create_initiative(
-        project_id,
-        name=target_name,
-        goal=goal
-    )
+    initiative = store.create_initiative(project_id, name=target_name, goal=goal)
 
     if initiative:
-        initiative_map[target_name] = initiative["id"]
+        found_id = initiative["id"]
+        initiative_map[target_name] = found_id
         state["initiative_map"] = initiative_map
-        return initiative["id"]
+
+        if target_name != "Issues":
+            cmap.setdefault("entries", {})[target_name] = {
+                "initiative_id": found_id,
+                "project_id": project_id,
+                "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "last_seen": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            }
+            save_crew_initiative_map(cmap)
+
+        return found_id
 
     return None
 
