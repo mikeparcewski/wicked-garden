@@ -141,6 +141,19 @@ Representative script execution for each plugin with infrastructure scripts.
 ### Critical (Blocking)
 - None
 
+### High (Implementation Bugs Found by Converter Analysis)
+
+1. **wicked-agentic: `detect_framework.py` missing LangChain detection** - `FRAMEWORK_SIGNATURES` dict has no `langchain` entry (only `langgraph`). Codebases using `langchain`, `langchain_openai`, `langchain_community` imports match zero framework signatures. The scenario expects "LangChain detected with >= 80% confidence" which will fail at the script level.
+   - **Fix**: Add `langchain` entry to `FRAMEWORK_SIGNATURES` with imports `['langchain', 'langchain_openai', 'langchain_community', 'langchain_core']`
+   - **File**: `plugins/wicked-agentic/scripts/detect_framework.py`
+
+2. **wicked-agentic: `analyze_agents.py` can't detect function-based agents** - Only detects agents via class names containing "Agent", `@agent` decorators, and `Agent()` constructor calls. Function-based agent patterns (common in LangChain) return `agent_count: 0`. This cascades to `pattern_scorer.py` which skips guardrail checks when agent count is 0, missing critical vulnerabilities like `subprocess.run(message, shell=True)`.
+   - **Fix**: Add detection for function-based agent patterns (files in `agents/` directories, functions calling LLMs)
+   - **File**: `plugins/wicked-agentic/scripts/analyze_agents.py`
+
+3. **wicked-agentic: No standalone `openai` framework entry** - Only `openai-agents-sdk` (matching `openai.agents` imports) exists. Codebases using `langchain_openai` wrappers won't trigger OpenAI detection.
+   - **File**: `plugins/wicked-agentic/scripts/detect_framework.py`
+
 ### Moderate (Should Fix)
 
 1. **wicked-scenarios frontmatter schema**: 6 scenarios use `category`/`tools` fields instead of standard `title`/`type`/`difficulty`. Consider either:
