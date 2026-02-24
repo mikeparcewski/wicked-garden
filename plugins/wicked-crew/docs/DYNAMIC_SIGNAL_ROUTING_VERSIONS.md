@@ -100,48 +100,7 @@ flowchart TD
 
 ## Version 4 — Convergence Hub + Scoring Internals + Adaptive Loop (**Best Overall**)
 
-```mermaid
-flowchart TD
-    A[Input Sources\nBusiness Objectives + Engineering Intent + File/Change Signals] --> B[Signal Ingestion\ncrew smart decisioning + qe change tracker]
-    B --> C[Signal Normalization\nsecurity/performance/product/compliance/ambiguity/complexity/data/infrastructure/architecture/ux/reversibility/novelty]
-
-    C --> D[Convergence Hub\nShared signal graph + accumulated evidence]
-
-    D --> E[Scoring Engine]
-    E --> E1[Impact 0-3\nfile-role taxonomy + integration keywords]
-    E --> E2[Reversibility 0-3\nirreversibility vs mitigators]
-    E --> E3[Novelty 0-3\nunknowns + ambiguity indicators]
-    E1 --> F[Complexity 0-7\nimpact + min(round(rev*nov*0.22), 2) + scope + coordination]
-    E2 --> F
-    E3 --> F
-
-    D --> G[Archetype Adjustment\ninfrastructure/compliance/ui/api/data floors & bonuses]
-    G --> F
-
-    F --> H{Branching}
-    H -->|0-2| I[Fast Track]
-    H -->|3-4| J[Expanded Track]
-    H -->|5-7| K[Full Adaptive Track]
-
-    C --> L[Specialist Router]
-    L --> L1[wicked-engineering]
-    L --> L2[wicked-qe]
-    L --> L3[wicked-platform]
-    L --> L4[wicked-product / wicked-jam / wicked-data / wicked-agentic / wicked-delivery]
-
-    I --> M[Execution + Gates]
-    J --> M
-    K --> M
-    L1 --> M
-    L2 --> M
-    L3 --> M
-    L4 --> M
-
-    M --> N{Pass Gates?}
-    N -->|Yes| O[Advance / Complete]
-    N -->|No| P[Emit Findings as New Signals]
-    P --> D
-```
+The canonical Version 4 diagram is maintained in [`DYNAMIC_SIGNAL_ROUTING_ARCHITECTURE.md`](DYNAMIC_SIGNAL_ROUTING_ARCHITECTURE.md) (Section 1) to avoid duplication drift. See that file for the full Mermaid diagram with detailed node labels, plugin responsibility view, and branching semantics.
 
 **Pros**
 - Most complete representation of convergence, scoring internals, branching, routing, and feedback.
