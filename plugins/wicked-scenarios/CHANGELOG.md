@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0] - 2026-02-24
+
+### Features
+- feat(scenarios): add report command, batch mode, and fix evidence path (b8101ed)
+
+### Chores
+- release: wicked-smaht v4.1.0, wicked-scenarios v1.4.0 (dd2a368)
+
 ## [1.4.0] - 2026-02-24
 
 ### Bug Fixes

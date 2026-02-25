@@ -1,6 +1,6 @@
 {
   "name": "wicked-scenarios",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "E2E testing via human and agent-readable markdown scenarios that orchestrate lightweight open-source CLI tools. Covers API, browser, performance, infrastructure, security, and accessibility testing.",
   "author": {
     "name": "Mike Parcewski"
