@@ -505,8 +505,8 @@ class KanbanStore:
 
     def add_artifact(self, project_id: str, task_id: str, name: str,
                      artifact_type: str = "file", path: str = None,
-                     url: str = None) -> Optional[Dict]:
-        """Add an artifact to a task."""
+                     url: str = None, content: Any = None) -> Optional[Dict]:
+        """Add an artifact to a task. Use content for inline data (avoids external files)."""
         task = self.get_task(project_id, task_id)
         if not task:
             return None
@@ -519,6 +519,8 @@ class KanbanStore:
             "url": url,
             "created_at": get_utc_timestamp()
         }
+        if content is not None:
+            artifact["content"] = content
 
         task.setdefault("artifacts", []).append(artifact)
         task["updated_at"] = get_utc_timestamp()
@@ -917,6 +919,7 @@ def main():
                               help='Artifact type (file, url, image, document)')
     add_artifact.add_argument('--path', help='File path')
     add_artifact.add_argument('--url', help='URL')
+    add_artifact.add_argument('--content', help='Inline JSON content (string) or @filepath to read from file')
 
     # get-initiative
     get_init = subparsers.add_parser('get-initiative', help='Get initiative details')
@@ -1074,9 +1077,18 @@ def main():
             return 1
 
     elif args.command == 'add-artifact':
+        content = None
+        if args.content:
+            if args.content.startswith("@"):
+                filepath = args.content[1:]
+                with open(filepath, "r") as f:
+                    content = json.load(f)
+            else:
+                content = json.loads(args.content)
         result = store.add_artifact(
             args.project_id, args.task_id, args.name,
-            artifact_type=args.type, path=args.path, url=args.url
+            artifact_type=args.type, path=args.path, url=args.url,
+            content=content
         )
         if not result:
             print("Failed to add artifact", file=sys.stderr)
