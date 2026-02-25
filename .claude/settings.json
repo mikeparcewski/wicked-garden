@@ -12,18 +12,6 @@
           }
         ]
       }
-    ],
-    "SubagentStart": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "SMAHT_ROOT=$(find ~/.claude/plugins/cache/wicked-garden/wicked-smaht -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1); if [ -n \"$SMAHT_ROOT\" ] && [ -f \"$SMAHT_ROOT/hooks/scripts/subagent_start.py\" ]; then python3 \"$SMAHT_ROOT/hooks/scripts/subagent_start.py\"; else echo '{\"continue\": true}'; fi",
-            "timeout": 3000
-          }
-        ]
-      }
     ]
   },
   "extraKnownMarketplaces": {

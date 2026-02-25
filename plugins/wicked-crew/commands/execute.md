@@ -65,7 +65,7 @@ if [ -n "$SMAHT_PLUGIN_ROOT" ]; then
   cd "${SMAHT_PLUGIN_ROOT}" && uv run python scripts/context_package.py build \
     --task "Execute {current_phase} phase for {project-name}" \
     --project "{project-name}" \
-    --prompt
+    --dispatch --prompt
 fi
 ```
 
@@ -302,7 +302,7 @@ When engaging a specialist, use Task dispatch for heavy analysis work. Keep slas
 python3 "${SMAHT_PLUGIN_ROOT}/scripts/context_package.py" build \
   --task "{task description}" \
   --project "{project-name}" \
-  --prompt
+  --dispatch --prompt
 ```
 
 Where `SMAHT_PLUGIN_ROOT` is discovered via:

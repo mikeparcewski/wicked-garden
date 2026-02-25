@@ -40,7 +40,7 @@ if [ -n "$SMAHT_PLUGIN_ROOT" ]; then
   cd "${SMAHT_PLUGIN_ROOT}" && uv run python scripts/context_package.py build \
     --task "Execute {current_phase} phase for {project-name}" \
     --project "{project-name}" \
-    --prompt
+    --dispatch --prompt
 fi
 ```
 
