@@ -1,6 +1,6 @@
 ---
 description: Start interactive data analysis session for CSV/Excel files
-argument-hint: <file-path> [--focus <type>] [--context <file>] [--refresh]
+argument-hint: <file-path> [--focus <type>] [--context <file>] [--refresh] [--scenarios]
 ---
 
 # /wicked-data:analyze
@@ -133,3 +133,63 @@ Task(
 ### Next Steps
 - Run with `--focus {other-type}` for additional perspectives
 ```
+
+### 5. Optional: Generate Wicked-Scenarios Format
+
+When `--scenarios` is passed, generate wicked-scenarios format test scenarios for data validation based on the analysis findings.
+
+**Analysis type → scenario mapping:**
+
+| Analysis Focus | Scenario Category | Tools | What to Test |
+|---------------|-------------------|-------|-------------|
+| Quality issues (nulls, duplicates, format violations) | api | curl, hurl | API input validation, constraint enforcement |
+| Schema validation (type mismatches, constraint violations) | api | curl | Schema contract verification |
+| Pipeline readiness (ETL failures, transformation edge cases) | api | curl | Pipeline endpoint error handling |
+| Performance (slow queries, large payload handling) | perf | k6, hey | Load testing, response time thresholds |
+
+For each significant quality finding, produce a wicked-scenarios block:
+
+````markdown
+---
+name: {dataset-kebab}-data-validation
+description: "Data validation scenarios from analysis of {file-path}"
+category: api
+tools:
+  required: [curl]
+  optional: [hurl]
+difficulty: intermediate
+timeout: 60
+---
+
+## Steps
+
+### Step 1: {Quality finding} - null handling ({tool})
+
+```bash
+# Test API handles missing/null values correctly
+curl -sf -X POST http://localhost:${PORT}/api/endpoint \
+  -H "Content-Type: application/json" \
+  -d '{"field": null}'
+```
+
+**Expect**: Appropriate error response (400) or graceful handling
+
+### Step 2: {Schema finding} - type validation ({tool})
+
+```bash
+# Test API rejects invalid types
+curl -sf -X POST http://localhost:${PORT}/api/endpoint \
+  -H "Content-Type: application/json" \
+  -d '{"numeric_field": "not-a-number"}'
+```
+
+**Expect**: 400 with validation error message
+````
+
+**Quality issue → CLI test patterns:**
+- **Null/missing values** → `curl` POST with null fields, verify rejection or default handling
+- **Duplicate detection** → `curl` POST with duplicate records, verify dedup or conflict response
+- **Format violations** → `curl` with malformed dates, emails, etc., verify validation
+- **Boundary values** → `curl` with min/max values, verify range enforcement
+- **Large payloads** → generate a separate `perf` category scenario using `k6` for load testing
+- **ETL failure modes** → `curl` with partial/malformed data, verify pipeline resilience

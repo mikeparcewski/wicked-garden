@@ -1,5 +1,6 @@
 ---
 description: Define acceptance criteria from requirements and design
+argument-hint: "<requirements/design path> [--story US-ID] [--feature name] [--format gherkin|table|markdown] [--scenarios]"
 ---
 
 # /wicked-product:acceptance
@@ -28,6 +29,7 @@ Generate testable acceptance criteria from requirements and design documents.
 - **--story**: Specific user story ID
 - **--feature**: Feature name to focus on
 - **--format**: Output format (gherkin, table, markdown)
+- **--scenarios**: Generate wicked-scenarios format scenario stubs
 - **--output**: Where to save (default: console + kanban)
 
 ## Process
@@ -155,6 +157,60 @@ Ready for QE test scenario generation
 Event emitted: [product:acceptance:defined:success]
 ```
 
+### 4. Optional: Generate Wicked-Scenarios Format
+
+When `--scenarios` flag is passed, convert the acceptance criteria into wicked-scenarios format scenario stubs.
+
+For each user story's acceptance criteria, produce a wicked-scenarios markdown block:
+
+**Priority → difficulty mapping:**
+- P0 (must-have) → `basic` or `intermediate`
+- P1 (nice-to-have) → `intermediate` or `advanced`
+
+**AC type → wicked-scenarios category mapping:**
+
+| AC Type | wicked-scenarios category | Tools |
+|---------|--------------------------|-------|
+| Happy Path | api | curl, hurl |
+| Error Conditions | api | curl |
+| Edge Cases | api | curl, hurl |
+| Non-Functional (perf) | perf | k6, hey |
+| Non-Functional (a11y) | a11y | pa11y |
+| Non-Functional (browser/UX) | browser | playwright, agent-browser |
+
+**Output format:**
+
+````markdown
+---
+name: {story-kebab}-acceptance
+description: "Acceptance scenarios for {story title}"
+category: {mapped category}
+tools:
+  required: [{primary tool}]
+  optional: [{secondary tools}]
+difficulty: {mapped difficulty}
+timeout: 60
+---
+
+## Steps
+
+### Step 1: {AC1 - Given/When/Then summary} ({tool})
+
+```bash
+{executable CLI command derived from acceptance criterion}
+```
+
+**Expect**: {Then condition as exit code expectation}
+````
+
+**Conversion rules:**
+- **Given** → Setup section or prerequisite state
+- **When** → curl/hurl request or browser action
+- **Then** → Expected response code, body content, or behavior
+- Test data from AC → environment variables or Setup commands
+- Non-functional criteria map to their canonical categories: performance→perf (k6/hey), accessibility→a11y (pa11y), browser/UX→browser (playwright)
+- If an AC can't be converted to CLI (e.g., manual judgment call), note it as a comment
+
 ## QE Handoff
 
 Acceptance criteria feed into:
@@ -163,6 +219,6 @@ Acceptance criteria feed into:
 ```
 
 QE uses AC to:
-- Generate test scenarios
+- Generate test scenarios (or use `--scenarios` to generate wicked-scenarios format directly)
 - Create test cases
 - Validate coverage

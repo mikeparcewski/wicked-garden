@@ -1,6 +1,6 @@
 ---
 description: Code review with senior engineering perspective on quality, patterns, and maintainability
-argument-hint: "[file or directory path] [--focus security|performance|patterns|tests]"
+argument-hint: "[file or directory path] [--focus security|performance|patterns|tests] [--scenarios]"
 ---
 
 # /wicked-engineering:review
@@ -234,3 +234,48 @@ If agent overstepping is detected, add an **Agent Overstepping** section to the 
 1. {prioritized action item}
 2. {next action}
 ```
+
+### 7. Optional: Generate Wicked-Scenarios Format
+
+When `--scenarios` is passed, generate wicked-scenarios format test scenarios that would catch regressions for the identified review findings.
+
+**Finding type → scenario mapping:**
+
+| Finding Type | Scenario Category | Tools | What to Test |
+|-------------|-------------------|-------|-------------|
+| Critical Design Gaps | api | curl, hurl | API contract violations, missing validation |
+| Silent Failure Risks | api | curl | Error cascade paths, failure recovery |
+| Security findings (--focus security) | security | semgrep | Static analysis for injection, auth bypass, data exposure |
+| Performance findings (--focus performance) | perf | k6, hey | Load thresholds, response time regression |
+| Test gaps (--focus tests) | api | curl, hurl | Missing coverage for product behaviors |
+
+For each actionable finding, produce a wicked-scenarios block:
+
+````markdown
+---
+name: {scope-kebab}-regression
+description: "Regression scenarios from code review of {scope}"
+category: {mapped category}
+tools:
+  required: [{primary tool}]
+  optional: [{secondary tools}]
+difficulty: intermediate
+timeout: 60
+---
+
+## Steps
+
+### Step 1: {Finding title} ({tool})
+
+```bash
+{CLI command that verifies the fix or tests the vulnerable path}
+```
+
+**Expect**: {What correct behavior looks like — exit code, response content}
+````
+
+**Conversion rules:**
+- Each Critical/High finding with a testable fix → one scenario step
+- Silent failure paths → steps that exercise the failure chain and verify graceful handling
+- Test gaps → steps that cover the missing product behavior
+- If finding is design-level (not testable via CLI), skip it and note why
