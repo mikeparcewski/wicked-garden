@@ -9,8 +9,12 @@ Execute an E2E test scenario by orchestrating CLI tools.
 ## Usage
 
 ```
-/wicked-scenarios:run <scenario-file> [--junit report.xml] [--verbose]
+/wicked-scenarios:run <scenario-file> [--junit report.xml] [--verbose] [--json]
 ```
+
+**Modes:**
+- **Interactive** (default): Markdown report, install prompts, PASS/FAIL verdicts
+- **JSON** (`--json`): Machine-readable output, no prompts, no verdicts — pure execution artifacts for programmatic consumption (e.g., QE executor delegation)
 
 ## Instructions
 
@@ -38,7 +42,35 @@ Parse the JSON output. For each tool:
 
 Never hard-fail on missing tools. Always degrade to PARTIAL.
 
+### 2.1. Skill Discovery (Fallback for Missing Tools)
+
+For any tools marked **not available** by CLI discovery, check if an equivalent skill can serve as a fallback. Skills from the ecosystem can substitute for missing CLI tools:
+
+| Missing CLI | Fallback Skill | Notes |
+|-------------|---------------|-------|
+| `python3` (for test scripts) | `wicked-startah:runtime-exec` | Smart Python/Node execution with automatic dependency resolution (uv, poetry, pip) |
+| `playwright` | `wicked-startah:agent-browser` | Only if `agent-browser` CLI is available (skill wraps agent-browser, not playwright directly) |
+
+**Note**: `wicked-scenarios:setup` can auto-install missing tools, but it is interactive (prompts user). In `--json` mode, setup is NOT invoked — missing tools go into the `missing_tools` array instead. In interactive mode, setup can be suggested during the Pre-Flight Check.
+
+**Detection**: Check if the skill's parent plugin is installed:
+```bash
+ls plugins/wicked-startah/.claude-plugin/plugin.json 2>/dev/null && echo "STARTAH_AVAILABLE=true"
+```
+
+If a fallback skill is available, mark the tool as **available via skill** and adjust the step execution to use the Skill tool instead of Bash:
+- Instead of `python3 <script>` via Bash, use `Skill(skill="wicked-startah:runtime-exec", args="<script>")`
+- Instead of `playwright test <url>` via Bash (when agent-browser is available), use `Skill(skill="wicked-startah:agent-browser", args="<url> --screenshot")`
+
+In `--json` mode, skill-based execution is still recorded in the same step format (stdout/stderr/exit_code/duration_ms). Note the execution method in a `method` field: `"method": "cli"` or `"method": "skill"`.
+
+If no fallback skill is available, the tool remains marked as not available and steps using it will be SKIPPED as before.
+
 ### 2.5. Pre-Flight Check
+
+**If `--json` mode**: Do NOT prompt for installation. Collect all missing tools (both required and optional) into a `missing_tools` array (with tool name and install command). Steps using missing tools will be recorded in `skipped_steps`. Continue to execution.
+
+**If interactive mode (default)**:
 
 If any **required** or **optional** tools are missing, ask the user if they'd like to install them before proceeding. Use AskUserQuestion:
 
@@ -97,9 +129,47 @@ Calculate overall status:
 - Any step FAIL → **FAIL** (exit code 1)
 - No FAILs but some SKIPPEDs → **PARTIAL** (exit code 2)
 
-### 8. Generate Report
+### 8. Output Results
 
-Display results:
+**If `--json` mode**: Output a single JSON object to the user. Do NOT include markdown report, PASS/FAIL verdicts, or JUnit XML. The JSON is the only output:
+
+```json
+{
+  "scenario": "{name from frontmatter}",
+  "steps": [
+    {
+      "name": "{step description}",
+      "tool": "{cli tool used}",
+      "method": "cli",
+      "exit_code": 0,
+      "stdout": "{captured stdout}",
+      "stderr": "{captured stderr}",
+      "duration_ms": 234
+    }
+  ],
+  "setup": {"exit_code": 0, "stdout": "...", "stderr": ""},
+  "cleanup": {"exit_code": 0, "stdout": "...", "stderr": ""},
+  "missing_tools": [
+    {"tool": "k6", "install": "brew install k6"}
+  ],
+  "skipped_steps": [
+    {"name": "{step description}", "reason": "Tool 'k6' not available"}
+  ]
+}
+```
+
+Field notes:
+- `setup`/`cleanup`: Include only if the scenario has Setup/Cleanup sections. Omit if absent.
+- `missing_tools`: Array of tools that were required/optional but not found. Empty array if all tools available.
+- `skipped_steps`: Steps not executed due to missing tools or missing env vars.
+- `steps`: Only includes steps that were actually executed (not skipped).
+- `method`: `"cli"` if executed via Bash, `"skill"` if executed via a fallback skill (e.g., `wicked-startah:agent-browser`).
+- No PASS/FAIL verdict — the consumer (e.g., QE executor) evaluates exit codes.
+- `duration_ms`: Wall-clock time in milliseconds for each step.
+
+Exit code follows the same convention: 0 (all succeeded), 1 (any non-zero exit), 2 (skips only).
+
+**If interactive mode (default)**: Generate the markdown report.
 
 ```markdown
 ## Scenario Results: {name}
@@ -123,9 +193,9 @@ Display results:
 {For failed steps, show stdout/stderr snippets}
 ```
 
-### 9. JUnit XML (if --junit)
+### 9. JUnit XML (if --junit, interactive mode only)
 
-If `--junit <path>` is specified, write JUnit XML:
+If `--junit <path>` is specified and NOT in `--json` mode, write JUnit XML:
 
 ```bash
 cat > {path} << 'JUNIT_EOF'

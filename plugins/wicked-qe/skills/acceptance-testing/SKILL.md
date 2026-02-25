@@ -93,6 +93,6 @@ Every step in the test plan requires the executor to produce specific artifacts.
 ## Integration
 
 - **wicked-crew**: Evidence-gated quality gates during delivery phases
-- **wicked-scenarios**: Writer understands E2E scenario format natively
-- **/wg-test**: Uses this pipeline's three-agent architecture with kanban task tracking and token isolation. The `acceptance-test-reviewer` agent is shared between both systems.
+- **wicked-scenarios**: Executor delegates E2E CLI steps to `/wicked-scenarios:run --json` for machine-readable execution artifacts. Writer understands E2E scenario format natively. Falls back to inline bash execution when scenarios plugin is not installed.
+- **/wg-test**: Delegates to `/wicked-qe:acceptance` as the single acceptance pipeline. QE owns Writer/Executor/Reviewer end-to-end.
 - **Any project**: Works with custom acceptance criteria, not just wicked-garden plugins

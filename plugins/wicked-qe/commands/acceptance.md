@@ -263,16 +263,15 @@ When running multiple scenarios, aggregate results:
 ## Integration
 
 - **wicked-crew**: Use during QE phases for evidence-gated quality gates
-- **wicked-scenarios**: Writer understands wicked-scenarios format natively
-- **wicked-kanban**: Track acceptance failures as tasks
-- **/wg-test**: Uses this pipeline's three-agent architecture. `/wg-test` adds kanban task tracking and token isolation (one executor per task) on top of the Writer → Executor → Reviewer pattern. The `acceptance-test-reviewer` agent is shared — `/wg-test` spawns it for independent verdict evaluation after all tasks execute.
+- **wicked-scenarios**: Executor delegates E2E CLI steps to `/wicked-scenarios:run --json` for machine-readable execution artifacts. Writer understands wicked-scenarios format natively.
+- **wicked-kanban**: Track acceptance failures as tasks. When invoked with `--kanban` (or auto-detected when crew is active), creates a kanban project with one task per test plan step, stores evidence inline in kanban artifacts.
+- **/wg-test**: Delegates to `/wicked-qe:acceptance` as the primary acceptance pipeline. Falls back to `/wicked-scenarios:run` directly if QE is not installed.
 
-### Relationship to /wg-test
+### Degradation Behavior
 
-| Role | /wg-test | /wicked-qe:acceptance |
-|------|----------|----------------------|
-| **Writer** | `wicked-scenarios:scenario-converter` (also creates kanban tasks) | `wicked-qe:acceptance-test-writer` |
-| **Executor** | `wicked-scenarios:scenario-executor` (one per task, token-isolated) | `wicked-qe:acceptance-test-executor` (full scenario) |
-| **Reviewer** | `wicked-qe:acceptance-test-reviewer` (shared) | `wicked-qe:acceptance-test-reviewer` (shared) |
-
-Use `/wg-test` for plugin scenario testing with kanban tracking. Use `/wicked-qe:acceptance` for standalone acceptance testing of any project, or when you want the full pipeline without kanban overhead.
+| QE | Scenarios | `/wg-test` behavior |
+|----|-----------|--------------------|
+| Yes | Yes | QE acceptance with `scenarios:run --json` backend, kanban tracking. Issue filing via `scenarios:report` when `--issues` flag is passed to `/wg-test`. |
+| Yes | No | QE acceptance runs bash steps inline (no CLI tool orchestration). Issue filing not available (no `scenarios:report`). |
+| No | Yes | `scenarios:run` directly (exit code PASS/FAIL, no evidence protocol, no independent review). Issue filing not available (report requires structured QE verdicts). |
+| No | No | Error: "Install wicked-qe or wicked-scenarios to enable testing" |

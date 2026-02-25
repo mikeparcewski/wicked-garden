@@ -89,7 +89,6 @@ AVAILABLE SCENARIOS
 | `/wicked-scenarios:list` | List scenarios with tool availability status | `/wicked-scenarios:list` |
 | `/wicked-scenarios:check` | Validate scenario frontmatter and step format | `/wicked-scenarios:check scenarios/` |
 | `/wicked-scenarios:setup` | Auto-detect and install missing CLI tools | `/wicked-scenarios:setup` |
-| `/wicked-scenarios:acceptance` | Evidence-gated UAT with three-agent pipeline (Writer/Executor/Reviewer). Supports batch mode. | `/wicked-scenarios:acceptance wicked-mem decision-recall plugins/wicked-mem/scenarios/decision-recall.md` |
 | `/wicked-scenarios:report` | File GitHub issues from test failures with deduplication and grouping | `/wicked-scenarios:report --auto` |
 
 ## Scenario Format
@@ -153,8 +152,6 @@ Or run `/wicked-scenarios:setup` to auto-detect and install what's missing.
 | Agent | What It Does |
 |-------|-------------|
 | `scenario-runner` | Autonomous execution: reads a scenario file, discovers tools, runs each step, handles graceful degradation for optional tools, and reports structured pass/fail results |
-| `scenario-executor` | Focused step execution with artifact capture |
-| `scenario-converter` | Converts existing test files (Postman, curl commands, manual steps) into wicked-scenarios format |
 
 ## Skills
 
@@ -168,7 +165,7 @@ Or run `/wicked-scenarios:setup` to auto-detect and install what's missing.
 |--------|----------------|------------|
 | wicked-startah | CLI tool discovery and automatic installation via `/wicked-scenarios:setup` | Manual tool setup and path configuration |
 | wicked-search | Find test targets — API endpoints, UI components, entry points — via symbol graph | Manual identification of what to test |
-| wicked-qe | Test strategy alignment; `/wicked-qe:acceptance` uses scenarios as the execution layer | No strategy validation or coverage gap analysis |
+| wicked-qe | `/wicked-qe:acceptance` delegates E2E CLI steps to `/wicked-scenarios:run --json` for machine-readable execution artifacts. QE owns the full acceptance pipeline (Writer/Executor/Reviewer). | Standalone mode: `/wicked-scenarios:run` reports PASS/FAIL directly. No evidence protocol or independent review. |
 
 ## License
 
