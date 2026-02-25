@@ -1,6 +1,6 @@
 ---
 description: Security review and vulnerability assessment
-argument-hint: "<path, PR, or 'full' for comprehensive scan>"
+argument-hint: "<path, PR, or 'full' for comprehensive scan> [--scenarios]"
 ---
 
 # /wicked-platform:security
@@ -100,6 +100,67 @@ govulncheck ./...
 1. {priority fix}
 2. {improvement}
 ```
+
+### 6. Optional: Generate Wicked-Scenarios Format
+
+When `--scenarios` is passed, generate wicked-scenarios format test scenarios that verify the vulnerability and its fix.
+
+**Severity → scenario mapping:**
+
+| Finding Severity | Scenario Category | Tools | What to Test |
+|-----------------|-------------------|-------|-------------|
+| CRITICAL (injection, auth bypass) | security | semgrep | Parameterized queries, input sanitization |
+| HIGH (XSS, SSRF, exposed secrets) | security | semgrep | Output encoding, SSRF prevention, secret rotation |
+| MEDIUM (missing rate limiting, verbose errors) | api | curl | Rate limit enforcement, error message content |
+| Dependency vulnerabilities | infra | trivy | Container/dependency scanning |
+
+For each CRITICAL/HIGH finding, produce a wicked-scenarios block:
+
+````markdown
+---
+name: {scope-kebab}-security
+description: "Security scenarios from review of {scope}"
+category: security
+tools:
+  required: [semgrep]
+difficulty: intermediate
+timeout: 60
+---
+
+## Steps
+
+### Step 1: {OWASP category} - {finding title} (semgrep)
+
+```bash
+# Scan for the vulnerability pattern in code
+semgrep --config p/{owasp-rule} --json {scope}
+```
+
+**Expect**: Exit code 0 — vulnerability pattern not found (fix verified)
+
+### Step 2: {next finding} (semgrep)
+
+```bash
+# Verify secure coding pattern is in place
+semgrep --config {custom-rule} --json {scope}
+```
+
+**Expect**: Exit code 0 — secure pattern confirmed
+````
+
+**OWASP → semgrep rule patterns (security category):**
+- **SQL Injection** → `semgrep --config p/sql-injection` to verify parameterized queries
+- **XSS** → `semgrep --config p/xss` to verify output encoding
+- **Command Injection** → `semgrep --config p/command-injection` to verify input sanitization
+- **Secrets** → `semgrep --config p/secrets` to verify no hardcoded credentials
+
+**Dynamic HTTP testing (generate as separate `api` category scenarios with `curl`):**
+- **Broken Auth** → `curl` without auth token, expect 401
+- **SSRF** → `curl` with internal IP payload, expect rejection
+- **Rate limiting** → `curl` rapid requests, expect 429
+
+**Dependency scanning (generate as separate `infra` category scenarios):**
+- **Dependency vulns** → `trivy fs .` to verify patched dependencies
 
 ## Example
 

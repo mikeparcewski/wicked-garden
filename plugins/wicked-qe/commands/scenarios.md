@@ -148,6 +148,65 @@ If user needs specific format:
 - **Gherkin**: Convert to Given/When/Then feature files
 - **Table**: Condensed table format
 - **Code**: Generate test function stubs
+- **wicked-scenarios**: Convert to executable wicked-scenarios markdown format (see Step 7)
+
+### 7. Optional: Generate Wicked-Scenarios Format
+
+When the user requests `--format wicked-scenarios`, convert the Given/When/Then scenarios into executable wicked-scenarios markdown files.
+
+For each scenario category that has relevant CLI tools, produce a wicked-scenarios markdown block:
+
+**Category → wicked-scenarios mapping:**
+
+| QE Category | wicked-scenarios category | Tools |
+|-------------|--------------------------|-------|
+| Happy Path (HP-) | api | curl, hurl |
+| Edge Cases (EC-) | api | curl, hurl |
+| Error Conditions (ERR-) | api | curl |
+| Security (SEC-) | security | semgrep |
+| Performance | perf | k6, hey |
+
+**Output format** — one scenario block per category group:
+
+````markdown
+---
+name: {feature-kebab}-{category}
+description: "{Category} scenarios for {feature}"
+category: {mapped category}
+tools:
+  required: [{primary tool}]
+  optional: [{secondary tools}]
+difficulty: {basic|intermediate|advanced based on scenario complexity}
+timeout: 60
+---
+
+## Steps
+
+### Step 1: {HP-1/EC-1/ERR-1 scenario name} ({tool})
+
+```bash
+{executable CLI command derived from Given/When/Then}
+```
+
+**Expect**: {Then condition mapped to exit code expectation}
+
+### Step 2: {next scenario} ({tool})
+
+```bash
+{executable CLI command}
+```
+
+**Expect**: {expected outcome}
+````
+
+**Conversion rules:**
+- **Given** → Setup section or prerequisite commands
+- **When** → Step action matching the category tool (curl for api, semgrep for security, k6 for perf)
+- **Then** → Expected exit code and output validation
+- Test data from scenarios → environment variables in `env:` frontmatter or Setup section
+- Group related scenarios (e.g., all HP- scenarios) into a single wicked-scenarios file
+- Security (SEC-) scenarios use `semgrep` for static analysis; dynamic HTTP security tests (rate limiting, auth bypass via curl) go in a separate `api` category scenario
+- If a scenario can't be converted to a CLI command (e.g., UI-only), note it as a comment and skip
 
 ## Example
 
@@ -205,8 +264,13 @@ Claude: I'll generate comprehensive test scenarios for the password reset flow.
 
 ### Security Scenarios
 
-#### SEC-1: Rate limiting
-**Given**: Same IP/email
-**When**: >5 reset requests in 1 hour
-**Then**: Requests blocked, user notified
+#### SEC-1: Input injection
+**Given**: Malicious input containing SQL/XSS payload
+**When**: Submitted through reset form
+**Then**: Input sanitized, no injection executed
+
+#### SEC-2: Token enumeration
+**Given**: Attacker with random reset tokens
+**When**: Brute-force token guessing attempted
+**Then**: Tokens are cryptographically random, guessing infeasible
 ```

@@ -1,6 +1,6 @@
 ---
 description: Deep trust and safety audit for agentic systems with risk classification and compliance validation
-argument-hint: "[path] [--output FILE] [--standard GDPR|HIPAA|SOC2]"
+argument-hint: "[path] [--output FILE] [--standard GDPR|HIPAA|SOC2] [--scenarios]"
 ---
 
 # /wicked-agentic:audit
@@ -604,6 +604,77 @@ except Exception as e:
 
 {Links to specific code locations for all findings}
 ```
+
+### 10. Optional: Generate Wicked-Scenarios Format
+
+When `--scenarios` is passed, generate wicked-scenarios format test scenarios that verify the safety controls identified in the audit.
+
+**Audit finding → scenario mapping:**
+
+| Finding Type | Scenario Category | Tools | What to Test |
+|-------------|-------------------|-------|-------------|
+| Missing HITL gates | api | curl | Approval gate enforcement, bypass prevention |
+| PII exposure (static) | security | semgrep | PII pattern detection in code |
+| PII exposure (dynamic) | api | curl | PII redaction in API responses |
+| Injection vulnerabilities | security | semgrep | Prompt injection, command injection defenses |
+| Missing rate limits | perf | k6, hey | Rate limit enforcement under load |
+| Auth/access control gaps | api | curl | Permission enforcement, credential handling |
+| Compliance gaps | security | semgrep | Regulatory requirement verification |
+
+For each CRITICAL/HIGH audit finding, produce a wicked-scenarios block:
+
+````markdown
+---
+name: {project-kebab}-safety
+description: "Trust & safety scenarios from audit of {project}"
+category: security
+tools:
+  required: [semgrep]
+difficulty: advanced
+timeout: 120
+---
+
+## Steps
+
+### Step 1: PII pattern detection in code (semgrep)
+
+```bash
+# Scan for unredacted PII handling
+semgrep --config p/secrets --config p/pii --json .
+```
+
+**Expect**: Exit code 0 — no unredacted PII patterns in codebase
+
+### Step 2: Injection vulnerability scan (semgrep)
+
+```bash
+# Scan for command/prompt injection vulnerabilities
+semgrep --config p/command-injection --config p/owasp-top-ten --json .
+```
+
+**Expect**: Exit code 0 — no injection vulnerabilities found
+
+### Step 3: Missing approval gate detection (semgrep)
+
+```bash
+# Scan for critical operations without approval gates
+semgrep --config r/python.lang.security.dangerous-exec --json .
+```
+
+**Expect**: Exit code 0 — all critical ops have approval checks
+````
+
+**Note**: For dynamic HTTP testing of safety controls (HITL gate enforcement, API PII redaction, prompt injection via HTTP), generate a separate `api` category scenario using `curl`.
+
+**Audit finding → CLI test patterns:**
+- **HITL violations (static)** → `semgrep` scan for critical ops without approval gates
+- **HITL violations (dynamic)** → generate separate `api` category scenario with `curl` for HTTP testing
+- **PII exposure (static)** → `semgrep` with PII/secrets rules
+- **PII exposure (dynamic)** → generate separate `api` category scenario with `curl` for response testing
+- **Prompt injection (static)** → `semgrep` with injection detection rules
+- **Rate limits** → generate a separate `perf` category scenario using `k6` or `hey` to verify 429
+- **Auth gaps** → `curl` without credentials to protected endpoints, verify 401
+- **Compliance** → `semgrep --config` with relevant compliance rules
 
 If `--output` specified, write to file:
 ```bash

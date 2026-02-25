@@ -9,7 +9,7 @@ arguments:
 
 # Test Plugin Scenarios
 
-Thin wrapper around `/wicked-scenarios:acceptance` that adds monorepo scenario discovery and preflight checks. All testing logic — the three-agent UAT pipeline, issue filing, batch execution — is owned by wicked-scenarios.
+Thin monorepo wrapper that delegates to the best available testing pipeline. QE owns acceptance testing end-to-end; wicked-scenarios provides standalone execution as a fallback.
 
 ## Process
 
@@ -20,7 +20,7 @@ Parse `$ARGUMENTS` to determine what to test:
 - `plugin-name` → List scenarios for that plugin, ask user to pick
 - `plugin-name/scenario-name` → Run that specific scenario
 - `plugin-name --all` → Run all scenarios for that plugin
-- `--issues` flag (combinable with any above) → Pass `--report-auto` to acceptance for automatic issue filing
+- `--issues` flag (combinable with any above) → Auto-file GitHub issues for failures
 
 ### 2. Preflight Environment Check
 
@@ -55,31 +55,92 @@ done
 
 Use AskUserQuestion to let user select plugin and/or scenario.
 
-### 4. Delegate to wicked-scenarios
+### 4. Detect Available Pipeline
+
+Check which testing plugins are installed:
+
+```bash
+# Check for QE (primary pipeline)
+ls plugins/wicked-qe/.claude-plugin/plugin.json 2>/dev/null && echo "QE_AVAILABLE=true"
+
+# Check for scenarios (execution backend / fallback)
+ls plugins/wicked-scenarios/.claude-plugin/plugin.json 2>/dev/null && echo "SCENARIOS_AVAILABLE=true"
+```
+
+### 5. Delegate to Pipeline
+
+**Primary path — QE installed:**
+
+Delegate to `/wicked-qe:acceptance` which owns the full Writer → Executor → Reviewer pipeline. The QE executor automatically delegates E2E CLI steps to `/wicked-scenarios:run --json` when scenarios is available.
 
 **Single scenario:**
-
 ```
 Skill(
-  skill="wicked-scenarios:acceptance",
-  args="${plugin_name} ${scenario_name} plugins/${plugin_name}/scenarios/${scenario_file}${issues_flag ? ' --report-auto' : ''}"
+  skill="wicked-qe:acceptance",
+  args="plugins/${plugin_name}/scenarios/${scenario_file}"
 )
 ```
 
-**All scenarios for a plugin (`--all`):**
-
-Build a batch command with `--next` delimiters between each scenario triplet:
-
+**All scenarios (`--all`):**
 ```
 Skill(
-  skill="wicked-scenarios:acceptance",
-  args="${triplet_1} --next ${triplet_2} --next ${triplet_3}${issues_flag ? ' --report-auto' : ' --report'}"
+  skill="wicked-qe:acceptance",
+  args="plugins/${plugin_name}/scenarios/ --all"
 )
 ```
 
-The `--report` flag triggers `/wicked-scenarios:report` interactively on failures. The `--report-auto` flag (from `--issues`) files issues without prompting.
+**Fallback path — QE not installed, scenarios installed:**
 
-wicked-scenarios handles everything from here: the three-agent pipeline, batch aggregation, result display, and issue filing.
+Delegate directly to `/wicked-scenarios:run` for standalone execution (exit code PASS/FAIL, no evidence protocol, no independent review):
+
+**Single scenario:**
+```
+Skill(
+  skill="wicked-scenarios:run",
+  args="plugins/${plugin_name}/scenarios/${scenario_file}"
+)
+```
+
+**All scenarios (`--all`):**
+
+Run each scenario file sequentially. Note: the glob already yields the full relative path — do NOT re-prefix it:
+```
+for each scenario_file in plugins/${plugin_name}/scenarios/*.md (excluding README.md):
+  Skill(
+    skill="wicked-scenarios:run",
+    args="${scenario_file}"
+  )
+```
+
+**Neither installed:**
+
+Report an error:
+```
+Error: No testing pipeline available.
+Install wicked-qe (recommended) or wicked-scenarios to enable testing.
+  - wicked-qe: Full acceptance pipeline with evidence protocol and independent review
+  - wicked-scenarios: Standalone E2E execution with PASS/FAIL verdicts
+```
+
+### 6. Issue Filing (if --issues)
+
+After testing completes with failures:
+
+**QE path (primary):** QE acceptance produces structured verdicts (`task_verdicts`, `acceptance_criteria_verdicts`, `failure_analysis`). If wicked-scenarios is also installed, invoke report:
+```
+Skill(
+  skill="wicked-scenarios:report",
+  args="--auto"
+)
+```
+
+**Scenarios-only fallback path:** `/wicked-scenarios:run` produces simple exit codes (0/1/2) and markdown output, NOT structured verdicts. The `report` command requires structured fields, so issue filing is **not available** in this degradation path. Instead, display:
+```
+Failures detected (exit code 1). Automatic issue filing requires wicked-qe
+for structured test verdicts. File manually: gh issue create --title "test(<plugin>): ..." --label bug
+```
+
+**Neither installed:** No testing occurred, no issue filing.
 
 ## Examples
 
@@ -102,11 +163,11 @@ wicked-scenarios handles everything from here: the three-agent pipeline, batch a
 
 ## Architecture Note
 
-The testing pipeline is owned by `wicked-scenarios`, which provides:
-- `/wicked-scenarios:acceptance` — Three-agent UAT pipeline with batch support
-- `/wicked-scenarios:report` — GitHub issue filing with deduplication and grouping
-
 This command (`/wg-test`) is a monorepo dev-tool wrapper that adds only:
 - Scenario discovery across `plugins/*/scenarios/`
 - Preflight `SKIP_PLUGIN_MARKETPLACE` check
-- Flag translation (`--issues` → `--report-auto`)
+- Pipeline detection and degradation fallback
+
+Testing intelligence is owned by:
+- **wicked-qe** — acceptance pipeline (Writer/Executor/Reviewer), evidence protocol, assertions
+- **wicked-scenarios** — E2E CLI execution (`/wicked-scenarios:run`), issue filing (`/wicked-scenarios:report`)
