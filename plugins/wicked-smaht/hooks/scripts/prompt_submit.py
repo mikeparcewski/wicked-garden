@@ -65,12 +65,10 @@ def increment_and_check_turns() -> tuple:
 
 def should_gather_context(prompt: str) -> bool:
     """Determine if we should gather context for this prompt."""
-    # Skip very short prompts (confirmations like "y", "ok" still get HOT path)
-    if len(prompt.strip()) < 3:
+    # Only skip empty prompts — short confirmations ("y", "ok") need
+    # HOT path for turn tracking and session state continuity
+    if not prompt.strip():
         return False
-
-    # Don't skip slash commands — they benefit from context too
-    # The orchestrator's HOT path handles continuations efficiently
 
     return True
 
@@ -148,20 +146,47 @@ def main():
     sources = result.get("sources", [])
     failed = result.get("failed", [])
 
-    # Build visible badge with adapter names
+    # Enforce token budget
+    try:
+        from budget_enforcer import BudgetEnforcer
+        enforcer = BudgetEnforcer()
+        briefing = enforcer.enforce(briefing, path)
+    except Exception as e:
+        print(f"smaht: budget enforcement failed: {e}", file=sys.stderr)
+        # Fail-closed: hard-slice briefing to prevent unbounded output
+        char_budgets = {"hot": 400, "fast": 2000, "slow": 4000}
+        max_chars = char_budgets.get(path, 2000) - 200
+        briefing = briefing[:max_chars]
+
+    # Token count after enforcement
+    enforced_tokens = len(briefing) // 4
+    budget_tokens = {"hot": 100, "fast": 500, "slow": 1000}.get(path, 500)
+
+    # Build visible badge with adapter names and token count
     if sources:
-        badge_sources = f"sources: {','.join(sources)}"
+        badge_sources = f"sources:{','.join(sources)}"
         if failed:
-            badge_sources += f" | failed: {','.join(failed)}"
+            badge_sources += f"|failed:{','.join(failed)}"
     else:
         badge_sources = "no sources"
 
-    # Add metadata header with visible badge
-    header = f"<!-- wicked-smaht v2 | path={path} | {badge_sources} | {latency}ms | turn={turn_count} -->"
-
-    # Append context warning if applicable
+    # Append context warning if applicable (was dropped in refactor)
     if context_warning:
-        briefing += f"\n\n{context_warning}"
+        briefing = f"{briefing}\n\n{context_warning}" if briefing else context_warning
+
+    # Re-enforce after appending warning (may push over budget)
+    try:
+        from budget_enforcer import BudgetEnforcer
+        enforcer = BudgetEnforcer()
+        briefing = enforcer.enforce(briefing, path)
+    except Exception:
+        pass
+
+    # Recalculate token count after warning addition
+    enforced_tokens = len(briefing) // 4
+
+    # Add metadata header with token count
+    header = f"<!-- wicked-smaht v2 | path={path} | {badge_sources} | tok:{enforced_tokens}/{budget_tokens} | turn={turn_count} -->"
 
     sanitized_briefing = briefing.replace('</system-reminder>', '')
     output = {

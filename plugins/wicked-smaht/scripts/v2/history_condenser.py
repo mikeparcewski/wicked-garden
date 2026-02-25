@@ -194,8 +194,49 @@ class HistoryCondenser:
             }))
         self._atomic_write(turns_path, "\n".join(lines))
 
+    @staticmethod
+    def _strip_system_reminders(text: str) -> str:
+        """Remove <system-reminder>...</system-reminder> blocks from text."""
+        return re.sub(
+            r'<system-reminder>.*?</system-reminder>',
+            '',
+            text,
+            flags=re.DOTALL
+        ).strip()
+
+    def update_from_prompt(self, prompt: str, intent_type: str = ""):
+        """Update session state from user prompt alone (no assistant response yet).
+
+        Called from UserPromptSubmit hook where only the user side is available.
+        Extracts topics, current task, file scope, and constraints from the prompt.
+        Does NOT add to turn_buffer (incomplete turn).
+        """
+        topics = self._extract_topics(prompt)
+        for topic in topics:
+            if topic not in self.summary.topics:
+                self.summary.topics.append(topic)
+                if len(self.summary.topics) > self.MAX_TOPICS:
+                    self.summary.topics.pop(0)
+
+        preferences = self._extract_preferences(prompt)
+        for pref in preferences:
+            if pref not in self.summary.preferences:
+                self.summary.preferences.append(pref)
+                if len(self.summary.preferences) > self.MAX_PREFERENCES:
+                    self.summary.preferences.pop(0)
+
+        # Use a partial turn to reuse existing extraction methods
+        partial_turn = Turn(user=prompt, assistant="", intent_type=intent_type)
+        self._update_file_scope(partial_turn)
+        self._update_constraints(partial_turn)
+        self._update_current_task(partial_turn)
+
+        self.save()
+
     def add_turn(self, user_msg: str, assistant_msg: str, tools_used: list[str] = None, intent_type: str = ""):
         """Add a turn and update summary."""
+        # Strip system-reminder blocks from assistant message to prevent recursive content
+        assistant_msg = self._strip_system_reminders(assistant_msg)
         turn = Turn(
             user=user_msg,
             assistant=assistant_msg,

@@ -54,6 +54,12 @@ class Orchestrator:
         # Route the prompt
         decision = self.router.route(prompt)
 
+        # Update condenser from prompt (populates session state for HOT path and future turns)
+        self.condenser.update_from_prompt(
+            prompt,
+            intent_type=decision.analysis.intent_type.value
+        )
+
         # Get intent prediction for bonus adapters
         predicted_intent = self.router.predict_next_intent()
 
@@ -115,13 +121,16 @@ class Orchestrator:
         """
         lines = []
         if state.get("current_task"):
-            lines.append(f"**Current task**: {state['current_task']}")
+            lines.append(f"**Current task**: {state['current_task'][:120]}")
         if state.get("decisions"):
-            lines.append(f"**Recent decisions**: {'; '.join(state['decisions'][-2:])}")
+            decisions_str = '; '.join(state['decisions'][-2:])[:200]
+            lines.append(f"**Recent decisions**: {decisions_str}")
         if state.get("active_constraints"):
-            lines.append(f"**Constraints**: {'; '.join(state['active_constraints'][-3:])}")
+            constraints_str = '; '.join(state['active_constraints'][-3:])[:200]
+            lines.append(f"**Constraints**: {constraints_str}")
         if state.get("file_scope"):
-            lines.append(f"**Active files**: {', '.join(state['file_scope'][-5:])}")
+            files_str = ', '.join(state['file_scope'][-5:])[:150]
+            lines.append(f"**Active files**: {files_str}")
         return "\n".join(lines) if lines else "(Session state empty — new session)"
 
     def _update_metrics(self, items_pre_loaded: int):

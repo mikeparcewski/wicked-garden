@@ -304,7 +304,7 @@ class Router:
         """Check if any escalation trigger fires."""
         return (
             analysis.confidence < 0.5 or
-            analysis.competing_intents >= 1 or  # Escalate if ANY competing intent
+            analysis.competing_intents >= 3 or  # Escalate only for genuinely ambiguous multi-topic
             analysis.entity_count > 5 or
             analysis.requires_history or
             analysis.is_planning or
@@ -327,7 +327,7 @@ class Router:
         reasons = []
         if analysis.confidence < 0.5:
             reasons.append(f"low confidence ({analysis.confidence:.2f})")
-        if analysis.competing_intents >= 1:
+        if analysis.competing_intents >= 3:
             reasons.append(f"{analysis.competing_intents} competing intent(s)")
         if analysis.entity_count > 5:
             reasons.append(f"many entities ({analysis.entity_count})")
