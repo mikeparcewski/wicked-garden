@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0] - 2026-02-25
+
+### Features
+- feat: add wicked-scenarios format generation to 6 specialist plugins (09e94b9)
+- feat(qe,scenarios): consolidate acceptance pipeline — QE owns testing, scenarios is thin CLI backend (7514e56)
+- feat(kanban,scenarios): store evidence inline in kanban artifacts (c06924d)
+
+### Chores
+- release: wicked-scenarios v1.5.0 (4d5a7c6)
+
 ## [1.5.0] - 2026-02-24
 
 ### Features
