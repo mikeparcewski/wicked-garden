@@ -1,21 +1,21 @@
-# Release wicked-smaht v4.3.0
+# Release wicked-smaht v4.3.1
 
 **Date**: 2026-02-25
 **Component**: wicked-smaht
 
 ## Summary
 
-This release includes: 1 new feature(s).
+This release includes: 1 bug fix(es).
 
 ## Changes
 
-### Features
+### Bug Fixes
 
-- feat(smaht): replace hook-based context injection with prompt-embedded dispatch packets (70d9877)
+- fix(smaht): fix context injection format and broken adapters (757d1d8)
 
 ### Chores
 
-- release: wicked-smaht v4.2.0 (4e91bf0)
+- release: wicked-smaht v4.3.0, wicked-crew v1.2.2 (7ee6b25)
 
 ## Installation
 
