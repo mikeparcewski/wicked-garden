@@ -2,13 +2,15 @@
 description: Run evidence-gated acceptance testing with three-agent separation (Writer/Executor/Reviewer)
 arguments:
   - name: target
-    description: "PLUGIN SCENARIO SCENARIO_FILE — plugin name, scenario name, and path to scenario markdown file"
+    description: "PLUGIN SCENARIO SCENARIO_FILE — or multiple triplets for batch mode. Append --report to auto-invoke /wicked-scenarios:report on failures."
     required: true
 ---
 
 # /wicked-scenarios:acceptance
 
 Run evidence-gated acceptance testing using the three-agent architecture: **Writer** (converter) designs evidence requirements, **Executor** (runner) captures artifacts, **Reviewer** evaluates evidence independently.
+
+Supports single scenario or **batch mode** (multiple scenarios with aggregated results).
 
 ## Architecture
 
@@ -23,12 +25,25 @@ Scenario ──→ [Converter/Writer] ──→ Kanban Tasks ──→ [Executor
 
 ### 1. Parse Arguments
 
-Parse `$ARGUMENTS` to extract:
+Parse `$ARGUMENTS` to determine mode:
+
+**Single mode** (3 positional args):
 - `PLUGIN`: Plugin name (e.g., `wicked-mem`)
 - `SCENARIO`: Scenario name (e.g., `decision-recall`)
 - `SCENARIO_FILE`: Path to scenario markdown file (e.g., `plugins/wicked-mem/scenarios/decision-recall.md`)
 
-All three are required. If missing, report error and exit.
+**Batch mode** (multiple triplets separated by `--next`):
+```
+wicked-mem decision-recall plugins/wicked-mem/scenarios/decision-recall.md --next wicked-mem store-recall plugins/wicked-mem/scenarios/store-recall.md
+```
+
+**Flags**:
+- `--report`: After all scenarios complete, auto-invoke `/wicked-scenarios:report` for any failures
+- `--report-auto`: Same as `--report` but files issues without prompting (passes `--auto` to report)
+
+For single mode, all three positional args are required. If missing, report error and exit.
+
+For batch mode, parse each triplet between `--next` delimiters. If any triplet is incomplete, report error and exit.
 
 ### 2. Convert Scenario to Kanban Tasks (Writer Phase)
 
@@ -116,7 +131,7 @@ After all tasks execute, collect evidence and spawn an independent reviewer.
 **a) Gather all evidence files:**
 
 ```bash
-evidence_dir="${HOME}/.something-wicked/wg-test/evidence/${project_id}"
+evidence_dir="${HOME}/.something-wicked/wicked-scenarios/evidence/${project_id}"
 ls "${evidence_dir}/"*.json 2>/dev/null
 ```
 
@@ -140,7 +155,7 @@ ${SCENARIO} (${SCENARIO_FILE})
 ${specification_notes from converter — keep brief, max 5 lines}
 
 ## Evidence Location
-Evidence directory: ${HOME}/.something-wicked/wg-test/evidence/${project_id}/
+Evidence directory: ${HOME}/.something-wicked/wicked-scenarios/evidence/${project_id}/
 Read each evidence JSON file using the Read tool.
 
 ## Task IDs
@@ -212,7 +227,7 @@ Display results using the reviewer's verdicts:
 ### Failures
 - **Task 3 — Verify recall**: Evidence `recall-output` does not contain "ACID"
   - **Cause**: IMPLEMENTATION_BUG — recall function returns empty for tag-based queries
-  - **Evidence file**: ~/.something-wicked/wg-test/evidence/${project_id}/task-03-verify.json
+  - **Evidence file**: ~/.something-wicked/wicked-scenarios/evidence/${project_id}/task-03-verify.json
 
 ### View Full Evidence
 Run `/wicked-kanban:board-status` or check project ${project_id} for task artifacts with evidence JSON files.
@@ -239,3 +254,51 @@ Run `/wicked-kanban:board-status` or check project ${project_id} for task artifa
 **Graceful degradation**: If wicked-qe is not installed, falls back to self-grading. Results are less reliable but the system still works.
 
 **Hooks still fire**: Subagents run in interactive mode where SessionStart, PostToolUse, PreToolUse, and all plugin hooks fire naturally.
+
+## Batch Mode
+
+When multiple scenarios are provided (via `--next` delimiters), execute each scenario through the full pipeline (steps 2-5) **sequentially**. Collect results from each run.
+
+### Batch Execution Loop
+
+For each scenario triplet `(PLUGIN, SCENARIO, SCENARIO_FILE)`:
+1. Run steps 2-5 as normal for that scenario
+2. Store the result: `{plugin, scenario, scenario_file, overall_verdict, task_verdicts, acceptance_criteria_verdicts, failure_analysis, specification_notes}`
+3. Continue to the next scenario regardless of the previous result
+
+### Batch Aggregation
+
+After all scenarios complete, display an aggregate summary:
+
+```markdown
+## Batch Results: N scenarios
+
+| # | Plugin | Scenario | Verdict |
+|---|--------|----------|---------|
+| 1 | wicked-mem | decision-recall | PASS |
+| 2 | wicked-mem | store-recall | FAIL |
+| 3 | wicked-crew | phase-flow | PASS |
+
+**Summary**: N passed, N failed, N partial, N inconclusive
+
+### Failures
+<For each FAIL scenario, show the condensed failure table from step 5>
+```
+
+**Aggregate verdict logic**:
+- All scenarios PASS → **ALL PASS**
+- Any scenario FAIL → **FAILURES DETECTED** (count)
+- Mix of PASS/PARTIAL/INCONCLUSIVE with no FAIL → **PARTIAL**
+
+### Report Integration
+
+If `--report` or `--report-auto` flag is present and any scenario has FAIL verdict:
+
+```
+Skill(
+  skill="wicked-scenarios:report",
+  args="${'--auto' if report_auto else ''}"
+)
+```
+
+The report command reads failure details from conversation context and handles GitHub issue filing, deduplication, and grouping.

@@ -9,7 +9,7 @@ arguments:
 
 # Test Plugin Scenarios
 
-Thin wrapper around `/wicked-scenarios:acceptance` that adds argument parsing, scenario discovery, and GitHub issue filing. The actual three-agent UAT pipeline (Writer → Executor → Reviewer) is owned by wicked-scenarios.
+Thin wrapper around `/wicked-scenarios:acceptance` that adds monorepo scenario discovery and preflight checks. All testing logic — the three-agent UAT pipeline, issue filing, batch execution — is owned by wicked-scenarios.
 
 ## Process
 
@@ -20,7 +20,7 @@ Parse `$ARGUMENTS` to determine what to test:
 - `plugin-name` → List scenarios for that plugin, ask user to pick
 - `plugin-name/scenario-name` → Run that specific scenario
 - `plugin-name --all` → Run all scenarios for that plugin
-- `--issues` flag (combinable with any above) → Auto-file GitHub issues for failures
+- `--issues` flag (combinable with any above) → Pass `--report-auto` to acceptance for automatic issue filing
 
 ### 2. Preflight Environment Check
 
@@ -36,7 +36,9 @@ fi
 
 If the variable is set, warn the user and ask whether to continue (results will be unreliable) or abort. Use AskUserQuestion with options: "Abort — fix environment first" and "Continue anyway (expect failures)".
 
-### 3. If Listing Needed
+### 3. Scenario Discovery
+
+If the user didn't specify a full `plugin/scenario` path, discover available scenarios in this monorepo:
 
 ```bash
 # Find plugins with scenarios
@@ -51,94 +53,33 @@ for plugin_dir in plugins/*/; do
 done
 ```
 
-Use AskUserQuestion to let user select.
+Use AskUserQuestion to let user select plugin and/or scenario.
 
-### 4. Run Acceptance Tests
+### 4. Delegate to wicked-scenarios
 
-Once the specific `plugin_name`, `scenario_name`, and `scenario_file` are resolved, delegate to `/wicked-scenarios:acceptance`:
+**Single scenario:**
 
 ```
 Skill(
   skill="wicked-scenarios:acceptance",
-  args="${plugin_name} ${scenario_name} plugins/${plugin_name}/scenarios/${scenario_file}"
+  args="${plugin_name} ${scenario_name} plugins/${plugin_name}/scenarios/${scenario_file}${issues_flag ? ' --report-auto' : ''}"
 )
 ```
 
-If running `--all` scenarios for a plugin, invoke `/wicked-scenarios:acceptance` once per scenario file (sequentially). Collect all results.
+**All scenarios for a plugin (`--all`):**
 
-Parse the output to extract:
-- Overall verdict (PASS/FAIL/PARTIAL/INCONCLUSIVE)
-- Task verdicts and failure analysis
-- Specification notes
+Build a batch command with `--next` delimiters between each scenario triplet:
 
-### 5. File GitHub Issues for Failures
-
-**Trigger**: Any scenario has FAIL verdict (always when `--issues` flag is set; otherwise ask the user).
-
-If there are failures:
-
-1. **Without `--issues` flag**: Use AskUserQuestion — "N scenario(s) failed. File GitHub issues for the failures?"
-   - "Yes, file issues for all failures"
-   - "Let me pick which ones"
-   - "No, just show the results"
-
-2. **With `--issues` flag**: Skip the prompt, file issues for all failures automatically.
-
-#### Filing Issues
-
-For each failure, use `gh issue create` via Bash.
-
-**Title**: `test(<plugin>): <scenario> scenario failure`
-**Labels**: `bug`, `<plugin-name>`
-**Body template**:
-
-```markdown
-## UAT Scenario Failure
-
-**Plugin**: <plugin-name>
-**Scenario**: <scenario-name> (`plugins/<plugin-name>/scenarios/<scenario-file>`)
-**Run date**: <UTC timestamp>
-
-## Failed Tasks
-
-| # | Task | Assertion | Verdict | Cause |
-|---|------|-----------|---------|-------|
-| <n> | <description> | <assertion> | FAIL | <cause from reviewer> |
-
-## Evidence Details
-
-<For each failed task, include key evidence excerpts from the reviewer>
-
-## Failure Analysis
-
-<Reviewer's cause attribution and recommendations>
-
-## Suggested Resolution
-
-Run `/wg-issue <this-issue-number>` to start a crew project that resolves this failure.
+```
+Skill(
+  skill="wicked-scenarios:acceptance",
+  args="${triplet_1} --next ${triplet_2} --next ${triplet_3}${issues_flag ? ' --report-auto' : ' --report'}"
+)
 ```
 
-**Grouping**: If multiple scenarios fail for the **same plugin**, combine them into a single issue. Title becomes: `test(<plugin>): <count> scenario failures`.
+The `--report` flag triggers `/wicked-scenarios:report` interactively on failures. The `--report-auto` flag (from `--issues`) files issues without prompting.
 
-**Deduplication**: Before filing, check for existing open issues:
-
-```bash
-gh issue list --state open --search "test(<plugin-name>):" --json number,title --limit 5
-```
-
-If a matching issue exists, skip filing and note the existing issue number instead.
-
-#### Post-Filing Summary
-
-```markdown
-## Issues Filed
-
-| # | Plugin | Scenarios | Title |
-|---|--------|-----------|-------|
-| <number> | <plugin> | <count> | <title> |
-
-Resolve with: `/wg-issue <number>`
-```
+wicked-scenarios handles everything from here: the three-agent pipeline, batch aggregation, result display, and issue filing.
 
 ## Examples
 
@@ -161,9 +102,11 @@ Resolve with: `/wg-issue <number>`
 
 ## Architecture Note
 
-The testing pipeline is owned by `wicked-scenarios:acceptance`, which implements the three-agent pattern (Writer → Executor → Reviewer) with kanban-tracked execution and evidence separation. This command (`/wg-test`) is a dev-tool wrapper that adds:
-- Scenario discovery across the monorepo
-- Preflight environment checks
-- GitHub issue filing for failures
+The testing pipeline is owned by `wicked-scenarios`, which provides:
+- `/wicked-scenarios:acceptance` — Three-agent UAT pipeline with batch support
+- `/wicked-scenarios:report` — GitHub issue filing with deduplication and grouping
 
-Any plugin or tool can invoke `/wicked-scenarios:acceptance` directly for programmatic acceptance testing without the wg-test wrapper.
+This command (`/wg-test`) is a monorepo dev-tool wrapper that adds only:
+- Scenario discovery across `plugins/*/scenarios/`
+- Preflight `SKIP_PLUGIN_MARKETPLACE` check
+- Flag translation (`--issues` → `--report-auto`)

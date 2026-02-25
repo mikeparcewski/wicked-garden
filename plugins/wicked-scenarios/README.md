@@ -89,6 +89,8 @@ AVAILABLE SCENARIOS
 | `/wicked-scenarios:list` | List scenarios with tool availability status | `/wicked-scenarios:list` |
 | `/wicked-scenarios:check` | Validate scenario frontmatter and step format | `/wicked-scenarios:check scenarios/` |
 | `/wicked-scenarios:setup` | Auto-detect and install missing CLI tools | `/wicked-scenarios:setup` |
+| `/wicked-scenarios:acceptance` | Evidence-gated UAT with three-agent pipeline (Writer/Executor/Reviewer). Supports batch mode. | `/wicked-scenarios:acceptance wicked-mem decision-recall plugins/wicked-mem/scenarios/decision-recall.md` |
+| `/wicked-scenarios:report` | File GitHub issues from test failures with deduplication and grouping | `/wicked-scenarios:report --auto` |
 
 ## Scenario Format
 

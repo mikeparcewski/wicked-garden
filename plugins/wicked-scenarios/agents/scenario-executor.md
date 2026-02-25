@@ -97,7 +97,7 @@ Write structured evidence to a JSON file, then attach it as a kanban artifact.
 **a) Create evidence directory and write JSON file:**
 
 ```bash
-evidence_dir="${HOME}/.something-wicked/wg-test/evidence/${PROJECT_ID}"
+evidence_dir="${HOME}/.something-wicked/wicked-scenarios/evidence/${PROJECT_ID}"
 mkdir -p "${evidence_dir}"
 ```
 
@@ -223,7 +223,7 @@ Note: This is EXECUTED, not PASS/FAIL. The reviewer determines pass/fail.
 4. Run `ls ~/.something-wicked/wicked-mem/memories/*.json 2>/dev/null | wc -l`
 5. Record stdout/stderr/exit_code as `store-state` evidence
 6. Get end timestamp
-7. Write evidence JSON to `~/.something-wicked/wg-test/evidence/${PROJECT_ID}/task-02-store.json`
+7. Write evidence JSON to `~/.something-wicked/wicked-scenarios/evidence/${PROJECT_ID}/task-02-store.json`
 8. Attach artifact `L3:test:task-02-store` pointing to the evidence file
 9. Add status comment: `EXECUTED | Action completed, evidence captured (2 items)`
 10. Move task to Done swimlane
