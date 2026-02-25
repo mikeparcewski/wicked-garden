@@ -92,7 +92,7 @@
       "name": "wicked-smaht",
       "source": "./plugins/wicked-smaht",
       "description": "Ecosystem multiplier \u2014 automatically gathers context from installed plugins (memories, tasks, code search, brainstorms) before Claude responds. The more plugins you install, the smarter it gets. Confidence-based routing: fast path for simple queries, comprehensive assembly for complex ones.",
-      "version": "4.0.0"
+      "version": "4.1.0"
     },
     {
       "name": "wicked-agentic",
@@ -104,7 +104,7 @@
       "name": "wicked-scenarios",
       "source": "./plugins/wicked-scenarios",
       "description": "E2E testing via human and agent-readable markdown scenarios that orchestrate lightweight open-source CLI tools. Covers API, browser, performance, infrastructure, security, and accessibility testing with graceful degradation when tools are missing.",
-      "version": "1.3.0"
+      "version": "1.4.0"
     }
   ]
 }
