@@ -90,18 +90,11 @@ For each evidence item specified in the task, capture the artifact:
 
 **Capture verbatim** — do not summarize, filter, or interpret. Record exactly what was produced. If output exceeds 500 chars, store the first 500 in `excerpt` and note "truncated from N chars."
 
-### 5. Write Evidence File and Attach as Artifact
+### 5. Store Evidence as Kanban Artifact
 
-Write structured evidence to a JSON file, then attach it as a kanban artifact.
+Store evidence **inline** in a kanban artifact — no external files needed.
 
-**a) Create evidence directory and write JSON file:**
-
-```bash
-evidence_dir="${HOME}/.something-wicked/wicked-scenarios/evidence/${PROJECT_ID}"
-mkdir -p "${evidence_dir}"
-```
-
-Write a JSON file to `${evidence_dir}/${task_id}.json`:
+**a) Build the evidence JSON** in memory:
 
 ```json
 {
@@ -141,19 +134,28 @@ Write a JSON file to `${evidence_dir}/${task_id}.json`:
 - `assertions`: Copied from the task definition — the reviewer uses these to evaluate the evidence
 - `execution_notes`: Mechanical observations about execution, NOT judgments about correctness
 
-**b) Attach as kanban artifact** using wicked-crew's `{tier}:{type}:{detail}` naming:
+**b) Write evidence to a temp file and attach inline** using kanban's `--content @filepath`:
 
 ```bash
-cd plugins/wicked-kanban && uv run python scripts/kanban.py add-artifact "${PROJECT_ID}" "${KANBAN_TASK_ID}" "L3:test:${task_id}" --type document --path "${evidence_dir}/${task_id}.json"
+# Write evidence JSON to temp file
+cat > "${TMPDIR:-/tmp}/evidence-${task_id}.json" << 'EVIDENCE_EOF'
+{evidence JSON from above}
+EVIDENCE_EOF
+
+# Attach as kanban artifact with inline content
+cd plugins/wicked-kanban && uv run python scripts/kanban.py add-artifact "${PROJECT_ID}" "${KANBAN_TASK_ID}" "L3:test:${task_id}" --type document --content "@${TMPDIR:-/tmp}/evidence-${task_id}.json"
+
+# Clean up temp file
+rm -f "${TMPDIR:-/tmp}/evidence-${task_id}.json"
 ```
+
+**Artifact naming convention**: `L3:test:{task_id}` — this makes evidence discoverable by `/wicked-crew:evidence` which categorizes L3 artifacts as "Gates + Tests."
 
 **c) Add a brief status comment** for quick scanning:
 
 ```bash
 cd plugins/wicked-kanban && uv run python scripts/kanban.py add-comment "${PROJECT_ID}" "${KANBAN_TASK_ID}" "EXECUTED | Action completed, evidence captured (${evidence_count} items)"
 ```
-
-**Artifact naming convention**: `L3:test:{task_id}` — this makes evidence discoverable by `/wicked-crew:evidence` which categorizes L3 artifacts as "Gates + Tests."
 
 **IMPORTANT**: The comment is about execution status, NOT pass/fail. You do not know whether the task passed — that's the reviewer's job. Keep the comment to a single status line.
 
@@ -186,7 +188,7 @@ Note: This is EXECUTED, not PASS/FAIL. The reviewer determines pass/fail.
 5. **Never say PASS or FAIL** — You report EXECUTED, SKIPPED, or ERROR. Pass/fail is the reviewer's job.
 6. **Handle errors gracefully** — If the action fails, record the error output as evidence. Errors are evidence too.
 7. **Use the right tool** — Slash commands → Skill tool. Agents → Task tool. Shell commands → Bash tool. File checks → Read/Glob/Grep tools.
-8. **Always write evidence** — The evidence JSON file and artifact MUST always be created, whether the task executed, skipped, or errored.
+8. **Always store evidence** — The kanban artifact with inline evidence MUST always be created, whether the task executed, skipped, or errored.
 9. **Always move to Done** — Unless the task errored, move it to Done. The verdict is in the evidence, not the swimlane.
 
 ## Execution Status Values
@@ -223,8 +225,8 @@ Note: This is EXECUTED, not PASS/FAIL. The reviewer determines pass/fail.
 4. Run `ls ~/.something-wicked/wicked-mem/memories/*.json 2>/dev/null | wc -l`
 5. Record stdout/stderr/exit_code as `store-state` evidence
 6. Get end timestamp
-7. Write evidence JSON to `~/.something-wicked/wicked-scenarios/evidence/${PROJECT_ID}/task-02-store.json`
-8. Attach artifact `L3:test:task-02-store` pointing to the evidence file
+7. Write evidence JSON to temp file, attach inline as kanban artifact `L3:test:task-02-store`
+8. Clean up temp file
 9. Add status comment: `EXECUTED | Action completed, evidence captured (2 items)`
 10. Move task to Done swimlane
 11. Output: `TASK_EXECUTED: task-02-store | EXECUTED | 2 evidence items captured`

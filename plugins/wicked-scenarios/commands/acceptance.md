@@ -128,20 +128,21 @@ For each task from the converter output (in order, respecting `depends_on`):
 
 After all tasks execute, collect evidence and spawn an independent reviewer.
 
-**a) Gather all evidence files:**
+**a) Gather evidence from kanban artifacts:**
+
+Evidence is stored inline in kanban artifacts (named `L3:test:{task_id}`). Retrieve it:
 
 ```bash
-evidence_dir="${HOME}/.something-wicked/wicked-scenarios/evidence/${project_id}"
-ls "${evidence_dir}/"*.json 2>/dev/null
+cd plugins/wicked-kanban && uv run python scripts/kanban.py get-project "${project_id}"
 ```
 
-Read each evidence JSON file to compile the full evidence report.
+Parse each task's `artifacts` array — artifacts with names starting with `L3:test:` contain evidence in their `content` field.
 
 **b) Spawn the reviewer:**
 
 If wicked-qe is installed (check `ls plugins/wicked-qe/.claude-plugin/plugin.json 2>/dev/null`):
 
-Pass evidence **file paths** — the reviewer reads them on demand. Do NOT inline evidence JSON.
+Pass evidence **inline from kanban artifacts** — the reviewer does NOT need file paths.
 
 ```
 Task(
@@ -155,8 +156,9 @@ ${SCENARIO} (${SCENARIO_FILE})
 ${specification_notes from converter — keep brief, max 5 lines}
 
 ## Evidence Location
-Evidence directory: ${HOME}/.something-wicked/wicked-scenarios/evidence/${project_id}/
-Read each evidence JSON file using the Read tool.
+Evidence is stored inline in kanban artifacts for project ${project_id}.
+Run: cd plugins/wicked-kanban && uv run python scripts/kanban.py get-project "${project_id}"
+Look for artifacts named L3:test:{task_id} — evidence is in the "content" field.
 
 ## Task IDs
 ${list of task IDs from converter — one per line}
@@ -164,7 +166,7 @@ ${list of task IDs from converter — one per line}
 Use TaskGet for each task ID to read its description, evidence requirements, and assertions.
 
 ## Instructions
-1. Read evidence files from the evidence directory
+1. Retrieve kanban project and extract evidence from artifact content fields
 2. Use TaskGet to pull task descriptions and assertion definitions
 3. Verify evidence completeness — is every required artifact present?
 4. Evaluate each assertion against its evidence using the specified operator
@@ -189,7 +191,7 @@ Return verdicts in this JSON format:
 )
 ```
 
-**c) If wicked-qe is NOT installed**, fall back to basic self-grading: read each evidence file and evaluate the assertions yourself. This is less reliable but still functional.
+**c) If wicked-qe is NOT installed**, fall back to basic self-grading: retrieve evidence from kanban artifacts and evaluate the assertions yourself. This is less reliable but still functional.
 
 ### 5. Aggregate and Return Results
 
@@ -227,10 +229,10 @@ Display results using the reviewer's verdicts:
 ### Failures
 - **Task 3 — Verify recall**: Evidence `recall-output` does not contain "ACID"
   - **Cause**: IMPLEMENTATION_BUG — recall function returns empty for tag-based queries
-  - **Evidence file**: ~/.something-wicked/wicked-scenarios/evidence/${project_id}/task-03-verify.json
+  - **Evidence**: Kanban artifact `L3:test:task-03-verify` on project ${project_id}
 
 ### View Full Evidence
-Run `/wicked-kanban:board-status` or check project ${project_id} for task artifacts with evidence JSON files.
+Run `/wicked-kanban:board-status` or check project ${project_id} for task artifacts with inline evidence.
 ```
 
 **Overall verdict logic** (from reviewer):
@@ -247,7 +249,7 @@ Run `/wicked-kanban:board-status` or check project ${project_id} for task artifa
 
 **Specification bug detection**: The converter reads implementation code before designing tests, catching mismatches early — before any test runs.
 
-**Evidence tracking**: Evidence is stored as kanban task artifacts using wicked-crew's `{tier}:{type}:{detail}` naming convention. Artifacts point to evidence JSON files on disk.
+**Evidence tracking**: Evidence is stored inline in kanban task artifacts using wicked-crew's `{tier}:{type}:{detail}` naming convention. No external files — evidence lives with the task.
 
 **Failure isolation**: If task 3 of 11 errors, remaining tasks can still execute. Evidence for the failure is in the task's artifact.
 
