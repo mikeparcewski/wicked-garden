@@ -5,7 +5,10 @@ wicked-smaht: SubagentStart hook.
 Injects minimal orientation metadata into subagents so they know
 WHERE to look for context, not WHAT the context is.
 
-Output: ~50-100 tokens of pointers (project, task, session, phase).
+Also injects context pressure level — when pressure is high,
+subagents are instructed to truncate large outputs.
+
+Output: ~50-150 tokens of pointers (project, task, session, phase, pressure).
 Subagents pull actual content on demand via plugin APIs:
 - TaskGet(taskId) for task details
 - /wicked-mem:recall for decisions/constraints
@@ -18,7 +21,7 @@ import sys
 import time
 from pathlib import Path
 
-# Add v2 scripts to path for HistoryCondenser access
+# Add v2 scripts to path for HistoryCondenser and PressureTracker access
 V2_SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts" / "v2"
 sys.path.insert(0, str(V2_SCRIPTS_DIR))
 
@@ -88,6 +91,22 @@ def _get_session_pointers(session_id: str) -> dict:
         return {}
 
 
+def _get_pressure_context() -> dict:
+    """Get context pressure level for output-size awareness."""
+    try:
+        from context_pressure import PressureTracker, PressureLevel
+        tracker = PressureTracker()
+        level = tracker.get_level()
+        pressure_kb = tracker.get_pressure_kb()
+        return {
+            "level": level.value,
+            "kb": pressure_kb,
+            "is_high": level in (PressureLevel.HIGH, PressureLevel.CRITICAL),
+        }
+    except Exception:
+        return {}
+
+
 def main():
     try:
         input_data = json.loads(sys.stdin.read())
@@ -99,6 +118,7 @@ def main():
     # Gather orientation metadata
     crew = _get_crew_context()
     session = _get_session_pointers(session_id)
+    pressure = _get_pressure_context()
 
     # Build compact orientation block with sanitized fields
     lines = []
@@ -116,7 +136,21 @@ def main():
         safe_files = [_safe_str(f, 60) for f in session['active_files'][-5:]]
         lines.append(f"**Active files**: {', '.join(safe_files)}")
 
-    # Add pull instructions
+    # Pressure-aware instructions
+    if pressure.get("is_high"):
+        lines.append("")
+        lines.append(f"**Context pressure**: {pressure.get('level', '?').upper()} ({pressure.get('kb', 0)}KB)")
+        lines.append(
+            "IMPORTANT: Parent session context is under pressure. "
+            "Keep your response CONCISE. For CLI outputs, tool results, or evidence artifacts: "
+            "truncate to first/last 50 lines max. Summarize large outputs instead of including them verbatim. "
+            "Return structured data (JSON) rather than raw text when possible."
+        )
+    elif pressure.get("level") == "medium":
+        lines.append("")
+        lines.append(f"**Context pressure**: MEDIUM ({pressure.get('kb', 0)}KB) — prefer concise outputs.")
+
+    # Pull instructions
     lines.append("")
     lines.append("Use TaskGet/TaskList for task details, /wicked-mem:recall for decisions, /wicked-search:code for code context.")
 

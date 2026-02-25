@@ -2,17 +2,21 @@
 """
 wicked-smaht v2: UserPromptSubmit hook.
 
-Uses tiered hybrid context management:
-- Fast path for simple, clear requests (<1s)
-- Slow path for complex/ambiguous requests (2-4s)
-- Context budget warnings when sessions run long
+Context replacement strategy — NOT accumulation:
+1. Track content pressure (cumulative bytes, not just turns)
+2. At MEDIUM pressure: advise compaction
+3. At HIGH pressure: inject rich recovery briefing + compact directive
+4. At CRITICAL pressure: insist on compaction before proceeding
+5. After compaction: inject comprehensive recovery briefing from external state
+   (condenser summary, mem, kanban, crew) so nothing is lost
+
+The conversation is ephemeral. smaht's external state IS the source of truth.
 """
 
 import asyncio
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 # Add v2 scripts to path
@@ -24,52 +28,101 @@ parent_scripts = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(parent_scripts))
 
 
-# Turn-based context budget thresholds
-CONTEXT_WARNING_TURN = 30
-CONTEXT_CRITICAL_TURN = 50
-
-
-def get_turn_tracker_path() -> Path:
-    """Get path to smaht turn tracker (per-session)."""
-    session_id = os.environ.get("CLAUDE_SESSION_ID", "")
-    if not session_id:
-        # Generate a unique fallback based on parent PID to avoid cross-session leaks
-        session_id = f"pid-{os.getppid()}"
-    return Path(tempfile.gettempdir()) / f"wicked-smaht-turns-{session_id}"
-
-
-def increment_and_check_turns() -> tuple:
-    """Increment turn count and return (count, warning_message_or_None)."""
-    tracker = get_turn_tracker_path()
+def get_pressure_tracker():
+    """Get pressure tracker, returns None if unavailable."""
     try:
-        count = int(tracker.read_text().strip()) + 1
-    except (FileNotFoundError, ValueError):
-        count = 1
-    tracker.write_text(str(count))
+        from context_pressure import PressureTracker
+        return PressureTracker()
+    except Exception:
+        return None
 
-    if count >= CONTEXT_CRITICAL_TURN:
-        return count, (
-            "[Context] Session is very long (~{} turns). "
-            "Context window likely filling up. Consider: "
-            "1) Saving progress with /wicked-mem:store, "
-            "2) Starting a fresh session for remaining work.".format(count)
+
+def build_pressure_directive(level, pressure_kb: int, turn_count: int) -> str:
+    """Build pressure-appropriate directive for Claude."""
+    from context_pressure import PressureLevel
+
+    if level == PressureLevel.MEDIUM:
+        return (
+            f"[Context pressure: {pressure_kb}KB ~MEDIUM, turn {turn_count}] "
+            "Session has accumulated significant context. Consider saving key decisions "
+            "with /wicked-mem:store and running /compact to free space."
         )
-    elif count >= CONTEXT_WARNING_TURN:
-        return count, (
-            "[Context] Long session (~{} turns). "
-            "Consider summarizing key decisions with /wicked-mem:store "
-            "to preserve progress if context runs low.".format(count)
+    elif level == PressureLevel.HIGH:
+        return (
+            f"[Context pressure: {pressure_kb}KB ~HIGH, turn {turn_count}] "
+            "IMPORTANT: Context window is filling up. You MUST:\n"
+            "1. Save any unsaved decisions/progress with /wicked-mem:store\n"
+            "2. Run /compact to free context space\n"
+            "Session state will be reconstructed from memory after compaction."
         )
-    return count, None
+    elif level == PressureLevel.CRITICAL:
+        return (
+            f"[Context pressure: {pressure_kb}KB ~CRITICAL, turn {turn_count}] "
+            "MANDATORY: Context window is near capacity. Before doing ANYTHING else:\n"
+            "1. Run /compact immediately\n"
+            "Context will be rebuilt from session state after compaction. "
+            "Do NOT proceed with the user's request until compaction is done."
+        )
+    return ""
+
+
+def build_recovery_briefing(session_id: str) -> str:
+    """Build comprehensive recovery briefing after compaction.
+
+    Pulls from all external state stores to reconstruct what the
+    conversation needs to continue seamlessly.
+    """
+    lines = ["## Session Recovery (post-compaction)", ""]
+
+    # 1. Session summary from condenser (the ticket rail)
+    try:
+        from history_condenser import HistoryCondenser
+        condenser = HistoryCondenser(session_id)
+        state = condenser.get_session_state()
+
+        if state.get("current_task"):
+            lines.append(f"**Current task**: {state['current_task']}")
+        if state.get("topics"):
+            lines.append(f"**Topics**: {', '.join(state['topics'][:8])}")
+        if state.get("decisions"):
+            lines.append(f"**Decisions**: {'; '.join(state['decisions'][:5])}")
+        if state.get("active_constraints"):
+            lines.append(f"**Constraints**: {'; '.join(state['active_constraints'][:5])}")
+        if state.get("file_scope"):
+            lines.append(f"**Active files**: {', '.join(state['file_scope'][-10:])}")
+        if state.get("open_questions"):
+            lines.append(f"**Open questions**: {'; '.join(state['open_questions'][:3])}")
+
+        # Recent facts
+        if state.get("facts"):
+            facts_summary = state["facts"]
+            if isinstance(facts_summary, dict) and facts_summary.get("count", 0) > 0:
+                lines.append(f"**Facts extracted**: {facts_summary['count']}")
+
+        lines.append("")
+
+        # Condensed history (recent turns)
+        history = condenser.get_condensed_history()
+        if history and "(No summary yet)" not in history:
+            # Cap history to keep recovery briefing focused
+            history_lines = history.strip().split("\n")[:15]
+            lines.extend(history_lines)
+            lines.append("")
+
+    except Exception as e:
+        lines.append(f"(Session state partially unavailable: {str(e)[:50]})")
+        lines.append("")
+
+    lines.append("*Context was compacted. Above state reconstructed from session memory. "
+                 "Use /wicked-mem:recall for past decisions, TaskList for active tasks.*")
+
+    return "\n".join(lines)
 
 
 def should_gather_context(prompt: str) -> bool:
     """Determine if we should gather context for this prompt."""
-    # Only skip empty prompts — short confirmations ("y", "ok") need
-    # HOT path for turn tracking and session state continuity
     if not prompt.strip():
         return False
-
     return True
 
 
@@ -108,29 +161,94 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
-    # Check if we should gather context
     if not prompt or not should_gather_context(prompt):
         print(json.dumps({"continue": True}))
         return
 
-    # Check context budget
-    turn_count, context_warning = increment_and_check_turns()
+    # --- Pressure tracking ---
+    tracker = get_pressure_tracker()
+    pressure_directive = ""
+    recovery_briefing = ""
 
-    # Gather context
-    result = asyncio.run(gather_context(prompt, session_id))
+    if tracker:
+        from context_pressure import PressureLevel
 
-    if not result["success"] or not result.get("briefing"):
-        # Partial context is better than no context — inject what we have
-        fallback_parts = []
-        if context_warning:
-            fallback_parts.append(context_warning)
-        if result.get("error"):
-            # Log error to stderr for debugging, don't inject error messages
-            print(f"smaht: context assembly failed: {result['error']}", file=sys.stderr)
-        if result.get("sources") and any(result["sources"]):
-            fallback_parts.append(f"Context sources queried: {', '.join(result.get('sources', []))}")
-        if fallback_parts:
-            sanitized = '  '.join(fallback_parts).replace('</system-reminder>', '')
+        # Check for post-compaction recovery FIRST
+        if tracker.was_just_compacted():
+            recovery_briefing = build_recovery_briefing(session_id)
+
+        # Record this turn's contribution (prompt size + estimated briefing)
+        tracker.increment_turn(
+            prompt_bytes=len(prompt.encode("utf-8", errors="replace")),
+            briefing_bytes=0,  # updated after briefing is built
+        )
+
+        level = tracker.get_level()
+        pressure_kb = tracker.get_pressure_kb()
+        turn_count = tracker.get_turn_count()
+
+        if level != PressureLevel.LOW:
+            pressure_directive = build_pressure_directive(level, pressure_kb, turn_count)
+
+    # --- Context gathering ---
+    # At CRITICAL pressure, skip adapter queries to save time — just inject directive
+    skip_gathering = False
+    if tracker:
+        level = tracker.get_level()
+        if level == PressureLevel.CRITICAL and not recovery_briefing:
+            skip_gathering = True
+
+    if skip_gathering:
+        briefing = ""
+        path = "critical"
+        sources = []
+        failed = []
+    else:
+        result = asyncio.run(gather_context(prompt, session_id))
+        if result["success"] and result.get("briefing"):
+            briefing = result["briefing"]
+            path = result["path"]
+            sources = result.get("sources", [])
+            failed = result.get("failed", [])
+        else:
+            briefing = ""
+            path = "error"
+            sources = result.get("sources", [])
+            failed = result.get("failed", [])
+            if result.get("error"):
+                print(f"smaht: context assembly failed: {result['error']}", file=sys.stderr)
+
+    # --- Budget enforcement ---
+    if briefing:
+        try:
+            from budget_enforcer import BudgetEnforcer
+            enforcer = BudgetEnforcer()
+            briefing = enforcer.enforce(briefing, path)
+        except Exception as e:
+            print(f"smaht: budget enforcement failed: {e}", file=sys.stderr)
+            char_budgets = {"hot": 400, "fast": 2000, "slow": 4000}
+            max_chars = char_budgets.get(path, 2000) - 200
+            briefing = briefing[:max_chars]
+
+    # --- Compose final output ---
+    parts = []
+
+    # Recovery briefing takes priority (reconstructs context after compaction)
+    if recovery_briefing:
+        parts.append(recovery_briefing)
+
+    # Normal briefing
+    if briefing:
+        parts.append(briefing)
+
+    # Pressure directive (always last — it's the instruction to act)
+    if pressure_directive:
+        parts.append(pressure_directive)
+
+    if not parts:
+        # Nothing to inject — at least pass through any error context
+        if failed:
+            sanitized = f"Context sources failed: {', '.join(failed)}".replace('</system-reminder>', '')
             print(json.dumps({
                 "additionalContext": f"<system-reminder>\n{sanitized}\n</system-reminder>",
                 "continue": True
@@ -139,58 +257,41 @@ def main():
             print(json.dumps({"continue": True}))
         return
 
-    # Format output
-    briefing = result["briefing"]
-    path = result["path"]
-    latency = result["latency_ms"]
-    sources = result.get("sources", [])
-    failed = result.get("failed", [])
-
-    # Enforce token budget
-    try:
-        from budget_enforcer import BudgetEnforcer
-        enforcer = BudgetEnforcer()
-        briefing = enforcer.enforce(briefing, path)
-    except Exception as e:
-        print(f"smaht: budget enforcement failed: {e}", file=sys.stderr)
-        # Fail-closed: hard-slice briefing to prevent unbounded output
-        char_budgets = {"hot": 400, "fast": 2000, "slow": 4000}
-        max_chars = char_budgets.get(path, 2000) - 200
-        briefing = briefing[:max_chars]
-
-    # Token count after enforcement
-    enforced_tokens = len(briefing) // 4
-    budget_tokens = {"hot": 100, "fast": 500, "slow": 1000}.get(path, 500)
-
-    # Build visible badge with adapter names and token count
-    if sources:
-        badge_sources = f"sources:{','.join(sources)}"
-        if failed:
-            badge_sources += f"|failed:{','.join(failed)}"
+    # Build metadata header
+    if tracker:
+        level = tracker.get_level()
+        pressure_kb = tracker.get_pressure_kb()
+        turn_count = tracker.get_turn_count()
     else:
-        badge_sources = "no sources"
+        level = None
+        pressure_kb = 0
+        turn_count = 0
 
-    # Append context warning if applicable (was dropped in refactor)
-    if context_warning:
-        briefing = f"{briefing}\n\n{context_warning}" if briefing else context_warning
+    source_badge = ""
+    if sources:
+        source_badge = f"sources:{','.join(sources)}"
+        if failed:
+            source_badge += f"|failed:{','.join(failed)}"
 
-    # Re-enforce after appending warning (may push over budget)
-    try:
-        from budget_enforcer import BudgetEnforcer
-        enforcer = BudgetEnforcer()
-        briefing = enforcer.enforce(briefing, path)
-    except Exception:
-        pass
+    enforced_tokens = sum(len(p) for p in parts) // 4
+    budget_tokens = {"hot": 100, "fast": 500, "slow": 1000, "critical": 0, "error": 500}.get(path, 500)
 
-    # Recalculate token count after warning addition
-    enforced_tokens = len(briefing) // 4
+    level_str = level.value if level else "unknown"
+    header = (
+        f"<!-- wicked-smaht v2 | path={path} | {source_badge} "
+        f"| tok:{enforced_tokens}/{budget_tokens} | turn={turn_count} "
+        f"| pressure:{pressure_kb}KB/{level_str} -->"
+    )
 
-    # Add metadata header with token count
-    header = f"<!-- wicked-smaht v2 | path={path} | {badge_sources} | tok:{enforced_tokens}/{budget_tokens} | turn={turn_count} -->"
+    combined = "\n\n".join(parts)
+    sanitized = combined.replace('</system-reminder>', '')
 
-    sanitized_briefing = briefing.replace('</system-reminder>', '')
+    # Update pressure tracker with actual briefing size
+    if tracker:
+        tracker.add_content(len(sanitized.encode("utf-8", errors="replace")))
+
     output = {
-        "additionalContext": f"<system-reminder>\n{header}\n{sanitized_briefing}\n</system-reminder>",
+        "additionalContext": f"<system-reminder>\n{header}\n{sanitized}\n</system-reminder>",
         "continue": True
     }
 

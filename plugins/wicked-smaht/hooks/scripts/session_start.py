@@ -120,6 +120,16 @@ def _reset_turn_counter():
         tracker.unlink()
 
 
+def _reset_pressure_tracker():
+    """Reset context pressure tracker on session start."""
+    try:
+        from context_pressure import PressureTracker
+        tracker = PressureTracker()
+        tracker.reset()
+    except Exception:
+        pass  # Non-critical — fail silently
+
+
 def _ensure_subagent_hook():
     """Ensure SubagentStart hook is registered in project settings.
 
@@ -188,8 +198,9 @@ def _ensure_subagent_hook():
 
 def main():
     """Initialize session and gather baseline context."""
-    # Reset turn counter to prevent cross-session leaks
+    # Reset turn counter and pressure tracker to prevent cross-session leaks
     _reset_turn_counter()
+    _reset_pressure_tracker()
 
     # Ensure SubagentStart hook is installed (plugin hooks don't fire it)
     _ensure_subagent_hook()
