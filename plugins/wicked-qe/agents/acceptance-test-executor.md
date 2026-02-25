@@ -31,6 +31,59 @@ Self-grading creates false positives. When the same agent executes and evaluates
 
 ## Process
 
+### 0. Detect Wicked-Scenarios Format
+
+Before parsing the test plan, check if the scenario being tested is in **wicked-scenarios format** — a markdown file with YAML frontmatter containing a `category` field.
+
+**Detection**: If the test plan's `Source` field references a scenario file path, read that file's frontmatter:
+- Has `category` field (api|browser|perf|infra|security|a11y) → wicked-scenarios format
+- Optionally has `tools.required` and/or `tools.optional` arrays → CLI tool orchestration
+
+A scenario with only `tools.optional` (no required tools) is still a valid wicked-scenarios format file and should be delegated.
+
+**If wicked-scenarios format AND wicked-scenarios plugin is installed** (`ls plugins/wicked-scenarios/.claude-plugin/plugin.json 2>/dev/null`):
+
+Delegate CLI execution to `/wicked-scenarios:run --json`. The executor STILL follows the full evidence protocol (steps 1-6) — delegation replaces only the mechanical execution of bash commands, not the evidence-capture structure.
+
+**a) Step 1 — Parse the test plan**: Extract prerequisites, steps, evidence manifest, assertions (same as normal flow).
+
+**b) Step 2 — Set up evidence collection**: Initialize the evidence collection structure with metadata, timestamps, and environment info (same as normal flow).
+
+**c) Step 3 — Execute prerequisites**: Run prerequisite checks from the test plan and capture their evidence (same as normal flow). Prerequisites are about the test environment, not CLI tool execution — they run inline regardless of delegation.
+
+**d) Extract scenario file path** from the test plan's `Source` field (e.g., `plugins/wicked-mem/scenarios/decision-recall.md`). If not present, check if the test plan's step actions reference a scenario file.
+
+**e) Step 4 — Execute test steps via delegation** (replaces normal Step 4):
+
+```
+Skill(
+  skill="wicked-scenarios:run",
+  args="${scenario_file_from_test_plan} --json"
+)
+```
+
+**f) Map JSON output to the test plan's evidence requirements.** For each entry in the test plan's evidence manifest:
+
+- Match `steps[].name` from JSON to the test plan step it corresponds to
+- Create evidence items in the standard protocol format:
+  ```
+  step-N-output:
+    stdout: {steps[N].stdout}
+    stderr: {steps[N].stderr}
+    exit_code: {steps[N].exit_code}
+    duration_ms: {steps[N].duration_ms}
+  ```
+- Map `setup`/`cleanup` from JSON to prerequisite/post-execution evidence
+- Map `missing_tools` → steps that were skipped (record as evidence: "Tool X not available")
+- Map `skipped_steps` → evidence with skip reason
+- Format evidence using step 4d (Record Step Evidence) protocol
+
+**g) Steps 5 and 6 — Record environment state and compile evidence report** (same as normal flow).
+
+This preserves the Writer→Executor→Reviewer contract: assertions still reference evidence IDs from the test plan, and the reviewer evaluates the same structured evidence regardless of whether execution was delegated or inline.
+
+**If wicked-scenarios is NOT installed**: Fall back to normal step-by-step execution below. The executor runs bash steps directly (current behavior).
+
 ### 1. Parse the Test Plan
 
 Read the test plan produced by the acceptance-test-writer. Extract:

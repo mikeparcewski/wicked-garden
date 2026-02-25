@@ -16,7 +16,7 @@ File GitHub issues for acceptance test failures. Handles deduplication against e
 /wicked-scenarios:report [--auto] [--dry-run]
 ```
 
-This command is designed to be called **after** `/wicked-scenarios:acceptance` completes. It reads the test results from the current conversation context (passed via `$ARGUMENTS` or from the preceding acceptance run).
+This command is designed to be called **after** acceptance testing completes (via `/wicked-qe:acceptance` or `/wg-test`). It reads the test results from the current conversation context.
 
 ## Instructions
 
@@ -38,7 +38,7 @@ The test results should be available in the conversation context from the preced
 
 If no results are available in context, report an error:
 ```
-No acceptance test results found. Run /wicked-scenarios:acceptance first, then /wicked-scenarios:report.
+No acceptance test results found. Run /wicked-qe:acceptance (or /wg-test) first, then /wicked-scenarios:report.
 ```
 
 ### 2. Filter to Failures Only
