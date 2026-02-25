@@ -29,11 +29,14 @@ You receive:
 - `PLUGIN`: Plugin name being tested
 - `SCENARIO`: Scenario name
 - `SCENARIO_FILE`: Path to the scenario markdown file
-- The full scenario content (inline in the prompt)
 
-## Step 1: Read Implementation Code
+Do NOT expect scenario content inline in the prompt. Read it from the file path.
 
-**This is critical.** Before designing tasks, read the actual code that implements the feature under test:
+## Step 1: Read Scenario and Implementation Code
+
+**Read the scenario file** using the Read tool at the `SCENARIO_FILE` path.
+
+**Then read the implementation code.** Before designing tasks, read the actual code that implements the feature under test:
 
 - Find relevant source files using Glob/Grep: commands, agents, scripts, hooks in `plugins/${PLUGIN}/`
 - Understand what the code actually does vs. what the scenario expects

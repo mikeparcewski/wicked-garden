@@ -157,7 +157,7 @@ class TestEscalationTriggers:
         assert decision.path == PathDecision.SLOW
 
     def test_escalate_novel_topic(self):
-        router = Router(session_topics=["cache", "parser"])
+        router = Router(session_topics=["cache", "parser", "utils"])
         decision = router.route("Let's work on the auth.py module")
         # Novel topic (auth not in session)
         assert decision.analysis.is_novel
@@ -176,9 +176,33 @@ class TestSessionTopics:
         assert not decision2.analysis.is_novel
 
     def test_novel_detection_with_existing_topics(self):
-        router = Router(session_topics=["cache.py", "parser.py"])
+        router = Router(session_topics=["cache.py", "parser.py", "utils.py"])
         decision = router.route("Let's check auth.py")
         assert decision.analysis.is_novel
+
+
+class TestCompetingIntentThreshold:
+    """Test competing intent threshold change (>=1 → >=3)."""
+
+    def test_competing_3_escalates_slow(self):
+        router = Router()
+        # "debug design explain build review" has 4-5 competing intents
+        decision = router.route("debug design explain build review")
+        assert decision.path == PathDecision.SLOW
+
+    def test_competing_1_stays_fast(self):
+        # A prompt with ~1 competing intent should NOT escalate
+        router = Router(session_topics=["tests", "code", "cache"])
+        decision = router.route("Fix the failing test")
+        # Should be fast (debugging, high confidence, 0-1 competing)
+        if decision.analysis.competing_intents <= 2:
+            assert decision.path == PathDecision.FAST
+
+    def test_real_prompt_dual_intent_fast(self):
+        # "implement and test" has 2 intents but shouldn't escalate
+        router = Router(session_topics=["feature", "tests", "code"])
+        decision = router.route("Add the feature")
+        assert decision.analysis.competing_intents < 3
 
 
 if __name__ == "__main__":

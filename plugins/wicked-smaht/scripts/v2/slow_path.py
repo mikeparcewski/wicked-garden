@@ -94,18 +94,34 @@ class SlowPathAssembler:
         for name, result in zip(tasks.keys(), results):
             if isinstance(result, Exception):
                 sources_failed.append(name)
-                all_items[name] = []
             else:
                 sources_queried.append(name)
-                all_items[name] = result if result else []
+                if result:
+                    all_items[name] = result
 
         # Get history context
         condensed_history = condenser.get_condensed_history()
         last_turn = condenser.get_last_turn()
 
+        # Cap condensed history at source to prevent budget overrun
+        # History producer (summary + lanes + facts + turns) grows unbounded
+        MAX_HISTORY_CHARS = 1200  # ~300 tokens max for session history
+        if condensed_history and len(condensed_history) > MAX_HISTORY_CHARS:
+            condensed_history = condensed_history[:MAX_HISTORY_CHARS].rsplit('\n', 1)[0]
+
+        # Intelligent selection: pick highest-relevance items within budget
+        # Reserve chars for situation + history + recent context
+        reserved = 600  # situation + last turn + capped session history
+        try:
+            from budget_enforcer import BudgetEnforcer
+            enforcer = BudgetEnforcer()
+            selected_items = enforcer.select_items(all_items, "slow", reserved_chars=reserved)
+        except Exception:
+            selected_items = all_items  # Fallback: use all
+
         # Format comprehensive briefing
         briefing = self._format_briefing(
-            prompt, analysis, all_items, condensed_history, last_turn, sources_failed
+            prompt, analysis, selected_items, condensed_history, last_turn, sources_failed
         )
 
         latency_ms = int((time.time() - start_time) * 1000)
@@ -143,39 +159,35 @@ class SlowPathAssembler:
         sources_failed: list[str]
     ) -> str:
         """Format comprehensive briefing with all available context."""
+        # Compact situation line
+        entities_str = f" | {', '.join(analysis.entities[:3])}" if analysis.entities else ""
+        notes = []
+        if analysis.is_compound:
+            notes.append("multi-part")
+        if analysis.requires_history:
+            notes.append("refs history")
+        notes_str = f" | {', '.join(notes)}" if notes else ""
         lines = [
-            "# Context Briefing",
+            f"[{analysis.intent_type.value}{entities_str}{notes_str}]",
             "",
         ]
 
-        # Situation
-        lines.extend([
-            "## Situation",
-            f"**Intent**: {analysis.intent_type.value} (confidence: {analysis.confidence:.2f})",
-        ])
-
-        if analysis.entities:
-            lines.append(f"**Entities**: {', '.join(analysis.entities[:10])}")
-
-        if analysis.is_compound:
-            lines.append("**Note**: Multi-part request detected")
-
-        if analysis.requires_history:
-            lines.append("**Note**: References conversation history")
-
-        lines.append("")
-
-        # Last turn context (if available)
+        # Last turn context (if available, with system-reminder stripping)
         if last_turn:
+            import re as _re
+            clean_assistant = _re.sub(
+                r'<system-reminder>.*?</system-reminder>', '',
+                last_turn.assistant or '', flags=_re.DOTALL
+            ).strip()
             lines.extend([
                 "## Recent Context",
-                f"**Last user message**: {last_turn.user[:150]}...",
-                f"**Last response**: {last_turn.assistant[:200]}...",
+                f"**Last**: {last_turn.user[:100]}",
+                f"**Response**: {clean_assistant[:150]}",
                 "",
             ])
 
-        # Condensed history (if non-empty)
-        if condensed_history and condensed_history.strip():
+        # Condensed history (only if non-empty and has real content)
+        if condensed_history and "(No summary yet)" not in condensed_history and condensed_history.strip():
             lines.extend([
                 "## Session History",
                 condensed_history,
@@ -206,93 +218,31 @@ class SlowPathAssembler:
                 label = source_labels.get(source, source)
                 lines.append(f"### {label}")
 
-                for item in items[:10]:  # Max 10 per source in slow path
+                for item in items[:5]:  # Max 5 per source
                     # Safe attribute access with fallbacks
                     title = getattr(item, 'title', str(item)[:50])
                     summary = getattr(item, 'summary', '')
                     excerpt = getattr(item, 'excerpt', '')
-                    relevance = getattr(item, 'relevance', 0.0)
 
-                    # More detailed output in slow path
-                    if relevance > 0:
-                        lines.append(f"- **{title}** (relevance: {relevance:.2f})")
-                    else:
-                        lines.append(f"- **{title}**")
+                    lines.append(f"- **{title}**")
 
                     if summary:
-                        lines.append(f"  {summary[:200]}")
+                        lines.append(f"  {summary[:100]}")
 
                     if excerpt:
-                        # Include more excerpt in slow path
-                        excerpt_clean = excerpt[:400].replace("\n", " ").strip()
+                        excerpt_clean = excerpt[:100].replace("\n", " ").strip()
                         if excerpt_clean:
                             lines.append(f"  > {excerpt_clean}")
 
                 lines.append("")
 
-        # Considerations based on analysis
-        considerations = self._derive_considerations(analysis, items_by_source)
-        if considerations:
-            lines.append("## Considerations")
-            for consideration in considerations:
-                lines.append(f"- {consideration}")
-            lines.append("")
-
-        # Uncertainties
-        uncertainties = []
+        # Note failures (single line, no section header — only for actual source failures)
         if sources_failed:
-            uncertainties.append(f"Unavailable sources: {', '.join(sources_failed)}")
-        if analysis.confidence < 0.7:
-            uncertainties.append(f"Intent confidence is moderate ({analysis.confidence:.2f})")
-        if analysis.competing_intents > 0:
-            uncertainties.append(f"{analysis.competing_intents} competing intent(s) detected")
-        if analysis.is_novel:
-            uncertainties.append("Topic appears novel (not seen in session)")
-
-        if uncertainties:
-            lines.append("## Uncertainties")
-            for u in uncertainties:
-                lines.append(f"- {u}")
+            lines.append(f"Unavailable: {', '.join(sources_failed)}")
             lines.append("")
 
         return "\n".join(lines)
 
-    def _derive_considerations(
-        self,
-        analysis: PromptAnalysis,
-        items_by_source: dict
-    ) -> list[str]:
-        """Derive considerations from analysis and context."""
-        considerations = []
-
-        # Intent-specific considerations
-        if analysis.intent_type.value == "planning":
-            considerations.append("Planning request - consider trade-offs and alternatives")
-
-        if analysis.intent_type.value == "debugging":
-            # Look for related memories or past issues
-            mem_items = items_by_source.get("mem", [])
-            if mem_items:
-                considerations.append("Past memories may contain relevant solutions")
-
-        if analysis.intent_type.value == "implementation":
-            # Check for existing patterns in search
-            search_items = items_by_source.get("search", [])
-            if search_items:
-                considerations.append("Existing code patterns found - consider consistency")
-
-            # Check kanban for related tasks
-            kanban_items = items_by_source.get("kanban", [])
-            if kanban_items:
-                considerations.append("Related tasks exist - check for conflicts or dependencies")
-
-        if analysis.is_compound:
-            considerations.append("Multi-part request - may need sequential handling")
-
-        if analysis.entity_count > 5:
-            considerations.append(f"Many entities referenced ({analysis.entity_count}) - ensure comprehensive coverage")
-
-        return considerations
 
 
 async def main():

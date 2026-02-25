@@ -33,19 +33,21 @@ You receive:
 - `KANBAN_TASK_ID`: The kanban task ID to update
 - `DONE_SWIMLANE_ID`: The "Done" swimlane ID for moving completed tasks
 - `PLUGIN`: The plugin being tested
-- `TASK`: JSON task definition with id, type, action, evidence requirements, assertions, timeout
+- `TASK_ID`: The Claude task ID — use `TaskGet(taskId)` to read the full task definition
 
 ## Execution Flow
 
-### 1. Parse Task
+### 1. Pull Task Details
 
-Read the task definition to understand:
+Use `TaskGet(taskId=TASK_ID)` to read the full task description. The description contains:
 - `id`: Task identifier (e.g., `task-02-store`)
 - `type`: `setup`, `action`, or `verify`
 - `action`: What to do (follow literally)
 - `evidence`: Array of evidence items to capture (each with id, type, capture instructions)
 - `assertions`: What the reviewer will evaluate (for your reference — do NOT evaluate these)
 - `timeout`: Max seconds
+
+If `TASK_ID` is not provided but a `TASK` JSON block is inline in the prompt, parse it directly (backward compatibility).
 
 ### 2. Record Start
 

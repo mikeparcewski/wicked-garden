@@ -80,12 +80,15 @@ class FastPathAssembler:
         # Get adapters for this intent
         adapter_names = list(ADAPTER_RULES.get(analysis.intent_type, ["search"]))
 
-        # If we have a predicted next intent, add bonus adapters from that intent's rules
+        # If we have a predicted next intent, add bonus adapters (capped at 2)
+        MAX_BONUS_ADAPTERS = 2
         if predicted_intent:
             bonus = ADAPTER_RULES.get(predicted_intent, [])
+            bonus_count = 0
             for b in bonus:
-                if b not in adapter_names:
+                if b not in adapter_names and bonus_count < MAX_BONUS_ADAPTERS:
                     adapter_names.append(b)
+                    bonus_count += 1
 
         # Query adapters in parallel
         tasks = []
@@ -97,8 +100,8 @@ class FastPathAssembler:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Collect items and track failures - differentiate empty from failed
-        all_items = []
+        # Collect items by source and track failures
+        items_by_source = {}
         sources_queried = []
         sources_failed = []
 
@@ -106,10 +109,22 @@ class FastPathAssembler:
             if isinstance(result, Exception):
                 sources_failed.append(name)
             else:
-                # Successfully queried (even if empty)
                 sources_queried.append(name)
                 if result:
-                    all_items.extend(result[:10])  # Cap per source
+                    items_by_source[name] = result[:10]
+
+        # Intelligent selection: pick highest-relevance items within budget
+        try:
+            from budget_enforcer import BudgetEnforcer
+            enforcer = BudgetEnforcer()
+            selected = enforcer.select_items(items_by_source, "fast", reserved_chars=80)
+        except Exception:
+            selected = items_by_source  # Fallback: use all
+
+        # Flatten for formatting
+        all_items = []
+        for items in selected.values():
+            all_items.extend(items)
 
         # Format briefing
         briefing = self._format_briefing(prompt, analysis, all_items, sources_failed)
@@ -147,17 +162,12 @@ class FastPathAssembler:
         failed_sources: list[str]
     ) -> str:
         """Format items into a simple briefing."""
+        # Compact situation line
+        entities_str = f" | {', '.join(analysis.entities[:3])}" if analysis.entities else ""
         lines = [
-            "# Context Briefing (fast)",
+            f"[{analysis.intent_type.value}{entities_str}]",
             "",
-            "## Situation",
-            f"**Intent**: {analysis.intent_type.value} (confidence: {analysis.confidence:.2f})",
         ]
-
-        if analysis.entities:
-            lines.append(f"**Entities**: {', '.join(analysis.entities[:5])}")
-
-        lines.append("")
 
         # Group items by source (with safe attribute access)
         by_source: dict[str, list] = {}
@@ -190,7 +200,7 @@ class FastPathAssembler:
                 for item in source_items[:5]:  # Max 5 per source
                     # Safe attribute access with fallbacks
                     title = getattr(item, 'title', str(item)[:50])
-                    summary = getattr(item, 'summary', '')[:100]
+                    summary = getattr(item, 'summary', '')[:60]
                     lines.append(f"- **{title}**: {summary}")
 
                 lines.append("")
@@ -202,10 +212,9 @@ class FastPathAssembler:
             lines.append(f"*{suggestion}*")
             lines.append("")
 
-        # Note failures
+        # Note failures (single line, no section header)
         if failed_sources:
-            lines.append("## Uncertainties")
-            lines.append(f"*Unavailable sources: {', '.join(failed_sources)}*")
+            lines.append(f"Unavailable: {', '.join(failed_sources)}")
             lines.append("")
 
         return "\n".join(lines)

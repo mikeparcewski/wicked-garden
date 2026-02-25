@@ -33,6 +33,9 @@ def temp_session_dir():
             condenser.session_dir.mkdir(parents=True, exist_ok=True)
             condenser.summary = SessionSummary()
             condenser.turn_buffer = []
+            condenser.fact_extractor = None
+            condenser.lane_tracker = None
+            condenser._memory_promoter = None
             yield condenser
 
 
@@ -206,6 +209,87 @@ class TestSessionState:
         assert state["turn_count"] == 1
         assert "cache" in state["topics"]
         assert state["has_decisions"] is True
+
+
+class TestStripSystemReminders:
+    """Test system-reminder stripping."""
+
+    def test_strip_single_reminder(self):
+        text = "before <system-reminder>secret</system-reminder> after"
+        result = HistoryCondenser._strip_system_reminders(text)
+        assert "secret" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_strip_multiple_reminders(self):
+        text = "a <system-reminder>1</system-reminder> b <system-reminder>2</system-reminder> c"
+        result = HistoryCondenser._strip_system_reminders(text)
+        assert "1" not in result
+        assert "2" not in result
+        assert "a" in result
+        assert "c" in result
+
+    def test_strip_multiline_reminder(self):
+        text = "before\n<system-reminder>\nline1\nline2\n</system-reminder>\nafter"
+        result = HistoryCondenser._strip_system_reminders(text)
+        assert "line1" not in result
+        assert "after" in result
+
+    def test_no_reminders_unchanged(self):
+        text = "just plain text"
+        result = HistoryCondenser._strip_system_reminders(text)
+        assert result == text
+
+    def test_add_turn_strips_reminders(self, temp_session_dir):
+        condenser = temp_session_dir
+        condenser.turn_buffer = []
+        condenser.save = lambda: None
+        condenser.add_turn(
+            "user msg",
+            "response <system-reminder>injected</system-reminder> end"
+        )
+        assert "injected" not in condenser.turn_buffer[0].assistant
+        assert "end" in condenser.turn_buffer[0].assistant
+
+
+class TestUpdateFromPrompt:
+    """Test update_from_prompt for populating session state from prompt only."""
+
+    def test_extracts_topics(self, temp_session_dir):
+        condenser = temp_session_dir
+        condenser.update_from_prompt("Let's work on parser.py and lexer.py")
+        assert "parser.py" in condenser.summary.topics
+        assert "lexer.py" in condenser.summary.topics
+
+    def test_extracts_task(self, temp_session_dir):
+        condenser = temp_session_dir
+        condenser.update_from_prompt("I'm working on fixing the auth bug")
+        assert "auth" in condenser.summary.current_task.lower() or \
+               "fixing" in condenser.summary.current_task.lower()
+
+    def test_persists_to_disk(self):
+        """update_from_prompt should call save()."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.object(HistoryCondenser, '__init__', lambda self, sid: None):
+                condenser = HistoryCondenser.__new__(HistoryCondenser)
+                condenser.session_id = "test"
+                condenser.session_dir = Path(tmpdir)
+                condenser.session_dir.mkdir(parents=True, exist_ok=True)
+                condenser.summary = SessionSummary()
+                condenser.turn_buffer = []
+                condenser.fact_extractor = None
+                condenser.lane_tracker = None
+                condenser._memory_promoter = None
+                condenser.update_from_prompt("Work on cache.py")
+                # Should have persisted summary.json
+                assert (Path(tmpdir) / "summary.json").exists()
+
+    def test_does_not_add_to_turn_buffer(self, temp_session_dir):
+        condenser = temp_session_dir
+        condenser.save = lambda: None
+        condenser.update_from_prompt("Some prompt")
+        assert len(condenser.turn_buffer) == 0
 
 
 if __name__ == "__main__":
