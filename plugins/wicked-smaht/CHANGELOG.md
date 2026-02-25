@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.3.0] - 2026-02-25
+
+### Features
+- feat(smaht): replace hook-based context injection with prompt-embedded dispatch packets (70d9877)
+
+### Chores
+- release: wicked-smaht v4.2.0 (4e91bf0)
+
 ## [4.2.0] - 2026-02-25
 
 ### Features
