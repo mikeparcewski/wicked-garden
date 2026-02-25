@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.2.0] - 2026-02-25
+
+### Features
+- feat(smaht): replace turn-based context warnings with content pressure tracking (f0aae53)
+- feat: add wicked-scenarios format generation to 6 specialist plugins (09e94b9)
+- feat(qe,scenarios): consolidate acceptance pipeline — QE owns testing, scenarios is thin CLI backend (7514e56)
+- feat(kanban,scenarios): store evidence inline in kanban artifacts (c06924d)
+- feat(scenarios): add report command, batch mode, and fix evidence path (b8101ed)
+
+### Chores
+- release: wicked-scenarios v1.6.0, wicked-qe v1.3.0, wicked-product v1.2.1, wicked-engineering v1.2.1, wicked-platform v1.2.1, wicked-data v1.2.1, wicked-agentic v2.2.1 (df7f8da)
+- release: wicked-scenarios v1.5.0 (4d5a7c6)
+- release: wicked-smaht v4.1.0, wicked-scenarios v1.4.0 (dd2a368)
+
 ## [4.1.0] - 2026-02-24
 
 ### Bug Fixes
