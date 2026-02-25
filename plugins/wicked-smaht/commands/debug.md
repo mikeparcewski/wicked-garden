@@ -61,9 +61,40 @@ Read the last N turns from `~/.something-wicked/wicked-smaht/sessions/{session_i
 | 1 | {user[:80]} | {assistant[:80]} | {fast/slow/hot} |
 ```
 
-### 5. Display Routing Stats and Session Metrics
+### 5. Display Context Pressure
 
-Read the turn tracker from `/tmp/wicked-smaht-turns-{session_id}` and metrics from `~/.something-wicked/wicked-smaht/sessions/{session_id}/metrics.json`:
+Read pressure state using the PressureTracker:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/v2')
+from context_pressure import PressureTracker
+t = PressureTracker()
+import json; print(json.dumps(t.get_state_summary(), indent=2))
+"
+```
+
+Display under:
+
+```markdown
+## Context Pressure
+
+- **Level**: {level} ({cumulative_kb}KB cumulative, {peak_kb}KB peak)
+- **Turn count**: {turn_count}
+- **Last compacted**: {last_compacted}
+```
+
+Also check for compaction bug reports:
+
+```bash
+cat ~/.something-wicked/wicked-smaht/sessions/${CLAUDE_SESSION_ID:-default}/compaction_bugs.jsonl 2>/dev/null
+```
+
+If any exist, display them under `## Compaction Bug Reports` with a note that these indicate the pressure system failed to prevent auto-compaction.
+
+### 6. Display Routing Stats and Session Metrics
+
+Read metrics from `~/.something-wicked/wicked-smaht/sessions/{session_id}/metrics.json`:
 
 ```markdown
 ## Routing Stats
