@@ -250,8 +250,11 @@ def main():
         if failed:
             sanitized = f"Context sources failed: {', '.join(failed)}".replace('</system-reminder>', '')
             print(json.dumps({
-                "additionalContext": f"<system-reminder>\n{sanitized}\n</system-reminder>",
-                "continue": True
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": f"<system-reminder>\n{sanitized}\n</system-reminder>",
+                },
+                "continue": True,
             }))
         else:
             print(json.dumps({"continue": True}))
@@ -291,8 +294,11 @@ def main():
         tracker.add_content(len(sanitized.encode("utf-8", errors="replace")))
 
     output = {
-        "additionalContext": f"<system-reminder>\n{header}\n{sanitized}\n</system-reminder>",
-        "continue": True
+        "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit",
+            "additionalContext": f"<system-reminder>\n{header}\n{sanitized}\n</system-reminder>",
+        },
+        "continue": True,
     }
 
     print(json.dumps(output))

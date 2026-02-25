@@ -7,6 +7,7 @@ Queries active tasks, artifacts, and project tracking.
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List
 
 from . import ContextItem, discover_script, run_subprocess
@@ -20,32 +21,60 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     if not kanban_script:
         return items
 
-    # Query via CLI using async subprocess
-    cmd = [sys.executable, str(kanban_script), "list-tasks", "--json"]
+    # Discover active project IDs from kanban storage
+    kanban_storage = Path.home() / ".something-wicked" / "wicked-kanban" / "projects"
+    project_ids = []
     if project:
-        cmd.extend(["--project", project])
+        project_ids = [project]
+    elif kanban_storage.is_dir():
+        project_ids = [p.name for p in kanban_storage.iterdir() if p.is_dir()][:5]
+    if not project_ids:
+        return items
 
-    returncode, stdout, stderr = await run_subprocess(cmd, timeout=5.0)
+    # Query each project (kanban list-tasks outputs JSON, requires project_id positional arg)
+    all_stdout = []
+    for pid in project_ids:
+        cmd = [sys.executable, str(kanban_script), "list-tasks", pid]
+        returncode, stdout, stderr = await run_subprocess(cmd, timeout=3.0)
+        if returncode == 0 and stdout.strip():
+            all_stdout.append(stdout.strip())
 
-    if returncode == 0 and stdout.strip():
+    # Merge results from all projects
+    stdout = ""
+    if all_stdout:
+        # Each project returns a JSON array; merge into one
+        import itertools
+        merged = []
+        for s in all_stdout:
+            try:
+                merged.extend(json.loads(s))
+            except json.JSONDecodeError:
+                pass
+        stdout = json.dumps(merged)
+        returncode = 0
+    else:
+        return items
+
+    if stdout.strip():
         try:
-            data = json.loads(stdout)
-            tasks = data.get("tasks", [])
+            tasks = json.loads(stdout)
+            if not isinstance(tasks, list):
+                tasks = tasks.get("tasks", [])
 
             now = datetime.now(timezone.utc)
             prompt_lower = prompt.lower()
 
             for task in tasks:
-                title = task.get("title", "")
-                description = task.get("description", "")
-                status = task.get("status", "")
+                name = task.get("name", "")
+                description = task.get("description", "") or ""
+                swimlane = task.get("swimlane", "")
 
                 # Skip completed tasks unless explicitly searching
-                if status == "done" and "completed" not in prompt_lower:
+                if swimlane == "done" and "completed" not in prompt_lower:
                     continue
 
                 # Calculate age
-                created = task.get("created", "")
+                created = task.get("created_at", "")
                 age_days = 0
                 if created:
                     try:
@@ -55,38 +84,36 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
                         pass
 
                 # Simple relevance scoring
-                title_lower = title.lower()
+                name_lower = name.lower()
                 desc_lower = description.lower()
                 semantic_score = 0.3
                 for word in prompt_lower.split():
                     if len(word) > 3:
-                        if word in title_lower:
+                        if word in name_lower:
                             semantic_score += 0.3
                         if word in desc_lower:
                             semantic_score += 0.1
                 semantic_score = min(semantic_score, 1.0)
 
                 # Boost in-progress tasks
-                if status in ("in_progress", "doing"):
+                if swimlane in ("doing", "in_progress"):
                     semantic_score = min(semantic_score + 0.2, 1.0)
 
                 items.append(ContextItem(
                     id=task.get("id", ""),
                     source="kanban",
-                    title=f"[{status}] {title}",
-                    summary=description[:200] if description else title,
+                    title=f"[{swimlane}] {name}",
+                    summary=description[:200] if description else name,
                     excerpt=description,
                     age_days=age_days,
                     metadata={
-                        "status": status,
-                        "project": task.get("project", ""),
+                        "status": swimlane,
+                        "project": task.get("initiative_id", ""),
                         "priority": task.get("priority", ""),
                         "semantic_score": semantic_score,
                     }
                 ))
         except json.JSONDecodeError as e:
             print(f"Warning: wicked-kanban JSON parse failed: {e}", file=sys.stderr)
-    elif stderr and stderr != "timeout":
-        print(f"Warning: wicked-kanban query failed: {stderr}", file=sys.stderr)
 
     return items

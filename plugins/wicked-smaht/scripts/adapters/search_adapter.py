@@ -16,15 +16,15 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     """Query wicked-search for relevant code and docs."""
     items = []
 
-    # Find wicked-search script
+    # Find wicked-search script — prefer local sibling (has pyproject.toml for uv run)
     search_paths = [
-        Path.home() / ".claude" / "plugins" / "cache" / "wicked-garden" / "wicked-search",
         Path(__file__).parent.parent.parent.parent / "wicked-search",
+        Path.home() / ".claude" / "plugins" / "cache" / "wicked-garden" / "wicked-search",
     ]
 
     search_script = None
     for base in search_paths:
-        candidates = list(base.glob("*/scripts/unified_search.py")) + [base / "scripts" / "unified_search.py"]
+        candidates = [base / "scripts" / "unified_search.py"] + list(base.glob("*/scripts/unified_search.py"))
         for c in candidates:
             if c.exists():
                 search_script = c
@@ -40,47 +40,53 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     if not search_terms:
         return items
 
-    # Query wicked-search using async subprocess
-    cmd = ["python3", str(search_script), "search", search_terms, "--limit", "5", "--json"]
+    # wicked-search deps (rapidfuzz) are system-installed, no pyproject.toml — use python3
+    cmd = ["python3", str(search_script), "search", search_terms, "--limit", "5"]
     returncode, stdout, stderr = await run_subprocess(cmd, timeout=10.0, cwd=str(Path.cwd()))
 
     if returncode == 0 and stdout.strip():
-        try:
-            data = json.loads(stdout)
-            results = data.get("results", [])
+        # Parse text output format:
+        #   Search Results (N):
+        #   ---...
+        #     [code:type] name
+        #       Location: path:line
+        #       Score: N.N
+        import re
+        for match in re.finditer(
+            r'\[(\w+:\w+)\]\s+(.*?)\n\s+Location:\s+(.*?):(\d+)\n\s+Score:\s+([\d.]+)',
+            stdout
+        ):
+            node_type = match.group(1)
+            name = match.group(2).strip()
+            file_path = match.group(3).strip()
+            line = int(match.group(4))
+            score = float(match.group(5)) / 100.0  # Normalize to 0-1
 
-            for res in results:
-                name = res.get("name", "")
-                file_path = res.get("file", "")
-                node_type = res.get("type", "symbol")
-                line = res.get("line", 0)
-                score = res.get("score", 0.5)
+            short_path = Path(file_path).name
+            title = f"{name} ({short_path}:{line})"
 
-                # Format title
-                if file_path:
-                    short_path = Path(file_path).name
-                    title = f"{name} ({short_path}:{line})"
-                else:
-                    title = name
-
-                items.append(ContextItem(
-                    id=f"{file_path}:{line}:{name}",
-                    source="search",
-                    title=title,
-                    summary=f"{node_type}: {name}",
-                    excerpt=res.get("context", ""),
-                    age_days=0,  # Code is considered "current"
-                    metadata={
-                        "file": file_path,
-                        "line": line,
-                        "type": node_type,
-                        "semantic_score": score,
-                    }
-                ))
-        except json.JSONDecodeError as e:
-            print(f"Warning: wicked-search JSON parse failed: {e}", file=sys.stderr)
+            items.append(ContextItem(
+                id=f"{file_path}:{line}:{name}",
+                source="search",
+                title=title,
+                summary=f"{node_type}: {name}",
+                excerpt="",
+                age_days=0,
+                metadata={
+                    "file": file_path,
+                    "line": line,
+                    "type": node_type,
+                    "semantic_score": score,
+                }
+            ))
     elif stderr and stderr != "timeout":
-        print(f"Warning: wicked-search query failed: {stderr}", file=sys.stderr)
+        # Filter out known non-error warnings
+        real_errors = [l for l in stderr.splitlines()
+                       if "pathspec not available" not in l
+                       and "kreuzberg not installed" not in l
+                       and l.strip()]
+        if real_errors:
+            print(f"Warning: wicked-search query failed: {chr(10).join(real_errors)}", file=sys.stderr)
 
     return items
 
