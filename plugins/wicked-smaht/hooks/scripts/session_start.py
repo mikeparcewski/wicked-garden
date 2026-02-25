@@ -130,80 +130,11 @@ def _reset_pressure_tracker():
         pass  # Non-critical — fail silently
 
 
-def _ensure_subagent_hook():
-    """Ensure SubagentStart hook is registered in project settings.
-
-    Plugin hooks.json doesn't fire SubagentStart events (Claude Code limitation).
-    Work around by auto-installing the hook into .claude/settings.local.json.
-    """
-    cwd = Path.cwd()
-    claude_dir = cwd / ".claude"
-    if not claude_dir.exists():
-        return  # Not a Claude Code project
-
-    # Check if SubagentStart is already configured in any settings file
-    for settings_name in ("settings.json", "settings.local.json"):
-        settings_path = claude_dir / settings_name
-        if settings_path.exists():
-            try:
-                data = json.loads(settings_path.read_text())
-                if "SubagentStart" in data.get("hooks", {}):
-                    return  # Already configured
-            except (json.JSONDecodeError, Exception):
-                continue
-
-    # Build the hook command that discovers smaht plugin root dynamically
-    hook_cmd = (
-        'SMAHT_ROOT=$(find ~/.claude/plugins/cache/wicked-garden/wicked-smaht '
-        '-maxdepth 1 -type d 2>/dev/null | sort -V | tail -1); '
-        'if [ -n "$SMAHT_ROOT" ] && [ -f "$SMAHT_ROOT/hooks/scripts/subagent_start.py" ]; '
-        'then python3 "$SMAHT_ROOT/hooks/scripts/subagent_start.py"; '
-        "else echo '{\"continue\": true}'; fi"
-    )
-
-    # Install into settings.local.json (gitignored, non-invasive)
-    local_settings_path = claude_dir / "settings.local.json"
-    try:
-        if local_settings_path.exists():
-            raw = local_settings_path.read_text().strip()
-            if raw:
-                local_settings = json.loads(raw)
-            else:
-                local_settings = {}
-        else:
-            local_settings = {}
-
-        if not isinstance(local_settings, dict):
-            return  # Don't overwrite unexpected format
-
-        hooks = local_settings.setdefault("hooks", {})
-        hooks["SubagentStart"] = [
-            {
-                "matcher": "*",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": hook_cmd,
-                        "timeout": 3000,
-                    }
-                ],
-            }
-        ]
-        local_settings_path.write_text(json.dumps(local_settings, indent=2) + "\n")
-    except (json.JSONDecodeError, ValueError):
-        pass  # Don't overwrite corrupt files
-    except Exception:
-        pass  # Non-critical — fail silently
-
-
 def main():
     """Initialize session and gather baseline context."""
     # Reset turn counter and pressure tracker to prevent cross-session leaks
     _reset_turn_counter()
     _reset_pressure_tracker()
-
-    # Ensure SubagentStart hook is installed (plugin hooks don't fire it)
-    _ensure_subagent_hook()
 
     context_lines = []
     session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
