@@ -42,7 +42,7 @@ From explicit `--gate` argument or infer from context:
 
 **Value Gate**:
 ```
-Task(subagent_type="wicked-qe:value-orchestrator",
+Task(subagent_type="wicked-crew:value-orchestrator",
      prompt="Run Value Gate on {target}")
 ```
 
@@ -54,7 +54,7 @@ Task(subagent_type="wicked-qe:value-orchestrator",
 
 **Execution Gate**:
 ```
-Task(subagent_type="wicked-qe:execution-orchestrator",
+Task(subagent_type="wicked-crew:execution-orchestrator",
      prompt="Run Execution Gate on {target}")
 ```
 

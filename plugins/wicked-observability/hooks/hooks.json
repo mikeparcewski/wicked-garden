@@ -1,0 +1,11 @@
+{
+  "hooks": [
+    {
+      "event": "PostToolUse",
+      "matcher": "*",
+      "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/trace_writer.py\"",
+      "timeout": 5000,
+      "async": false
+    }
+  ]
+}

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.3] - 2026-02-25
+
+### Bug Fixes
+- fix(smaht): fix context injection format and broken adapters (757d1d8)
+
+### Chores
+- release: wicked-smaht v4.3.1 (70f3e83)
+- release: wicked-smaht v4.3.0, wicked-crew v1.2.2 (7ee6b25)
+
 ## [1.2.2] - 2026-02-25
 
 ### Features
