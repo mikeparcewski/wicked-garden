@@ -21,6 +21,8 @@ Parse `$ARGUMENTS` to determine what to test:
 - `plugin-name/scenario-name` → Run that specific scenario
 - `plugin-name --all` → Run all scenarios for that plugin
 - `--issues` flag (combinable with any above) → Auto-file GitHub issues for failures
+- `--batch N` → Run scenarios in batches of N in parallel (default: sequential)
+- `--debug` → Write debug log capturing tool-usage traces per batch
 
 ### 2. Preflight Environment Check
 
@@ -122,6 +124,61 @@ Install wicked-qe (recommended) or wicked-scenarios to enable testing.
   - wicked-scenarios: Standalone E2E execution with PASS/FAIL verdicts
 ```
 
+### 5.5 Batch Execution (if --batch)
+
+When `--batch N` is specified with `--all`:
+
+1. Discover all scenario files for the target plugin
+2. Split into batches of N scenarios each
+3. For each batch:
+   a. Dispatch N parallel Task() calls, each running the scenario via the detected pipeline
+   b. Collect results from all N tasks
+   c. Write batch debug log to `~/.something-wicked/wicked-observability/batch-runs/{run-id}/batch-{n}.md`
+4. After all batches complete, produce a run summary
+
+**Batch dispatch (QE path):**
+```
+# Launch up to N scenarios in parallel
+for each scenario in current_batch:
+  Task(
+    subagent_type="wicked-qe:acceptance-test-executor",
+    prompt="Execute scenario: {scenario_path}. Return structured results."
+  )
+```
+
+**Batch dispatch (scenarios-only fallback):**
+```
+for each scenario in current_batch:
+  Task(
+    subagent_type="wicked-scenarios:scenario-runner",
+    prompt="Execute scenario: {scenario_path}. Return structured results."
+  )
+```
+
+**Debug log per batch** (if --debug or always when wicked-observability is installed):
+Each batch debug log captures:
+- Scenario names and paths
+- Pass/fail/skip per scenario
+- Duration per scenario
+- Which tools/skills/commands were invoked (from Task output)
+- Any silent failures detected (if wicked-observability traces available)
+
+**Run summary** written to `~/.something-wicked/wicked-observability/batch-runs/{run-id}/summary.json`:
+```json
+{
+  "run_id": "unique-id",
+  "total": 102,
+  "passed": 95,
+  "failed": 5,
+  "errors": 2,
+  "skipped": 0,
+  "duration_ms": 180000,
+  "batches": 13,
+  "batch_size": 8,
+  "failed_scenarios": ["plugin/scenario-name", ...]
+}
+```
+
 ### 6. Issue Filing (if --issues)
 
 After testing completes with failures:
@@ -159,6 +216,12 @@ for structured test verdicts. File manually: gh issue create --title "test(<plug
 
 # Run all scenarios and auto-file issues for failures
 /wg-test wicked-crew --all --issues
+
+# Run all scenarios in batches of 8 with debug logging
+/wg-test wicked-crew --all --batch 8
+
+# Run all scenarios for all plugins in parallel batches
+/wg-test --all --batch 8 --debug
 ```
 
 ## Architecture Note
