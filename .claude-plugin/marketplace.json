@@ -32,7 +32,7 @@
       "name": "wicked-crew",
       "source": "./plugins/wicked-crew",
       "description": "Workflow coordinator with quality gates for intent-driven software delivery. Orchestrates multi-phase projects with embedded QE gates, project archiving, and signal-based specialist routing.",
-      "version": "1.2.2"
+      "version": "1.2.3"
     },
     {
       "name": "wicked-jam",
@@ -105,6 +105,12 @@
       "source": "./plugins/wicked-scenarios",
       "description": "E2E testing via human and agent-readable markdown scenarios that orchestrate lightweight open-source CLI tools. Covers API, browser, performance, infrastructure, security, and accessibility testing with graceful degradation when tools are missing.",
       "version": "1.6.0"
+    },
+    {
+      "name": "wicked-observability",
+      "source": "./plugins/wicked-observability",
+      "description": "Three-layer observability for the wicked-garden ecosystem: runtime hook tracing, contract assertions, and static health probes. Captures every tool call as JSONL, validates plugin outputs against JSON schemas, and checks structural health of all installed plugins.",
+      "version": "1.0.0"
     }
   ]
 }

@@ -1,0 +1,5 @@
+{
+  "name": "wicked-observability",
+  "version": "1.0.0",
+  "description": "Three-layer observability for the wicked-garden ecosystem: runtime hook tracing, contract assertions, and static health probes."
+}

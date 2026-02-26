@@ -55,7 +55,7 @@ Use Task tool to run qe-orchestrator with gate type:
 
 ```
 Task(
-  subagent_type="wicked-qe:qe-orchestrator",
+  subagent_type="wicked-crew:qe-orchestrator",
   prompt="""
   Run {gate} Gate analysis.
 
@@ -143,19 +143,19 @@ To view full evidence: `/wicked-crew:evidence {task_id}`
 
 ```bash
 # Default: Strategy gate on current directory
-/wicked-qe:analyze
+/wicked-crew:gate
 
 # Value gate on outcome document
-/wicked-qe:analyze outcome.md --gate value
+/wicked-crew:gate outcome.md --gate value
 
 # Strategy gate on specific directory
-/wicked-qe:analyze src/auth --gate strategy
+/wicked-crew:gate src/auth --gate strategy
 
 # Execution gate after implementation
-/wicked-qe:analyze src/auth --gate execution
+/wicked-crew:gate src/auth --gate execution
 
 # Quick triage
-/wicked-qe:analyze src/payments --rigor quick
+/wicked-crew:gate src/payments --rigor quick
 ```
 
 ## Gate Selection Guide
