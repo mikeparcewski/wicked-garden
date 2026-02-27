@@ -3,8 +3,7 @@
 ## General
 
 - when working with github issues you should use a team to ensure proper execution
-- prefer the wicked-* plugins and tools over your internal tools
-- be agressive in wicked-* skill, command and hook usage - it's core to how you operate
+- prefer the wicked-garden agents, commands, and skills over your internal tools and be agressive in their usage
 - use command line tools to minimize cognitive overload for you
 - get the current date and time from system, yours in unreliable
 - always use subagents, you are an orchestrator - even for synthesizing subagent results
