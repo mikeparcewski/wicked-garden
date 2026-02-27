@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0] - 2026-02-27
+
+### Features
+- feat(crew,jam,startah): resolve 6 open GitHub issues #75-80 (eb1c320)
+- feat(wg-test): add --batch and --debug flags for parallel scenario execution (cd04d4b)
+
+### Bug Fixes
+- fix(agentic,crew): resolve all 8 open GitHub issues #67-74 (608954c)
+
+### Chores
+- release: wicked-observability v1.0.0, wicked-crew v1.2.3 (0e7f74b)
+
 ## [1.2.3] - 2026-02-25
 
 ### Bug Fixes
