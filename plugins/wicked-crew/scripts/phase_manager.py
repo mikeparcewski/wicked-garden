@@ -384,21 +384,106 @@ def complete_phase(state: ProjectState, phase: str) -> ProjectState:
     return state
 
 
+def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
+    """Check if required deliverables exist for a phase. Returns list of issues."""
+    phase = resolve_phase(phase)
+    issues = []
+    phases_config = load_phases_config()
+    deliverables = phases_config.get(phase, {}).get("required_deliverables", [])
+    if not deliverables:
+        return issues
+
+    project_dir = get_project_dir(state.name)
+    for deliverable in deliverables:
+        path = project_dir / "phases" / phase / deliverable
+        if not path.exists():
+            issues.append(f"Missing deliverable for {phase}: {deliverable}")
+
+    return issues
+
+
+def _check_gate_run(project_dir: Path, phase: str) -> bool:
+    """Return True if evidence of a gate run exists for this phase."""
+    phase_dir = project_dir / "phases" / phase
+    # Primary: gate result file written by /wicked-crew:gate
+    if (phase_dir / "gate-result.json").exists():
+        return True
+    # Secondary: status.md contains gate_status field
+    status_md = phase_dir / "status.md"
+    if status_md.exists():
+        try:
+            content = status_md.read_text()
+            if "gate_status:" in content or "gate:" in content:
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def _load_session_dispatches() -> List[Dict[str, Any]]:
+    """Load specialist dispatch records from session state file."""
+    import os
+    import tempfile
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
+    session_file = Path(tempfile.gettempdir()) / f"wicked-crew-session-{session_id}.json"
+    try:
+        data = json.loads(session_file.read_text())
+        return data.get("specialist_dispatches", [])
+    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
+        return []
+
+
 def approve_phase(
     state: ProjectState,
     phase: str,
     approver: str = "user"
 ) -> Tuple[ProjectState, Optional[str]]:
-    """Approve a phase and return next phase (or None if done)."""
+    """Approve a phase and return next phase (or None if done).
+
+    Performs gate checks and deliverable checks, emitting warnings.
+    Always approves — warnings are advisory only (v1 backward compat).
+    """
     phase = resolve_phase(phase)
+    warnings: List[str] = []
+
+    # Check 1: deliverables for the phase being approved
+    deliverable_issues = _check_phase_deliverables(state, phase)
+    if deliverable_issues:
+        warnings.extend(deliverable_issues)
+
+    # Check 2: gate_required from phases.json
+    phases_config = load_phases_config()
+    phase_config = phases_config.get(phase, {})
+    gate_required = phase_config.get("gate_required", False)
+
+    if gate_required:
+        project_dir = get_project_dir(state.name)
+        if not _check_gate_run(project_dir, phase):
+            warnings.append(
+                f"Gate not run for phase '{phase}' (gate_required=true). "
+                f"Run /wicked-crew:gate before approving."
+            )
+
+    # Emit warnings to stderr (stdout is for structured output)
+    for w in warnings:
+        logger.warning(f"[approve] {w}")
+
+    # Record specialist engagements from session dispatches
+    session_dispatches = _load_session_dispatches()
     phase_state = state.phases.get(phase)
     if not phase_state:
         phase_state = PhaseState()
         state.phases[phase] = phase_state
-    if phase_state:
-        phase_state.status = "approved"
-        phase_state.approved_at = get_utc_timestamp()
-        phase_state.approved_by = approver
+
+    if session_dispatches:
+        phase_state.specialists_engaged = sorted({
+            *phase_state.specialists_engaged,
+            *[d["subagent_type"] for d in session_dispatches if "subagent_type" in d]
+        })
+
+    phase_state.status = "approved"
+    phase_state.approved_at = get_utc_timestamp()
+    phase_state.approved_by = approver
 
     # Determine next phase from dynamic order
     phase_order = get_phase_order(state)
