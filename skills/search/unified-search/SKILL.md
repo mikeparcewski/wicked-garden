@@ -99,7 +99,7 @@ Read these files to get full document content for context.
 ### Traverse
 BFS traversal from a symbol, returning full node/edge objects:
 ```bash
-python3 api.py traverse graph <symbol-id> --depth 2 --direction both
+python3 scripts/cp.py knowledge graph traverse <symbol-id> --depth 2 --direction both
 ```
 - `--depth`: 1-3 (default 1, max 3)
 - `--direction`: `both`, `in`, `out`
@@ -108,7 +108,7 @@ python3 api.py traverse graph <symbol-id> --depth 2 --direction both
 ### Hotspots
 Rank symbols by total connectivity (in-degree + out-degree):
 ```bash
-python3 api.py hotspots graph --limit 10 --layer backend --type entity
+python3 scripts/cp.py knowledge graph hotspots --limit 10 --layer backend --type entity
 ```
 - Supports `--layer` and `--type` filters
 - Default limit: 20, sorted by total_count descending
@@ -116,8 +116,8 @@ python3 api.py hotspots graph --limit 10 --layer backend --type entity
 ### Multi-Project
 All verbs support `--project` for multi-codebase isolation:
 ```bash
-python3 api.py list projects                        # List indexed projects
-python3 api.py hotspots graph --project my-app      # Query specific project
+python3 scripts/cp.py knowledge projects list                     # List indexed projects
+python3 scripts/cp.py knowledge graph hotspots --project my-app   # Query specific project
 ```
 
 ### Symbol Enrichment

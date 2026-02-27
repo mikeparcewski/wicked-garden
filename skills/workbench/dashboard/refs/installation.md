@@ -91,7 +91,7 @@ The data gateway discovers plugins in two locations:
 1. **Cache**: `~/.claude/plugins/cache/wicked-garden/{plugin}/{version}/`
 2. **Local repo**: `{WICKED_PLUGINS_DIR}/../` (if set)
 
-Plugins need a `wicked.json` with data sources AND a matching `api.py` script to appear in the gateway.
+Plugins expose data through the Control Plane (CP) — no separate api.py scripts needed.
 
 ### Optional OAuth
 
@@ -133,4 +133,4 @@ No plugins with `wicked.json` data sources were found. Set `WICKED_PLUGINS_DIR` 
 Another instance is running. Check with `curl http://localhost:18889/health` or stop with `pkill -f wicked-workbench`.
 
 **Server starts but no data sources in UI**
-Plugins must declare sources in `wicked.json` AND have a `scripts/api.py`. Empty `wicked.json` (like workbench itself) means no data exposed.
+Data is served by the Control Plane. Use `python3 scripts/cp.py manifest` to see all available domains and endpoints.

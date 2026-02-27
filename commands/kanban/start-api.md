@@ -1,47 +1,51 @@
 ---
-description: Start the data API for wicked-workbench integration
+description: Check the Control Plane status for workbench integration
 ---
 
 # /wicked-garden:kanban:start-api
 
-Start the minimal data API server for wicked-workbench integration.
+The kanban data API is now served by the **wicked-control-plane** (CP) at `http://localhost:18889`. A separate server is no longer needed.
 
 ## Instructions
 
-Start the API server in the background:
+Check that the CP is running:
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT} && nohup uv run python scripts/api.py --port 18888 > /tmp/wicked-kanban-api.log 2>&1 &
-echo "API started on http://localhost:18888"
+curl -s http://localhost:18889/health
 ```
 
-## Verification
-
-Check that the API is running:
+If not running, start it:
 
 ```bash
-curl -s http://localhost:18888/health | head -20
+cd ~/Projects/wicked-viewer && npm start &
 ```
 
-## API Endpoints
+## Kanban API Endpoints (via CP)
+
+All kanban data is available at `/api/v1/data/kanban/`:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/api/projects` | GET | List all projects |
-| `/api/projects/{id}` | GET | Get project details |
-| `/api/projects/{id}/tasks` | GET | List tasks (filter: ?swimlane=&initiative=) |
-| `/api/projects/{id}/tasks/{tid}` | GET | Get task details |
-| `/api/projects/{id}/initiatives` | GET | List initiatives |
-| `/api/projects/{id}/swimlanes` | GET | List swimlanes |
-| `/api/projects/{id}/activity` | GET | Activity log (?date=&limit=) |
-| `/api/projects/{id}/stats` | GET | Task statistics |
-| `/api/search` | GET | Search tasks (?q=query&project=) |
-| `/api/context` | GET | Active context |
-| `/api/mcp/call` | POST | MCP-style tool call |
+| `/api/v1/data/kanban/projects/list` | GET | List all projects |
+| `/api/v1/data/kanban/projects/get/:id` | GET | Get project details |
+| `/api/v1/data/kanban/tasks/list` | GET | List tasks (filter: ?project_id=) |
+| `/api/v1/data/kanban/tasks/get/:id` | GET | Get task details |
+| `/api/v1/data/kanban/tasks/search` | GET | Search tasks (?q=query) |
+| `/api/v1/data/kanban/tasks/stats` | GET | Task statistics |
+| `/api/v1/data/kanban/initiatives/list` | GET | List initiatives |
+| `/api/v1/data/kanban/comments/list/:taskId` | GET | List task comments |
+| `/api/v1/data/kanban/activity/list` | GET | Activity log |
+| `/api/v1/data/kanban/board/:projectId` | GET | Board state |
+
+## CLI Access
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" kanban tasks list --project_id my-project
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" kanban tasks search --q "bug"
+```
 
 ## Notes
 
-- The API runs on port 18888 by default (configurable via `WICKED_KANBAN_PORT`)
-- This is a lightweight data-only API for workbench integration
-- No frontend is served - workbench renders the UI
+- The CP runs on port 18889 (configurable via config.json)
+- Workbench connects to the CP directly
+- Use `python3 scripts/cp.py manifest` to see all available endpoints

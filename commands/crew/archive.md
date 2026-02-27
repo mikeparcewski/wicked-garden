@@ -18,12 +18,12 @@ Archive a project to remove it from active listings. Archived projects are hidde
 
 2. If `--unarchive` flag is present:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/api.py" unarchive projects "${PROJECT_NAME}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" crew projects unarchive "${PROJECT_NAME}"
    ```
 
 3. Otherwise archive the project:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/api.py" archive projects "${PROJECT_NAME}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" crew projects archive "${PROJECT_NAME}"
    ```
 
 4. Report the result to the user. Confirm what action was taken and the project name.

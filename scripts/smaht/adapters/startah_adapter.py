@@ -1,20 +1,5 @@
 """Startah adapter — surfaces available third-party CLIs for context assembly."""
 import subprocess
-from pathlib import Path
-
-
-def _discover_startah():
-    """Find wicked-startah plugin root."""
-    cache_base = Path.home() / ".claude" / "plugins" / "cache" / "wicked-garden" / "wicked-startah"
-    if cache_base.exists():
-        versions = sorted(
-            [d for d in cache_base.iterdir() if d.is_dir()],
-            key=lambda d: d.name, reverse=True
-        )
-        if versions:
-            return versions[0]
-    local = Path(__file__).parent.parent.parent.parent / "wicked-startah"
-    return local if local.exists() else None
 
 
 def _check_cli(name):
