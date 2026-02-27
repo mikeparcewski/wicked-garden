@@ -79,29 +79,12 @@ Note third project: `~/.something-wicked/wicked-crew/projects/add-user-roles-and
 
 ### 2. Work on Projects in Mixed Order
 
-**Work on project 1**:
+**Work on project 1** (most recently started, so it's the active project):
 ```bash
-cd ~/test-wicked-crew/multi-project/web-app
-/wicked-crew:execute  # clarify phase
+/wicked-crew:execute  # clarify phase for project 1
 ```
 
-Expected: Discusses dark mode toggle (React context)
-
-**Switch to project 2**:
-```bash
-cd ~/test-wicked-crew/multi-project/api-service
-/wicked-crew:execute  # clarify phase
-```
-
-Expected: Discusses error handling (Python/Flask context), NOT dark mode
-
-**Switch back to project 1**:
-```bash
-cd ~/test-wicked-crew/multi-project/web-app
-/wicked-crew:status
-```
-
-Expected: Shows project 1 status (dark mode), still in clarify phase
+Expected: Discusses dark mode toggle (React context) — project 1 is active because it was most recently created/modified.
 
 **Advance project 1**:
 ```bash
@@ -109,15 +92,9 @@ Expected: Shows project 1 status (dark mode), still in clarify phase
 /wicked-crew:execute  # design phase for project 1
 ```
 
-Expected: Design for dark mode (CSS variables, localStorage), NOT error handling
+Expected: Design for dark mode (CSS variables, localStorage)
 
-**Work on project 3**:
-```bash
-cd ~/test-wicked-crew/multi-project/db-schema
-/wicked-crew:execute  # clarify phase for project 3
-```
-
-Expected: Discusses roles/permissions schema, no mention of dark mode or error handling
+**Note on project switching**: The active project is determined by recency (most recently modified `project.json`). When you run `/wicked-crew:execute` or `/wicked-crew:status`, it operates on the most recently active project. To work on a different project, use `/wicked-crew:start` to create/resume it, which updates its modification time.
 
 ### 3. Verify Independent State
 
@@ -131,7 +108,6 @@ cd ~/test-wicked-crew/multi-project/web-app
 **Expected output**:
 ```
 Project: add-dark-mode-toggle
-Working Directory: ~/test-wicked-crew/multi-project/web-app
 Phase: design
 Status: in-progress
 Last Updated: [timestamp]
@@ -141,46 +117,13 @@ Deliverables:
   ⧗ phases/design/architecture.md (in progress)
 ```
 
-```bash
-cd ~/test-wicked-crew/multi-project/api-service
-/wicked-crew:status
-```
-
-**Expected output**:
-```
-Project: fix-500-error-on-health
-Working Directory: ~/test-wicked-crew/multi-project/api-service
-Phase: clarify
-Status: in-progress
-Last Updated: [timestamp]
-
-Deliverables:
-  ⧗ phases/clarify/objective.md (in progress)
-```
-
-```bash
-cd ~/test-wicked-crew/multi-project/db-schema
-/wicked-crew:status
-```
-
-**Expected output**:
-```
-Project: add-user-roles-and-permissions
-Working Directory: ~/test-wicked-crew/multi-project/db-schema
-Phase: clarify
-Status: in-progress
-Last Updated: [timestamp]
-
-Deliverables:
-  ⧗ phases/clarify/objective.md (in progress)
-```
+**Note**: The active project is determined by recency (most recently modified), not by working directory. After working on project 1 most recently, `/wicked-crew:status` shows project 1 regardless of current directory.
 
 ### 4. Complete One Project While Others Remain Active
 
-Complete project 2 (smallest scope):
+Complete project 2 (smallest scope). Since project 2 was most recently started, it becomes the active project:
 
 ```bash
-cd ~/test-wicked-crew/multi-project/api-service
 /wicked-crew:approve clarify
 /wicked-crew:execute  # design
 /wicked-crew:approve design
@@ -196,11 +139,10 @@ cd ~/test-wicked-crew/multi-project/api-service
 
 **Verify other projects unaffected**:
 ```bash
-cd ~/test-wicked-crew/multi-project/web-app
 /wicked-crew:status
 ```
 
-Expected: Still in design phase (unchanged)
+Expected: Shows project 2 as completed (it's still the most recently modified). Other projects remain at their previous phases when checked.
 
 ```bash
 cd ~/test-wicked-crew/multi-project/db-schema
@@ -209,35 +151,28 @@ cd ~/test-wicked-crew/multi-project/db-schema
 
 Expected: Still in clarify phase (unchanged)
 
-### 5. List All Projects
+### 5. Check All Project States
+
+List all projects using the filesystem (no dedicated list command):
 
 ```bash
-/wicked-crew:list
+ls -lt ~/.something-wicked/wicked-crew/projects/ | head -10
 ```
 
-**Expected output**:
+Then check each project status:
+
+```bash
+/wicked-crew:status
 ```
-Active Projects:
 
-1. add-dark-mode-toggle (design)
-   ~/test-wicked-crew/multi-project/web-app
-   Last activity: 5 minutes ago
-
-2. fix-500-error-on-health (completed)
-   ~/test-wicked-crew/multi-project/api-service
-   Completed: 1 minute ago
-
-3. add-user-roles-and-permissions (clarify)
-   ~/test-wicked-crew/multi-project/db-schema
-   Last activity: 10 minutes ago
-```
+**Expected**: Shows the most recently active project. To check a specific project, specify it by name or navigate to its associated working directory.
 
 ## Expected Outcome
 
 - Multiple projects coexist without interference
 - Each project maintains independent state (phase, deliverables, context)
-- Working directory determines active project
-- Status command always shows correct project for current directory
+- Most recently modified project is the active project (recency-based selection)
+- Status command shows the most recently active project
 - Completing one project doesn't affect others
 - All project data persists independently
 
@@ -246,31 +181,29 @@ Active Projects:
 ### Project Isolation
 - [ ] Three projects created with unique names/slugs
 - [ ] Each project has separate directory in `~/.something-wicked/wicked-crew/projects/`
-- [ ] Changing directories switches active project context
+- [ ] Most recently modified project becomes the active project
 - [ ] No cross-contamination of deliverables between projects
 
 ### State Persistence
 - [ ] Each project tracks phase independently
 - [ ] Deliverables stored in correct project directory
-- [ ] Status command shows correct project based on working directory
+- [ ] Status command shows most recently active project
 - [ ] Project state persists across directory changes
 
 ### Context Switching
 - [ ] Can work on project 1, switch to project 2, return to project 1
-- [ ] Context is correct after every switch
-- [ ] No confusion about which project is active
-- [ ] Execute command operates on correct project
+- [ ] Most recently worked-on project becomes active
+- [ ] Execute command operates on most recently active project
 
 ### Completion Independence
 - [ ] Completing project 2 doesn't affect project 1 or 3
 - [ ] Completed projects still visible in list
 - [ ] Active projects continue normally after another completes
 
-### List Command
-- [ ] Shows all projects (active and completed)
-- [ ] Displays phase for each project
-- [ ] Shows working directory association
-- [ ] Indicates last activity time
+### Project Listing
+- [ ] All projects visible via filesystem listing of `~/.something-wicked/wicked-crew/projects/`
+- [ ] Status command shows current active project
+- [ ] Completed projects remain in project directory
 
 ## Value Demonstrated
 
@@ -280,15 +213,15 @@ Active Projects:
 - Code review on project C
 - Back to feature work on project A
 
-Traditional project management tools force you to "close" one project before opening another, or they mix all tasks together into one list. wicked-crew's directory-based project detection means switching contexts is as simple as `cd different-project`.
+Traditional project management tools force you to "close" one project before opening another, or they mix all tasks together into one list. wicked-crew's recency-based project detection means the most recently active project is always front and center.
 
 The independent state management prevents common mistakes:
 - Running design phase on wrong project
-- Approving the wrong phase because you forgot which project you're in
+- Approving the wrong phase because you forgot which project is active
 - Losing track of where each project stands
 
-This mirrors how developers actually work with git branches - each project/branch is independent, and switching is instant. wicked-crew brings the same mental model to workflow orchestration.
+Each project is fully independent with its own state in `~/.something-wicked/wicked-crew/projects/`. The recency-based selection ensures you're always working on the project you most recently interacted with.
 
 For teams, this means pair programming doesn't require syncing project state. Each developer can work on their own projects, and collaboration happens at the artifact level (reviewing the generated designs, test scenarios, etc.) rather than at the state level.
 
-The list command provides a quick overview of all in-flight work, helping with daily standup updates and context switching decisions. "I have 3 projects active: 2 in build phase, 1 in design. Let me focus on finishing the ones in build first."
+The status command provides a quick view of the current active project, and filesystem listing gives an overview of all in-flight work, helping with daily standup updates and context switching decisions.

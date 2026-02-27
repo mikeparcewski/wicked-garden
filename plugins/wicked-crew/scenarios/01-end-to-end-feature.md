@@ -1,7 +1,7 @@
 ---
 name: end-to-end-feature
 title: End-to-End Feature Delivery
-description: Complete workflow from idea to implementation with all five phases
+description: Complete workflow from idea to implementation with all phases
 type: workflow
 difficulty: intermediate
 estimated_minutes: 20
@@ -212,9 +212,39 @@ phases/test-strategy/test-strategy.md containing:
 /wicked-crew:approve build
 ```
 
+**Expected**: Phase advances to "test"
+
+### 10. Test Phase - Test Execution
+
+```bash
+/wicked-crew:execute
+```
+
+**With wicked-qe available**:
+- Dispatches to `/wicked-qe:acceptance` for test execution
+- Runs test scenarios from test-strategy phase
+
+**Without wicked-qe (standalone)**:
+- Executes tests inline
+- Validates against test-strategy scenarios
+
+**Expected Deliverables**:
+```
+phases/test/test-results.md containing:
+- Test execution results
+- Pass/fail per scenario
+- Coverage summary
+```
+
+### 11. Approve Test
+
+```bash
+/wicked-crew:approve test
+```
+
 **Expected**: Phase advances to "review"
 
-### 10. Review Phase - Final Validation
+### 12. Review Phase - Final Validation
 
 ```bash
 /wicked-crew:execute
@@ -238,7 +268,7 @@ phases/review/review-findings.md containing:
 - Sign-off: Ready/Not Ready with reasoning
 ```
 
-### 11. Complete Project
+### 13. Complete Project
 
 ```bash
 /wicked-crew:approve review
@@ -252,7 +282,7 @@ phases/review/review-findings.md containing:
 
 ## Expected Outcome
 
-- Project progresses through all five phases sequentially
+- Project progresses through all six phases sequentially (clarify, design, test-strategy, build, test, review)
 - Each phase requires explicit approval (quality gate)
 - Phase-specific agents/tools are used appropriately
 - Context is maintained across phases (design informs test strategy, test strategy informs build)
@@ -262,7 +292,7 @@ phases/review/review-findings.md containing:
 ## Success Criteria
 
 - [ ] Project created with unique slug-based directory name
-- [ ] All five phases execute in correct order
+- [ ] All six phases execute in correct order (clarify, design, test-strategy, build, test, review)
 - [ ] Approval required between each phase (cannot skip)
 - [ ] Clarify phase produces `objective.md` and `acceptance-criteria.md`
 - [ ] Design phase references actual codebase patterns

@@ -127,9 +127,15 @@ Configure autonomy to "just-finish" mode.
    - Adds test cases to test_todo.py
    - Runs tests to verify
    - Writes implementation summary
+   - Self-approves to test phase
+
+5. **Test Phase** (auto-approves):
+   - Executes test scenarios from test-strategy
+   - Validates all tests pass
+   - Produces test-results.md
    - Self-approves to review phase
 
-5. **Review Phase** (completes):
+6. **Review Phase** (completes):
    - Reviews code against outcome criteria
    - Checks test coverage
    - Validates no breaking changes
@@ -192,7 +198,7 @@ Then:
 ## Success Criteria
 
 ### Autonomous Success
-- [ ] Project completes all five phases without user intervention
+- [ ] Project completes all six phases without user intervention (clarify, design, test-strategy, build, test, review)
 - [ ] Each phase produces appropriate deliverables
 - [ ] Implementation actually works (JSON export/import functions)
 - [ ] Tests are created and pass

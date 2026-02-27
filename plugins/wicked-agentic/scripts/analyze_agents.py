@@ -83,6 +83,48 @@ def extract_agents_generic(filepath: str) -> list:
                     "confidence": 0.9,
                 })
 
+        # Functions using AgentExecutor or in agents/ directory
+        if isinstance(node, ast.FunctionDef):
+            is_agent_function = False
+            reason = ""
+
+            # Check if function name contains agent-related patterns
+            name_lower = node.name.lower()
+            if any(kw in name_lower for kw in ("agent", "workflow", "pipeline")):
+                is_agent_function = True
+                reason = "name_pattern"
+
+            # Check if function body references AgentExecutor
+            if not is_agent_function:
+                for child in ast.walk(node):
+                    if isinstance(child, ast.Name) and child.id == "AgentExecutor":
+                        is_agent_function = True
+                        reason = "AgentExecutor_usage"
+                        break
+                    if isinstance(child, ast.Attribute) and child.attr == "AgentExecutor":
+                        is_agent_function = True
+                        reason = "AgentExecutor_usage"
+                        break
+
+            # Check if file is in an agents/ directory
+            if not is_agent_function and "/agents/" in filepath:
+                is_agent_function = True
+                reason = "agents_directory"
+
+            # Skip if already captured as decorated function
+            decorators = _get_decorator_names(node)
+            if is_agent_function and not any(d in ("agent", "crew", "tool") for d in decorators):
+                agents.append({
+                    "name": node.name,
+                    "type": "function_agent",
+                    "detection": reason,
+                    "file": filepath,
+                    "line": node.lineno,
+                    "role": classify_role(node.name, _get_docstring(node)),
+                    "tools": _extract_tool_refs(node),
+                    "confidence": 0.6,
+                })
+
         # Agent() instantiation calls
         if isinstance(node, ast.Call):
             func_name = _get_call_name(node)

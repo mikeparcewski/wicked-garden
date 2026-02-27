@@ -85,87 +85,34 @@ Expected output:
 ### 4. Architecture Assessment
 
 Spawn architect agent for design review:
+
 ```
-Task: wicked-agentic:architect
-
-Context:
-- Framework: {detected_framework}
-- Agent topology: {topology_summary}
-- Entry points: {entry_agents}
-
-Instructions:
-Load skill wicked-agentic:five-layer-architecture
-
-Analyze architecture:
-1. Layer separation (Cognition, Context, Interaction, Runtime, Governance)
-2. Control flow clarity
-3. State management approach
-4. Error propagation
-5. Testing strategy
-
-Output assessment with:
-- Architecture diagram (mermaid)
-- Pattern alignment score
-- Structural issues
-- Refactoring opportunities
+Task(
+  subagent_type="wicked-agentic:architect",
+  prompt="Mode: architecture_review\n\nContext:\n- Framework: {detected_framework}\n- Agent topology: {topology_summary}\n- Entry points: {entry_agents}\n\nInstructions:\nLoad skill wicked-agentic:five-layer-architecture\n\nAnalyze architecture:\n1. Layer separation (Cognition, Context, Interaction, Runtime, Governance)\n2. Control flow clarity\n3. State management approach\n4. Error propagation\n5. Testing strategy\n\nOutput assessment with:\n- Architecture diagram (mermaid)\n- Pattern alignment score\n- Structural issues\n- Refactoring opportunities"
+)
 ```
 
 ### 5. Safety Audit
 
 Spawn safety reviewer for security analysis:
+
 ```
-Task: wicked-agentic:safety-reviewer
-
-Context:
-- Framework: {detected_framework}
-- Tools used: {tool_list}
-- Agent interactions: {topology}
-
-Instructions:
-Load skill wicked-agentic:trust-and-safety
-
-Review safety posture:
-1. Tool risk classification
-2. Human-in-the-loop gates
-3. PII handling
-4. Prompt injection vulnerabilities
-5. Rate limiting and quotas
-6. Fallback mechanisms
-
-Output safety report with:
-- Risk matrix
-- Critical vulnerabilities
-- Required mitigations
-- Compliance gaps
+Task(
+  subagent_type="wicked-agentic:safety-reviewer",
+  prompt="Mode: safety_audit\n\nContext:\n- Framework: {detected_framework}\n- Tools used: {tool_list}\n- Agent interactions: {topology}\n\nInstructions:\nLoad skill wicked-agentic:trust-and-safety\n\nReview safety posture:\n1. Tool risk classification\n2. Human-in-the-loop gates\n3. PII handling\n4. Prompt injection vulnerabilities\n5. Rate limiting and quotas\n6. Fallback mechanisms\n\nOutput safety report with:\n- Risk matrix\n- Critical vulnerabilities\n- Required mitigations\n- Compliance gaps"
+)
 ```
 
 ### 6. Performance Analysis
 
 Spawn performance analyst for optimization review:
+
 ```
-Task: wicked-agentic:performance-analyst
-
-Context:
-- Framework: {detected_framework}
-- Agent count: {agent_count}
-- Topology pattern: {pattern}
-
-Instructions:
-Load skill wicked-agentic:agentic-patterns
-
-Analyze performance:
-1. Latency bottlenecks
-2. Token usage efficiency
-3. Parallelization opportunities
-4. Caching strategy
-5. Context window management
-6. Cost optimization
-
-Output performance report with:
-- Bottleneck analysis
-- Cost estimation
-- Optimization recommendations
-- Benchmarking suggestions
+Task(
+  subagent_type="wicked-agentic:performance-analyst",
+  prompt="Mode: performance_review\n\nContext:\n- Framework: {detected_framework}\n- Agent count: {agent_count}\n- Topology pattern: {pattern}\n\nInstructions:\nLoad skill wicked-agentic:agentic-patterns\n\nAnalyze performance:\n1. Latency bottlenecks\n2. Token usage efficiency\n3. Parallelization opportunities\n4. Caching strategy\n5. Context window management\n6. Cost optimization\n\nOutput performance report with:\n- Bottleneck analysis\n- Cost estimation\n- Optimization recommendations\n- Benchmarking suggestions"
+)
 ```
 
 ### 7. Pattern Scoring
