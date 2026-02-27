@@ -19,18 +19,10 @@ Extract parameters:
 ### 2. Spawn Framework Researcher
 
 ```
-Task: wicked-agentic:framework-researcher
-
-Mode: {comparison | selection | overview}
-Parameters:
-- Compare: {framework_list if --compare}
-- Language: {language if --language}
-- Use case: {use_case if --use-case}
-
-Instructions:
-Load skill wicked-agentic:frameworks
-
-{Behavior based on mode}
+Task(
+  subagent_type="wicked-agentic:framework-researcher",
+  prompt="Mode: {comparison | selection | overview}\n\nParameters:\n- Compare: {framework_list if --compare}\n- Language: {language if --language}\n- Use case: {use_case if --use-case}\n\nInstructions:\nLoad skill wicked-agentic:frameworks\n\n{Behavior based on mode}"
+)
 ```
 
 ### 3. Framework Comparison Mode
@@ -38,27 +30,10 @@ Load skill wicked-agentic:frameworks
 If `--compare` specified:
 
 ```
-Task: wicked-agentic:framework-researcher
-
-Mode: comparison
-Frameworks: {fw1, fw2, fw3}
-
-Instructions:
-For each framework, research:
-1. Core architecture and patterns
-2. Strengths and weaknesses
-3. Ecosystem and community
-4. Learning curve
-5. Performance characteristics
-6. Cost implications
-7. Production readiness
-
-Use WebSearch to get latest information:
-- "LangChain 2026 updates"
-- "CrewAI latest version features"
-- "AutoGen vs LangChain comparison 2026"
-
-Present comparison table and recommendation.
+Task(
+  subagent_type="wicked-agentic:framework-researcher",
+  prompt="Mode: comparison\nFrameworks: {fw1, fw2, fw3}\n\nInstructions:\nFor each framework, research:\n1. Core architecture and patterns\n2. Strengths and weaknesses\n3. Ecosystem and community\n4. Learning curve\n5. Performance characteristics\n6. Cost implications\n7. Production readiness\n\nUse WebSearch to get latest information.\n\nPresent comparison table and recommendation."
+)
 ```
 
 Framework researcher produces:
@@ -177,23 +152,10 @@ Estimated effort: {timeframe}
 If no `--compare` but filters provided:
 
 ```
-Task: wicked-agentic:framework-researcher
-
-Mode: selection
-Filters:
-- Language: {language}
-- Use case: {use_case}
-
-Instructions:
-Based on filters, recommend top 3-5 frameworks.
-
-For each, provide:
-1. Name and description
-2. Why it fits the criteria
-3. Quick start guide
-4. When to choose it vs alternatives
-
-Format as decision guide.
+Task(
+  subagent_type="wicked-agentic:framework-researcher",
+  prompt="Mode: selection\n\nFilters:\n- Language: {language}\n- Use case: {use_case}\n\nInstructions:\nBased on filters, recommend top 3-5 frameworks.\n\nFor each, provide:\n1. Name and description\n2. Why it fits the criteria\n3. Quick start guide\n4. When to choose it vs alternatives\n\nFormat as decision guide."
+)
 ```
 
 ### 5. Selection Wizard Mode
@@ -201,20 +163,10 @@ Format as decision guide.
 If no arguments provided, run interactive wizard:
 
 ```
-Task: wicked-agentic:framework-researcher
-
-Mode: wizard
-
-Instructions:
-Ask user 4-5 questions to understand requirements:
-
-1. **Language preference**: Python, TypeScript, other?
-2. **Use case**: What are you building?
-3. **Experience level**: Beginner, intermediate, expert?
-4. **Scale**: Prototype, production, enterprise?
-5. **Priority**: Speed of development, flexibility, cost, performance?
-
-Based on answers, recommend framework with rationale.
+Task(
+  subagent_type="wicked-agentic:framework-researcher",
+  prompt="Mode: wizard\n\nInstructions:\nAsk user 4-5 questions to understand requirements:\n1. Language preference: Python, TypeScript, other?\n2. Use case: What are you building?\n3. Experience level: Beginner, intermediate, expert?\n4. Scale: Prototype, production, enterprise?\n5. Priority: Speed of development, flexibility, cost, performance?\n\nBased on answers, recommend framework with rationale."
+)
 ```
 
 Wizard interaction:

@@ -33,6 +33,24 @@ FRAMEWORK_SIGNATURES = {
             "node": ["@google/generative-ai"],
         },
     },
+    "langchain": {
+        "imports": ["langchain", "langchain_openai", "langchain_community", "langchain_core"],
+        "config_files": [],
+        "patterns": [
+            r"from langchain import",
+            r"from langchain_openai import",
+            r"from langchain_community",
+            r"from langchain_core",
+            r"from langchain\.agents import",
+            r"AgentExecutor\(",
+            r"create_openai_tools_agent\(",
+            r"ChatOpenAI\(",
+        ],
+        "dependencies": {
+            "python": ["langchain", "langchain-openai", "langchain-community", "langchain-core"],
+            "node": ["langchain", "@langchain/openai", "@langchain/community"],
+        },
+    },
     "langgraph": {
         "imports": ["langgraph", "langgraph.graph", "langgraph.prebuilt"],
         "config_files": ["langgraph.json"],

@@ -67,81 +67,12 @@ Expected output includes agent details and communication graph:
 ### 4. Spawn Safety Reviewer in Deep Audit Mode
 
 Launch comprehensive safety analysis:
+
 ```
-Task: wicked-agentic:safety-reviewer
-
-Mode: deep_audit
-Context:
-- Framework: {detected_framework}
-- Topology: {agent_topology}
-- Tools: {tool_inventory}
-- Compliance standard: {standard if specified}
-
-Instructions:
-Load skill wicked-agentic:trust-and-safety
-
-Perform comprehensive safety audit:
-
-1. **Tool Risk Classification**
-   For each tool, assess:
-   - Risk level (CRITICAL, HIGH, MEDIUM, LOW)
-   - Attack surface
-   - Potential for abuse
-   - Data exposure
-   - Required mitigations
-
-2. **Human-in-the-Loop Gates**
-   Verify:
-   - Which operations require human approval
-   - How approval is requested and validated
-   - Bypass prevention
-   - Audit trail
-
-3. **PII and Sensitive Data**
-   Check:
-   - PII detection and redaction
-   - Data minimization
-   - Encryption at rest and in transit
-   - Retention policies
-   - Access controls
-
-4. **Input Validation**
-   Analyze:
-   - Prompt injection defenses
-   - SQL injection (if database tools)
-   - Command injection (if shell tools)
-   - SSRF prevention (if web tools)
-   - Input sanitization
-
-5. **Authentication & Authorization**
-   Verify:
-   - Tool access controls
-   - Agent permission model
-   - Credential management
-   - Secrets handling
-
-6. **Rate Limiting & Quotas**
-   Check:
-   - API rate limits
-   - Cost controls
-   - Request throttling
-   - Abuse prevention
-
-7. **Monitoring & Observability**
-   Assess:
-   - Audit logging completeness
-   - Sensitive data in logs
-   - Alerting on anomalies
-   - Incident response readiness
-
-8. **Failure Modes**
-   Analyze:
-   - Graceful degradation
-   - Error message information leakage
-   - Retry logic safety
-   - Circuit breakers
-
-Output comprehensive safety report.
+Task(
+  subagent_type="wicked-agentic:safety-reviewer",
+  prompt="Mode: deep_audit\n\nContext:\n- Framework: {detected_framework}\n- Topology: {agent_topology}\n- Tools: {tool_inventory}\n- Compliance standard: {standard if specified}\n\nInstructions:\nLoad skill wicked-agentic:trust-and-safety\n\nPerform comprehensive safety audit:\n\n1. Tool Risk Classification - assess risk level, attack surface, abuse potential, data exposure, required mitigations\n2. Human-in-the-Loop Gates - verify approval requirements, validation, bypass prevention, audit trail\n3. PII and Sensitive Data - check detection/redaction, minimization, encryption, retention, access controls\n4. Input Validation - analyze prompt injection, SQL injection, command injection, SSRF, input sanitization\n5. Authentication & Authorization - verify tool access controls, permission model, credential/secrets management\n6. Rate Limiting & Quotas - check API rate limits, cost controls, throttling, abuse prevention\n7. Monitoring & Observability - assess audit logging, sensitive data in logs, alerting, incident readiness\n8. Failure Modes - analyze graceful degradation, error info leakage, retry safety, circuit breakers\n\nOutput comprehensive safety report."
+)
 ```
 
 ### 5. Classify Tool Risks

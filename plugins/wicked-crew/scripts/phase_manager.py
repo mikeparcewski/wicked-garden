@@ -466,7 +466,7 @@ def main():
     parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip")
-    parser.add_argument("--approved-by", default="auto", help="Who approved the skip")
+    parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
@@ -533,7 +533,7 @@ def main():
 
     elif args.action == "approve":
         phase = args.phase or state.current_phase
-        state, next_phase = approve_phase(state, phase)
+        state, next_phase = approve_phase(state, phase, approver=args.approved_by or "user")
         save_project_state(state)
         print(f"Approved phase: {resolve_phase(phase)}")
         if next_phase:
@@ -547,7 +547,7 @@ def main():
             print("Error: --phase required for skip action")
             return
         try:
-            state = skip_phase(state, phase, args.reason or "", args.approved_by)
+            state = skip_phase(state, phase, args.reason or "", args.approved_by or "auto")
         except ValueError as e:
             print(f"Error: {e}")
             return
