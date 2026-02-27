@@ -17,7 +17,7 @@ Simulate a minimal installation where only wicked-smaht is available.
 
 ```bash
 # Check which wicked-garden plugins are installed
-ls ~/.claude/plugins/*/wicked-*/
+ls "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json"
 ```
 
 ## Steps

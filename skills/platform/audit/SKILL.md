@@ -117,7 +117,7 @@ Create report with:
 
 Store evidence as artifacts:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-artifact \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-artifact \
   "{task_id}" "file" \
   --file-path "{evidence_path}" \
   --label "Audit Evidence: {control_id}"

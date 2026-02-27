@@ -19,49 +19,49 @@ Create a project with tasks that have dependencies.
 
 1. **Create a project**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-project "API Development" -d "REST API implementation"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "API Development" -d "REST API implementation"
    ```
    Note the project ID (e.g., PROJECT_ID).
 
 2. **Create the foundation task**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Design API schema" -p P0
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Design API schema" -p P0
    ```
    Note this task's ID (e.g., SCHEMA_TASK_ID).
 
 3. **Create dependent tasks with --depends**
    ```bash
    # Endpoints depend on schema
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Implement endpoints" -p P1 --depends SCHEMA_TASK_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Implement endpoints" -p P1 --depends SCHEMA_TASK_ID
 
    # Tests depend on endpoints (note the ENDPOINTS_TASK_ID from above)
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Write API tests" -p P1 --depends ENDPOINTS_TASK_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Write API tests" -p P1 --depends ENDPOINTS_TASK_ID
    ```
 
 4. **Check blocking status**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-task PROJECT_ID ENDPOINTS_TASK_ID --with-status
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID ENDPOINTS_TASK_ID --with-status
    ```
    Should show `is_blocked: true` with `blocking_details` listing the schema task.
 
 5. **Complete the schema task**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID SCHEMA_TASK_ID --swimlane done
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID SCHEMA_TASK_ID --swimlane done
    ```
 
 6. **Verify endpoints task is now unblocked**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-task PROJECT_ID ENDPOINTS_TASK_ID --with-status
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID ENDPOINTS_TASK_ID --with-status
    ```
    Should show `is_blocked: false` and empty `blocking_details`.
 
 7. **Modify dependencies on existing task**
    ```bash
    # Add another dependency
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TESTS_TASK_ID --add-depends SCHEMA_TASK_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TESTS_TASK_ID --add-depends SCHEMA_TASK_ID
 
    # Remove a dependency
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TESTS_TASK_ID --remove-depends SCHEMA_TASK_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TESTS_TASK_ID --remove-depends SCHEMA_TASK_ID
    ```
 
 ## Expected Outcome

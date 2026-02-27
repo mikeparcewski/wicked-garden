@@ -1,18 +1,19 @@
 ---
-description: Scaffold a new marketplace component (plugin, skill, agent, or hook)
-argument-hint: [type] [name] [description]
+description: Scaffold a new domain component (skill, agent, command, or hook) in the unified wicked-garden plugin
+argument-hint: [type] [name] --domain [domain] [description]
 allowed-tools: Read, Write, Bash(python3:*, mkdir:*, ls:*)
 ---
 
-Scaffold a new marketplace component using the wicked-garden development tools.
+Scaffold a new component within the unified wicked-garden plugin using the development tools.
 
 ## Arguments
 
 Parse the provided arguments: $ARGUMENTS
 
-Expected format: `[type] [name] [description]`
-- **type**: One of `plugin`, `specialist`, `skill`, `agent`, or `hook`
-- **name**: kebab-case name for the component (plugins should start with `wicked-`)
+Expected format: `[type] [name] --domain [domain] [description]`
+- **type**: One of `skill`, `agent`, `command`, or `hook`
+- **name**: kebab-case name for the component
+- **--domain**: Target domain (e.g., `crew`, `qe`, `engineering`, `mem`)
 - **description**: Brief description (can be in quotes for multi-word)
 
 ## If arguments are provided
@@ -32,66 +33,59 @@ After scaffolding:
 
 Enter interactive mode - ask the user:
 
-1. What type of component? (plugin, specialist, skill, agent, hook)
-2. What should it be named? (kebab-case, plugins should start with `wicked-`)
-3. Brief description of purpose
+1. What type of component? (skill, agent, command, hook)
+2. Which domain? (crew, engineering, platform, qe, product, delivery, data, jam, mem, search, smaht, kanban, startah, workbench, scenarios, patch, agentic, observability)
+3. What should it be named? (kebab-case)
+4. Brief description of purpose
 
 Then run the scaffold with gathered information.
 
-## For plugins with additional options
+## Component Types and Generated Paths
 
-If creating a plugin, ask if they want to include:
-- Example commands (--with-commands)
-- Example skills (--with-skills)
-- Example agents (--with-agents)
-- Example hooks (--with-hooks)
-
-## Specialist Plugins (v3)
-
-For specialist plugins that integrate with wicked-crew:
-
+### Skill
 ```bash
-/wg-scaffold specialist wicked-myspec "My specialist description"
+/wg-scaffold skill my-skill --domain crew "Brief description"
+```
+Creates:
+```
+skills/crew/my-skill/
+├── SKILL.md          # ≤200 lines entry point
+└── refs/             # Progressive disclosure (add as needed)
 ```
 
-This generates:
+### Agent
+```bash
+/wg-scaffold agent my-agent --domain platform "Brief description"
 ```
-plugins/wicked-myspec/
-├── .claude-plugin/
-│   ├── plugin.json           # Plugin manifest
-│   └── specialist.json       # Specialist contract (v3)
-├── agents/
-│   ├── persona-1.md          # Agent per persona
-│   └── persona-2.md
-├── hooks/
-│   └── hooks.json            # Event subscriptions
-├── skills/
-│   └── primary-skill/
-│       ├── SKILL.md          # ≤200 lines
-│       └── refs/             # Progressive disclosure
-├── scripts/
-│   └── helper.py
-└── README.md
+Creates:
 ```
+agents/platform/my-agent.md    # Agent with frontmatter
+```
+Agent subagent_type: `wicked-garden:platform/my-agent`
 
-### Specialist Roles
+### Command
+```bash
+/wg-scaffold command my-command --domain engineering "Brief description"
+```
+Creates:
+```
+commands/engineering/my-command.md    # Command with YAML frontmatter
+```
+Command namespace: `wicked-garden:engineering:my-command`
 
-Valid roles for `specialist.json`:
-- `ideation` - Brainstorming, exploration (e.g., wicked-jam)
-- `business-strategy` - ROI, value analysis (e.g., wicked-product)
-- `project-management` - Delivery tracking (e.g., wicked-delivery)
-- `quality-engineering` - Testing, QE (e.g., wicked-qe)
-- `devsecops` - Security, CI/CD (e.g., wicked-platform)
-- `engineering` - Code implementation (e.g., wicked-engineering)
-- `architecture` - System design (e.g., wicked-arch)
-- `ux` - User experience (e.g., wicked-ux)
-- `product` - Product management (e.g., wicked-product)
-- `compliance` - Governance, audit (e.g., wicked-compliance)
-- `data-engineering` - Data, ML (e.g., wicked-data)
+### Hook
+```bash
+/wg-scaffold hook my-hook --event PreToolUse "Brief description"
+```
+Creates:
+```
+hooks/scripts/my-hook.py    # Hook script (stdlib-only)
+```
+Updates `hooks/hooks.json` with the new event binding.
 
-### Agent Template (v3)
+### Agent Template
 
-Agents now include:
+Agents include:
 ```yaml
 ---
 name: persona-name
@@ -104,20 +98,28 @@ color: blue  # blue, green, purple, orange, teal
 
 ### Event Format
 
-Events follow: `[namespace:entity:action:status]`
-- namespace: plugin short name (e.g., `qe`, `arch`, `ux`)
+Events follow: `[domain:entity:action:status]`
+- domain: domain name (e.g., `qe`, `crew`, `platform`)
 - entity: what's affected (e.g., `review`, `analysis`)
 - action: what happened (e.g., `completed`, `started`)
 - status: result (e.g., `success`, `error`, `warning`)
+
+## Valid Domains
+
+The 18 domains in wicked-garden:
+
+**Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
+**Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic
+**Infrastructure & Tools**: startah, workbench, scenarios, patch, observability
 
 ## After successful scaffolding
 
 Recommend running validation:
 ```
-/wg-validate [path-to-new-component]
+/wg-check
 ```
 
-For quality assessment:
+For full quality assessment:
 ```
-/wg-score [path-to-new-component]
+/wg-check --full
 ```

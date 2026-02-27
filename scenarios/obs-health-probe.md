@@ -19,8 +19,8 @@ Covers Layer 2 (health probes) of the observability stack.
 
 ```bash
 # Confirm the script exists before running steps
-if [ ! -f "plugins/wicked-observability/scripts/health_probe.py" ]; then
-  echo "FAIL: health_probe.py not found at plugins/wicked-observability/scripts/health_probe.py"
+if [ ! -f "scripts/observability/health_probe.py" ]; then
+  echo "FAIL: health_probe.py not found at scripts/observability/health_probe.py"
   exit 1
 fi
 echo "OK: health_probe.py found"
@@ -33,7 +33,7 @@ echo "OK: health_probe.py found"
 ### Step 1: Run health probe against wicked-observability (python3)
 
 ```bash
-python3 plugins/wicked-observability/scripts/health_probe.py \
+python3 scripts/observability/health_probe.py \
   --plugin wicked-observability \
   --json
 ```
@@ -47,7 +47,7 @@ python3 - <<'EOF'
 import json, subprocess, sys
 
 result = subprocess.run(
-    ["python3", "plugins/wicked-observability/scripts/health_probe.py",
+    ["python3", "scripts/observability/health_probe.py",
      "--plugin", "wicked-observability", "--json"],
     capture_output=True, text=True
 )

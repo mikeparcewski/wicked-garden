@@ -17,54 +17,54 @@ Ensure the kanban data directory exists and the kanban.py script is accessible.
 
 ```bash
 # Verify script is available
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
 ```
 
 ## Steps
 
 1. **Create a new project**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-project "Auth Feature" -d "User authentication implementation"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "Auth Feature" -d "User authentication implementation"
    ```
    Note the project ID from the output.
 
 2. **View the project details**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-project PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project PROJECT_ID
    ```
    Shows swimlanes and any existing tasks.
 
 3. **Create tasks**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Design login flow" -p P1 -d "Create wireframes and user flow for login process"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Implement JWT tokens" -p P1 -d "Add JWT generation and validation"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Add password reset" -p P2 -d "Email-based password reset flow"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Design login flow" -p P1 -d "Create wireframes and user flow for login process"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Implement JWT tokens" -p P1 -d "Add JWT generation and validation"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Add password reset" -p P2 -d "Email-based password reset flow"
    ```
    Note the task IDs for the next steps.
 
 4. **Move first task to "In Progress"**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID --swimlane in_progress
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane in_progress
    ```
 
 5. **Add a comment documenting progress**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_ID "Completed wireframes for login page"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID "Completed wireframes for login page"
    ```
 
 6. **Move task to "Done"**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID --swimlane done
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane done
    ```
 
 7. **View final project state**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-project PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project PROJECT_ID
    ```
 
 8. **View activity log**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py activity PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py activity PROJECT_ID
    ```
 
 ## Expected Outcome

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Release automation tool for Wicked Garden marketplace components.
+Release automation tool for the wicked-garden unified plugin.
 
 Usage:
     python release.py <component-path> [options]
@@ -13,9 +13,9 @@ Options:
     --since <tag>               Analyze commits since specific tag
 
 Examples:
-    python release.py plugins/wicked-memory
-    python release.py plugins/wicked-memory --bump major
-    python release.py plugins/wicked-memory --dry-run
+    python release.py .
+    python release.py . --bump major
+    python release.py . --dry-run
 """
 
 import json
@@ -44,6 +44,15 @@ class ReleaseManager:
 
         if not self.component_path.exists():
             raise ValueError(f"Component path does not exist: {component_path}")
+
+    def get_plugin_name(self) -> str:
+        """Get plugin name from plugin.json."""
+        try:
+            with open(self.plugin_json_path, "r") as f:
+                data = json.load(f)
+                return data.get("name", self.component_path.name)
+        except Exception:
+            return self.component_path.name
 
     def get_current_version(self) -> str:
         """Get current version from plugin.json."""
@@ -74,7 +83,7 @@ class ReleaseManager:
             )
 
             tags = result.stdout.strip().split("\n")
-            component_name = self.component_path.name
+            component_name = self.get_plugin_name()
 
             # Filter tags for this component (format: component-name-v1.0.0)
             component_tags = [
@@ -192,7 +201,7 @@ class ReleaseManager:
             with open(marketplace_path, "r") as f:
                 data = json.load(f)
 
-            component_name = self.component_path.name
+            component_name = self.get_plugin_name()
             updated = False
 
             for plugin in data.get("plugins", []):
@@ -211,40 +220,6 @@ class ReleaseManager:
 
         except Exception as e:
             print(f"Warning: Failed to update marketplace.json: {e}")
-
-    def sync_plugin_cache(self, new_version: str):
-        """Sync plugin to the local cache directory, excluding dev artifacts."""
-        cache_dir = Path.home() / ".claude" / "plugins" / "cache" / "wicked-garden" / self.component_path.name / new_version
-
-        if self.dry_run:
-            print(f"[DRY RUN] Would sync to cache: {cache_dir}")
-            return
-
-        try:
-            subprocess.run(
-                ["rsync", "-a", "--delete",
-                 "--exclude", "__pycache__",
-                 "--exclude", "*.pyc",
-                 "--exclude", ".venv",
-                 "--exclude", "venv",
-                 "--exclude", "node_modules",
-                 "--exclude", ".pytest_cache",
-                 "--exclude", ".mypy_cache",
-                 "--exclude", ".ruff_cache",
-                 "--exclude", ".coverage",
-                 "--exclude", "htmlcov",
-                 "--exclude", ".DS_Store",
-                 "--exclude", ".env",
-                 "--exclude", "*.egg-info",
-                 str(self.component_path) + "/",
-                 str(cache_dir) + "/"],
-                capture_output=True, check=True
-            )
-            print(f"✓ Synced to cache: {cache_dir.name}")
-        except subprocess.CalledProcessError as e:
-            print(f"Warning: Cache sync failed: {e}")
-        except FileNotFoundError:
-            print("  (rsync not available, skipping cache sync)")
 
     def generate_changelog_content(
         self, categorized: Dict[str, List], version: str
@@ -310,7 +285,7 @@ class ReleaseManager:
 
     def create_git_tag(self, version: str):
         """Create git tag for this release."""
-        component_name = self.component_path.name
+        component_name = self.get_plugin_name()
         tag_name = f"{component_name}-v{version}"
 
         if self.dry_run:
@@ -336,7 +311,7 @@ class ReleaseManager:
 
     def generate_release_notes(self, categorized: Dict[str, List], version: str) -> str:
         """Generate release notes."""
-        component_name = self.component_path.name
+        component_name = self.get_plugin_name()
         lines = [
             f"# Release {component_name} v{version}",
             "",
@@ -525,9 +500,6 @@ class ReleaseManager:
         # Generate release notes
         release_notes = self.generate_release_notes(categorized, new_version)
         self.save_release_notes(release_notes, new_version)
-
-        # Sync to local cache (after all file modifications so cache is complete)
-        self.sync_plugin_cache(new_version)
 
         # Create git tag
         if create_tag:

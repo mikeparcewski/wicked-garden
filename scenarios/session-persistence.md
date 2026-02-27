@@ -17,7 +17,7 @@ Start with a clean slate to demonstrate persistence clearly.
 
 ```bash
 # List existing projects to see baseline
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
 ```
 
 ## Steps
@@ -25,18 +25,18 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
 1. **Create a project and tasks in the current session**
    ```bash
    # Create project
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-project "Long-Running Work" -d "Work that spans multiple sessions"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "Long-Running Work" -d "Work that spans multiple sessions"
    # Note PROJECT_ID from output
 
    # Create several tasks
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Refactor authentication module" -p P1
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Update API documentation" -p P2
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Fix mobile responsive issues" -p P2
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Refactor authentication module" -p P1
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Update API documentation" -p P2
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Fix mobile responsive issues" -p P2
    # Note TASK_1_ID, TASK_2_ID, TASK_3_ID from outputs
 
    # Start work on first task
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_1_ID --swimlane in_progress
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_1_ID "Started refactoring - extracted auth logic to separate module"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_1_ID --swimlane in_progress
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_1_ID "Started refactoring - extracted auth logic to separate module"
    ```
 
 2. **Verify data is stored on disk**
@@ -58,31 +58,31 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
    For this test, we simply verify the data persists by reading from disk:
    ```bash
    # Data is still there
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-project PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project PROJECT_ID
    ```
 
 4. **Continue work in the "new session"**
    ```bash
    # Complete the in-progress task
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-commit PROJECT_ID TASK_1_ID "refactor-auth-abc123"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_1_ID "Refactoring complete - all tests passing"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_1_ID --swimlane done
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_1_ID "refactor-auth-abc123"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_1_ID "Refactoring complete - all tests passing"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_1_ID --swimlane done
 
    # Start second task
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_2_ID --swimlane in_progress
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_2_ID --swimlane in_progress
    ```
 
 5. **Verify all history is preserved**
    ```bash
    # Check activity log for full history
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py activity PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py activity PROJECT_ID
    ```
    Should show task_created, swimlane_changed, comment, commit_linked entries across the "session break".
 
 6. **Verify task details show accumulated work**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-task PROJECT_ID TASK_1_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID TASK_1_ID
    ```
    Should show commits array with the linked commit hash and multiple comments.
 

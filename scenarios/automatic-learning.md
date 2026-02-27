@@ -84,6 +84,6 @@ Real-world impact: This is the difference between having a personal documentatio
 ## Troubleshooting
 
 If the Stop hook doesn't fire:
-- Check `/Users/michael.parcewski/Projects/wicked-garden/plugins/wicked-mem/hooks/hooks.json` is valid
+- Check `hooks/hooks.json` is valid (relative to plugin root)
 - Verify the plugin is properly installed
 - Check Claude Code console for hook execution errors

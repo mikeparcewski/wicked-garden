@@ -17,7 +17,7 @@ No special setup needed. Uses smart_decisioning.py directly.
 
 ```bash
 # Verify smart_decisioning.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "test" > /dev/null 2>&1
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "test" > /dev/null 2>&1
 ```
 
 ## Steps
@@ -25,7 +25,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "test" > /de
 ### 1. Baseline: Simple description without archetype context
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "Update the scoring logic"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "Update the scoring logic"
 ```
 
 Expected: Low complexity (0-1) because no file references, no integration keywords.
@@ -33,7 +33,7 @@ Expected: Low complexity (0-1) because no file references, no integration keywor
 ### 2. Infrastructure-framework archetype via keywords
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "Modify the plugin scoring engine, execution workflow, and dispatch routing for all crew commands"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "Modify the plugin scoring engine, execution workflow, and dispatch routing for all crew commands"
 ```
 
 Expected:
@@ -45,7 +45,7 @@ Expected:
 ### 3. External archetype hints override keyword detection
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
   --archetype-hints '{"infrastructure-framework": {"confidence": 0.9, "impact_bonus": 2, "inject_signals": {"architecture": 0.3}, "min_complexity": 3, "description": "Core execution paths"}}' \
   "Fix a small bug"
 ```
@@ -58,7 +58,7 @@ Expected:
 ### 4. Custom dynamic archetype
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
   --archetype-hints '{"marketing-landing-page": {"confidence": 0.85, "impact_bonus": 1, "inject_signals": {"product": 0.4, "ux": 0.4}, "min_complexity": 2, "description": "Brand consistency and conversion matter"}}' \
   "Update hero section copy and CTA button colors"
 ```
@@ -72,7 +72,7 @@ Expected:
 ### 5. Holistic multi-archetype merging
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
   --archetype-hints '{"infrastructure-framework": {"confidence": 0.8, "impact_bonus": 2, "min_complexity": 3, "description": "Core paths"}, "compliance-regulated": {"confidence": 0.7, "impact_bonus": 2, "inject_signals": {"compliance": 0.5, "security": 0.3}, "min_complexity": 3, "description": "Audit requirements"}}' \
   "Update authentication middleware"
 ```
@@ -87,7 +87,7 @@ Expected:
 ### 6. Invalid hints handled gracefully
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
   --archetype-hints '{"bad": "not-a-dict"}' \
   "Normal project description"
 ```
@@ -100,7 +100,7 @@ Expected:
 ### 7. Backward compatibility: no hints
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "Fix a typo in the README"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "Fix a typo in the README"
 ```
 
 Expected:

@@ -1,16 +1,17 @@
 ---
-description: Check component quality (structural + optional full assessment)
-argument-hint: [component-path] [--full]
+description: Check plugin quality (structural + optional full assessment)
+argument-hint: [--full]
 ---
 
-Check marketplace component quality. Fast structural checks by default, full marketplace readiness with --full.
+Check the wicked-garden plugin quality. Fast structural checks by default, full marketplace readiness with --full.
 
 ## Arguments
 
 Parse: $ARGUMENTS
 
-- **component-path**: Path to the plugin to check (e.g., `plugins/wicked-foo`)
 - **--full**: Run comprehensive assessment including product value evaluation
+
+The check always targets the repo root (the single unified plugin). No path argument needed.
 
 ## Quick Check (Default)
 
@@ -22,17 +23,17 @@ Fast structural validation suitable for development iteration and CI.
 
 ```bash
 # Validate plugin.json exists and is valid
-if [[ ! -f "{path}/.claude-plugin/plugin.json" ]]; then
+if [[ ! -f ".claude-plugin/plugin.json" ]]; then
   echo "ERROR: Missing .claude-plugin/plugin.json"
 fi
 
 # Validate version is semver
-version=$(jq -r '.version' "{path}/.claude-plugin/plugin.json")
+version=$(jq -r '.version' ".claude-plugin/plugin.json")
 if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "ERROR: Invalid semver version: $version"
 fi
 
-if ! python3 -m json.tool "{path}/.claude-plugin/plugin.json" > /dev/null 2>&1; then
+if ! python3 -m json.tool ".claude-plugin/plugin.json" > /dev/null 2>&1; then
   echo "ERROR: Invalid JSON in plugin.json"
 fi
 ```
@@ -40,7 +41,7 @@ fi
 ### 2. JSON Validity
 
 ```bash
-for json_file in $(find "{path}" -name "*.json" 2>/dev/null); do
+for json_file in $(find "." -name "*.json" 2>/dev/null); do
   if ! python3 -m json.tool "$json_file" > /dev/null 2>&1; then
     echo "ERROR: Invalid JSON: $json_file"
   fi
@@ -52,7 +53,7 @@ done
 Skills MUST be ≤200 lines:
 
 ```bash
-for skill in $(find "{path}/skills" -name "SKILL.md" 2>/dev/null); do
+for skill in $(find "./skills" -name "SKILL.md" 2>/dev/null); do
   lines=$(wc -l < "$skill")
   name=$(dirname "$skill" | xargs basename)
   if [[ "$lines" -gt 200 ]]; then
@@ -66,7 +67,7 @@ done
 ### 4. Agent Frontmatter
 
 ```bash
-for agent in $(find "{path}/agents" -name "*.md" 2>/dev/null); do
+for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
   name=$(basename "$agent")
   if ! grep -q "^description:" "$agent"; then
     echo "WARNING: $name missing 'description' in frontmatter"
@@ -77,14 +78,14 @@ done
 ### 5. Specialist Schema (if applicable)
 
 ```bash
-if [[ -f "{path}/.claude-plugin/specialist.json" ]]; then
-  plugin_name=$(jq -r '.name' "{path}/.claude-plugin/plugin.json")
-  specialist_name=$(jq -r '.specialist.name' "{path}/.claude-plugin/specialist.json")
+if [[ -f "./.claude-plugin/specialist.json" ]]; then
+  plugin_name=$(jq -r '.name' ".claude-plugin/plugin.json")
+  specialist_name=$(jq -r '.specialist.name' "./.claude-plugin/specialist.json")
   if [[ "$plugin_name" != "$specialist_name" ]]; then
     echo "ERROR: specialist.name does not match plugin.json name"
   fi
 
-  role=$(jq -r '.specialist.role' "{path}/.claude-plugin/specialist.json")
+  role=$(jq -r '.specialist.role' "./.claude-plugin/specialist.json")
   valid_roles="ideation business-strategy project-management quality-engineering devsecops engineering architecture ux product compliance data-engineering research"
   if ! echo "$valid_roles" | grep -qw "$role"; then
     echo "ERROR: Invalid specialist role: $role"
@@ -99,7 +100,7 @@ Skills should discover integrations by capability, not hardcoded tool names.
 ```bash
 DISCOVERY_PATTERNS="check for (sentry|datadog|zendesk|jira|amplitude|aws|azure)|use (sentry|datadog|zendesk|jira|amplitude|aws|azure)"
 
-for skill in $(find "{path}/skills" -name "SKILL.md" 2>/dev/null); do
+for skill in $(find "./skills" -name "SKILL.md" 2>/dev/null); do
   if grep -iE "$DISCOVERY_PATTERNS" "$skill" > /dev/null; then
     echo "WARNING: $(basename $(dirname $skill)) may have hardcoded tool discovery"
   fi
@@ -111,10 +112,10 @@ done
 
 ### 7. README Style Guide
 
-Validate README against the canonical style guide (see `plugins/wicked-startah/skills/readme-style-guide/`):
+Validate README against the canonical style guide (see `skills/startah/readme-style-guide/`):
 
 ```bash
-readme="{path}/README.md"
+readme="./README.md"
 
 # 7a. README exists
 if [[ ! -f "$readme" ]]; then
@@ -158,7 +159,7 @@ fi
 ### Quick Check Output
 
 ```markdown
-## Quick Check: {component-name}
+## Quick Check: wicked-garden
 
 | Check | Status |
 |-------|--------|
@@ -173,7 +174,7 @@ fi
 
 **Result**: PASS / FAIL
 
-[If PASS] Run `/wg-check {path} --full` for marketplace readiness assessment.
+[If PASS] Run `/wg-check --full` for marketplace readiness assessment.
 [If FAIL] Fix errors above before proceeding.
 ```
 
@@ -189,7 +190,7 @@ Invoke the `plugin-dev:plugin-validator` agent via Task tool:
 
 ```
 subagent_type: plugin-dev:plugin-validator
-prompt: "Validate the plugin at [path] for structure, configuration, and compliance."
+prompt: "Validate the plugin at . for structure, configuration, and compliance."
 ```
 
 ### 9. Skill Quality Review
@@ -198,7 +199,7 @@ Invoke the `plugin-dev:skill-reviewer` agent via Task tool:
 
 ```
 subagent_type: plugin-dev:skill-reviewer
-prompt: "Review the skills in [path] for quality and best practices."
+prompt: "Review the skills in . for quality and best practices."
 ```
 
 ### 10. Graceful Degradation
@@ -207,11 +208,11 @@ Check that plugin works standalone with optional enhancements:
 
 ```bash
 # Check README documents integration behavior
-grep -A 10 "## Integration" "{path}/README.md"
+grep -A 10 "## Integration" "./README.md"
 
 # Look for graceful degradation patterns in scripts
-grep -r "try:" "{path}/scripts/" 2>/dev/null | head -3
-grep -r "except" "{path}/scripts/" 2>/dev/null | head -3
+grep -r "try:" "./scripts/" 2>/dev/null | head -3
+grep -r "except" "./scripts/" 2>/dev/null | head -3
 ```
 
 ### 11. Product Value Assessment

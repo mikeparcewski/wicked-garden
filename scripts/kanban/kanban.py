@@ -1,30 +1,30 @@
 """
-Wicked Kanban - Folder-based Storage
+Wicked Kanban - StorageManager-backed kanban board.
 
-File structure:
-    ~/.something-wicked/wicked-kanban/
-    ├── config.json                 # Global config, repo mappings
-    ├── active_context.json         # Current session state
-    └── projects/
-        └── {project-id}/
-            ├── project.json        # Project metadata
-            ├── swimlanes.json      # Swimlane definitions
-            ├── tasks/
-            │   ├── index.json      # Task ID → swimlane mapping
-            │   └── {task-id}.json  # Individual tasks
-            ├── initiatives/
-            │   └── {id}.json
-            └── activity/
-                └── {date}.jsonl    # Daily activity log
+All data flows through StorageManager("wicked-kanban") which routes to the
+Control Plane when available and falls back to local JSON files.
+
+Sources:
+    projects     — project metadata
+    tasks        — individual task records (keyed project:task_id)
+    indexes      — per-project task index (by_swimlane, by_initiative, all)
+    swimlanes    — per-project swimlane definitions
+    initiatives  — per-project initiative records
+    activity     — per-project activity log entries
+    config       — global config and active context
 """
 
 import json
 import os
+import sys
 import uuid
-import fcntl
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, List, Dict
+
+# Resolve _storage from the parent scripts/ directory
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
 
 
 def generate_id() -> str:
@@ -43,7 +43,7 @@ def get_date_str() -> str:
 
 
 class KanbanStore:
-    """Folder-based kanban storage with per-file operations."""
+    """StorageManager-backed kanban storage."""
 
     DEFAULT_SWIMLANES = [
         {"id": "todo", "name": "To Do", "order": 0, "is_complete": False},
@@ -52,96 +52,38 @@ class KanbanStore:
     ]
 
     def __init__(self):
-        self.base_path = Path(os.environ.get(
-            'WICKED_KANBAN_DATA_DIR',
-            str(Path.home() / '.something-wicked' / 'wicked-kanban')
-        ))
-        self.projects_path = self.base_path / 'projects'
-        self._ensure_base_structure()
-
-    def _ensure_base_structure(self):
-        """Create base directory structure."""
-        self.base_path.mkdir(parents=True, exist_ok=True)
-        self.projects_path.mkdir(exist_ok=True)
-
-    # ==================== Path Helpers ====================
-
-    def _project_dir(self, project_id: str) -> Path:
-        return self.projects_path / project_id
-
-    def _project_file(self, project_id: str) -> Path:
-        return self._project_dir(project_id) / "project.json"
-
-    def _swimlanes_file(self, project_id: str) -> Path:
-        return self._project_dir(project_id) / "swimlanes.json"
-
-    def _tasks_dir(self, project_id: str) -> Path:
-        return self._project_dir(project_id) / "tasks"
-
-    def _task_file(self, project_id: str, task_id: str) -> Path:
-        return self._tasks_dir(project_id) / f"{task_id}.json"
-
-    def _task_index_file(self, project_id: str) -> Path:
-        return self._tasks_dir(project_id) / "index.json"
-
-    def _initiatives_dir(self, project_id: str) -> Path:
-        return self._project_dir(project_id) / "initiatives"
-
-    def _initiative_file(self, project_id: str, initiative_id: str) -> Path:
-        return self._initiatives_dir(project_id) / f"{initiative_id}.json"
-
-    def _activity_dir(self, project_id: str) -> Path:
-        return self._project_dir(project_id) / "activity"
-
-    def _activity_file(self, project_id: str, date_str: str = None) -> Path:
-        if not date_str:
-            date_str = get_date_str()
-        return self._activity_dir(project_id) / f"{date_str}.jsonl"
-
-    # ==================== File I/O ====================
-
-    def _read_json(self, path: Path) -> Optional[Dict]:
-        """Read JSON file, return None if not exists."""
-        if not path.exists():
-            return None
-        return json.loads(path.read_text(encoding='utf-8'))
-
-    def _write_json(self, path: Path, data: Dict):
-        """Write JSON file with directory creation."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2), encoding='utf-8')
-
-    def _append_jsonl(self, path: Path, record: Dict):
-        """Append to JSONL file (activity log)."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'a', encoding='utf-8') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            f.write(json.dumps(record) + '\n')
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        self._sm = StorageManager("wicked-kanban")
 
     # ==================== Activity Log ====================
 
     def _log_activity(self, project_id: str, activity_type: str, **kwargs):
         """Append activity to daily log."""
         record = {
+            "id": f"{project_id}:{get_date_str()}:{generate_id()}",
+            "project_id": project_id,
             "ts": get_utc_timestamp(),
             "type": activity_type,
             **kwargs
         }
-        self._append_jsonl(self._activity_file(project_id), record)
+        self._sm.create("activity", record)
 
     # ==================== Task Index ====================
 
     def _load_index(self, project_id: str) -> Dict:
         """Load task index, create if missing."""
-        index = self._read_json(self._task_index_file(project_id))
+        index = self._sm.get("indexes", project_id)
         if not index:
-            index = {"by_swimlane": {}, "by_initiative": {}, "all": []}
+            index = {"id": project_id, "by_swimlane": {}, "by_initiative": {}, "all": []}
         return index
 
     def _save_index(self, project_id: str, index: Dict):
         """Save task index."""
-        self._write_json(self._task_index_file(project_id), index)
+        index["id"] = project_id
+        existing = self._sm.get("indexes", project_id)
+        if existing:
+            self._sm.update("indexes", project_id, index)
+        else:
+            self._sm.create("indexes", index)
 
     def _index_add_task(self, project_id: str, task: Dict):
         """Add task to index."""
@@ -218,37 +160,25 @@ class KanbanStore:
 
     def list_projects(self) -> List[Dict]:
         """List all projects (metadata only)."""
-        projects = []
-        if not self.projects_path.exists():
-            return projects
-        for project_dir in self.projects_path.iterdir():
-            if project_dir.is_dir():
-                project = self._read_json(project_dir / "project.json")
-                if project:
-                    index = self._load_index(project["id"])
-                    project["task_count"] = len(index.get("all", []))
-                    by_swimlane = index.get("by_swimlane", {})
-                    project["todo_count"] = len(by_swimlane.get("todo", []))
-                    project["in_progress_count"] = len(by_swimlane.get("in_progress", []))
-                    project["done_count"] = len(by_swimlane.get("done", []))
-                    projects.append(project)
+        projects = self._sm.list("projects")
+        for project in projects:
+            pid = project.get("id", "")
+            index = self._load_index(pid)
+            project["task_count"] = len(index.get("all", []))
+            by_swimlane = index.get("by_swimlane", {})
+            project["todo_count"] = len(by_swimlane.get("todo", []))
+            project["in_progress_count"] = len(by_swimlane.get("in_progress", []))
+            project["done_count"] = len(by_swimlane.get("done", []))
         return sorted(projects, key=lambda p: p.get("created_at", ""), reverse=True)
 
     def get_project(self, project_id: str) -> Optional[Dict]:
         """Get project metadata."""
-        return self._read_json(self._project_file(project_id))
+        return self._sm.get("projects", project_id)
 
     def create_project(self, name: str, description: str = None,
                        repo_path: str = None) -> Dict:
         """Create a new project with default structure."""
         project_id = generate_id()
-        project_dir = self._project_dir(project_id)
-
-        # Create directories
-        project_dir.mkdir(parents=True, exist_ok=True)
-        self._tasks_dir(project_id).mkdir(exist_ok=True)
-        self._initiatives_dir(project_id).mkdir(exist_ok=True)
-        self._activity_dir(project_id).mkdir(exist_ok=True)
 
         # Project metadata
         project = {
@@ -260,10 +190,13 @@ class KanbanStore:
             "created_by": "claude",
             "archived": False
         }
-        self._write_json(self._project_file(project_id), project)
+        self._sm.create("projects", project)
 
         # Default swimlanes
-        self._write_json(self._swimlanes_file(project_id), self.DEFAULT_SWIMLANES)
+        self._sm.create("swimlanes", {
+            "id": project_id,
+            "lanes": self.DEFAULT_SWIMLANES,
+        })
 
         # Empty index
         self._save_index(project_id, {"by_swimlane": {}, "by_initiative": {}, "all": []})
@@ -280,31 +213,31 @@ class KanbanStore:
             return None
 
         allowed = {'name', 'description', 'repo_path', 'archived'}
+        diff = {}
         for key, value in updates.items():
             if key in allowed:
-                project[key] = value
+                diff[key] = value
 
-        project["updated_at"] = get_utc_timestamp()
-        self._write_json(self._project_file(project_id), project)
+        diff["updated_at"] = get_utc_timestamp()
+        result = self._sm.update("projects", project_id, diff)
         self._log_activity(project_id, "project_updated", updates=list(updates.keys()))
-        return project
+        return result
 
     def delete_project(self, project_id: str) -> bool:
         """Delete a project and all its contents."""
-        project_dir = self._project_dir(project_id)
-        if not project_dir.exists():
+        project = self.get_project(project_id)
+        if not project:
             return False
-
-        import shutil
-        shutil.rmtree(project_dir)
-        return True
+        return self._sm.delete("projects", project_id)
 
     # ==================== Swimlanes ====================
 
     def get_swimlanes(self, project_id: str) -> List[Dict]:
         """Get swimlanes for a project."""
-        swimlanes = self._read_json(self._swimlanes_file(project_id))
-        return swimlanes or []
+        record = self._sm.get("swimlanes", project_id)
+        if record:
+            return record.get("lanes", [])
+        return []
 
     def create_swimlane(self, project_id: str, name: str, **kwargs) -> Optional[Dict]:
         """Create a new swimlane."""
@@ -323,7 +256,7 @@ class KanbanStore:
 
         swimlanes.append(swimlane)
         swimlanes.sort(key=lambda s: s.get("order", 0))
-        self._write_json(self._swimlanes_file(project_id), swimlanes)
+        self._sm.update("swimlanes", project_id, {"lanes": swimlanes})
         return swimlane
 
     def update_swimlane(self, project_id: str, swimlane_id: str, **updates) -> Optional[Dict]:
@@ -337,7 +270,7 @@ class KanbanStore:
                     if key in allowed:
                         swimlane[key] = value
                 swimlanes.sort(key=lambda s: s.get("order", 0))
-                self._write_json(self._swimlanes_file(project_id), swimlanes)
+                self._sm.update("swimlanes", project_id, {"lanes": swimlanes})
                 return swimlane
         return None
 
@@ -345,7 +278,7 @@ class KanbanStore:
 
     def get_task(self, project_id: str, task_id: str) -> Optional[Dict]:
         """Get a single task by ID."""
-        return self._read_json(self._task_file(project_id, task_id))
+        return self._sm.get("tasks", f"{project_id}:{task_id}")
 
     def list_tasks(self, project_id: str, swimlane: str = None,
                    initiative_id: str = None) -> List[Dict]:
@@ -379,7 +312,9 @@ class KanbanStore:
 
         task_id = generate_id()
         task = {
-            "id": task_id,
+            "id": f"{project_id}:{task_id}",
+            "task_id": task_id,
+            "project_id": project_id,
             "name": name,
             "swimlane": swimlane,
             "order": max_order + 1,
@@ -396,8 +331,11 @@ class KanbanStore:
             "updated_at": get_utc_timestamp()
         }
 
-        self._write_json(self._task_file(project_id, task_id), task)
-        self._index_add_task(project_id, task)
+        self._sm.create("tasks", task)
+        # Keep backward compat: index uses short task_id
+        task_for_index = dict(task)
+        task_for_index["id"] = task_id
+        self._index_add_task(project_id, task_for_index)
         self._log_activity(project_id, "task_created", task_id=task_id, task_name=name)
 
         return task
@@ -415,12 +353,15 @@ class KanbanStore:
             'name', 'description', 'swimlane', 'order', 'priority',
             'initiative_id', 'assigned_to', 'depends_on', 'metadata'
         }
+        diff = {}
         for key, value in updates.items():
             if key in allowed:
+                diff[key] = value
                 task[key] = value
 
-        task["updated_at"] = get_utc_timestamp()
-        self._write_json(self._task_file(project_id, task_id), task)
+        diff["updated_at"] = get_utc_timestamp()
+        task["updated_at"] = diff["updated_at"]
+        self._sm.update("tasks", f"{project_id}:{task_id}", diff)
 
         # Update index if swimlane or initiative changed
         new_swimlane = task.get("swimlane")
@@ -436,11 +377,11 @@ class KanbanStore:
 
     def delete_task(self, project_id: str, task_id: str) -> bool:
         """Delete a task."""
-        task_path = self._task_file(project_id, task_id)
-        if not task_path.exists():
+        task = self.get_task(project_id, task_id)
+        if not task:
             return False
 
-        task_path.unlink()
+        self._sm.delete("tasks", f"{project_id}:{task_id}")
         self._index_remove_task(project_id, task_id)
         self._log_activity(project_id, "task_deleted", task_id=task_id)
         return True
@@ -495,9 +436,10 @@ class KanbanStore:
         commits = task.get("commits", [])
         if commit_hash not in commits:
             commits.append(commit_hash)
-            task["commits"] = commits
-            task["updated_at"] = get_utc_timestamp()
-            self._write_json(self._task_file(project_id, task_id), task)
+            self._sm.update("tasks", f"{project_id}:{task_id}", {
+                "commits": commits,
+                "updated_at": get_utc_timestamp(),
+            })
 
         self._log_activity(project_id, "commit_linked", task_id=task_id,
                            commit=commit_hash, message=message)
@@ -524,7 +466,10 @@ class KanbanStore:
 
         task.setdefault("artifacts", []).append(artifact)
         task["updated_at"] = get_utc_timestamp()
-        self._write_json(self._task_file(project_id, task_id), task)
+        self._sm.update("tasks", f"{project_id}:{task_id}", {
+            "artifacts": task["artifacts"],
+            "updated_at": task["updated_at"],
+        })
 
         self._log_activity(project_id, "artifact_added", task_id=task_id,
                            artifact_name=name, artifact_type=artifact_type)
@@ -575,20 +520,12 @@ class KanbanStore:
 
     def list_initiatives(self, project_id: str) -> List[Dict]:
         """List all initiatives in a project."""
-        initiatives_dir = self._initiatives_dir(project_id)
-        if not initiatives_dir.exists():
-            return []
-
-        initiatives = []
-        for f in initiatives_dir.glob("*.json"):
-            initiative = self._read_json(f)
-            if initiative:
-                initiatives.append(initiative)
+        initiatives = self._sm.list("initiatives", project_id=project_id)
         return sorted(initiatives, key=lambda i: i.get("created_at", ""))
 
     def get_initiative(self, project_id: str, initiative_id: str) -> Optional[Dict]:
         """Get a single initiative."""
-        return self._read_json(self._initiative_file(project_id, initiative_id))
+        return self._sm.get("initiatives", f"{project_id}:{initiative_id}")
 
     def create_initiative(self, project_id: str, name: str, **kwargs) -> Optional[Dict]:
         """Create a new initiative."""
@@ -597,7 +534,9 @@ class KanbanStore:
 
         initiative_id = generate_id()
         initiative = {
-            "id": initiative_id,
+            "id": f"{project_id}:{initiative_id}",
+            "initiative_id": initiative_id,
+            "project_id": project_id,
             "name": name,
             "goal": kwargs.get("goal"),
             "status": kwargs.get("status", "planning"),
@@ -607,7 +546,7 @@ class KanbanStore:
             "created_by": kwargs.get("created_by", "claude")
         }
 
-        self._write_json(self._initiative_file(project_id, initiative_id), initiative)
+        self._sm.create("initiatives", initiative)
         self._log_activity(project_id, "initiative_created",
                            initiative_id=initiative_id, initiative_name=name)
         return initiative
@@ -620,30 +559,32 @@ class KanbanStore:
             return None
 
         allowed = {'name', 'goal', 'status', 'start_date', 'end_date'}
+        diff = {}
         for key, value in updates.items():
             if key in allowed:
+                diff[key] = value
                 initiative[key] = value
 
-        initiative["updated_at"] = get_utc_timestamp()
-        self._write_json(self._initiative_file(project_id, initiative_id), initiative)
+        diff["updated_at"] = get_utc_timestamp()
+        initiative["updated_at"] = diff["updated_at"]
+        self._sm.update("initiatives", f"{project_id}:{initiative_id}", diff)
         return initiative
 
     def delete_initiative(self, project_id: str, initiative_id: str) -> bool:
         """Delete an initiative."""
-        path = self._initiative_file(project_id, initiative_id)
-        if not path.exists():
+        initiative = self.get_initiative(project_id, initiative_id)
+        if not initiative:
             return False
 
-        path.unlink()
+        self._sm.delete("initiatives", f"{project_id}:{initiative_id}")
 
         # Clear initiative_id from tasks
         index = self._load_index(project_id)
         task_ids = index.get("by_initiative", {}).get(initiative_id, [])
-        for task_id in task_ids:
-            task = self.get_task(project_id, task_id)
+        for tid in task_ids:
+            task = self.get_task(project_id, tid)
             if task:
-                task["initiative_id"] = None
-                self._write_json(self._task_file(project_id, task_id), task)
+                self._sm.update("tasks", f"{project_id}:{tid}", {"initiative_id": None})
 
         # Update index
         if initiative_id in index.get("by_initiative", {}):
@@ -717,39 +658,29 @@ class KanbanStore:
     def get_activity(self, project_id: str, date_str: str = None,
                      limit: int = 100, **kwargs) -> List[Dict]:
         """Get activity log entries."""
-        # Support 'date' as alias for 'date_str' (HTTP handler compat)
         if date_str is None:
             date_str = kwargs.get("date")
+        params = {"project_id": project_id}
         if date_str:
-            files = [self._activity_file(project_id, date_str)]
-        else:
-            activity_dir = self._activity_dir(project_id)
-            if not activity_dir.exists():
-                return []
-            files = sorted(activity_dir.glob("*.jsonl"), reverse=True)
-
-        entries = []
-        for f in files:
-            if not f.exists():
-                continue
-            with open(f, 'r', encoding='utf-8') as file:
-                for line in file:
-                    if line.strip():
-                        entries.append(json.loads(line))
-                        if len(entries) >= limit:
-                            return entries
-        return entries
+            params["date"] = date_str
+        entries = self._sm.list("activity", **params)
+        return entries[:limit]
 
     # ==================== Config ====================
 
     def get_config(self) -> Dict:
         """Get global config."""
-        config_path = self.base_path / "config.json"
-        return self._read_json(config_path) or {}
+        config = self._sm.get("config", "global")
+        return config or {}
 
     def save_config(self, config: Dict):
         """Save global config."""
-        self._write_json(self.base_path / "config.json", config)
+        config["id"] = "global"
+        existing = self._sm.get("config", "global")
+        if existing:
+            self._sm.update("config", "global", config)
+        else:
+            self._sm.create("config", config)
 
     def get_project_for_repo(self, repo_path: str) -> Optional[str]:
         """Get project ID for a repo path."""
@@ -766,15 +697,20 @@ class KanbanStore:
 
     def get_active_context(self) -> Dict:
         """Get current session context."""
-        ctx_path = self.base_path / "active_context.json"
-        return self._read_json(ctx_path) or {}
+        ctx = self._sm.get("config", "active_context")
+        return ctx or {}
 
     def set_active_context(self, **updates):
         """Update active session context."""
         ctx = self.get_active_context()
         ctx.update(updates)
+        ctx["id"] = "active_context"
         ctx["updated_at"] = get_utc_timestamp()
-        self._write_json(self.base_path / "active_context.json", ctx)
+        existing = self._sm.get("config", "active_context")
+        if existing:
+            self._sm.update("config", "active_context", ctx)
+        else:
+            self._sm.create("config", ctx)
 
     def get_active_task(self) -> Optional[Dict]:
         """Get the currently active task."""

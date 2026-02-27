@@ -1,8 +1,7 @@
 """
 wicked-jam adapter for wicked-smaht.
 
-Queries brainstorming session summaries and insights.
-Uses direct import of jam.jam since all scripts are co-located.
+Queries brainstorming session summaries and insights via Control Plane.
 """
 
 import sys
@@ -11,18 +10,26 @@ from typing import List
 
 from . import ContextItem, _SCRIPTS_ROOT, run_in_thread
 
-# Direct import of the jam module (co-located under scripts/jam/)
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from jam.jam import list_sessions
+from _control_plane import get_client
 
 
 def _get_sessions(query: str, project: str = None) -> list:
-    """Synchronous jam session list — called via run_in_thread for async."""
+    """Query CP for jam sessions."""
     try:
-        data = list_sessions(query=query[:500], limit=10, project=project)
-        return data.get("sessions", [])
+        cp = get_client()
+        params = {}
+        if query:
+            params["q"] = query[:500]
+        if project:
+            params["project"] = project
+
+        resp = cp.request("wicked-jam", "sessions", "list", params=params or None)
+        if resp and isinstance(resp.get("data"), list):
+            return resp["data"]
+        return []
     except Exception:
         return []
 
@@ -38,7 +45,7 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
 
     for session in sessions:
         topic = session.get("topic", "")
-        summary = session.get("summary", "")
+        summary = session.get("summary", "") or session.get("synthesis", {}).get("summary", "")
         created = session.get("created", "")
 
         # Calculate age
@@ -63,16 +70,21 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
         semantic_score = min(semantic_score, 1.0)
 
         if semantic_score > 0.3:
+            perspectives_count = session.get("perspectives_count", 0)
+            if not perspectives_count:
+                perspectives = session.get("perspectives", [])
+                perspectives_count = len(perspectives) if isinstance(perspectives, list) else 0
+
             items.append(ContextItem(
                 id=session.get("id", ""),
                 source="jam",
                 title=f"Brainstorm: {topic}",
-                summary=summary[:200] if summary else f"Session with {session.get('perspectives_count', 0)} perspectives",
+                summary=summary[:200] if summary else f"Session with {perspectives_count} perspectives",
                 excerpt=summary,
                 age_days=age_days,
                 metadata={
                     "topic": topic,
-                    "perspectives_count": session.get("perspectives_count", 0),
+                    "perspectives_count": perspectives_count,
                     "semantic_score": semantic_score,
                 }
             ))

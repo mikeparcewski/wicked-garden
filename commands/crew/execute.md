@@ -165,7 +165,7 @@ At checkpoints (Section 4.5), **reuse cached hints** unless signal re-analysis d
 Include archetype hints when calling smart_decisioning:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
   --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
   "{description}"
 ```
@@ -190,7 +190,7 @@ When a checkpoint phase completes:
 1. **Gather phase artifacts**: Read all files in `phases/{phase}/` and any deliverables produced
 2. **Re-run signal analysis** on the combined project description + phase artifacts:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "{combined text summary of deliverables}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "{combined text summary of deliverables}"
    ```
 3. **Compare signals AND complexity**: Diff new `signals` against project.json `signals_detected`, AND compare new `complexity` against `complexity_score`
 4. **If new signals found OR complexity increased**:
@@ -249,7 +249,7 @@ This applies to ALL calls to `smart_decisioning.py` — both initial analysis (i
 Run specialist discovery to find installed specialist plugins:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/specialist_discovery.py" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/specialist_discovery.py" --json
 ```
 
 This returns all available specialists with their `enhances` declarations (which phases they support).
@@ -579,7 +579,7 @@ If no third-party CLI is available, use installed specialists dynamically:
 
 1. **Discover available specialists**:
    ```bash
-   python3 "{CREW_PLUGIN_ROOT}/scripts/specialist_discovery.py" --json
+   python3 "{CREW_PLUGIN_ROOT}/scripts/crew/specialist_discovery.py" --json
    ```
 
 2. **Filter to reviewers**: Select specialists whose `enhances` list includes the current phase or `"*"`
@@ -763,7 +763,7 @@ For skippable phases:
 
 When skipping a phase, use phase_manager which auto-creates a status.md record:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/phase_manager.py" {project} skip --phase {phase} --reason "{reason}" --approved-by "{who}"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} skip --phase {phase} --reason "{reason}" --approved-by "{who}"
 ```
 
 **Legacy alias**: `qe` maps to `test-strategy` in phases.json. Both names work. When checking phase_plan for injection or skip decisions, always normalize `qe` → `test-strategy` first to prevent duplicate phases.

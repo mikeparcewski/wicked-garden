@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository **is** the **wicked-garden** plugin — a single unified Claude Code plugin that turns Claude into a full engineering team. 18 domain areas provide persistent memory, multi-specialist code review, guided workflows, brainstorming focus groups, structural code search, and more.
+This repository **is** the **wicked-garden** plugin — an AI-Native SDLC delivered as a single Claude Code plugin. 18 domain areas cover the full software development lifecycle: ideation, requirements, architecture, implementation, testing, delivery, operations, and persistent memory/learning.
 
 The `.claude/` directory contains **development tools** (prefixed `wg-`) for building and maintaining the plugin. These tools are NOT distributed to marketplace users — they only work when checked out in this repo.
 

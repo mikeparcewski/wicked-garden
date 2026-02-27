@@ -56,7 +56,7 @@ Read and understand the code:
 
 Discover available E2E scenarios:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/discover_scenarios.py" --check-tools
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/discover_scenarios.py" --check-tools
 ```
 
 If the result has `"available": true` and scenarios exist:

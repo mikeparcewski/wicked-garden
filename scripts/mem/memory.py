@@ -8,30 +8,31 @@ Extends the cache infrastructure with cognitive memory types:
 - Preference: User/agent preferences
 - Working: Current session context
 
-Storage Structure:
-    ~/.something-wicked/wicked-mem/
-    ├── config.yaml
-    ├── core/                    # Global memories
-    │   ├── preferences/
-    │   ├── learnings/
-    │   └── agents/
-    └── projects/               # Project-specific
-        └── {project}/
-            ├── episodic/
-            ├── procedural/
-            ├── decisions/
-            └── working/
+All data flows through StorageManager("wicked-mem") which routes to the
+Control Plane when available and falls back to local JSON files.
+
+Sources:
+    episodic     — event-based memories
+    procedural   — how-to knowledge
+    decision     — choice rationales
+    preference   — user/agent preferences
+    working      — current session context
 """
 
 import json
 import os
 import subprocess
+import sys
 import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional, List, Dict
+
+# Resolve _storage from the parent scripts/ directory
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
 
 
 class MemoryType(Enum):
@@ -121,7 +122,7 @@ def generate_id() -> str:
 
 
 class MemoryStore:
-    """Core memory storage and operations."""
+    """StorageManager-backed memory storage and operations."""
 
     def __init__(self, project: Optional[str] = None):
         """
@@ -132,13 +133,11 @@ class MemoryStore:
                     If None, will try to detect from current directory.
         """
         self.project = project or self._detect_project()
-        self.base_path = Path.home() / ".something-wicked" / "wicked-mem"
-        self._ensure_structure()
+        self._sm = StorageManager("wicked-mem")
 
     def _detect_project(self) -> Optional[str]:
         """Detect project name from current directory."""
         cwd = Path.cwd()
-        # Look for common project indicators
         if (cwd / ".git").exists():
             return cwd.name
         if (cwd / "package.json").exists():
@@ -147,192 +146,60 @@ class MemoryStore:
             return cwd.name
         return None
 
-    def _ensure_structure(self):
-        """Create directory structure if needed."""
-        # Core directories
-        (self.base_path / "core" / "preferences").mkdir(parents=True, exist_ok=True)
-        (self.base_path / "core" / "learnings").mkdir(parents=True, exist_ok=True)
-        (self.base_path / "core" / "agents").mkdir(parents=True, exist_ok=True)
+    def _source_for_type(self, mem_type: str) -> str:
+        """Map memory type string to StorageManager source name."""
+        return {
+            "episodic": "episodic",
+            "procedural": "procedural",
+            "decision": "decision",
+            "preference": "preference",
+            "working": "working",
+        }.get(mem_type, "episodic")
 
-        # Project directories
-        if self.project:
-            project_path = self.base_path / "projects" / self.project
-            for subdir in ["episodic", "procedural", "decisions", "working"]:
-                (project_path / subdir).mkdir(parents=True, exist_ok=True)
+    def _memory_to_dict(self, memory: Memory) -> Dict:
+        """Convert Memory dataclass to a dict for storage."""
+        return asdict(memory)
 
-    def _get_path(self, memory: Memory) -> Path:
-        """Get file path for a memory."""
-        scope = Scope(memory.scope)
-        mem_type = MemoryType(memory.type)
-
-        if scope == Scope.GLOBAL:
-            if mem_type == MemoryType.PREFERENCE:
-                return self.base_path / "core" / "preferences" / f"{memory.id}.md"
-            else:
-                return self.base_path / "core" / "learnings" / f"{memory.id}.md"
-        else:
-            # Project scope
-            project = memory.project or self.project or "default"
-            type_dir = {
-                MemoryType.EPISODIC: "episodic",
-                MemoryType.PROCEDURAL: "procedural",
-                MemoryType.DECISION: "decisions",
-                MemoryType.PREFERENCE: "preferences",
-                MemoryType.WORKING: "working",
-            }.get(mem_type, "episodic")
-
-            return self.base_path / "projects" / project / type_dir / f"{memory.id}.md"
-
-    def _to_markdown(self, memory: Memory) -> str:
-        """Convert memory to markdown with frontmatter."""
-        # Build frontmatter
-        fm = {
-            "id": memory.id,
-            "type": memory.type,
-            "created": memory.created,
-            "accessed": memory.accessed,
-            "access_count": memory.access_count,
-            "accessed_by": memory.accessed_by,
-            "author": memory.author,
-            "importance": memory.importance,
-            "status": memory.status,
-            "tags": memory.tags,
-            "scope": memory.scope,
-            "source": memory.source,
-        }
-
-        # Optional fields
-        if memory.agent_id:
-            fm["agent_id"] = memory.agent_id
-        if memory.agent_type:
-            fm["agent_type"] = memory.agent_type
-        if memory.shared_with != ["all"]:
-            fm["shared_with"] = memory.shared_with
-        if memory.ttl_days:
-            fm["ttl_days"] = memory.ttl_days
-        if memory.related:
-            fm["related"] = memory.related
-        if memory.project:
-            fm["project"] = memory.project
-        if memory.session_id:
-            fm["session_id"] = memory.session_id
-
-        # Build markdown
-        lines = ["---"]
-        for key, value in fm.items():
-            if isinstance(value, list):
-                lines.append(f"{key}: {json.dumps(value)}")
-            else:
-                lines.append(f"{key}: {value}")
-        lines.append("---")
-        lines.append("")
-        lines.append(f"# {memory.title}")
-        lines.append("")
-        lines.append("## Summary")
-        lines.append(memory.summary)
-        lines.append("")
-        lines.append("## Content")
-        lines.append(memory.content)
-        lines.append("")
-        lines.append("## Context")
-        lines.append(memory.context)
-
-        if memory.outcome:
-            lines.append("")
-            lines.append("## Outcome")
-            lines.append(memory.outcome)
-
-        return "\n".join(lines)
-
-    def _from_markdown(self, path: Path) -> Optional[Memory]:
-        """Parse memory from markdown file."""
-        if not path.exists():
+    def _dict_to_memory(self, data: Dict) -> Optional[Memory]:
+        """Convert a stored dict back to a Memory object."""
+        if not data:
             return None
-
-        content = path.read_text(encoding="utf-8")
-
-        # Parse frontmatter
-        if not content.startswith("---"):
-            return None
-
-        parts = content.split("---", 2)
-        if len(parts) < 3:
-            return None
-
-        fm_text = parts[1].strip()
-        body = parts[2].strip()
-
-        # Parse frontmatter (simple YAML-like)
-        fm = {}
-        for line in fm_text.split("\n"):
-            if ":" in line:
-                key, value = line.split(":", 1)
-                key = key.strip()
-                value = value.strip()
-                # Try to parse JSON values (lists)
-                if value.startswith("["):
-                    try:
-                        value = json.loads(value)
-                    except:
-                        pass
-                fm[key] = value
-
-        # Parse body sections
-        sections = {}
-        current_section = None
-        current_content = []
-
-        for line in body.split("\n"):
-            if line.startswith("## "):
-                if current_section:
-                    sections[current_section] = "\n".join(current_content).strip()
-                current_section = line[3:].strip().lower()
-                current_content = []
-            elif line.startswith("# "):
-                fm["title"] = line[2:].strip()
-            else:
-                current_content.append(line)
-
-        if current_section:
-            sections[current_section] = "\n".join(current_content).strip()
-
-        # Convert access_count to int
-        access_count = fm.get("access_count", 0)
+        # Ensure numeric types
+        access_count = data.get("access_count", 0)
         if isinstance(access_count, str):
             access_count = int(access_count)
-
-        # Convert ttl_days to int if present
-        ttl_days = fm.get("ttl_days")
+        ttl_days = data.get("ttl_days")
         if isinstance(ttl_days, str):
             ttl_days = int(ttl_days)
-
-        # Build Memory object
-        return Memory(
-            id=fm.get("id", generate_id()),
-            type=fm.get("type", "episodic"),
-            title=fm.get("title", "Untitled"),
-            summary=sections.get("summary", ""),
-            content=sections.get("content", ""),
-            context=sections.get("context", ""),
-            outcome=sections.get("outcome"),
-            author=fm.get("author", "claude"),
-            agent_id=fm.get("agent_id"),
-            agent_type=fm.get("agent_type"),
-            shared_with=fm.get("shared_with", ["all"]),
-            created=fm.get("created", datetime.now(timezone.utc).isoformat() + "Z"),
-            accessed=fm.get("accessed", datetime.now(timezone.utc).isoformat() + "Z"),
-            access_count=access_count,
-            accessed_by=fm.get("accessed_by", []),
-            ttl_days=ttl_days,
-            importance=fm.get("importance", "medium"),
-            status=fm.get("status", "active"),
-            tags=fm.get("tags", []),
-            related=fm.get("related", []),
-            scope=fm.get("scope", "project"),
-            project=fm.get("project"),
-            source=fm.get("source", "manual"),
-            session_id=fm.get("session_id"),
-        )
+        try:
+            return Memory(
+                id=data.get("id", generate_id()),
+                type=data.get("type", "episodic"),
+                title=data.get("title", "Untitled"),
+                summary=data.get("summary", ""),
+                content=data.get("content", ""),
+                context=data.get("context", ""),
+                outcome=data.get("outcome"),
+                author=data.get("author", "claude"),
+                agent_id=data.get("agent_id"),
+                agent_type=data.get("agent_type"),
+                shared_with=data.get("shared_with", ["all"]),
+                created=data.get("created", datetime.now(timezone.utc).isoformat() + "Z"),
+                accessed=data.get("accessed", datetime.now(timezone.utc).isoformat() + "Z"),
+                access_count=access_count,
+                accessed_by=data.get("accessed_by", []),
+                ttl_days=ttl_days,
+                importance=data.get("importance", "medium"),
+                status=data.get("status", "active"),
+                tags=data.get("tags", []),
+                related=data.get("related", []),
+                scope=data.get("scope", "project"),
+                project=data.get("project"),
+                source=data.get("source", "manual"),
+                session_id=data.get("session_id"),
+            )
+        except Exception:
+            return None
 
     # ==================== Core Operations ====================
 
@@ -352,12 +219,7 @@ class MemoryStore:
         source: str = "manual",
         session_id: Optional[str] = None,
     ) -> Memory:
-        """
-        Store a new memory.
-
-        Returns:
-            The created Memory object
-        """
+        """Store a new memory."""
         memory = Memory(
             id=generate_id(),
             type=type.value,
@@ -377,10 +239,8 @@ class MemoryStore:
             session_id=session_id,
         )
 
-        path = self._get_path(memory)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self._to_markdown(memory), encoding="utf-8")
-
+        source_name = self._source_for_type(memory.type)
+        self._sm.create(source_name, self._memory_to_dict(memory))
         return memory
 
     def recall(
@@ -393,62 +253,31 @@ class MemoryStore:
         include_archived: bool = False,
         all_projects: bool = False,
     ) -> List[Memory]:
-        """
-        Recall memories matching criteria.
-
-        Uses ripgrep for pattern matching.
-
-        Args:
-            query: Text to search for in memory content
-            tags: Filter by tags (any match)
-            type: Filter by memory type
-            scope: Filter by scope (PROJECT or GLOBAL)
-            limit: Max results to return
-            include_archived: Include archived memories
-            all_projects: Search ALL projects, not just current (like kanban search)
-        """
-        memories = []
-        seen_ids = set()  # Deduplication like kanban
-
-        # Determine search paths
-        search_paths = []
-        if scope == Scope.GLOBAL or scope is None:
-            search_paths.append(self.base_path / "core")
-
-        if scope == Scope.PROJECT or scope is None:
-            projects_path = self.base_path / "projects"
-            if all_projects and projects_path.exists():
-                # Search ALL projects (like kanban does)
-                for project_dir in projects_path.iterdir():
-                    if project_dir.is_dir():
-                        search_paths.append(project_dir)
-            elif self.project:
-                # Just current project
-                search_paths.append(projects_path / self.project)
-
-        for search_path in search_paths:
-            if not search_path.exists():
-                continue
-
-            # Use ripgrep if we have a query
-            if query:
-                matches = self._ripgrep_search(query, search_path)
-                for match_path in matches:
-                    memory = self._from_markdown(Path(match_path))
-                    if memory and memory.id not in seen_ids:
-                        seen_ids.add(memory.id)
-                        memories.append(memory)
-            else:
-                # List all memories in path
-                for md_file in search_path.rglob("*.md"):
-                    memory = self._from_markdown(md_file)
-                    if memory and memory.id not in seen_ids:
-                        seen_ids.add(memory.id)
-                        memories.append(memory)
-
-        # Filter by type
+        """Recall memories matching criteria."""
+        # Determine which sources to search
         if type:
-            memories = [m for m in memories if m.type == type.value]
+            sources = [self._source_for_type(type.value)]
+        else:
+            sources = ["episodic", "procedural", "decision", "preference", "working"]
+
+        memories = []
+        seen_ids = set()
+
+        for src in sources:
+            params = {}
+            if query:
+                params["q"] = query
+            if not all_projects and self.project:
+                params["project"] = self.project
+            if scope:
+                params["scope"] = scope.value
+
+            records = self._sm.list(src, **params)
+            for record in records:
+                memory = self._dict_to_memory(record)
+                if memory and memory.id not in seen_ids:
+                    seen_ids.add(memory.id)
+                    memories.append(memory)
 
         # Filter by tags
         if tags:
@@ -469,40 +298,19 @@ class MemoryStore:
 
     def search(self, pattern: str, path: Optional[str] = None,
                all_projects: bool = False) -> List[Memory]:
-        """
-        Ripgrep-based pattern search across memories.
-
-        Scoped to global (core/) + current project by default, matching
-        the same scoping behaviour as recall().
-
-        Args:
-            pattern: Regex pattern (e.g., "auth.*error")
-            path: Optional subdirectory to search (overrides scoping)
-            all_projects: Search ALL projects, not just current
-        """
-        # If an explicit path is given, honour it directly
-        if path:
-            search_paths = [self.base_path / path]
-        else:
-            # Default: core + current project (same as recall)
-            search_paths = [self.base_path / "core"]
-            projects_path = self.base_path / "projects"
-            if all_projects and projects_path.exists():
-                # Search the projects parent dir once (O(1) ripgrep call)
-                # instead of iterating each project subdirectory (O(N)).
-                search_paths.append(projects_path)
-            elif self.project:
-                search_paths.append(projects_path / self.project)
-
+        """Search memories via StorageManager."""
+        sources = ["episodic", "procedural", "decision", "preference", "working"]
         memories = []
         seen_ids: set = set()
 
-        for search_path in search_paths:
-            if not search_path.exists():
-                continue
-            matches = self._ripgrep_search(pattern, search_path)
-            for match_path in matches:
-                memory = self._from_markdown(Path(match_path))
+        for src in sources:
+            params = {"q": pattern}
+            if not all_projects and self.project:
+                params["project"] = self.project
+
+            records = self._sm.list(src, **params)
+            for record in records:
+                memory = self._dict_to_memory(record)
                 if memory and memory.status == MemoryStatus.ACTIVE.value:
                     if memory.id not in seen_ids:
                         seen_ids.add(memory.id)
@@ -517,45 +325,22 @@ class MemoryStore:
         include_archived: bool = False,
         limit: int = 50,
     ) -> List[Dict]:
-        """
-        Search ALL memories across ALL projects with enriched results.
-
-        Like kanban's search, this searches everywhere and returns
-        structured results with project context and match type.
-
-        Args:
-            query: Search query (case-insensitive)
-            include_archived: Include archived memories
-            limit: Max results
-
-        Returns:
-            List of dicts with: id, title, type, project, match_type, tags, importance
-        """
+        """Search ALL memories across ALL projects with enriched results."""
         results = []
         seen_ids = set()
         query_lower = query.lower()
 
-        # Search all paths
-        search_paths = [self.base_path / "core"]
-        projects_path = self.base_path / "projects"
-        if projects_path.exists():
-            for project_dir in projects_path.iterdir():
-                if project_dir.is_dir():
-                    search_paths.append(project_dir)
-
-        for search_path in search_paths:
-            if not search_path.exists():
-                continue
-
-            for md_file in search_path.rglob("*.md"):
-                memory = self._from_markdown(md_file)
+        sources = ["episodic", "procedural", "decision", "preference", "working"]
+        for src in sources:
+            records = self._sm.list(src, q=query)
+            for record in records:
+                memory = self._dict_to_memory(record)
                 if not memory or memory.id in seen_ids:
                     continue
-
                 if not include_archived and memory.status != MemoryStatus.ACTIVE.value:
                     continue
 
-                # Determine match type (where the query matched)
+                # Determine match type
                 match_type = None
                 if query_lower in memory.title.lower():
                     match_type = "title"
@@ -581,193 +366,125 @@ class MemoryStore:
                         "summary": memory.summary[:100] + "..." if len(memory.summary) > 100 else memory.summary,
                         "access_count": memory.access_count,
                     })
-
                     if len(results) >= limit:
                         break
-
             if len(results) >= limit:
                 break
 
-        # Sort by importance (high first) then access count
         importance_order = {"high": 0, "medium": 1, "low": 2}
         results.sort(key=lambda r: (importance_order.get(r["importance"], 1), -r["access_count"]))
-
         return results[:limit]
 
     def forget(self, memory_id: str, hard: bool = False) -> bool:
-        """
-        Archive (soft) or delete (hard) a memory.
-        """
+        """Archive (soft) or delete (hard) a memory."""
         memory = self.get(memory_id)
         if not memory:
             return False
 
-        path = self._get_path(memory)
-
+        source_name = self._source_for_type(memory.type)
         if hard:
-            path.unlink(missing_ok=True)
+            self._sm.delete(source_name, memory_id)
         else:
-            memory.status = MemoryStatus.ARCHIVED.value
-            path.write_text(self._to_markdown(memory), encoding="utf-8")
-
+            self._sm.update(source_name, memory_id, {"status": MemoryStatus.ARCHIVED.value})
         return True
 
     def get(self, memory_id: str) -> Optional[Memory]:
         """Get a specific memory by ID."""
-        # Search all paths for the memory
-        for md_file in self.base_path.rglob(f"{memory_id}.md"):
-            memory = self._from_markdown(md_file)
-            if memory:
-                return memory
+        # Search all sources for the memory
+        for src in ["episodic", "procedural", "decision", "preference", "working"]:
+            record = self._sm.get(src, memory_id)
+            if record:
+                return self._dict_to_memory(record)
         return None
 
     def link(self, source_id: str, target_id: str) -> bool:
         """Link two related memories."""
-        source = self.get(source_id)
-        target = self.get(target_id)
+        source_mem = self.get(source_id)
+        target_mem = self.get(target_id)
 
-        if not source or not target:
+        if not source_mem or not target_mem:
             return False
 
-        if target_id not in source.related:
-            source.related.append(target_id)
-            path = self._get_path(source)
-            path.write_text(self._to_markdown(source), encoding="utf-8")
+        if target_id not in source_mem.related:
+            source_mem.related.append(target_id)
+            src = self._source_for_type(source_mem.type)
+            self._sm.update(src, source_id, {"related": source_mem.related})
 
-        if source_id not in target.related:
-            target.related.append(source_id)
-            path = self._get_path(target)
-            path.write_text(self._to_markdown(target), encoding="utf-8")
+        if source_id not in target_mem.related:
+            target_mem.related.append(source_id)
+            src = self._source_for_type(target_mem.type)
+            self._sm.update(src, target_id, {"related": target_mem.related})
 
         return True
 
     # ==================== Decay Management ====================
 
     def run_decay(self) -> Dict[str, int]:
-        """
-        Run decay process.
-
-        Returns counts of archived and deleted memories.
-        """
+        """Run decay process."""
         archived = 0
         deleted = 0
 
-        for md_file in self.base_path.rglob("*.md"):
-            memory = self._from_markdown(md_file)
-            if not memory:
-                continue
+        for src in ["episodic", "procedural", "decision", "preference", "working"]:
+            records = self._sm.list(src)
+            for record in records:
+                memory = self._dict_to_memory(record)
+                if not memory:
+                    continue
 
-            # Check if should decay
-            if memory.status == MemoryStatus.ACTIVE.value:
-                if self._should_archive(memory):
-                    memory.status = MemoryStatus.ARCHIVED.value
-                    md_file.write_text(self._to_markdown(memory), encoding="utf-8")
-                    archived += 1
+                if memory.status == MemoryStatus.ACTIVE.value:
+                    if self._should_archive(memory):
+                        self._sm.update(src, memory.id, {"status": MemoryStatus.ARCHIVED.value})
+                        archived += 1
 
-            elif memory.status == MemoryStatus.DECAYED.value:
-                # Check if should delete (7 days after decay)
-                decayed_at = datetime.fromisoformat(memory.accessed.replace("Z", "+00:00"))
-                if datetime.now(decayed_at.tzinfo) - decayed_at > timedelta(days=7):
-                    md_file.unlink()
-                    deleted += 1
+                elif memory.status == MemoryStatus.DECAYED.value:
+                    decayed_at = datetime.fromisoformat(memory.accessed.replace("Z", "+00:00"))
+                    if datetime.now(decayed_at.tzinfo) - decayed_at > timedelta(days=7):
+                        self._sm.delete(src, memory.id)
+                        deleted += 1
 
-            elif memory.status == MemoryStatus.ARCHIVED.value:
-                # Check if should mark as decayed (30 days after archive without access)
-                accessed_at = datetime.fromisoformat(memory.accessed.replace("Z", "+00:00"))
-                if datetime.now(accessed_at.tzinfo) - accessed_at > timedelta(days=30):
-                    memory.status = MemoryStatus.DECAYED.value
-                    md_file.write_text(self._to_markdown(memory), encoding="utf-8")
+                elif memory.status == MemoryStatus.ARCHIVED.value:
+                    accessed_at = datetime.fromisoformat(memory.accessed.replace("Z", "+00:00"))
+                    if datetime.now(accessed_at.tzinfo) - accessed_at > timedelta(days=30):
+                        self._sm.update(src, memory.id, {"status": MemoryStatus.DECAYED.value})
 
         return {"archived": archived, "deleted": deleted}
 
     def _should_archive(self, memory: Memory) -> bool:
         """Check if memory should be archived based on TTL and access."""
         if memory.ttl_days is None:
-            return False  # Permanent
+            return False
 
-        # Calculate effective TTL with access boost
         importance_mult = {"low": 0.5, "medium": 1.0, "high": 2.0}.get(memory.importance, 1.0)
         access_boost = 1 + (memory.access_count * 0.1)
         effective_ttl = memory.ttl_days * importance_mult * access_boost
 
         created_at = datetime.fromisoformat(memory.created.replace("Z", "+00:00"))
         age_days = (datetime.now(created_at.tzinfo) - created_at).days
-
         return age_days > effective_ttl
 
     def _update_access(self, memory: Memory):
         """Update access timestamp and count."""
         memory.accessed = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         memory.access_count += 1
-
-        path = self._get_path(memory)
-        if path.exists():
-            path.write_text(self._to_markdown(memory), encoding="utf-8")
-
-    # ==================== Search Helpers ====================
-
-    def _ripgrep_search(self, pattern: str, search_path: Path) -> List[str]:
-        """Search using ripgrep, with Python fallback."""
-        try:
-            result = subprocess.run(
-                [
-                    "rg",
-                    "-l",              # Files only
-                    "-i",              # Case insensitive
-                    "--type", "md",    # Markdown files
-                    pattern,
-                    str(search_path)
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                return [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
-            # ripgrep found no matches
-            if result.returncode == 1:
-                return []
-        except FileNotFoundError:
-            # ripgrep not installed, fall back to Python search
-            pass
-
-        # Python fallback: simple case-insensitive search
-        return self._python_search(pattern, search_path)
-
-    def _python_search(self, pattern: str, search_path: Path) -> List[str]:
-        """Fallback search using Python when ripgrep is not available."""
-        import re
-        matches = []
-        pattern_lower = pattern.lower()
-
-        # Handle regex patterns by compiling, or use simple contains for plain text
-        try:
-            regex = re.compile(pattern, re.IGNORECASE)
-            use_regex = True
-        except re.error:
-            use_regex = False
-
-        for md_file in search_path.rglob("*.md"):
-            try:
-                content = md_file.read_text(encoding="utf-8")
-                if use_regex:
-                    if regex.search(content):
-                        matches.append(str(md_file))
-                else:
-                    if pattern_lower in content.lower():
-                        matches.append(str(md_file))
-            except (IOError, UnicodeDecodeError):
-                continue
-
-        return matches
+        source_name = self._source_for_type(memory.type)
+        self._sm.update(source_name, memory.id, {
+            "accessed": memory.accessed,
+            "access_count": memory.access_count,
+        })
 
     # ==================== Utility ====================
 
     def list_projects(self) -> List[str]:
         """List all projects with memories."""
-        projects_path = self.base_path / "projects"
-        if not projects_path.exists():
-            return []
-        return [p.name for p in projects_path.iterdir() if p.is_dir()]
+        # Query all sources for distinct projects
+        projects = set()
+        for src in ["episodic", "procedural", "decision", "preference", "working"]:
+            records = self._sm.list(src)
+            for record in records:
+                proj = record.get("project")
+                if proj:
+                    projects.add(proj)
+        return sorted(projects)
 
     def stats(self) -> Dict:
         """Get memory statistics."""
@@ -779,17 +496,18 @@ class MemoryStore:
             "by_tag": {},
         }
 
-        for md_file in self.base_path.rglob("*.md"):
-            memory = self._from_markdown(md_file)
-            if not memory:
-                continue
-
-            stats["total"] += 1
-            stats["by_type"][memory.type] = stats["by_type"].get(memory.type, 0) + 1
-            stats["by_status"][memory.status] = stats["by_status"].get(memory.status, 0) + 1
-            stats["by_scope"][memory.scope] = stats["by_scope"].get(memory.scope, 0) + 1
-            for tag in memory.tags:
-                stats["by_tag"][tag] = stats["by_tag"].get(tag, 0) + 1
+        for src in ["episodic", "procedural", "decision", "preference", "working"]:
+            records = self._sm.list(src)
+            for record in records:
+                memory = self._dict_to_memory(record)
+                if not memory:
+                    continue
+                stats["total"] += 1
+                stats["by_type"][memory.type] = stats["by_type"].get(memory.type, 0) + 1
+                stats["by_status"][memory.status] = stats["by_status"].get(memory.status, 0) + 1
+                stats["by_scope"][memory.scope] = stats["by_scope"].get(memory.scope, 0) + 1
+                for tag in memory.tags:
+                    stats["by_tag"][tag] = stats["by_tag"].get(tag, 0) + 1
 
         return stats
 
@@ -941,16 +659,18 @@ def main():
         from datetime import datetime, timezone, timedelta
 
         all_memories = []
-        for md_file in ms.base_path.rglob("*.md"):
-            memory = ms._from_markdown(md_file)
-            if memory and memory.status == MemoryStatus.ACTIVE.value:
-                # Filter by project if specified
-                if args.project and memory.project != args.project:
-                    continue
-                # Filter by type if specified
-                if args.type and memory.type != args.type:
-                    continue
-                all_memories.append(memory)
+        sources = ["episodic", "procedural", "decision", "preference", "working"]
+        for src in sources:
+            params = {}
+            if args.project:
+                params["project"] = args.project
+            records = ms._sm.list(src, **params)
+            for record in records:
+                memory = ms._dict_to_memory(record)
+                if memory and memory.status == MemoryStatus.ACTIVE.value:
+                    if args.type and memory.type != args.type:
+                        continue
+                    all_memories.append(memory)
 
         # Calculate age for each memory
         now = datetime.now(timezone.utc)
@@ -1037,19 +757,19 @@ def main():
             print(f"Not found: {args.id}")
             return 1
 
-        # Update fields
+        # Build diff
+        diff = {}
         if args.title:
-            memory.title = args.title
+            diff["title"] = args.title
         if args.summary:
-            memory.summary = args.summary
+            diff["summary"] = args.summary
         if args.tags:
-            memory.tags = args.tags.split(",")
+            diff["tags"] = args.tags.split(",")
         if args.importance:
-            memory.importance = args.importance
+            diff["importance"] = args.importance
 
-        # Save
-        path = ms._get_path(memory)
-        path.write_text(ms._to_markdown(memory), encoding="utf-8")
+        source_name = ms._source_for_type(memory.type)
+        ms._sm.update(source_name, args.id, diff)
         print(f"Updated: {args.id}")
 
     elif args.operation == "archive":

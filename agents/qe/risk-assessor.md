@@ -65,7 +65,7 @@ Consider:
 
 Discover available scenarios:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/discover_scenarios.py" --check-tools
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/discover_scenarios.py" --check-tools
 ```
 
 If `"available": true`:

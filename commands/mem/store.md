@@ -24,7 +24,7 @@ Run from the plugin directory using available Python:
 
 ```bash
 cd "${CLAUDE_PLUGIN_ROOT}"
-python3 scripts/memory.py store \
+python3 scripts/mem/memory.py store \
   --title "SHORT_TITLE_HERE" \
   --content "CONTENT_HERE" \
   --type TYPE_HERE \

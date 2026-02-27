@@ -52,7 +52,7 @@ TASK_TITLE=${3:-"Multi-model review"}
 echo "Creating kanban task..."
 TASK_ID=$(python3 -c "
 import subprocess
-result = subprocess.run(['python3', 'plugins/wicked-kanban/scripts/kanban.py',
+result = subprocess.run(['python3', 'scripts/kanban/kanban.py',
                         'create', '--title', '$TASK_TITLE', '--priority', 'P1'],
                        capture_output=True, text=True)
 print(result.stdout.strip().split()[-1])
@@ -86,7 +86,7 @@ if [[ -n "$OPENCODE_RESP" ]]; then
 fi
 
 # Add all perspectives as comment
-echo -e "$PERSPECTIVES" | python3 plugins/wicked-kanban/scripts/kanban.py \
+echo -e "$PERSPECTIVES" | python3 scripts/kanban/kanban.py \
   comment "$TASK_ID" --stdin 2>/dev/null
 
 echo "All perspectives added to task $TASK_ID"

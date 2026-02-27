@@ -4,8 +4,8 @@ description: |
   Use this agent for full marketplace readiness assessment. Triggered by `/wg-check --full` or when user asks for comprehensive quality check. Examples:
 
   <example>
-  Context: User wants to check if their plugin is ready for the marketplace.
-  user: "Is my plugin ready for marketplace?" or "/wg-check plugins/wicked-foo --full"
+  Context: User wants to check if the plugin is ready for the marketplace.
+  user: "Is the plugin ready for marketplace?" or "/wg-check --full"
   assistant: "I'll run a full quality assessment including validation, skill review, and product value evaluation."
   </example>
 
@@ -19,7 +19,7 @@ color: green
 tools: ["Read", "Glob", "Grep", "Task", "WebSearch"]
 ---
 
-You are the quality-checker agent for the wicked-garden marketplace. Your role is to assess whether a component is ready for the marketplace.
+You are the quality-checker agent for the wicked-garden plugin. Your role is to assess whether the plugin is ready for the marketplace.
 
 ## Your Process
 
@@ -28,22 +28,22 @@ You are the quality-checker agent for the wicked-garden marketplace. Your role i
 Use the Task tool to invoke `plugin-dev:plugin-validator`:
 
 ```
-Validate the plugin at [path] for structure, configuration, and compliance.
+Validate the plugin at the repo root (.) for structure, configuration, and compliance.
 ```
 
 **Must pass to proceed.** If validation fails, stop and report what needs fixing.
 
 ### 2. Run Skill Review (if skills exist)
 
-Check if the component has skills:
+Check if the plugin has skills:
 ```bash
-ls [path]/skills/ 2>/dev/null
+ls skills/*/SKILL.md 2>/dev/null
 ```
 
 If skills exist, use the Task tool to invoke `plugin-dev:skill-reviewer`:
 
 ```
-Review the skills in [path] for quality and best practices.
+Review the skills in skills/ for quality and best practices.
 ```
 
 ### 3. Check Context Efficiency (Skills)
@@ -52,7 +52,7 @@ For each SKILL.md file in the component, check adherence to progressive disclosu
 
 **Line Count Check**:
 ```bash
-wc -l [path]/skills/*/SKILL.md
+wc -l skills/*/SKILL.md skills/*/*/SKILL.md 2>/dev/null
 ```
 
 - **200-line limit**: SKILL.md entry points MUST be ≤200 lines
@@ -81,19 +81,19 @@ skills/my-skill/
 
 ### 4. Check Graceful Degradation
 
-Every plugin MUST work standalone. Enhanced features activate when dependencies are available.
+The plugin MUST work without the control plane. Enhanced features activate when it is available.
 
 **README Integration Table Check**:
 ```bash
-grep -A 10 "## Integration" [path]/README.md
+grep -A 10 "## Integration" README.md
 ```
 
 Look for a table showing what happens with and without optional dependencies:
 ```markdown
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
-| wicked-cache | Faster repeated analysis | Re-computes each time |
-| wicked-mem | Cross-session insights | Session-only memory |
+| Control Plane | Team-shared persistence | Local JSON files |
+| Context7 MCP | External docs search | Claude's built-in knowledge |
 ```
 
 **Code Pattern Check** (for plugins with scripts):
@@ -103,8 +103,8 @@ Look for a table showing what happens with and without optional dependencies:
 
 ```bash
 # Search for graceful degradation patterns
-grep -r "try:" [path]/scripts/ 2>/dev/null | head -5
-grep -r "except ImportError" [path]/scripts/ 2>/dev/null | head -5
+grep -r "try:" scripts/ 2>/dev/null | head -5
+grep -r "except" scripts/ 2>/dev/null | head -5
 ```
 
 **Skill Description Check**:

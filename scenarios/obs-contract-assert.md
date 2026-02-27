@@ -20,8 +20,8 @@ Covers Layer 3 (contract assertions) of the observability stack.
 
 ```bash
 # Confirm the script exists before running steps
-if [ ! -f "plugins/wicked-observability/scripts/assert_contracts.py" ]; then
-  echo "FAIL: assert_contracts.py not found at plugins/wicked-observability/scripts/assert_contracts.py"
+if [ ! -f "scripts/observability/assert_contracts.py" ]; then
+  echo "FAIL: assert_contracts.py not found at scripts/observability/assert_contracts.py"
   exit 1
 fi
 echo "OK: assert_contracts.py found"
@@ -34,7 +34,7 @@ echo "OK: assert_contracts.py found"
 ### Step 1: Run contract assertion against wicked-observability (python3)
 
 ```bash
-python3 plugins/wicked-observability/scripts/assert_contracts.py \
+python3 scripts/observability/assert_contracts.py \
   --plugin wicked-observability
 ```
 
@@ -47,7 +47,7 @@ python3 - <<'EOF'
 import subprocess, sys, re
 
 result = subprocess.run(
-    ["python3", "plugins/wicked-observability/scripts/assert_contracts.py",
+    ["python3", "scripts/observability/assert_contracts.py",
      "--plugin", "wicked-observability"],
     capture_output=True, text=True
 )

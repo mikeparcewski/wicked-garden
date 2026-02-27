@@ -1,8 +1,7 @@
 """
 wicked-kanban adapter for wicked-smaht.
 
-Queries active tasks, artifacts, and project tracking.
-Uses direct import of kanban.kanban since all scripts are co-located.
+Queries active tasks, artifacts, and project tracking via Control Plane.
 """
 
 import sys
@@ -12,36 +11,32 @@ from typing import List
 
 from . import ContextItem, _SCRIPTS_ROOT, run_in_thread
 
-# Direct import of the kanban module (co-located under scripts/kanban/)
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from kanban.kanban import KanbanStore
+from _control_plane import get_client
 
 
 def _get_tasks(project: str = None) -> list:
-    """Synchronous kanban task list — called via run_in_thread for async."""
+    """Query CP for kanban tasks."""
     try:
-        store = KanbanStore()
-        kanban_storage = Path.home() / ".something-wicked" / "wicked-kanban" / "projects"
+        cp = get_client()
 
-        project_ids = []
-        if project:
-            project_ids = [project]
-        elif kanban_storage.is_dir():
-            project_ids = [p.name for p in kanban_storage.iterdir() if p.is_dir()][:5]
-
-        if not project_ids:
+        # First get project list
+        resp = cp.request("wicked-kanban", "projects", "list")
+        if not resp or not isinstance(resp.get("data"), list):
             return []
 
+        projects = resp["data"]
+        if project:
+            projects = [p for p in projects if p.get("id") == project or p.get("name") == project]
+
         all_tasks = []
-        for pid in project_ids:
-            try:
-                tasks = store.list_tasks(pid)
-                if tasks:
-                    all_tasks.extend(tasks)
-            except Exception:
-                continue
+        for proj in projects[:5]:
+            pid = proj.get("id", "")
+            task_resp = cp.request("wicked-kanban", "tasks", "list", params={"project_id": pid})
+            if task_resp and isinstance(task_resp.get("data"), list):
+                all_tasks.extend(task_resp["data"])
 
         return all_tasks
     except Exception:

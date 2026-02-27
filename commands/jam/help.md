@@ -20,7 +20,7 @@ AI-powered brainstorming with dynamic focus groups.
 | Command | Description |
 |---------|-------------|
 | `/wicked-garden:jam:brainstorm <topic>` | Full session (2-3 rounds, 4-6 personas) |
-| `/wicked-garden:jam:jam <idea>` | Quick exploration (1 round, 4 personas) |
+| `/wicked-garden:jam:quick <idea>` | Quick exploration (1 round, 4 personas) |
 | `/wicked-garden:jam:perspectives <decision>` | Multiple viewpoints without synthesis |
 | `/wicked-garden:jam:help` | This help message |
 
@@ -39,8 +39,8 @@ AI-powered brainstorming with dynamic focus groups.
 
 ### Quick Exploration
 ```
-/wicked-garden:jam:jam "should we use TypeScript?"
-/wicked-garden:jam:jam "Redis vs Memcached for caching"
+/wicked-garden:jam:quick "should we use TypeScript?"
+/wicked-garden:jam:quick "Redis vs Memcached for caching"
 ```
 
 ### Get Perspectives

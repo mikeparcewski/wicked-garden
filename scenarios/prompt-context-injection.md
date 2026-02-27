@@ -144,7 +144,7 @@ The key insight: The best memory system is one you never think about. It just ma
 ## Troubleshooting
 
 If context isn't being injected:
-- Check `/Users/michael.parcewski/Projects/wicked-garden/plugins/wicked-mem/hooks/hooks.json` has UserPromptSubmit
+- Check `hooks/hooks.json` has UserPromptSubmit (relative to plugin root)
 - Verify prompt_submit.py script exists and is executable
 - Check Claude Code console for hook execution
 - Verify memories exist with /wicked-mem:stats

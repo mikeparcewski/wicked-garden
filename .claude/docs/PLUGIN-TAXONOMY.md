@@ -1,17 +1,17 @@
-# Plugin Taxonomy
+# Domain Taxonomy
 
 ## Overview
 
-Plugins fall into two categories:
+The wicked-garden plugin organizes capabilities into 18 domains. Domains fall into two categories:
 
-1. **Utility Plugins** — Tools agents use dynamically
-2. **Specialist Plugins** — Role-based enhancers with personas
+1. **Utility Domains** -- Tools agents use dynamically
+2. **Specialist Domains** -- Role-based enhancers with personas
 
-## Utility Plugins
+## Utility Domains
 
 These are capabilities, not phases. Agents invoke them as needed.
 
-### wicked-cache
+### cache (wicked-startah)
 **Purpose**: Caching infrastructure for performance
 
 - Plugin detection caching
@@ -20,7 +20,7 @@ These are capabilities, not phases. Agents invoke them as needed.
 
 **Used by**: All agents, orchestrator
 
-### wicked-kanban
+### kanban
 **Purpose**: Task and workflow state management
 
 - Kanban board for task tracking
@@ -29,7 +29,7 @@ These are capabilities, not phases. Agents invoke them as needed.
 
 **Used by**: Orchestrator, all specialists
 
-### wicked-mem
+### mem
 **Purpose**: Memory and context persistence
 
 - Cross-session memory
@@ -38,240 +38,168 @@ These are capabilities, not phases. Agents invoke them as needed.
 
 **Used by**: All agents
 
-### wicked-search
+### search
 **Purpose**: Unified code and document search
 
 - Codebase exploration
 - Documentation search
 - Symbol/reference lookup
+- Blast-radius impact analysis
+- Data lineage tracing
 
 **Used by**: Research agents, analysts
 
-### wicked-browse
-**Purpose**: Browser automation and accessibility
+### workbench
+**Purpose**: Dashboards and data visualization
 
-- Screenshot capture
-- Accessibility audits
-- Web scraping
-- UI testing
+- Plugin health dashboards
+- Metric visualization
+- Data gateway for TypeScript consumers
 
-**Used by**: QE agents, DevSecOps
+**Used by**: Delivery, reporting agents
 
-### wicked-numbers
-**Purpose**: Data analysis with DuckDB
+### scenarios
+**Purpose**: E2E acceptance testing
 
-- Large dataset processing
-- SQL queries on local files
-- Data quality analysis
+- Markdown scenario orchestration
+- CLI tool wrappers (curl, playwright, k6, etc.)
+- Step-by-step test execution
 
-**Used by**: PMO, Analyst agents
+**Used by**: QE agents, CI pipelines
+
+### patch
+**Purpose**: Bulk code transformations
+
+- Multi-file find-and-replace
+- AST-aware refactoring
+- Migration scripts
+
+**Used by**: Engineering agents
 
 ---
 
-## Specialist Plugins
+## Specialist Domains
 
-Role-based plugins with multiple personas. Each enhances crew's capabilities.
+Role-based domains with multiple personas. Each enhances crew's capabilities via `specialist.json`.
 
-### Core Specialists (Ship with Ecosystem)
+### jam (Ideation)
 
-#### wicked-jam
-**Role**: Brainstorming and ideation
-
-**Personas**:
-- Creative Explorer
-- Devil's Advocate
-- Domain Expert (dynamic)
-- Pragmatist
+**Personas**: Facilitator, Technical Archetype, User Archetype, Business Archetype
 
 **Enhances**: Clarify phase
 
-**Hooks**:
-- Subscribes: `crew:clarify:started`
-- Publishes: `jam:brainstorm:completed`
+**Events**: `jam:brainstorm:started`, `jam:brainstorm:completed`, `jam:insight:captured`
 
 ---
 
-#### wicked-product (renamed from wicked-lens)
-**Role**: Business and customer value focus
+### product (Business Strategy + Product Management)
 
-**Personas**:
-- Business Strategist
-- Customer Advocate
-- Value Analyst
-- Competitive Analyst
+**Personas**: Business Strategist, Value Analyst, Competitive Analyst, Product Manager, Requirements Analyst
 
-**Enhances**: Design decisions, review phases
+**Enhances**: Design decisions, review phases, requirements
 
-**Hooks**:
-- Subscribes: `crew:design:decisions`, `crew:review:started`
-- Publishes: `strategy:assessment:completed`
+**Events**: `product:requirements:gathered`, `product:story:written`, `product:acceptance:defined`
 
 ---
 
-#### wicked-delivery (renamed from wicked-pissah-pmo)
-**Role**: Reporting and delivery tracking
+### delivery (Project Management)
 
-**Personas**:
-- Delivery Manager
-- Stakeholder Reporter
-- Risk Monitor
-- Progress Tracker
+**Personas**: Delivery Manager, Stakeholder Reporter, Risk Monitor, Progress Tracker
 
 **Enhances**: Status, retrospectives, reporting
 
-**Hooks**:
-- Subscribes: `crew:phase:completed`, `crew:project:completed`
-- Publishes: `pmo:report:generated`
+**Events**: `delivery:report:generated`, `delivery:risk:identified`, `delivery:milestone:reached`
 
 ---
 
-### Advanced Specialists (Optional Enhancers)
+### qe (Quality Engineering)
 
-#### wicked-qe
-**Role**: Advanced quality engineering
-
-**Personas**:
-- Test Strategist
-- Risk Assessor
-- Performance Analyst
-- Edge Case Hunter
-- Automation Engineer
+**Personas**: QE Orchestrator, Test Strategist, Risk Assessor, Test Automation Engineer, TDD Coach, Code Analyzer
 
 **Enhances**: Stage gates, test planning, coverage
 
-**Hooks**:
-- Subscribes: `crew:gate:review:requested`, `crew:build:tests:needed`
-- Publishes: `qe:strategy:completed`, `qe:gate:verdict`
-
-**Key Capability**: Interjects in stage gates with advanced analysis
+**Events**: `qe:analysis:completed`, `qe:scenario:generated`, `qe:risk:identified`
 
 ---
 
-#### wicked-engineering
-**Role**: Full-stack engineering skills
+### engineering (Full-Stack Engineering)
 
-**Personas**:
-- Frontend Engineer
-- Backend Engineer
-- Database Specialist
-- API Designer
-- Performance Engineer
+**Personas**: Senior Engineer, Frontend Engineer, Backend Engineer, Debugger
 
 **Enhances**: Build phase, architecture decisions
 
-**Hooks**:
-- Subscribes: `crew:build:started`, `crew:design:architecture`
-- Publishes: `appeng:implementation:completed`
+**Events**: `engineering:review:completed`, `engineering:implementation:completed`
 
 ---
 
-#### wicked-product
-**Role**: Product management skills
+### platform (DevSecOps)
 
-**Personas**:
-- Product Manager
-- UX Researcher
-- Requirements Analyst
-- Prioritization Expert
-
-**Enhances**: Requirements, prioritization, user stories
-
-**Hooks**:
-- Subscribes: `crew:clarify:started`, `crew:design:requirements`
-- Publishes: `product:requirements:completed`
-
----
-
-#### wicked-platform (expanded from wicked-git-ops)
-**Role**: Security, CI/CD, infrastructure
-
-**Personas**:
-- Security Engineer
-- DevOps Engineer
-- Infrastructure Architect
-- Release Engineer
-- Incident Responder
+**Personas**: Security Engineer, DevOps Engineer, Infrastructure Engineer, Release Engineer
 
 **Enhances**: Build, deploy, security review
 
-**Hooks**:
-- Subscribes: `crew:build:completed`, `crew:review:security`
-- Publishes: `devsecops:scan:completed`, `devsecops:deploy:ready`
+**Events**: `platform:scan:completed`, `platform:vulnerability:found`, `platform:deployment:ready`
 
 ---
 
-#### wicked-compliance
-**Role**: Compliance, audit, governance
+### data (Data Engineering)
 
-**Personas**:
-- Compliance Officer
-- Audit Specialist
-- Policy Enforcer
-- Risk Assessor
+**Personas**: Data Engineer, Data Analyst, ML Engineer, Analytics Architect
 
-**Enhances**: All phases (policy overlay)
+**Enhances**: Data pipelines, analytics, ML support
 
-**Hooks**:
-- Subscribes: `crew:*` (monitors all)
-- Publishes: `compliance:check:completed`, `compliance:violation:detected`
+**Events**: `data:analysis:completed`, `data:pipeline:designed`, `data:quality:assessed`
 
 ---
 
-#### wicked-analyst
-**Role**: Documentation and research
+### agentic (Agentic Architecture)
 
-**Personas**:
-- Technical Writer
-- Research Analyst
-- Knowledge Manager
-- Documentation Specialist
+**Personas**: Agent Architect, Pattern Analyst, Flow Designer, Capability Auditor, Integration Specialist
 
-**Enhances**: Research, documentation tasks
+**Enhances**: Agent design, plugin architecture, tool composition
 
-**Hooks**:
-- Subscribes: `crew:research:needed`, `crew:docs:needed`
-- Publishes: `analyst:research:completed`, `analyst:docs:generated`
+**Events**: `agentic:review:completed`, `agentic:pattern:identified`
 
 ---
 
-## Plugin Status
+## Domain Organization
 
-| Plugin | Status | Action |
-|--------|--------|--------|
-| wicked-cache | Exists | Keep as utility |
-| wicked-kanban | Exists | Keep as utility |
-| wicked-mem | Exists | Keep as utility |
-| wicked-search | Exists | Keep as utility |
-| wicked-browse | Exists | Keep as utility |
-| wicked-numbers | Exists | Keep as utility |
-| wicked-jam | Exists | Update with new personas |
-| wicked-product | Exists | Pivot to business/customer value |
-| wicked-delivery | Exists | Reporting and delivery tracking |
-| wicked-platform | Exists | Security, CI/CD, infrastructure |
-| wicked-qe | Exists | Enhance as advanced specialist |
-| wicked-engineering | New | Create as specialist |
-| wicked-compliance | New | Create as specialist |
-| wicked-analyst | New | Create as specialist |
+All domains live in the single wicked-garden plugin, organized by type:
+
+```
+wicked-garden/
+├── commands/{domain}/       # Slash commands
+├── agents/{domain}/         # Subagents
+├── skills/{domain}/         # Expertise modules
+├── scripts/{domain}/        # APIs and utilities
+└── scenarios/{domain}/      # Acceptance tests
+```
+
+### Command Namespace
+
+```bash
+/wicked-garden:{domain}:{command}    # e.g., /wicked-garden:crew:start
+```
+
+### Agent Subagent Type
+
+```
+wicked-garden:{domain}/{agent}       # e.g., wicked-garden:qe/test-strategist
+```
 
 ---
 
 ## Reuse Strategy
 
-Don't build everything — orchestrate existing capabilities:
-
-### Existing Claude Code Plugins
-- `superpowers` — Enhanced shell capabilities
-- `testing` plugins — Test runners, frameworks
-- `linting` plugins — Code quality tools
+Don't build everything -- orchestrate existing capabilities:
 
 ### MCP Servers
+- Context7 for external documentation
 - Git operations
-- Database access
-- External APIs
 
 ### External Tools
 - Linters (eslint, ruff, etc.)
 - Test frameworks (jest, pytest, etc.)
-- Security scanners (semgrep, etc.)
+- Security scanners (semgrep, trivy, etc.)
 
-The wicked ecosystem orchestrates these, not replaces them.
+The wicked-garden plugin orchestrates these, not replaces them.

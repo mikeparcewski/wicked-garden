@@ -177,7 +177,7 @@ wicked-workbench scenarios demonstrate integration with:
 
 Workbench uses a **catalog-driven architecture**:
 
-1. **Plugin Discovery**: Scans `~/.claude/plugins/*/. claude-plugin/catalog.json`
+1. **Plugin Discovery**: Scans `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/catalog.json`
 2. **Catalog Loading**: Loads component definitions and intents
 3. **A2UI Generation**: Claude Code reads catalogs to generate valid dashboards
 4. **Component Rendering**: Workbench validates and renders A2UI documents

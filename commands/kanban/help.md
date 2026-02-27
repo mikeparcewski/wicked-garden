@@ -31,28 +31,28 @@ wicked-kanban automatically captures all task activity:
 cd ${CLAUDE_PLUGIN_ROOT}
 
 # List projects
-uv run python scripts/kanban.py list-projects
+uv run python scripts/kanban/kanban.py list-projects
 
 # List tasks
-uv run python scripts/kanban.py list-tasks PROJECT_ID --swimlane todo
+uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID --swimlane todo
 
 # Create task
-uv run python scripts/kanban.py create-task PROJECT_ID "Task name" --priority P1
+uv run python scripts/kanban/kanban.py create-task PROJECT_ID "Task name" --priority P1
 
 # Update task
-uv run python scripts/kanban.py update-task PROJECT_ID TASK_ID --swimlane in_progress
+uv run python scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane in_progress
 
 # Add comment
-uv run python scripts/kanban.py add-comment PROJECT_ID TASK_ID "Comment text"
+uv run python scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID "Comment text"
 
 # Link commit
-uv run python scripts/kanban.py add-commit PROJECT_ID TASK_ID abc1234
+uv run python scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID abc1234
 
 # View activity
-uv run python scripts/kanban.py activity PROJECT_ID --limit 20
+uv run python scripts/kanban/kanban.py activity PROJECT_ID --limit 20
 
 # Search
-uv run python scripts/kanban.py search "query"
+uv run python scripts/kanban/kanban.py search "query"
 ```
 
 ## Data Structure

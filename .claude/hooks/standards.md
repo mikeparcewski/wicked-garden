@@ -32,7 +32,7 @@ Prefer **command hooks** over prompt/agent hooks:
 
 Hook scripts must reference **canonical plugin components** (agents, commands, skills), not internal script paths that may change. Internal scripts are implementation details; canonical components are stable contracts.
 
-Bad: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/memory.py" decay --quiet`
+Bad: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/mem/memory.py" decay --quiet`
 Good: Import from the plugin's own modules within hook scripts
 
 When hook scripts need plugin functionality, import the plugin's Python modules directly rather than shelling out to script paths.

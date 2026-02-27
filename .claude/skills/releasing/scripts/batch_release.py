@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """
-Batch release tool for Wicked Garden marketplace.
+Release tool for the wicked-garden unified plugin.
 
-Detects which plugins have changed since their last release tag,
-and releases them sequentially with auto-detected version bumps.
+Since the repo is a single plugin, this script releases from the repo root.
+The --changed flag checks if there are any changes since the last tag.
 
 Usage:
-    python batch_release.py --changed              # Release all changed plugins
-    python batch_release.py --changed --dry-run    # Preview batch release
-    python batch_release.py --plugins p1,p2,p3     # Release specific plugins
-    python batch_release.py --bump patch            # Force bump type for all
+    python batch_release.py --changed              # Release if changed
+    python batch_release.py --changed --dry-run    # Preview release
+    python batch_release.py --bump patch           # Force bump type
 
 Examples:
     python batch_release.py --changed --dry-run
-    python batch_release.py --plugins wicked-mem,wicked-smaht --bump minor
+    python batch_release.py --bump minor
 """
 
 import argparse
@@ -40,52 +39,46 @@ def get_repo_root() -> Path:
     return Path(result.stdout.strip())
 
 
-def get_all_plugins(repo_root: Path) -> List[Path]:
-    """Get all plugin directories."""
-    plugins_dir = repo_root / "plugins"
-    if not plugins_dir.exists():
-        return []
-    return sorted([
-        p for p in plugins_dir.iterdir()
-        if p.is_dir() and (p / ".claude-plugin" / "plugin.json").exists()
-    ])
+def has_changes_since_tag(repo_root: Path) -> Dict:
+    """Check if the unified plugin has changes since its last release tag."""
+    rm = ReleaseManager(str(repo_root))
+    last_tag = rm.get_last_tag()
+    current_version = rm.get_current_version()
+    plugin_name = rm.get_plugin_name()
 
+    if last_tag:
+        # Check for changes since last tag (excluding .claude/ dev tools)
+        result = subprocess.run(
+            ["git", "diff", "--name-only", last_tag, "HEAD", "--",
+             str(repo_root / "commands"),
+             str(repo_root / "agents"),
+             str(repo_root / "skills"),
+             str(repo_root / "hooks"),
+             str(repo_root / "scripts"),
+             str(repo_root / "scenarios"),
+             str(repo_root / ".claude-plugin"),
+             ],
+            capture_output=True, text=True,
+        )
+        changed_files = [f for f in result.stdout.strip().split("\n") if f.strip()]
+    else:
+        # No tag = never released
+        changed_files = ["(never released)"]
 
-def get_changed_plugins(repo_root: Path) -> List[Dict]:
-    """Find plugins with changes since their last release tag."""
-    changed = []
+    if changed_files:
+        return {
+            "name": plugin_name,
+            "path": str(repo_root),
+            "current_version": current_version,
+            "last_tag": last_tag,
+            "changed_files": len(changed_files),
+        }
 
-    for plugin_dir in get_all_plugins(repo_root):
-        plugin_name = plugin_dir.name
-        rm = ReleaseManager(str(plugin_dir))
-        last_tag = rm.get_last_tag()
-        current_version = rm.get_current_version()
-
-        if last_tag:
-            # Check for changes since last tag
-            result = subprocess.run(
-                ["git", "diff", "--name-only", last_tag, "HEAD", "--", str(plugin_dir)],
-                capture_output=True, text=True,
-            )
-            changed_files = [f for f in result.stdout.strip().split("\n") if f.strip()]
-        else:
-            # No tag = never released, all files are new
-            changed_files = ["(never released)"]
-
-        if changed_files:
-            changed.append({
-                "name": plugin_name,
-                "path": str(plugin_dir),
-                "current_version": current_version,
-                "last_tag": last_tag,
-                "changed_files": len(changed_files),
-            })
-
-    return changed
+    return None
 
 
 def run_release(plugin_path: str, bump: Optional[str], dry_run: bool) -> Dict:
-    """Run release.py for a single plugin."""
+    """Run release.py for the plugin."""
     cmd = [sys.executable, str(script_dir / "release.py"), plugin_path]
     if bump:
         cmd.extend(["--bump", bump])
@@ -100,24 +93,9 @@ def run_release(plugin_path: str, bump: Optional[str], dry_run: bool) -> Dict:
     }
 
 
-def generate_commit_message(released: List[Dict]) -> str:
-    """Generate aggregate commit message for batch release."""
-    count = len(released)
-    summaries = []
-    for r in released:
-        summaries.append(f"- {r['name']} v{r['new_version']}")
-
-    return (
-        f"release: bump {count} plugin{'s' if count != 1 else ''}\n\n"
-        + "\n".join(summaries)
-    )
-
-
 def main():
-    parser = argparse.ArgumentParser(description="Batch release Wicked Garden plugins")
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--changed", action="store_true", help="Release all changed plugins")
-    group.add_argument("--plugins", type=str, help="Comma-separated plugin names")
+    parser = argparse.ArgumentParser(description="Release the wicked-garden plugin")
+    parser.add_argument("--changed", action="store_true", help="Release only if changed since last tag")
     parser.add_argument("--bump", choices=["major", "minor", "patch"], help="Force bump type")
     parser.add_argument("--dry-run", action="store_true", help="Preview without changes")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
@@ -125,97 +103,56 @@ def main():
     args = parser.parse_args()
     repo_root = get_repo_root()
 
-    # Determine which plugins to release
+    # Check for changes
     if args.changed:
-        targets = get_changed_plugins(repo_root)
-        if not targets:
+        target = has_changes_since_tag(repo_root)
+        if not target:
             if args.json:
-                print(json.dumps({"targets": [], "message": "No plugins have changes since their last release."}))
+                print(json.dumps({"targets": [], "message": "No changes since last release."}))
             else:
-                print("No plugins have changes since their last release.")
+                print("No changes since last release.")
             return
     else:
-        plugin_names = [n.strip() for n in args.plugins.split(",")]
-        targets = []
-        for name in plugin_names:
-            plugin_dir = repo_root / "plugins" / name
-            if not plugin_dir.exists():
-                print(f"Warning: Plugin not found: {name}", file=sys.stderr)
-                continue
-            rm = ReleaseManager(str(plugin_dir))
-            targets.append({
-                "name": name,
-                "path": str(plugin_dir),
-                "current_version": rm.get_current_version(),
-                "last_tag": rm.get_last_tag(),
-                "changed_files": -1,
-            })
+        rm = ReleaseManager(str(repo_root))
+        target = {
+            "name": rm.get_plugin_name(),
+            "path": str(repo_root),
+            "current_version": rm.get_current_version(),
+            "last_tag": rm.get_last_tag(),
+            "changed_files": -1,
+        }
 
     # In JSON mode, output only valid JSON and exit
     if args.json:
         print(json.dumps({
-            "targets": targets,
+            "targets": [target],
             "dry_run": args.dry_run,
             "bump": args.bump,
         }, indent=2))
         return
 
-    # Show human-readable plan
-    print(f"\n{'DRY RUN: ' if args.dry_run else ''}Batch Release Plan")
+    # Show plan
+    tag_info = target["last_tag"] or "(never tagged)"
+    files_info = f", {target['changed_files']} files changed" if target["changed_files"] >= 0 else ""
+
+    print(f"\n{'DRY RUN: ' if args.dry_run else ''}Release Plan")
     print("=" * 60)
-    print(f"Plugins to release: {len(targets)}")
+    print(f"Plugin: {target['name']}")
+    print(f"Current version: v{target['current_version']} (since: {tag_info}{files_info})")
     if args.bump:
         print(f"Forced bump: {args.bump}")
     print()
 
-    for t in targets:
-        tag_info = t["last_tag"] or "(never tagged)"
-        files_info = f", {t['changed_files']} files changed" if t["changed_files"] >= 0 else ""
-        print(f"  {t['name']} @ v{t['current_version']} (since: {tag_info}{files_info})")
+    # Execute release
+    result = run_release(target["path"], args.bump, args.dry_run)
 
-    print()
-
-    # Execute releases
-    released = []
-    failed = []
-
-    for t in targets:
-        print(f"\n--- Releasing {t['name']} ---")
-        result = run_release(t["path"], args.bump, args.dry_run)
-
-        if result["returncode"] == 0:
-            # Extract new version from output
-            new_version = t["current_version"]  # fallback
-            for line in result["stdout"].split("\n"):
-                if "New version:" in line or "→" in line:
-                    parts = line.split()
-                    for p in parts:
-                        try:
-                            SemVer(p)
-                            new_version = p
-                        except (ValueError, Exception):
-                            continue
-
-            released.append({
-                "name": t["name"],
-                "old_version": t["current_version"],
-                "new_version": new_version,
-            })
-            print(result["stdout"])
-        else:
-            failed.append({"name": t["name"], "error": result["stderr"]})
-            print(f"FAILED: {result['stderr']}", file=sys.stderr)
-
-    # Summary
-    print("\n" + "=" * 60)
-    print(f"BATCH RELEASE {'(DRY RUN) ' if args.dry_run else ''}SUMMARY")
-    print(f"  Released: {len(released)}")
-    print(f"  Failed: {len(failed)}")
-
-    if released and not args.dry_run:
-        print(f"\nSuggested commit message:")
-        print(generate_commit_message(released))
-        print(f"\nDon't forget: git push --tags")
+    if result["returncode"] == 0:
+        print(result["stdout"])
+        if not args.dry_run:
+            print(f"\nDon't forget: git push --tags")
+    else:
+        print(f"FAILED: {result['stderr']}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -35,11 +35,9 @@ Run indexing and exploration concurrently. The goal: build understanding while t
 
 Unless `--skip-index`, start indexing in the background.
 
-First, locate the wicked-search scripts directory. Check in order:
-1. Plugin cache: `~/.claude/plugins/cache/wicked-garden/wicked-search/*/scripts/` (use highest version)
-2. Local repo sibling: `../wicked-search/scripts/` relative to wicked-smaht
+The search scripts are located at `${CLAUDE_PLUGIN_ROOT}/scripts/search/`.
 
-Then run:
+Run:
 
 ```
 Bash(command="cd {wicked-search-scripts-dir} && uv run python unified_search.py index '{path}'",

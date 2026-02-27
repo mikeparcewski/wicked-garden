@@ -1,7 +1,7 @@
 {
   "name": "wicked-garden",
   "version": "1.0.0",
-  "description": "The complete engineering team plugin — code intelligence, delivery metrics, persistent memory, workflow orchestration, brainstorming, and 47 specialist personas in a single install. Backed by the wicked-control-plane for team-shared persistence.",
+  "description": "AI-Native SDLC — the complete software development lifecycle as a single Claude Code plugin. Code intelligence, delivery metrics, persistent memory, workflow orchestration, brainstorming, and 47 specialist personas. Backed by the wicked-control-plane for team-shared persistence.",
   "author": {
     "name": "Mike Parcewski"
   }

@@ -144,7 +144,7 @@ Defining the outcome and success criteria.
 Run smart decisioning with archetype hints:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
   --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
   "{description}"
 ```
@@ -181,7 +181,7 @@ Store analysis in project.json:
 Run specialist discovery:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/specialist_discovery.py" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/specialist_discovery.py" --json
 ```
 
 This returns available specialist plugins and their roles:
