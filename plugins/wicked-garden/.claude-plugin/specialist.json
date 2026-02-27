@@ -1,0 +1,117 @@
+{
+  "plugin": "wicked-garden",
+  "specialists": [
+    {
+      "name": "engineering",
+      "role": "engineering",
+      "description": "Full-stack engineering expertise spanning code quality, architecture, debugging, documentation, and implementation patterns.",
+      "personas": [
+        {"name": "Senior Engineer", "focus": "Code quality, architecture patterns, best practices, implementation guidance", "agent": "agents/engineering/senior-engineer.md"},
+        {"name": "Solution Architect", "focus": "End-to-end solution design, technology choices, trade-offs", "agent": "agents/engineering/solution-architect.md"},
+        {"name": "Debugger", "focus": "Root cause analysis, error investigation, systematic debugging", "agent": "agents/engineering/debugger.md"},
+        {"name": "Frontend Engineer", "focus": "React, CSS, browser APIs, component design, accessibility", "agent": "agents/engineering/frontend-engineer.md"},
+        {"name": "Backend Engineer", "focus": "APIs, databases, server-side patterns, data modeling", "agent": "agents/engineering/backend-engineer.md"}
+      ],
+      "enhances": ["design", "build", "review"]
+    },
+    {
+      "name": "platform",
+      "role": "devsecops",
+      "description": "DevSecOps specialist for security scanning, CI/CD pipelines, infrastructure, compliance, and incident response.",
+      "personas": [
+        {"name": "Security Engineer", "focus": "Vulnerability assessment, OWASP compliance, secure coding, secrets management", "agent": "agents/platform/security-engineer.md"},
+        {"name": "DevOps Engineer", "focus": "CI/CD pipelines, GitHub Actions, deployment automation", "agent": "agents/platform/devops-engineer.md"},
+        {"name": "SRE", "focus": "System health, capacity planning, performance, reliability", "agent": "agents/platform/sre.md"},
+        {"name": "Incident Responder", "focus": "Rapid triage, root cause correlation, blast radius assessment", "agent": "agents/platform/incident-responder.md"},
+        {"name": "Compliance Officer", "focus": "SOC2, HIPAA, GDPR, PCI regulatory compliance", "agent": "agents/platform/compliance-officer.md"}
+      ],
+      "enhances": ["build", "review", "*"]
+    },
+    {
+      "name": "product",
+      "role": "product",
+      "description": "Product and design expertise spanning requirements, UX, customer voice, business strategy, and accessibility.",
+      "personas": [
+        {"name": "Customer Advocate", "focus": "Customer needs, pain points, feedback synthesis", "agent": "agents/product/customer-advocate.md"},
+        {"name": "Product Manager", "focus": "Roadmap planning, prioritization, trade-offs, business value alignment", "agent": "agents/product/product-manager.md"},
+        {"name": "Requirements Analyst", "focus": "User stories, acceptance criteria, requirements elicitation", "agent": "agents/product/requirements-analyst.md"},
+        {"name": "UX Designer", "focus": "User flows, interaction patterns, information architecture, usability", "agent": "agents/product/ux-designer.md"},
+        {"name": "Business Strategist", "focus": "ROI analysis, value proposition, competitive positioning", "agent": "agents/product/business-strategist.md"}
+      ],
+      "enhances": ["clarify", "design", "review"]
+    },
+    {
+      "name": "qe",
+      "role": "quality-engineering",
+      "description": "Quality Engineering specialist for test strategy, scenario generation, test automation, and shift-left quality practices.",
+      "personas": [
+        {"name": "Test Strategist", "focus": "Test scenario generation, coverage strategy, risk-based prioritization", "agent": "agents/qe/test-strategist.md"},
+        {"name": "Test Automation Engineer", "focus": "Test code generation, CI/CD test integration, coverage reporting", "agent": "agents/qe/test-automation-engineer.md"},
+        {"name": "Risk Assessor", "focus": "Security, reliability, and operational risk identification", "agent": "agents/qe/risk-assessor.md"},
+        {"name": "Code Analyzer", "focus": "Static analysis for testability, quality metrics, coverage gaps", "agent": "agents/qe/code-analyzer.md"},
+        {"name": "TDD Coach", "focus": "Red-green-refactor guidance, test-first development practices", "agent": "agents/qe/tdd-coach.md"},
+        {"name": "Acceptance Test Writer", "focus": "Transform scenarios into evidence-gated test plans with concrete assertions", "agent": "agents/qe/acceptance-test-writer.md"},
+        {"name": "Acceptance Test Executor", "focus": "Execute test plans step-by-step, collect evidence artifacts without judgment", "agent": "agents/qe/acceptance-test-executor.md"},
+        {"name": "Acceptance Test Reviewer", "focus": "Evaluate evidence against assertions independently, render verdicts with cause attribution", "agent": "agents/qe/acceptance-test-reviewer.md"}
+      ],
+      "enhances": ["qe", "build", "review", "*"]
+    },
+    {
+      "name": "data",
+      "role": "data-engineering",
+      "description": "Data engineering specialist providing expertise in pipeline design, data analysis, ML model guidance, and analytics architecture.",
+      "personas": [
+        {"name": "Data Engineer", "focus": "ETL pipelines, data quality, schema design, performance optimization", "agent": "agents/data/data-engineer.md"},
+        {"name": "Data Analyst", "focus": "Data exploration, statistical analysis, visualization, insights generation", "agent": "agents/data/data-analyst.md"},
+        {"name": "ML Engineer", "focus": "Model development, training pipelines, feature engineering, ML deployment", "agent": "agents/data/ml-engineer.md"},
+        {"name": "Analytics Architect", "focus": "Data warehouse design, data modeling, lakehouse architecture, governance", "agent": "agents/data/analytics-architect.md"}
+      ],
+      "enhances": ["design", "build", "*"]
+    },
+    {
+      "name": "delivery",
+      "role": "project-management",
+      "description": "Feature delivery specialist covering PMO, onboarding, experimentation, rollout, and FinOps domains.",
+      "personas": [
+        {"name": "Experiment Designer", "focus": "A/B test design, statistical rigor, sample sizing, hypothesis formulation", "agent": "agents/delivery/experiment-designer.md"},
+        {"name": "Rollout Manager", "focus": "Progressive rollouts, canary deployments, feature flags, rollback criteria", "agent": "agents/delivery/rollout-manager.md"},
+        {"name": "Risk Monitor", "focus": "Delivery risk tracking, escalation management, dependency chains", "agent": "agents/delivery/risk-monitor.md"},
+        {"name": "Onboarding Guide", "focus": "New developer onboarding, team orientation, contribution pathways", "agent": "agents/delivery/onboarding-guide.md"},
+        {"name": "Codebase Narrator", "focus": "Codebase structure analysis, architecture walkthroughs, code navigation", "agent": "agents/delivery/codebase-narrator.md"},
+        {"name": "Delivery Manager", "focus": "Sprint management, velocity tracking, scope management, cross-team coordination", "agent": "agents/delivery/delivery-manager.md"},
+        {"name": "Progress Tracker", "focus": "Milestone tracking, completion forecasting, slippage detection, deadline monitoring", "agent": "agents/delivery/progress-tracker.md"},
+        {"name": "Stakeholder Reporter", "focus": "Multi-perspective stakeholder reports, executive summaries, persona-based analysis", "agent": "agents/delivery/stakeholder-reporter.md"},
+        {"name": "FinOps Analyst", "focus": "Cloud cost analysis, billing data interpretation, budget variance, cost anomalies", "agent": "agents/delivery/finops-analyst.md"},
+        {"name": "Cost Optimizer", "focus": "Cost reduction, right-sizing, idle resource cleanup, savings opportunities", "agent": "agents/delivery/cost-optimizer.md"},
+        {"name": "Forecast Specialist", "focus": "Cost forecasting, timeline prediction, capacity planning, scenario modeling", "agent": "agents/delivery/forecast-specialist.md"}
+      ],
+      "enhances": ["build", "review"]
+    },
+    {
+      "name": "jam",
+      "role": "brainstorming",
+      "description": "Multi-perspective brainstorming with dynamic focus groups. Explores ideas through persona-based discussion rounds and synthesis.",
+      "personas": [
+        {"name": "Facilitator", "focus": "Orchestrating brainstorming sessions, assembling personas, guiding discussion rounds, synthesizing insights", "agent": "agents/jam/facilitator.md"},
+        {"name": "Technical Archetypes", "focus": "How things work - architecture, debugging, optimization, security", "dynamic": true},
+        {"name": "User Archetypes", "focus": "Who uses it - power users, newcomers, support, accessibility", "dynamic": true},
+        {"name": "Business Archetypes", "focus": "Why it matters - product management, skepticism, evangelism, cost", "dynamic": true},
+        {"name": "Process Archetypes", "focus": "How it ships - maintenance, testing, documentation, release", "dynamic": true}
+      ],
+      "enhances": ["clarify", "design"]
+    },
+    {
+      "name": "agentic",
+      "role": "agentic-architecture",
+      "description": "Validates agentic application architecture, patterns, and design. Reviews agent implementations for safety, performance, and best practices.",
+      "personas": [
+        {"name": "Agentic Architect", "focus": "System design, agent orchestration, pattern application, framework selection, five-layer architecture validation", "agent": "agents/agentic/architect.md"},
+        {"name": "Safety Reviewer", "focus": "Guardrails, prompt injection defense, hallucination mitigation, PII protection, human-in-the-loop gates", "agent": "agents/agentic/safety-reviewer.md"},
+        {"name": "Performance Analyst", "focus": "LLM efficiency, token optimization, caching, parallelization, cost analysis", "agent": "agents/agentic/performance-analyst.md"},
+        {"name": "Framework Researcher", "focus": "Framework capabilities, migration paths, version updates, ecosystem comparison", "agent": "agents/agentic/framework-researcher.md"},
+        {"name": "Pattern Advisor", "focus": "Best practices, anti-patterns, code quality, maintainability, pattern selection", "agent": "agents/agentic/pattern-advisor.md"}
+      ],
+      "enhances": ["design", "build", "review"]
+    }
+  ]
+}
