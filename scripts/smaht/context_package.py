@@ -127,34 +127,42 @@ def build_ecosystem_orientation(installed_plugins: list = None) -> dict:
 
 
 async def gather_memories(task: str, limit: int = 3) -> list:
-    """Query wicked-mem for task-relevant memories."""
+    """Query wicked-mem for task-relevant memories via CP adapter."""
     try:
-        from adapters import mem_adapter
-        items = await mem_adapter.query(task)
+        from adapters import cp_adapter
+        items = await cp_adapter.query(task)
         results = []
-        for item in items[:limit]:
+        for item in items:
+            if getattr(item, "source", "") != "mem":
+                continue
             results.append({
                 "title": getattr(item, "title", ""),
                 "summary": getattr(item, "summary", "")[:200],
                 "type": getattr(item, "metadata", {}).get("type", "unknown"),
             })
+            if len(results) >= limit:
+                break
         return results
     except Exception:
         return []
 
 
 async def gather_code_context(task: str, files: list = None, limit: int = 5) -> list:
-    """Query wicked-search for relevant code symbols."""
+    """Query wicked-search for relevant code symbols via CP adapter."""
     try:
-        from adapters import search_adapter
-        items = await search_adapter.query(task)
+        from adapters import cp_adapter
+        items = await cp_adapter.query(task)
         results = []
-        for item in items[:limit]:
+        for item in items:
+            if getattr(item, "source", "") != "search":
+                continue
             results.append({
                 "title": getattr(item, "title", ""),
                 "file": getattr(item, "metadata", {}).get("file", ""),
                 "summary": getattr(item, "summary", "")[:200],
             })
+            if len(results) >= limit:
+                break
         return results
     except Exception:
         return []

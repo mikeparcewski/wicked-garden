@@ -9,14 +9,14 @@ Show how indexed symbols break down by type, architectural layer, and directory 
 
 ## Instructions
 
-1. Run the categories query via the data API:
+1. Run the categories query via the CP proxy:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/api.py categories symbols
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols categories
    ```
 
    If a project is specified:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/api.py categories symbols --project "<project>"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols categories --project "<project>"
    ```
 
 2. Present results in five sections:

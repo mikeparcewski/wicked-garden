@@ -73,19 +73,11 @@ class ContextItem:
         return len(text) // 4  # Rough estimate
 
 
-from . import mem_adapter
-from . import jam_adapter
-from . import kanban_adapter
-from . import search_adapter
-from . import crew_adapter
+from . import cp_adapter
 from . import context7_adapter
 
 __all__ = [
     'ContextItem',
-    'mem_adapter',
-    'jam_adapter',
-    'kanban_adapter',
-    'search_adapter',
-    'crew_adapter',
+    'cp_adapter',
     'context7_adapter',
 ]

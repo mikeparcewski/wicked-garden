@@ -8,17 +8,17 @@ Query trace data captured by the hook execution wrapper.
 
 Instructions:
 - Parse arguments: `--session {id}` (default: current session), `--tail N` (last N records), `--silent-only` (filter to silent failures), `--json`
-- For listing/tailing: invoke api.py inline:
+- For listing/tailing: query via the CP proxy:
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/api.py" list traces --limit {N}
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" observability traces list --limit {N}
   ```
 - For silent failure summary:
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/api.py" search traces --query "silent_failure"
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" observability traces search --query "silent_failure"
   ```
 - For stats:
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/api.py" stats traces
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" observability traces stats
   ```
 - Display: table of recent traces with tool_name, duration, exit_code, silent_failure flag
 - Highlight silent failures prominently

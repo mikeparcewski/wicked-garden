@@ -8,10 +8,17 @@ stdlib-only constraint) and command scripts.
 URL convention:
     {endpoint}/api/{api_version}/data/{domain}/{source}/{verb}[/{id}]
 
+Domain name mapping:
+    Callers can use either plugin names (wicked-mem) or CP domain names
+    (memory). The client normalizes automatically.
+
 Example calls:
     cp = ControlPlaneClient()
-    cp.request("wicked-mem", "memories", "list", params={"project": "my-proj"})
-    cp.request("wicked-kanban", "tasks", "create", payload={"subject": "..."})
+    cp.request("memory", "memories", "list", params={"project": "my-proj"})
+    cp.request("kanban", "tasks", "create", payload={"subject": "..."})
+    cp.request("wicked-mem", "memories", "list")  # also works
+    cp.manifest()                                  # full API manifest
+    cp.manifest_detail("memory", "memories", "create")  # endpoint detail
     ok, version = cp.check_health()
 """
 
@@ -40,6 +47,58 @@ _DEFAULT_CONFIG: dict[str, Any] = {
     "request_timeout_seconds": 10,
     "setup_complete": False,
 }
+
+# ---------------------------------------------------------------------------
+# Domain name mapping: plugin names → CP domain names
+# ---------------------------------------------------------------------------
+
+_DOMAIN_MAP: dict[str, str] = {
+    "wicked-mem": "memory",
+    "wicked-kanban": "kanban",
+    "wicked-crew": "crew",
+    "wicked-jam": "jam",
+    "wicked-delivery": "delivery",
+    "wicked-search": "knowledge",
+    "wicked-observability": "observability",
+    "wicked-smaht": "smaht",
+    "wicked-startah": "startah",
+    # Bare names pass through unchanged
+    "memory": "memory",
+    "kanban": "kanban",
+    "crew": "crew",
+    "jam": "jam",
+    "delivery": "delivery",
+    "knowledge": "knowledge",
+    "events": "events",
+    "agents": "agents",
+    "indexing": "indexing",
+}
+
+# HTTP method inference based on verb name (matches CP's manifest.ts)
+_POST_VERBS = frozenset({
+    "create", "ingest", "bulk-update", "bulk-delete", "archive",
+    "unarchive", "sweep", "register", "heartbeat", "capture",
+    "evaluate", "advance",
+})
+_PUT_VERBS = frozenset({"update"})
+_DELETE_VERBS = frozenset({"delete"})
+
+
+def _resolve_domain(domain: str) -> str:
+    """Normalize a domain name to the CP's expected value."""
+    return _DOMAIN_MAP.get(domain, domain)
+
+
+def _infer_method(verb: str, has_payload: bool) -> str:
+    """Infer HTTP method from verb name, matching CP conventions."""
+    if verb in _POST_VERBS:
+        return "POST"
+    if verb in _PUT_VERBS:
+        return "PUT"
+    if verb in _DELETE_VERBS:
+        return "DELETE"
+    # Fallback: POST if payload provided, GET otherwise
+    return "POST" if has_payload else "GET"
 
 
 def _load_config() -> dict[str, Any]:
@@ -119,12 +178,18 @@ class ControlPlaneClient:
 
         Maps to: {endpoint}/api/{api_version}/data/{domain}/{source}/{verb}[/{id}]
 
+        Domain names are normalized automatically — callers can use either
+        plugin names (wicked-mem) or CP domain names (memory).
+
+        HTTP method is inferred from the verb name to match CP conventions
+        (create→POST, update→PUT, delete→DELETE, list/get/search→GET).
+
         Args:
-            domain:  Control plane domain (e.g. "wicked-mem", "wicked-kanban").
+            domain:  Plugin or CP domain (e.g. "wicked-mem" or "memory").
             source:  Resource collection (e.g. "memories", "tasks").
             verb:    CRUD verb ("list", "get", "create", "update", "delete").
             id:      Optional resource ID appended to the path.
-            payload: JSON body for create/update (uses POST).
+            payload: JSON body for create/update.
             params:  URL query params for list/get.
 
         Returns:
@@ -135,8 +200,9 @@ class ControlPlaneClient:
         if not endpoint:
             return None
 
+        cp_domain = _resolve_domain(domain)
         api_version = self._cfg.get("api_version", "v1")
-        path = f"/api/{api_version}/data/{domain}/{source}/{verb}"
+        path = f"/api/{api_version}/data/{cp_domain}/{source}/{verb}"
         if id is not None:
             path = f"{path}/{id}"
 
@@ -144,8 +210,60 @@ class ControlPlaneClient:
         if params:
             url = f"{url}?{urllib.parse.urlencode(params)}"
 
-        method = "GET" if payload is None else "POST"
+        method = _infer_method(verb, payload is not None)
         return self._do_request(url, method=method, payload=payload)
+
+    def manifest(self) -> dict | None:
+        """Fetch the full API manifest from GET /api/v1/manifest.
+
+        Returns:
+            Manifest dict with domains, sources, verbs, or None on failure.
+        """
+        endpoint = self._cfg.get("endpoint")
+        if not endpoint:
+            return None
+
+        api_version = self._cfg.get("api_version", "v1")
+        url = f"{endpoint.rstrip('/')}/api/{api_version}/manifest"
+        return self._do_request(url, method="GET", payload=None)
+
+    def manifest_detail(
+        self, domain: str, source: str, verb: str
+    ) -> dict | None:
+        """Fetch endpoint detail from GET /api/v1/manifest/{domain}/{source}/{verb}.
+
+        Returns:
+            EndpointDetail dict with method, path, parameters, request_body,
+            response schema, or None on failure.
+        """
+        endpoint = self._cfg.get("endpoint")
+        if not endpoint:
+            return None
+
+        cp_domain = _resolve_domain(domain)
+        api_version = self._cfg.get("api_version", "v1")
+        url = (
+            f"{endpoint.rstrip('/')}/api/{api_version}/manifest"
+            f"/{cp_domain}/{source}/{verb}"
+        )
+        return self._do_request(url, method="GET", payload=None)
+
+    def query(self, sql: str) -> dict | None:
+        """Execute a SELECT query via POST /api/v1/query.
+
+        Args:
+            sql: A SELECT-only SQL statement.
+
+        Returns:
+            Query result dict, or None on failure.
+        """
+        endpoint = self._cfg.get("endpoint")
+        if not endpoint:
+            return None
+
+        api_version = self._cfg.get("api_version", "v1")
+        url = f"{endpoint.rstrip('/')}/api/{api_version}/query"
+        return self._do_request(url, method="POST", payload={"sql": sql})
 
     def check_health(self) -> tuple[bool, str]:
         """Ping GET /health and return (ok, version).
@@ -295,3 +413,8 @@ def get_client(*, hook_mode: bool = False) -> ControlPlaneClient:
 def load_config() -> dict[str, Any]:
     """Public accessor for config (used by bootstrap and setup)."""
     return _load_config()
+
+
+def resolve_domain(domain: str) -> str:
+    """Public accessor for domain name resolution."""
+    return _resolve_domain(domain)
