@@ -119,7 +119,7 @@ Check:
 /wicked-garden:search:doc "user story" --context requirements
 
 # Store requirements in kanban
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" \
   add-comment "Requirements" "{task_id}" "{user_stories}"
 
 # Recall past patterns

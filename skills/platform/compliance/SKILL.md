@@ -97,7 +97,7 @@ Auto-triggered at phase gates
 
 ### With wicked-kanban
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py" add-comment \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-comment \
   "Compliance Check" "{task_id}" "[compliance] {framework}: {status}"
 ```
 

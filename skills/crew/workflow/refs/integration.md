@@ -83,11 +83,11 @@ TaskGet(taskId="{id}")
 
 ```bash
 # Cache analysis results
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-cache/scripts/cache.py" set \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/startah/cache.py" set \
   "crew:analysis:{project}" "{analysis_json}" --ttl 3600
 
 # Retrieve cached
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-cache/scripts/cache.py" get \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/startah/cache.py" get \
   "crew:analysis:{project}"
 ```
 

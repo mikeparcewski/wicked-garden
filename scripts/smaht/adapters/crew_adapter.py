@@ -1,27 +1,30 @@
 """
 wicked-crew adapter for wicked-smaht.
 
-Queries project state, phase, outcomes, and constraints.
-Uses direct import of crew.crew since all scripts are co-located.
+Queries project state, phase, outcomes, and constraints via Control Plane.
 """
 
 import sys
+from pathlib import Path
 from typing import List
 
 from . import ContextItem, _SCRIPTS_ROOT, run_in_thread
 
-# Direct import of the crew module (co-located under scripts/crew/)
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from crew.crew import list_projects
+from _control_plane import get_client
 
 
 def _get_active_projects() -> list:
-    """Synchronous crew project list — called via run_in_thread for async."""
+    """Query CP for active crew projects."""
     try:
-        data = list_projects(active_only=True)
-        return data.get("projects", [])
+        cp = get_client()
+        resp = cp.request("wicked-crew", "projects", "list")
+        if resp and isinstance(resp.get("data"), list):
+            # Filter to active (non-archived) projects
+            return [p for p in resp["data"] if not p.get("archived", False)]
+        return []
     except Exception:
         return []
 

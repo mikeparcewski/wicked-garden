@@ -5,7 +5,7 @@ Complete reference for the `kanban.py` CLI script.
 ## Usage
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py [command] [arguments]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py [command] [arguments]
 ```
 
 ## Command Overview
@@ -30,7 +30,7 @@ For sprints, artifacts, and data model details, see `api-advanced.md`.
 List all projects in the kanban system.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
 ```
 
 **Output:**
@@ -52,7 +52,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
 Get full project state including swimlanes and tasks.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-project PROJECT_ID
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project PROJECT_ID
 ```
 
 **Output:**
@@ -83,7 +83,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-project PROJECT_ID
 Create a new project with default swimlanes (To Do, In Progress, Done).
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-project "Project Name" [-d "Description"]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "Project Name" [-d "Description"]
 ```
 
 ## Task Commands
@@ -93,7 +93,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-project "Project Name" [-
 Create a new task in a project.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Task Name" SWIMLANE_ID [-p PRIORITY] [-d "Description"]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Task Name" SWIMLANE_ID [-p PRIORITY] [-d "Description"]
 ```
 
 **Arguments:**
@@ -106,10 +106,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Task Nam
 **Example:**
 ```bash
 # First get swimlane ID from project
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-project abc12345
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project abc12345
 
 # Then create task in the "To Do" swimlane
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task abc12345 "Implement auth" swim-todo-id -p P1
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task abc12345 "Implement auth" swim-todo-id -p P1
 ```
 
 ### update-task
@@ -117,7 +117,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task abc12345 "Implement 
 Update an existing task.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID [--swimlane ID] [--priority P0-P3] [--name "New Name"] [--depends TASK_IDS] [--sprint SPRINT_ID]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID [--swimlane ID] [--priority P0-P3] [--name "New Name"] [--depends TASK_IDS] [--sprint SPRINT_ID]
 ```
 
 **Arguments:**
@@ -129,12 +129,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID [
 
 **Example - Move task to "In Progress":**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task abc12345 task-1 --swimlane swim-progress-id
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task abc12345 task-1 --swimlane swim-progress-id
 ```
 
 **Example - Set dependencies:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task abc12345 task-2 --depends task-1,task-3
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task abc12345 task-2 --depends task-1,task-3
 ```
 
 ### add-comment
@@ -142,7 +142,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task abc12345 task-2 --de
 Add a comment to a task.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_ID "Comment text"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID "Comment text"
 ```
 
 ### add-commit
@@ -150,7 +150,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_ID "
 Link a git commit hash to a task.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-commit PROJECT_ID TASK_ID COMMIT_HASH
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID COMMIT_HASH
 ```
 
 ### add-project-comment
@@ -158,7 +158,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-commit PROJECT_ID TASK_ID CO
 Add a comment to a project (not a specific task).
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-project-comment PROJECT_ID "Comment text"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-project-comment PROJECT_ID "Comment text"
 ```
 
 ## Comments via Data API
@@ -180,7 +180,7 @@ Comment fields: `id`, `text`, `author`, `created_at`. Accepts both `text` and `b
 Search tasks across projects.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py search "query" [--project PROJECT_ID]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py search "query" [--project PROJECT_ID]
 ```
 
 **Arguments:**

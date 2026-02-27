@@ -1,22 +1,22 @@
 ---
 name: scaffold
 description: |
-  Component scaffolding toolkit for creating plugins, skills, agents, and hooks.
+  Component scaffolding toolkit for creating skills, agents, commands, and hooks within the unified wicked-garden plugin.
   Generates complete, valid structures that pass validation out-of-the-box.
-  Use when creating new marketplace components, setting up boilerplate, or ensuring proper structure from the start.
+  Use when creating new domain components, setting up boilerplate, or ensuring proper structure from the start.
 ---
 
 # Scaffold Tool
 
-Quick-start generator for Something Wicked marketplace components.
+Quick-start generator for wicked-garden domain components.
 
 ## Purpose
 
-Generates production-ready component structures:
-- **Plugins** - Full plugin with commands/, agents/, skills/, scripts/
-- **Skills** - SKILL.md with proper YAML frontmatter and examples
+Generates production-ready component structures within the unified plugin:
+- **Skills** - SKILL.md with proper YAML frontmatter and refs/ directory
 - **Agents** - Agent .md files with tools and frontmatter
-- **Hooks** - hooks.json with event handlers
+- **Commands** - Slash commands with YAML frontmatter
+- **Hooks** - hooks.json entries with Python scripts
 
 All scaffolded components pass validation immediately.
 
@@ -25,151 +25,75 @@ All scaffolded components pass validation immediately.
 ### Interactive Mode
 
 ```bash
-cd tools/scaffold
-python scripts/scaffold.py
+python .claude/skills/scaffolding/scripts/scaffold.py
 
 # Interactive prompts:
-# > Component type? (plugin/skill/agent/hook)
+# > Component type? (skill/agent/command/hook)
+# > Domain? (crew, engineering, platform, ...)
 # > Name? (kebab-case)
 # > Description?
-# > [Component-specific questions...]
 
 # Result:
-# ✓ Created plugins/my-plugin/
-# ✓ All files generated
-# ✓ Validation passed
+# Skill created: skills/crew/my-skill/
+# Namespace: wicked-garden:crew:my-skill
 ```
 
 ### Command Line Mode
 
 ```bash
-# Plugin
-python scripts/scaffold.py plugin \
-  --name wicked-new-plugin \
-  --description "Brief description" \
-  --with-commands \
-  --with-skills \
-  --with-agents
-
 # Skill
-python scripts/scaffold.py skill \
+python .claude/skills/scaffolding/scripts/scaffold.py skill \
   --name my-skill \
-  --plugin wicked-existing-plugin \
+  --domain crew \
   --description "What this skill does"
 
 # Agent
-python scripts/scaffold.py agent \
+python .claude/skills/scaffolding/scripts/scaffold.py agent \
   --name my-agent \
-  --plugin wicked-existing-plugin \
+  --domain platform \
+  --description "What this agent does" \
   --tools "Read,Write,Bash"
 
+# Command
+python .claude/skills/scaffolding/scripts/scaffold.py command \
+  --name my-command \
+  --domain engineering \
+  --description "What this command does"
+
 # Hook
-python scripts/scaffold.py hook \
-  --name PreToolUse \
-  --plugin wicked-existing-plugin \
-  --script validate-tool-use.py
+python .claude/skills/scaffolding/scripts/scaffold.py hook \
+  --event PreToolUse \
+  --script validate-tool-use \
+  --description "Validates tool usage"
 ```
 
-## Templates
+## Generated Paths
 
-### Plugin Template Structure
+Components are placed in domain-specific subdirectories:
 
 ```
-plugins/{name}/
-├── .claude-plugin/
-│   └── plugin.json              # Metadata with name, version, description
-├── commands/                     # Optional: slash commands
-│   └── example.md
-├── agents/                       # Optional: subagents
-│   └── example-agent.md
-├── skills/                       # Optional: expertise modules
-│   └── example-skill/
-│       └── SKILL.md
-├── hooks/                        # Optional: event handlers
-│   ├── hooks.json
-│   └── scripts/
-│       └── pre-tool-use.py
-├── scripts/                      # Helper scripts
-│   └── setup.sh
-├── README.md                     # Full documentation
-└── .gitignore                    # Ignore patterns
+wicked-garden/                    # Plugin root
+├── skills/{domain}/{name}/       # Skills
+│   └── SKILL.md
+├── agents/{domain}/{name}.md     # Agents
+├── commands/{domain}/{name}.md   # Commands
+├── hooks/scripts/{name}.py       # Hook scripts
+└── hooks/hooks.json              # Hook bindings (updated)
 ```
+
+### Naming Conventions
+
+- Commands: `wicked-garden:{domain}:{command}` (colon-separated)
+- Agents: `wicked-garden:{domain}/{agent}` (slash for agent path)
+- Skills: `wicked-garden:{domain}:{skill}` (colon-separated)
 
 #### Command Template Selection
 
-When scaffolding a command, check if the target plugin has `agents/*.md` files:
-- **If agents exist**: Use `templates/plugin/command-with-agent.md` — includes `Task(subagent_type=...)` dispatch pattern
-- **If no agents**: Use `templates/plugin/command.md` — inline execution pattern
+When scaffolding a command, the tool checks if `agents/{domain}/*.md` exists:
+- **If agents exist**: Uses `command-with-agent.md` template with `Task(subagent_type=...)` dispatch
+- **If no agents**: Uses inline `command.md` template
 
 This ensures new commands follow the delegation standard from the start.
-
-#### Generated plugin.json
-
-```json
-{
-  "name": "{name}",
-  "version": "0.1.0",
-  "description": "{description}",
-  "author": "Wicked Agile Team",
-  "license": "MIT",
-  "marketplace": "wicked-garden",
-  "requires": [],
-  "tags": []
-}
-```
-
-#### Generated README.md
-
-```markdown
-# {Name}
-
-{Description}
-
-## Installation
-
-Part of the Wicked Garden marketplace:
-
-\`\`\`bash
-# First, add the wicked-garden marketplace (one-time setup)
-claude marketplace add wickedagile/wicked-garden
-
-# Then install the plugin
-claude plugin install {name}@wicked-garden
-\`\`\`
-
-## Usage
-
-### Commands
-
-- \`/{name}:command\` - Description
-
-### Skills
-
-- \`/{name}:skill\` - Description
-
-## Configuration
-
-[If applicable]
-
-## Examples
-
-[Usage examples]
-
-## Integration
-
-| Plugin | Enhancement | Without It |
-|--------|-------------|------------|
-| wicked-cache | Faster repeated operations | Re-computes each time |
-| wicked-mem | Cross-session memory | Session-only memory |
-
-## Dependencies
-
-[If any external dependencies]
-
-## License
-
-MIT
-```
 
 ### Skill Template
 
@@ -197,23 +121,11 @@ What problem this skill solves.
 # Code example
 \`\`\`
 
-### Example 2
-
-\`\`\`bash
-# Shell example
-\`\`\`
-
 ## Patterns
 
 Common patterns this skill enables:
 - Pattern 1
 - Pattern 2
-
-## Integration
-
-How to use this skill with other tools:
-- Integration 1
-- Integration 2
 
 ## References
 
@@ -258,10 +170,6 @@ What defines success:
 What you avoid:
 - Constraint 1
 - Constraint 2
-
-## Tone
-
-[Optional: if agent has specific communication style]
 ```
 
 ### Hook Template
@@ -323,38 +231,13 @@ if __name__ == "__main__":
     main()
 ```
 
-## Customization
+## Valid Domains
 
-### Custom Templates
+The 18 domains in wicked-garden:
 
-Create `tools/scaffold/templates/custom/`:
-
-```
-templates/custom/
-├── my-plugin-template/
-│   ├── template.json         # Template metadata
-│   └── files/                # Template files
-│       ├── plugin.json.tpl
-│       └── README.md.tpl
-```
-
-#### template.json
-
-```json
-{
-  "name": "my-plugin-template",
-  "description": "Custom plugin template for X",
-  "type": "plugin",
-  "variables": [
-    { "name": "plugin_name", "prompt": "Plugin name?" },
-    { "name": "author", "prompt": "Author?", "default": "Community" }
-  ],
-  "files": [
-    { "src": "plugin.json.tpl", "dest": ".claude-plugin/plugin.json" },
-    { "src": "README.md.tpl", "dest": "README.md" }
-  ]
-}
-```
+**Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
+**Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic
+**Infrastructure & Tools**: startah, workbench, scenarios, patch, observability
 
 ### Template Variables
 
@@ -362,63 +245,11 @@ Available in all `.tpl` files:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `{name}` | Component name (kebab-case) | `wicked-memory` |
-| `{Name}` | Component name (Title Case) | `Wicked Memory` |
-| `{NAME}` | Component name (UPPER_CASE) | `WICKED_MEMORY` |
-| `{description}` | Brief description | `Unified caching system` |
-| `{author}` | Author name | `Something Wicked Community` |
-| `{date}` | Current date (ISO) | `2026-01-13` |
-| `{year}` | Current year | `2026` |
-
-## Validation Integration
-
-Scaffold automatically validates generated components:
-
-```python
-# In scaffold.py
-def scaffold_component(component_type, **options):
-    # Generate files
-    create_structure(component_type, options)
-
-    # Auto-validate
-    from validate import validate_component
-
-    result = validate_component(options['path'])
-    if not result['valid']:
-        print("Warning: Generated component has validation issues:")
-        for error in result['errors']:
-            print(f"  - {error}")
-    else:
-        print("✓ Component passes validation")
-```
-
-## Batch Scaffolding
-
-Create multiple components from config:
-
-```yaml
-# scaffold-config.yml
-components:
-  - type: skill
-    name: caching
-    plugin: wicked-memory
-    description: Cache management patterns
-
-  - type: skill
-    name: task-api
-    plugin: wicked-trackah
-    description: Task CRUD operations
-
-  - type: agent
-    name: cache-optimizer
-    plugin: wicked-memory
-    tools: [Read, Write, Bash]
-```
-
-```bash
-python scripts/scaffold.py batch scaffold-config.yml
-# ✓ Created 2 skills, 1 agent
-```
+| `{name}` | Component name (kebab-case) | `risk-assessor` |
+| `{Name}` | Component name (Title Case) | `Risk Assessor` |
+| `{NAME}` | Component name (UPPER_CASE) | `RISK_ASSESSOR` |
+| `{description}` | Brief description | `Assess project risks` |
+| `{domain}` | Domain name | `qe` |
 
 ## Best Practices
 

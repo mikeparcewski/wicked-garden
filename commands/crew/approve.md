@@ -206,7 +206,7 @@ If user approves (Y or proceeds):
 
 3. Update project state via phase_manager.py (which writes project.json):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/phase_manager.py" {project} approve --phase {phase}
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} approve --phase {phase}
    ```
    This updates `current_phase` and marks the phase as approved in project.json.
 

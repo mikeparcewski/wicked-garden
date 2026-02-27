@@ -33,7 +33,7 @@ Read the scenario markdown file. Extract YAML frontmatter:
 
 Run the discovery script:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cli_discovery.py" {space-separated tool names from required + optional}
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" {space-separated tool names from required + optional}
 ```
 
 Parse the JSON output. For each tool:
@@ -55,7 +55,7 @@ For any tools marked **not available** by CLI discovery, check if an equivalent 
 
 **Detection**: Check if the skill's parent plugin is installed:
 ```bash
-ls plugins/wicked-startah/.claude-plugin/plugin.json 2>/dev/null && echo "STARTAH_AVAILABLE=true"
+ls "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null && echo "STARTAH_AVAILABLE=true"
 ```
 
 If a fallback skill is available, mark the tool as **available via skill** and adjust the step execution to use the Skill tool instead of Bash:

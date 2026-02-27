@@ -22,7 +22,7 @@ Read `project.json` to understand:
 
 Run specialist discovery:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/specialist_discovery.py" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/specialist_discovery.py" --json
 ```
 
 Match available specialists to project signals for auto-engagement.
@@ -118,7 +118,7 @@ When a checkpoint phase completes:
 1. Gather phase artifacts from `phases/{phase}/`
 2. Re-run signal analysis:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smart_decisioning.py" --json "{summary of deliverables}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "{summary of deliverables}"
    ```
 3. Compare new signals against project.json `signals_detected`
 4. If new signals found:
@@ -146,7 +146,7 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
 7. **Run checkpoint re-analysis** if phase has `checkpoint: true` (Section 4.5)
 8. Advance to next phase using phase_manager:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/phase_manager.py" {project} approve --phase {phase}
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} approve --phase {phase}
    ```
 9. Continue until done or guardrail hit
 
@@ -179,7 +179,7 @@ If `gate_required` is `true`:
 
 If skipping a skippable phase, always use phase_manager which documents the skip:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/phase_manager.py" {project} skip --phase {phase} --reason "{specific reason}" --approved-by "just-finish"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} skip --phase {phase} --reason "{specific reason}" --approved-by "just-finish"
 ```
 
 **Testing default**: test-strategy and test phases should be INCLUDED for all projects with complexity >= 2. Only skip if complexity <= 1 AND the user explicitly requests it OR the fast-pass criteria are met. When in doubt, include testing — it's cheaper to run a lightweight test plan than to ship untested code.

@@ -18,7 +18,7 @@ Install required CLI tools for running E2E test scenarios.
 
 Run CLI discovery to check all tools:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cli_discovery.py"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py"
 ```
 
 Parse the JSON output. Separate tools into **available** and **missing**.
@@ -60,7 +60,7 @@ Display a status table:
 
 Run the install suggestion mode:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cli_discovery.py" --install
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" --install
 ```
 
 This returns grouped install commands by package manager (brew, npm, pip).
@@ -91,7 +91,7 @@ After each group, report success/failure.
 
 Re-run discovery to confirm:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cli_discovery.py" --summary
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" --summary
 ```
 
 Display final status:

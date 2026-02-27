@@ -9,7 +9,7 @@ Extended commands for sprints, artifacts, and data model details.
 List all sprints in a project.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-sprints PROJECT_ID
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-sprints PROJECT_ID
 ```
 
 **Output:**
@@ -33,7 +33,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-sprints PROJECT_ID
 Create a new sprint in a project.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-sprint PROJECT_ID "Sprint Name" [--start DATE] [--end DATE] [--goal "Goal"] [--status STATUS]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-sprint PROJECT_ID "Sprint Name" [--start DATE] [--end DATE] [--goal "Goal"] [--status STATUS]
 ```
 
 **Arguments:**
@@ -46,7 +46,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-sprint PROJECT_ID "Sprint
 
 **Example:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-sprint abc12345 "Sprint 1" --start 2024-01-15 --end 2024-01-29 --goal "Complete auth feature"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-sprint abc12345 "Sprint 1" --start 2024-01-15 --end 2024-01-29 --goal "Complete auth feature"
 ```
 
 ### update-sprint
@@ -54,12 +54,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-sprint abc12345 "Sprint 1
 Update an existing sprint.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-sprint PROJECT_ID SPRINT_ID [--name "Name"] [--start DATE] [--end DATE] [--goal "Goal"] [--status STATUS]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-sprint PROJECT_ID SPRINT_ID [--name "Name"] [--start DATE] [--end DATE] [--goal "Goal"] [--status STATUS]
 ```
 
 **Example - Activate a sprint:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-sprint abc12345 sprint-1 --status active
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-sprint abc12345 sprint-1 --status active
 ```
 
 ### delete-sprint
@@ -67,7 +67,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-sprint abc12345 sprint-1 
 Delete a sprint. Tasks assigned to this sprint will have their sprintId cleared.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py delete-sprint PROJECT_ID SPRINT_ID
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py delete-sprint PROJECT_ID SPRINT_ID
 ```
 
 ## Artifact Commands
@@ -77,7 +77,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py delete-sprint PROJECT_ID SPRINT_
 Add an artifact (file, URL, image, document) to a task.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-artifact PROJECT_ID TASK_ID "Artifact Name" [--type TYPE] [--path PATH] [--url URL]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-artifact PROJECT_ID TASK_ID "Artifact Name" [--type TYPE] [--path PATH] [--url URL]
 ```
 
 **Arguments:**
@@ -87,12 +87,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-artifact PROJECT_ID TASK_ID 
 
 **Example - Link a file:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-artifact abc12345 task-1 "Error log" --type file --path "/tmp/error.log"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-artifact abc12345 task-1 "Error log" --type file --path "/tmp/error.log"
 ```
 
 **Example - Link a URL:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-artifact abc12345 task-1 "API Docs" --type url --url "https://docs.example.com/api"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-artifact abc12345 task-1 "API Docs" --type url --url "https://docs.example.com/api"
 ```
 
 ### add-project-artifact
@@ -100,7 +100,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-artifact abc12345 task-1 "AP
 Add an artifact to a project (not a specific task).
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-project-artifact PROJECT_ID "Artifact Name" [--type TYPE] [--path PATH] [--url URL]
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-project-artifact PROJECT_ID "Artifact Name" [--type TYPE] [--path PATH] [--url URL]
 ```
 
 ## Data Model

@@ -93,7 +93,7 @@ If you typed an old command name, here are the new equivalents:
 | Old | New |
 |-----|-----|
 | `/wicked-jam:brainstorm` | `/wicked-garden:jam:brainstorm` |
-| `/wicked-jam:jam` | `/wicked-garden:jam:jam` |
+| `/wicked-jam:jam` | `/wicked-garden:jam:quick` |
 | `/wicked-jam:perspectives` | `/wicked-garden:jam:perspectives` |
 | `/wicked-jam:council` | `/wicked-garden:jam:council` |
 

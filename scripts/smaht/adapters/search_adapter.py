@@ -1,85 +1,81 @@
 """
 wicked-search adapter for wicked-smaht.
 
-Queries code symbols, documentation, and cross-references.
-Uses co-located script path via _SCRIPTS_ROOT.
+Queries code symbols, documentation, and cross-references via Control Plane.
 """
 
 import sys
 from pathlib import Path
 from typing import List
 
-from . import ContextItem, _SCRIPTS_ROOT, run_subprocess
+from . import ContextItem, _SCRIPTS_ROOT
+
+
+# Resolve _control_plane from the scripts root
+if str(_SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_ROOT))
+
+from _control_plane import get_client
+
+from . import run_in_thread
+
+
+def _search_symbols(search_terms: str) -> list:
+    """Query CP for code symbols matching search terms."""
+    try:
+        cp = get_client()
+        resp = cp.request(
+            "wicked-search", "symbols", "search",
+            params={"q": search_terms, "limit": 5}
+        )
+        if resp and isinstance(resp.get("data"), list):
+            return resp["data"]
+        return []
+    except Exception:
+        return []
 
 
 async def query(prompt: str, project: str = None) -> List[ContextItem]:
     """Query wicked-search for relevant code and docs."""
     items = []
 
-    # Co-located under scripts/search/unified_search.py
-    search_script = _SCRIPTS_ROOT / "search" / "unified_search.py"
-    if not search_script.exists():
-        return items
-
     # Extract search terms from prompt
     search_terms = _extract_search_terms(prompt)
     if not search_terms:
         return items
 
-    # wicked-search deps (rapidfuzz) are system-installed, no pyproject.toml — use python3
-    cmd = ["python3", str(search_script), "search", search_terms, "--limit", "5"]
-    returncode, stdout, stderr = await run_subprocess(cmd, timeout=10.0, cwd=str(Path.cwd()))
+    results = await run_in_thread(_search_symbols, search_terms)
 
-    if returncode == 0 and stdout.strip():
-        # Parse text output format:
-        #   Search Results (N):
-        #   ---...
-        #     [code:type] name
-        #       Location: path:line
-        #       Score: N.N
-        import re
-        for match in re.finditer(
-            r'\[(\w+:\w+)\]\s+(.*?)\n\s+Location:\s+(.*?):(\d+)\n\s+Score:\s+([\d.]+)',
-            stdout
-        ):
-            node_type = match.group(1)
-            name = match.group(2).strip()
-            file_path = match.group(3).strip()
-            line = int(match.group(4))
-            score = float(match.group(5)) / 100.0  # Normalize to 0-1
+    for result in results:
+        name = result.get("name", "")
+        file_path = result.get("file", "") or result.get("path", "")
+        line = result.get("line", 0)
+        node_type = result.get("type", "code:symbol")
+        score = result.get("score", 50) / 100.0  # Normalize to 0-1
 
-            short_path = Path(file_path).name
-            title = f"{name} ({short_path}:{line})"
+        short_path = Path(file_path).name if file_path else ""
+        title = f"{name} ({short_path}:{line})" if short_path else name
 
-            items.append(ContextItem(
-                id=f"{file_path}:{line}:{name}",
-                source="search",
-                title=title,
-                summary=f"{node_type}: {name}",
-                excerpt="",
-                age_days=0,
-                metadata={
-                    "file": file_path,
-                    "line": line,
-                    "type": node_type,
-                    "semantic_score": score,
-                }
-            ))
-    elif stderr and stderr != "timeout":
-        # Filter out known non-error warnings
-        real_errors = [l for l in stderr.splitlines()
-                       if "pathspec not available" not in l
-                       and "kreuzberg not installed" not in l
-                       and l.strip()]
-        if real_errors:
-            print(f"Warning: wicked-search query failed: {chr(10).join(real_errors)}", file=sys.stderr)
+        items.append(ContextItem(
+            id=f"{file_path}:{line}:{name}",
+            source="search",
+            title=title,
+            summary=f"{node_type}: {name}",
+            excerpt="",
+            age_days=0,
+            metadata={
+                "file": file_path,
+                "line": line,
+                "type": node_type,
+                "semantic_score": score,
+            }
+        ))
 
     return items
 
 
 def _extract_search_terms(prompt: str) -> str:
     """Extract meaningful search terms from prompt."""
-    # Remove common words
     stop_words = {
         "the", "a", "an", "is", "are", "was", "were", "be", "been",
         "have", "has", "had", "do", "does", "did", "will", "would",

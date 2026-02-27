@@ -17,7 +17,7 @@ Ensure wicked-smaht is installed and hooks are enabled. Optionally have wicked-m
 
 ```bash
 # Check that wicked-smaht hooks are registered
-cat ~/.claude/plugins/*/wicked-smaht/*/hooks/hooks.json | grep SessionStart
+cat "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" | grep SessionStart
 ```
 
 ## Steps

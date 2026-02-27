@@ -200,7 +200,7 @@ If wicked-browse available, can run axe-core:
 
 ```bash
 # Check if wicked-browse has a11y capabilities
-python3 "${CLAUDE_PLUGIN_ROOT}/../wicked-browse/scripts/a11y-check.py" {url_or_file}
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/product/a11y-check.py" {url_or_file}
 ```
 
 Otherwise, recommend tools:

@@ -65,7 +65,7 @@ Expected: Session starts cleanly. No hook failure notifications. The hook's job 
 Check which skills the plugin provides:
 
 ```bash
-ls ~/.claude/plugins/wicked-startah/skills/
+ls "${CLAUDE_PLUGIN_ROOT}/skills/startah/"
 ```
 
 Expected — the following skills should be listed:
@@ -85,9 +85,9 @@ Expected — the following skills should be listed:
 Spot-check a few skills for valid structure:
 
 ```bash
-head -15 ~/.claude/plugins/wicked-startah/skills/ai-conversation/SKILL.md
-head -10 ~/.claude/plugins/wicked-startah/skills/codex-cli/SKILL.md
-head -10 ~/.claude/plugins/wicked-startah/skills/runtime-exec/SKILL.md
+head -15 "${CLAUDE_PLUGIN_ROOT}/skills/startah/ai-conversation/SKILL.md"
+head -10 "${CLAUDE_PLUGIN_ROOT}/skills/startah/codex-cli/SKILL.md"
+head -10 "${CLAUDE_PLUGIN_ROOT}/skills/startah/runtime-exec/SKILL.md"
 ```
 
 Expected: Each file starts with valid YAML frontmatter containing `name` and `description` fields, followed by skill content. No file should be empty or malformed.
@@ -95,7 +95,7 @@ Expected: Each file starts with valid YAML frontmatter containing `name` and `de
 ### 7. Verify Hook Scripts Are Present
 
 ```bash
-ls ~/.claude/plugins/wicked-startah/hooks/scripts/
+ls "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/"
 ```
 
 Expected:
@@ -105,7 +105,7 @@ Expected:
 ### 8. Verify Issue Reporting Command
 
 ```bash
-cat ~/.claude/plugins/wicked-startah/commands/report-issue.md | head -5
+cat "${CLAUDE_PLUGIN_ROOT}/commands/startah/report-issue.md" | head -5
 ```
 
 Expected: Command file exists with valid YAML frontmatter.
@@ -113,7 +113,7 @@ Expected: Command file exists with valid YAML frontmatter.
 ### 9. Verify Cache Infrastructure Is Present
 
 ```bash
-ls ~/.claude/plugins/wicked-startah/scripts/
+ls "${CLAUDE_PLUGIN_ROOT}/scripts/startah/"
 ```
 
 Expected: Cache scripts present — `cache.py`, `cache_setup.py`, `cache_stats.py`, `cache_list.py`, `cache_clear.py`.

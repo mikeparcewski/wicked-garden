@@ -97,7 +97,7 @@ For persistent cross-AI conversations:
 /wicked-garden:kanban:new-task "Design review: Auth system"
 
 # Add Codex's perspective as a comment
-codex exec "Review auth design" | python3 ${CLAUDE_PLUGIN_ROOT}/../wicked-kanban/scripts/kanban.py add-comment PROJECT TASK "Codex: $(cat)"
+codex exec "Review auth design" | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT TASK "Codex: $(cat)"
 
 # Claude can then respond with its own perspective
 ```

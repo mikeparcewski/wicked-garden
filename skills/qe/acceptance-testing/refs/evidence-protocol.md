@@ -159,8 +159,8 @@ Captures code or content search results.
   - pattern: "def store_memory"
   - files_matched: 2
   - results: ```
-    plugins/wicked-mem/scripts/memory.py:45: def store_memory(content, type, tags):
-    plugins/wicked-mem/scripts/memory.py:102: def store_memory_batch(items):
+    scripts/mem/memory.py:45: def store_memory(content, type, tags):
+    scripts/mem/memory.py:102: def store_memory_batch(items):
     ```
 ```
 

@@ -1,8 +1,7 @@
 """
 wicked-mem adapter for wicked-smaht.
 
-Queries memories, decisions, and procedural knowledge.
-Uses direct import of mem.memory since all scripts are co-located.
+Queries memories, decisions, and procedural knowledge via Control Plane.
 """
 
 import sys
@@ -11,11 +10,11 @@ from typing import List
 
 from . import ContextItem, _SCRIPTS_ROOT, run_in_thread
 
-# Direct import of the memory module (co-located under scripts/mem/)
+# Resolve _control_plane from the scripts root
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from mem.memory import MemoryStore, MemoryType
+from _control_plane import get_client
 
 
 _STOP_WORDS = {
@@ -30,23 +29,23 @@ _STOP_WORDS = {
 
 
 def _extract_keywords(prompt: str) -> str:
-    """Extract meaningful keywords and join with | for ripgrep OR matching."""
+    """Extract meaningful keywords for search."""
     words = prompt.lower().split()
     keywords = [w for w in words if w not in _STOP_WORDS and len(w) > 2]
-    # Take top 5 keywords for focused search
-    return "|".join(keywords[:5]) if keywords else ""
+    return " ".join(keywords[:5]) if keywords else ""
 
 
 def _recall_memories(search_query: str) -> list:
-    """Synchronous memory recall — called via run_in_thread for async."""
+    """Query CP for memories."""
     try:
-        store = MemoryStore()
-        memories = store.recall(
-            query=search_query,
-            limit=5,
-            all_projects=True,
-        )
-        return memories
+        cp = get_client()
+        # Search across all memory sources
+        results = []
+        for source in ["episodic", "procedural", "decision", "preference", "working"]:
+            resp = cp.request("wicked-mem", source, "list", params={"q": search_query})
+            if resp and isinstance(resp.get("data"), list):
+                results.extend(resp["data"])
+        return results[:5]
     except Exception:
         return []
 
@@ -55,19 +54,16 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     """Query wicked-mem for relevant memories."""
     items = []
 
-    # Extract meaningful keywords for ripgrep OR matching
     search_query = _extract_keywords(prompt)
     if not search_query:
         return items
 
-    # Query memories via direct call (run in thread since it may do disk I/O)
     memories = await run_in_thread(_recall_memories, search_query)
 
     for m in memories:
-        tags = getattr(m, "tags", [])
-        mem_type = getattr(m, "type", "episodic")
+        tags = m.get("tags", [])
+        mem_type = m.get("type", "episodic")
 
-        # Boost relevance based on memory type
         type_boost = {
             "decision": 0.3,
             "preference": 0.3,
@@ -78,11 +74,11 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
         relevance = min(0.5 + type_boost, 1.0)
 
         items.append(ContextItem(
-            id=getattr(m, "id", ""),
+            id=m.get("id", ""),
             source="mem",
-            title=getattr(m, "title", mem_type),
-            summary=getattr(m, "summary", "")[:200],
-            excerpt=getattr(m, "summary", ""),
+            title=m.get("title", mem_type),
+            summary=m.get("summary", "")[:200],
+            excerpt=m.get("summary", ""),
             relevance=relevance,
             age_days=0,
             metadata={

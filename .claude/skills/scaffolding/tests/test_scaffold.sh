@@ -1,130 +1,103 @@
 #!/bin/bash
 #
-# Test script for scaffold tool
+# Test script for scaffold tool (unified wicked-garden plugin)
 #
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-SCAFFOLD_SCRIPT="$PROJECT_ROOT/tools/scaffold/scripts/scaffold.py"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+SCAFFOLD_SCRIPT="$PROJECT_ROOT/.claude/skills/scaffolding/scripts/scaffold.py"
 
 echo "=== Testing Scaffold Tool ==="
 echo
 
-# Test 1: Plugin scaffold
-echo "Test 1: Plugin scaffold with all components"
-python3 "$SCAFFOLD_SCRIPT" plugin \
-  --name wicked-test-plugin \
-  --description "Test plugin for validation" \
-  --with-commands \
-  --with-skills \
-  --with-agents \
-  --with-hooks
-
-if [ ! -d "$PROJECT_ROOT/plugins/wicked-test-plugin" ]; then
-  echo "❌ Plugin directory not created"
-  exit 1
-fi
-
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/.claude-plugin/plugin.json" ]; then
-  echo "❌ plugin.json not created"
-  exit 1
-fi
-
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/README.md" ]; then
-  echo "❌ README.md not created"
-  exit 1
-fi
-
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/.gitignore" ]; then
-  echo "❌ .gitignore not created"
-  exit 1
-fi
-
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/commands/example.md" ]; then
-  echo "❌ Command not created"
-  exit 1
-fi
-
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/skills/example-skill/SKILL.md" ]; then
-  echo "❌ Skill not created"
-  exit 1
-fi
-
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/agents/example-agent.md" ]; then
-  echo "❌ Agent not created"
-  exit 1
-fi
-
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/hooks/hooks.json" ]; then
-  echo "❌ Hook not created"
-  exit 1
-fi
-
-echo "✓ Plugin scaffold passed"
-echo
-
-# Test 2: Skill scaffold
-echo "Test 2: Skill scaffold"
+# Test 1: Skill scaffold
+echo "Test 1: Skill scaffold"
 python3 "$SCAFFOLD_SCRIPT" skill \
   --name test-skill \
-  --plugin wicked-test-plugin \
+  --domain crew \
   --description "Test skill" \
   --use-when "testing"
 
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/skills/test-skill/SKILL.md" ]; then
-  echo "❌ Skill not created"
+if [ ! -f "$PROJECT_ROOT/skills/crew/test-skill/SKILL.md" ]; then
+  echo "FAIL: Skill not created at skills/crew/test-skill/SKILL.md"
   exit 1
 fi
 
-echo "✓ Skill scaffold passed"
+echo "PASS: Skill scaffold"
 echo
 
-# Test 3: Agent scaffold
-echo "Test 3: Agent scaffold"
+# Test 2: Agent scaffold
+echo "Test 2: Agent scaffold"
 python3 "$SCAFFOLD_SCRIPT" agent \
   --name test-agent \
-  --plugin wicked-test-plugin \
+  --domain platform \
   --description "Test agent" \
-  --domain "testing" \
   --tools "Read,Write"
 
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/agents/test-agent.md" ]; then
-  echo "❌ Agent not created"
+if [ ! -f "$PROJECT_ROOT/agents/platform/test-agent.md" ]; then
+  echo "FAIL: Agent not created at agents/platform/test-agent.md"
   exit 1
 fi
 
-echo "✓ Agent scaffold passed"
+echo "PASS: Agent scaffold"
+echo
+
+# Test 3: Command scaffold
+echo "Test 3: Command scaffold"
+python3 "$SCAFFOLD_SCRIPT" command \
+  --name test-command \
+  --domain engineering \
+  --description "Test command"
+
+if [ ! -f "$PROJECT_ROOT/commands/engineering/test-command.md" ]; then
+  echo "FAIL: Command not created at commands/engineering/test-command.md"
+  exit 1
+fi
+
+echo "PASS: Command scaffold"
 echo
 
 # Test 4: Hook scaffold
 echo "Test 4: Hook scaffold"
 python3 "$SCAFFOLD_SCRIPT" hook \
   --event PostToolUse \
-  --plugin wicked-test-plugin \
   --script test-hook \
   --description "Test hook" \
   --matcher "Read"
 
-if [ ! -f "$PROJECT_ROOT/plugins/wicked-test-plugin/hooks/scripts/test-hook.py" ]; then
-  echo "❌ Hook script not created"
+if [ ! -f "$PROJECT_ROOT/hooks/scripts/test-hook.py" ]; then
+  echo "FAIL: Hook script not created at hooks/scripts/test-hook.py"
   exit 1
 fi
 
 # Check hooks.json was updated
-if ! grep -q "PostToolUse" "$PROJECT_ROOT/plugins/wicked-test-plugin/hooks/hooks.json"; then
-  echo "❌ hooks.json not updated"
+if ! grep -q "PostToolUse" "$PROJECT_ROOT/hooks/hooks.json"; then
+  echo "FAIL: hooks.json not updated with PostToolUse entry"
   exit 1
 fi
 
-echo "✓ Hook scaffold passed"
+echo "PASS: Hook scaffold"
+echo
+
+# Test 5: Invalid domain rejection
+echo "Test 5: Invalid domain rejection"
+if python3 "$SCAFFOLD_SCRIPT" skill --name bad-skill --domain invalid-domain --description "Should fail" 2>/dev/null; then
+  echo "FAIL: Should have rejected invalid domain"
+  exit 1
+fi
+
+echo "PASS: Invalid domain rejection"
 echo
 
 # Cleanup
 echo "Cleaning up..."
-rm -rf "$PROJECT_ROOT/plugins/wicked-test-plugin"
-echo "✓ Cleanup complete"
+rm -rf "$PROJECT_ROOT/skills/crew/test-skill"
+rm -f "$PROJECT_ROOT/agents/platform/test-agent.md"
+rm -f "$PROJECT_ROOT/commands/engineering/test-command.md"
+rm -f "$PROJECT_ROOT/hooks/scripts/test-hook.py"
+echo "PASS: Cleanup complete"
 echo
 
 echo "=== All Tests Passed ==="

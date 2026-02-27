@@ -11,8 +11,7 @@ Failure classes:
   malformed — output failed schema validation
   pass      — output validated successfully
 
-Results are appended to:
-  ~/.something-wicked/wicked-observability/assertions/{date}.jsonl
+Results are persisted via StorageManager("wicked-observability").
 
 Usage:
     python3 assert_contracts.py
@@ -28,14 +27,19 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Resolve _storage from the parent scripts/ directory
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
 PLUGIN_ROOT = Path(__file__).parent.parent
 SCHEMAS_DIR = PLUGIN_ROOT / "schemas"
-STORAGE_ROOT = Path.home() / ".something-wicked" / "wicked-observability" / "assertions"
 PLUGINS_ROOT = PLUGIN_ROOT.parent  # …/plugins/
 TIMEOUT_SECONDS = 10
+
+_sm = StorageManager("wicked-observability")
 
 
 # ── Minimal JSON Schema validator ────────────────────────────────────────────
@@ -293,13 +297,11 @@ def run_assertion(descriptor: dict) -> dict:
 
 
 def append_result(record: dict) -> None:
-    """Append a single result record to the daily JSONL log."""
-    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    log_path = STORAGE_ROOT / f"{date}.jsonl"
-    STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(record, separators=(",", ":"))
-    with log_path.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+    """Persist a single assertion result via StorageManager."""
+    try:
+        _sm.create("assertions", record)
+    except Exception as exc:
+        print(f"WARNING: Could not persist assertion result: {exc}", file=sys.stderr)
 
 
 # ── Formatting ───────────────────────────────────────────────────────────────

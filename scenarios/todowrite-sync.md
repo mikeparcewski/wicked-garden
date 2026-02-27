@@ -17,7 +17,7 @@ The PostToolUse hook should be active (loaded at session start).
 
 ```bash
 # Verify kanban CLI works
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
 ```
 
 Note any existing projects. New tasks will be synced to a project bound to the current repo.
@@ -33,13 +33,13 @@ Note any existing projects. New tasks will be synced to a project bound to the c
 
 2. **Check the kanban board**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-projects
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
    ```
    Look for a project bound to the current repo (auto-created if needed).
 
 3. **View the synced tasks**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-project PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project PROJECT_ID
    ```
    Tasks from TaskCreate should appear.
 
@@ -47,12 +47,12 @@ Note any existing projects. New tasks will be synced to a project bound to the c
    As Claude works, it marks tasks as in_progress and completed.
    Verify changes with:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py list-tasks PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-tasks PROJECT_ID
    ```
 
 5. **Verify activity log**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py activity PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py activity PROJECT_ID
    ```
    Should show task_created and swimlane_changed entries.
 

@@ -93,7 +93,7 @@ No additional plugins required. This scenario tests wicked-smaht's built-in cros
    ```bash
    python3 -c "
    import sys
-   sys.path.insert(0, '$HOME/.claude/plugins/cache/wicked-garden/wicked-smaht/$(ls ~/.claude/plugins/cache/wicked-garden/wicked-smaht/ 2>/dev/null | sort -V | tail -1)/scripts/v2')
+   sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts', 'smaht'))
    from history_condenser import HistoryCondenser
    sessions = HistoryCondenser.load_recent_sessions(max_sessions=3)
    for s in sessions:

@@ -11,12 +11,12 @@ Give the current Claude Code session a descriptive name. This creates an initiat
 
 1. Get the current project for this repo:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py list-projects
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-projects
    ```
 
 2. Create a named initiative for the session:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py create-initiative PROJECT_ID "SESSION_NAME"
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py create-initiative PROJECT_ID "SESSION_NAME"
    ```
 
 3. Confirm to the user with the initiative details

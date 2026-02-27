@@ -17,13 +17,13 @@ Create a project with tasks that will have associated code changes and documenta
 
 ```bash
 # Create project
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-project "User Profile Feature" -d "Implement user profile management"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "User Profile Feature" -d "Implement user profile management"
 # Note PROJECT_ID from output
 
 # Create tasks
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Add profile API endpoints" -p P1 -d "REST endpoints for profile CRUD"
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Frontend profile component" -p P1
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Profile image upload" -p P2
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Add profile API endpoints" -p P1 -d "REST endpoints for profile CRUD"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Frontend profile component" -p P1
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Profile image upload" -p P2
 # Note TASK_ID_1, TASK_ID_2, TASK_ID_3 from outputs
 ```
 
@@ -31,55 +31,55 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Profile 
 
 1. **Move first task to In Progress**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane in_progress
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane in_progress
    ```
 
 2. **Link API documentation as artifact**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-artifact PROJECT_ID TASK_ID_1 "API Design Doc" --type url --url "https://docs.google.com/document/d/abc123"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-artifact PROJECT_ID TASK_ID_1 "API Design Doc" --type url --url "https://docs.google.com/document/d/abc123"
    ```
 
 3. **Simulate completing work and link commit**
    ```bash
    # Add commit hash (simulate a real commit)
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-commit PROJECT_ID TASK_ID_1 "a1b2c3d4"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID_1 "a1b2c3d4"
 
    # Add comment about the implementation
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_ID_1 "Implemented GET/POST/PUT/DELETE endpoints with validation"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID_1 "Implemented GET/POST/PUT/DELETE endpoints with validation"
 
    # Move to Done
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane done
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane done
    ```
 
 4. **Work on frontend task with multiple commits and artifacts**
    ```bash
    # Move to In Progress
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID_2 --swimlane in_progress
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_2 --swimlane in_progress
 
    # Link design mockup as file artifact
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-artifact PROJECT_ID TASK_ID_2 "Profile Mockup" --type image --path "/path/to/mockup.png"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-artifact PROJECT_ID TASK_ID_2 "Profile Mockup" --type image --path "/path/to/mockup.png"
 
    # Add multiple commits as work progresses
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-commit PROJECT_ID TASK_ID_2 "e5f6g7h8"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_ID_2 "Initial component structure"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID_2 "e5f6g7h8"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID_2 "Initial component structure"
 
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-commit PROJECT_ID TASK_ID_2 "i9j0k1l2"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_ID_2 "Added form validation and API integration"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID_2 "i9j0k1l2"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID_2 "Added form validation and API integration"
 
    # Move to Done
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID_2 --swimlane done
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_2 --swimlane done
    ```
 
 5. **View task with artifacts and commits**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-task PROJECT_ID TASK_ID_1
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-task PROJECT_ID TASK_ID_2
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID TASK_ID_1
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID TASK_ID_2
    ```
    Verify the `commits` and `artifacts` arrays contain the linked items.
 
 6. **View activity log showing all changes**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py activity PROJECT_ID
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py activity PROJECT_ID
    ```
    Should show artifact_added and commit_linked entries.
 

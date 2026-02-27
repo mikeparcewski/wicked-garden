@@ -13,7 +13,7 @@ Exit codes:
   1  degraded — warnings only
   2  unhealthy — one or more errors
 
-Output is written to ~/.something-wicked/wicked-observability/health/latest.json
+Output is persisted via StorageManager("wicked-observability").
 """
 
 from __future__ import annotations
@@ -21,11 +21,16 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+# Resolve _storage from the parent scripts/ directory
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
+
+_sm = StorageManager("wicked-observability")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -534,17 +539,21 @@ def build_report(
     }
 
 
-def persist_report(report: dict[str, Any]) -> Path | None:
-    """Write the report to disk. Returns the path on success, None on failure."""
-    storage_dir = Path.home() / ".something-wicked" / "wicked-observability" / "health"
+def persist_report(report: dict[str, Any]) -> str | None:
+    """Persist the report via StorageManager. Returns the record ID on success."""
     try:
-        storage_dir.mkdir(parents=True, exist_ok=True)
-        output_path = storage_dir / "latest.json"
-        output_path.write_text(
-            json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
-        return output_path
-    except (OSError, PermissionError) as exc:
+        # Upsert: try update first, fall back to create
+        record = dict(report)
+        record["id"] = "latest"
+
+        existing = _sm.get("health", "latest")
+        if existing:
+            result = _sm.update("health", "latest", record)
+        else:
+            result = _sm.create("health", record)
+
+        return "latest" if result else None
+    except Exception as exc:
         print(f"WARNING: Could not persist health report: {exc}", file=sys.stderr)
         return None
 
@@ -553,7 +562,7 @@ def persist_report(report: dict[str, Any]) -> Path | None:
 # Human-readable console output
 # ---------------------------------------------------------------------------
 
-def print_report(report: dict[str, Any], output_path: Path) -> None:
+def print_report(report: dict[str, Any], record_id: str | None = None) -> None:
     status = report["status"].upper()
     checked = report["plugins_checked"]
     summary = report["summary"]
@@ -585,7 +594,10 @@ def print_report(report: dict[str, Any], output_path: Path) -> None:
             print(f"   [{sev}] {v['plugin']}{loc}")
             print(f"          {v['message']}")
 
-    print(f"\n   Report written to: {output_path}\n")
+    if record_id:
+        print(f"\n   Report persisted as: wicked-observability/health/{record_id}\n")
+    else:
+        print("\n   Report not persisted.\n")
 
 
 # ---------------------------------------------------------------------------
@@ -708,16 +720,13 @@ def main() -> int:
     report = build_report(all_violations, len(plugin_roots), per_plugin_violations)
 
     # Persist
-    output_path = persist_report(report)
+    record_id = persist_report(report)
 
     # Output
     if args.json_only:
         print(json.dumps(report, indent=2, ensure_ascii=False))
-    elif output_path:
-        print_report(report, output_path)
     else:
-        # Persistence failed — still print report without path
-        print_report(report, Path("(not persisted)"))
+        print_report(report, record_id)
 
     # Exit code
     status = report["status"]

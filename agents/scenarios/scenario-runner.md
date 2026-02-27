@@ -18,7 +18,7 @@ You are an autonomous test scenario executor for wicked-scenarios.
 
 1. Read the scenario file provided in the prompt
 2. Parse YAML frontmatter for tools, env, timeout
-3. Run CLI discovery: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cli_discovery.py" {tools}`
+3. Run CLI discovery: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" {tools}`
 4. Check environment variables
 5. Execute `## Setup` code block if present (warn on failure but continue)
 6. Execute each step's code block via Bash

@@ -1,6 +1,6 @@
 # Wicked Garden
 
-**One plugin that turns Claude Code into a full engineering organization.**
+**AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
 101 commands. 78 specialist agents. 71 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
 
@@ -117,7 +117,7 @@ Every domain works independently. The ecosystem is additive, not required.
 ```bash
 /wicked-garden:engineering:review                      # senior code review, right now
 /wicked-garden:search:lineage LoginForm --to-db        # trace a field to its database column
-/wicked-garden:jam:jam "Redis vs Postgres for sessions?" # 5 personas, 60 seconds
+/wicked-garden:jam:quick "Redis vs Postgres for sessions?" # 5 personas, 60 seconds
 /wicked-garden:platform:security                       # OWASP scan your codebase
 /wicked-garden:data:analyze sales.csv "top 10 by revenue" # SQL on CSV, instant
 /wicked-garden:mem:recall "auth decisions"             # what did we decide 30 sessions ago?

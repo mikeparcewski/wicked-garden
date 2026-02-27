@@ -10,19 +10,19 @@ Display current kanban board state.
 
 1. List all projects:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py list-projects
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-projects
    ```
 
 2. For the main project (or user-specified), get tasks by swimlane:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py list-tasks PROJECT_ID --swimlane todo
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py list-tasks PROJECT_ID --swimlane in_progress
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py list-tasks PROJECT_ID --swimlane done
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID --swimlane todo
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID --swimlane in_progress
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID --swimlane done
    ```
 
 3. Check recent activity:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py activity PROJECT_ID --limit 10
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py activity PROJECT_ID --limit 10
    ```
 
 4. Summarize:

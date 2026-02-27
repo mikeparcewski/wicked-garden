@@ -19,14 +19,14 @@ Understand that wicked-kanban uses file-based storage at `~/.something-wicked/wi
 
 1. **Claude creates a project**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-project "Shared Work" -d "Human and Claude working together"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "Shared Work" -d "Human and Claude working together"
    # Note PROJECT_ID from output
    ```
 
 2. **Claude adds tasks**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Implement feature A" -p P1
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py create-task PROJECT_ID "Write documentation" -p P2
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Implement feature A" -p P1
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Write documentation" -p P2
    # Note TASK_ID_1 and TASK_ID_2
    ```
 
@@ -46,7 +46,7 @@ Understand that wicked-kanban uses file-based storage at `~/.something-wicked/wi
 
 5. **Claude adds a comment for human context**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py add-comment PROJECT_ID TASK_ID_1 "Started implementation, estimated 2 hours"
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID_1 "Started implementation, estimated 2 hours"
    ```
 
 6. **Verify activity log contains comment**
@@ -59,12 +59,12 @@ Understand that wicked-kanban uses file-based storage at `~/.something-wicked/wi
    In a real scenario, a human would use wicked-workbench or edit the JSON directly.
    For this test, we can use the CLI as if we were the human:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane in_progress
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane in_progress
    ```
 
 8. **Claude sees the updated status**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py get-task PROJECT_ID TASK_ID_1
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID TASK_ID_1
    ```
    The task should now show swimlane as "in_progress".
 

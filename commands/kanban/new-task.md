@@ -19,19 +19,19 @@ Create a task on the kanban board.
 
 2. List existing projects to find or create target:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py list-projects
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-projects
    ```
 
 3. If project specified and doesn't exist, create it:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py create-project "PROJECT_NAME"
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py create-project "PROJECT_NAME"
    ```
 
 4. If no project specified, use the most recent project or create "Claude Tasks"
 
 5. Create the task:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban.py create-task PROJECT_ID "TASK_NAME" --priority P2
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py create-task PROJECT_ID "TASK_NAME" --priority P2
    ```
 
 ## Example Usage

@@ -12,10 +12,17 @@ Handles:
 import json
 import logging
 import re
+import sys
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field, asdict
+
+# Resolve _storage from the parent scripts/ directory
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
+
+_sm = StorageManager("wicked-crew")
 
 # Configure logging
 logging.basicConfig(
@@ -145,35 +152,37 @@ def get_project_dir(project_name: str) -> Path:
 
 
 def load_project_state(project_name: str) -> Optional[ProjectState]:
-    """Load project state from disk."""
-    project_dir = get_project_dir(project_name)
-    project_file = project_dir / "project.json"
+    """Load project state from StorageManager."""
+    if not project_name or not is_safe_project_name(project_name):
+        return None
 
-    if not project_file.exists():
+    data = _sm.get("projects", project_name)
+    if not data:
+        # Fallback: try legacy file path for markdown
+        project_dir = get_project_dir(project_name)
         project_md = project_dir / "project.md"
         if project_md.exists():
             return load_from_markdown(project_md)
         return None
 
-    with open(project_file) as f:
-        data = json.load(f)
-
     phases = {}
     for phase_name, phase_data in data.get("phases", {}).items():
         normalized = resolve_phase(phase_name)
-        phases[normalized] = PhaseState(**phase_data)
+        if isinstance(phase_data, dict):
+            phases[normalized] = PhaseState(**phase_data)
 
     known_keys = {
-        "name", "current_phase", "created_at", "version",
+        "id", "name", "current_phase", "created_at", "version",
         "signals_detected", "complexity_score", "specialists_recommended",
         "phase_plan", "phases",
         "kanban_initiative", "kanban_initiative_id",
+        "created_at", "updated_at", "deleted", "deleted_at",
     }
     extras = {k: v for k, v in data.items() if k not in known_keys}
 
     return ProjectState(
-        name=data["name"],
-        current_phase=resolve_phase(data["current_phase"]),
+        name=data.get("name", project_name),
+        current_phase=resolve_phase(data.get("current_phase", "clarify")),
         created_at=data.get("created_at", get_utc_timestamp()),
         version=data.get("version", "v3-capability-based"),
         signals_detected=data.get("signals_detected", []),
@@ -253,16 +262,11 @@ def load_from_markdown(project_md: Path) -> Optional[ProjectState]:
 
 
 def save_project_state(state: ProjectState) -> None:
-    """Save project state to disk with atomic write."""
+    """Save project state via StorageManager."""
     logger.info(f"Saving project state: {state.name} (phase: {state.current_phase})")
 
-    project_dir = get_project_dir(state.name)
-    project_dir.mkdir(parents=True, exist_ok=True)
-
-    project_file = project_dir / "project.json"
-    temp_file = project_file.with_suffix('.tmp')
-
     data = {
+        "id": state.name,
         "name": state.name,
         "current_phase": state.current_phase,
         "created_at": state.created_at,
@@ -277,16 +281,12 @@ def save_project_state(state: ProjectState) -> None:
         **state.extras,
     }
 
-    try:
-        with open(temp_file, 'w') as f:
-            json.dump(data, f, indent=2)
-        temp_file.replace(project_file)
-        logger.debug(f"Project state saved to {project_file}")
-    except OSError as e:
-        logger.error(f"Failed to save project state: {e}")
-        if temp_file.exists():
-            temp_file.unlink()
-        raise
+    existing = _sm.get("projects", state.name)
+    if existing:
+        _sm.update("projects", state.name, data)
+    else:
+        _sm.create("projects", data)
+    logger.debug(f"Project state saved for {state.name}")
 
 
 def can_transition(

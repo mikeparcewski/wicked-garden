@@ -216,7 +216,7 @@ Complete registry of all evidence IDs:
 ## Metadata
 - **Source**: plugins/wicked-mem/scenarios/01-decision-recall.md
 - **Generated**: 2024-01-15T10:30:00Z
-- **Implementation files**: plugins/wicked-mem/commands/store.md, plugins/wicked-mem/scripts/memory.py
+- **Implementation files**: plugins/wicked-mem/commands/store.md, scripts/mem/memory.py
 - **Scenario format**: plugin-acceptance
 
 ## Specification Notes
