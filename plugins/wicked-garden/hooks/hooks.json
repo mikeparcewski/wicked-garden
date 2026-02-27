@@ -1,0 +1,117 @@
+{
+  "description": "wicked-garden unified hooks — consolidates 10 plugin hook chains into 5 scripts",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bootstrap.py\"",
+          "timeout": 15000
+        }]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py\"",
+          "timeout": 5000
+        }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "TaskCreate",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py\"",
+          "timeout": 1000
+        }]
+      },
+      {
+        "matcher": "EnterPlanMode",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py\"",
+          "timeout": 1000
+        }]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py\"",
+          "timeout": 3000
+        }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TaskCreate|TaskUpdate|TodoWrite",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+          "timeout": 5000
+        }]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+          "timeout": 3000,
+          "async": true
+        }]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+          "timeout": 2000
+        }]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+          "timeout": 5000
+        }]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+          "timeout": 3000
+        }]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_compact.py\"",
+          "timeout": 5000
+        }]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [{
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.py\"",
+          "async": true,
+          "timeout": 30000
+        }]
+      }
+    ]
+  }
+}
