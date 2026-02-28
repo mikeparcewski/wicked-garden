@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-101 commands. 78 specialist agents. 71 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
+115 commands. 78 specialist agents. 69 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
 
 ```bash
 claude plugins add something-wicked/wicked-garden
@@ -164,7 +164,7 @@ The plugin auto-detects connectivity and falls back gracefully. Offline writes a
   └─────────────────────────┘
 ```
 
-At checkpoints (clarify, design, build), the system re-analyzes. If design reveals security concerns that weren't in the original description, the security specialist gets pulled in mid-flight.
+At checkpoints (clarify, design, build), the system re-analyzes and enforces phase completeness. If complexity >= 2, test-strategy and test phases are injected automatically — you can't skip testing without explicitly documenting why. If design reveals security concerns that weren't in the original description, the security specialist gets pulled in mid-flight.
 
 ## Principles
 
@@ -190,14 +190,19 @@ wicked-garden/
 │   ├── plugin.json          # name, version, description
 │   ├── specialist.json      # 8 specialist roles, 47 personas
 │   └── marketplace.json     # marketplace registration
-├── commands/{domain}/       # 101 slash commands by domain
+├── phases.json              # 7-phase catalog with gates and checkpoints
+├── commands/
+│   ├── {domain}/            # domain-scoped slash commands
+│   └── *.md                 # root-level commands (setup, help, report-issue)
 ├── agents/{domain}/         # 78 specialist subagents by domain
-├── skills/{domain}/         # 71 skills with progressive disclosure
+├── skills/
+│   ├── {domain}/            # domain-scoped skills
+│   └── {name}/              # root-level skills (CLI tools, patterns)
 ├── hooks/
 │   ├── hooks.json           # 7 lifecycle hooks
 │   └── scripts/             # 6 Python hook scripts (stdlib-only)
 ├── scripts/{domain}/        # domain APIs and utilities
-└── scenarios/{domain}/      # 105 acceptance test scenarios
+└── scenarios/{domain}/      # acceptance test scenarios
 ```
 
 ## License
