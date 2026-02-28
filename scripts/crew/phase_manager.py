@@ -55,8 +55,8 @@ def _get_plugin_root() -> Path:
             return candidate
         if (candidate / ".claude-plugin").is_dir():
             return candidate
-    # Fallback: scripts/crew/ -> scripts/ -> repo root
-    return here.parent.parent
+    # Fallback: 3 levels up from this file (scripts/crew/ -> scripts/ -> repo root)
+    return Path(__file__).resolve().parents[2]
 
 
 def load_phases_config() -> dict:
@@ -127,17 +127,26 @@ def validate_phase_plan(state: 'ProjectState') -> Tuple[List[str], List[str]]:
     if state.complexity_score < _TEST_PHASE_COMPLEXITY_THRESHOLD:
         return ([], [])
 
+    # Honor phase_plan_mode: static — don't mutate locked plans
+    if state.extras.get("phase_plan_mode") == "static":
+        return ([], [])
+
     if not state.phase_plan:
         return ([], ["No phase_plan set — cannot validate"])
 
     plan = [resolve_phase(p) for p in state.phase_plan]
     phases_config = load_phases_config()
     injected = []
+    warnings = []
 
     for test_phase in _TEST_PHASES:
         if test_phase in plan:
             continue
         if test_phase not in phases_config:
+            warnings.append(
+                f"Required test phase '{test_phase}' not found in phases.json — "
+                f"cannot inject. Check phases.json configuration."
+            )
             continue
 
         # Find correct insertion point based on depends_on
@@ -165,7 +174,6 @@ def validate_phase_plan(state: 'ProjectState') -> Tuple[List[str], List[str]]:
     if injected:
         state.phase_plan = plan
 
-    warnings = []
     if injected:
         warnings.append(
             f"Injected {', '.join(injected)} into phase plan "
@@ -183,16 +191,19 @@ def _check_test_phases_before_review(state: 'ProjectState') -> List[str]:
     if state.complexity_score < _TEST_PHASE_COMPLEXITY_THRESHOLD:
         return []
 
+    # Normalize phase names so legacy aliases (e.g., "qe") are handled correctly
+    normalized_plan = {resolve_phase(p) for p in state.phase_plan}
+
     reasons = []
     for test_phase in _TEST_PHASES:
-        if test_phase not in state.phase_plan:
+        if test_phase not in normalized_plan:
             continue
 
         phase_state = state.phases.get(test_phase)
         if not phase_state:
             reasons.append(
                 f"Test phase '{test_phase}' is in the plan but was never started. "
-                f"Run it or skip with: phase_manager.py {{project}} skip --phase {test_phase} --reason '...'"
+                f"Run it or skip with: phase_manager.py {state.name} skip --phase {test_phase} --reason '...'"
             )
             continue
 
@@ -809,7 +820,10 @@ def main():
                 print(f"Injected phases: {', '.join(injected)}")
                 print(f"Updated plan: {' -> '.join(state.phase_plan)}")
             else:
-                print("Phase plan is valid — no changes needed")
+                if warnings:
+                    print("Phase plan validation completed with warnings:")
+                else:
+                    print("Phase plan is valid — no changes needed")
             for w in warnings:
                 print(f"  Warning: {w}")
         if injected:
