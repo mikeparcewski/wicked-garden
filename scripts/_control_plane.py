@@ -74,6 +74,14 @@ _DOMAIN_MAP: dict[str, str] = {
     "indexing": "indexing",
 }
 
+# Domains with non-standard path prefixes (not /api/v1/data/{domain}/...).
+# format: domain → (prefix_template, skip_source)
+# skip_source=True when the domain's routes are {prefix}/{verb} not {prefix}/{source}/{verb}
+_DOMAIN_PREFIX_OVERRIDES: dict[str, tuple[str, bool]] = {
+    "events": ("/api/{version}/events", True),
+    "indexing": ("/api/{version}/indexing", False),
+}
+
 # HTTP method inference based on verb name (matches CP's manifest.ts)
 _POST_VERBS = frozenset({
     "create", "ingest", "bulk-update", "bulk-delete", "archive",
@@ -202,7 +210,15 @@ class ControlPlaneClient:
 
         cp_domain = _resolve_domain(domain)
         api_version = self._cfg.get("api_version", "v1")
-        path = f"/api/{api_version}/data/{cp_domain}/{source}/{verb}"
+
+        # Some domains use non-standard path prefixes
+        override = _DOMAIN_PREFIX_OVERRIDES.get(cp_domain)
+        if override:
+            prefix_tpl, skip_source = override
+            prefix = prefix_tpl.format(version=api_version)
+            path = f"{prefix}/{verb}" if skip_source else f"{prefix}/{source}/{verb}"
+        else:
+            path = f"/api/{api_version}/data/{cp_domain}/{source}/{verb}"
         if id is not None:
             path = f"{path}/{id}"
 
@@ -339,8 +355,12 @@ class ControlPlaneClient:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_headers(self) -> dict[str, str]:
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    def _build_headers(self, *, has_body: bool = False) -> dict[str, str]:
+        headers = {"Accept": "application/json"}
+        # Only set Content-Type when sending a body — Fastify rejects
+        # empty-body requests with Content-Type: application/json.
+        if has_body:
+            headers["Content-Type"] = "application/json"
         token = self._cfg.get("auth_token")
         if token:
             headers["Authorization"] = f"Bearer {token}"
@@ -358,8 +378,9 @@ class ControlPlaneClient:
 
         Auth header is never echoed in error output (security requirement).
         """
-        headers = self._build_headers()
-        body = json.dumps(payload).encode() if payload is not None else None
+        has_body = payload is not None
+        headers = self._build_headers(has_body=has_body)
+        body = json.dumps(payload).encode() if has_body else None
 
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
 
