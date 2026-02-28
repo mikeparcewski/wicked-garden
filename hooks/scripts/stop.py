@@ -2,8 +2,7 @@
 """
 Stop hook — wicked-garden unified session teardown (async, 30s timeout).
 
-Consolidates: crew stop, kanban stop, mem stop, smaht session_end,
-startah session_outcome_checker.
+Consolidates: crew stop, kanban stop, mem stop, smaht session_end.
 
 Flow:
 1. Session outcome check (mismatch report from auto_issue_reporter state)
@@ -59,7 +58,7 @@ def _check_session_outcome() -> list:
             if lines:
                 messages.append(
                     f"[Issue Reporter] {len(lines)} issue(s) queued this session. "
-                    "Review with /wicked-garden:startah:issues."
+                    "Review with /wicked-garden:report-issue --list-unfiled."
                 )
 
         # Count task mismatches

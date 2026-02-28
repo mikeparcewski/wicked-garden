@@ -52,7 +52,7 @@ class SlowPathAssembler:
         adapter_modules = {
             "cp": "cp_adapter",
             "context7": "context7_adapter",
-            "startah": "startah_adapter",
+            "tools": "startah_adapter",
             "delegation": "delegation_adapter",
         }
         for name, module_name in adapter_modules.items():
@@ -198,7 +198,7 @@ class SlowPathAssembler:
             "jam": "Brainstorms",
             "crew": "Project State",
             "context7": "External Docs",
-            "startah": "Available CLIs",
+            "tools": "Available CLIs",
             "delegation": "Delegation Hints",
         }
 

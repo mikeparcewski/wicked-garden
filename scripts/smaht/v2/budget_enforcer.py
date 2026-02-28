@@ -31,7 +31,7 @@ SOURCE_PRIORITY = {
     "crew": 6,       # Project state
     "context7": 4,   # External docs
     "jam": 3,        # Brainstorms
-    "startah": 2,    # Available CLIs
+    "tools": 2,      # Available CLIs
     "delegation": 1, # Suggestions — lowest
 }
 

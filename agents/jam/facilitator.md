@@ -122,7 +122,7 @@ After rounds complete, synthesize:
 
 ### 4.5. Multi-AI Perspective (Optional)
 
-After the final persona round, if wicked-startah is available and an external CLI (gemini, codex) is installed:
+After the final persona round, if an external CLI (gemini, codex) is installed:
 
 1. Send the topic + synthesis-so-far to ONE external AI
 2. Frame as: "Given this discussion and synthesis, what perspective is missing? What would you challenge?"

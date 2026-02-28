@@ -42,7 +42,7 @@ Start a Claude Code session in a project with some existing code. The UserPrompt
    Implement a logout function that creates an endpoint to invalidate JWT tokens.
    ```
 
-   **Expected**: Intent detected as "implementation" with high confidence. On the fast path, search, mem, kanban, context7, startah, and delegation adapters are selected for task context.
+   **Expected**: Intent detected as "implementation" with high confidence. On the fast path, search, mem, kanban, context7, tools, and delegation adapters are selected for task context.
 
 4. **Test research intent detection**
 
@@ -51,7 +51,7 @@ Start a Claude Code session in a project with some existing code. The UserPrompt
    How does the caching layer work in this codebase?
    ```
 
-   **Expected**: Intent detected as "research" with high confidence. On the fast path, search, mem, context7, startah, and delegation adapters are selected for broad code understanding.
+   **Expected**: Intent detected as "research" with high confidence. On the fast path, search, mem, context7, tools, and delegation adapters are selected for broad code understanding.
 
 5. **Verify intent in session data**
    ```bash
@@ -65,7 +65,7 @@ Start a Claude Code session in a project with some existing code. The UserPrompt
 - Debugging queries select search and mem adapters for error context and recent changes
 - Planning queries escalate to slow path for comprehensive context from all adapters
 - Implementation queries select kanban, search, mem, and context7 for task and code context
-- Research queries select search, mem, context7, and startah for broad coverage
+- Research queries select search, mem, context7, and tools for broad coverage
 
 ## Processing Modes
 

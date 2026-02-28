@@ -33,7 +33,6 @@ Before doing work manually, check if a wicked-* tool can help:
 - **Search**: Use wicked-search to find similar requirements
 - **Memory**: Use wicked-mem to recall past patterns
 - **Task tracking**: Use wicked-kanban to document requirements
-- **Caching**: Use wicked-cache for repeated analysis
 
 ## Elicitation Process
 

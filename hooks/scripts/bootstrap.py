@@ -3,7 +3,7 @@
 SessionStart hook — wicked-garden unified bootstrap.
 
 Consolidates: crew session_start, kanban session_start, mem session_start,
-search session_start, smaht session_start, startah session_start.
+search session_start, smaht session_start.
 
 Flow:
 1. Read config from ~/.something-wicked/wicked-garden/config.json

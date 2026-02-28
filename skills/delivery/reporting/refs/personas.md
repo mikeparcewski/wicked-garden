@@ -50,7 +50,6 @@ Requires:
 - **wicked-data**: Data sampling, schema detection, SQL queries
 
 Optional:
-- **wicked-cache**: Cache API for result persistence (namespace: "delivery")
 - **wicked-mem**: Memory storage for cross-session insights
 
 ## Workflow

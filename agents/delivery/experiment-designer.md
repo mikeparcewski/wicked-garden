@@ -19,7 +19,6 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Product**: Use wicked-product to understand feature context
 - **Memory**: Use wicked-mem to recall past experiment patterns
 - **Task tracking**: Use wicked-kanban to store experiment plans
-- **Caching**: Use wicked-cache for repeated analysis
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

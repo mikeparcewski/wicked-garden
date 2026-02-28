@@ -109,7 +109,7 @@ grep -r "except" scripts/ 2>/dev/null | head -5
 
 **Skill Description Check**:
 - Skills should document "Enhanced with:" in their YAML frontmatter
-- Example: "Enhanced with: wicked-cache for faster repeat runs"
+- Example: "Enhanced with: wicked-mem for cross-session insights"
 
 ### 5. Evaluate Product Value
 

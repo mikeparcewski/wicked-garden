@@ -74,7 +74,7 @@ PLUGIN_SKILL_MAP = {
     "wicked-platform": [
         "/wicked-platform:security — security review and vulnerability assessment",
     ],
-    "wicked-startah": [
+    "wicked-garden": [
         "context7 MCP tools — query up-to-date library documentation",
     ],
 }

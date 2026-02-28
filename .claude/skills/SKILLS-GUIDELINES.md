@@ -22,7 +22,6 @@ This is non-negotiable for wicked-garden. Users should never be forced to instal
 │  - Basic commands                                            │
 ├─────────────────────────────────────────────────────────────┤
 │                    ENHANCED (When available)                 │
-│  + wicked-cache → Faster repeated operations                 │
 │  + wicked-mem → Cross-session memory                         │
 │  + wicked-kanban → Visual task tracking                      │
 └─────────────────────────────────────────────────────────────┘
@@ -31,32 +30,19 @@ This is non-negotiable for wicked-garden. Users should never be forced to instal
 #### Implementation Pattern
 
 ```python
-# Check for optional dependency
-def _get_cache():
-    """Get cache if available. Returns None for graceful degradation."""
-    try:
-        cache_path = Path.home() / ".claude" / "plugins" / "wicked-cache" / "scripts"
-        if not cache_path.exists():
-            return None
-        sys.path.insert(0, str(cache_path))
-        from cache import namespace
-        return namespace("my-plugin")
-    except ImportError:
-        return None
+# Check for optional dependency via StorageManager
+from _storage import StorageManager
 
-# Use with fallback
-cache = _get_cache()
-if cache:
-    cached = cache.get(key)
-    if cached:
-        return cached
+storage = StorageManager("my-domain")
+
+# Use with fallback — StorageManager handles CP-first with local JSON fallback
+cached = storage.get("cache-key")
+if cached:
+    return cached
 
 # Always have standalone path
 result = compute_result()
-
-if cache:
-    cache.set(key, result)
-
+storage.set("cache-key", result)
 return result
 ```
 
@@ -69,7 +55,6 @@ Every plugin README should include an Integration table:
 
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
-| wicked-cache | Faster repeated analysis | Re-computes each time |
 | wicked-mem | Cross-session insights | Session-only memory |
 | wicked-kanban | Visual task board | TodoWrite fallback |
 ```
@@ -89,7 +74,6 @@ description: |
   - Secondary use case
 
   Enhanced with:
-  - wicked-cache: Caches results for faster repeat runs
   - wicked-mem: Stores learnings across sessions
 ---
 ```
@@ -248,7 +232,6 @@ description: |
   - Secondary trigger
 
   Enhanced with:
-  - wicked-cache: Caches analysis results
   - wicked-mem: Stores learnings across sessions
 ---
 ```

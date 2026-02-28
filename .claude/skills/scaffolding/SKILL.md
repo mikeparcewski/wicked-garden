@@ -233,11 +233,11 @@ if __name__ == "__main__":
 
 ## Valid Domains
 
-The 18 domains in wicked-garden:
+The 16 domains in wicked-garden:
 
 **Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
 **Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic
-**Infrastructure & Tools**: startah, workbench, scenarios, patch, observability
+**Infrastructure & Tools**: scenarios, patch, observability
 
 ### Template Variables
 
@@ -287,15 +287,15 @@ Available in all `.tpl` files:
 
 ```bash
 python scripts/scaffold.py plugin \
-  --name wicked-cache-analyzer \
-  --description "Cache performance analysis and optimization" \
+  --name wicked-perf-analyzer \
+  --description "Performance analysis and optimization" \
   --with-commands analyze,optimize \
   --with-skills analysis,optimization \
   --with-agents optimizer \
   --author "Your Name"
 
 # Result:
-# plugins/wicked-cache-analyzer/
+# plugins/wicked-perf-analyzer/
 # ├── .claude-plugin/plugin.json
 # ├── commands/
 # │   ├── analyze.md

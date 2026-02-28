@@ -18,7 +18,6 @@ Leverage available tools:
 - **wicked-garden:data:numbers**: Primary tool for data analysis and SQL queries
 - **wicked-mem**: Recall past analysis patterns
 - **wicked-kanban**: Document insights
-- **wicked-cache**: Cache analysis results
 
 ## Core Responsibilities
 

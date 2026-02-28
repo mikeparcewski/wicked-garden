@@ -61,7 +61,7 @@ _DOMAIN_MAP: dict[str, str] = {
     "wicked-search": "knowledge",
     "wicked-observability": "observability",
     "wicked-smaht": "smaht",
-    "wicked-startah": "startah",
+    "wicked-garden": "garden",
     # Bare names pass through unchanged
     "memory": "memory",
     "kanban": "kanban",

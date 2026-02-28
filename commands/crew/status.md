@@ -32,7 +32,7 @@ Check which plugins are installed:
 
 ```bash
 # Check for each plugin
-for plugin in wicked-jam wicked-search wicked-product wicked-mem wicked-kanban wicked-cache; do
+for plugin in wicked-jam wicked-search wicked-product wicked-mem wicked-kanban; do
   if claude mcp list 2>/dev/null | grep -q "$plugin"; then
     echo "$plugin: available"
   else
@@ -46,7 +46,7 @@ done
 Based on available plugins:
 - **Level 4**: All specialized plugins available
 - **Level 3**: Some specialized plugins (jam/scout/lens)
-- **Level 2**: Only wicked-mem or wicked-cache
+- **Level 2**: Only wicked-mem
 - **Level 1**: Standalone (no optional plugins)
 
 ### 5. Display Status

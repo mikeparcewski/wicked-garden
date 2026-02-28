@@ -301,7 +301,7 @@ async def _resolve_library_id(library_name: str, query: str) -> Optional[str]:
     """
     Resolve library name to Context7 library ID.
 
-    Uses the MCP tool: mcp__plugin_wicked-startah_context7__resolve-library-id
+    Uses the MCP tool: mcp__plugin_wicked-garden_context7__resolve-library-id
 
     Returns:
         Library ID (e.g., "/vercel/next.js") or None
@@ -339,7 +339,7 @@ async def _query_docs(library_id: str, query: str) -> List[Dict[str, Any]]:
     """
     Query Context7 documentation for a library ID.
 
-    Uses the MCP tool: mcp__plugin_wicked-startah_context7__query-docs
+    Uses the MCP tool: mcp__plugin_wicked-garden_context7__query-docs
 
     Returns:
         List of documentation snippets with metadata

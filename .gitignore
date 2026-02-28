@@ -98,8 +98,6 @@ cython_debug/
 ehthumbs.db
 Thumbs.db
 
-# Local plugin settings (user-specific configuration)
-.claude/*.local.md
 
 # Temporary files
 *.tmp

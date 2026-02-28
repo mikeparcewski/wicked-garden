@@ -19,7 +19,6 @@ Before manual work, leverage available tools:
 
 - **Search**: Use wicked-search to find existing workflows
 - **Memory**: Use wicked-mem to recall pipeline patterns
-- **Cache**: Use wicked-cache for workflow analysis
 - **Kanban**: Use wicked-kanban to track pipeline improvements
 
 ## Your Focus

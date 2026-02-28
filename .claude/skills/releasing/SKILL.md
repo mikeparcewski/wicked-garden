@@ -107,7 +107,7 @@ Supports [Conventional Commits](https://www.conventionalcommits.org/) format:
 
 **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
-**Scopes** (domain areas): `crew`, `smaht`, `mem`, `search`, `jam`, `kanban`, `engineering`, `product`, `platform`, `qe`, `data`, `delivery`, `agentic`, `startah`, `workbench`, `scenarios`, `patch`, `observability`
+**Scopes** (domain areas): `crew`, `smaht`, `mem`, `search`, `jam`, `kanban`, `engineering`, `product`, `platform`, `qe`, `data`, `delivery`, `agentic`, `scenarios`, `patch`, `observability`
 
 ## Release Workflow
 

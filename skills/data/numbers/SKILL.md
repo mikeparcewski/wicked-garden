@@ -12,8 +12,6 @@ description: |
   - Joining or aggregating across multiple files
   - Detecting data quality issues (nulls, duplicates, type mismatches)
 
-  Enhanced with:
-  - wicked-garden:startah Caches schemas and samples for faster repeat analysis
 ---
 
 # Data Analysis
@@ -87,23 +85,6 @@ Provides actionable insights:
 ### 5. SQL Querying
 Uses DuckDB to query files directly. See [refs/examples.md](refs/examples.md) for SQL patterns.
 
-## Caching
-
-Schemas and samples are optionally cached using wicked-cache (graceful degradation if not available):
-
-```python
-from cache import namespace
-
-cache = namespace("numbers")
-cache.set("schema:sales.csv", schema_data, source_file="./sales.csv")
-```
-
-Manage cache:
-```bash
-/wicked-garden:cache-cache list --namespace numbers
-/wicked-garden:cache-cache stats
-```
-
 ## Supported File Types
 
 | Type | Extensions | Status |
@@ -116,7 +97,6 @@ Manage cache:
 
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
-| wicked-cache | Cache schemas and samples | Re-samples each time |
 | wicked-mem | Store analysis insights | Session-only memory |
 | wicked-delivery | Data source for reports | Works standalone |
 

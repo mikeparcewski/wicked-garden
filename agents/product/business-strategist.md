@@ -26,7 +26,6 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-search to find similar projects or past ROI analyses
 - **Memory**: Use wicked-mem to recall strategic decisions and outcomes
-- **Cache**: Use wicked-cache for repeated business metrics
 - **Kanban**: Use wicked-kanban to track business justification as evidence
 
 If a wicked-* tool is available, prefer it over manual approaches.

@@ -9,17 +9,17 @@ estimated_minutes: 12
 
 # Context7 MCP Server Integration Validation
 
-Tests that the context7 MCP server bundled by wicked-startah is correctly configured and usable within Claude Code sessions. context7 provides live, up-to-date library documentation for thousands of packages — replacing stale knowledge-cutoff data with fresh docs on demand.
+Tests that the context7 MCP server bundled by wicked-garden is correctly configured and usable within Claude Code sessions. context7 provides live, up-to-date library documentation for thousands of packages — replacing stale knowledge-cutoff data with fresh docs on demand.
 
-wicked-startah bundles only context7. There is no atlassian MCP server in this plugin.
+wicked-garden bundles only context7. There is no atlassian MCP server in this plugin.
 
 ## Setup
 
-Ensure wicked-startah is installed and context7 is configured:
+Ensure wicked-garden is installed and context7 is configured:
 
 ```bash
 # Verify plugin is installed
-claude plugin list | grep wicked-startah
+claude plugin list | grep wicked-garden
 
 # Check context7 MCP configuration
 cat ~/.claude/mcp.json | grep -A 6 '"context7"'
@@ -202,7 +202,7 @@ context7 transforms Claude Code from an assistant with a knowledge cutoff into a
 
 - **No more stale docs**: Library docs fetched fresh rather than from training data
 - **Version awareness**: context7 tracks library versions and surfaces version-specific information
-- **Zero configuration**: Bundled by wicked-startah — npx handles installation on first use
+- **Zero configuration**: Bundled by wicked-garden — npx handles installation on first use
 - **Auto-updates**: `@latest` tag means improved library coverage arrives automatically
 
 The gap between "Claude thinks this API works this way" and "this is how the API actually works today" is where documentation-related bugs come from. context7 closes that gap.

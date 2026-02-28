@@ -34,7 +34,7 @@ After scaffolding:
 Enter interactive mode - ask the user:
 
 1. What type of component? (skill, agent, command, hook)
-2. Which domain? (crew, engineering, platform, qe, product, delivery, data, jam, mem, search, smaht, kanban, startah, workbench, scenarios, patch, agentic, observability)
+2. Which domain? (crew, engineering, platform, qe, product, delivery, data, jam, mem, search, smaht, kanban, scenarios, patch, agentic, observability)
 3. What should it be named? (kebab-case)
 4. Brief description of purpose
 
@@ -106,11 +106,11 @@ Events follow: `[domain:entity:action:status]`
 
 ## Valid Domains
 
-The 18 domains in wicked-garden:
+The 16 domains in wicked-garden:
 
 **Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
 **Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic
-**Infrastructure & Tools**: startah, workbench, scenarios, patch, observability
+**Infrastructure & Tools**: scenarios, patch, observability
 
 ## After successful scaffolding
 

@@ -12,7 +12,6 @@ description: |
   - Synthesizing project health across engineering, product, and operations
 
   Enhanced with:
-  - wicked-garden:startah Caches analysis results for faster repeat runs
   - wicked-garden:mem Stores insights across sessions
 ---
 
@@ -86,7 +85,6 @@ For detailed persona configuration, see [refs/personas.md](refs/personas.md).
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
 | wicked-data | Data sampling, SQL queries | Cannot process data |
-| wicked-cache | Caches analysis results | Re-computes each time |
 | wicked-mem | Cross-session insights | Session-only memory |
 
 For detailed integration patterns, caching strategy, and storage layout, see [refs/integration.md](refs/integration.md).

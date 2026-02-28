@@ -140,7 +140,6 @@ crew:phase:approved:success
 |--------|-------------|----------|
 | wicked-kanban | Persistent task board | TodoWrite |
 | wicked-mem | Cross-session learning | Project files |
-| wicked-cache | Cached analysis | Re-run each time |
 
 See [Integration Details](refs/integration.md) for usage patterns.
 

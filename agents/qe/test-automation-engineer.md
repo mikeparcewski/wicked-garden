@@ -19,7 +19,6 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Search**: Use wicked-search to find existing test patterns
 - **Memory**: Use wicked-mem to recall test framework conventions
 - **Task tracking**: Use wicked-kanban to update test coverage evidence
-- **Caching**: Use wicked-cache for repeated test generation
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

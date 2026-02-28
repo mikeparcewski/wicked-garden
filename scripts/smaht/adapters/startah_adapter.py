@@ -1,4 +1,4 @@
-"""Startah adapter — surfaces available third-party CLIs for context assembly."""
+"""Tools adapter — surfaces available third-party CLIs for context assembly."""
 import subprocess
 
 
@@ -13,7 +13,7 @@ def _check_cli(name):
         return False
 
 
-# Known third-party CLIs that wicked-startah skills orchestrate
+# Known third-party CLIs that wicked-garden skills orchestrate
 KNOWN_CLIS = {
     "codex": {"skill": "codex-cli", "desc": "OpenAI Codex for code review and generation"},
     "gemini": {"skill": "gemini-cli", "desc": "Google Gemini for multi-modal AI tasks"},
@@ -39,9 +39,9 @@ async def query(prompt: str, **kwargs) -> list:
         if _check_cli(cli_name):
             available.append(
                 ContextItem(
-                    source="startah",
+                    source="tools",
                     title=f"{cli_name} available",
-                    summary=f"{info['desc']} — Use /wicked-startah:{info['skill']}"
+                    summary=f"{info['desc']} — Use /wicked-garden:{info['skill']}"
                 )
             )
 

@@ -19,7 +19,6 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Search**: Use wicked-search to find existing tests
 - **Memory**: Use wicked-mem to recall past test patterns
 - **Task tracking**: Use wicked-kanban to update evidence
-- **Caching**: Use wicked-cache for repeated analysis
 
 If a wicked-* tool is available, prefer it over manual approaches.
 
