@@ -53,5 +53,5 @@ Plugin health monitoring, contract assertions, and hook execution tracing for th
 
 - **All plugins**: Health probes check every installed plugin
 - **Hook system**: Traces capture hook execution timing and outcomes
-- **wicked-workbench**: Dashboard visualization of health and traces
+- **Control Plane**: Dashboard visualization of health and traces via CP at localhost:18889
 ```

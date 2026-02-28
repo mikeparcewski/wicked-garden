@@ -78,12 +78,12 @@ uv run python scripts/kanban/kanban.py search "query"
 
 ## Rendering
 
-The board is rendered by **wicked-workbench** dashboard components.
+The board is rendered via the **Control Plane** (CP) data API.
 
-To enable workbench rendering:
-1. Start the data API: `/wicked-garden:kanban:start-api`
-2. Use wicked-workbench to generate A2UI dashboards
-3. The API provides data at `http://localhost:18888`
+To access kanban data:
+1. Ensure the CP is running at `http://localhost:18889`
+2. Query via: `python3 scripts/cp.py kanban tasks list`
+3. Or directly: `curl http://localhost:18889/api/v1/data/kanban/tasks/list`
 
 ### Available Components
 

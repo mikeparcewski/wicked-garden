@@ -21,7 +21,7 @@ Every plugin README follows this structure. Sections marked CONDITIONAL include 
 6.  ## When to Use What                       ← CONDITIONAL: 3+ commands with overlapping scope
 7.  ## How It Works                           ← CONDITIONAL: mechanism is part of value prop
 8.  ## Agents / Skills                        ← REQUIRED if plugin has agents or skills
-9.  ## Data API                               ← CONDITIONAL: wicked.json declares sources
+9.  ## Data API                               ← CONDITIONAL: plugin exposes CP data sources
 10. ## Integration                            ← REQUIRED: 3-column table
 11. ## License                                ← REQUIRED
 ```
@@ -75,7 +75,7 @@ Use active voice in "What It Unlocks" to imply directionality (who calls whom).
 | Lifecycle | Core value requires multiple invocations to see |
 | When to Use What | 3+ commands with overlapping scope |
 | How It Works | Internal mechanism is part of the value proposition |
-| Data API | Plugin has wicked.json with data sources |
+| Data API | Plugin exposes data via the Control Plane |
 | Agents & Skills | Merge tables if combined rows ≤5; split if either has 5+ |
 
 ## Tone
