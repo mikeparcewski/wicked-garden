@@ -40,9 +40,28 @@ def resolve_phase(name: str) -> str:
     return LEGACY_ALIASES.get(name, name)
 
 
+def _get_plugin_root() -> Path:
+    """Resolve the plugin root directory (repo root).
+
+    Walks up from scripts/crew/ to find phases.json or .claude-plugin/.
+    Falls back to 3 levels up from this file.
+    """
+    here = Path(__file__).resolve().parent  # scripts/crew/
+    # Walk up looking for marker files
+    candidate = here
+    for _ in range(5):
+        candidate = candidate.parent
+        if (candidate / "phases.json").exists():
+            return candidate
+        if (candidate / ".claude-plugin").is_dir():
+            return candidate
+    # Fallback: scripts/crew/ -> scripts/ -> repo root
+    return here.parent.parent
+
+
 def load_phases_config() -> dict:
-    """Load phase definitions from phases.json."""
-    config_path = Path(__file__).parent.parent / "phases.json"
+    """Load phase definitions from phases.json at plugin root."""
+    config_path = _get_plugin_root() / "phases.json"
     if config_path.exists():
         with open(config_path) as f:
             return json.load(f).get("phases", {})
@@ -85,6 +104,131 @@ def get_phase_order(state: 'ProjectState') -> List[str]:
     if state.phase_plan:
         return [resolve_phase(p) for p in state.phase_plan]
     return _topological_sort(load_phases_config())
+
+
+# ---------------------------------------------------------------------------
+# Enforcement: phase plan validation, checkpoint re-analysis, pre-review gate
+# ---------------------------------------------------------------------------
+
+# Phases that must be present when complexity >= this threshold
+_TEST_PHASE_COMPLEXITY_THRESHOLD = 2
+_TEST_PHASES = ("test-strategy", "test")
+
+
+def validate_phase_plan(state: 'ProjectState') -> Tuple[List[str], List[str]]:
+    """Validate and fix the phase plan based on complexity.
+
+    If complexity_score >= 2 and test-strategy/test are missing from
+    phase_plan, inject them in dependency-correct positions.
+
+    Returns:
+        (injected_phases, warnings) — list of phases added and any warnings.
+    """
+    if state.complexity_score < _TEST_PHASE_COMPLEXITY_THRESHOLD:
+        return ([], [])
+
+    if not state.phase_plan:
+        return ([], ["No phase_plan set — cannot validate"])
+
+    plan = [resolve_phase(p) for p in state.phase_plan]
+    phases_config = load_phases_config()
+    injected = []
+
+    for test_phase in _TEST_PHASES:
+        if test_phase in plan:
+            continue
+        if test_phase not in phases_config:
+            continue
+
+        # Find correct insertion point based on depends_on
+        deps = phases_config[test_phase].get("depends_on", [])
+        insert_after_idx = -1
+        for dep in deps:
+            dep = resolve_phase(dep)
+            if dep in plan:
+                insert_after_idx = max(insert_after_idx, plan.index(dep))
+
+        # Insert after last dependency, or at end if no deps found
+        insert_idx = insert_after_idx + 1 if insert_after_idx >= 0 else len(plan)
+
+        # Don't insert after review (review should always be last)
+        if "review" in plan:
+            review_idx = plan.index("review")
+            if insert_idx > review_idx:
+                insert_idx = review_idx
+
+        plan.insert(insert_idx, test_phase)
+        injected.append(test_phase)
+        logger.info(f"[validate_phase_plan] Injected '{test_phase}' at position {insert_idx} "
+                     f"(complexity={state.complexity_score} >= {_TEST_PHASE_COMPLEXITY_THRESHOLD})")
+
+    if injected:
+        state.phase_plan = plan
+
+    warnings = []
+    if injected:
+        warnings.append(
+            f"Injected {', '.join(injected)} into phase plan "
+            f"(complexity {state.complexity_score} >= {_TEST_PHASE_COMPLEXITY_THRESHOLD})"
+        )
+
+    return (injected, warnings)
+
+
+def _check_test_phases_before_review(state: 'ProjectState') -> List[str]:
+    """Pre-review gate: verify test phases ran or were explicitly skipped.
+
+    Returns list of blocking reasons (empty = OK to proceed).
+    """
+    if state.complexity_score < _TEST_PHASE_COMPLEXITY_THRESHOLD:
+        return []
+
+    reasons = []
+    for test_phase in _TEST_PHASES:
+        if test_phase not in state.phase_plan:
+            continue
+
+        phase_state = state.phases.get(test_phase)
+        if not phase_state:
+            reasons.append(
+                f"Test phase '{test_phase}' is in the plan but was never started. "
+                f"Run it or skip with: phase_manager.py {{project}} skip --phase {test_phase} --reason '...'"
+            )
+            continue
+
+        if phase_state.status in ("approved", "complete"):
+            continue
+
+        if phase_state.status == "skipped":
+            if not phase_state.notes:
+                reasons.append(
+                    f"Test phase '{test_phase}' was skipped without a reason. "
+                    f"Re-skip with --reason to document why."
+                )
+            continue
+
+        reasons.append(
+            f"Test phase '{test_phase}' has status '{phase_state.status}' — "
+            f"must be approved or explicitly skipped before review."
+        )
+
+    return reasons
+
+
+def _run_checkpoint_reanalysis(state: 'ProjectState', phase: str) -> Tuple[List[str], List[str]]:
+    """At checkpoint phases, re-validate the phase plan and inject missing phases.
+
+    Returns:
+        (injected_phases, warnings)
+    """
+    phases_config = load_phases_config()
+    phase_config = phases_config.get(phase, {})
+
+    if not phase_config.get("checkpoint", False):
+        return ([], [])
+
+    logger.info(f"[checkpoint] Phase '{phase}' is a checkpoint — running phase plan re-validation")
+    return validate_phase_plan(state)
 
 
 class PhaseStatus:
@@ -329,6 +473,11 @@ def can_transition(
                 f"(current status: {phase_state.status})"
             )
 
+    # Pre-review gate: verify test phases ran before entering review
+    if to_phase == "review":
+        test_issues = _check_test_phases_before_review(state)
+        reasons.extend(test_issues)
+
     # Check current phase deliverables from phases.json
     current_state = state.phases.get(current)
     if current_state and current_state.status == "in_progress":
@@ -485,7 +634,14 @@ def approve_phase(
     phase_state.approved_at = get_utc_timestamp()
     phase_state.approved_by = approver
 
-    # Determine next phase from dynamic order
+    # Checkpoint enforcement: re-validate phase plan after checkpoint phases
+    injected, reanalysis_warnings = _run_checkpoint_reanalysis(state, phase)
+    for w in reanalysis_warnings:
+        logger.warning(f"[checkpoint] {w}")
+    if injected:
+        logger.info(f"[checkpoint] Injected phases after '{phase}': {injected}")
+
+    # Determine next phase from dynamic order (may have changed via injection)
     phase_order = get_phase_order(state)
     if phase in phase_order:
         current_idx = phase_order.index(phase)
@@ -548,7 +704,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -638,6 +794,26 @@ def main():
             return
         save_project_state(state)
         print(f"Skipped phase: {resolve_phase(phase)}")
+
+    elif args.action == "validate":
+        injected, warnings = validate_phase_plan(state)
+        if args.json:
+            print(json.dumps({
+                "injected": injected,
+                "warnings": warnings,
+                "phase_plan": state.phase_plan,
+                "complexity": state.complexity_score,
+            }, indent=2))
+        else:
+            if injected:
+                print(f"Injected phases: {', '.join(injected)}")
+                print(f"Updated plan: {' -> '.join(state.phase_plan)}")
+            else:
+                print("Phase plan is valid — no changes needed")
+            for w in warnings:
+                print(f"  Warning: {w}")
+        if injected:
+            save_project_state(state)
 
     elif args.action == "can-advance":
         phase_order = get_phase_order(state)
