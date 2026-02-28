@@ -87,4 +87,4 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
 
 ## Value Demonstrated
 
-Claude can manage persistent tasks that survive across sessions. Unlike TodoWrite tasks that disappear when a session ends, kanban tasks persist in file storage and can be accessed from any Claude Code session. This makes wicked-kanban ideal for managing ongoing work, tracking project progress, and maintaining visibility into what needs to be done. For visual dashboards, use wicked-workbench to render the kanban board.
+Claude can manage persistent tasks that survive across sessions. Unlike TodoWrite tasks that disappear when a session ends, kanban tasks persist via the Control Plane and can be accessed from any Claude Code session. This makes wicked-kanban ideal for managing ongoing work, tracking project progress, and maintaining visibility into what needs to be done.

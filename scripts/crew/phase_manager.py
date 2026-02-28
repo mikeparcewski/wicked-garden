@@ -570,7 +570,7 @@ def main():
                 project_data = json.load(f)
             if project_data.get("archived", False):
                 print(f"Error: Cannot execute phase operations on archived project: {args.project}")
-                print("Use 'python3 api.py unarchive projects {name}' to unarchive first.")
+                print("Use 'python3 scripts/cp.py crew projects unarchive {name}' to unarchive first.")
                 return
         except (json.JSONDecodeError, OSError):
             pass

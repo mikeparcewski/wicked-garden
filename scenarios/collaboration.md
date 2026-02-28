@@ -13,7 +13,7 @@ Test that humans and Claude can collaborate on the same kanban board through sha
 
 ## Setup
 
-Understand that wicked-kanban uses file-based storage at `~/.something-wicked/wicked-kanban/` which allows both humans (via external tools or wicked-workbench UI) and Claude (via CLI) to access the same data.
+Understand that wicked-kanban data is served by the Control Plane (CP) which allows both humans (via the CP dashboard) and Claude (via CLI) to access the same data.
 
 ## Steps
 
@@ -40,7 +40,7 @@ Understand that wicked-kanban uses file-based storage at `~/.something-wicked/wi
 4. **Human can access same data via file system**
    The file-based storage means:
    - External tools can read/modify project.json
-   - wicked-workbench can render the board
+   - The Control Plane API can render the board
    - Version control can track changes
    - Backups are straightforward
 
@@ -56,7 +56,7 @@ Understand that wicked-kanban uses file-based storage at `~/.something-wicked/wi
    Should show the comment entry with Claude as author.
 
 7. **Simulate human updating a task status**
-   In a real scenario, a human would use wicked-workbench or edit the JSON directly.
+   In a real scenario, a human would use the CP dashboard or edit the JSON directly.
    For this test, we can use the CLI as if we were the human:
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane in_progress
@@ -86,4 +86,4 @@ Understand that wicked-kanban uses file-based storage at `~/.something-wicked/wi
 
 ## Value Demonstrated
 
-The file-based architecture allows humans and Claude to collaborate naturally. Humans can use wicked-workbench for visual interaction while Claude uses efficient scripts. Both see the same state because it's stored in shared files. This enables workflows where Claude does the heavy lifting while humans review and adjust priorities.
+The Control Plane architecture allows humans and Claude to collaborate naturally. Humans can use the CP dashboard for visual interaction while Claude uses efficient scripts. Both see the same state because the CP is the single source of truth. This enables workflows where Claude does the heavy lifting while humans review and adjust priorities.

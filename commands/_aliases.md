@@ -132,7 +132,3 @@ If you typed an old command name, here are the new equivalents:
 |-----|-----|
 | `/wicked-startah:report-issue` | `/wicked-garden:startah:report-issue` |
 
-## Workbench
-| Old | New |
-|-----|-----|
-| `/wicked-workbench:workbench` | `/wicked-garden:workbench:workbench` |

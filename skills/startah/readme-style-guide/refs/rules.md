@@ -53,8 +53,8 @@ These are informational — flagged but not blocking:
 - Check: line number of Workflows heading < line number of Commands heading
 
 ### C3: Data API Section
-- RECOMMEND if `wicked.json` exists in plugin root
-- Check: `[[ -f "{path}/wicked.json" ]] && ! grep -q "Data API" README.md`
+- RECOMMEND if plugin exposes data via the Control Plane (CP)
+- Check: domain is listed in CP manifest (`python3 scripts/cp.py manifest`)
 
 ### C4: Output Examples
 - RECOMMEND at least one output example (code block showing expected output, not just input commands)
