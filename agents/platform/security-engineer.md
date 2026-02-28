@@ -19,7 +19,6 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-search to find security patterns
 - **Memory**: Use wicked-mem to recall past vulnerabilities
-- **Cache**: Use wicked-cache for repeated security scans
 - **Kanban**: Use wicked-kanban to track security findings
 
 ## Your Focus

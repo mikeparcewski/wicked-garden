@@ -3,7 +3,7 @@ name: issue-reporting
 description: |
   Automated GitHub issue detection and filing from Claude sessions. Tracks tool
   failures and task completion mismatches. Files issues automatically at session
-  end or on demand via /wicked-garden:startah:report-issue.
+  end or on demand via /wicked-garden:report-issue.
   Use when filing a bug, reporting UX friction, or logging unmet outcomes.
 triggers:
   - "file github issue"
@@ -38,10 +38,10 @@ Auto-filed issues include acceptance criteria, failure details, and session cont
 ### Manual Filing
 
 ```bash
-/wicked-garden:startah:report-issue bug          # File a bug report
-/wicked-garden:startah:report-issue ux-friction  # Report UX friction
-/wicked-garden:startah:report-issue unmet-outcome # Log an unmet outcome
-/wicked-garden:startah:report-issue --list-unfiled # View/file unfiled issues
+/wicked-garden:report-issue bug          # File a bug report
+/wicked-garden:report-issue ux-friction  # Report UX friction
+/wicked-garden:report-issue unmet-outcome # Log an unmet outcome
+/wicked-garden:report-issue --list-unfiled # View/file unfiled issues
 ```
 
 ## Issue Types
@@ -71,7 +71,7 @@ Each issue type has a structured template requiring:
 - `gh` CLI installed and authenticated (`gh auth login`)
 - Current directory is a GitHub repository
 
-Without `gh`, issues are saved to `~/.something-wicked/wicked-startah/unfiled-issues/` for later filing.
+Without `gh`, issues are saved to `~/.something-wicked/wicked-garden/unfiled-issues/` for later filing.
 
 ## Unfiled Issues
 
@@ -79,10 +79,10 @@ When `gh` is unavailable, issues are queued locally:
 
 ```bash
 # View unfiled issues
-ls ~/.something-wicked/wicked-startah/unfiled-issues/
+ls ~/.something-wicked/wicked-garden/unfiled-issues/
 
 # File them later
-/wicked-garden:startah:report-issue --list-unfiled
+/wicked-garden:report-issue --list-unfiled
 ```
 
 ## References

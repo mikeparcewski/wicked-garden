@@ -53,7 +53,7 @@ Router triggers **slow path** when:
 | kanban | wicked-kanban | Tasks, artifacts, projects |
 | search | wicked-search | Code symbols, documentation |
 | crew | wicked-crew | Project phase, outcomes, constraints |
-| context7 | wicked-startah | External documentation (optional) |
+| context7 | wicked-garden | External documentation (optional) |
 
 ## Intent Types
 

@@ -20,7 +20,6 @@ Leverage ecosystem tools:
 - **Search**: Use wicked-search to find evidence
 - **Memory**: Use wicked-mem for past audit findings
 - **Kanban**: Use wicked-kanban to store artifacts
-- **Cache**: Use wicked-cache for evidence caching
 
 ## Your Focus
 

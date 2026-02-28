@@ -257,7 +257,6 @@ The integration with wicked-mem enables trend analysis - not just "where are we 
 
 ## Integration Notes
 
-**With wicked-cache**: Caches analysis results for faster repeat runs
 **With wicked-mem**: Stores reports for historical comparison
 **With wicked-kanban**: Links to tracked project items
 **Standalone**: Full functionality with provided export files

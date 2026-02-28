@@ -7,7 +7,7 @@ description: |
   "file references", "call chain", "blast radius from cache", or "cached graph".
 
   Enables other plugins to query the code graph without direct wicked-search coupling,
-  using wicked-cache for efficient data sharing.
+  using StorageManager for efficient data sharing.
 ---
 
 # Graph Export Skill
@@ -19,7 +19,7 @@ Seamless access to wicked-search graph data for other plugins.
 ```python
 from graph_client import GraphClient
 
-# Initialize with workspace path (auto-connects to wicked-cache)
+# Initialize with workspace path
 client = GraphClient("/path/to/workspace")
 
 # Check freshness before querying
@@ -98,7 +98,6 @@ except VersionMismatchError as e:
 Add this to your plugin's requirements:
 ```
 wicked-search  # Provides graph-export skill
-wicked-cache   # Cache infrastructure
 ```
 
 In your skill/agent, use the client:
@@ -118,7 +117,7 @@ cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py index /path/
 This will:
 1. Build the JSONL index (fast, parallel)
 2. Build the Symbol Graph (JSP/HTML support)
-3. Export to wicked-cache for cross-plugin access
+3. Export graph data for cross-domain access
 
 For manual export (advanced):
 

@@ -21,7 +21,6 @@ Before manual analysis, leverage available tools:
 - **Memory**: Use wicked-mem to recall past compliance findings
 - **Review**: Use wicked-product for security review
 - **Kanban**: Use wicked-kanban to track findings
-- **Cache**: Use wicked-cache for repeated analysis
 
 ## Your Focus
 

@@ -23,7 +23,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 VALID_DOMAINS = [
     "crew", "smaht", "mem", "search", "jam", "kanban",
     "engineering", "product", "platform", "qe", "data", "delivery", "agentic",
-    "startah", "workbench", "scenarios", "patch", "observability",
+    "scenarios", "patch", "observability",
 ]
 
 

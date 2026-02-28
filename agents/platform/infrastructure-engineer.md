@@ -19,7 +19,6 @@ Before manual work, leverage available tools:
 
 - **Search**: Use wicked-search to find IaC configurations
 - **Memory**: Use wicked-mem to recall infrastructure patterns
-- **Cache**: Use wicked-cache for infrastructure analysis
 - **Kanban**: Use wicked-kanban to track infrastructure tasks
 
 ## Your Focus

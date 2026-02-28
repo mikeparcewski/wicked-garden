@@ -1,6 +1,6 @@
 # Issue Templates Reference
 
-Body templates used by both auto-reporting hooks and the manual `/wicked-garden:startah:report-issue` command.
+Body templates used by both auto-reporting hooks and the manual `/wicked-garden:report-issue` command.
 
 ## Bug Report Template
 

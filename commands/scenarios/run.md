@@ -48,19 +48,19 @@ For any tools marked **not available** by CLI discovery, check if an equivalent 
 
 | Missing CLI | Fallback Skill | Notes |
 |-------------|---------------|-------|
-| `python3` (for test scripts) | `wicked-garden:startah:runtime-exec` | Smart Python/Node execution with automatic dependency resolution (uv, poetry, pip) |
-| `playwright` | `wicked-garden:startah:agent-browser` | Only if `agent-browser` CLI is available (skill wraps agent-browser, not playwright directly) |
+| `python3` (for test scripts) | `wicked-garden:runtime-exec` | Smart Python/Node execution with automatic dependency resolution (uv, poetry, pip) |
+| `playwright` | `wicked-garden:agent-browser` | Only if `agent-browser` CLI is available (skill wraps agent-browser, not playwright directly) |
 
 **Note**: `wicked-garden:scenarios:setup` can auto-install missing tools, but it is interactive (prompts user). In `--json` mode, setup is NOT invoked — missing tools go into the `missing_tools` array instead. In interactive mode, setup can be suggested during the Pre-Flight Check.
 
 **Detection**: Check if the skill's parent plugin is installed:
 ```bash
-ls "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null && echo "STARTAH_AVAILABLE=true"
+ls "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null && echo "PLUGIN_AVAILABLE=true"
 ```
 
 If a fallback skill is available, mark the tool as **available via skill** and adjust the step execution to use the Skill tool instead of Bash:
-- Instead of `python3 <script>` via Bash, use `Skill(skill="wicked-garden:startah:runtime-exec", args="<script>")`
-- Instead of `playwright test <url>` via Bash (when agent-browser is available), use `Skill(skill="wicked-garden:startah:agent-browser", args="<url> --screenshot")`
+- Instead of `python3 <script>` via Bash, use `Skill(skill="wicked-garden:runtime-exec", args="<script>")`
+- Instead of `playwright test <url>` via Bash (when agent-browser is available), use `Skill(skill="wicked-garden:agent-browser", args="<url> --screenshot")`
 
 In `--json` mode, skill-based execution is still recorded in the same step format (stdout/stderr/exit_code/duration_ms). Note the execution method in a `method` field: `"method": "cli"` or `"method": "skill"`.
 
@@ -163,7 +163,7 @@ Field notes:
 - `missing_tools`: Array of tools that were required/optional but not found. Empty array if all tools available.
 - `skipped_steps`: Steps not executed due to missing tools or missing env vars.
 - `steps`: Only includes steps that were actually executed (not skipped).
-- `method`: `"cli"` if executed via Bash, `"skill"` if executed via a fallback skill (e.g., `wicked-garden:startah:agent-browser`).
+- `method`: `"cli"` if executed via Bash, `"skill"` if executed via a fallback skill (e.g., `wicked-garden:agent-browser`).
 - No PASS/FAIL verdict — the consumer (e.g., QE executor) evaluates exit codes.
 - `duration_ms`: Wall-clock time in milliseconds for each step.
 

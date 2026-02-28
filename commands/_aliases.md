@@ -127,8 +127,9 @@ If you typed an old command name, here are the new equivalents:
 | `/wicked-smaht:debug` | `/wicked-garden:smaht:debug` |
 | `/wicked-smaht:onboard` | `/wicked-garden:smaht:onboard` |
 
-## Startah
+## Startah (dissolved)
 | Old | New |
 |-----|-----|
-| `/wicked-startah:report-issue` | `/wicked-garden:startah:report-issue` |
+| `/wicked-startah:report-issue` | `/wicked-garden:report-issue` |
+| `/wicked-garden:startah:report-issue` | `/wicked-garden:report-issue` |
 

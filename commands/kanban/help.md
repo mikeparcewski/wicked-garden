@@ -23,7 +23,7 @@ wicked-kanban automatically captures all task activity:
 | `/wicked-garden:kanban:board-status` | Show current board state |
 | `/wicked-garden:kanban:new-task` | Quick task creation |
 | `/wicked-garden:kanban:name-session` | Name the current session |
-| `/wicked-garden:kanban:start-api` | Start data API for workbench |
+| `/wicked-garden:kanban:start-api` | Start data API for dashboard |
 
 ## CLI Usage
 

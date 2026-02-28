@@ -28,9 +28,9 @@ from router import IntentType, PromptAnalysis
 # "cp" is the unified Control Plane adapter — replaces mem/search/kanban/jam/crew
 ADAPTER_RULES = {
     IntentType.DEBUGGING: ["cp", "delegation"],
-    IntentType.IMPLEMENTATION: ["cp", "context7", "startah", "delegation"],
+    IntentType.IMPLEMENTATION: ["cp", "context7", "tools", "delegation"],
     IntentType.PLANNING: ["cp", "delegation"],
-    IntentType.RESEARCH: ["cp", "context7", "startah", "delegation"],
+    IntentType.RESEARCH: ["cp", "context7", "tools", "delegation"],
     IntentType.REVIEW: ["cp", "delegation"],
     IntentType.GENERAL: ["cp", "delegation"],
 }
@@ -57,7 +57,7 @@ class FastPathAssembler:
         adapter_modules = {
             "cp": "cp_adapter",
             "context7": "context7_adapter",
-            "startah": "startah_adapter",
+            "tools": "startah_adapter",
             "delegation": "delegation_adapter",
         }
         for name, module_name in adapter_modules.items():
@@ -182,7 +182,7 @@ class FastPathAssembler:
             "jam": "Brainstorms",
             "crew": "Project State",
             "context7": "External Docs",
-            "startah": "Available CLIs",
+            "tools": "Available CLIs",
             "delegation": "Delegation Hints",
         }
 

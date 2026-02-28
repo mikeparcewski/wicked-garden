@@ -35,9 +35,6 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | **scenarios** | E2E testing with markdown scenarios and CLI tools | `/wicked-garden:scenarios:help` |
 | **search** | Structural code search, lineage, and codebase intelligence | `/wicked-garden:search:help` |
 | **smaht** | Intelligent context assembly from all sources | `/wicked-garden:smaht:help` |
-| **startah** | Issue reporting for bugs and UX friction | `/wicked-garden:startah:help` |
-| **workbench** | Dashboard server for visualizing project data | `/wicked-garden:workbench:help` |
-
 ## Quick Start
 
 ### Start a Project
@@ -75,7 +72,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 1. **smaht** assembles context from memory, search, kanban, and crew for every prompt
 2. **crew** orchestrates multi-phase workflows and routes to specialist domains
 3. **Specialist domains** (engineering, platform, product, qe, data, delivery, agentic, jam) provide deep expertise
-4. **Utility domains** (mem, search, kanban, patch, scenarios, workbench, observability, startah) provide tools and infrastructure
+4. **Utility domains** (mem, search, kanban, patch, scenarios, observability) provide tools and infrastructure
 5. **All state** persists across sessions via mem, kanban, and search indexes
 
 ## Getting Domain Help

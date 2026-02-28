@@ -23,7 +23,6 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-search to find pattern examples
 - **Memory**: Use wicked-mem to recall past pattern recommendations
-- **Cache**: Use wicked-cache for repeated pattern analysis
 - **Kanban**: Use wicked-kanban to track refactoring tasks
 
 ## Your Focus

@@ -194,7 +194,7 @@ EOF
 
 ## Value Demonstrated
 
-This scenario proves wicked-startah enables **high-confidence code quality assurance** through multi-model consensus. Instead of relying on a single AI's perspective:
+This scenario proves wicked-garden enables **high-confidence code quality assurance** through multi-model consensus. Instead of relying on a single AI's perspective:
 
 - **Consensus issues** (flagged by multiple models) are high-confidence and should be prioritized
 - **Unique insights** from individual models catch edge cases and blind spots

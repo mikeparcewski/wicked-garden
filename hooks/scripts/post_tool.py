@@ -3,7 +3,7 @@
 PostToolUse / PostToolUseFailure hook — wicked-garden unified post-tool dispatcher.
 
 Consolidates: kanban todo_sync, crew posttool_task, delivery metrics_refresh,
-mem task_checkpoint, search mark_stale, qe change_tracker, startah auto_issue_reporter,
+mem task_checkpoint, search mark_stale, qe change_tracker,
 agentic detect_framework, observability trace_writer.
 
 Dispatches by tool_name from hook payload:

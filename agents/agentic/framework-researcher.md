@@ -24,7 +24,6 @@ Before manual research, leverage available tools:
 
 - **Search**: Use wicked-search to find framework usage in codebase
 - **Memory**: Use wicked-mem to recall past framework evaluations
-- **Cache**: Use wicked-cache for framework comparison results
 - **Kanban**: Use wicked-kanban to track framework decisions
 
 ## Your Focus

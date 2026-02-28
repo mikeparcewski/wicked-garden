@@ -23,7 +23,6 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-search to find performance bottlenecks
 - **Memory**: Use wicked-mem to recall past optimization strategies
-- **Cache**: Use wicked-cache to understand caching usage patterns
 - **Kanban**: Use wicked-kanban to track performance improvements
 
 ## Your Focus

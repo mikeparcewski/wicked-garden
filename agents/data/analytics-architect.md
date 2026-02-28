@@ -19,7 +19,6 @@ Leverage ecosystem tools:
 - **wicked-garden:data:numbers**: Query and analyze data models
 - **wicked-kanban**: Track architecture decisions
 - **wicked-mem**: Recall architecture patterns
-- **wicked-cache**: Cache schema documentation
 
 ## Core Responsibilities
 

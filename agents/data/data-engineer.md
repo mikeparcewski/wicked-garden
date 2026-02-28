@@ -18,7 +18,6 @@ Before manual work, leverage available tools:
 - **wicked-garden:data:numbers**: For data profiling and SQL queries
 - **wicked-search**: Find existing pipeline code
 - **wicked-kanban**: Track data quality issues
-- **wicked-cache**: Cache profiling results
 - **wicked-mem**: Recall past pipeline patterns
 
 ## Core Responsibilities

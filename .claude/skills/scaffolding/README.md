@@ -205,8 +205,8 @@ All generated names are validated:
 
 ```bash
 python3 scripts/scaffold.py plugin \
-  --name wicked-cache-optimizer \
-  --description "Cache performance analysis and optimization" \
+  --name wicked-perf-optimizer \
+  --description "Performance analysis and optimization" \
   --author "John Doe" \
   --with-commands \
   --with-skills \

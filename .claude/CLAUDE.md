@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository **is** the **wicked-garden** plugin — an AI-Native SDLC delivered as a single Claude Code plugin. 18 domain areas cover the full software development lifecycle: ideation, requirements, architecture, implementation, testing, delivery, operations, and persistent memory/learning.
+This repository **is** the **wicked-garden** plugin — an AI-Native SDLC delivered as a single Claude Code plugin. 16 domain areas cover the full software development lifecycle: ideation, requirements, architecture, implementation, testing, delivery, operations, and persistent memory/learning.
 
 The `.claude/` directory contains **development tools** (prefixed `wg-`) for building and maintaining the plugin. These tools are NOT distributed to marketplace users — they only work when checked out in this repo.
 
@@ -78,11 +78,11 @@ Agent subagent_type uses slash: `wicked-garden:{domain}/{agent-name}`
 
 ### Domain Organization
 
-**18 domains**, each with its own commands, agents, skills, scripts, and scenarios:
+**16 domains**, each with its own commands, agents, skills, scripts, and scenarios:
 
 **Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
 **Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic, jam
-**Infrastructure & Tools**: startah, workbench, scenarios, patch, observability
+**Infrastructure & Tools**: scenarios, patch, observability
 
 Specialists define personas in `.claude-plugin/specialist.json`. Crew discovers them at runtime and routes based on signal analysis.
 

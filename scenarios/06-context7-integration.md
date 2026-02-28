@@ -8,7 +8,7 @@ Demonstrates how wicked-smaht automatically enriches context with external libra
 
 **Prerequisites**:
 - wicked-smaht installed
-- wicked-startah plugin with Context7 MCP integration (optional - graceful degradation)
+- wicked-garden plugin with Context7 MCP integration (optional - graceful degradation)
 - Active session with wicked-smaht hooks enabled
 
 **Initial State**:
@@ -363,7 +363,7 @@ If Context7 results are not helpful:
 
 **Fix**:
 - Explicit library mention: "using React hooks"
-- Install wicked-startah with Context7
+- Install wicked-garden with Context7
 - Clear cache if corrupted
 
 ### Wrong Library Detected

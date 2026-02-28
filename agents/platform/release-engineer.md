@@ -19,7 +19,6 @@ Before manual work, leverage available tools:
 
 - **Search**: Use wicked-search to find version files and changelogs
 - **Memory**: Use wicked-mem to recall release patterns
-- **Cache**: Use wicked-cache for release analysis
 - **Kanban**: Use wicked-kanban to track release tasks
 
 ## Your Focus

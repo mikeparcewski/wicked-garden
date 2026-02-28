@@ -104,7 +104,6 @@ Eight domains, each bringing specialist expertise that crew routes to automatica
 
 | Domain | What It Does | Key Commands |
 |--------|-------------|--------------|
-| **startah** | Starter kit. MCP servers for Context7 docs, multi-AI conversations (Gemini, Codex), browser automation, runtime execution. | `startah:report-issue` |
 | **scenarios** | E2E testing via markdown scenarios. Human-readable specs that orchestrate curl, Playwright, k6, Trivy, Semgrep, pa11y — no framework lock-in. | `scenarios:run`, `scenarios:list` |
 | **patch** | Cross-language change propagation. Add a field to a Java entity, auto-patch the SQL migration, DAO, JSP, API, and UI. | `patch:add-field`, `patch:apply`, `patch:rename` |
 | **observability** | Three-layer observability: runtime hook tracing, contract assertions, and structural health probes. | `observability:health`, `observability:traces` |

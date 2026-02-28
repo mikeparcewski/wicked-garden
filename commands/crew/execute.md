@@ -552,12 +552,12 @@ cat /tmp/crew-signoff/REVIEW_PROMPT.md | codex exec "Review these phase delivera
 
 **Gemini** (fallback):
 ```
-/wicked-garden:startah:gemini-cli "Review the {phase} phase deliverables for project {name}..."
+/wicked-garden:gemini-cli "Review the {phase} phase deliverables for project {name}..."
 ```
 
 **OpenCode** (fallback):
 ```
-/wicked-garden:startah:opencode-cli "Review the {phase} phase deliverables for project {name}..."
+/wicked-garden:opencode-cli "Review the {phase} phase deliverables for project {name}..."
 ```
 
 Create a task for the sign-off:

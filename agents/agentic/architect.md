@@ -23,7 +23,6 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-search to find architectural patterns
 - **Memory**: Use wicked-mem to recall past architecture decisions
-- **Cache**: Use wicked-cache for repeated architecture scans
 - **Kanban**: Use wicked-kanban to track architecture recommendations
 
 ## Your Focus

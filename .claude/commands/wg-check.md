@@ -112,7 +112,7 @@ done
 
 ### 7. README Style Guide
 
-Validate README against the canonical style guide (see `skills/startah/readme-style-guide/`):
+Validate README against the canonical style guide (see `skills/readme-style-guide/`):
 
 ```bash
 readme="./README.md"

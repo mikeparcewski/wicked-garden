@@ -191,7 +191,7 @@ EOF
 
 ## Value Demonstrated
 
-This scenario proves wicked-startah enables **multi-model collaboration** for higher-quality design decisions. By using wicked-kanban as shared context, teams can:
+This scenario proves wicked-garden enables **multi-model collaboration** for higher-quality design decisions. By using wicked-kanban as shared context, teams can:
 - Get diverse AI perspectives on critical architecture decisions
 - Identify high-confidence issues through consensus
 - Catch blind spots unique to individual models

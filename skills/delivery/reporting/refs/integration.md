@@ -27,23 +27,6 @@ Source: {filename}
 {Actionable items with priority}
 ```
 
-## Cache Strategy
-
-Uses wicked-mem with file-based invalidation:
-
-```python
-from cache import namespace
-
-cache = namespace("delivery")
-
-# Cache with source file tracking
-cache.set(
-    key=f"analysis:{file_hash}:{persona}",
-    value=analysis_result,
-    source_file=input_file  # Auto-invalidates when file changes
-)
-```
-
 ## File Structure
 
 ```
@@ -101,12 +84,6 @@ Cache stored via wicked-garden:mem
 ```markdown
 Generate a {persona_type} reviewer persona for project analysis.
 Use /something-wicked:utils:persona with type "{persona_type}".
-```
-
-### With wicked-mem
-```python
-from cache import namespace
-cache = namespace("delivery")
 ```
 
 ## Validation

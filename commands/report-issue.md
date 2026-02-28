@@ -8,7 +8,7 @@ allowed_tools:
   - AskUserQuestion
 ---
 
-# /wicked-garden:startah:report-issue
+# /wicked-garden:report-issue
 
 File a structured GitHub issue with acceptance criteria, steps to reproduce, and desired outcome.
 
@@ -86,14 +86,14 @@ On confirmation:
   - Clean up temp file
 - If `gh` unavailable or no repo:
   - Display the formatted issue as markdown for manual copy
-  - Save to `~/.something-wicked/wicked-startah/unfiled-issues/{timestamp}.json`
-  - Tell user: "Issue saved to unfiled queue. Install and authenticate `gh` CLI, then run `/wicked-garden:startah:report-issue --list-unfiled` to file."
+  - Save to `~/.something-wicked/wicked-garden/unfiled-issues/{timestamp}.json`
+  - Tell user: "Issue saved to unfiled queue. Install and authenticate `gh` CLI, then run `/wicked-garden:report-issue --list-unfiled` to file."
 
 ### 5. List Unfiled Issues (--list-unfiled)
 
 If `--list-unfiled` was provided:
 
-1. Read all JSON files from `~/.something-wicked/wicked-startah/unfiled-issues/`
+1. Read all JSON files from `~/.something-wicked/wicked-garden/unfiled-issues/`
 2. If empty: report "No unfiled issues found."
 3. If found: display a summary table:
 

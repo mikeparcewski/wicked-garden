@@ -77,35 +77,11 @@ TaskGet(taskId="{id}")
 | procedural | Patterns that worked |
 | preference | User workflow preferences |
 
-## wicked-cache
-
-**When available**: Cache specialist discovery and signal analysis
-
-```bash
-# Cache analysis results
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/startah/cache.py" set \
-  "crew:analysis:{project}" "{analysis_json}" --ttl 3600
-
-# Retrieve cached
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/startah/cache.py" get \
-  "crew:analysis:{project}"
-```
-
-**Fallback**: Re-run analysis each time (no persistence)
-
-### Cache Keys
-
-| Key Pattern | TTL | Purpose |
-|-------------|-----|---------|
-| `crew:specialists` | 1h | Available specialists |
-| `crew:analysis:{project}` | 1h | Signal analysis results |
-| `crew:phase:{project}` | 24h | Phase state |
-
 ## Detection Pattern
 
 Crew uses Claude's native task tools (TaskCreate, TaskUpdate, TaskList, TaskGet) directly — no plugin detection needed for task management. Utility plugins like wicked-kanban enhance this automatically via hooks.
 
-For optional utility plugins (wicked-mem, wicked-cache), use graceful degradation:
+For optional utility plugins (wicked-mem), use graceful degradation:
 
 ```python
 # Check if a utility plugin command is available

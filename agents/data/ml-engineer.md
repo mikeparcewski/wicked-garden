@@ -19,7 +19,6 @@ Leverage ecosystem tools:
 - **wicked-garden:data:numbers**: Analyze training data and metrics
 - **wicked-kanban**: Track ML experiments and issues
 - **wicked-mem**: Recall model architectures and patterns
-- **wicked-cache**: Cache feature engineering results
 
 ## Core Responsibilities
 

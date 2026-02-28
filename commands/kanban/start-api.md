@@ -1,5 +1,5 @@
 ---
-description: Check the Control Plane status for workbench integration
+description: Check the Control Plane status for dashboard integration
 ---
 
 # /wicked-garden:kanban:start-api
@@ -47,5 +47,5 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" kanban tasks search --q "bug"
 ## Notes
 
 - The CP runs on port 18889 (configurable via config.json)
-- Workbench connects to the CP directly
+- Dashboard clients connect to the CP directly
 - Use `python3 scripts/cp.py manifest` to see all available endpoints
