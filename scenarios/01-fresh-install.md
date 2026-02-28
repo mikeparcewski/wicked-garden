@@ -23,7 +23,7 @@ mkdir -p /tmp/wicked-garden-test
 ### 1. Install the Plugin
 
 ```bash
-claude plugin install something-wicked/wicked-garden
+claude plugin install mikeparcewski/wicked-garden
 ```
 
 Expected: Plugin installed successfully, shows current version.

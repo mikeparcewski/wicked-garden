@@ -5,7 +5,7 @@
 115 commands. 78 specialist agents. 69 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
 
 ```bash
-claude plugins add something-wicked/wicked-garden
+claude plugins add mikeparcewski/wicked-garden
 ```
 
 ## What It Actually Does
@@ -177,7 +177,7 @@ At checkpoints (clarify, design, build), the system re-analyzes and enforces pha
 ## Installation
 
 ```bash
-claude plugins add something-wicked/wicked-garden
+claude plugins add mikeparcewski/wicked-garden
 ```
 
 On first session, the plugin runs interactive setup to configure your control plane connection.
