@@ -121,6 +121,15 @@ class SessionState:
     # CP errors recorded by _control_plane.py for hook surfacing
     cp_errors: list | None = None
 
+    # Subagent dispatch log (post_tool.py Task handler)
+    subagent_dispatches: list | None = None
+
+    # Detected agentic frameworks (post_tool.py Read handler)
+    detected_frameworks: list | None = None
+
+    # Bash command counter (post_tool.py Bash handler)
+    bash_count: int = 0
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

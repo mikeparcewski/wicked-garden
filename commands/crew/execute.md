@@ -87,7 +87,8 @@ This principle applies to EVERY phase. Even "simple" tasks should be dispatched 
 
 ### 3. Load User Preferences (if exists)
 
-Check for `${CLAUDE_PLUGIN_ROOT}/preferences.yaml` or project-level preferences for:
+Resolve preferences path: `CREW_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew)`
+Check for `${CREW_ROOT}/preferences.yaml` or project-level preferences for:
 - Autonomy level (ask-first, balanced, just-finish)
 - Communication style
 

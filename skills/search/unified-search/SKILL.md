@@ -89,7 +89,7 @@ These create "documents" edges in the graph, linking doc sections to code.
 
 After indexing, extracted document text is cached locally under the wicked-search storage domain:
 ```
-{wicked-search local storage}/extracted/<filename>.txt
+{SM_LOCAL_ROOT}/wicked-search/extracted/<filename>.txt
 ```
 
 Read these files to get full document content for context.

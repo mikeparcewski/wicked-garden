@@ -26,7 +26,8 @@ def list_projects(active_only: bool = False) -> dict:
     if active_only:
         projects = [
             p for p in projects
-            if p.get("status", "").lower() in ("active", "in_progress")
+            if not p.get("archived")
+            and p.get("current_phase", "") not in ("complete", "done", "")
         ]
 
     return {"projects": projects}

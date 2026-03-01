@@ -96,8 +96,8 @@ If `--list-unfiled` was provided:
 
 1. Resolve path: `UNFILED=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden unfiled-issues)`
 2. Read all JSON files from `${UNFILED}/`
-2. If empty: report "No unfiled issues found."
-3. If found: display a summary table:
+3. If empty: report "No unfiled issues found."
+4. If found: display a summary table:
 
 ```markdown
 | # | Title | Type | Date |
@@ -106,7 +106,7 @@ If `--list-unfiled` was provided:
 | 2 | Navigation is confusing | ux | 2026-02-16 |
 ```
 
-4. Ask user which to file (all, specific numbers, or cancel)
+5. Ask user which to file (all, specific numbers, or cancel)
 5. For each selected: run `gh issue create` with the stored title, body, and label
 6. On success: delete the unfiled JSON file
 7. Report results

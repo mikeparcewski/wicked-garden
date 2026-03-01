@@ -465,21 +465,28 @@ def _handle_task_update_mismatch(tool_input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def _write_trace(payload: dict) -> None:
-    """Write a trace entry via StorageManager. Anti-recursion guarded."""
+    """Append a trace entry to a session-scoped JSONL file (batched, not per-call SM create).
+
+    Avoids creating individual JSON files + queue entries on every hook invocation
+    in offline/local-fallback mode. The session trace file is flushed to SM at
+    session end by stop.py.
+    """
     if os.environ.get("WICKED_TRACE_ACTIVE"):
         return
     try:
         os.environ["WICKED_TRACE_ACTIVE"] = "1"
-        from _storage import StorageManager
-        sm = StorageManager("wicked-observability", hook_mode=True)
         session_id = _get_session_id()
         tool_name = payload.get("tool_name", "")
-        sm.create("traces", {
+        entry = json.dumps({
             "ts": _now_iso(),
             "session_id": session_id,
             "tool": tool_name,
             "event": payload.get("hook_event_name", "PostToolUse"),
         })
+        tmpdir = os.environ.get("TMPDIR", "/tmp")
+        trace_file = Path(tmpdir) / f"wicked-trace-{session_id}.jsonl"
+        with open(trace_file, "a", encoding="utf-8") as f:
+            f.write(entry + "\n")
     except Exception:
         pass
     finally:
