@@ -22,17 +22,17 @@
 
 ## Setup
 
-\`\`\`bash
+```bash
 {setup commands}
-\`\`\`
+```
 
 ## Steps
 
 ### Step 1: {description} ({cli-name})
 
-\`\`\`{language}
+```{language}
 {cli commands}
-\`\`\`
+```
 
 **Expect**: {natural language description of success}
 
@@ -40,9 +40,9 @@
 
 ## Cleanup
 
-\`\`\`bash
+```bash
 {cleanup commands}
-\`\`\`
+```
 ```
 
 ## Validation Rules

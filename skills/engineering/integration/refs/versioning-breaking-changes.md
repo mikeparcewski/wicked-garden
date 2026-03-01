@@ -16,13 +16,13 @@
 **Replaced by**: `created_at` (ISO 8601 timestamp)
 
 **Migration**:
-\`\`\`typescript
+```typescript
 // V1
 const date = response.order_date;
 
 // V2
 const date = new Date(response.created_at);
-\`\`\`
+```
 ```
 
 ### 3. Provide Migration Tools

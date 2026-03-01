@@ -146,9 +146,33 @@ Coordinates on:
 ## Reference Materials
 
 - [REST API Guide](refs/rest-api.md)
-- GraphQL guides: refs/graphql-*.md
-- gRPC guides: refs/grpc-*.md
-- Event Schema guides: refs/event-schemas-*.md
-- Resilience guides: refs/resilience-*.md
-- Versioning guides: refs/versioning-*.md
+- GraphQL:
+  - [Basics](refs/graphql-graphql-basics.md)
+  - [Query Examples](refs/graphql-query-examples.md)
+  - [Schema Design](refs/graphql-schema-design-patterns.md)
+  - [Error Handling](refs/graphql-error-handling.md)
+  - [Best Practices](refs/graphql-best-practices.md)
+- gRPC:
+  - [Overview](refs/grpc-grpc-overview.md)
+  - [Implementation](refs/grpc-implementation-examples.md)
+  - [Metadata & Headers](refs/grpc-metadata-headers.md)
+  - [Testing](refs/grpc-testing.md)
+- Event Schemas:
+  - [Event Structure](refs/event-schemas-event-structure.md)
+  - [Naming Conventions](refs/event-schemas-event-naming-conventions.md)
+  - [Best Practices](refs/event-schemas-best-practices.md)
+- Error Handling:
+  - [Response Format](refs/error-handling-error-response-format.md)
+  - [Error Classes (TS)](refs/error-handling-error-classes-typescript.md)
+  - [Retry Strategies](refs/error-handling-retry-strategies.md)
+  - [Best Practices](refs/error-handling-best-practices.md)
+- Resilience:
+  - [Circuit Breaker](refs/resilience-circuit-breaker-pattern.md)
+  - [Timeout & Bulkhead](refs/resilience-timeout-pattern.md)
+  - [Rate Limiting](refs/resilience-rate-limiting.md)
+  - [Best Practices](refs/resilience-best-practices.md)
+- Versioning:
+  - [Strategies](refs/versioning-versioning-strategies.md)
+  - [Migration](refs/versioning-migration-strategies.md)
+  - [Breaking Changes](refs/versioning-breaking-changes.md)
 - [OpenAPI Template](refs/openapi-template.yaml)
