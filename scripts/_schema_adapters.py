@@ -3,19 +3,26 @@
 _schema_adapters.py — Bidirectional schema translation at the CP boundary.
 
 Domain scripts write in their native field names ("script format").
-The control plane expects a different schema for 12 newer sources.
+The control plane expects a different schema for some sources.
 This module sits between StorageManager and ControlPlaneClient to
 translate outbound (script → CP) and inbound (CP → script) payloads.
+
+Two adapter tiers:
+    1. Static adapters: hand-tuned per (domain, source) in _REGISTRY.
+       Handle semantic renames (category→signal_type) and complex transforms.
+    2. Dynamic adapters: auto-generated from manifest_detail() schemas.
+       Handle required-field defaults and overflow packing into metadata.
+
+Priority: static adapter > dynamic adapter > passthrough.
 
 Fail-open: if any adapter crashes, the original record is returned
 unchanged.  The untransformed payload may still be rejected by CP,
 but callers handle None returns gracefully.
-
-Sources without a registered adapter pass through untouched.
 """
 
 import json
 import sys
+import time
 from typing import Any, Callable
 
 # Type alias for adapter functions
@@ -46,6 +53,213 @@ def _json_load(val: Any) -> Any:
         except (json.JSONDecodeError, TypeError):
             return val
     return val
+
+
+# ---------------------------------------------------------------------------
+# Dynamic schema adaptation (manifest_detail-based)
+# ---------------------------------------------------------------------------
+
+# CP system fields that scripts typically don't send or expect back.
+_CP_SYSTEM_FIELDS = frozenset({
+    "id", "created_at", "updated_at", "deleted_at",
+})
+
+# Fields eligible as overflow containers (checked in priority order).
+_OVERFLOW_CANDIDATES = ("metadata", "payload", "extra", "extras")
+
+# TTL for cached schemas (seconds).
+_SCHEMA_CACHE_TTL = 300  # 5 minutes
+
+# Sentinel value cached for manifest_detail misses to avoid repeated lookups.
+_NEGATIVE_SENTINEL: dict = {"_negative": True}
+
+# CP client reference, injected by StorageManager at init time.
+_cp_client: Any = None
+
+
+def set_cp_client(client: Any) -> None:
+    """Inject the ControlPlaneClient used for manifest_detail lookups.
+
+    Called by StorageManager.__init__ so the adapter module reuses the
+    same client (and timeout settings) as the caller.
+    """
+    global _cp_client
+    _cp_client = client
+
+
+class _SchemaCache:
+    """In-process TTL cache for parsed manifest_detail schemas.
+
+    Short-lived hook processes do at most one fetch per (domain, source).
+    Long-lived command scripts benefit from TTL-based reuse.
+    """
+
+    def __init__(self) -> None:
+        self._entries: dict[tuple[str, str, str], tuple[float, dict]] = {}
+
+    def get(self, domain: str, source: str, verb: str) -> dict | None:
+        key = (domain, source, verb)
+        entry = self._entries.get(key)
+        if entry is None:
+            return None
+        ts, schema = entry
+        if time.monotonic() - ts > _SCHEMA_CACHE_TTL:
+            del self._entries[key]
+            return None
+        return schema
+
+    def put(self, domain: str, source: str, verb: str, schema: dict) -> None:
+        self._entries[(domain, source, verb)] = (time.monotonic(), schema)
+
+
+_schema_cache = _SchemaCache()
+
+
+def _parse_schema(detail: dict) -> dict | None:
+    """Extract structured schema info from a manifest_detail response.
+
+    Returns a dict with:
+        known_fields:   set of field names the CP accepts
+        required:       set of required field names
+        defaults:       dict of field_name → default_value
+        overflow_field: name of the dict/object field for packing extras, or None
+
+    Returns None if the schema cannot be parsed.
+    """
+    body = detail.get("request_body")
+    if not body or not isinstance(body, dict):
+        return None
+
+    props = body.get("properties")
+    if not props or not isinstance(props, dict):
+        return None
+
+    known_fields: set[str] = set(props.keys())
+    required: set[str] = set()
+    defaults: dict[str, Any] = {}
+    overflow_field: str | None = None
+
+    for name, spec in props.items():
+        if not isinstance(spec, dict):
+            continue
+
+        if spec.get("required"):
+            required.add(name)
+
+        if "default" in spec:
+            defaults[name] = spec["default"]
+
+        # Identify overflow candidate (first match wins)
+        ftype = spec.get("type", "")
+        if overflow_field is None and ftype == "object" and name in _OVERFLOW_CANDIDATES:
+            overflow_field = name
+
+    # Infer type-appropriate defaults for required fields without one
+    _TYPE_DEFAULTS = {"string": "", "integer": 0, "number": 0.0,
+                      "boolean": False, "array": [], "object": {}}
+    for name in required:
+        if name not in defaults:
+            spec = props.get(name, {})
+            ftype = spec.get("type", "string")
+            if ftype in _TYPE_DEFAULTS:
+                defaults[name] = _TYPE_DEFAULTS[ftype]
+
+    return {
+        "known_fields": known_fields,
+        "required": required,
+        "defaults": defaults,
+        "overflow_field": overflow_field,
+    }
+
+
+def _get_or_fetch_schema(domain: str, source: str, verb: str) -> dict | None:
+    """Fetch, parse, and cache a schema from manifest_detail.
+
+    For read verbs (list, get), looks up the 'create' schema since it
+    defines the full field set.  Returns None if unavailable.
+    """
+    lookup_verb = verb if verb in ("create", "update") else "create"
+
+    cached = _schema_cache.get(domain, source, lookup_verb)
+    if cached is not None:
+        return None if cached.get("_negative") else cached
+
+    if _cp_client is None:
+        return None
+
+    try:
+        detail = _cp_client.manifest_detail(domain, source, lookup_verb)
+    except Exception:
+        _schema_cache.put(domain, source, lookup_verb, _NEGATIVE_SENTINEL)
+        return None
+
+    if detail is None:
+        _schema_cache.put(domain, source, lookup_verb, _NEGATIVE_SENTINEL)
+        return None
+
+    schema = _parse_schema(detail)
+    if schema is None:
+        _schema_cache.put(domain, source, lookup_verb, _NEGATIVE_SENTINEL)
+        return None
+
+    _schema_cache.put(domain, source, lookup_verb, schema)
+    return schema
+
+
+def _dynamic_to_cp(record: dict, schema: dict, verb: str = "create") -> dict:
+    """Generic outbound adapter: inject required defaults, pack overflow."""
+    out = dict(record)
+
+    known = schema["known_fields"]
+    overflow_field = schema["overflow_field"]
+
+    # 1. Inject missing required/default fields (create only — updates are partial)
+    if verb == "create":
+        for field_name, default_val in schema["defaults"].items():
+            if field_name not in out:
+                # Copy mutable defaults to avoid shared-state bugs
+                out[field_name] = list(default_val) if isinstance(default_val, list) \
+                    else dict(default_val) if isinstance(default_val, dict) \
+                    else default_val
+
+    # 2. Pack overflow: fields not in schema → overflow_field
+    if overflow_field:
+        extras = {}
+        for k in list(out):
+            if k not in known and k not in _CP_SYSTEM_FIELDS:
+                extras[k] = out.pop(k)
+        if extras:
+            existing = out.get(overflow_field)
+            if isinstance(existing, dict):
+                existing.update(extras)
+            else:
+                out[overflow_field] = extras
+
+    return out
+
+
+def _dynamic_from_cp(record: dict, schema: dict) -> dict:
+    """Generic inbound adapter: unpack overflow fields back to top-level."""
+    out = dict(record)
+
+    overflow_field = schema.get("overflow_field")
+    known = schema.get("known_fields", set())
+
+    # Unpack overflow field: keys that aren't part of the CP schema
+    # were likely packed by _dynamic_to_cp
+    if overflow_field and overflow_field in out:
+        packed = out.get(overflow_field)
+        if isinstance(packed, dict):
+            unpacked = {k: v for k, v in packed.items() if k not in known}
+            if unpacked:
+                out.update(unpacked)
+                remaining = {k: v for k, v in packed.items() if k in known}
+                if remaining:
+                    out[overflow_field] = remaining
+                else:
+                    del out[overflow_field]
+
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -479,56 +693,86 @@ _REGISTRY: dict[tuple[str, str], tuple[AdapterFn, AdapterFn]] = {
 def to_cp(domain: str, source: str, verb: str, record: dict) -> dict:
     """Transform a script-format record to CP-format for outbound requests.
 
-    Returns the original record unchanged if no adapter is registered
-    or if the adapter raises an exception (fail-open).
+    Priority: static adapter → dynamic adapter (manifest_detail) → passthrough.
 
     Args:
         domain: Plugin domain (e.g. "wicked-crew").
         source: Resource collection (e.g. "decisions").
-        verb:   CRUD verb (unused currently, reserved for verb-specific transforms).
+        verb:   CRUD verb ("create", "update", "list", etc.).
         record: Script-format record dict.
 
     Returns:
         CP-format record dict.
     """
+    # Priority 1: static adapter
     entry = _REGISTRY.get((domain, source))
-    if entry is None:
-        return record
-    try:
-        return entry[0](record)
-    except Exception as exc:
-        print(
-            f"[wicked-garden] Schema adapter to_cp failed for "
-            f"{domain}/{source}: {exc}",
-            file=sys.stderr,
-        )
-        return record
+    if entry is not None:
+        try:
+            return entry[0](record)
+        except Exception as exc:
+            print(
+                f"[wicked-garden] Schema adapter to_cp failed for "
+                f"{domain}/{source}: {exc}",
+                file=sys.stderr,
+            )
+            return record
+
+    # Priority 2: dynamic adapter from manifest_detail
+    schema = _get_or_fetch_schema(domain, source, verb)
+    if schema is not None:
+        try:
+            return _dynamic_to_cp(record, schema, verb=verb)
+        except Exception as exc:
+            print(
+                f"[wicked-garden] Dynamic adapter to_cp failed for "
+                f"{domain}/{source}: {exc}",
+                file=sys.stderr,
+            )
+            return record
+
+    # Priority 3: passthrough
+    return record
 
 
 def from_cp(domain: str, source: str, verb: str, record: dict) -> dict:
     """Transform a CP-format record to script-format for inbound responses.
 
-    Returns the original record unchanged if no adapter is registered
-    or if the adapter raises an exception (fail-open).
+    Priority: static adapter → dynamic adapter (manifest_detail) → passthrough.
 
     Args:
         domain: Plugin domain (e.g. "wicked-crew").
         source: Resource collection (e.g. "decisions").
-        verb:   CRUD verb (unused currently, reserved for verb-specific transforms).
+        verb:   CRUD verb ("list", "get", "create", etc.).
         record: CP-format record dict.
 
     Returns:
         Script-format record dict.
     """
+    # Priority 1: static adapter
     entry = _REGISTRY.get((domain, source))
-    if entry is None:
-        return record
-    try:
-        return entry[1](record)
-    except Exception as exc:
-        print(
-            f"[wicked-garden] Schema adapter from_cp failed for "
-            f"{domain}/{source}: {exc}",
-            file=sys.stderr,
-        )
-        return record
+    if entry is not None:
+        try:
+            return entry[1](record)
+        except Exception as exc:
+            print(
+                f"[wicked-garden] Schema adapter from_cp failed for "
+                f"{domain}/{source}: {exc}",
+                file=sys.stderr,
+            )
+            return record
+
+    # Priority 2: dynamic adapter from manifest_detail
+    schema = _get_or_fetch_schema(domain, source, verb)
+    if schema is not None:
+        try:
+            return _dynamic_from_cp(record, schema)
+        except Exception as exc:
+            print(
+                f"[wicked-garden] Dynamic adapter from_cp failed for "
+                f"{domain}/{source}: {exc}",
+                file=sys.stderr,
+            )
+            return record
+
+    # Priority 3: passthrough
+    return record
