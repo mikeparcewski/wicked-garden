@@ -4,19 +4,14 @@ description: |
   Senior engineering guidance on code quality, architecture patterns, and
   best practices. Use for implementation planning, code review, or general
   engineering questions about maintainability and design.
+
+  Use when: "review this code", "how should I implement", "is this good practice",
+  "code quality", "refactor", "clean up", "best practice", "design pattern"
 ---
 
 # Engineering Skill
 
 Provide senior engineering guidance on code quality, architecture, and implementation.
-
-## When to Use
-
-- Planning implementation approach
-- Reviewing code for quality and maintainability
-- Evaluating architecture decisions
-- Debugging complex issues
-- User says "review this code", "how should I implement", "is this good practice"
 
 ## What This Skill Does
 
