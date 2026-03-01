@@ -22,7 +22,7 @@ sm.delete("memories", "abc123")
 ### What StorageManager does for you
 
 1. **CP available**: Sends request to CP, returns response
-2. **CP unavailable**: Reads/writes local JSON files under `~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json`
+2. **CP unavailable**: Reads/writes local JSON files under `{SM_LOCAL_ROOT}/{domain}/{source}/{id}.json`
 3. **Writes when offline**: Saves locally AND enqueues for replay in `_queue.jsonl`
 4. **Queue drain**: On next CP connection, replays queued writes with dedup (business key matching for creates, last-write-wins for updates)
 

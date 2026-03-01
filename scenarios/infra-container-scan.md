@@ -25,7 +25,7 @@ export IMAGE="alpine:3.19"
 
 ```bash
 if ! command -v trivy &>/dev/null; then
-  echo "SKIP: trivy not installed. Run /wicked-scenarios:setup to install."
+  echo "SKIP: trivy not installed. Run /wicked-garden:scenarios:setup to install."
   exit 0
 fi
 trivy image --severity HIGH,CRITICAL --exit-code 0 --format json --output "${TMPDIR:-/tmp}/trivy-results.json" "${IMAGE}" && echo "Scan complete"
@@ -37,7 +37,7 @@ trivy image --severity HIGH,CRITICAL --exit-code 0 --format json --output "${TMP
 
 ```bash
 if ! command -v trivy &>/dev/null; then
-  echo "SKIP: trivy not installed. Run /wicked-scenarios:setup to install."
+  echo "SKIP: trivy not installed. Run /wicked-garden:scenarios:setup to install."
   exit 0
 fi
 trivy image --severity CRITICAL --exit-code 1 "${IMAGE}"

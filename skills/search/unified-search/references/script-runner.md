@@ -64,7 +64,7 @@ Most scripts that use `--db` need the graph database path. Find it from index me
 
 ```bash
 # The graph DB is stored alongside the index at:
-~/.something-wicked/wicked-garden/local/wicked-search/<hash>_graph.db
+{SM_LOCAL_ROOT}/wicked-search/<hash>_graph.db
 ```
 
 Use `/wicked-garden:search:stats` to find the active index and its database path.

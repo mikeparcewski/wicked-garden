@@ -71,7 +71,7 @@ Each issue type has a structured template requiring:
 - `gh` CLI installed and authenticated (`gh auth login`)
 - Current directory is a GitHub repository
 
-Without `gh`, issues are saved to `~/.something-wicked/wicked-garden/unfiled-issues/` for later filing.
+Without `gh`, issues are saved to `{storage_root}/unfiled-issues/` for later filing.
 
 ## Unfiled Issues
 
@@ -79,7 +79,7 @@ When `gh` is unavailable, issues are queued locally:
 
 ```bash
 # View unfiled issues
-ls ~/.something-wicked/wicked-garden/unfiled-issues/
+ls {storage_root}/unfiled-issues/
 
 # File them later
 /wicked-garden:report-issue --list-unfiled

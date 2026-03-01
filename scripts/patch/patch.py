@@ -35,7 +35,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from _paths import get_local_file
+from _storage import get_local_file
 from generators import (
     ChangeSpec,
     ChangeType,

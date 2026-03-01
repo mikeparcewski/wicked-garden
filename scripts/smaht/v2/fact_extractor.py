@@ -12,8 +12,8 @@ Fact types:
   - problem_solved: Issues resolved ("fixed X", "resolved Y")
   - context: Background information ("the system uses X", "currently Y")
 
-Storage:
-~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/facts.jsonl
+Storage (via get_local_path from _storage):
+{local_path}/wicked-smaht/sessions/{session_id}/facts.jsonl
 """
 
 import json

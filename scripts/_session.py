@@ -99,6 +99,37 @@ class SessionState:
     session_ended: bool = False
     cp_last_checked_at: float = 0.0
 
+    # Kanban sync: maps Claude TaskCreate subjects → kanban task IDs.
+    # Session-scoped (task IDs are ephemeral).
+    kanban_sync: dict | None = None
+
+    # One-time nudge flags (reset per session)
+    task_suggest_shown: bool = False
+
+    # Stale files accumulated this session (flushed to SM on demand)
+    stale_files: list | None = None
+
+    # QE change tracking nudge flag
+    qe_nudged: bool = False
+
+    # Failure counts per tool (for issue reporter threshold)
+    failure_counts: dict | None = None
+
+    # Queued issue records (pending_issues + mismatches)
+    pending_issues: list | None = None
+
+    # CP errors recorded by _control_plane.py for hook surfacing
+    cp_errors: list | None = None
+
+    # Subagent dispatch log (post_tool.py Task handler)
+    subagent_dispatches: list | None = None
+
+    # Detected agentic frameworks (post_tool.py Read handler)
+    detected_frameworks: list | None = None
+
+    # Bash command counter (post_tool.py Bash handler)
+    bash_count: int = 0
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

@@ -188,7 +188,7 @@ Matchers specify tool names: `"*"` for all, or specific like `"TaskCreate"`, `"W
 
 ### Storage
 
-Plugin state goes under `~/.something-wicked/wicked-garden/`. The StorageManager handles CP-first with local fallback automatically. Offline writes are queued in `_queue.jsonl` and replayed on reconnect.
+Plugin state is managed by StorageManager (`scripts/_storage.py`) — CP-first with local fallback automatically. Local paths are resolved dynamically; never hardcode `~/.something-wicked/` paths in consumer code. Use `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>` in commands. Offline writes are queued in `_queue.jsonl` and replayed on reconnect.
 
 ### Graceful Degradation
 

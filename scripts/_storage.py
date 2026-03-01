@@ -45,6 +45,7 @@ from typing import Any
 # Internal import — same scripts/ directory
 sys.path.insert(0, str(Path(__file__).parent))
 from _control_plane import get_client, load_config
+from _schema_adapters import to_cp as _to_cp, from_cp as _from_cp
 from _session import SessionState
 
 # ---------------------------------------------------------------------------
@@ -153,7 +154,9 @@ class StorageManager:
                 self._domain, source, "list", params=params or None
             )
             if result is not None:
-                return _extract_list(result)
+                items = _extract_list(result)
+                return [_from_cp(self._domain, source, "list", r) for r in items]
+            return []
 
         return self._local_list(source, params)
 
@@ -166,7 +169,9 @@ class StorageManager:
         if self._should_use_cp():
             result = self._cp.request(self._domain, source, "get", id=id)
             if result is not None:
-                return _extract_item(result)
+                item = _extract_item(result)
+                return _from_cp(self._domain, source, "get", item) if item else None
+            return None
 
         return self._local_get(source, id)
 
@@ -181,13 +186,16 @@ class StorageManager:
             Created record dict, or None on failure.
         """
         if self._should_use_cp():
+            cp_payload = _to_cp(self._domain, source, "create", dict(payload))
             result = self._cp.request(
-                self._domain, source, "create", payload=payload
+                self._domain, source, "create", payload=cp_payload
             )
             if result is not None:
-                return _extract_item(result)
+                item = _extract_item(result)
+                return _from_cp(self._domain, source, "create", item) if item else None
+            return None
 
-        # Local write: assign a local ID and persist
+        # Offline / CP down: local write + queue for later replay.
         record = dict(payload)
         if "id" not in record:
             record["id"] = str(uuid.uuid4())
@@ -195,7 +203,8 @@ class StorageManager:
         record.setdefault("updated_at", _now())
 
         self._local_write(source, record["id"], record)
-        self._enqueue("create", source, record)
+        cp_record = _to_cp(self._domain, source, "create", dict(record))
+        self._enqueue("create", source, cp_record)
         return record
 
     def update(self, source: str, id: str, diff: dict) -> dict | None:
@@ -205,13 +214,16 @@ class StorageManager:
             Updated record dict, or None if not found.
         """
         if self._should_use_cp():
+            cp_diff = _to_cp(self._domain, source, "update", dict(diff))
             result = self._cp.request(
-                self._domain, source, "update", id=id, payload=diff
+                self._domain, source, "update", id=id, payload=cp_diff
             )
             if result is not None:
-                return _extract_item(result)
+                item = _extract_item(result)
+                return _from_cp(self._domain, source, "update", item) if item else None
+            return None
 
-        # Local: read-modify-write
+        # Offline / CP down: local read-modify-write + queue.
         existing = self._local_get(source, id)
         if existing is None:
             return None
@@ -219,11 +231,12 @@ class StorageManager:
         existing.update(diff)
         existing["updated_at"] = _now()
         self._local_write(source, id, existing)
-        self._enqueue("update", source, {"id": id, **diff})
+        cp_diff = _to_cp(self._domain, source, "update", {"id": id, **diff})
+        self._enqueue("update", source, cp_diff)
         return existing
 
     def delete(self, source: str, id: str) -> bool:
-        """Delete a record (soft-delete in local fallback).
+        """Delete a record.
 
         Returns:
             True if the record was found and removed/marked deleted.
@@ -232,8 +245,9 @@ class StorageManager:
             result = self._cp.request(self._domain, source, "delete", id=id)
             if result is not None:
                 return True
+            return False
 
-        # Local: mark deleted
+        # Offline / CP down: soft-delete locally + queue.
         existing = self._local_get(source, id)
         if existing is None:
             return False

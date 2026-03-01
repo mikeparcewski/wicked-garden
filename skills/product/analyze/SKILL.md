@@ -64,10 +64,10 @@ See [refs/algorithms.md](refs/algorithms.md) for detailed scoring.
 1. **Load Feedback Data**:
    ```bash
    # Count total items
-   find ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/ -name "*.md" | wc -l
+   find {SM_LOCAL_ROOT}/wicked-product/voice/feedback/ -name "*.md" | wc -l
 
    # Load recent feedback
-   find ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/ -name "*.md" -mtime -30
+   find {SM_LOCAL_ROOT}/wicked-product/voice/feedback/ -name "*.md" -mtime -30
    ```
 
 2. **Extract Themes**:
@@ -148,7 +148,7 @@ if has_plugin("wicked-kanban"):
 
 ## Storage
 
-Analysis results stored at: `~/.something-wicked/wicked-garden/local/wicked-product/voice/analysis/{theme}/{date}.md`
+Analysis results stored at: `{SM_LOCAL_ROOT}/wicked-product/voice/analysis/{theme}/{date}.md`
 
 ## Rules
 

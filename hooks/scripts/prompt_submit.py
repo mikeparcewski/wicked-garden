@@ -165,7 +165,11 @@ def _query_search_index(prompt: str) -> str:
         symbols = re.findall(r"\b[A-Z][a-zA-Z0-9]{2,}|[a-z_][a-z0-9_]{3,}\b", prompt)
         if not symbols:
             return ""
-        db_path = Path.home() / ".something-wicked" / "wicked-search" / "unified_search.db"
+        try:
+            from _storage import get_local_file
+            db_path = get_local_file("wicked-search", "unified_search.db")
+        except Exception:
+            return ""
         if not db_path.exists():
             return ""
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1)
