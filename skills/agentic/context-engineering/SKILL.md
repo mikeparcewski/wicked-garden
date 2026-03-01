@@ -169,16 +169,6 @@ See `refs/cost-models.md` for detailed cost calculation and budgeting strategies
 4. **Set token budgets:** Hard limits per agent/session
 5. **Monitor token usage:** Track and optimize high-cost agents
 
-## When to Use
-
-Trigger phrases indicating you need this skill:
-- "Token costs are too high"
-- "Running into context limits"
-- "Responses are slow"
-- "How do I manage conversation history?"
-- "What should agents remember?"
-- "How to optimize for cost?"
-
 ## References
 
 - `refs/optimization-techniques.md` - Detailed optimization strategies with code examples
