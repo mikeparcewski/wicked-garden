@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.1] - 2026-03-01
+
+### Bug Fixes
+- fix: restore dropped conversational trigger phrases in skill descriptions (b898932)
+- fix: resolve wg-check --full findings (#109-#115) (8122e1f)
+
+### Chores
+- Merge pull request #116 from mikeparcewski/fix/wg-check-full-findings (16b45b5)
+- release: wicked-garden v1.3.0 (51957d7)
+
 ## [1.3.0] - 2026-03-01
 
 ### Features
