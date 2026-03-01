@@ -151,6 +151,8 @@ class StorageManager:
 
         Returns:
             List of record dicts. Empty list on any error.
+
+        Falls back to local storage if the CP request fails.
         """
         if self._should_use_cp():
             result = self._cp.request(
@@ -159,7 +161,7 @@ class StorageManager:
             if result is not None:
                 items = _extract_list(result)
                 return [_from_cp(self._domain, source, "list", r) for r in items]
-            return []
+            # CP read failed — fall through to local
 
         return self._local_list(source, params)
 
@@ -168,13 +170,15 @@ class StorageManager:
 
         Returns:
             Record dict, or None if not found.
+
+        Falls back to local storage if the CP request fails.
         """
         if self._should_use_cp():
             result = self._cp.request(self._domain, source, "get", id=id)
             if result is not None:
                 item = _extract_item(result)
                 return _from_cp(self._domain, source, "get", item) if item else None
-            return None
+            # CP read failed — fall through to local
 
         return self._local_get(source, id)
 
@@ -187,6 +191,9 @@ class StorageManager:
 
         Returns:
             Created record dict, or None on failure.
+
+        If the control plane write fails (404, network error, etc.), falls
+        back to local storage and enqueues the write for later replay.
         """
         if self._should_use_cp():
             cp_payload = _to_cp(self._domain, source, "create", dict(payload))
@@ -196,7 +203,13 @@ class StorageManager:
             if result is not None:
                 item = _extract_item(result)
                 return _from_cp(self._domain, source, "create", item) if item else None
-            return None
+            # CP write failed — fall through to local persistence
+            import sys
+            print(
+                f"[StorageManager] CP write failed for {self._domain}/{source}, "
+                f"persisting locally",
+                file=sys.stderr,
+            )
 
         # Offline / CP down: local write + queue for later replay.
         record = dict(payload)
@@ -543,13 +556,23 @@ def _extract_item(response: dict) -> dict | None:
 
 
 def _matches_params(record: dict, params: dict) -> bool:
-    """Simple equality filter for local list queries.
+    """Filter for local list queries.
 
-    Only string/int/bool equality is supported — complex filter expressions
-    go through the control plane.
+    Supports exact equality for most fields plus substring search for the
+    special ``q`` parameter (searches across title, content, summary,
+    description).
     """
     for key, value in params.items():
-        if record.get(key) != value:
+        if key == "q":
+            # Token-based search across text fields (all tokens must match)
+            searchable = " ".join(
+                str(record.get(f, ""))
+                for f in ("title", "content", "summary", "description")
+            ).lower()
+            tokens = str(value).lower().split()
+            if not all(tok in searchable for tok in tokens):
+                return False
+        elif record.get(key) != value:
             return False
     return True
 
