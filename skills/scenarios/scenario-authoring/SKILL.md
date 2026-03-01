@@ -38,9 +38,9 @@ Then write steps in the markdown body:
 
 ### Step 1: Description (cli-name)
 
-\`\`\`bash
+```bash
 curl -sf https://example.com/api/health
-\`\`\`
+```
 
 **Expect**: Exit code 0, healthy response
 ```

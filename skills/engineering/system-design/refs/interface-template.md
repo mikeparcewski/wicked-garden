@@ -45,16 +45,16 @@ What this interface assumes about consumers:
 **Description**: What this operation does
 
 **Input**:
-\`\`\`typescript
+```typescript
 interface Input {
   field1: string;
   field2: number;
   field3?: boolean;  // Optional
 }
-\`\`\`
+```
 
 **Output**:
-\`\`\`typescript
+```typescript
 interface Output {
   result: string;
   metadata: {
@@ -62,20 +62,20 @@ interface Output {
     version: string;
   };
 }
-\`\`\`
+```
 
 **Errors**:
 - `ERROR_CODE_1`: Description and recovery
 - `ERROR_CODE_2`: Description and recovery
 
 **Example**:
-\`\`\`typescript
+```typescript
 const result = await interface.operation1({
   field1: "value",
   field2: 42,
   field3: true
 });
-\`\`\`
+```
 
 **Performance**:
 - Expected latency: < 100ms
@@ -93,7 +93,7 @@ const result = await interface.operation1({
 
 ### Type1
 
-\`\`\`typescript
+```typescript
 interface Type1 {
   id: string;
   name: string;
@@ -102,7 +102,7 @@ interface Type1 {
   createdAt: Date;
   updatedAt: Date;
 }
-\`\`\`
+```
 
 **Validation Rules**:
 - `id`: UUID format
@@ -134,7 +134,7 @@ interface Type1 {
 
 ### Error Response Format
 
-\`\`\`typescript
+```typescript
 interface ErrorResponse {
   error: {
     code: string;
@@ -144,11 +144,11 @@ interface ErrorResponse {
     timestamp: string;
   };
 }
-\`\`\`
+```
 
 ### Example Error
 
-\`\`\`json
+```json
 {
   "error": {
     "code": "RESOURCE_NOT_FOUND",
@@ -157,7 +157,7 @@ interface ErrorResponse {
     "timestamp": "2025-01-24T10:00:00Z"
   }
 }
-\`\`\`
+```
 
 ## Authentication & Authorization
 
@@ -166,9 +166,9 @@ interface ErrorResponse {
 [Bearer Token | API Key | OAuth2 | mTLS | None]
 
 **Example**:
-\`\`\`http
+```http
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
-\`\`\`
+```
 
 ### Authorization
 
@@ -194,11 +194,11 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 [URL | Header | Query Parameter]
 
 **Example**:
-\`\`\`
+```
 /api/v2/resources
 Accept: application/vnd.api.v2+json
 ?version=2
-\`\`\`
+```
 
 ### Breaking Changes
 
@@ -217,14 +217,14 @@ Documented in [CHANGELOG.md](./CHANGELOG.md)
 - Burst: 20 requests/second
 
 **Headers**:
-\`\`\`http
+```http
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 999
 X-RateLimit-Reset: 1611218400
-\`\`\`
+```
 
 **Exceeded Response**:
-\`\`\`http
+```http
 HTTP/1.1 429 Too Many Requests
 Retry-After: 3600
 
@@ -235,7 +235,7 @@ Retry-After: 3600
     "retryAfter": 3600
   }
 }
-\`\`\`
+```
 
 ## Service Level Agreement (SLA)
 
@@ -257,17 +257,17 @@ Retry-After: 3600
 3. **Sunset**: Version removed after sunset date
 
 **Deprecation Headers**:
-\`\`\`http
+```http
 Warning: 299 - "This API version is deprecated"
 Sunset: Mon, 01 Jan 2026 00:00:00 GMT
 Link: <https://docs.example.com/migration>; rel="deprecation"
-\`\`\`
+```
 
 ## Testing
 
 ### Contract Tests
 
-\`\`\`typescript
+```typescript
 describe('Interface Contract', () => {
   it('should return correct response format', async () => {
     const response = await api.operation1({
@@ -289,11 +289,11 @@ describe('Interface Contract', () => {
     });
   });
 });
-\`\`\`
+```
 
 ### Performance Tests
 
-\`\`\`typescript
+```typescript
 describe('Performance', () => {
   it('should respond within 200ms', async () => {
     const start = Date.now();
@@ -303,13 +303,13 @@ describe('Performance', () => {
     expect(duration).toBeLessThan(200);
   });
 });
-\`\`\`
+```
 
 ## Examples
 
 ### Basic Usage
 
-\`\`\`typescript
+```typescript
 import { APIClient } from '@example/api-client';
 
 const client = new APIClient({
@@ -324,11 +324,11 @@ const resource = await client.createResource({
 });
 
 console.log(resource.id);  // "550e8400-e29b-41d4-a716-446655440000"
-\`\`\`
+```
 
 ### Error Handling
 
-\`\`\`typescript
+```typescript
 try {
   const resource = await client.getResource(id);
 } catch (error) {
@@ -342,11 +342,11 @@ try {
     throw error;
   }
 }
-\`\`\`
+```
 
 ### Pagination
 
-\`\`\`typescript
+```typescript
 let hasMore = true;
 let offset = 0;
 
@@ -361,7 +361,7 @@ while (hasMore) {
   hasMore = response.pagination.hasMore;
   offset += 100;
 }
-\`\`\`
+```
 
 ## Client Libraries
 
@@ -379,22 +379,22 @@ while (hasMore) {
 ### Metrics
 
 Provider should expose:
-\`\`\`
+```
 interface_requests_total{operation, status}
 interface_request_duration_seconds{operation}
 interface_errors_total{operation, error_code}
-\`\`\`
+```
 
 Consumer should track:
-\`\`\`
+```
 interface_client_requests_total{operation, status}
 interface_client_errors_total{operation, error_code}
 interface_circuit_breaker_state{state}
-\`\`\`
+```
 
 ### Health Check
 
-\`\`\`http
+```http
 GET /health
 
 Response: 200 OK
@@ -403,7 +403,7 @@ Response: 200 OK
   "version": "2.1.0",
   "uptime": 3600
 }
-\`\`\`
+```
 
 ## Migration Guide
 
@@ -412,22 +412,22 @@ Response: 200 OK
 **Breaking Changes**:
 
 1. **ID Format Change**
-   \`\`\`typescript
+   ```typescript
    // v1
    const id: number = 123;
 
    // v2
    const id: string = "550e8400-e29b-41d4-a716-446655440000";
-   \`\`\`
+   ```
 
 2. **Field Rename**
-   \`\`\`typescript
+   ```typescript
    // v1
    const name = resource.user_name;
 
    // v2
    const name = resource.username;
-   \`\`\`
+   ```
 
 **Step-by-Step**:
 
@@ -507,14 +507,14 @@ Centralized user data management and profile operations.
 **Description**: Retrieve user by ID
 
 **Input**:
-\`\`\`typescript
+```typescript
 interface GetUserRequest {
   userId: string;  // UUID format
 }
-\`\`\`
+```
 
 **Output**:
-\`\`\`typescript
+```typescript
 interface User {
   id: string;
   email: string;
@@ -524,7 +524,7 @@ interface User {
   createdAt: string;  // ISO 8601
   updatedAt: string;  // ISO 8601
 }
-\`\`\`
+```
 
 **Errors**:
 - `USER_NOT_FOUND` (404): User with given ID doesn't exist
@@ -532,7 +532,7 @@ interface User {
 - `FORBIDDEN` (403): Insufficient permissions
 
 **Example**:
-\`\`\`http
+```http
 GET /api/users/550e8400-e29b-41d4-a716-446655440000
 Authorization: Bearer <token>
 
@@ -546,7 +546,7 @@ Response: 200 OK
   "createdAt": "2025-01-24T10:00:00Z",
   "updatedAt": "2025-01-24T10:00:00Z"
 }
-\`\`\`
+```
 
 **Performance**: P95 < 50ms
 **Idempotency**: Yes
@@ -557,21 +557,21 @@ Response: 200 OK
 **Description**: Create a new user account
 
 **Input**:
-\`\`\`typescript
+```typescript
 interface CreateUserRequest {
   email: string;        // Valid email, unique
   name: string;         // 1-100 characters
   password: string;     // Min 8 characters
   role?: 'admin' | 'user' | 'guest';  // Default: 'user'
 }
-\`\`\`
+```
 
 **Output**:
-\`\`\`typescript
+```typescript
 interface CreateUserResponse {
   user: User;
 }
-\`\`\`
+```
 
 **Errors**:
 - `DUPLICATE_EMAIL` (409): Email already exists
@@ -579,7 +579,7 @@ interface CreateUserResponse {
 - `WEAK_PASSWORD` (400): Password doesn't meet requirements
 
 **Example**:
-\`\`\`http
+```http
 POST /api/users
 Authorization: Bearer <token>
 Content-Type: application/json
@@ -603,7 +603,7 @@ Location: /api/users/660e8400-e29b-41d4-a716-446655440000
     "updatedAt": "2025-01-24T10:05:00Z"
   }
 }
-\`\`\`
+```
 
 **Performance**: P95 < 200ms
 **Idempotency**: No (generates new ID each time)
@@ -616,9 +616,9 @@ Location: /api/users/660e8400-e29b-41d4-a716-446655440000
 ### Authentication
 
 Bearer token required for all endpoints:
-\`\`\`http
+```http
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
-\`\`\`
+```
 
 ### Authorization
 
@@ -643,7 +643,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 
 ## Client Library Example
 
-\`\`\`typescript
+```typescript
 import { UserServiceClient } from '@example/user-service-client';
 
 const client = new UserServiceClient({
@@ -660,7 +660,7 @@ const newUser = await client.createUser({
   name: 'New User',
   password: 'SecurePass123!'
 });
-\`\`\`
+```
 ```
 
 ## Tips for Documenting Interfaces

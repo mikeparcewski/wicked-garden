@@ -1,6 +1,8 @@
 ---
 name: context-engineering
-description: Context window management, token optimization, and memory patterns for efficient multi-agent systems
+description: |
+  Context window management, token optimization, and memory patterns for efficient multi-agent systems.
+  Use when: "context window", "token optimization", "agent memory", "reduce token usage", "context engineering"
 ---
 
 # Context Engineering
