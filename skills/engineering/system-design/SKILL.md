@@ -131,6 +131,17 @@ Called during design phase after architecture.
 
 - [Component Template](refs/component-template.md)
 - [Interface Template](refs/interface-template.md)
-- Component Patterns: refs/patterns-*.md
-- Dependency Guide: refs/dependencies-*.md
-- Anti-Patterns: refs/anti-patterns-*.md
+- Component Patterns:
+  - [Layered](refs/patterns-layered-pattern.md)
+  - [Plugin Architecture](refs/patterns-plugin-architecture.md)
+  - [Facade](refs/patterns-facade-pattern.md)
+  - [Dependency Injection](refs/patterns-dependency-injection.md)
+- Dependencies:
+  - [Principles](refs/dependencies-dependency-principles.md)
+  - [Tracking](refs/dependencies-dependency-tracking.md)
+  - [Best Practices](refs/dependencies-best-practices.md)
+- Anti-Patterns:
+  - [God Object](refs/anti-patterns-god-object.md)
+  - [Big Ball of Mud](refs/anti-patterns-big-ball-of-mud.md)
+  - [Circular Dependencies](refs/anti-patterns-circular-dependencies.md)
+  - [Feature Envy](refs/anti-patterns-feature-envy.md)

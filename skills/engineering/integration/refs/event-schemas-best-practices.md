@@ -200,7 +200,7 @@ Document all events in your system:
 Published when a new order is created.
 
 **Example**:
-\`\`\`json
+```json
 {
   "type": "order.created",
   "data": {
@@ -209,7 +209,7 @@ Published when a new order is created.
     "total": 99.99
   }
 }
-\`\`\`
+```
 
 ### order.shipped
 **Version**: 1.0
