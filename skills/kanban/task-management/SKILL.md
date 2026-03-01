@@ -175,6 +175,6 @@ Tasks are stored as JSON files in `{SM_LOCAL_ROOT}/wicked-kanban/projects/`. Eac
 
 For detailed patterns and workflows:
 
-- **`references/api-reference.md`** - Core script commands (projects, tasks, search)
-- **`references/api-advanced.md`** - Advanced features (sprints, artifacts, data model)
-- **`references/workflow-patterns.md`** - Common workflow examples
+- **`refs/api-reference.md`** - Core script commands (projects, tasks, search)
+- **`refs/api-advanced.md`** - Advanced features (sprints, artifacts, data model)
+- **`refs/workflow-patterns.md`** - Common workflow examples

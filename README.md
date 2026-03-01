@@ -174,13 +174,57 @@ At checkpoints (clarify, design, build), the system re-analyzes and enforces pha
 4. **Graceful degradation** — Missing the control plane? Local fallback. Missing a specialist? Fallback agents cover the gap.
 5. **Prompts over code** — Logic lives in markdown and config, not Python engines. Extensible by anyone who can write instructions.
 
-## Installation
+## Quick Start
 
 ```bash
+# Install the plugin
 claude plugins add mikeparcewski/wicked-garden
+
+# First session runs interactive setup for control plane connection
+# Then start using any domain immediately:
+
+/wicked-garden:crew:start "Add user authentication"   # full workflow
+/wicked-garden:engineering:review                       # code review
+/wicked-garden:search:code "handleAuth"                 # find symbols
+/wicked-garden:jam:quick "Redis vs Postgres?"           # brainstorm
 ```
 
-On first session, the plugin runs interactive setup to configure your control plane connection.
+## Commands
+
+All commands use colon namespacing: `/wicked-garden:{domain}:{command}`
+
+| Domain | Command | What It Does |
+|--------|---------|-------------|
+| crew | `crew:start` | Start a signal-driven workflow for any task |
+| crew | `crew:just-finish` | Execute remaining work with maximum autonomy |
+| engineering | `engineering:review` | Multi-pass code review from senior perspective |
+| engineering | `engineering:arch` | Architecture analysis and recommendations |
+| search | `search:code` | Structural code search across 73 languages |
+| search | `search:lineage` | Trace data from UI to database (or reverse) |
+| search | `search:blast-radius` | Analyze dependencies of a symbol |
+| platform | `platform:security` | OWASP vulnerability scan |
+| platform | `platform:compliance` | SOC2/HIPAA/GDPR/PCI checks |
+| qe | `qe:scenarios` | Generate test scenarios from requirements |
+| qe | `qe:acceptance` | Evidence-gated acceptance testing |
+| data | `data:analyze` | SQL on CSV/Excel via DuckDB |
+| jam | `jam:brainstorm` | Multi-persona brainstorming session |
+| mem | `mem:store` / `mem:recall` | Cross-session memory persistence |
+| kanban | `kanban:board-status` | View persistent task board |
+| delivery | `delivery:report` | Multi-perspective delivery reports |
+
+See `/wicked-garden:help` for the full command list.
+
+## Integration
+
+| Integration | With It | Without It |
+|------------|---------|------------|
+| **Control Plane** | Team-shared persistence, cross-session memories, kanban boards | Local JSON files, single-developer mode |
+| **wicked-control-plane** | Real-time data sync, offline write queue with replay | Standalone with local storage fallback |
+| **GitHub CLI (`gh`)** | Auto-file issues, PR creation, release management | Manual issue/PR creation |
+| **Tree-sitter** | 73-language structural code search, symbol graphs, lineage | Grep-based text search fallback |
+| **DuckDB** | SQL analytics on 10GB+ CSV/Excel files | Basic file reading only |
+
+The plugin works fully standalone. Each integration adds capability but nothing breaks without it.
 
 ## Plugin Structure
 

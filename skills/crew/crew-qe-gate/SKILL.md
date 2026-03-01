@@ -1,5 +1,5 @@
 ---
-name: qe-strategy
+name: crew-qe-gate
 description: |
   Shift-left QE analysis with quality gates.
   Generate test scenarios, assess risks, analyze code quality.
