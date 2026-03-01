@@ -59,7 +59,8 @@ When asked to analyze customer perspective:
 
 1. **Discover Sources** - Check available feedback:
    ```bash
-   ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/
+   LOCAL_PATH=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product voice/feedback)
+   ls "${LOCAL_PATH}/"
    ```
 
 2. **Aggregate Relevant Feedback**:

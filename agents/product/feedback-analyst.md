@@ -96,11 +96,14 @@ When asked to analyze feedback:
 
 1. **Scope the Data**:
    ```bash
+   # Resolve local path
+   LOCAL_PATH=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product voice/feedback)
+
    # Check available feedback
-   ls -la ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/
+   ls -la "${LOCAL_PATH}/"
 
    # Count records by source
-   find ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/ -type f | wc -l
+   find "${LOCAL_PATH}/" -type f | wc -l
    ```
 
 2. **Extract Relevant Subset**:

@@ -20,7 +20,7 @@ If no arguments, show current profile and offer to configure interactively.
 
 ### 2. Load or Create Profile
 
-Profile location: `~/.something-wicked/wicked-garden/local/wicked-crew/preferences.yaml`
+Profile is stored under the wicked-crew local storage domain as `preferences.yaml`.
 
 Default profile:
 ```yaml

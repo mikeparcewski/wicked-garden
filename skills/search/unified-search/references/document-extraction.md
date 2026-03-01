@@ -38,7 +38,7 @@ Each detected heading becomes a `doc_section` node.
 
 Extracted text is stored at:
 ```
-~/.something-wicked/search/extracted/
+{SM_LOCAL_ROOT}/wicked-search/extracted/
 ├── requirements_docx.txt
 ├── api-spec_pdf.txt
 ├── design_pptx.txt
@@ -51,10 +51,10 @@ To get full context from a document:
 
 ```python
 # Path to extracted text
-extracted_path = "~/.something-wicked/search/extracted/requirements_docx.txt"
+extracted_path = "{SM_LOCAL_ROOT}/wicked-search/extracted/requirements_docx.txt"
 
 # Read it
-cat ~/.something-wicked/search/extracted/requirements_docx.txt
+cat {SM_LOCAL_ROOT}/wicked-search/extracted/requirements_docx.txt
 ```
 
 ## Indexing Tips

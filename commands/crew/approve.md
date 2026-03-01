@@ -16,11 +16,13 @@ Review and approve a completed phase to advance the project.
 
 ### 2. Find Project
 
-If no project specified, use most recent:
+If no project specified, find the active one:
 
 ```bash
-ls -t ~/.something-wicked/wicked-garden/local/wicked-crew/projects/ 2>/dev/null | head -1
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" find-active --json
 ```
+
+Use the project name from the result.
 
 ### 3. Verify Phase State
 
@@ -298,24 +300,12 @@ To customize, edit project.json:
 
 ### User Override Mechanism
 
-Edit `~/.something-wicked/wicked-garden/local/wicked-crew/projects/{project}/project.json`:
+Update via phase_manager:
 
-```json
-{
-  "task_lifecycle": {
-    "staleness_threshold_minutes": 60,
-    "recovery_mode": "manual",
-    "user_overrides": {
-      "allow_stale_approval": false,
-      "skip_min_task_validation": false,
-      "allow_partial_completion": false,
-      "skip_signoff": false,
-      "min_tasks_per_phase": 3,
-      "skip_phase": false,
-      "adaptive_task_creation": "enabled"
-    }
-  }
-}
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} update \
+  --data '{"task_lifecycle": {"staleness_threshold_minutes": 60, "recovery_mode": "manual", "user_overrides": {"allow_stale_approval": false, "skip_min_task_validation": false, "allow_partial_completion": false, "skip_signoff": false, "min_tasks_per_phase": 3, "skip_phase": false, "adaptive_task_creation": "enabled"}}}' \
+  --json
 ```
 
 ### should_skip_phase Priority Order

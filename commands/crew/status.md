@@ -10,21 +10,21 @@ Display the current project state and available integrations.
 
 ### 1. Find Active Project
 
-Look for the most recently modified project:
-
 ```bash
-ls -t ~/.something-wicked/wicked-garden/local/wicked-crew/projects/ 2>/dev/null | head -1
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" find-active --json
 ```
 
-If no projects exist, inform user and suggest `/wicked-garden:crew:start`.
+If no active project found (`"project": null`), inform user and suggest `/wicked-garden:crew:start`.
 
 ### 2. Read Project State
 
-Read `project.md` to get:
-- Project name and description
-- Current phase
-- Status
-- Phase history
+Use the project name from the find-active result:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} status --json
+```
+
+This returns: name, current_phase, phase_plan, phase statuses, signals, complexity, and kanban fields.
 
 ### 3. Detect Available Plugins
 

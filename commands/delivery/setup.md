@@ -10,11 +10,17 @@ Interactive setup for delivery metrics configuration.
 
 ## Instructions
 
-### 1. Check for Existing Configuration
+### 1. Resolve Storage Path and Check for Existing Configuration
+
+Resolve the delivery storage root:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-delivery
+```
+Use the output as `DELIVERY_ROOT` for all subsequent file paths.
 
 Read existing files if they exist:
-- `~/.something-wicked/wicked-garden/local/wicked-delivery/cost_model.json`
-- `~/.something-wicked/wicked-garden/local/wicked-delivery/settings.json`
+- `{DELIVERY_ROOT}/cost_model.json`
+- `{DELIVERY_ROOT}/settings.json`
 
 If `--reset` is passed, skip loading existing values and start fresh.
 
@@ -64,7 +70,7 @@ If yes, generate complexity costs scaled proportionally to their priority model:
 - Scale: complexity 0-7 maps linearly from ~20% of P3 cost to ~150% of P0 cost
 - Show and confirm
 
-Write `~/.something-wicked/wicked-garden/local/wicked-delivery/cost_model.json`:
+Write `{DELIVERY_ROOT}/cost_model.json`:
 ```json
 {
   "currency": "{currency}",
@@ -117,9 +123,9 @@ Use AskUserQuestion:
 
 ### 6. Write Settings
 
-Create `~/.something-wicked/wicked-garden/local/wicked-delivery/` directory if it doesn't exist.
+Create `{DELIVERY_ROOT}/` directory if it doesn't exist.
 
-Write `~/.something-wicked/wicked-garden/local/wicked-delivery/settings.json`:
+Write `{DELIVERY_ROOT}/settings.json`:
 ```json
 {
   "rolling_window_days": {value},
@@ -167,8 +173,8 @@ Display the full configuration:
 - **Aging threshold**: {days} days
 
 ### Files
-- `~/.something-wicked/wicked-garden/local/wicked-delivery/cost_model.json` {created/updated/unchanged}
-- `~/.something-wicked/wicked-garden/local/wicked-delivery/settings.json` {created/updated}
+- `{DELIVERY_ROOT}/cost_model.json` {created/updated/unchanged}
+- `{DELIVERY_ROOT}/settings.json` {created/updated}
 
 To reconfigure later: `/wicked-garden:delivery:setup --reset`
 ```

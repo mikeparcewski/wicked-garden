@@ -51,7 +51,12 @@ Show the "ticket rail" — the L2 cache that survives context compression:
 
 ### 4. Display Turn History
 
-Read the last N turns from `~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/turns.jsonl`:
+Resolve the smaht session path:
+```bash
+SMAHT_SESSION=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-smaht sessions ${CLAUDE_SESSION_ID:-default})
+```
+
+Read the last N turns from `{SMAHT_SESSION}/turns.jsonl`:
 
 ```markdown
 ## Recent Turns
@@ -87,14 +92,14 @@ Display under:
 Also check for compaction bug reports:
 
 ```bash
-cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/${CLAUDE_SESSION_ID:-default}/compaction_bugs.jsonl 2>/dev/null
+cat ${SMAHT_SESSION}/compaction_bugs.jsonl 2>/dev/null
 ```
 
 If any exist, display them under `## Compaction Bug Reports` with a note that these indicate the pressure system failed to prevent auto-compaction.
 
 ### 6. Display Routing Stats and Session Metrics
 
-Read metrics from `~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/metrics.json`:
+Read metrics from `{SMAHT_SESSION}/metrics.json`:
 
 ```markdown
 ## Routing Stats

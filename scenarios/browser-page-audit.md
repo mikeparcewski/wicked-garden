@@ -61,7 +61,7 @@ done
 
 ```bash
 if ! npx playwright --version &>/dev/null; then
-  echo "SKIP: playwright not installed. Run /wicked-scenarios:setup to install."
+  echo "SKIP: playwright not installed. Run /wicked-garden:scenarios:setup to install."
   exit 0
 fi
 SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
@@ -81,7 +81,7 @@ npx playwright test "${TMPDIR:-/tmp}/wicked-scenario-pw"/title.spec.ts --reporte
 
 ```bash
 if ! npx playwright --version &>/dev/null; then
-  echo "SKIP: playwright not installed. Run /wicked-scenarios:setup to install."
+  echo "SKIP: playwright not installed. Run /wicked-garden:scenarios:setup to install."
   exit 0
 fi
 SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
@@ -102,7 +102,7 @@ npx playwright test "${TMPDIR:-/tmp}/wicked-scenario-pw"/content.spec.ts --repor
 
 ```bash
 if ! command -v agent-browser &>/dev/null; then
-  echo "SKIP: agent-browser not installed. Run /wicked-scenarios:setup to install."
+  echo "SKIP: agent-browser not installed. Run /wicked-garden:scenarios:setup to install."
   exit 0
 fi
 SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")

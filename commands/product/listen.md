@@ -36,8 +36,11 @@ Aggregate customer feedback from discovered sources across support, surveys, soc
 Check for feedback data in common locations:
 
 ```bash
+# Resolve product storage root
+PRODUCT_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product)
+
 # Check for voice data store
-ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/ 2>/dev/null
+ls ${PRODUCT_ROOT}/voice/feedback/ 2>/dev/null
 
 # Check for exported feedback files
 find . -name "*feedback*" -o -name "*survey*" -o -name "*tickets*" 2>/dev/null | head -10
@@ -111,7 +114,7 @@ Run `/wicked-garden:product:analyze` to extract themes and trends.
 
 ## Storage
 
-Feedback stored at: `~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/{source}/{YYYY-MM}/{id}.md`
+Feedback stored at: `{PRODUCT_ROOT}/voice/feedback/{source}/{YYYY-MM}/{id}.md`
 
 ## Integration
 

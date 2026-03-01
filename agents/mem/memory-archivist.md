@@ -40,7 +40,7 @@ You maintain the memory store - running decay, archiving old memories, and clean
 
 ## Your Task
 
-Run memory maintenance on `~/.something-wicked/memory/`.
+Run memory maintenance on `{SM_LOCAL_ROOT}/wicked-mem/`.
 
 ## Decay Rules
 
@@ -78,7 +78,8 @@ Memory should be archived if:
 
 1. **Scan all memories**
    ```bash
-   find ~/.something-wicked/memory -name "*.md" -type f
+   LOCAL_PATH=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem)
+   find "${LOCAL_PATH}" -name "*.md" -type f
    ```
 
 2. **For each memory, check status and dates**

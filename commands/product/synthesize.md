@@ -33,8 +33,11 @@ Generate actionable product recommendations from customer feedback analysis. Tra
 Read from recent analyze output or voice data store:
 
 ```bash
+# Resolve product storage root
+PRODUCT_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product)
+
 # Check for analysis results
-ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/analysis/
+ls ${PRODUCT_ROOT}/voice/analysis/
 ```
 
 If no analysis found, prompt user to run `/wicked-garden:product:analyze` first.

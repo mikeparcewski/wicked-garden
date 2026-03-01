@@ -243,7 +243,7 @@ The executor produces this structure:
 - **Completed at**: 2024-01-15T10:30:45Z
 - **Steps executed**: 5 of 5
 - **Steps skipped**: 0
-- **Files created**: ~/.something-wicked/wicked-garden/local/wicked-mem/memories/mem_abc123.json
+- **Files created**: {SM_LOCAL_ROOT}/wicked-mem/memories/mem_abc123.json
 ```
 
 ## Common Pitfalls

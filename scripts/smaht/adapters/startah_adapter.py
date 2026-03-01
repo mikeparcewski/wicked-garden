@@ -15,10 +15,10 @@ def _check_cli(name):
 
 # Known third-party CLIs that wicked-garden skills orchestrate
 KNOWN_CLIS = {
-    "codex": {"skill": "codex-cli", "desc": "OpenAI Codex for code review and generation"},
-    "gemini": {"skill": "gemini-cli", "desc": "Google Gemini for multi-modal AI tasks"},
-    "opencode": {"skill": "opencode-cli", "desc": "OpenCode for AI-assisted coding"},
-    "agent-browser": {"skill": "agent-browser", "desc": "Browser automation and scraping"},
+    "codex": {"skill": "wicked-garden:codex-cli", "desc": "OpenAI Codex for code review and generation"},
+    "gemini": {"skill": "wicked-garden:gemini-cli", "desc": "Google Gemini for multi-modal AI tasks"},
+    "opencode": {"skill": "wicked-garden:opencode-cli", "desc": "OpenCode for AI-assisted coding"},
+    "agent-browser": {"skill": "wicked-garden:agent-browser", "desc": "Browser automation and scraping"},
 }
 
 
@@ -41,7 +41,7 @@ async def query(prompt: str, **kwargs) -> list:
                 ContextItem(
                     source="tools",
                     title=f"{cli_name} available",
-                    summary=f"{info['desc']} — Use /wicked-garden:{info['skill']}"
+                    summary=f"{info['desc']} — Use /{info['skill']}"
                 )
             )
 

@@ -256,7 +256,7 @@ Evidence:
 ### For Bash Commands
 
 ```
-Action: Run bash command: `ls -la ~/.something-wicked/wicked-garden/local/wicked-mem/`
+Action: Run bash command: `LOCAL_PATH=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem) && ls -la "${LOCAL_PATH}/"`
 Evidence:
   stdout: {stdout text}
   stderr: {stderr text}

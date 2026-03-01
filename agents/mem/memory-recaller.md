@@ -41,17 +41,22 @@ You search the memory store and return concise, relevant results.
 
 ## Your Task
 
-Given a query, search `~/.something-wicked/memory/` for relevant memories.
+Given a query, search `{SM_LOCAL_ROOT}/wicked-mem/` for relevant memories.
 
 ## Search Strategy
 
-1. Use ripgrep patterns for flexible matching:
-   - `rg -i "query.*terms" ~/.something-wicked/memory/`
-   - `rg -i "tag:.*auth" ~/.something-wicked/memory/` for tag search
+1. Resolve the local path first:
+   ```bash
+   LOCAL_PATH=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem)
+   ```
 
-2. Check both locations:
-   - `~/.something-wicked/memory/core/` - Global memories
-   - `~/.something-wicked/memory/projects/{project}/` - Project memories
+2. Use ripgrep patterns for flexible matching:
+   - `rg -i "query.*terms" "${LOCAL_PATH}"`
+   - `rg -i "tag:.*auth" "${LOCAL_PATH}"` for tag search
+
+3. Check both locations:
+   - `${LOCAL_PATH}/core/` - Global memories
+   - `${LOCAL_PATH}/projects/{project}/` - Project memories
 
 3. Prioritize by:
    - Relevance to query

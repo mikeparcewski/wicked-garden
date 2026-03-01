@@ -37,8 +37,11 @@ Analyze aggregated customer feedback to extract themes, sentiment patterns, and 
 Read from voice data store or recent listen results:
 
 ```bash
+# Resolve product storage root
+PRODUCT_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product)
+
 # Check for aggregated feedback
-ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/
+ls ${PRODUCT_ROOT}/voice/feedback/
 ```
 
 If no data found, prompt user to run `/wicked-garden:product:listen` first.

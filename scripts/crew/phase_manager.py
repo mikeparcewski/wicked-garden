@@ -20,8 +20,7 @@ from dataclasses import dataclass, field, asdict
 
 # Resolve _storage and _paths from the parent scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _paths import get_local_path
-from _storage import StorageManager
+from _storage import StorageManager, get_local_path
 
 _sm = StorageManager("wicked-crew")
 
@@ -322,10 +321,21 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         return None
 
     phases = {}
-    for phase_name, phase_data in data.get("phases", {}).items():
-        normalized = resolve_phase(phase_name)
-        if isinstance(phase_data, dict):
-            phases[normalized] = PhaseState(**phase_data)
+    _phase_fields = set(PhaseState.__dataclass_fields__.keys())
+    raw_phases = data.get("phases", {})
+    # CP may return phases as a list of dicts or as a dict keyed by name
+    if isinstance(raw_phases, list):
+        for phase_data in raw_phases:
+            if isinstance(phase_data, dict) and "name" in phase_data:
+                normalized = resolve_phase(phase_data["name"])
+                safe_data = {k: v for k, v in phase_data.items() if k in _phase_fields}
+                phases[normalized] = PhaseState(**safe_data)
+    elif isinstance(raw_phases, dict):
+        for phase_name, phase_data in raw_phases.items():
+            normalized = resolve_phase(phase_name)
+            if isinstance(phase_data, dict):
+                safe_data = {k: v for k, v in phase_data.items() if k in _phase_fields}
+                phases[normalized] = PhaseState(**safe_data)
 
     known_keys = {
         "id", "name", "current_phase", "created_at", "version",
@@ -439,6 +449,13 @@ def save_project_state(state: ProjectState) -> None:
     """Save project state via StorageManager."""
     logger.info(f"Saving project state: {state.name} (phase: {state.current_phase})")
 
+    # Convert phases dict to list-of-dicts with name field (CP expects array format)
+    phases_list = []
+    for phase_name, phase_obj in state.phases.items():
+        phase_dict = asdict(phase_obj)
+        phase_dict["name"] = phase_name
+        phases_list.append(phase_dict)
+
     data = _sanitize_for_json({
         "id": state.name,
         "name": state.name,
@@ -449,7 +466,7 @@ def save_project_state(state: ProjectState) -> None:
         "complexity_score": state.complexity_score,
         "specialists_recommended": state.specialists_recommended,
         "phase_plan": state.phase_plan,
-        "phases": {name: asdict(phase) for name, phase in state.phases.items()},
+        "phases": phases_list,
         "kanban_initiative": state.kanban_initiative,
         "kanban_initiative_id": state.kanban_initiative_id,
         **state.extras,
@@ -728,23 +745,164 @@ def get_phase_status_summary(state: ProjectState) -> Dict[str, str]:
     return summary
 
 
+def create_project(
+    name: str,
+    description: str = "",
+    initial_data: Optional[Dict[str, Any]] = None,
+) -> Tuple[ProjectState, Path]:
+    """Create a new project with StorageManager persistence and local directory.
+
+    Args:
+        name: Project name (kebab-case, validated)
+        description: Human-readable project description
+        initial_data: Optional dict of initial fields (signals, complexity, etc.)
+
+    Returns:
+        (state, project_dir) tuple
+
+    Raises:
+        ValueError: If name is invalid or project already exists
+    """
+    if not is_safe_project_name(name):
+        raise ValueError(f"Invalid project name: {name}. Use only alphanumeric, hyphens, underscores (max 64 chars).")
+
+    existing = _sm.get("projects", name)
+    if existing:
+        raise ValueError(f"Project already exists: {name}")
+
+    # Build initial state
+    state = ProjectState(
+        name=name,
+        current_phase="clarify",
+        created_at=get_utc_timestamp(),
+    )
+
+    # Merge initial_data if provided
+    if initial_data:
+        state = _merge_data_into_state(state, initial_data)
+
+    if description:
+        state.extras["description"] = description
+
+    # Start clarify phase
+    state = start_phase(state, "clarify")
+
+    # Persist via StorageManager (CP-first, local fallback)
+    save_project_state(state)
+
+    # Create local directory structure for deliverables
+    project_dir = get_project_dir(name)
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    phase_dir = project_dir / "phases" / "clarify"
+    phase_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write template files for human readability
+    project_md = project_dir / "project.md"
+    if not project_md.exists():
+        title = name.replace("-", " ").title()
+        project_md.write_text(
+            f"---\n"
+            f"name: {name}\n"
+            f"created: {state.created_at}\n"
+            f"current_phase: clarify\n"
+            f"status: in_progress\n"
+            f"---\n\n"
+            f"# Project: {title}\n\n"
+            f"{description or 'No description provided.'}\n"
+        )
+
+    outcome_md = project_dir / "outcome.md"
+    if not outcome_md.exists():
+        outcome_md.write_text(
+            f"# Outcome: {name.replace('-', ' ').title()}\n\n"
+            f"## Desired Outcome\n\n"
+            f"{{To be defined during clarify phase}}\n\n"
+            f"## Success Criteria\n\n"
+            f"1. {{To be defined}}\n\n"
+            f"## Scope\n\n"
+            f"### In Scope\n- {{To be defined}}\n\n"
+            f"### Out of Scope\n- {{To be defined}}\n"
+        )
+
+    status_md = phase_dir / "status.md"
+    if not status_md.exists():
+        status_md.write_text(
+            f"---\n"
+            f"phase: clarify\n"
+            f"status: in_progress\n"
+            f"started: {state.created_at}\n"
+            f"---\n\n"
+            f"# Clarify Phase\n\n"
+            f"Defining the outcome and success criteria.\n\n"
+            f"## Deliverables\n\n"
+            f"- [ ] Outcome statement\n"
+            f"- [ ] Success criteria\n"
+            f"- [ ] Scope boundaries\n"
+        )
+
+    return (state, project_dir)
+
+
+def update_project(
+    state: ProjectState,
+    data: Dict[str, Any],
+) -> Tuple[ProjectState, List[str]]:
+    """Update project state fields from a data dict.
+
+    Merges known fields into ProjectState attributes.
+    Unknown fields go into extras.
+    Does NOT overwrite phases dict (use start/complete/approve/skip for that).
+
+    Returns:
+        (updated_state, list_of_updated_field_names)
+    """
+    state = _merge_data_into_state(state, data)
+    updated = [k for k in data.keys() if k != "phases"]
+    save_project_state(state)
+    return (state, updated)
+
+
+def _merge_data_into_state(state: ProjectState, data: Dict[str, Any]) -> ProjectState:
+    """Merge a data dict into ProjectState fields."""
+    known_fields = {
+        "signals_detected", "complexity_score", "specialists_recommended",
+        "phase_plan", "kanban_initiative", "kanban_initiative_id",
+        "current_phase", "version",
+    }
+
+    for key, value in data.items():
+        if key == "phases":
+            continue  # phases have dedicated state machine methods
+        if key in known_fields:
+            if key == "phase_plan" and isinstance(value, list):
+                value = [resolve_phase(p) for p in value]
+            setattr(state, key, value)
+        else:
+            state.extras[key] = value
+
+    return state
+
+
 def main():
     """CLI interface for phase management."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
+    parser.add_argument("--description", default="", help="Project description (for create)")
+    parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
 
     args = parser.parse_args()
 
     state = load_project_state(args.project)
-    if not state and args.action != "status":
-        print(f"Project not found: {args.project}")
+    if not state and args.action not in ("status", "create"):
+        print(json.dumps({"ok": False, "error": f"Project not found: {args.project}"}) if args.json else f"Project not found: {args.project}")
         return
 
     # Check if project is archived (refuse execution)
@@ -824,6 +982,69 @@ def main():
             return
         save_project_state(state)
         print(f"Skipped phase: {resolve_phase(phase)}")
+
+    elif args.action == "create":
+        initial_data = None
+        if args.data:
+            try:
+                initial_data = json.loads(args.data)
+            except json.JSONDecodeError as e:
+                print(json.dumps({"ok": False, "error": f"Invalid --data JSON: {e}"}) if args.json else f"Error: Invalid --data JSON: {e}")
+                return
+
+        try:
+            state, project_dir = create_project(args.project, args.description, initial_data)
+        except ValueError as e:
+            print(json.dumps({"ok": False, "error": str(e)}) if args.json else f"Error: {e}")
+            return
+
+        if args.json:
+            print(json.dumps({
+                "ok": True,
+                "project": {
+                    "name": state.name,
+                    "current_phase": state.current_phase,
+                    "created_at": state.created_at,
+                    "complexity_score": state.complexity_score,
+                    "signals_detected": state.signals_detected,
+                    "phase_plan": state.phase_plan,
+                    "specialists_recommended": state.specialists_recommended,
+                },
+                "project_dir": str(project_dir),
+                "phase_started": "clarify",
+            }, indent=2))
+        else:
+            print(f"Created project: {state.name}")
+            print(f"Phase: clarify (in_progress)")
+            print(f"Dir: {project_dir}")
+
+    elif args.action == "update":
+        if not args.data:
+            print(json.dumps({"ok": False, "error": "--data required for update"}) if args.json else "Error: --data required for update")
+            return
+        try:
+            data = json.loads(args.data)
+        except json.JSONDecodeError as e:
+            print(json.dumps({"ok": False, "error": f"Invalid --data JSON: {e}"}) if args.json else f"Error: Invalid --data JSON: {e}")
+            return
+
+        state, updated_fields = update_project(state, data)
+        if args.json:
+            print(json.dumps({
+                "ok": True,
+                "project": {
+                    "name": state.name,
+                    "current_phase": state.current_phase,
+                    "complexity_score": state.complexity_score,
+                    "signals_detected": state.signals_detected,
+                    "phase_plan": state.phase_plan,
+                    "specialists_recommended": state.specialists_recommended,
+                },
+                "updated_fields": updated_fields,
+            }, indent=2))
+        else:
+            print(f"Updated project: {state.name}")
+            print(f"Fields: {', '.join(updated_fields)}")
 
     elif args.action == "validate":
         injected, warnings = validate_phase_plan(state)

@@ -70,6 +70,27 @@ _GET_VERBS = frozenset({
 _SOURCELESS_DOMAINS = frozenset({"events"})
 
 
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _record_cp_error(url: str, method: str, code: int, reason: str) -> None:
+    """Best-effort: append CP error to SessionState for hook surfacing."""
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        errors = state.cp_errors or []
+        errors.append({
+            "url": url, "method": method, "code": code,
+            "reason": reason, "ts": _now_iso(),
+        })
+        # Keep last 20 errors only
+        state.update(cp_errors=errors[-20:])
+    except Exception:
+        pass
+
+
 def _normalize_domain(domain: str) -> str:
     """Normalize a domain name to the CP's expected value.
 
@@ -381,6 +402,7 @@ class ControlPlaneClient:
                 f"{method} {url}: {exc.reason}",
                 file=sys.stderr,
             )
+            _record_cp_error(url, method, exc.code, exc.reason)
             return None
 
         except (urllib.error.URLError, OSError, TimeoutError) as exc:

@@ -24,7 +24,7 @@ When understanding a feature:
 /wicked-garden:search:docs "user registration"
 
 # 2. Read the relevant doc section
-cat ~/.something-wicked/search/extracted/requirements_docx.txt
+cat {SM_LOCAL_ROOT}/wicked-search/extracted/requirements_docx.txt
 
 # 3. Find implementing code
 /wicked-garden:search:impl "User Registration"
