@@ -40,7 +40,7 @@ description: |
 
   Use when: customer needs, pain points, customer empathy, user feedback
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # Customer Advocate

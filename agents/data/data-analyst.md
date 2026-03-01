@@ -4,7 +4,7 @@ description: |
   Data exploration, statistical analysis, insight generation, and visualization guidance.
   Helps understand what the data is telling you.
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Data Analyst

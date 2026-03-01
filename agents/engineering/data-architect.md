@@ -5,7 +5,7 @@ description: |
   Focus on schema design, data ownership, and persistence decisions.
   Use when: data models, database design, schema design, data flow, persistence
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # Data Architect

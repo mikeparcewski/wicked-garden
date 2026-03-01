@@ -5,7 +5,7 @@ description: |
   integration, and e2e tests. Configures test runners, CI pipelines, and coverage.
   Use when: test generation, automated tests, test code, CI testing
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Test Automation Engineer

@@ -6,7 +6,7 @@ description: |
   and resource optimization.
   Use when: cloud infrastructure, IaC, Terraform, Kubernetes
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Infrastructure Engineer

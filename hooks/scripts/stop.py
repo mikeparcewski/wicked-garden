@@ -69,7 +69,10 @@ def _check_session_outcome() -> list:
                 for line in lines[:3]:
                     try:
                         record = json.loads(line)
-                        signals.append(record.get("subject", "?")[:60])
+                        # Sanitize subject — strip control chars, truncate
+                        subj = record.get("subject", "?")[:60]
+                        subj = "".join(c for c in subj if c.isprintable())
+                        signals.append(subj)
                     except (json.JSONDecodeError, ValueError):
                         pass
                 messages.append(
@@ -240,54 +243,56 @@ def main():
     except Exception:
         input_data = {}
 
-    session_id = input_data.get("session_id", os.environ.get("CLAUDE_SESSION_ID", "default"))
-    turn_count = _get_turn_count()
+    try:
+        session_id = input_data.get("session_id", os.environ.get("CLAUDE_SESSION_ID", "default"))
+        turn_count = _get_turn_count()
 
-    all_messages = []
+        # 1. Session outcome check
+        outcome_messages = _check_session_outcome()
 
-    # 1. Session outcome check
-    outcome_messages = _check_session_outcome()
-    all_messages.extend(outcome_messages)
+        # 1b. CP error summary
+        cp_messages = _analyze_cp_errors()
 
-    # 1b. CP error summary
-    cp_messages = _analyze_cp_errors()
-    all_messages.extend(cp_messages)
+        # 3. Memory decay
+        decay_messages = _run_memory_decay()
 
-    # 3. Memory decay
-    decay_messages = _run_memory_decay()
-    all_messages.extend(decay_messages)
+        # 4. Heartbeat (best-effort)
+        _send_heartbeat(session_id, turn_count)
 
-    # 4. Heartbeat (best-effort)
-    _send_heartbeat(session_id, turn_count)
+        # 5. Session end event (best-effort)
+        _send_session_end_event(session_id)
 
-    # 5. Session end event (best-effort)
-    _send_session_end_event(session_id)
+        # Smaht history condenser persistence
+        _persist_smaht_session_meta(session_id)
 
-    # Smaht history condenser persistence
-    _persist_smaht_session_meta(session_id)
+        # 6. Persist session state
+        _persist_session_state()
 
-    # 6. Persist session state
-    _persist_session_state()
+        # 2. Memory flush reminder — always included as directive to Claude
+        decay_prefix = f"{'; '.join(decay_messages)}. " if decay_messages else ""
+        reflection = (
+            f"[Memory] {decay_prefix}REQUIRED: Session ending. "
+            "Run TaskList to review completed tasks from this session. "
+            "For each completed task, evaluate: did it produce a decision, gotcha, or reusable pattern? "
+            "Store each learning with /wicked-garden:mem:store "
+            "(type: decision, procedural, or episodic). "
+            "If no tasks completed or no learnings found, state 'No memories to store.' "
+            "Do NOT skip silently."
+        )
 
-    # 2. Memory flush reminder — always included as directive to Claude
-    decay_prefix = f"{'; '.join(decay_messages)}. " if decay_messages else ""
-    reflection = (
-        f"[Memory] {decay_prefix}REQUIRED: Session ending. "
-        "Run TaskList to review completed tasks from this session. "
-        "For each completed task, evaluate: did it produce a decision, gotcha, or reusable pattern? "
-        "Store each learning with /wicked-garden:mem:store "
-        "(type: decision, procedural, or episodic). "
-        "If no tasks completed or no learnings found, state 'No memories to store.' "
-        "Do NOT skip silently."
-    )
+        # Combine all pre-reflection messages (outcome + CP errors)
+        # Note: decay_messages already included via decay_prefix in reflection
+        prepend_messages = outcome_messages + cp_messages
+        if prepend_messages:
+            final_message = "\n".join(prepend_messages) + "\n\n" + reflection
+        else:
+            final_message = reflection
 
-    # Prepend outcome messages if any
-    if outcome_messages:
-        final_message = "\n".join(outcome_messages) + "\n\n" + reflection
-    else:
-        final_message = reflection
+        print(json.dumps({"systemMessage": final_message}))
 
-    print(json.dumps({"systemMessage": final_message}))
+    except Exception as e:
+        print(f"[wicked-garden] stop hook error: {e}", file=sys.stderr)
+        print(json.dumps({"systemMessage": ""}))
 
 
 if __name__ == "__main__":

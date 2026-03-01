@@ -5,7 +5,7 @@ description: |
   capacity, idle resource cleanup, and architecture cost improvements.
   Use when: cost reduction, right-sizing, savings opportunities, resource optimization
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # Cost Optimizer
