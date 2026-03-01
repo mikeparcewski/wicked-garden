@@ -117,7 +117,7 @@ def _parse_single_specialist(spec_data: dict, personas_data: list,
     # Parse enhancements with validation
     enhances = []
     if not isinstance(enhances_data, list):
-        # enhances can be a list of phase name strings (unified format)
+        logger.warning(f"Invalid 'enhances' format in {specialist_json}: expected array, got {type(enhances_data).__name__}")
         enhances_data = []
 
     for i, e in enumerate(enhances_data):
@@ -125,8 +125,8 @@ def _parse_single_specialist(spec_data: dict, personas_data: list,
             # Unified format: enhances is ["design", "build", "review"]
             enhances.append(Enhancement(
                 phase=e,
-                trigger="",
-                response="",
+                trigger=f"When {e} phase is active",
+                response=f"Provide {e} phase expertise",
                 capabilities=[]
             ))
         elif isinstance(e, dict):
