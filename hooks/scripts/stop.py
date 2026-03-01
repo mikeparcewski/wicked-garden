@@ -69,7 +69,10 @@ def _check_session_outcome() -> list:
                 for line in lines[:3]:
                     try:
                         record = json.loads(line)
-                        signals.append(record.get("subject", "?")[:60])
+                        # Sanitize subject — strip control chars, truncate
+                        subj = record.get("subject", "?")[:60]
+                        subj = "".join(c for c in subj if c.isprintable())
+                        signals.append(subj)
                     except (json.JSONDecodeError, ValueError):
                         pass
                 messages.append(
@@ -244,19 +247,14 @@ def main():
         session_id = input_data.get("session_id", os.environ.get("CLAUDE_SESSION_ID", "default"))
         turn_count = _get_turn_count()
 
-        all_messages = []
-
         # 1. Session outcome check
         outcome_messages = _check_session_outcome()
-        all_messages.extend(outcome_messages)
 
         # 1b. CP error summary
         cp_messages = _analyze_cp_errors()
-        all_messages.extend(cp_messages)
 
         # 3. Memory decay
         decay_messages = _run_memory_decay()
-        all_messages.extend(decay_messages)
 
         # 4. Heartbeat (best-effort)
         _send_heartbeat(session_id, turn_count)
@@ -282,9 +280,11 @@ def main():
             "Do NOT skip silently."
         )
 
-        # Prepend outcome messages if any
-        if outcome_messages:
-            final_message = "\n".join(outcome_messages) + "\n\n" + reflection
+        # Combine all pre-reflection messages (outcome + CP errors)
+        # Note: decay_messages already included via decay_prefix in reflection
+        prepend_messages = outcome_messages + cp_messages
+        if prepend_messages:
+            final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         else:
             final_message = reflection
 
