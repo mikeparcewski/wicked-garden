@@ -65,7 +65,7 @@ design/
 **Hexagonal** - Business logic with adapter ports
 **Plugin** - Core system with pluggable extensions
 
-See [Component Patterns](refs/patterns.md) for detailed diagrams.
+See component patterns in refs/ (patterns-layered-pattern.md, patterns-facade-pattern.md).
 
 ## Dependency Management
 
@@ -90,7 +90,7 @@ See [Component Patterns](refs/patterns.md) for detailed diagrams.
 **Leaky Abstraction** - Internal details exposed
 **Fix**: Refine public interface
 
-See [Dependency Guide](refs/dependencies.md) for details.
+See dependency guides in refs/ (dependencies-dependency-principles.md, dependencies-best-practices.md).
 
 ## Integration
 
@@ -131,6 +131,6 @@ Called during design phase after architecture.
 
 - [Component Template](refs/component-template.md)
 - [Interface Template](refs/interface-template.md)
-- [Component Patterns](refs/patterns.md)
-- [Dependency Guide](refs/dependencies.md)
-- [Anti-Patterns](refs/anti-patterns.md)
+- Component Patterns: refs/patterns-*.md
+- Dependency Guide: refs/dependencies-*.md
+- Anti-Patterns: refs/anti-patterns-*.md

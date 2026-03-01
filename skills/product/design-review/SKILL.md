@@ -82,7 +82,7 @@ wicked-search "[0-9]+px" --type css
 ❌ Inaccessible contrast: Light gray on white
 ```
 
-**Fix examples**: See [refs/common-issues.md](refs/common-issues.md)
+**Fix examples**: See refs/common-issues-*.md
 
 ## Output Format
 
@@ -186,8 +186,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
 **Detailed guides in refs/:**
 - [review-criteria.md](refs/review-criteria.md) - Full review checklist
 - [scoring-guide.md](refs/scoring-guide.md) - How to score consistency
-- [common-issues.md](refs/common-issues.md) - Issue patterns and fixes
+- common-issues-*.md - Issue patterns and fixes (3 files)
 - [report-template.md](refs/report-template.md) - Comprehensive report format
 - [design-systems.md](refs/design-systems.md) - Design system guide
 - [quick-wins.md](refs/quick-wins.md) - Fast improvement implementations
-- [responsive-guide.md](refs/responsive-guide.md) - Responsive design patterns
+- responsive-guide-*.md - Responsive design patterns (3 files)

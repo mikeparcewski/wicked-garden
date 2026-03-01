@@ -76,15 +76,15 @@ See [REST API Guide](refs/rest-api.md) for OpenAPI template.
 
 ### GraphQL
 Flexible queries, strong typing.
-See [GraphQL Guide](refs/graphql.md) for schemas.
+See GraphQL guides in refs/ (graphql-graphql-basics.md, graphql-schema-design-patterns.md).
 
 ### gRPC
 High performance, service-to-service.
-See [gRPC Guide](refs/grpc.md) for proto definitions.
+See gRPC guides in refs/ (grpc-grpc-overview.md, grpc-implementation-examples.md).
 
 ### Event-Driven
 Async messaging, pub/sub.
-See [Event Schema Guide](refs/event-schemas.md) for formats.
+See event schema guides in refs/ (event-schemas-event-structure.md, event-schemas-best-practices.md).
 
 ## Error Handling
 
@@ -93,7 +93,7 @@ Standard HTTP status codes:
 - 4xx: Client errors (400, 401, 404, 409)
 - 5xx: Server errors (500, 503)
 
-See [Error Handling Guide](refs/error-handling.md) for response formats.
+See error handling guides in refs/ (error-handling-error-response-format.md, error-handling-best-practices.md).
 
 ## Resilience Patterns
 
@@ -102,7 +102,7 @@ See [Error Handling Guide](refs/error-handling.md) for response formats.
 - **Timeouts** - Fail fast on slow responses
 - **Fallbacks** - Graceful degradation
 
-See [Resilience Guide](refs/resilience.md) for implementations.
+See resilience guides in refs/ (resilience-circuit-breaker-pattern.md, resilience-best-practices.md).
 
 ## Versioning
 
@@ -110,7 +110,7 @@ Common strategies:
 - URL versioning: `/api/v1/resources`
 - Header versioning: `Accept: application/vnd.api+json; version=1`
 
-See [Versioning Guide](refs/versioning.md) for trade-offs.
+See versioning guides in refs/ (versioning-versioning-strategies.md, versioning-migration-strategies.md).
 
 ## Integration
 
@@ -146,9 +146,9 @@ Coordinates on:
 ## Reference Materials
 
 - [REST API Guide](refs/rest-api.md)
-- [GraphQL Guide](refs/graphql.md)
-- [gRPC Guide](refs/grpc.md)
-- [Event Schema Guide](refs/event-schemas.md)
-- [Resilience Patterns](refs/resilience.md)
-- [Versioning Guide](refs/versioning.md)
+- GraphQL guides: refs/graphql-*.md
+- gRPC guides: refs/grpc-*.md
+- Event Schema guides: refs/event-schemas-*.md
+- Resilience guides: refs/resilience-*.md
+- Versioning guides: refs/versioning-*.md
 - [OpenAPI Template](refs/openapi-template.yaml)
