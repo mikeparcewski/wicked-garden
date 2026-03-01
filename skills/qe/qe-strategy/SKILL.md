@@ -1,9 +1,12 @@
 ---
 name: qe-strategy
-description: >
+description: |
   Shift-left QE analysis with quality gates.
   Generate test scenarios, assess risks, create test plans, and automate test generation.
   Enables faster delivery through early quality validation.
+
+  Use when: "test strategy", "quality gate", "test scenarios", "shift-left testing",
+  "generate test plan", "what should we test", "test coverage", "risk assessment"
 ---
 
 # QE Strategy
