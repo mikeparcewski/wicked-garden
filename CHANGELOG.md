@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0] - 2026-03-01
+
+### Features
+- feat: SM router enforcement + CP error detection (#98) (2797b19)
+
+### Chores
+- release: wicked-garden v1.1.0 (10d519f)
+
 ## [1.1.0] - 2026-02-28
 
 ### Breaking Changes
