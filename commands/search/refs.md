@@ -13,7 +13,7 @@ Find all references to/from a code symbol, including documentation cross-referen
 
 ## Instructions
 
-1. Run the refs search (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the refs search (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py refs "<symbol>"
    ```

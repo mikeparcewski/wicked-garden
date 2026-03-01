@@ -4,12 +4,7 @@ description: |
   System health overview from discovered observability sources. Aggregates errors,
   performance metrics, and SLO status across services. Correlates with deployments
   and code changes. Use for proactive health monitoring and post-deployment validation.
-triggers:
-  - system health
-  - health check
-  - how is production
-  - what's the status
-  - deployment health
+  Use when: system health, health check, deployment health, production status, how is production
 ---
 
 # Health Aggregation Skill

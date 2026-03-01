@@ -1,5 +1,5 @@
 ---
-name: audit
+name: docs-audit
 description: |
   Audit documentation coverage and quality. Find undocumented code, assess documentation
   completeness, and provide coverage metrics.
@@ -25,21 +25,21 @@ Evaluate documentation health:
 
 | Command | Purpose |
 |---------|---------|
-| `/wicked-garden:engineering:audit [path]` | Audit documentation coverage |
-| `/wicked-garden:engineering:audit --full` | Comprehensive audit with quality scoring |
-| `/wicked-garden:engineering:audit --report` | Generate coverage report |
+| `/wicked-garden:engineering:docs-audit [path]` | Audit documentation coverage |
+| `/wicked-garden:engineering:docs-audit --full` | Comprehensive audit with quality scoring |
+| `/wicked-garden:engineering:docs-audit --report` | Generate coverage report |
 
 ## Quick Start
 
 ```bash
 # Basic coverage audit
-/wicked-garden:engineering:audit src/
+/wicked-garden:engineering:docs-audit src/
 
 # Full audit with quality assessment
-/wicked-garden:engineering:audit src/ --full
+/wicked-garden:engineering:docs-audit src/ --full
 
 # Generate report
-/wicked-garden:engineering:audit --report docs/coverage-report.md
+/wicked-garden:engineering:docs-audit --report docs/coverage-report.md
 ```
 
 ## Process

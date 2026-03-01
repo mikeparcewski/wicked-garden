@@ -5,7 +5,7 @@ description: |
   and UI polish. Focus on the visual layer and implementation quality.
   Use when: visual design, design system, UI consistency, component patterns
 model: sonnet
-color: pink
+color: magenta
 ---
 
 # UI Reviewer

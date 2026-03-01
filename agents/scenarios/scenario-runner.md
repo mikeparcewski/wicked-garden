@@ -1,8 +1,11 @@
 ---
+name: scenario-runner
 description: |
   Autonomous scenario execution agent. Reads a wicked-scenarios markdown file,
   discovers required CLI tools, executes each step, and reports pass/fail results.
   Handles graceful degradation when tools are missing.
+model: sonnet
+color: yellow
 tools:
   - Bash
   - Read

@@ -1,15 +1,8 @@
 ---
 name: runtime-exec
-description: Smart runtime execution for Python and Node scripts with automatic package manager detection.
-triggers:
-  - python script
-  - node script
-  - run script
-  - execute python
-  - uv run
-  - poetry run
-  - npm run
-  - pnpm run
+description: |
+  Smart runtime execution for Python and Node scripts with automatic package manager detection.
+  Use when: python script, node script, run script, execute python, uv run, poetry run, npm run, pnpm run
 ---
 
 # Runtime Execution Skill

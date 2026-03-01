@@ -15,7 +15,7 @@ Analyze lineage coverage across the indexed codebase. Identifies symbols without
 
 ## Instructions
 
-1. Run the coverage reporter (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the coverage reporter (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python coverage_reporter.py --db /path/to/graph.db --format table
    ```

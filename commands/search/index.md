@@ -15,7 +15,7 @@ Build a unified index of code symbols and document content, with optional automa
 
 ## Instructions
 
-1. Run the indexer (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the indexer (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py index "<path>"
    ```

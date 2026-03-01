@@ -15,7 +15,7 @@ Validate the accuracy of wicked-search indexing using consistency-based checks. 
 
 ## Instructions
 
-1. Run the accuracy validator (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the accuracy validator (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python accuracy_validator.py --db /path/to/graph.db --project /path/to/project --sample-size 100 --format table
    ```

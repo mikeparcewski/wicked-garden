@@ -1,4 +1,5 @@
 ---
+name: memory-recaller
 description: |
   Search and retrieve relevant memories without overloading main context.
 
@@ -33,6 +34,7 @@ description: |
 
 tools: [Grep, Glob, Read]
 model: haiku
+color: cyan
 ---
 
 # Memory Recaller
