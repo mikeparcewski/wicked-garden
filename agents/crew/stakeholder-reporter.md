@@ -5,7 +5,7 @@ description: |
   into stakeholder-appropriate formats with decision support.
   Use when: status reports, executive updates, stakeholder communication
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Stakeholder Reporter

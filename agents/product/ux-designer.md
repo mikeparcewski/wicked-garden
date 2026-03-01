@@ -5,7 +5,7 @@ description: |
   Focus on the overall experience design and usability.
   Use when: user flows, interaction design, UX patterns, usability
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # UX Designer

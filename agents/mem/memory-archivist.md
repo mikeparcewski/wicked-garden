@@ -33,7 +33,7 @@ description: |
   </example>
 
 model: haiku
-color: purple
+color: magenta
 ---
 
 # Memory Archivist

@@ -6,7 +6,7 @@ description: |
   Architecture, and DevSecOps lenses.
   Use when: stakeholder report, status update, steering committee, executive summary
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Stakeholder Reporter
