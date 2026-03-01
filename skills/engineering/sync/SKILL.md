@@ -89,14 +89,14 @@ Validate API specs against code (path/method mismatches = DRIFT).
 **Issue:** Function signature changed
 
 **Code:**
-\`\`\`typescript
+```typescript
 function createUser(data: UserInput, options?: CreateOptions)
-\`\`\`
+```
 
 **Docs:**
-\`\`\`markdown
+```markdown
 ### createUser(data: UserInput)
-\`\`\`
+```
 
 **Suggestion:**
 Add documentation for `options` parameter

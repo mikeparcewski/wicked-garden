@@ -31,7 +31,7 @@ What this component is responsible for (and not responsible for):
 
 ### Component Diagram
 
-\`\`\`mermaid
+```mermaid
 graph TD
     Client[Client] --> API[Public API]
     API --> Service[Business Logic]
@@ -40,11 +40,11 @@ graph TD
 
     Service --> Queue[Message Queue]
     Queue --> Worker[Background Worker]
-\`\`\`
+```
 
 ### Internal Structure
 
-\`\`\`
+```
 component-name/
 ├── api/              # Public interfaces
 │   ├── handlers/     # HTTP handlers
@@ -58,33 +58,33 @@ component-name/
 │   ├── cache/        # Caching layer
 │   └── events/       # Event publishing
 └── config/           # Configuration
-\`\`\`
+```
 
 ## Public Interface
 
 ### API Endpoints
 
-\`\`\`
+```
 GET    /api/resources/:id     - Get resource by ID
 POST   /api/resources         - Create new resource
 PUT    /api/resources/:id     - Update resource
 DELETE /api/resources/:id     - Delete resource
-\`\`\`
+```
 
 ### Events Published
 
-\`\`\`
+```
 resource.created      - When a new resource is created
 resource.updated      - When a resource is updated
 resource.deleted      - When a resource is deleted
-\`\`\`
+```
 
 ### Events Consumed
 
-\`\`\`
+```
 user.created         - Initialize resource for new user
 payment.completed    - Update resource status
-\`\`\`
+```
 
 ## Dependencies
 
@@ -107,7 +107,7 @@ payment.completed    - Update resource status
 
 ### Database Schema
 
-\`\`\`sql
+```sql
 CREATE TABLE resources (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
@@ -121,11 +121,11 @@ CREATE TABLE resources (
 
 CREATE INDEX idx_resources_user_id ON resources(user_id);
 CREATE INDEX idx_resources_status ON resources(status);
-\`\`\`
+```
 
 ### Domain Model
 
-\`\`\`typescript
+```typescript
 class Resource {
   constructor(
     public id: string,
@@ -157,13 +157,13 @@ enum ResourceStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive'
 }
-\`\`\`
+```
 
 ## Configuration
 
 ### Environment Variables
 
-\`\`\`bash
+```bash
 # Database
 DATABASE_URL=postgresql://user:pass@localhost:5432/db
 
@@ -177,11 +177,11 @@ LOG_LEVEL=info
 # Feature flags
 ENABLE_SEARCH=false
 ENABLE_CACHE=true
-\`\`\`
+```
 
 ### Configuration File
 
-\`\`\`yaml
+```yaml
 # config/default.yaml
 server:
   port: 3000
@@ -200,13 +200,13 @@ cache:
 features:
   search: false
   notifications: true
-\`\`\`
+```
 
 ## API Examples
 
 ### Create Resource
 
-\`\`\`http
+```http
 POST /api/resources
 Content-Type: application/json
 Authorization: Bearer <token>
@@ -225,11 +225,11 @@ Response: 201 Created
   "createdAt": "2025-01-24T10:00:00Z",
   "updatedAt": "2025-01-24T10:00:00Z"
 }
-\`\`\`
+```
 
 ### Get Resource
 
-\`\`\`http
+```http
 GET /api/resources/660e8400-e29b-41d4-a716-446655440000
 Authorization: Bearer <token>
 
@@ -242,7 +242,7 @@ Response: 200 OK
   "createdAt": "2025-01-24T10:00:00Z",
   "updatedAt": "2025-01-24T10:05:00Z"
 }
-\`\`\`
+```
 
 ## Error Handling
 
@@ -257,7 +257,7 @@ Response: 200 OK
 
 ### Example Error Response
 
-\`\`\`json
+```json
 {
   "error": {
     "code": "INVALID_STATUS_TRANSITION",
@@ -268,7 +268,7 @@ Response: 200 OK
     }
   }
 }
-\`\`\`
+```
 
 ## Performance
 
@@ -307,7 +307,7 @@ Response: 200 OK
 
 ### Metrics
 
-\`\`\`typescript
+```typescript
 // Request metrics
 http_requests_total{method, path, status}
 http_request_duration_seconds{method, path}
@@ -318,7 +318,7 @@ resources_by_status{status}
 
 // Error metrics
 errors_total{type, code}
-\`\`\`
+```
 
 ### Alerts
 
@@ -330,7 +330,7 @@ errors_total{type, code}
 
 ### Logging
 
-\`\`\`json
+```json
 {
   "timestamp": "2025-01-24T10:00:00Z",
   "level": "info",
@@ -340,13 +340,13 @@ errors_total{type, code}
   "resourceId": "660e8400-e29b-41d4-a716-446655440000",
   "duration_ms": 45
 }
-\`\`\`
+```
 
 ## Testing
 
 ### Unit Tests
 
-\`\`\`typescript
+```typescript
 describe('Resource', () => {
   it('should activate pending resource', () => {
     const resource = new Resource(
@@ -376,11 +376,11 @@ describe('Resource', () => {
     expect(() => resource.activate()).toThrow();
   });
 });
-\`\`\`
+```
 
 ### Integration Tests
 
-\`\`\`typescript
+```typescript
 describe('Resource API', () => {
   it('should create resource', async () => {
     const response = await request(app)
@@ -395,7 +395,7 @@ describe('Resource API', () => {
     expect(response.body).toHaveProperty('id');
   });
 });
-\`\`\`
+```
 
 ### Contract Tests
 
@@ -419,7 +419,7 @@ Test integration points with other services.
 
 ### Health Check
 
-\`\`\`http
+```http
 GET /health
 
 Response: 200 OK
@@ -431,7 +431,7 @@ Response: 200 OK
     "message_queue": "healthy"
   }
 }
-\`\`\`
+```
 
 ## Disaster Recovery
 
@@ -539,22 +539,22 @@ Handles user authentication, authorization, and session management for all servi
 
 ### API Endpoints
 
-\`\`\`
+```
 POST /auth/login              - Authenticate user
 POST /auth/logout             - End user session
 POST /auth/refresh            - Refresh access token
 POST /auth/forgot-password    - Initiate password reset
 GET  /auth/verify             - Verify token validity
-\`\`\`
+```
 
 ### Events Published
 
-\`\`\`
+```
 auth.user.logged_in     - User successfully logged in
 auth.user.logged_out    - User logged out
 auth.password.reset     - Password was reset
 auth.token.refreshed    - Access token refreshed
-\`\`\`
+```
 
 ## Dependencies
 
@@ -570,7 +570,7 @@ auth.token.refreshed    - Access token refreshed
 
 ## Data Model
 
-\`\`\`typescript
+```typescript
 interface Session {
   id: string;
   userId: string;
@@ -589,11 +589,11 @@ interface TokenPayload {
   exp: number;        // Expiration
   iat: number;        // Issued at
 }
-\`\`\`
+```
 
 ## Configuration
 
-\`\`\`yaml
+```yaml
 jwt:
   secret: ${JWT_SECRET}
   accessTokenTTL: 900      # 15 minutes
@@ -607,7 +607,7 @@ oauth:
   google:
     clientId: ${GOOGLE_CLIENT_ID}
     clientSecret: ${GOOGLE_CLIENT_SECRET}
-\`\`\`
+```
 
 ## Security
 

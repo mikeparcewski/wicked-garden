@@ -82,7 +82,7 @@ wicked-search "[0-9]+px" --type css
 ❌ Inaccessible contrast: Light gray on white
 ```
 
-**Fix examples**: See [refs/common-issues.md](refs/common-issues.md)
+**Fix examples**: See [Color Issues](refs/common-issues-color-issues.md), [Component Issues](refs/common-issues-component-issues.md), [Animation Issues](refs/common-issues-animation-issues.md)
 
 ## Output Format
 
@@ -186,8 +186,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
 **Detailed guides in refs/:**
 - [review-criteria.md](refs/review-criteria.md) - Full review checklist
 - [scoring-guide.md](refs/scoring-guide.md) - How to score consistency
-- [common-issues.md](refs/common-issues.md) - Issue patterns and fixes
+- Common Issues:
+  - [Color Issues](refs/common-issues-color-issues.md)
+  - [Component Issues](refs/common-issues-component-issues.md)
+  - [Animation Issues](refs/common-issues-animation-issues.md)
 - [report-template.md](refs/report-template.md) - Comprehensive report format
 - [design-systems.md](refs/design-systems.md) - Design system guide
 - [quick-wins.md](refs/quick-wins.md) - Fast improvement implementations
-- [responsive-guide.md](refs/responsive-guide.md) - Responsive design patterns
+- Responsive Design:
+  - [Mobile-First](refs/responsive-guide-mobile-first-philosophy.md)
+  - [Typography](refs/responsive-guide-responsive-typography.md)
+  - [Tables & Forms](refs/responsive-guide-responsive-tables.md)

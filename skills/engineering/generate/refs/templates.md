@@ -11,15 +11,15 @@ Standard templates for generating documentation from code.
 
 ## Installation
 
-\`\`\`bash
+```bash
 {install_command}
-\`\`\`
+```
 
 ## Quick Start
 
-\`\`\`{language}
+```{language}
 {simple_example}
-\`\`\`
+```
 
 ## Features
 
@@ -70,9 +70,9 @@ Standard templates for generating documentation from code.
 {end if}
 
 **Example:**
-\`\`\`{language}
+```{language}
 {usage_example}
-\`\`\`
+```
 
 {if notes}
 **Notes:**
@@ -111,22 +111,22 @@ Standard templates for generating documentation from code.
 
 {if body}
 **Request Body:**
-\`\`\`json
+```json
 {body_schema}
-\`\`\`
+```
 {end if}
 
 **Response:**
 
 {for each status}
 **{status_code} - {status_name}**
-\`\`\`json
+```json
 {response_example}
-\`\`\`
+```
 {end for}
 
 **Example Request:**
-\`\`\`bash
+```bash
 curl -X {method} "{full_url}" \
   {if auth}
   -H "Authorization: Bearer {token}" \
@@ -135,7 +135,7 @@ curl -X {method} "{full_url}" \
   -H "Content-Type: application/json" \
   -d '{body_example}'
   {end if}
-\`\`\`
+```
 ```
 
 ## Class Documentation Template
@@ -155,9 +155,9 @@ curl -X {method} "{full_url}" \
 
 ### Constructor
 
-\`\`\`{language}
+```{language}
 new {class_name}({constructor_params})
-\`\`\`
+```
 
 {constructor_description}
 
@@ -182,9 +182,9 @@ new {class_name}({constructor_params})
 
 ### Example
 
-\`\`\`{language}
+```{language}
 {usage_example}
-\`\`\`
+```
 ```
 
 ## Type Definition Template
@@ -194,9 +194,9 @@ new {class_name}({constructor_params})
 
 {description}
 
-\`\`\`{language}
+```{language}
 {type_definition}
-\`\`\`
+```
 
 **Properties:**
 
@@ -208,9 +208,9 @@ new {class_name}({constructor_params})
 
 {if example}
 **Example:**
-\`\`\`{language}
+```{language}
 {example}
-\`\`\`
+```
 {end if}
 
 {if related_types}
@@ -306,7 +306,7 @@ new {class_name}({constructor_params})
 **HTTP Status:** {status_code}
 
 **Example:**
-\`\`\`json
+```json
 {
   "error": "{error_code}",
   "message": "{error_message}",
@@ -314,7 +314,7 @@ new {class_name}({constructor_params})
     {error_details}
   }
 }
-\`\`\`
+```
 
 **Resolution:**
 {how_to_fix}
@@ -334,9 +334,9 @@ Location: `{config_file_path}`
 
 Format: {format}
 
-\`\`\`{format}
+```{format}
 {example_config}
-\`\`\`
+```
 
 ### Options
 
@@ -356,9 +356,9 @@ Format: {format}
 **Default:** `{default}`
 
 **Example:**
-\`\`\`bash
+```bash
 export {var_name}="{example_value}"
-\`\`\`
+```
 {end for}
 ```
 
