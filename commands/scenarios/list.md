@@ -18,7 +18,7 @@ List available E2E test scenarios with tool availability status.
 
 Glob for scenario files:
 ```
-${CLAUDE_PLUGIN_ROOT}/scenarios/*.md
+${CLAUDE_PLUGIN_ROOT}/scenarios/**/*.md
 ```
 
 ### 2. Parse Each Scenario

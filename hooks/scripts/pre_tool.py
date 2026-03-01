@@ -6,7 +6,7 @@ Consolidates: crew pretool_taskcreate, crew pretool_planmode, mem block_memory_m
 
 Dispatches by tool_name from hook payload:
   TaskCreate    → crew initiative metadata injection + one-time suggestion
-  EnterPlanMode → crew phase validation (gate check)
+  EnterPlanMode → deny and redirect to crew workflow
   Write / Edit  → MEMORY.md / AGENTS.md write guard
 
 Always fails open — any unhandled exception returns permissionDecision: "allow".
@@ -106,35 +106,32 @@ def _handle_task_create(tool_input: dict) -> str:
 
 # ---------------------------------------------------------------------------
 # Handler: EnterPlanMode
-# (crew phase validation gate)
+# (deny native plan mode, redirect to crew workflow)
 # ---------------------------------------------------------------------------
 
 def _handle_enter_plan_mode(tool_input: dict) -> str:
-    """Validate that entering plan mode is appropriate for the current crew phase.
+    """Block native plan mode — redirect to crew workflow instead.
 
-    If a crew project is active and the current phase requires a gate, remind
-    the user to run the gate command first. Non-blocking — always allows.
+    wicked-garden uses crew projects for planning, not Claude's built-in
+    plan mode. Always deny and point to /wicked-garden:crew:start.
     """
     try:
         data, project_name, _ = _find_active_crew_project()
-        if not project_name or not data:
-            return _allow()
-
-        current_phase = data.get("current_phase", "")
-        gate_required = data.get("gate_required", False)
-
-        if gate_required and current_phase:
-            return _allow(
-                system_message=(
-                    f"[Crew] Phase '{current_phase}' requires a gate review before proceeding. "
-                    f"Run `/wicked-garden:crew:gate` to complete the gate."
-                )
+        if project_name and data:
+            current_phase = data.get("current_phase", "")
+            return _deny(
+                f"Do not use native plan mode. A crew project '{project_name}' is already active "
+                f"(phase: {current_phase}). Continue working within the crew workflow. "
+                f"Use `/wicked-garden:crew:execute` to proceed or `/wicked-garden:crew:status` to check progress."
             )
-
     except Exception:
         pass
 
-    return _allow()
+    return _deny(
+        "Do not use native plan mode. This project uses wicked-garden crew workflows for planning. "
+        "Use `/wicked-garden:crew:start` to create a new crew project with outcome clarification, "
+        "phased execution, and quality gates."
+    )
 
 
 # ---------------------------------------------------------------------------
