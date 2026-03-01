@@ -79,17 +79,19 @@ done
 
 ```bash
 if [[ -f "./.claude-plugin/specialist.json" ]]; then
+  # specialist.json structure: {"plugin": "name", "specialists": [{name, role, ...}]}
   plugin_name=$(jq -r '.name' ".claude-plugin/plugin.json")
-  specialist_name=$(jq -r '.specialist.name' "./.claude-plugin/specialist.json")
-  if [[ "$plugin_name" != "$specialist_name" ]]; then
-    echo "ERROR: specialist.name does not match plugin.json name"
+  spec_plugin=$(jq -r '.plugin // empty' "./.claude-plugin/specialist.json")
+  if [[ -n "$spec_plugin" && "$plugin_name" != "$spec_plugin" ]]; then
+    echo "ERROR: specialist.json .plugin does not match plugin.json name"
   fi
 
-  role=$(jq -r '.specialist.role' "./.claude-plugin/specialist.json")
-  valid_roles="ideation business-strategy project-management quality-engineering devsecops engineering architecture ux product compliance data-engineering research"
-  if ! echo "$valid_roles" | grep -qw "$role"; then
-    echo "ERROR: Invalid specialist role: $role"
-  fi
+  valid_roles="ideation brainstorming business-strategy project-management quality-engineering devsecops engineering architecture ux product compliance data-engineering agentic-architecture research"
+  jq -r '.specialists[]?.role // empty' "./.claude-plugin/specialist.json" 2>/dev/null | while read -r role; do
+    if [[ -n "$role" ]] && ! echo "$valid_roles" | grep -qw "$role"; then
+      echo "ERROR: Invalid specialist role: $role"
+    fi
+  done
 fi
 ```
 
@@ -201,6 +203,31 @@ Invoke the `plugin-dev:skill-reviewer` agent via Task tool:
 subagent_type: plugin-dev:skill-reviewer
 prompt: "Review the skills in . for quality and best practices."
 ```
+
+### 9b. CP Integration Smoke Test (if CP available)
+
+If the control plane is running (`SessionState.cp_available` is true), test a sample of endpoints:
+
+```bash
+# Use _infer_method to determine correct HTTP method per verb
+python3 -c "
+from _control_plane import ControlPlaneClient
+cp = ControlPlaneClient()
+manifest = cp.manifest()
+if manifest:
+    domains = manifest.get('data', manifest).get('domains', {})
+    for domain, sources in list(domains.items())[:3]:
+        for source, verbs in sources.items():
+            for verb in verbs[:1]:
+                # Use list/get verbs only (GET-safe) for smoke test
+                if verb in ('list', 'get', 'stats'):
+                    result = cp.request(domain, source, verb, params={'limit': '1'})
+                    status = 'OK' if result is not None else 'FAIL'
+                    print(f'  {domain}/{source}/{verb}: {status}')
+"
+```
+
+**Important**: Only smoke-test GET-safe verbs (list, get, stats). Do NOT send GET requests to POST-only verbs (create, search, traverse) — they will return 405/400 false failures.
 
 ### 10. Graceful Degradation
 
