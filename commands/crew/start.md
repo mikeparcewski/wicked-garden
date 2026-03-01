@@ -74,7 +74,7 @@ Parse the JSON response to get `project_dir` for later use.
    ```
    You can use built-in archetypes (content-heavy, ui-heavy, api-backend, infrastructure-framework, data-pipeline, mobile-app, ml-ai, compliance-regulated, monorepo-platform, real-time) OR define new ones dynamically.
 
-5. **Store archetype hints** in project.json as `archetype_hints` for reuse at checkpoints.
+5. **Store archetype hints** via phase_manager update as `archetype_hints` for reuse at checkpoints (do NOT write project.json directly — use the update command in step 5.5).
 
 ### 5.5 Analyze Input with Smart Decisioning
 
@@ -163,7 +163,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
 
 Every crew project should be tracked as a kanban initiative. This provides visibility in the kanban board and dashboards.
 
-**Goal**: store both the initiative *name* and *UUID* in project.json so session_start can reconnect without a kanban round-trip.
+**Goal**: store both the initiative *name* and *UUID* via phase_manager update so session_start can reconnect without a kanban round-trip.
 
 1. **Look up existing initiative by name**. If wicked-kanban is installed:
    ```bash
@@ -230,7 +230,7 @@ Example output:
 ### Task Lifecycle
 - Staleness detection: 30 minutes
 - Recovery mode: automatic
-- Override mechanism: available via project.json
+- Override mechanism: available via phase_manager update
 
 ### Next Step
 Run `/wicked-garden:crew:execute` to begin the clarify phase.
