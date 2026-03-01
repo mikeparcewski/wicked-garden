@@ -86,111 +86,163 @@ ROLE_CATEGORIES = {
 }
 
 
-def load_specialist(specialist_json: Path) -> Optional[Specialist]:
-    """
-    Load a specialist configuration from specialist.json.
+def _parse_single_specialist(spec_data: dict, personas_data: list,
+                              enhances_data: list, hooks: dict,
+                              specialist_json: Path) -> Optional[Specialist]:
+    """Parse a single specialist entry from its component data."""
+    # Validate required fields
+    required_fields = ["name", "role", "description"]
+    for fld in required_fields:
+        if not spec_data.get(fld):
+            logger.error(f"Missing required field '{fld}' in {specialist_json}")
+            return None
 
-    Handles malformed JSON with comprehensive error logging and validation.
-    Returns None if the file cannot be loaded or is invalid.
-    """
-    try:
-        with open(specialist_json) as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        logger.error(f"Malformed JSON in {specialist_json}: {e}")
+    # Parse personas with validation
+    personas = []
+    if not isinstance(personas_data, list):
+        logger.error(f"Invalid 'personas' format in {specialist_json}: must be array")
         return None
-    except IOError as e:
-        logger.error(f"Failed to read {specialist_json}: {e}")
-        return None
 
-    try:
-        # Validate required top-level structure
-        if not isinstance(data, dict):
-            logger.error(f"Invalid specialist.json format in {specialist_json}: root must be object")
-            return None
+    for i, p in enumerate(personas_data):
+        if not isinstance(p, dict):
+            logger.warning(f"Skipping invalid persona {i} in {specialist_json}")
+            continue
+        personas.append(Persona(
+            name=p.get("name", ""),
+            focus=p.get("focus", ""),
+            agent=p.get("agent"),
+            dynamic=p.get("dynamic", False)
+        ))
 
-        spec_data = data.get("specialist", {})
-        if not spec_data or not isinstance(spec_data, dict):
-            logger.warning(f"Missing or invalid 'specialist' section in {specialist_json}")
-            return None
+    # Parse enhancements with validation
+    enhances = []
+    if not isinstance(enhances_data, list):
+        # enhances can be a list of phase name strings (unified format)
+        enhances_data = []
 
-        # Validate required fields
-        required_fields = ["name", "role", "description"]
-        for field in required_fields:
-            if not spec_data.get(field):
-                logger.error(f"Missing required field '{field}' in {specialist_json}")
-                return None
-
-        # Parse personas with validation
-        personas = []
-        personas_data = data.get("personas", [])
-        if not isinstance(personas_data, list):
-            logger.error(f"Invalid 'personas' format in {specialist_json}: must be array")
-            return None
-
-        for i, p in enumerate(personas_data):
-            if not isinstance(p, dict):
-                logger.warning(f"Skipping invalid persona {i} in {specialist_json}")
-                continue
-            personas.append(Persona(
-                name=p.get("name", ""),
-                focus=p.get("focus", ""),
-                agent=p.get("agent"),
-                dynamic=p.get("dynamic", False)
+    for i, e in enumerate(enhances_data):
+        if isinstance(e, str):
+            # Unified format: enhances is ["design", "build", "review"]
+            enhances.append(Enhancement(
+                phase=e,
+                trigger="",
+                response="",
+                capabilities=[]
             ))
-
-        # Parse enhancements with validation
-        enhances = []
-        enhances_data = data.get("enhances", [])
-        if not isinstance(enhances_data, list):
-            logger.error(f"Invalid 'enhances' format in {specialist_json}: must be array")
-            return None
-
-        for i, e in enumerate(enhances_data):
-            if not isinstance(e, dict):
-                logger.warning(f"Skipping invalid enhancement {i} in {specialist_json}")
-                continue
+        elif isinstance(e, dict):
             enhances.append(Enhancement(
                 phase=e.get("phase", "*"),
                 trigger=e.get("trigger", ""),
                 response=e.get("response", ""),
                 capabilities=e.get("capabilities", [])
             ))
+        else:
+            logger.warning(f"Skipping invalid enhancement {i} in {specialist_json}")
 
-        # Parse hooks with validation
-        hooks = data.get("hooks", {})
-        if hooks and not isinstance(hooks, dict):
-            logger.warning(f"Invalid 'hooks' format in {specialist_json}, using defaults")
-            hooks = {}
+    if not isinstance(hooks, dict):
+        hooks = {}
 
-        # Parse fallback_agent if present
-        fallback_agent = spec_data.get("fallback_agent")
-        if fallback_agent and not isinstance(fallback_agent, str):
-            logger.warning(f"Invalid fallback_agent type in {specialist_json}, ignoring")
-            fallback_agent = None
+    # Parse fallback_agent if present
+    fallback_agent = spec_data.get("fallback_agent")
+    if fallback_agent and not isinstance(fallback_agent, str):
+        fallback_agent = None
 
-        specialist = Specialist(
-            name=spec_data.get("name", ""),
-            role=spec_data.get("role", ""),
-            description=spec_data.get("description", ""),
-            personas=personas,
-            enhances=enhances,
-            plugin_path=specialist_json.parent.parent,
-            hooks_subscribes=hooks.get("subscribes", []) if isinstance(hooks.get("subscribes"), list) else [],
-            hooks_publishes=hooks.get("publishes", []) if isinstance(hooks.get("publishes"), list) else [],
-            fallback_agent=fallback_agent
-        )
+    specialist = Specialist(
+        name=spec_data.get("name", ""),
+        role=spec_data.get("role", ""),
+        description=spec_data.get("description", ""),
+        personas=personas,
+        enhances=enhances,
+        plugin_path=specialist_json.parent.parent,
+        hooks_subscribes=sub if isinstance(sub := hooks.get("subscribes", []), list) else [],
+        hooks_publishes=pub if isinstance(pub := hooks.get("publishes", []), list) else [],
+        fallback_agent=fallback_agent
+    )
 
-        # Validate the loaded specialist
-        validation_issues = validate_specialist(specialist)
-        if validation_issues:
-            logger.warning(f"Specialist {specialist.name} has validation issues: {validation_issues}")
+    validation_issues = validate_specialist(specialist)
+    if validation_issues:
+        logger.warning(f"Specialist {specialist.name} has validation issues: {validation_issues}")
 
-        return specialist
+    return specialist
+
+
+def load_specialist_file(specialist_json: Path) -> List[Specialist]:
+    """
+    Load specialist(s) from a specialist.json file.
+
+    Supports two formats:
+    - Unified (wicked-garden): {"plugin": "...", "specialists": [{...}, ...]}
+      Each entry has name, role, description, personas, enhances as top-level keys.
+    - Legacy (single plugin): {"specialist": {...}, "personas": [...], "enhances": [...]}
+
+    Returns a list of parsed Specialist objects (empty list on failure).
+    """
+    try:
+        with open(specialist_json) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        logger.error(f"Malformed JSON in {specialist_json}: {e}")
+        return []
+    except IOError as e:
+        logger.error(f"Failed to read {specialist_json}: {e}")
+        return []
+
+    if not isinstance(data, dict):
+        logger.error(f"Invalid specialist.json format in {specialist_json}: root must be object")
+        return []
+
+    results = []
+
+    try:
+        # --- Unified format: "specialists" array ---
+        specialists_array = data.get("specialists")
+        if isinstance(specialists_array, list) and specialists_array:
+            logger.debug(f"Parsing unified format with {len(specialists_array)} specialists")
+            for entry in specialists_array:
+                if not isinstance(entry, dict):
+                    continue
+                spec = _parse_single_specialist(
+                    spec_data=entry,
+                    personas_data=entry.get("personas", []),
+                    enhances_data=entry.get("enhances", []),
+                    hooks=entry.get("hooks", {}),
+                    specialist_json=specialist_json,
+                )
+                if spec:
+                    results.append(spec)
+            return results
+
+        # --- Legacy format: single "specialist" object ---
+        spec_data = data.get("specialist", {})
+        if spec_data and isinstance(spec_data, dict):
+            spec = _parse_single_specialist(
+                spec_data=spec_data,
+                personas_data=data.get("personas", []),
+                enhances_data=data.get("enhances", []),
+                hooks=data.get("hooks", {}),
+                specialist_json=specialist_json,
+            )
+            if spec:
+                results.append(spec)
+            return results
+
+        logger.warning(f"No 'specialists' array or 'specialist' object in {specialist_json}")
+        return []
 
     except (KeyError, TypeError, AttributeError) as e:
         logger.error(f"Failed to parse specialist config from {specialist_json}: {e}")
-        return None
+        return []
+
+
+def load_specialist(specialist_json: Path) -> Optional[Specialist]:
+    """
+    Load a single specialist from specialist.json (legacy interface).
+
+    For files with multiple specialists (unified format), returns the first one.
+    Prefer load_specialist_file() for full access to all specialists.
+    """
+    specs = load_specialist_file(specialist_json)
+    return specs[0] if specs else None
 
 
 def _get_cache_key(search_paths: List[Path]) -> str:
@@ -244,8 +296,7 @@ def discover_specialists(
             # Look for specialist.json in .claude-plugin directory
             specialist_json = item / ".claude-plugin" / "specialist.json"
             if specialist_json.exists():
-                spec = load_specialist(specialist_json)
-                if spec:
+                for spec in load_specialist_file(specialist_json):
                     specialists[spec.name] = spec
                     logger.debug(f"Found specialist: {spec.name} ({spec.role})")
                 continue
@@ -255,8 +306,7 @@ def discover_specialists(
                 if version_dir.is_dir():
                     specialist_json = version_dir / ".claude-plugin" / "specialist.json"
                     if specialist_json.exists():
-                        spec = load_specialist(specialist_json)
-                        if spec:
+                        for spec in load_specialist_file(specialist_json):
                             specialists[spec.name] = spec
                             logger.debug(f"Found specialist: {spec.name} ({spec.role})")
                         break
