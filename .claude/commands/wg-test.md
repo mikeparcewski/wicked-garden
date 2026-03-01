@@ -37,7 +37,15 @@ if [ "${SKIP_PLUGIN_MARKETPLACE}" = "true" ]; then
 fi
 ```
 
-If the variable is set, warn the user and ask whether to continue (results will be unreliable) or abort. Use AskUserQuestion with options: "Abort — fix environment first" and "Continue anyway (expect failures)".
+If `SKIP_PLUGIN_MARKETPLACE=true`, warn the user and ask whether to continue (results will be unreliable) or abort. Use AskUserQuestion with options: "Abort — fix environment first" and "Continue anyway (expect failures)".
+
+Also check whether the plugin runtime actually loaded:
+
+```bash
+echo "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT:-NOT_SET}"
+```
+
+If `CLAUDE_PLUGIN_ROOT` is not set, the plugin commands (like `/wicked-garden:qe:acceptance` and `/wicked-garden:scenarios:run`) are NOT registered as invokable skills — even if the command files exist on disk. This is normal when running in environments where the plugin marketplace isn't active (e.g., Claude Code on the web). The inline execution fallback in Step 5 handles this case.
 
 ### 3. Scenario Discovery
 
@@ -60,23 +68,50 @@ Use AskUserQuestion to let user select domain and/or scenario.
 
 ### 4. Detect Available Pipeline
 
-Check which testing capabilities are available in the unified plugin:
+Determine which execution path to use. There are three tiers — check in order:
+
+**Tier 1 — Plugin skills invokable (best):**
+
+The plugin is loaded and commands are registered as skills. This is the case when `CLAUDE_PLUGIN_ROOT` is set.
 
 ```bash
-# Check for QE domain (primary pipeline)
-ls commands/qe/acceptance.md 2>/dev/null && echo "QE_AVAILABLE=true"
-
-# Check for scenarios domain (execution backend / fallback)
-ls commands/scenarios/run.md 2>/dev/null && echo "SCENARIOS_AVAILABLE=true"
+# Check if plugin runtime is active
+if [ -n "${CLAUDE_PLUGIN_ROOT}" ]; then
+  echo "PLUGIN_LOADED=true"
+  ls "${CLAUDE_PLUGIN_ROOT}/commands/qe/acceptance.md" 2>/dev/null && echo "QE_SKILL=true"
+  ls "${CLAUDE_PLUGIN_ROOT}/commands/scenarios/run.md" 2>/dev/null && echo "SCENARIOS_SKILL=true"
+else
+  echo "PLUGIN_LOADED=false"
+fi
 ```
+
+**Tier 2 — Command files exist but plugin not loaded (inline fallback):**
+
+The command markdown files exist on disk but aren't registered as invokable skills. Scenarios can still be executed inline by reading each scenario file, parsing its steps, and running them directly via Bash.
+
+```bash
+# Check for command files on disk (fallback detection)
+ls commands/qe/acceptance.md 2>/dev/null && echo "QE_FILE=true"
+ls commands/scenarios/run.md 2>/dev/null && echo "SCENARIOS_FILE=true"
+```
+
+**Tier 3 — Nothing available (error):**
+
+Neither command files nor plugin skills exist.
 
 ### 5. Delegate to Pipeline
 
-**Primary path — QE available:**
+Use the tier detected in Step 4 to select the execution path. Try Tier 1 first; if the Skill call fails with "Unknown skill", fall through to Tier 2.
 
-Delegate to `/wicked-garden:qe:acceptance` which owns the full Writer → Executor → Reviewer pipeline. The QE executor automatically delegates E2E CLI steps to `/wicked-garden:scenarios:run --json` when scenarios are available.
+---
 
-**Single scenario:**
+**Tier 1 — Skill delegation (plugin loaded OR skills registered):**
+
+Delegate to `/wicked-garden:qe:acceptance` (primary) or `/wicked-garden:scenarios:run` (fallback) via the Skill tool.
+
+**Primary — QE acceptance (full Writer → Executor → Reviewer pipeline):**
+
+Single scenario:
 ```
 Skill(
   skill="wicked-garden:qe:acceptance",
@@ -84,7 +119,7 @@ Skill(
 )
 ```
 
-**All scenarios for a domain (`--all`):**
+All scenarios for a domain (`--all`):
 ```
 Skill(
   skill="wicked-garden:qe:acceptance",
@@ -92,11 +127,9 @@ Skill(
 )
 ```
 
-**Fallback path — QE not available, scenarios available:**
+**Fallback — scenarios:run (standalone, exit code PASS/FAIL, no evidence protocol):**
 
-Delegate directly to `/wicked-garden:scenarios:run` for standalone execution (exit code PASS/FAIL, no evidence protocol, no independent review):
-
-**Single scenario:**
+Single scenario:
 ```
 Skill(
   skill="wicked-garden:scenarios:run",
@@ -104,9 +137,7 @@ Skill(
 )
 ```
 
-**All scenarios (`--all`):**
-
-Run each scenario file sequentially. Note: the glob already yields the full relative path — do NOT re-prefix it:
+All scenarios (`--all`) — run sequentially; the glob already yields the full relative path — do NOT re-prefix:
 ```
 for each scenario_file in scenarios/${domain}/*.md (excluding README.md):
   Skill(
@@ -115,9 +146,54 @@ for each scenario_file in scenarios/${domain}/*.md (excluding README.md):
   )
 ```
 
-**Neither available:**
+**If Skill calls fail with "Unknown skill"**: The plugin commands exist on disk but aren't registered in the current runtime. Fall through to Tier 2.
 
-Report an error:
+---
+
+**Tier 2 — Inline execution (command files exist but skills not invokable):**
+
+When plugin skills can't be invoked (common in web environments or when `CLAUDE_PLUGIN_ROOT` isn't set), execute scenarios directly by reading each scenario file and running its steps inline.
+
+For each scenario file:
+
+1. **Read the scenario markdown** using the Read tool
+2. **Parse YAML frontmatter** — extract `name`, `description`, `tools.required`, `tools.optional`, `env`, `timeout`
+3. **Run CLI discovery** (if the script exists):
+   ```bash
+   python3 scripts/scenarios/cli_discovery.py {space-separated tools from required + optional}
+   ```
+   If the discovery script doesn't exist, check tools manually with `which {tool}`.
+4. **Execute Setup** — find the `## Setup` section, extract its fenced code block, run via Bash
+5. **Execute Steps** — for each `### Step N:` section:
+   - Extract the fenced code block
+   - If the code block contains slash commands (e.g., `/wicked-garden:agentic:review ...`), invoke them via the Skill tool instead of Bash
+   - If CLI not available, record as **SKIPPED**
+   - Otherwise execute via Bash with the scenario's timeout (default 120s)
+   - Capture: stdout, stderr, exit code, duration
+   - Exit code 0 → **PASS**, non-zero → **FAIL**, CLI missing → **SKIPPED**
+6. **Execute Cleanup** — if a `## Cleanup` section exists, run its code block via Bash
+7. **Aggregate** — All PASS → **PASS** (0), Any FAIL → **FAIL** (1), No FAILs but SKIPs → **PARTIAL** (2)
+8. **Report** — produce the markdown results table:
+
+```markdown
+## Scenario Results: {name}
+
+**Status**: {PASS|FAIL|PARTIAL}
+**Duration**: {total seconds}s
+**Steps**: {pass_count} passed, {fail_count} failed, {skip_count} skipped
+
+| Step | Status | Duration | Details |
+|------|--------|----------|---------|
+| {step name} | PASS | 0.5s | |
+| {step name} | FAIL | 2.0s | Exit code 1: {stderr snippet} |
+| {step name} | SKIPPED | - | Tool not installed |
+```
+
+---
+
+**Tier 3 — Nothing available (error):**
+
+Neither command files nor plugin skills exist:
 ```
 Error: No testing pipeline available.
 The qe and scenarios domains must be present to enable testing.
