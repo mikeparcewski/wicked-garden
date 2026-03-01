@@ -18,7 +18,7 @@ from . import ContextItem, _SCRIPTS_ROOT
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from _paths import get_local_path
+from _storage import get_local_path
 
 
 # Cache configuration

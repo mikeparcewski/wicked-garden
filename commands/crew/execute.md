@@ -10,7 +10,13 @@ Execute work for the current phase with adaptive role selection.
 
 ### 1. Load Project State
 
-Read `project.json` to get current phase, phase_plan, and status.
+Load current project state via phase_manager:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} status --json
+```
+
+This returns current phase, phase_plan, signals, complexity, and phase statuses via StorageManager.
 
 ### 2. Task Lifecycle Recovery
 
@@ -81,7 +87,7 @@ This principle applies to EVERY phase. Even "simple" tasks should be dispatched 
 
 ### 3. Load User Preferences (if exists)
 
-Check for `~/.something-wicked/wicked-garden/local/wicked-crew/preferences.yaml` for:
+Check for `${CLAUDE_PLUGIN_ROOT}/preferences.yaml` or project-level preferences for:
 - Autonomy level (ask-first, balanced, just-finish)
 - Communication style
 

@@ -94,10 +94,10 @@ The `memory-archivist` agent runs automatically:
 
 ## Recovery
 
-Archived memories live in the same location but with `status: archived`. To recover:
+Archived memories retain their content but are excluded from search results. To recover:
 
-1. Find the memory file in `~/.something-wicked/memory/`
-2. Edit YAML frontmatter: `status: active`
+1. Use `/wicked-garden:mem:recall` with `--include-archived` to find the memory
+2. Use `/wicked-garden:mem:store` to re-create the memory as active
 3. Memory returns to search results
 
 ## Best Practices

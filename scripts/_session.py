@@ -99,6 +99,25 @@ class SessionState:
     session_ended: bool = False
     cp_last_checked_at: float = 0.0
 
+    # Kanban sync: maps Claude TaskCreate subjects → kanban task IDs.
+    # Session-scoped (task IDs are ephemeral).
+    kanban_sync: dict | None = None
+
+    # One-time nudge flags (reset per session)
+    task_suggest_shown: bool = False
+
+    # Stale files accumulated this session (flushed to SM on demand)
+    stale_files: list | None = None
+
+    # QE change tracking nudge flag
+    qe_nudged: bool = False
+
+    # Failure counts per tool (for issue reporter threshold)
+    failure_counts: dict | None = None
+
+    # Queued issue records (pending_issues + mismatches)
+    pending_issues: list | None = None
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

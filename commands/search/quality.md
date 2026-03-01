@@ -98,9 +98,9 @@ The Scout Agent discovers patterns by:
 
 ## Scripts Location
 
-Generated extraction scripts are cached at:
-```
-~/.something-wicked/wicked-garden/local/wicked-search/tmp_scripts/
+Generated extraction scripts are cached under the search storage root:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-search tmp_scripts
 ```
 
 ## Exit Codes

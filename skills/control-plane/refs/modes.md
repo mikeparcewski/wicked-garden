@@ -1,6 +1,6 @@
 # Connection Modes
 
-Three modes, configured via `/wicked-garden:setup` and stored in `~/.something-wicked/wicked-garden/config.json`.
+Three modes, configured via `/wicked-garden:setup` and stored in `{storage_root}/config.json`.
 
 ## local-install (Default)
 
@@ -63,7 +63,7 @@ No CP at all. Everything stays on disk.
 
 **Storage location**:
 ```
-~/.something-wicked/wicked-garden/local/
+{SM_LOCAL_ROOT}/
 ├── _queue.jsonl              # Writes pending CP sync
 ├── _queue_failed.jsonl       # Failed replay attempts
 ├── wicked-mem/memories/      # Memory records

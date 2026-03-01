@@ -58,7 +58,7 @@ uv run python scripts/kanban/kanban.py search "query"
 ## Data Structure
 
 ```
-~/.something-wicked/wicked-garden/local/wicked-kanban/
+{SM_LOCAL_ROOT}/wicked-kanban/
 ├── config.json              # Repo → project mappings
 ├── active_context.json      # Current task/session
 └── projects/
@@ -70,11 +70,16 @@ uv run python scripts/kanban/kanban.py search "query"
         └── activity/        # Daily logs (JSONL)
 ```
 
+Data paths are resolved dynamically by StorageManager. To find the local root:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-kanban
+```
+
 ## Configuration
 
 | Setting | Default | Environment Variable |
 |---------|---------|---------------------|
-| Data Dir | ~/.something-wicked/wicked-garden/local/wicked-kanban | `WICKED_KANBAN_DATA_DIR` |
+| Data Dir | Resolved by StorageManager | `WICKED_KANBAN_DATA_DIR` |
 
 ## Rendering
 

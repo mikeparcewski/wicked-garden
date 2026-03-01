@@ -86,14 +86,16 @@ On confirmation:
   - Clean up temp file
 - If `gh` unavailable or no repo:
   - Display the formatted issue as markdown for manual copy
-  - Save to `~/.something-wicked/wicked-garden/unfiled-issues/{timestamp}.json`
+  - Resolve path: `UNFILED=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden unfiled-issues)`
+  - Save to `${UNFILED}/{timestamp}.json`
   - Tell user: "Issue saved to unfiled queue. Install and authenticate `gh` CLI, then run `/wicked-garden:report-issue --list-unfiled` to file."
 
 ### 5. List Unfiled Issues (--list-unfiled)
 
 If `--list-unfiled` was provided:
 
-1. Read all JSON files from `~/.something-wicked/wicked-garden/unfiled-issues/`
+1. Resolve path: `UNFILED=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden unfiled-issues)`
+2. Read all JSON files from `${UNFILED}/`
 2. If empty: report "No unfiled issues found."
 3. If found: display a summary table:
 

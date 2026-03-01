@@ -174,7 +174,7 @@ When all dependencies are in a complete swimlane, the task is automatically unbl
 
 ## Storage
 
-Data stored in: `~/.something-wicked/wicked-garden/local/wicked-kanban/projects/`
+Data stored in: `{SM_LOCAL_ROOT}/wicked-kanban/projects/`
 
 Each project is a separate JSON file: `{project-id}.json`
 

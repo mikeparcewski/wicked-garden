@@ -24,87 +24,24 @@ Convert description to kebab-case slug:
 ### 3. Check for Existing Project
 
 ```bash
-ls -d ~/.something-wicked/wicked-garden/local/wicked-crew/projects/*/ 2>/dev/null | xargs -I {} basename {}
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" find-active --json
 ```
 
-If project name exists, ask user: resume, rename, or cancel.
+Parse the JSON result. If an active project exists, ask user: resume existing, rename new, or cancel.
 
-### 4. Create Project Structure
+### 4. Create Project
 
-Create directory and initial files:
+Create the project via phase_manager (persists via StorageManager — CP-first, local fallback):
 
-```
-~/.something-wicked/wicked-garden/local/wicked-crew/projects/{name}/
-├── project.md
-├── outcome.md
-└── phases/
-    └── clarify/
-        └── status.md
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} create \
+  --description "{description}" \
+  --json
 ```
 
-**project.md:**
-```markdown
----
-name: {project-name}
-created: {date}
-current_phase: clarify
-status: in_progress
----
+This creates the StorageManager record, initializes the clarify phase, and sets up local deliverable templates (project.md, outcome.md, phases/clarify/status.md) in one operation.
 
-# Project: {Title}
-
-{Description}
-
-## Current Phase: clarify
-
-Defining outcome and success criteria.
-
-## Phases
-
-| Phase | Status | Notes |
-|-------|--------|-------|
-| {for each phase in phase_plan} | pending | |
-```
-
-**outcome.md:**
-```markdown
-# Outcome: {Title}
-
-## Desired Outcome
-
-{To be defined during clarify phase}
-
-## Success Criteria
-
-1. {To be defined}
-
-## Scope
-
-### In Scope
-- {To be defined}
-
-### Out of Scope
-- {To be defined}
-```
-
-**phases/clarify/status.md:**
-```markdown
----
-phase: clarify
-status: in_progress
-started: {date}
----
-
-# Clarify Phase
-
-Defining the outcome and success criteria.
-
-## Deliverables
-
-- [ ] Outcome statement
-- [ ] Success criteria
-- [ ] Scope boundaries
-```
+Parse the JSON response to get `project_dir` for later use.
 
 ### 5. Dynamic Archetype Pre-Analysis
 
@@ -162,18 +99,12 @@ This returns:
 ```
 Scripts never call other plugins directly — Claude's tool system is the universal API.
 
-Store analysis in project.json:
+Store analysis via phase_manager update (persists via StorageManager):
 
-```json
-{
-  "name": "{name}",
-  "created_at": "{ISO 8601 UTC timestamp}",
-  "current_phase": "clarify",
-  "signals_detected": ["security", "data"],
-  "complexity_score": 4,
-  "specialists_recommended": ["wicked-qe", "wicked-product"],
-  "archetype_hints": {}
-}
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+  --data '{"signals_detected": ["security", "data"], "complexity_score": 4, "specialists_recommended": ["wicked-qe", "wicked-product"], "archetype_hints": {}}' \
+  --json
 ```
 
 ### 6. Discover Available Specialists
@@ -206,13 +137,12 @@ Select which phases to include based on the signal analysis and complexity score
 
 Order the selected phases by their `depends_on` relationships.
 
-Store the ordered phase list and planning mode in project.json:
+Store the ordered phase list and planning mode via phase_manager:
 
-```json
-{
-  "phase_plan": ["clarify", "test-strategy", "build", "test", "review"],
-  "phase_plan_mode": "dynamic"
-}
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+  --data '{"phase_plan": ["clarify", "test-strategy", "build", "test", "review"], "phase_plan_mode": "dynamic"}' \
+  --json
 ```
 
 **Dynamic mode** (default): Phase plan can be adjusted at checkpoints via signal re-analysis (see execute.md Section 4.5). Set `"phase_plan_mode": "static"` to lock the plan.
@@ -221,16 +151,12 @@ Store the ordered phase list and planning mode in project.json:
 
 ### 8. Task Lifecycle Initialization
 
-Initialize task tracking metadata in project.json:
+Initialize task tracking metadata via phase_manager:
 
-```json
-{
-  "task_lifecycle": {
-    "staleness_threshold_minutes": 30,
-    "recovery_mode": "auto",
-    "user_overrides": {}
-  }
-}
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+  --data '{"task_lifecycle": {"staleness_threshold_minutes": 30, "recovery_mode": "auto", "user_overrides": {}}}' \
+  --json
 ```
 
 ### 8.5 Kanban Initiative Setup
@@ -258,12 +184,11 @@ Every crew project should be tracked as a kanban initiative. This provides visib
    python3 "${KANBAN_PLUGIN_ROOT}/scripts/kanban_initiative.py" ensure-issues
    ```
 
-4. **Store both name and UUID in project.json** as first-class fields:
-   ```json
-   {
-     "kanban_initiative": "{project-name}",
-     "kanban_initiative_id": "{uuid-from-kanban}"
-   }
+4. **Store both name and UUID** via phase_manager:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+     --data '{"kanban_initiative": "{project-name}", "kanban_initiative_id": "{uuid-from-kanban}"}' \
+     --json
    ```
 
 5. **All crew tasks must include initiative metadata**:
@@ -277,7 +202,7 @@ This ensures crew project tasks appear grouped under their project initiative on
 ### 9. Report to User
 
 Show:
-- Project created at path
+- Project created
 - Current phase (clarify)
 - **Signal analysis** (what complexity was detected)
 - **Recommended specialists** (which plugins will help)
@@ -288,7 +213,6 @@ Example output:
 ```markdown
 ## Project Created: {name}
 
-**Path**: ~/.something-wicked/wicked-garden/local/wicked-crew/projects/{name}/
 **Current Phase**: clarify
 
 ### Signal Analysis

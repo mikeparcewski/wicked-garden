@@ -5,6 +5,7 @@ wicked-crew query CLI — exposes project data for cross-plugin access.
 Usage:
     crew.py list-projects [--active] [--json]
     crew.py get-project <name> [--json]
+    crew.py find-active [--json]
 """
 
 import argparse
@@ -29,6 +30,39 @@ def list_projects(active_only: bool = False) -> dict:
         ]
 
     return {"projects": projects}
+
+
+def find_active_project() -> dict:
+    """Find the most recently updated active (non-archived, non-complete) project.
+
+    Uses StorageManager (CP-first, local fallback). Returns project data
+    and local directory path.
+    """
+    projects = _sm.list("projects") or []
+
+    # Filter to active projects
+    active = [
+        p for p in projects
+        if not p.get("archived")
+        and p.get("current_phase", "") not in ("complete", "done", "")
+    ]
+
+    if not active:
+        return {"project": None, "project_dir": None}
+
+    # Sort by updated_at descending (most recent first)
+    active.sort(key=lambda x: x.get("updated_at", x.get("created_at", "")), reverse=True)
+
+    project = active[0]
+    name = project.get("name", "")
+
+    # Resolve local directory path
+    project_dir = None
+    if name:
+        projects_dir = get_local_path("wicked-crew", "projects")
+        project_dir = str(projects_dir / name)
+
+    return {"project": project, "project_dir": project_dir}
 
 
 def get_project(name: str) -> dict:
@@ -66,6 +100,9 @@ def main():
     get_parser.add_argument("name", help="Project name")
     get_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
+    find_parser = subparsers.add_parser("find-active", help="Find most recent active project")
+    find_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -95,6 +132,19 @@ def main():
                 print(f"Status: {p.get('status', '?')}")
                 if p.get("outcome_summary"):
                     print(f"Outcome: {p['outcome_summary']}")
+
+    elif args.command == "find-active":
+        result = find_active_project()
+        if getattr(args, "json", False):
+            print(json.dumps(result, indent=2))
+        else:
+            p = result.get("project")
+            if p:
+                print(f"Active project: {p['name']}")
+                print(f"Phase: {p.get('current_phase', '?')}")
+                print(f"Dir: {result.get('project_dir', '?')}")
+            else:
+                print("No active project found.")
 
 
 if __name__ == "__main__":

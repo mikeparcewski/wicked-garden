@@ -66,7 +66,7 @@ Given a task summary or conversation context, identify and store learnings.
 
 ## Memory Format
 
-Store memories as markdown in `~/.something-wicked/memory/`:
+Store memories as markdown in `{SM_LOCAL_ROOT}/wicked-mem/`:
 
 ```markdown
 ---
@@ -101,11 +101,11 @@ source: hook
 
 ## Storage Locations
 
-- Global preferences: `~/.something-wicked/memory/core/preferences/`
-- Global learnings: `~/.something-wicked/memory/core/learnings/`
-- Project episodic: `~/.something-wicked/memory/projects/{project}/episodic/`
-- Project decisions: `~/.something-wicked/memory/projects/{project}/decisions/`
-- Project procedural: `~/.something-wicked/memory/projects/{project}/procedural/`
+- Global preferences: `{SM_LOCAL_ROOT}/wicked-mem/core/preferences/`
+- Global learnings: `{SM_LOCAL_ROOT}/wicked-mem/core/learnings/`
+- Project episodic: `{SM_LOCAL_ROOT}/wicked-mem/projects/{project}/episodic/`
+- Project decisions: `{SM_LOCAL_ROOT}/wicked-mem/projects/{project}/decisions/`
+- Project procedural: `{SM_LOCAL_ROOT}/wicked-mem/projects/{project}/procedural/`
 
 ## Rules
 

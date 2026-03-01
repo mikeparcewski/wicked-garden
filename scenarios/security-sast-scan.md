@@ -25,7 +25,7 @@ export SCAN_TARGET="${SCAN_TARGET:-.}"
 
 ```bash
 if ! command -v semgrep &>/dev/null; then
-  echo "SKIP: semgrep not installed. Run /wicked-scenarios:setup to install."
+  echo "SKIP: semgrep not installed. Run /wicked-garden:scenarios:setup to install."
   exit 0
 fi
 semgrep scan --config p/owasp-top-ten --json --quiet "${SCAN_TARGET}" > "${TMPDIR:-/tmp}/semgrep-results.json" 2>&1
@@ -37,7 +37,7 @@ semgrep scan --config p/owasp-top-ten --json --quiet "${SCAN_TARGET}" > "${TMPDI
 
 ```bash
 if ! command -v semgrep &>/dev/null; then
-  echo "SKIP: semgrep not installed. Run /wicked-scenarios:setup to install."
+  echo "SKIP: semgrep not installed. Run /wicked-garden:scenarios:setup to install."
   exit 0
 fi
 semgrep scan --config p/security-audit --json --quiet "${SCAN_TARGET}" 2>&1 | python3 -c "

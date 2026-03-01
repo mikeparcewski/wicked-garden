@@ -7,17 +7,14 @@ Progressive compression of conversation history:
 - + Turn window (last 3-5 turns)
 - = 50-100x compression
 
-Storage (unified path with legacy fallback):
-~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/
+Storage (via get_local_path from _storage):
+{local_path}/wicked-smaht/sessions/{session_id}/
 ├── summary.json       # Session summary (persistent)
 ├── turns.jsonl        # Recent turns (rolling buffer)
 ├── facts.jsonl        # Structured facts (via FactExtractor)
 ├── lanes.jsonl        # Parallel work lanes (via LaneTracker)
 ├── promoted.json      # Promotion tracking (via MemoryPromoter)
 └── condensed.md       # Last condensed output (cache)
-
-Legacy path (~/.something-wicked/wicked-smaht/sessions/) is used automatically
-if data exists there but not at the unified location.
 """
 
 import json
@@ -37,7 +34,7 @@ _SCRIPTS_ROOT = Path(__file__).resolve().parents[2]
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from _paths import get_local_path
+from _storage import get_local_path
 
 # Also add the v2 directory for sibling imports (fact_extractor, lane_tracker, memory_promoter)
 _V2_DIR = Path(__file__).resolve().parent

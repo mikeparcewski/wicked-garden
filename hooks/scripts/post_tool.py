@@ -21,8 +21,7 @@ import json
 import os
 import re
 import sys
-import tempfile
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add shared scripts directory to path
@@ -48,19 +47,6 @@ def _get_session_id() -> str:
     return _sanitize_session_id(os.environ.get("CLAUDE_SESSION_ID", "default"))
 
 
-def _session_dir(subdir: str) -> Path:
-    """Return (and create) a per-session state directory under TMPDIR."""
-    tmpdir = os.environ.get("TMPDIR", "/tmp").rstrip("/")
-    path = Path(tmpdir) / subdir / _get_session_id()
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _append_jsonl(path: Path, record: dict) -> None:
-    """Append a JSON record as a single line to a .jsonl file."""
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record) + "\n")
-
 
 # ---------------------------------------------------------------------------
 # Handler: TaskCreate / TaskUpdate / TodoWrite
@@ -85,25 +71,23 @@ def _parse_crew_initiative(subject: str):
 
 
 def _load_kanban_sync_state() -> dict:
-    """Load kanban sync state from the legacy wicked-kanban location for compatibility."""
-    sync_file = (
-        Path.home() / ".something-wicked" / "wicked-kanban" / "sync_state.json"
-    )
-    if sync_file.exists():
-        try:
-            return json.loads(sync_file.read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {"project_id": None, "task_map": {}, "initiative_id": None, "initiative_map": {}}
+    """Load kanban sync state from SessionState (ephemeral, per-session)."""
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        return state.kanban_sync or {"project_id": None, "task_map": {}, "initiative_id": None, "initiative_map": {}}
+    except Exception:
+        return {"project_id": None, "task_map": {}, "initiative_id": None, "initiative_map": {}}
 
 
-def _save_kanban_sync_state(state: dict) -> None:
-    data_dir = Path.home() / ".something-wicked" / "wicked-kanban"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    sync_file = data_dir / "sync_state.json"
-    tmp = sync_file.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state, indent=2))
-    os.replace(tmp, sync_file)
+def _save_kanban_sync_state(sync_data: dict) -> None:
+    """Persist kanban sync state to SessionState."""
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        state.update(kanban_sync=sync_data)
+    except Exception:
+        pass
 
 
 def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
@@ -270,66 +254,36 @@ def _handle_write_edit(tool_input: dict) -> dict:
 
 
 def _mark_file_stale(file_path: str) -> None:
-    """Append file path to per-project stale_files.json for incremental re-index."""
+    """Accumulate stale file paths in SessionState for incremental re-index."""
     try:
-        project_name = Path.cwd().name
-        stale_file = (
-            Path.home()
-            / ".something-wicked"
-            / "wicked-search"
-            / "projects"
-            / project_name
-            / "stale_files.json"
-        )
-        stale_set = set()
-        if stale_file.exists():
-            try:
-                existing = json.loads(stale_file.read_text())
-                if isinstance(existing, list):
-                    stale_set.update(existing)
-            except (json.JSONDecodeError, OSError):
-                pass
-        stale_set.add(file_path)
-        stale_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp = stale_file.with_suffix(".tmp")
-        tmp.write_text(json.dumps(sorted(stale_set), indent=2))
-        os.replace(tmp, stale_file)
+        from _session import SessionState
+        state = SessionState.load()
+        stale = state.stale_files or []
+        if file_path not in stale:
+            stale.append(file_path)
+            state.update(stale_files=stale)
     except Exception:
         pass
 
 
-def _get_qe_tracker_path() -> Path:
-    session_id = _get_session_id()
-    return Path(tempfile.gettempdir()) / f"wicked-qe-changes-{session_id}"
-
-
 def _track_qe_change(file_path: str):
-    """Track changed file. Return nudge message if threshold crossed, else None."""
+    """Track changed file via SessionState. Return nudge message if threshold crossed."""
     try:
-        tracker = _get_qe_tracker_path()
-        data = {}
-        try:
-            data = json.loads(tracker.read_text())
-        except (FileNotFoundError, json.JSONDecodeError, ValueError):
-            pass
+        from _session import SessionState
+        state = SessionState.load()
+        # stale_files already includes this file (added by _mark_file_stale above)
+        stale = state.stale_files or []
+        unique_count = len(stale)
 
-        files = set(data.get("files", []))
-        nudged = data.get("nudged", False)
-        files.add(file_path)
-        unique_count = len(files)
-
-        if unique_count >= _QE_CHANGE_THRESHOLD and not nudged:
-            short_paths = [Path(f).name for f in sorted(files)]
-            # Write with nudged=True so we don't repeat
-            tracker.write_text(json.dumps({"files": sorted(files), "nudged": True}))
+        if unique_count >= _QE_CHANGE_THRESHOLD and not state.qe_nudged:
+            short_paths = [Path(f).name for f in sorted(stale)]
+            state.update(qe_nudged=True)
             return (
                 f"[QE] {unique_count} files changed this session "
                 f"({', '.join(short_paths[:5])}). "
                 "Consider running tests or verifying imports before continuing."
             )
-        else:
-            tracker.write_text(json.dumps({"files": sorted(files), "nudged": nudged}))
-            return None
+        return None
     except Exception:
         return None
 
@@ -427,118 +381,48 @@ _FAILURE_THRESHOLD_DEFAULT = 3
 _MISMATCH_SIGNALS = [
     "failed", "not working", "broken", "error", "couldn't", "unable", "blocked"
 ]
-_SESSION_DIR_MAX_AGE_HOURS = 48
-
-
-def _load_failure_counts(sdir: Path) -> dict:
-    counts_file = sdir / "failure_counts.json"
-    try:
-        data = json.loads(counts_file.read_text())
-        if "counts" not in data:
-            data["counts"] = {}
-        return data
-    except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
-        return {"counts": {}, "last_updated": _now_iso()}
-
-
-def _save_failure_counts(sdir: Path, data: dict) -> None:
-    data["last_updated"] = _now_iso()
-    counts_file = sdir / "failure_counts.json"
-    counts_file.write_text(json.dumps(data, indent=2))
-
-
-def _prune_stale_sessions(parent_dir: Path, flag_file: Path) -> None:
-    """Delete session dirs whose failure_counts.json is older than 48h."""
-    if flag_file.exists():
-        return
-    try:
-        flag_file.write_text(_now_iso())
-    except OSError:
-        return
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=_SESSION_DIR_MAX_AGE_HOURS)
-    try:
-        for entry in parent_dir.iterdir():
-            if not entry.is_dir():
-                continue
-            counts_file = entry / "failure_counts.json"
-            try:
-                data = json.loads(counts_file.read_text())
-                last_str = data.get("last_updated", "")
-                last = datetime.fromisoformat(last_str)
-                if last.tzinfo is None:
-                    last = last.replace(tzinfo=timezone.utc)
-                if last < cutoff:
-                    for child in entry.iterdir():
-                        try:
-                            child.unlink()
-                        except OSError:
-                            pass
-                    try:
-                        entry.rmdir()
-                    except OSError:
-                        pass
-            except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
-                continue
-    except OSError:
-        pass
 
 
 def _handle_failure(payload: dict) -> dict:
-    """PostToolUseFailure: count failures, queue issue at threshold."""
+    """PostToolUseFailure: count failures via SessionState, queue issue at threshold."""
     tool_name = payload.get("tool_name", "unknown")
     tool_error = payload.get("tool_error", "") or payload.get("tool_use_error", "")
-
-    sdir = _session_dir("wicked-issue-reporter")
-    parent = sdir.parent
-
-    # Prune stale sessions once per session
-    try:
-        _prune_stale_sessions(parent, sdir / ".pruned")
-    except Exception:
-        pass
 
     try:
         threshold = int(os.environ.get("WICKED_ISSUE_THRESHOLD", str(_FAILURE_THRESHOLD_DEFAULT)))
     except (ValueError, TypeError):
         threshold = _FAILURE_THRESHOLD_DEFAULT
 
-    counts_data = _load_failure_counts(sdir)
-    counts = counts_data["counts"]
-    counts[tool_name] = counts.get(tool_name, 0) + 1
-    current_count = counts[tool_name]
-
     try:
-        _save_failure_counts(sdir, counts_data)
-    except OSError:
+        from _session import SessionState
+        state = SessionState.load()
+        counts = state.failure_counts or {}
+        counts[tool_name] = counts.get(tool_name, 0) + 1
+        current_count = counts[tool_name]
+        state.update(failure_counts=counts)
+
+        if current_count >= threshold:
+            record = {
+                "type": "tool_failure",
+                "tool": tool_name,
+                "count": current_count,
+                "last_error": str(tool_error)[:500],
+                "session_id": _get_session_id(),
+                "ts": _now_iso(),
+            }
+            pending = state.pending_issues or []
+            pending.append(record)
+            counts[tool_name] = 0
+            state.update(failure_counts=counts, pending_issues=pending)
+
+            return {
+                "continue": True,
+                "systemMessage": (
+                    f"[Issue Reporter] {current_count} {tool_name} failures — issue queued."
+                ),
+            }
+    except Exception:
         pass
-
-    if current_count >= threshold:
-        record = {
-            "type": "tool_failure",
-            "tool": tool_name,
-            "count": current_count,
-            "last_error": str(tool_error)[:500],
-            "session_id": _get_session_id(),
-            "ts": _now_iso(),
-        }
-        try:
-            _append_jsonl(sdir / "pending_issues.jsonl", record)
-        except OSError:
-            pass
-
-        # Reset so next cycle starts fresh
-        counts[tool_name] = 0
-        try:
-            _save_failure_counts(sdir, counts_data)
-        except OSError:
-            pass
-
-        return {
-            "continue": True,
-            "systemMessage": (
-                f"[Issue Reporter] {current_count} {tool_name} failures — issue queued."
-            ),
-        }
 
     return {"continue": True}
 
@@ -565,9 +449,12 @@ def _handle_task_update_mismatch(tool_input: dict) -> dict:
             "ts": _now_iso(),
         }
         try:
-            sdir = _session_dir("wicked-issue-reporter")
-            _append_jsonl(sdir / "mismatches.jsonl", record)
-        except OSError:
+            from _session import SessionState
+            state = SessionState.load()
+            pending = state.pending_issues or []
+            pending.append(record)
+            state.update(pending_issues=pending)
+        except Exception:
             pass
 
     return {"continue": True}
@@ -578,25 +465,25 @@ def _handle_task_update_mismatch(tool_input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def _write_trace(payload: dict) -> None:
-    """Write a JSONL trace entry for observability. Anti-recursion guarded."""
+    """Write a trace entry via StorageManager. Anti-recursion guarded."""
     if os.environ.get("WICKED_TRACE_ACTIVE"):
         return
     try:
-        traces_dir = Path.home() / ".something-wicked" / "wicked-garden" / "traces"
-        traces_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["WICKED_TRACE_ACTIVE"] = "1"
+        from _storage import StorageManager
+        sm = StorageManager("wicked-observability", hook_mode=True)
         session_id = _get_session_id()
-        trace_file = traces_dir / f"session-{session_id}.jsonl"
-
         tool_name = payload.get("tool_name", "")
-        record = {
+        sm.create("traces", {
             "ts": _now_iso(),
             "session_id": session_id,
             "tool": tool_name,
             "event": payload.get("hook_event_name", "PostToolUse"),
-        }
-        _append_jsonl(trace_file, record)
+        })
     except Exception:
         pass
+    finally:
+        os.environ.pop("WICKED_TRACE_ACTIVE", None)
 
 
 # ---------------------------------------------------------------------------

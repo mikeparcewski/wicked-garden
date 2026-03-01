@@ -11,7 +11,12 @@ Interactive setup wizard for connecting to the wicked-control-plane backend.
 
 ### 1. Check Current State
 
-Read `~/.something-wicked/wicked-garden/config.json` if it exists. If `setup_complete` is true, inform the user that setup is already complete and ask if they want to reconfigure.
+Resolve the wicked-garden config path:
+```bash
+WG_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden)
+```
+
+Read `${WG_ROOT}/../config.json` if it exists. If `setup_complete` is true, inform the user that setup is already complete and ask if they want to reconfigure.
 
 ### 2. Ask Connection Type
 
@@ -135,10 +140,10 @@ Show the user where their data will be stored:
 ```markdown
 ### Offline Storage
 
-All data is stored locally:
-- **Storage root**: `~/.something-wicked/wicked-garden/local/`
-- **Sync queue**: `~/.something-wicked/wicked-garden/local/_queue.jsonl` (operations pending sync)
-- **Failed replays**: `~/.something-wicked/wicked-garden/local/_queue_failed.jsonl`
+All data is stored locally (paths resolved by StorageManager):
+- **Storage root**: Resolved by `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden`
+- **Sync queue**: `{storage_root}/_queue.jsonl` (operations pending sync)
+- **Failed replays**: `{storage_root}/_queue_failed.jsonl`
 
 Data is organized by domain (crew, kanban, mem, etc.) under the storage root.
 When you connect to a control plane later, queued operations will sync automatically.

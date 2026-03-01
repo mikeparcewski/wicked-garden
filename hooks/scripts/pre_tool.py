@@ -56,52 +56,31 @@ def _deny(reason: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _find_active_crew_project():
-    """Return (project_name, kanban_initiative_name) for most recently modified active project."""
-    projects_dir = Path.home() / ".something-wicked" / "wicked-crew" / "projects"
-    if not projects_dir.exists():
-        return None, None
+    """Return (project_data_dict, project_name, kanban_initiative_name).
 
-    # Prefer project.json (has kanban fields)
-    for pf in sorted(
-        projects_dir.glob("*/project.json"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    ):
-        try:
-            data = json.loads(pf.read_text())
-            if data.get("archived"):
+    Uses StorageManager exclusively — SM handles CP-first with local fallback.
+    """
+    try:
+        from _storage import StorageManager
+        sm = StorageManager("wicked-crew", hook_mode=True)
+        projects = sm.list("projects") or []
+        for p in sorted(projects, key=lambda x: x.get("updated_at", x.get("created_at", "")), reverse=True):
+            if p.get("archived"):
                 continue
-            phase = data.get("current_phase", "")
-            if phase and phase != "complete":
-                name = data.get("name") or pf.parent.name
-                initiative = data.get("kanban_initiative") or name
-                return name, initiative
-        except (json.JSONDecodeError, OSError):
-            continue
+            phase = p.get("current_phase", "")
+            if phase and phase not in ("complete", "done", ""):
+                name = p.get("name", "")
+                initiative = p.get("kanban_initiative") or name
+                return p, name, initiative
+    except Exception:
+        pass
 
-    # Fallback: project.md frontmatter
-    for pf in sorted(
-        projects_dir.glob("*/project.md"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    ):
-        try:
-            content = pf.read_text()
-            if "status: active" in content.lower():
-                for line in content.split("\n"):
-                    if line.startswith("name:"):
-                        name = line.split(":", 1)[1].strip()
-                        if name:
-                            return name, name
-        except OSError:
-            continue
-
-    return None, None
+    return None, None, None
 
 
 def _handle_task_create(tool_input: dict) -> str:
     """Inject crew initiative metadata into TaskCreate input."""
-    project_name, initiative_name = _find_active_crew_project()
+    _data, project_name, initiative_name = _find_active_crew_project()
 
     if project_name:
         metadata = tool_input.get("metadata") or {}
@@ -110,17 +89,17 @@ def _handle_task_create(tool_input: dict) -> str:
             tool_input["metadata"] = metadata
         return _allow(updated_input=tool_input)
 
-    # No active project — show one-time suggestion
-    flag = Path.home() / ".something-wicked" / "wicked-crew" / ".task_suggest_shown"
-    if not flag.exists():
-        try:
-            flag.parent.mkdir(parents=True, exist_ok=True)
-            flag.touch()
-        except OSError:
-            pass
-        return _allow(
-            system_message="Creating tasks? Consider `/wicked-garden:crew:start` for quality gates."
-        )
+    # No active project — show one-time suggestion via SessionState
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        if not state.task_suggest_shown:
+            state.update(task_suggest_shown=True)
+            return _allow(
+                system_message="Creating tasks? Consider `/wicked-garden:crew:start` for quality gates."
+            )
+    except Exception:
+        pass
 
     return _allow()
 
@@ -137,29 +116,10 @@ def _handle_enter_plan_mode(tool_input: dict) -> str:
     the user to run the gate command first. Non-blocking — always allows.
     """
     try:
-        project_name, _ = _find_active_crew_project()
-        if not project_name:
+        data, project_name, _ = _find_active_crew_project()
+        if not project_name or not data:
             return _allow()
 
-        projects_dir = Path.home() / ".something-wicked" / "wicked-crew" / "projects"
-        project_file = None
-        for pf in sorted(
-            projects_dir.glob("*/project.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        ):
-            try:
-                data = json.loads(pf.read_text())
-                if data.get("name") == project_name and not data.get("archived"):
-                    project_file = pf
-                    break
-            except (json.JSONDecodeError, OSError):
-                continue
-
-        if not project_file:
-            return _allow()
-
-        data = json.loads(project_file.read_text())
         current_phase = data.get("current_phase", "")
         gate_required = data.get("gate_required", False)
 

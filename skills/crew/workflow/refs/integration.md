@@ -66,7 +66,7 @@ TaskGet(taskId="{id}")
 /wicked-garden:mem:store --type episodic --tags "{project}" "Encountered {issue}, resolved by {solution}"
 ```
 
-**Fallback**: Project files in `~/.something-wicked/wicked-garden/local/wicked-crew/projects/`
+**Fallback**: Project files stored locally via StorageManager under the wicked-crew domain
 
 ### Memory Types for Projects
 
@@ -96,7 +96,7 @@ For optional utility plugins (wicked-mem), use graceful degradation:
 
 ## Configuration
 
-Users can customize utility plugin usage in `~/.something-wicked/wicked-garden/local/wicked-crew/config.yaml`:
+Users can customize utility plugin usage in the wicked-crew local storage `config.yaml`:
 
 ```yaml
 utilities:
