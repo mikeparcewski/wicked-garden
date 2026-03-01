@@ -227,7 +227,7 @@ if manifest:
 "
 ```
 
-**Important**: Only smoke-test GET-safe verbs (list, get, stats). Do NOT send GET requests to POST-only verbs (create, search, traverse) — they will return 405/400 false failures.
+**Important**: Only smoke-test GET-safe verbs (list, get, stats). Do NOT send mutating requests to write verbs (create, update, delete) — they modify data. Other GET verbs (search, traverse) are excluded from the allowlist to keep the smoke test minimal and fast.
 
 ### 10. Graceful Degradation
 
