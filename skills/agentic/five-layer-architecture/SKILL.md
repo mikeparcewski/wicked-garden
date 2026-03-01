@@ -110,5 +110,7 @@ Safety, compliance, and audit.
 
 ## References
 
-- `refs/layers-deep-dive.md` - Detailed responsibilities, components, and anti-patterns per layer
+- `refs/layers-cognition-context.md` - Layer 1 (Cognition) and Layer 2 (Context) with implementation patterns
+- `refs/layers-interaction-runtime.md` - Layer 3 (Interaction) and Layer 4 (Runtime) with implementation patterns
+- `refs/layers-governance-integration.md` - Layer 5 (Governance) and cross-layer integration example
 - `refs/implementation-guide.md` - Step-by-step guide to building each layer
