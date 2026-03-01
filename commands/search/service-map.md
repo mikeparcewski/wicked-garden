@@ -16,7 +16,7 @@ Detect services and their connections from infrastructure configuration files (d
 
 ## Instructions
 
-1. Run the service detector (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the service detector (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python service_detector.py /path/to/project --db /path/to/graph.db --format table
    ```

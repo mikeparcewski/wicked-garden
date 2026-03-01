@@ -13,7 +13,7 @@ Search documents only (PDF, Office docs, markdown).
 
 ## Instructions
 
-1. Run the doc search (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the doc search (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py docs "<query>"
    ```

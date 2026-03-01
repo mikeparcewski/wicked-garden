@@ -1,4 +1,5 @@
 ---
+name: feedback-analyst
 description: |
   Feedback analysis specialist for sentiment, themes, and trends.
 
@@ -38,6 +39,7 @@ description: |
 
   Use when: sentiment analysis, feedback themes, customer trends
 model: sonnet
+color: blue
 ---
 
 # Feedback Analyst

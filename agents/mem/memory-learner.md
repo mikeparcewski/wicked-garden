@@ -1,4 +1,5 @@
 ---
+name: memory-learner
 description: |
   Extract and structure learnings from completed tasks.
 
@@ -32,6 +33,7 @@ description: |
   </example>
 
 model: haiku
+color: green
 ---
 
 # Memory Learner

@@ -30,7 +30,7 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
    /wicked-garden:search:index /path/to/project
    ```
 
-2. Run the quality crew (see `skills/unified-search/references/script-runner.md` for runner details):
+2. Run the quality crew (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python index_quality_crew.py --db /path/to/graph.db --project /path/to/project
    ```

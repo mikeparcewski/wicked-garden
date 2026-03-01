@@ -1,4 +1,5 @@
 ---
+name: memory-archivist
 description: |
   Maintain memory health - decay, archive, and cleanup operations.
 
@@ -32,6 +33,7 @@ description: |
   </example>
 
 model: haiku
+color: purple
 ---
 
 # Memory Archivist
