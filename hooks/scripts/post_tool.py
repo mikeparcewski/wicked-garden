@@ -487,6 +487,40 @@ def _write_trace(payload: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# CP error surfacing (checks SessionState for errors recorded by _control_plane.py)
+# ---------------------------------------------------------------------------
+
+def _check_cp_errors() -> str | None:
+    """Check for new CP errors and return a systemMessage if any."""
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        errors = state.cp_errors or []
+        if not errors:
+            return None
+
+        # Consume errors (clear after reading)
+        state.update(cp_errors=[])
+
+        # Group by domain/source (extract from URL)
+        grouped = {}
+        for err in errors:
+            parts = err["url"].split("/data/")[-1].split("/") if "/data/" in err["url"] else []
+            key = f"{parts[0]}/{parts[1]}" if len(parts) >= 2 else err["url"]
+            grouped.setdefault(key, []).append(err)
+
+        lines = [f"[CP Error] {len(errors)} control plane error(s) detected:"]
+        for key, errs in grouped.items():
+            codes = set(e["code"] for e in errs)
+            lines.append(f"  - {key}: HTTP {'/'.join(str(c) for c in sorted(codes))} ({len(errs)}x)")
+        lines.append("Read .claude/skills/cp-error-detector/SKILL.md for diagnosis steps.")
+
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Main dispatcher
 # ---------------------------------------------------------------------------
 
@@ -511,11 +545,8 @@ def main():
         # PostToolUseFailure path
         if has_error:
             result = _handle_failure(payload)
-            print(json.dumps(result))
-            return
-
         # Task-management tools
-        if tool_name in ("TaskCreate", "TaskUpdate", "TodoWrite"):
+        elif tool_name in ("TaskCreate", "TaskUpdate", "TodoWrite"):
             messages = []
 
             task_result = _handle_task_tools(tool_name, tool_input)
@@ -529,36 +560,30 @@ def main():
             result = {"continue": True}
             if messages:
                 result["systemMessage"] = "\n".join(messages)
-            print(json.dumps(result))
-            return
-
         # Write / Edit tools (async — quick operations only)
-        if tool_name in ("Write", "Edit"):
+        elif tool_name in ("Write", "Edit"):
             result = _handle_write_edit(tool_input)
-            print(json.dumps(result))
-            return
-
         # Task (subagent dispatch)
-        if tool_name == "Task":
+        elif tool_name == "Task":
             result = _handle_task_dispatch(tool_input)
-            print(json.dumps(result))
-            return
-
         # Read (framework detection)
-        if tool_name == "Read":
+        elif tool_name == "Read":
             result = _handle_read(tool_input)
-            print(json.dumps(result))
-            return
-
         # Bash (activity tracking)
-        if tool_name == "Bash":
+        elif tool_name == "Bash":
             tool_response = payload.get("tool_response", {})
             result = _handle_bash(tool_input, tool_response)
-            print(json.dumps(result))
-            return
-
         # All other tools — pass through
-        print(json.dumps({"continue": True}))
+        else:
+            result = {"continue": True}
+
+        # --- CP error surfacing (runs after every handler) ---
+        cp_msg = _check_cp_errors()
+        if cp_msg:
+            existing = result.get("systemMessage", "")
+            result["systemMessage"] = f"{existing}\n\n{cp_msg}" if existing else cp_msg
+
+        print(json.dumps(result))
 
     except Exception as e:
         print(f"[wicked-garden] post_tool error: {e}", file=sys.stderr)

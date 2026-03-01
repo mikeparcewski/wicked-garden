@@ -82,6 +82,38 @@ def _check_session_outcome() -> list:
 
 
 # ---------------------------------------------------------------------------
+# Step 1b: CP error summary
+# ---------------------------------------------------------------------------
+
+def _analyze_cp_errors() -> list:
+    """Return summary messages if CP errors occurred this session."""
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        errors = state.cp_errors or []
+        if not errors:
+            return []
+
+        # Count unique domain/source combos
+        sources = set()
+        for err in errors:
+            parts = err.get("url", "").split("/data/")[-1].split("/") if "/data/" in err.get("url", "") else []
+            if len(parts) >= 2:
+                sources.add(f"{parts[0]}/{parts[1]}")
+
+        if sources:
+            return [
+                f"[CP Errors] {len(errors)} CP error(s) across {len(sources)} source(s) this session. "
+                f"Sources: {', '.join(sorted(sources))}. "
+                "Run the session analyzer to file issues: "
+                "python3 .claude/skills/cp-session-analyzer/scripts/analyze_session.py <transcript_path> --auto-file"
+            ]
+        return []
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Step 2 & 3: Memory flush reminder + decay
 # ---------------------------------------------------------------------------
 
@@ -216,6 +248,10 @@ def main():
     # 1. Session outcome check
     outcome_messages = _check_session_outcome()
     all_messages.extend(outcome_messages)
+
+    # 1b. CP error summary
+    cp_messages = _analyze_cp_errors()
+    all_messages.extend(cp_messages)
 
     # 3. Memory decay
     decay_messages = _run_memory_decay()

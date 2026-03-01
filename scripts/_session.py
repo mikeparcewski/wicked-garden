@@ -118,6 +118,9 @@ class SessionState:
     # Queued issue records (pending_issues + mismatches)
     pending_issues: list | None = None
 
+    # CP errors recorded by _control_plane.py for hook surfacing
+    cp_errors: list | None = None
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
