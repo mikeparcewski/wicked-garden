@@ -114,22 +114,6 @@ Works with:
 | Build | A11y + UI consistency | A11y Expert + UI Reviewer |
 | Review | Comprehensive review | All experts |
 
-## When to Use
-
-**Use wicked-product when:**
-- Designing user-facing features
-- Implementing UI components
-- Need accessibility compliance
-- Want to validate user needs
-- Reviewing visual design
-- Auditing existing interfaces
-
-**Skip wicked-product when:**
-- Pure backend/API work
-- Infrastructure changes
-- No user interaction
-- Internal tooling (unless specifically requested)
-
 ## Quick Checks
 
 For fast feedback:

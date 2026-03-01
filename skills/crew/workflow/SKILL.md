@@ -38,18 +38,18 @@ Each phase has: Clear deliverables, specialist engagement based on signals, appr
 
 | Signal | Keywords | Specialists |
 |--------|----------|-------------|
-| Security | auth, encrypt, token, jwt | devsecops, compliance |
-| Performance | scale, optimize, cache | appeng, qe |
-| Product | user, feature, story | product, strategy |
-| Compliance | SOC2, HIPAA, audit | compliance |
+| Security | auth, encrypt, token, jwt | platform, compliance |
+| Performance | scale, optimize, cache | engineering, qe |
+| Product | user, feature, story | product |
+| Compliance | SOC2, HIPAA, audit | platform |
 | Ambiguity | maybe, should we, options | jam |
-| Complexity | integration, migrate, refactor | pmo, arch |
+| Complexity | integration, migrate, refactor | delivery, engineering |
 
 ### Complexity Scoring (0-7)
 
 - 0-2: Simple → Built-in agents only
 - 3-4: Moderate → Core specialists
-- 5-7: Complex → All relevant + PMO
+- 5-7: Complex → All relevant + delivery
 
 ## Specialist Engagement
 
@@ -62,9 +62,9 @@ Crew discovers specialists via `specialist.json` in each plugin.
 | Specialist | Fallback |
 |------------|----------|
 | jam | facilitator |
-| qe, strategy | reviewer |
-| arch | researcher |
-| appeng, devsecops | implementer |
+| qe, product | reviewer |
+| engineering (arch) | researcher |
+| engineering, platform | implementer |
 
 ## Phase Details
 
@@ -76,22 +76,22 @@ Crew discovers specialists via `specialist.json` in each plugin.
 ### Design
 **Goal**: Architect the solution
 **Deliverables**: Architecture docs, pattern identification, technical approach
-**Specialists**: strategy, arch, appeng
+**Specialists**: product, engineering
 
 ### QE (Quality Engineering)
 **Goal**: Define test strategy before building
 **Deliverables**: Test scenarios, risk assessment, edge cases
-**Specialists**: qe, devsecops (if security signals)
+**Specialists**: qe, platform (if security signals)
 
 ### Build
 **Goal**: Implement the solution
 **Deliverables**: Working implementation, progress tracking, tests passing
-**Specialists**: appeng, devsecops (if infra)
+**Specialists**: engineering, platform (if infra)
 
 ### Review
 **Goal**: Multi-perspective validation
 **Deliverables**: Review findings, recommendations, sign-off
-**Specialists**: strategy, qe, compliance (if regulated)
+**Specialists**: product, qe, platform (if regulated)
 
 ## Project Lifecycle
 

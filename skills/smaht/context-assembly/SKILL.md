@@ -1,19 +1,16 @@
 ---
 name: context-assembly
-description: Intelligent context gathering from wicked-garden sources. Use when resuming projects, researching background, or needing decisions and brainstorms from mem, jam, kanban, search, and crew.
+description: |
+  Intelligent context gathering from wicked-garden sources.
+  Assembles relevant context from mem, jam, kanban, search, and crew before responding.
+
+  Use when: "context briefing", "gather background", "what do we know about",
+  "resume where we left off", "catch me up", "what happened before"
 ---
 
 # Context Assembly
 
 Gather relevant context before responding using wicked-smaht v2's tiered hybrid architecture.
-
-## When to Use
-
-Use context assembly when:
-- Starting work on a complex topic
-- Resuming a previous conversation or project
-- Needing background on decisions, brainstorms, or code
-- Switching between projects or phases
 
 ## Quick Reference
 

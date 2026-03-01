@@ -130,15 +130,6 @@ Avoid these combinations:
 - **Autonomous + Tight Coordination:** Defeats the purpose of autonomy
 - **Deep Hierarchies + Reflection:** Exponential token cost
 
-## When to Use
-
-Trigger phrases indicating you need this skill:
-- "How should I structure my multi-agent system?"
-- "What architecture pattern fits my use case?"
-- "Why is my agent system slow/buggy/expensive?"
-- "Should agents work independently or together?"
-- "How do I coordinate multiple agents?"
-
 ## Quick Start
 
 1. Identify if task is decomposable (subtasks?) or atomic

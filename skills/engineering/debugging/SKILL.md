@@ -10,14 +10,6 @@ description: |
 
 Systematic debugging, root cause analysis, and error investigation.
 
-## When to Use
-
-- Investigating errors or bugs
-- Diagnosing unexpected behavior
-- Performance issues
-- Production incidents
-- User says "debug", "error", "why is this broken", "not working"
-
 ## Debugging Approach
 
 ### 1. Understand the Problem
