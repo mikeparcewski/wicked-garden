@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 """
 _storage.py — StorageManager: unified interface for data operations.
 
@@ -34,6 +33,7 @@ Usage:
     from _storage import get_local_path
     cache_dir = get_local_path("wicked-smaht", "cache", "context7")
 """
+from __future__ import annotations
 
 import json
 import os
