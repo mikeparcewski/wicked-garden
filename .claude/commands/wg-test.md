@@ -39,6 +39,42 @@ fi
 
 If `SKIP_PLUGIN_MARKETPLACE=true`, warn the user and ask whether to continue (results will be unreliable) or abort. Use AskUserQuestion with options: "Abort — fix environment first" and "Continue anyway (expect failures)".
 
+Also check whether the control plane is running — many scenarios depend on it for storage, memory, and kanban operations:
+
+```bash
+# Probe control plane health
+CP_HEALTH=$(curl -s --connect-timeout 2 http://localhost:18889/health 2>/dev/null)
+if echo "$CP_HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null | grep -qE "^(ok|healthy)$"; then
+  CP_VERSION=$(echo "$CP_HEALTH" | python3 -c "import sys,json; print(json.load(sys.stdin).get('version','unknown'))" 2>/dev/null)
+  echo "CP_STATUS=healthy (v${CP_VERSION})"
+else
+  echo "CP_STATUS=unreachable"
+fi
+```
+
+If the control plane is unreachable:
+
+1. **Attempt auto-start** (if `~/Projects/wicked-viewer` exists):
+   ```bash
+   VIEWER_PATH="${HOME}/Projects/wicked-viewer"
+   if [ -d "${VIEWER_PATH}" ] && [ -f "${VIEWER_PATH}/package.json" ]; then
+     echo "Starting control plane from ${VIEWER_PATH}..."
+     cd "${VIEWER_PATH}" && PORT=18889 pnpm run dev &
+     # Poll for up to 8 seconds
+     for i in $(seq 1 16); do
+       sleep 0.5
+       if curl -s --connect-timeout 1 http://localhost:18889/health 2>/dev/null | python3 -c "import sys,json; sys.exit(0 if json.load(sys.stdin).get('status') in ('ok','healthy') else 1)" 2>/dev/null; then
+         echo "CP_STATUS=healthy (auto-started)"
+         break
+       fi
+     done
+   fi
+   ```
+
+2. **If still unreachable after auto-start attempt**, warn the user and ask whether to continue:
+   - Scenarios that use `/wicked-garden:mem:store`, `/wicked-garden:kanban:*`, or crew workflows will have **degraded results** (silent failures, empty recalls, local-only storage)
+   - Use AskUserQuestion with options: "Continue without CP (expect degraded results)" and "Abort — start CP first (`cd ~/Projects/wicked-viewer && PORT=18889 pnpm run dev`)"
+
 Also check whether the plugin runtime actually loaded:
 
 ```bash
@@ -227,10 +263,12 @@ for each scenario in current_batch:
 ```
 for each scenario in current_batch:
   Task(
-    subagent_type="wicked-garden:scenarios:scenario-runner",
+    subagent_type="wicked-garden:scenarios:scenario-executor",
     prompt="Execute scenario: {scenario_path}. Return structured results."
   )
 ```
+
+> **Note**: Use `scenario-executor` (not `scenario-runner`) — it has Skill tool access and can invoke slash commands. Fall back to `scenario-runner` only if `scenario-executor` is unavailable.
 
 **Debug log per batch** (if --debug):
 Each batch debug log captures:
