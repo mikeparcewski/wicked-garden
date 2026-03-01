@@ -74,7 +74,7 @@ Comprehensive guide to agentic frameworks, their strengths, and how to choose th
 
 ## Framework Profiles
 
-See `refs/framework-details.md` for detailed profiles of top 6 frameworks.
+See `refs/framework-profiles-1.md` (ADK, LangGraph, CrewAI) and `refs/framework-profiles-2.md` (AutoGen, Pydantic AI, LlamaIndex) for detailed profiles.
 
 ### Anthropic Agent Developer Kit (ADK)
 **Best for:** Production Claude applications
@@ -190,5 +190,6 @@ Trigger phrases indicating you need this skill:
 
 ## References
 
-- `refs/framework-details.md` - Detailed profiles of top 6 frameworks
+- `refs/framework-profiles-1.md` - ADK, LangGraph, CrewAI detailed profiles
+- `refs/framework-profiles-2.md` - AutoGen, Pydantic AI, LlamaIndex profiles + comparison matrix
 - `refs/migration-patterns.md` - Common migration paths between frameworks
