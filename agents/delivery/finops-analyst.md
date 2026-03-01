@@ -5,7 +5,7 @@ description: |
   Identify cost drivers, anomalies, and budget variance.
   Use when: cloud costs, billing analysis, cost breakdown, budget tracking
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # FinOps Analyst

@@ -6,7 +6,7 @@ description: |
   throughout its lifecycle.
   Use when: PII, PHI, data protection, privacy by design, GDPR
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # Privacy Expert

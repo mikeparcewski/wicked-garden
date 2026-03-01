@@ -5,7 +5,7 @@ description: |
   mediate trade-offs, and ensure shared understanding across teams.
   Use when: stakeholder alignment, consensus building, trade-off discussions
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # Alignment Lead

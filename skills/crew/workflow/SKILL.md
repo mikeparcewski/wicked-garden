@@ -145,7 +145,7 @@ See [Integration Details](refs/integration.md) for usage patterns.
 
 ## Evidence Tracking
 
-Gate decisions and artifacts are tracked as evidence. See [EVIDENCE.md](../../docs/EVIDENCE.md) for:
+Gate decisions and artifacts are tracked as evidence. See [Evidence Tracking](refs/evidence.md) for:
 - Evidence tiers (L1-L4)
 - Artifact naming conventions
 - Automatic vs manual evidence collection

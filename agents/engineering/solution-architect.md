@@ -5,7 +5,7 @@ description: |
   Focus on high-level architecture that balances requirements, constraints, and maintainability.
   Use when: system design, architecture decisions, technology choices, high-level design
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Solution Architect

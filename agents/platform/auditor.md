@@ -6,7 +6,7 @@ description: |
   reports for certification audits.
   Use when: audit evidence, compliance artifacts, audit trails
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Auditor

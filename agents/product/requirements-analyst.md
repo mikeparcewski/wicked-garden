@@ -5,7 +5,7 @@ description: |
   clear user stories with testable acceptance criteria.
   Use when: user stories, requirements, acceptance criteria, specifications
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Requirements Analyst

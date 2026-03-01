@@ -5,7 +5,7 @@ description: |
   identify unique advantages, and guide positioning strategy for technical products.
   Use when: value proposition, differentiation, customer benefits
 model: sonnet
-color: purple
+color: magenta
 ---
 
 # Value Analyst

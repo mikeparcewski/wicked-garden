@@ -5,7 +5,7 @@ description: |
   test-first approach, and TDD best practices. Validates test quality.
   Use when: test-driven development, red-green-refactor, test-first approach
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # TDD Coach
