@@ -47,7 +47,7 @@ Periodically save state snapshots for recovery.
 **Pros:** Fault tolerance, replayability
 **Cons:** Storage overhead, consistency complexity
 
-See `refs/optimization-techniques.md` for implementation details.
+See `refs/compression-techniques.md` for implementation details.
 
 ## Token Optimization Techniques
 
@@ -70,7 +70,7 @@ Load details only when explicitly needed.
 ### 5. Reference Instead of Embedding
 Reference external documents instead of embedding full text.
 
-See `refs/optimization-techniques.md` for code examples and detailed strategies.
+See `refs/selective-loading.md` and `refs/caching-and-optimization.md` for code examples and detailed strategies.
 
 ## Memory Patterns
 
@@ -95,7 +95,7 @@ Specific past events/experiences.
 **Size:** Summaries stored
 **Retention:** Varies by importance
 
-See `refs/optimization-techniques.md` for implementation patterns.
+See `refs/compression-techniques.md` for implementation patterns.
 
 ## Prompt Engineering for Agents
 
@@ -121,7 +121,7 @@ Specify exact output format to reduce tokens.
 ### Few-Shot Examples
 Show examples for complex tasks.
 
-See `refs/optimization-techniques.md` for detailed prompting patterns.
+See `refs/selective-loading.md` for detailed prompting patterns.
 
 ## Context Loading Strategies
 
@@ -149,7 +149,7 @@ Set hard token limits per agent/session to prevent runaway costs.
 ### Multi-Agent Cost Attribution
 Track costs per agent to identify expensive components.
 
-See `refs/cost-models.md` for detailed cost calculation and budgeting strategies.
+See `refs/cost-calculation-budget.md` and `refs/cost-optimization-reporting.md` for detailed cost strategies.
 
 ## Context Window Strategies by Agent Pattern
 
@@ -171,5 +171,8 @@ See `refs/cost-models.md` for detailed cost calculation and budgeting strategies
 
 ## References
 
-- `refs/optimization-techniques.md` - Detailed optimization strategies with code examples
-- `refs/cost-models.md` - Token cost calculation and budgeting strategies
+- `refs/compression-techniques.md` - Conversation summarization, deduplication, entity compression
+- `refs/selective-loading.md` - Relevance filtering, time decay, token-budgeted retrieval
+- `refs/caching-and-optimization.md` - Prompt caching, semantic caching, batching, cost-aware model selection
+- `refs/cost-calculation-budget.md` - Token pricing, cost calculation, budget management
+- `refs/cost-optimization-reporting.md` - Cost estimation, optimization strategies, reporting
