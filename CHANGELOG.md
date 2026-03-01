@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0] - 2026-03-01
+
+### Features
+- feat: dynamic schema adaptation via manifest_detail() for unregistered sources (ae3b9f7)
+
+### Chores
+- Merge pull request #108 from mikeparcewski/feat/dynamic-schema-adaptation (db234ce)
+- release: wicked-garden v1.2.1 (213edad)
+
 ## [1.2.1] - 2026-03-01
 
 ### Bug Fixes
