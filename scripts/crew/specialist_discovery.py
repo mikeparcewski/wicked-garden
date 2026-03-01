@@ -154,8 +154,8 @@ def _parse_single_specialist(spec_data: dict, personas_data: list,
         personas=personas,
         enhances=enhances,
         plugin_path=specialist_json.parent.parent,
-        hooks_subscribes=hooks.get("subscribes", []) if isinstance(hooks.get("subscribes"), list) else [],
-        hooks_publishes=hooks.get("publishes", []) if isinstance(hooks.get("publishes"), list) else [],
+        hooks_subscribes=sub if isinstance(sub := hooks.get("subscribes", []), list) else [],
+        hooks_publishes=pub if isinstance(pub := hooks.get("publishes", []), list) else [],
         fallback_agent=fallback_agent
     )
 
