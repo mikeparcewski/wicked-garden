@@ -38,7 +38,7 @@ Read from voice data store or recent listen results:
 
 ```bash
 # Check for aggregated feedback
-ls ~/.something-wicked/voice/feedback/
+ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/
 ```
 
 If no data found, prompt user to run `/wicked-garden:product:listen` first.
@@ -47,7 +47,7 @@ If no data found, prompt user to run `/wicked-garden:product:listen` first.
 
 ```
 Task(
-  subagent_type="wicked-garden:product/feedback-analyst",
+  subagent_type="wicked-garden:product:feedback-analyst",
   prompt="""Analyze customer feedback for patterns and insights.
 
 ## Feedback Data

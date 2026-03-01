@@ -53,7 +53,7 @@ Based on the `--focus` flag, dispatch to the appropriate expert(s) in parallel. 
 **For roi focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product/business-strategist",
+  subagent_type="wicked-garden:product:business-strategist",
   prompt="""Calculate ROI for the following feature/initiative:
 
 {feature/initiative description}
@@ -80,7 +80,7 @@ Provide:
 **For value focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product/value-analyst",
+  subagent_type="wicked-garden:product:value-analyst",
   prompt="""Design value proposition for the following feature/initiative:
 
 {feature/initiative description}
@@ -107,7 +107,7 @@ Provide:
 **For market focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product/market-analyst",
+  subagent_type="wicked-garden:product:market-analyst",
   prompt="""Analyze market for the following feature/initiative:
 
 {feature/initiative description}
@@ -133,7 +133,7 @@ Provide:
 **For competitive focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product/competitive-analyst",
+  subagent_type="wicked-garden:product:competitive-analyst",
   prompt="""Assess competitive landscape for the following feature/initiative:
 
 {feature/initiative description}

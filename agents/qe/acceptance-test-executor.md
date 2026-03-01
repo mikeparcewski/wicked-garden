@@ -256,7 +256,7 @@ Evidence:
 ### For Bash Commands
 
 ```
-Action: Run bash command: `ls -la ~/.something-wicked/wicked-mem/`
+Action: Run bash command: `ls -la ~/.something-wicked/wicked-garden/local/wicked-mem/`
 Evidence:
   stdout: {stdout text}
   stderr: {stderr text}

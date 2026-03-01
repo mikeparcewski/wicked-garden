@@ -53,7 +53,7 @@ plugins/wicked-delivery/
 Reports and cache stored in:
 
 ```
-.something-wicked/wicked-delivery/
+.something-wicked/wicked-garden/local/wicked-delivery/
 ├── reports/
 │   ├── report-delivery-lead.md
 │   ├── report-engineering-lead.md
@@ -65,7 +65,7 @@ Reports and cache stored in:
 
 Cache stored via wicked-garden:mem
 ```
-.something-wicked/wicked-mem/namespaces/delivery/
+.something-wicked/wicked-garden/local/wicked-mem/namespaces/delivery/
 ├── index.json
 └── data/
     ├── analysis:{hash}:{persona}.json

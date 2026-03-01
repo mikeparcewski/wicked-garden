@@ -14,6 +14,6 @@ Natural workflow: `brainstorm → identify candidates → council → decide`
 Delegate to the council agent:
 
 ```
-Task(subagent_type="wicked-garden:jam/council",
+Task(subagent_type="wicked-garden:jam:council",
      prompt="Run a council evaluation on: {topic}. Options: {options}. Criteria: {criteria}.")
 ```

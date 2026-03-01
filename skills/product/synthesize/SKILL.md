@@ -88,7 +88,7 @@ See [refs/journey-mapping.md](refs/journey-mapping.md) for stage analysis.
 
 ## Synthesis Process
 
-1. Load theme and sentiment analysis from `~/.something-wicked/voice/analysis/`
+1. Load theme and sentiment analysis from `~/.something-wicked/wicked-garden/local/wicked-product/voice/analysis/`
 2. Sort themes by priority score, filter by threshold
 3. Generate recommendations: theme → action, score by impact/effort
 4. Map to customer journey stages, identify friction points

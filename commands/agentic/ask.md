@@ -26,7 +26,7 @@ Based on topic classification, spawn the relevant expert agent:
 
 #### Architecture Questions
 ```
-Task: wicked-garden:agentic/architect
+Task: wicked-garden:agentic:architect
 
 Question: {user_question}
 
@@ -47,7 +47,7 @@ Keep answer concise but thorough.
 
 #### Safety Questions
 ```
-Task: wicked-garden:agentic/safety-reviewer
+Task: wicked-garden:agentic:safety-reviewer
 
 Question: {user_question}
 
@@ -66,7 +66,7 @@ Provide actionable guidance.
 
 #### Performance Questions
 ```
-Task: wicked-garden:agentic/performance-analyst
+Task: wicked-garden:agentic:performance-analyst
 
 Question: {user_question}
 
@@ -85,7 +85,7 @@ Include quantitative estimates where possible.
 
 #### Framework Questions
 ```
-Task: wicked-garden:agentic/framework-researcher
+Task: wicked-garden:agentic:framework-researcher
 
 Question: {user_question}
 
@@ -104,7 +104,7 @@ Use WebSearch for latest information if needed.
 
 #### Pattern Questions
 ```
-Task: wicked-garden:agentic/pattern-advisor
+Task: wicked-garden:agentic:pattern-advisor
 
 Question: {user_question}
 

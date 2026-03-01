@@ -31,9 +31,11 @@ from pathlib import Path
 from typing import Optional, List
 from datetime import datetime
 
-# Add parent to path for imports
+# Add parent to path for imports, and scripts root for shared modules
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).parent))
 
+from _paths import get_local_file
 from generators import (
     ChangeSpec,
     ChangeType,
@@ -99,8 +101,8 @@ def get_default_db_path() -> Path:
         except Exception:
             pass
 
-    # Fallback: default conventional path
-    return Path.home() / ".something-wicked" / "wicked-search" / "unified_search.db"
+    # Fallback: default path via _paths (unified root with legacy fallback)
+    return get_local_file("wicked-search", "unified_search.db")
 
 
 def _assess_risk(plan: PropagationPlan, change_type: str = "") -> dict:

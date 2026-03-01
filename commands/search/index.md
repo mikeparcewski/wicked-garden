@@ -55,7 +55,7 @@ Build a unified index of code symbols and document content, with optional automa
 ## Notes
 
 - First run may install dependencies automatically
-- Index is stored at `~/.something-wicked/wicked-search/`
+- Index is stored at `~/.something-wicked/wicked-garden/local/wicked-search/`
 - Re-running only updates changed files (incremental indexing)
 - Document extraction uses kreuzberg (included as a core dependency)
 - The `--derive` options add computation time but enable richer queries

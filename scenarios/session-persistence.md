@@ -42,10 +42,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
 2. **Verify data is stored on disk**
    ```bash
    # Check the project file exists
-   ls ~/.something-wicked/wicked-kanban/projects/
+   ls ~/.something-wicked/wicked-garden/local/wicked-kanban/projects/
 
    # Verify project data
-   cat ~/.something-wicked/wicked-kanban/projects/PROJECT_ID/project.json | head -50
+   cat ~/.something-wicked/wicked-garden/local/wicked-kanban/projects/PROJECT_ID/project.json | head -50
    ```
    Should show the project with all three tasks.
 
@@ -117,4 +117,4 @@ This makes wicked-kanban essential for:
 - Project continuity (no lost context between sessions)
 - Onboarding (new team members see full work history)
 
-The file-based storage (~/.something-wicked/wicked-kanban/projects/) ensures data is durable and can even be version-controlled or backed up.
+The file-based storage (~/.something-wicked/wicked-garden/local/wicked-kanban/projects/) ensures data is durable and can even be version-controlled or backed up.

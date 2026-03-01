@@ -235,7 +235,7 @@ STEP-1: Store a decision memory
 - Action: Invoke Skill tool with skill="wicked-garden:mem:store", args="\"Use JWT tokens\" --type decision --tags auth"
 - Evidence required:
   - `step-1-output` — Capture the full tool response text
-  - `step-1-state` — Run `ls -la ~/.something-wicked/wicked-mem/memories/` and capture listing
+  - `step-1-state` — Run `ls -la ~/.something-wicked/wicked-garden/local/wicked-mem/memories/` and capture listing
 - Assertions:
   - `step-1-output` CONTAINS "stored" OR CONTAINS "saved" OR CONTAINS "created"
   - `step-1-output` NOT_CONTAINS "error"

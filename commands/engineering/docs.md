@@ -30,7 +30,7 @@ Read the code to document:
 For API documentation:
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/api-documentarian",
+    subagent_type="wicked-garden:engineering:api-documentarian",
     prompt="""Generate API documentation for this code.
 
 ## Code
@@ -52,7 +52,7 @@ API reference with examples, formatted in markdown.
 For other documentation:
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/technical-writer",
+    subagent_type="wicked-garden:engineering:technical-writer",
     prompt="""Generate {type} documentation for this code.
 
 ## Code

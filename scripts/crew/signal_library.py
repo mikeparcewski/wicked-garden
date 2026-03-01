@@ -7,8 +7,8 @@ to keyword-based detection. Falls back gracefully if ChromaDB is
 not installed.
 
 Storage:
-- Default signals: scripts/data/default_signals.jsonl
-- User signals: ~/.something-wicked/wicked-crew/signals/*.jsonl
+- Default signals: scripts/data/default_signals.jsonl (code-shipped)
+- User signals: StorageManager("wicked-crew").list/create("signals") (CP-first, local fallback)
 
 Usage:
   signal_library.py detect "project description text"
@@ -22,10 +22,13 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
+
 # Lazy-loaded module-level library instance
 _library_instance = None
 
-USER_SIGNALS_DIR = Path.home() / ".something-wicked" / "wicked-crew" / "signals"
+_sm = StorageManager("wicked-crew")
 DEFAULT_SIGNALS_PATH = Path(__file__).parent / "data" / "default_signals.jsonl"
 
 
@@ -92,10 +95,30 @@ class SignalLibrary:
         self._load_jsonl(DEFAULT_SIGNALS_PATH, source="default")
 
     def _load_user_libraries(self):
-        """Load from ~/.something-wicked/wicked-crew/signals/*.jsonl."""
-        if USER_SIGNALS_DIR.exists():
-            for jsonl_file in sorted(USER_SIGNALS_DIR.glob("*.jsonl")):
-                self._load_jsonl(jsonl_file, source=jsonl_file.stem)
+        """Load user signals from StorageManager (CP-first, local fallback)."""
+        try:
+            records = _sm.list("signals")
+            for i, entry in enumerate(records):
+                if not self._collection:
+                    break
+                text = entry.get("text", "")
+                category = entry.get("category", "")
+                if not text or not category:
+                    continue
+                source = entry.get("library", "user")
+                entry_id = f"{source}_{i}"
+                self._collection.add(
+                    documents=[text],
+                    metadatas=[{
+                        "category": category,
+                        "weight": entry.get("weight", 1.0),
+                        "source": source,
+                    }],
+                    ids=[entry_id],
+                )
+                self._entries.append({**entry, "source": source, "id": entry_id})
+        except Exception:
+            pass
 
     def detect(self, text: str, top_k: int = 5) -> Dict[str, float]:
         """Query semantic similarity per signal category.
@@ -155,19 +178,17 @@ def get_library() -> SignalLibrary:
 
 def save_user_signal(category: str, text: str, weight: float = 1.0,
                      library_name: str = "custom") -> str:
-    """Append a signal definition to a user library file."""
-    USER_SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
-    target = USER_SIGNALS_DIR / f"{library_name}.jsonl"
-
-    entry = {"category": category, "text": text, "weight": weight}
-    with open(target, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+    """Save a signal definition via StorageManager (CP-first, local fallback)."""
+    entry = {"category": category, "text": text, "weight": weight,
+             "library": library_name}
+    result = _sm.create("signals", entry)
 
     # Invalidate cached library instance so next detect() picks up new entry
     global _library_instance
     _library_instance = None
 
-    return str(target)
+    record_id = result.get("id", "unknown") if result else "failed"
+    return f"signals/{record_id}"
 
 
 def main():

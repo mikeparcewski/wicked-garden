@@ -9,9 +9,9 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Need | Capability Type | Options |
 |------|-----------------|---------|
 | PR context | MCP | github, gitlab |
-| Code quality | Agent | wicked-garden:engineering/senior-engineer |
-| Security check | Agent | wicked-garden:platform/security-engineer |
-| Test coverage | Agent | wicked-garden:qe/code-analyzer |
+| Code quality | Agent | wicked-garden:engineering:senior-engineer |
+| Security check | Agent | wicked-garden:platform:security-engineer |
+| Test coverage | Agent | wicked-garden:qe:code-analyzer |
 | Link to ticket | MCP | atlassian, linear |
 
 **Recommended flow**:
@@ -28,10 +28,10 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Security expertise | Agent | wicked-garden:platform/security-engineer |
-| Compliance check | Agent | wicked-garden:platform/compliance-officer |
+| Security expertise | Agent | wicked-garden:platform:security-engineer |
+| Compliance check | Agent | wicked-garden:platform:compliance-officer |
 | Privacy review | Agent | wicked-garden:platform:privacy-expert |
-| Test scenarios | Agent | wicked-garden:qe/test-strategist |
+| Test scenarios | Agent | wicked-garden:qe:test-strategist |
 | Store findings | Skill | wicked-mem |
 
 **Recommended flow**:
@@ -48,7 +48,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Solution design | Agent | wicked-garden:engineering/solution-architect |
+| Solution design | Agent | wicked-garden:engineering:solution-architect |
 | Data modeling | Agent | wicked-garden:data:data-architect |
 | Store decisions | Skill | wicked-mem |
 | Document design | Agent | wicked-garden:engineering:technical-writer |
@@ -69,7 +69,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 |------|-----------------|---------|
 | Debugging | Agent | wicked-garden:engineering:debugger |
 | Error tracking | MCP | sentry, datadog, rollbar |
-| Logs/traces | Agent | wicked-garden:platform/incident-responder |
+| Logs/traces | Agent | wicked-garden:platform:incident-responder |
 | Codebase exploration | Agent | Explore |
 | Track fix | MCP | atlassian, github issues |
 
@@ -87,10 +87,10 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Requirements clarity | Agent | wicked-garden:product/requirements-analyst |
-| Design guidance | Agent | wicked-garden:engineering/solution-architect |
-| Implementation | Agent | wicked-garden:engineering/senior-engineer |
-| Test strategy | Agent | wicked-garden:qe/test-strategist |
+| Requirements clarity | Agent | wicked-garden:product:requirements-analyst |
+| Design guidance | Agent | wicked-garden:engineering:solution-architect |
+| Implementation | Agent | wicked-garden:engineering:senior-engineer |
+| Test strategy | Agent | wicked-garden:qe:test-strategist |
 | Track progress | MCP/Skill | atlassian, wicked-kanban |
 
 **Recommended flow**:
@@ -125,10 +125,10 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Data exploration | Agent | wicked-garden:data/data-analyst |
+| Data exploration | Agent | wicked-garden:data:data-analyst |
 | Query execution | MCP | snowflake, bigquery, databricks |
 | Local file analysis | Skill | wicked-data |
-| Visualization guidance | Agent | wicked-garden:data/data-analyst |
+| Visualization guidance | Agent | wicked-garden:data:data-analyst |
 
 **Recommended flow**:
 1. Check for data warehouse MCP
@@ -144,9 +144,9 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Incident triage | Agent | wicked-garden:platform/incident-responder |
+| Incident triage | Agent | wicked-garden:platform:incident-responder |
 | Error context | MCP | sentry, datadog |
-| Log analysis | Agent | wicked-garden:platform/sre |
+| Log analysis | Agent | wicked-garden:platform:sre |
 | Communication | MCP | slack, teams |
 | Post-mortem | Skill | wicked-mem |
 
@@ -164,8 +164,8 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Test strategy | Agent | wicked-garden:qe/test-strategist |
-| Test generation | Agent | wicked-garden:qe/test-automation-engineer |
+| Test strategy | Agent | wicked-garden:qe:test-strategist |
+| Test generation | Agent | wicked-garden:qe:test-automation-engineer |
 | TDD guidance | Agent | wicked-garden:qe:tdd-coach |
 | Risk assessment | Agent | wicked-garden:qe:risk-assessor |
 

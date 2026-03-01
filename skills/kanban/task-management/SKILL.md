@@ -167,7 +167,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TA
 
 ## Data Storage
 
-Tasks are stored as JSON files in `~/.something-wicked/wicked-kanban/projects/`. Each project has its own file containing swimlanes, tasks, sprints, and metadata.
+Tasks are stored as JSON files in `~/.something-wicked/wicked-garden/local/wicked-kanban/projects/`. Each project has its own file containing swimlanes, tasks, sprints, and metadata.
 
 ## Additional Resources
 

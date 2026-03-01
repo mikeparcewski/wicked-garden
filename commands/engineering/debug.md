@@ -26,7 +26,7 @@ If user provides a stack trace, parse it for:
 
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/debugger",
+    subagent_type="wicked-garden:engineering:debugger",
     prompt="""Investigate this issue systematically.
 
 ## Problem

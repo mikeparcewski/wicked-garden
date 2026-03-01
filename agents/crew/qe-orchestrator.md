@@ -42,19 +42,19 @@ From explicit `--gate` argument or infer from context:
 
 **Value Gate**:
 ```
-Task(subagent_type="wicked-garden:crew/value-orchestrator",
+Task(subagent_type="wicked-garden:crew:value-orchestrator",
      prompt="Run Value Gate on {target}")
 ```
 
 **Strategy Gate** (inline - uses test-strategist + risk-assessor):
-1. Check wicked-garden:qe/test-strategist availability for testability review
+1. Check wicked-garden:qe:test-strategist availability for testability review
 2. Dispatch test-strategist for scenario generation
 3. Dispatch risk-assessor for risk matrix
 4. Consolidate findings
 
 **Execution Gate**:
 ```
-Task(subagent_type="wicked-garden:crew/execution-orchestrator",
+Task(subagent_type="wicked-garden:crew:execution-orchestrator",
      prompt="Run Execution Gate on {target}")
 ```
 

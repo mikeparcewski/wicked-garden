@@ -61,7 +61,7 @@ Conditions that must hold before test execution begins:
 - **Assert**: `pre-1-check` EXISTS
 
 ### PRE-2: Clean state
-- **Check**: `rm -rf ~/.something-wicked/wicked-mem/memories/ 2>/dev/null; echo "clean"`
+- **Check**: `rm -rf ~/.something-wicked/wicked-garden/local/wicked-mem/memories/ 2>/dev/null; echo "clean"`
 - **Evidence**: `pre-2-check` — command output
 - **Assert**: `pre-2-check` CONTAINS "clean"
 ```
@@ -225,7 +225,7 @@ No specification issues found.
 ## Prerequisites
 
 ### PRE-1: Clean memory state
-- **Check**: Run `rm -rf ~/.something-wicked/wicked-mem/memories/ 2>/dev/null; echo "clean"`
+- **Check**: Run `rm -rf ~/.something-wicked/wicked-garden/local/wicked-mem/memories/ 2>/dev/null; echo "clean"`
 - **Evidence**: `pre-1-check` — command output
 - **Assert**: `pre-1-check` CONTAINS "clean"
 
@@ -235,7 +235,7 @@ No specification issues found.
 - **Action**: Invoke Skill: wicked-garden:mem:store, args: "Use JWT for auth tokens" --type decision --tags "auth,security"
 - **Evidence required**:
   - `step-1-output` — Full Skill tool response text
-  - `step-1-state` — Run `ls ~/.something-wicked/wicked-mem/memories/*.json 2>/dev/null | wc -l`
+  - `step-1-state` — Run `ls ~/.something-wicked/wicked-garden/local/wicked-mem/memories/*.json 2>/dev/null | wc -l`
 - **Assertions**:
   - `step-1-output` CONTAINS "stored" OR CONTAINS "saved" OR CONTAINS "created"
   - `step-1-output` NOT_CONTAINS "error"

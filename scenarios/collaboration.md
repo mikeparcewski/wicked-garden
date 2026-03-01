@@ -32,8 +32,8 @@ Understand that wicked-kanban data is served by the Control Plane (CP) which all
 
 3. **Verify data is persisted to files**
    ```bash
-   ls ~/.something-wicked/wicked-kanban/projects/
-   cat ~/.something-wicked/wicked-kanban/projects/PROJECT_ID/project.json
+   ls ~/.something-wicked/wicked-garden/local/wicked-kanban/projects/
+   cat ~/.something-wicked/wicked-garden/local/wicked-kanban/projects/PROJECT_ID/project.json
    ```
    Should show the project and tasks in JSON format.
 
@@ -51,7 +51,7 @@ Understand that wicked-kanban data is served by the Control Plane (CP) which all
 
 6. **Verify activity log contains comment**
    ```bash
-   cat ~/.something-wicked/wicked-kanban/projects/PROJECT_ID/activity.jsonl | tail -5
+   cat ~/.something-wicked/wicked-garden/local/wicked-kanban/projects/PROJECT_ID/activity.jsonl | tail -5
    ```
    Should show the comment entry with Claude as author.
 

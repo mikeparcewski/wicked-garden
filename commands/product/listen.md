@@ -37,7 +37,7 @@ Check for feedback data in common locations:
 
 ```bash
 # Check for voice data store
-ls ~/.something-wicked/voice/feedback/ 2>/dev/null
+ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/ 2>/dev/null
 
 # Check for exported feedback files
 find . -name "*feedback*" -o -name "*survey*" -o -name "*tickets*" 2>/dev/null | head -10
@@ -50,7 +50,7 @@ gh issue list --label "customer-reported" 2>/dev/null | head -5
 
 ```
 Task(
-  subagent_type="wicked-garden:product/customer-advocate",
+  subagent_type="wicked-garden:product:customer-advocate",
   prompt="""Aggregate customer feedback from available sources.
 
 ## Sources Discovered
@@ -111,7 +111,7 @@ Run `/wicked-garden:product:analyze` to extract themes and trends.
 
 ## Storage
 
-Feedback stored at: `~/.something-wicked/voice/feedback/{source}/{YYYY-MM}/{id}.md`
+Feedback stored at: `~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/{source}/{YYYY-MM}/{id}.md`
 
 ## Integration
 

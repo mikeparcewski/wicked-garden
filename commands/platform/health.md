@@ -27,7 +27,7 @@ Look for:
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/sre",
+    subagent_type="wicked-garden:platform:sre",
     prompt="""Perform comprehensive system health assessment.
 
 Target: {service name or 'all'}

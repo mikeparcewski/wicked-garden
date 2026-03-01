@@ -200,7 +200,7 @@ Available Integrations:
   ✗ wicked-kanban - using TodoWrite
   ✗ wicked-mem - using file persistence
 
-Note: All project data stored in ~/.something-wicked/wicked-crew/
+Note: All project data stored in ~/.something-wicked/wicked-garden/local/wicked-crew/
 ```
 
 **Complete full workflow standalone**:
@@ -218,7 +218,7 @@ Note: All project data stored in ~/.something-wicked/wicked-crew/
 
 **Expected**:
 - All phases complete using inline alternatives
-- Files persist in `~/.something-wicked/wicked-crew/projects/`
+- Files persist in `~/.something-wicked/wicked-garden/local/wicked-crew/projects/`
 - State survives across commands (reads from file system)
 - No functionality loss, just different implementation paths
 

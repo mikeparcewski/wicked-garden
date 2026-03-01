@@ -59,7 +59,7 @@ cd ~/test-wicked-crew/multi-project/web-app
 /wicked-crew:start "Add dark mode toggle to React app"
 ```
 
-Note the project directory created: `~/.something-wicked/wicked-crew/projects/add-dark-mode-toggle/`
+Note the project directory created: `~/.something-wicked/wicked-garden/local/wicked-crew/projects/add-dark-mode-toggle/`
 
 ```bash
 # Start project 2 (different working directory)
@@ -67,7 +67,7 @@ cd ~/test-wicked-crew/multi-project/api-service
 /wicked-crew:start "Fix 500 error on /health endpoint when database is down"
 ```
 
-Note second project: `~/.something-wicked/wicked-crew/projects/fix-500-error-on-health/`
+Note second project: `~/.something-wicked/wicked-garden/local/wicked-crew/projects/fix-500-error-on-health/`
 
 ```bash
 # Start project 3 (different working directory)
@@ -75,7 +75,7 @@ cd ~/test-wicked-crew/multi-project/db-schema
 /wicked-crew:start "Add user roles and permissions to database schema"
 ```
 
-Note third project: `~/.something-wicked/wicked-crew/projects/add-user-roles-and-permissions/`
+Note third project: `~/.something-wicked/wicked-garden/local/wicked-crew/projects/add-user-roles-and-permissions/`
 
 ### 2. Work on Projects in Mixed Order
 
@@ -156,7 +156,7 @@ Expected: Still in clarify phase (unchanged)
 List all projects using the filesystem (no dedicated list command):
 
 ```bash
-ls -lt ~/.something-wicked/wicked-crew/projects/ | head -10
+ls -lt ~/.something-wicked/wicked-garden/local/wicked-crew/projects/ | head -10
 ```
 
 Then check each project status:
@@ -180,7 +180,7 @@ Then check each project status:
 
 ### Project Isolation
 - [ ] Three projects created with unique names/slugs
-- [ ] Each project has separate directory in `~/.something-wicked/wicked-crew/projects/`
+- [ ] Each project has separate directory in `~/.something-wicked/wicked-garden/local/wicked-crew/projects/`
 - [ ] Most recently modified project becomes the active project
 - [ ] No cross-contamination of deliverables between projects
 
@@ -201,7 +201,7 @@ Then check each project status:
 - [ ] Active projects continue normally after another completes
 
 ### Project Listing
-- [ ] All projects visible via filesystem listing of `~/.something-wicked/wicked-crew/projects/`
+- [ ] All projects visible via filesystem listing of `~/.something-wicked/wicked-garden/local/wicked-crew/projects/`
 - [ ] Status command shows current active project
 - [ ] Completed projects remain in project directory
 
@@ -220,7 +220,7 @@ The independent state management prevents common mistakes:
 - Approving the wrong phase because you forgot which project is active
 - Losing track of where each project stands
 
-Each project is fully independent with its own state in `~/.something-wicked/wicked-crew/projects/`. The recency-based selection ensures you're always working on the project you most recently interacted with.
+Each project is fully independent with its own state in `~/.something-wicked/wicked-garden/local/wicked-crew/projects/`. The recency-based selection ensures you're always working on the project you most recently interacted with.
 
 For teams, this means pair programming doesn't require syncing project state. Each developer can work on their own projects, and collaboration happens at the artifact level (reviewing the generated designs, test scenarios, etc.) rather than at the state level.
 

@@ -13,7 +13,7 @@ Display the current project state and available integrations.
 Look for the most recently modified project:
 
 ```bash
-ls -t ~/.something-wicked/wicked-crew/projects/ 2>/dev/null | head -1
+ls -t ~/.something-wicked/wicked-garden/local/wicked-crew/projects/ 2>/dev/null | head -1
 ```
 
 If no projects exist, inform user and suggest `/wicked-garden:crew:start`.

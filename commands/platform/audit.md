@@ -19,7 +19,7 @@ Parse the framework and optional control:
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/auditor",
+    subagent_type="wicked-garden:platform:auditor",
     prompt="""Collect audit evidence for compliance verification.
 
 Framework: {framework}

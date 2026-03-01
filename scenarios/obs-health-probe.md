@@ -12,7 +12,7 @@ timeout: 60
 # Observability Health Probe
 
 Validates that `health_probe.py` can inspect a plugin directory, confirm its structure is sound,
-and persist a `latest.json` health snapshot under `~/.something-wicked/wicked-observability/health/`.
+and persist a `latest.json` health snapshot under `~/.something-wicked/wicked-garden/local/wicked-observability/health/`.
 Covers Layer 2 (health probes) of the observability stack.
 
 ## Setup
@@ -82,7 +82,7 @@ EOF
 python3 - <<'EOF'
 import json, os, sys
 
-health_dir = os.path.expanduser("~/.something-wicked/wicked-observability/health")
+health_dir = os.path.expanduser("~/.something-wicked/wicked-garden/local/wicked-observability/health")
 latest_path = os.path.join(health_dir, "latest.json")
 
 if not os.path.exists(latest_path):
@@ -106,7 +106,7 @@ print(f"OK: latest.json valid — status={data.get('status')!r}, plugins_checked
 EOF
 ```
 
-**Expect**: Exit code 0, `~/.something-wicked/wicked-observability/health/latest.json` exists with valid JSON
+**Expect**: Exit code 0, `~/.something-wicked/wicked-garden/local/wicked-observability/health/latest.json` exists with valid JSON
 containing `status`, `checked_at`, and `plugins_checked` fields
 
 ## Cleanup

@@ -59,7 +59,7 @@ Assess:
 
 Compare against Strategy Gate risks:
 ```
-Task(subagent_type="wicked-garden:qe/risk-assessor",
+Task(subagent_type="wicked-garden:qe:risk-assessor",
      prompt="Validate risk mitigation for {target}.
 
      Prior risks identified:

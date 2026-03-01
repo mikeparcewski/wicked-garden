@@ -5,20 +5,22 @@ _control_plane.py — HTTP client for the wicked-control-plane backend.
 Stdlib-only (urllib.request). Importable by both hook scripts (strict
 stdlib-only constraint) and command scripts.
 
-URL convention:
-    {endpoint}/api/{api_version}/data/{domain}/{source}/{verb}[/{id}]
+All endpoints follow one pattern:
+    {method} {endpoint}/api/{api_version}/data/{domain}/{source}/{verb}[/{id}]
 
-Domain name mapping:
-    Callers can use either plugin names (wicked-mem) or CP domain names
-    (memory). The client normalizes automatically.
+Domain aliases (wicked-mem → memory) are normalized automatically.
+HTTP method is inferred from the verb (list/get → GET, create → POST, etc.).
+
+For endpoint discovery and schemas, use manifest() and manifest_detail().
+See skills/control-plane/SKILL.md for the full interface guide.
 
 Example calls:
     cp = ControlPlaneClient()
     cp.request("memory", "memories", "list", params={"project": "my-proj"})
     cp.request("kanban", "tasks", "create", payload={"subject": "..."})
-    cp.request("wicked-mem", "memories", "list")  # also works
+    cp.request("wicked-mem", "memories", "list")  # aliases work
     cp.manifest()                                  # full API manifest
-    cp.manifest_detail("memory", "memories", "create")  # endpoint detail
+    cp.manifest_detail("memory", "memories", "create")  # endpoint schema
     ok, version = cp.check_health()
 """
 
@@ -42,6 +44,8 @@ _DEFAULT_CONFIG: dict[str, Any] = {
     "endpoint": "http://localhost:18889",
     "auth_token": None,
     "api_version": "v1",
+    "mode": None,  # "remote", "local-install", or "offline". None = local-install.
+    "viewer_path": None,  # Path to wicked-viewer source. None = ~/Projects/wicked-viewer.
     "health_check_interval_seconds": 60,
     "connect_timeout_seconds": 3,
     "request_timeout_seconds": 10,
@@ -49,64 +53,49 @@ _DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 # ---------------------------------------------------------------------------
-# Domain name mapping: plugin names → CP domain names
+# Domain name normalization
 # ---------------------------------------------------------------------------
 
-_DOMAIN_MAP: dict[str, str] = {
-    "wicked-mem": "memory",
-    "wicked-kanban": "kanban",
-    "wicked-crew": "crew",
-    "wicked-jam": "jam",
-    "wicked-delivery": "delivery",
-    "wicked-search": "knowledge",
-    "wicked-observability": "observability",
-    "wicked-smaht": "smaht",
-    "wicked-garden": "garden",
-    # Bare names pass through unchanged
-    "memory": "memory",
-    "kanban": "kanban",
-    "crew": "crew",
-    "jam": "jam",
-    "delivery": "delivery",
-    "knowledge": "knowledge",
-    "events": "events",
-    "agents": "agents",
-    "indexing": "indexing",
-}
+# Only non-obvious alias — all others are just wicked-{x} → {x}.
+_DOMAIN_ALIASES: dict[str, str] = {"wicked-mem": "memory", "mem": "memory"}
 
-# Domains with non-standard path prefixes (not /api/v1/data/{domain}/...).
-# format: domain → (prefix_template, skip_source)
-# skip_source=True when the domain's routes are {prefix}/{verb} not {prefix}/{source}/{verb}
-_DOMAIN_PREFIX_OVERRIDES: dict[str, tuple[str, bool]] = {
-    "events": ("/api/{version}/events", True),
-    "indexing": ("/api/{version}/indexing", False),
-}
-
-# HTTP method inference based on verb name (matches CP's manifest.ts)
-_POST_VERBS = frozenset({
-    "create", "ingest", "bulk-update", "bulk-delete", "archive",
-    "unarchive", "sweep", "register", "heartbeat", "capture",
-    "evaluate", "advance",
+# Read verbs use GET; update uses PUT; delete uses DELETE; everything else is POST.
+# Sourced from CP manifest_detail — all verbs where method=GET.
+_GET_VERBS = frozenset({
+    "list", "get", "search", "stats",
+    "activity", "categories", "content", "hotspots", "impact", "stream", "traverse",
 })
-_PUT_VERBS = frozenset({"update"})
-_DELETE_VERBS = frozenset({"delete"})
+
+# Events routes omit the source segment from the path.
+_SOURCELESS_DOMAINS = frozenset({"events"})
 
 
-def _resolve_domain(domain: str) -> str:
-    """Normalize a domain name to the CP's expected value."""
-    return _DOMAIN_MAP.get(domain, domain)
+def _normalize_domain(domain: str) -> str:
+    """Normalize a domain name to the CP's expected value.
+
+    Plugin names (wicked-kanban) are stripped to bare CP names (kanban).
+    The one exception is wicked-mem → memory (not "mem").
+    """
+    if domain in _DOMAIN_ALIASES:
+        return _DOMAIN_ALIASES[domain]
+    if domain.startswith("wicked-"):
+        return domain[7:]
+    return domain
 
 
-def _infer_method(verb: str, has_payload: bool) -> str:
-    """Infer HTTP method from verb name, matching CP conventions."""
-    if verb in _POST_VERBS:
-        return "POST"
-    if verb in _PUT_VERBS:
+def _infer_method(verb: str) -> str:
+    """Infer HTTP method from verb, matching CP conventions.
+
+    All domains use the same convention: GET for reads, PUT for update,
+    DELETE for delete, POST for everything else (create, archive, sweep, …).
+    """
+    if verb in _GET_VERBS:
+        return "GET"
+    if verb == "update":
         return "PUT"
-    if verb in _DELETE_VERBS:
+    if verb == "delete":
         return "DELETE"
-    # Fallback: POST if payload provided, GET otherwise
-    return "POST" if has_payload else "GET"
+    return "POST"
 
 
 def _load_config() -> dict[str, Any]:
@@ -208,15 +197,11 @@ class ControlPlaneClient:
         if not endpoint:
             return None
 
-        cp_domain = _resolve_domain(domain)
+        cp_domain = _normalize_domain(domain)
         api_version = self._cfg.get("api_version", "v1")
 
-        # Some domains use non-standard path prefixes
-        override = _DOMAIN_PREFIX_OVERRIDES.get(cp_domain)
-        if override:
-            prefix_tpl, skip_source = override
-            prefix = prefix_tpl.format(version=api_version)
-            path = f"{prefix}/{verb}" if skip_source else f"{prefix}/{source}/{verb}"
+        if cp_domain in _SOURCELESS_DOMAINS:
+            path = f"/api/{api_version}/data/{cp_domain}/{verb}"
         else:
             path = f"/api/{api_version}/data/{cp_domain}/{source}/{verb}"
         if id is not None:
@@ -226,7 +211,7 @@ class ControlPlaneClient:
         if params:
             url = f"{url}?{urllib.parse.urlencode(params)}"
 
-        method = _infer_method(verb, payload is not None)
+        method = _infer_method(verb)
         return self._do_request(url, method=method, payload=payload)
 
     def manifest(self) -> dict | None:
@@ -256,7 +241,7 @@ class ControlPlaneClient:
         if not endpoint:
             return None
 
-        cp_domain = _resolve_domain(domain)
+        cp_domain = _normalize_domain(domain)
         api_version = self._cfg.get("api_version", "v1")
         url = (
             f"{endpoint.rstrip('/')}/api/{api_version}/manifest"
@@ -436,6 +421,3 @@ def load_config() -> dict[str, Any]:
     return _load_config()
 
 
-def resolve_domain(domain: str) -> str:
-    """Public accessor for domain name resolution."""
-    return _resolve_domain(domain)

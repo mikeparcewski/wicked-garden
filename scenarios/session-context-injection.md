@@ -37,19 +37,19 @@ cat "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" | grep SessionStart
 
 3. **Verify session was created**
    ```bash
-   ls ~/.something-wicked/wicked-smaht/sessions/
+   ls ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/
    ```
    Should show a new session directory with today's timestamp.
 
 4. **Check session metadata** (written at session end by Stop hook)
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/session_meta.json | tail -1
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/session_meta.json | tail -1
    ```
    Shows session_id, start_time, end_time, key_topics
 
 ## Expected Outcome
 
-- New session directory created at `~/.something-wicked/wicked-smaht/sessions/{id}/`
+- New session directory created at `~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{id}/`
 - session_meta.json written at session end with session summary
 - Context packet injected into Claude's system prompt
 - Sources queried based on what's available (graceful degradation)

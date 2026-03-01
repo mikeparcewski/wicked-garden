@@ -40,6 +40,8 @@ _SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
+from _storage import StorageManager
+
 # Add smaht sub-paths for adapter/v2 imports
 _smaht_dir = Path(__file__).resolve().parent
 if str(_smaht_dir) not in sys.path:
@@ -208,14 +210,13 @@ async def build_package(task: str, project: str = None, files: list = None,
     file_scope = files or session.get("file_scope", [])
     current_task = session.get("current_task", "")
 
-    # Get project state if available
+    # Get project state if available (CP-first via StorageManager)
     project_state = {}
     if project:
         try:
-            project_dir = Path.home() / ".something-wicked" / "wicked-crew" / "projects" / project
-            project_json = project_dir / "project.json"
-            if project_json.exists():
-                data = json.loads(project_json.read_text())
+            sm = StorageManager("wicked-crew")
+            data = sm.get("projects", project)
+            if data:
                 project_state = {
                     "phase": data.get("current_phase", ""),
                     "complexity": data.get("complexity_score", 0),

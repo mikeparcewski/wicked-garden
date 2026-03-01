@@ -93,7 +93,7 @@ The skill automatically discovers available feedback capabilities:
 
 4. **Store for Analysis**
    ```
-   ~/.something-wicked/voice/feedback/{source}/{date}/{id}.md
+   ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/{source}/{date}/{id}.md
    ```
 
 ## Unified Feedback Format
@@ -174,7 +174,7 @@ if event == "product:requirements:started":
 
 ## Storage
 
-Feedback stored at: `~/.something-wicked/voice/feedback/{source}/{YYYY-MM}/{id}.md`
+Feedback stored at: `~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/{source}/{YYYY-MM}/{id}.md`
 
 ## Error Handling
 

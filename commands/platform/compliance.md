@@ -21,7 +21,7 @@ Determine which compliance framework to check:
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/compliance-officer",
+    subagent_type="wicked-garden:platform:compliance-officer",
     prompt="""Perform regulatory compliance assessment.
 
 Framework: {selected framework}

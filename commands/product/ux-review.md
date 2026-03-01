@@ -61,7 +61,7 @@ Based on the focus area, dispatch to one or more experts in parallel. If `--focu
 **For flows focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product/ux-designer",
+  subagent_type="wicked-garden:product:ux-designer",
   prompt="""Review user experience for the following code/document:
 
 {code or document content}
@@ -87,7 +87,7 @@ Provide:
 **For ui focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product/ui-reviewer",
+  subagent_type="wicked-garden:product:ui-reviewer",
   prompt="""Review visual design for the following code/document:
 
 {code or document content}
@@ -114,7 +114,7 @@ Provide:
 **For a11y focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product/a11y-expert",
+  subagent_type="wicked-garden:product:a11y-expert",
   prompt="""Audit accessibility for the following code/document:
 
 {code or document content}
@@ -143,7 +143,7 @@ Provide:
 **For research focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product/user-researcher",
+  subagent_type="wicked-garden:product:user-researcher",
   prompt="""Analyze user needs for the following requirements/design docs:
 
 {requirements or design docs}

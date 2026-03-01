@@ -88,7 +88,7 @@ Spawn architect agent for design review:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/architect",
+  subagent_type="wicked-garden:agentic:architect",
   prompt="Mode: architecture_review\n\nContext:\n- Framework: {detected_framework}\n- Agent topology: {topology_summary}\n- Entry points: {entry_agents}\n\nInstructions:\nLoad skill wicked-garden:agentic:five-layer-architecture\n\nAnalyze architecture:\n1. Layer separation (Cognition, Context, Interaction, Runtime, Governance)\n2. Control flow clarity\n3. State management approach\n4. Error propagation\n5. Testing strategy\n\nOutput assessment with:\n- Architecture diagram (mermaid)\n- Pattern alignment score\n- Structural issues\n- Refactoring opportunities"
 )
 ```
@@ -99,7 +99,7 @@ Spawn safety reviewer for security analysis:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/safety-reviewer",
+  subagent_type="wicked-garden:agentic:safety-reviewer",
   prompt="Mode: safety_audit\n\nContext:\n- Framework: {detected_framework}\n- Tools used: {tool_list}\n- Agent interactions: {topology}\n\nInstructions:\nLoad skill wicked-garden:agentic:trust-and-safety\n\nReview safety posture:\n1. Tool risk classification\n2. Human-in-the-loop gates\n3. PII handling\n4. Prompt injection vulnerabilities\n5. Rate limiting and quotas\n6. Fallback mechanisms\n\nOutput safety report with:\n- Risk matrix\n- Critical vulnerabilities\n- Required mitigations\n- Compliance gaps"
 )
 ```
@@ -110,7 +110,7 @@ Spawn performance analyst for optimization review:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/performance-analyst",
+  subagent_type="wicked-garden:agentic:performance-analyst",
   prompt="Mode: performance_review\n\nContext:\n- Framework: {detected_framework}\n- Agent count: {agent_count}\n- Topology pattern: {pattern}\n\nInstructions:\nLoad skill wicked-garden:agentic:agentic-patterns\n\nAnalyze performance:\n1. Latency bottlenecks\n2. Token usage efficiency\n3. Parallelization opportunities\n4. Caching strategy\n5. Context window management\n6. Cost optimization\n\nOutput performance report with:\n- Bottleneck analysis\n- Cost estimation\n- Optimization recommendations\n- Benchmarking suggestions"
 )
 ```

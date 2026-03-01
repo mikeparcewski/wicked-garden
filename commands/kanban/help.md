@@ -58,7 +58,7 @@ uv run python scripts/kanban/kanban.py search "query"
 ## Data Structure
 
 ```
-~/.something-wicked/wicked-kanban/
+~/.something-wicked/wicked-garden/local/wicked-kanban/
 ├── config.json              # Repo → project mappings
 ├── active_context.json      # Current task/session
 └── projects/
@@ -74,7 +74,7 @@ uv run python scripts/kanban/kanban.py search "query"
 
 | Setting | Default | Environment Variable |
 |---------|---------|---------------------|
-| Data Dir | ~/.something-wicked/wicked-kanban | `WICKED_KANBAN_DATA_DIR` |
+| Data Dir | ~/.something-wicked/wicked-garden/local/wicked-kanban | `WICKED_KANBAN_DATA_DIR` |
 
 ## Rendering
 

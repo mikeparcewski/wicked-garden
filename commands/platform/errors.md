@@ -33,7 +33,7 @@ Based on argument:
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/incident-responder",
+    subagent_type="wicked-garden:platform:incident-responder",
     prompt="""Analyze production errors and identify patterns.
 
 Scope: {service name, error type, or 'all recent'}

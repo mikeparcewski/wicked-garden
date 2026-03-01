@@ -59,7 +59,7 @@ When asked to analyze customer perspective:
 
 1. **Discover Sources** - Check available feedback:
    ```bash
-   ls ~/.something-wicked/voice/feedback/
+   ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/
    ```
 
 2. **Aggregate Relevant Feedback**:

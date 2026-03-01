@@ -70,7 +70,7 @@ Launch comprehensive safety analysis:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/safety-reviewer",
+  subagent_type="wicked-garden:agentic:safety-reviewer",
   prompt="Mode: deep_audit\n\nContext:\n- Framework: {detected_framework}\n- Topology: {agent_topology}\n- Tools: {tool_inventory}\n- Compliance standard: {standard if specified}\n\nInstructions:\nLoad skill wicked-garden:agentic:trust-and-safety\n\nPerform comprehensive safety audit:\n\n1. Tool Risk Classification - assess risk level, attack surface, abuse potential, data exposure, required mitigations\n2. Human-in-the-Loop Gates - verify approval requirements, validation, bypass prevention, audit trail\n3. PII and Sensitive Data - check detection/redaction, minimization, encryption, retention, access controls\n4. Input Validation - analyze prompt injection, SQL injection, command injection, SSRF, input sanitization\n5. Authentication & Authorization - verify tool access controls, permission model, credential/secrets management\n6. Rate Limiting & Quotas - check API rate limits, cost controls, throttling, abuse prevention\n7. Monitoring & Observability - assess audit logging, sensitive data in logs, alerting, incident readiness\n8. Failure Modes - analyze graceful degradation, error info leakage, retry safety, circuit breakers\n\nOutput comprehensive safety report."
 )
 ```

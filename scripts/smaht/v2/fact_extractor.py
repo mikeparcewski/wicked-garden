@@ -13,7 +13,7 @@ Fact types:
   - context: Background information ("the system uses X", "currently Y")
 
 Storage:
-~/.something-wicked/wicked-smaht/sessions/{session_id}/facts.jsonl
+~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/facts.jsonl
 """
 
 import json

@@ -49,7 +49,7 @@ Read target document(s) or accept interactive mode parameters:
 
 ```
 Task(
-  subagent_type="wicked-garden:product/requirements-analyst",
+  subagent_type="wicked-garden:product:requirements-analyst",
   prompt="""Elicit requirements from the following context.
 
 ## Context

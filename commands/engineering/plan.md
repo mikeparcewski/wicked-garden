@@ -42,7 +42,7 @@ Spawn both senior engineer and risk assessor in parallel:
 ```python
 # Dispatch both agents simultaneously
 Task(
-    subagent_type="wicked-garden:engineering/senior-engineer",
+    subagent_type="wicked-garden:engineering:senior-engineer",
     prompt="""Analyze this change request and recommend implementation approach.
 
 ## Change Request
@@ -64,7 +64,7 @@ Structure as: Approach, Alternatives, Risks
 )
 
 Task(
-    subagent_type="wicked-garden:qe/risk-assessor",
+    subagent_type="wicked-garden:qe:risk-assessor",
     prompt="""Assess risks for this proposed change.
 
 ## Change Summary

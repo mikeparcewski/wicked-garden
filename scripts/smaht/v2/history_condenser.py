@@ -7,14 +7,17 @@ Progressive compression of conversation history:
 - + Turn window (last 3-5 turns)
 - = 50-100x compression
 
-Storage:
-~/.something-wicked/wicked-smaht/sessions/{session_id}/
+Storage (unified path with legacy fallback):
+~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/
 ├── summary.json       # Session summary (persistent)
 ├── turns.jsonl        # Recent turns (rolling buffer)
 ├── facts.jsonl        # Structured facts (via FactExtractor)
 ├── lanes.jsonl        # Parallel work lanes (via LaneTracker)
 ├── promoted.json      # Promotion tracking (via MemoryPromoter)
 └── condensed.md       # Last condensed output (cache)
+
+Legacy path (~/.something-wicked/wicked-smaht/sessions/) is used automatically
+if data exists there but not at the unified location.
 """
 
 import json
@@ -33,6 +36,8 @@ from typing import Optional
 _SCRIPTS_ROOT = Path(__file__).resolve().parents[2]
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
+
+from _paths import get_local_path
 
 # Also add the v2 directory for sibling imports (fact_extractor, lane_tracker, memory_promoter)
 _V2_DIR = Path(__file__).resolve().parent
@@ -110,7 +115,7 @@ class HistoryCondenser:
         if not re.match(r'^[a-zA-Z0-9_-]+$', session_id):
             raise ValueError(f"Invalid session_id: must be alphanumeric, hyphens, or underscores")
         self.session_id = session_id
-        base = Path.home() / ".something-wicked" / "wicked-smaht" / "sessions"
+        base = get_local_path("wicked-smaht", "sessions")
         self.session_dir = base / session_id
         # Double-check resolved path stays within sessions directory
         if not str(self.session_dir.resolve()).startswith(str(base.resolve())):
@@ -631,7 +636,7 @@ class HistoryCondenser:
         Returns session metadata sorted by recency (newest first).
         Used by SessionStart hook for cross-session continuity.
         """
-        sessions_dir = Path.home() / ".something-wicked" / "wicked-smaht" / "sessions"
+        sessions_dir = get_local_path("wicked-smaht", "sessions")
         if not sessions_dir.exists():
             return []
 

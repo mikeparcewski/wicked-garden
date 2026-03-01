@@ -25,7 +25,7 @@ find . -name "docker-compose*.yaml"
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/infrastructure-engineer",
+    subagent_type="wicked-garden:platform:infrastructure-engineer",
     prompt="""Review infrastructure-as-code and cloud architecture.
 
 Files: {discovered or specified IaC files}

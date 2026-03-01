@@ -12,56 +12,34 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager, get_local_path
 
-def get_projects_dir() -> Path:
-    """Get the projects storage directory."""
-    return Path.home() / ".something-wicked" / "wicked-crew" / "projects"
+_sm = StorageManager("wicked-crew")
 
 
 def list_projects(active_only: bool = False) -> dict:
     """List crew projects, optionally filtered to active ones."""
-    projects_dir = get_projects_dir()
-    if not projects_dir.exists():
-        return {"projects": []}
+    projects = _sm.list("projects")
 
-    results = []
+    if active_only:
+        projects = [
+            p for p in projects
+            if p.get("status", "").lower() in ("active", "in_progress")
+        ]
 
-    for project_dir in sorted(
-        projects_dir.iterdir(),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    ):
-        if not project_dir.is_dir():
-            continue
-
-        project_data = _load_project(project_dir)
-        if not project_data:
-            continue
-
-        if active_only:
-            status = project_data.get("status", "").lower()
-            if status not in ("active", "in_progress"):
-                continue
-
-        results.append(project_data)
-
-    return {"projects": results}
+    return {"projects": projects}
 
 
 def get_project(name: str) -> dict:
     """Get a specific project by name."""
-    projects_dir = get_projects_dir()
-    project_dir = projects_dir / name
-
-    if not project_dir.exists():
+    data = _sm.get("projects", name)
+    if not data:
         return {"error": f"Project not found: {name}"}
 
-    data = _load_project(project_dir)
-    if not data:
-        return {"error": f"Could not read project: {name}"}
-
-    # Include outcome summary if available
-    outcome_md = project_dir / "outcome.md"
+    # Include outcome summary if available (local markdown file)
+    projects_dir = get_local_path("wicked-crew", "projects")
+    outcome_md = projects_dir / name / "outcome.md"
     if outcome_md.exists():
         try:
             content = outcome_md.read_text()
@@ -74,50 +52,6 @@ def get_project(name: str) -> dict:
             pass
 
     return {"project": data}
-
-
-def _load_project(project_dir: Path) -> dict:
-    """Load project data from project.json or project.md."""
-    # Try project.json first
-    project_json = project_dir / "project.json"
-    if project_json.exists():
-        try:
-            with open(project_json) as f:
-                data = json.load(f)
-            return {
-                "name": data.get("name", project_dir.name),
-                "current_phase": data.get("current_phase", "unknown"),
-                "status": data.get("status", "unknown"),
-                "complexity_score": data.get("complexity_score", 0),
-                "signals_detected": data.get("signals_detected", []),
-            }
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    # Fall back to project.md frontmatter
-    project_md = project_dir / "project.md"
-    if project_md.exists():
-        try:
-            content = project_md.read_text()
-            if content.startswith("---"):
-                parts = content.split("---", 2)
-                if len(parts) >= 2:
-                    data = {}
-                    for line in parts[1].split("\n"):
-                        if ":" in line:
-                            key, value = line.split(":", 1)
-                            data[key.strip()] = value.strip()
-                    return {
-                        "name": data.get("name", project_dir.name),
-                        "current_phase": data.get("current_phase", "unknown"),
-                        "status": data.get("status", "unknown"),
-                        "complexity_score": 0,
-                        "signals_detected": [],
-                    }
-        except OSError:
-            pass
-
-    return None
 
 
 def main():

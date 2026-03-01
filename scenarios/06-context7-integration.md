@@ -185,7 +185,7 @@ Demonstrates how wicked-smaht automatically enriches context with external libra
 After several queries about React:
 
 ```
-~/.something-wicked/wicked-smaht/cache/context7/
+~/.something-wicked/wicked-garden/local/wicked-smaht/cache/context7/
 ├── index.json
 └── data/
     ├── a1b2c3d4.json  # react + "useEffect hook fetch data"
@@ -359,7 +359,7 @@ If Context7 results are not helpful:
 1. Library mentioned in prompt?
 2. Context7 MCP integration installed?
 3. Check stderr for timeout/error messages
-4. Verify cache not corrupted: `ls ~/.something-wicked/wicked-smaht/cache/context7/`
+4. Verify cache not corrupted: `ls ~/.something-wicked/wicked-garden/local/wicked-smaht/cache/context7/`
 
 **Fix**:
 - Explicit library mention: "using React hooks"
@@ -379,7 +379,7 @@ If Context7 results are not helpful:
 **Symptom**: Disk space usage
 **Expected**: ~10-20MB for 500 entries
 **Fix**: Cache auto-evicts oldest 10%
-**Manual**: Delete `~/.something-wicked/wicked-smaht/cache/context7/`
+**Manual**: Delete `~/.something-wicked/wicked-garden/local/wicked-smaht/cache/context7/`
 
 ---
 

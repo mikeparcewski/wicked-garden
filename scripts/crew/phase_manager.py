@@ -14,12 +14,13 @@ import logging
 import re
 import sys
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field, asdict
 
-# Resolve _storage from the parent scripts/ directory
+# Resolve _storage and _paths from the parent scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _paths import get_local_path
 from _storage import StorageManager
 
 _sm = StorageManager("wicked-crew")
@@ -295,7 +296,7 @@ def get_project_dir(project_name: str) -> Path:
     if not project_name or not is_safe_project_name(project_name):
         raise ValueError(f"Invalid project name: {project_name}. Use only alphanumeric, hyphens, underscores (max 64 chars).")
 
-    base = Path.home() / ".something-wicked" / "wicked-crew" / "projects"
+    base = get_local_path("wicked-crew", "projects")
     project_dir = (base / project_name).resolve()
 
     try:
@@ -369,10 +370,13 @@ def _load_from_markdown_simple(project_md: Path) -> Optional[ProjectState]:
             key, value = line.split(':', 1)
             data[key.strip()] = value.strip()
 
+    raw_created = data.get("created", get_utc_timestamp())
+    created_str = raw_created.isoformat() if hasattr(raw_created, 'isoformat') else str(raw_created)
+
     return ProjectState(
         name=data.get("name", project_md.parent.name),
         current_phase=data.get("current_phase", "clarify"),
-        created_at=data.get("created", get_utc_timestamp()),
+        created_at=created_str,
         version=data.get("version", "v3-capability-based"),
         phases={}
     )
@@ -407,20 +411,35 @@ def load_from_markdown(project_md: Path) -> Optional[ProjectState]:
         logger.error(f"YAML parse error in {project_md}: {e}")
         return None
 
+    raw_created = data.get("created", get_utc_timestamp())
+    # YAML parses bare dates (2026-02-28) as datetime.date objects — coerce to str
+    created_str = raw_created.isoformat() if hasattr(raw_created, 'isoformat') else str(raw_created)
+
     return ProjectState(
         name=data.get("name", project_md.parent.name),
         current_phase=data.get("current_phase", "clarify"),
-        created_at=data.get("created", get_utc_timestamp()),
+        created_at=created_str,
         version=data.get("version", "v3-capability-based"),
         phases={}
     )
+
+
+def _sanitize_for_json(obj):
+    """Recursively coerce date/datetime objects to ISO strings for JSON serialization."""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(v) for v in obj]
+    return obj
 
 
 def save_project_state(state: ProjectState) -> None:
     """Save project state via StorageManager."""
     logger.info(f"Saving project state: {state.name} (phase: {state.current_phase})")
 
-    data = {
+    data = _sanitize_for_json({
         "id": state.name,
         "name": state.name,
         "current_phase": state.current_phase,
@@ -434,7 +453,7 @@ def save_project_state(state: ProjectState) -> None:
         "kanban_initiative": state.kanban_initiative,
         "kanban_initiative_id": state.kanban_initiative_id,
         **state.extras,
-    }
+    })
 
     existing = _sm.get("projects", state.name)
     if existing:

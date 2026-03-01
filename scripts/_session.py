@@ -97,6 +97,7 @@ class SessionState:
     agents_loaded: int = 0
     turn_count: int = 0
     session_ended: bool = False
+    cp_last_checked_at: float = 0.0
 
     # ------------------------------------------------------------------
     # Persistence

@@ -47,7 +47,7 @@ Expected:
 ### 3. Verify assumptions are tracked in project.json
 
 ```bash
-cat ~/.something-wicked/wicked-crew/projects/improve-search-results-page/project.json | python3 -m json.tool
+cat ~/.something-wicked/wicked-garden/local/wicked-crew/projects/improve-search-results-page/project.json | python3 -m json.tool
 ```
 
 Expected:

@@ -20,7 +20,7 @@ Extract parameters:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/framework-researcher",
+  subagent_type="wicked-garden:agentic:framework-researcher",
   prompt="Mode: {comparison | selection | overview}\n\nParameters:\n- Compare: {framework_list if --compare}\n- Language: {language if --language}\n- Use case: {use_case if --use-case}\n\nInstructions:\nLoad skill wicked-garden:agentic:frameworks\n\n{Behavior based on mode}"
 )
 ```
@@ -31,7 +31,7 @@ If `--compare` specified:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/framework-researcher",
+  subagent_type="wicked-garden:agentic:framework-researcher",
   prompt="Mode: comparison\nFrameworks: {fw1, fw2, fw3}\n\nInstructions:\nFor each framework, research:\n1. Core architecture and patterns\n2. Strengths and weaknesses\n3. Ecosystem and community\n4. Learning curve\n5. Performance characteristics\n6. Cost implications\n7. Production readiness\n\nUse WebSearch to get latest information.\n\nPresent comparison table and recommendation."
 )
 ```
@@ -153,7 +153,7 @@ If no `--compare` but filters provided:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/framework-researcher",
+  subagent_type="wicked-garden:agentic:framework-researcher",
   prompt="Mode: selection\n\nFilters:\n- Language: {language}\n- Use case: {use_case}\n\nInstructions:\nBased on filters, recommend top 3-5 frameworks.\n\nFor each, provide:\n1. Name and description\n2. Why it fits the criteria\n3. Quick start guide\n4. When to choose it vs alternatives\n\nFormat as decision guide."
 )
 ```
@@ -164,7 +164,7 @@ If no arguments provided, run interactive wizard:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/framework-researcher",
+  subagent_type="wicked-garden:agentic:framework-researcher",
   prompt="Mode: wizard\n\nInstructions:\nAsk user 4-5 questions to understand requirements:\n1. Language preference: Python, TypeScript, other?\n2. Use case: What are you building?\n3. Experience level: Beginner, intermediate, expert?\n4. Scale: Prototype, production, enterprise?\n5. Priority: Speed of development, flexibility, cost, performance?\n\nBased on answers, recommend framework with rationale."
 )
 ```
