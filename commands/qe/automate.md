@@ -36,7 +36,7 @@ Note existing test file patterns and conventions.
 
 ```
 Task(
-  subagent_type="wicked-garden:qe/test-automation-engineer",
+  subagent_type="wicked-garden:qe:test-automation-engineer",
   prompt="""Generate runnable test code from scenarios.
 
 ## Scenarios to Implement

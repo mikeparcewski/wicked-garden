@@ -66,7 +66,7 @@ npm install express --save
 ```
 
 **Expected**:
-- Project directory created at `~/.something-wicked/wicked-crew/projects/add-oauth2-social-login/`
+- Project directory created at `~/.something-wicked/wicked-garden/local/wicked-crew/projects/add-oauth2-social-login/`
 - Status shows: Phase "clarify", Status "in-progress"
 - Lists available plugin integrations (wicked-jam, wicked-search, etc.)
 - If plugins missing, notes degradation level
@@ -287,7 +287,7 @@ phases/review/review-findings.md containing:
 - Phase-specific agents/tools are used appropriately
 - Context is maintained across phases (design informs test strategy, test strategy informs build)
 - Degradation works correctly when plugins unavailable
-- All artifacts are stored persistently in `.something-wicked/wicked-crew/`
+- All artifacts are stored persistently in `.something-wicked/wicked-garden/local/wicked-crew/`
 
 ## Success Criteria
 

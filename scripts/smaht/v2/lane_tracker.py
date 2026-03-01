@@ -10,7 +10,7 @@ the state of paused work. Priority decay moves stale lanes
 to dormant status, and reactivation brings them back.
 
 Storage:
-~/.something-wicked/wicked-smaht/sessions/{session_id}/lanes.jsonl
+~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/lanes.jsonl
 """
 
 import json

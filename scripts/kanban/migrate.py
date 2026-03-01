@@ -15,10 +15,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Add scripts root to path for shared modules
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _paths import get_local_path
+
 # Paths
 DATA_DIR = Path(os.environ.get(
     'WICKED_KANBAN_DATA_DIR',
-    Path.home() / '.something-wicked' / 'wicked-kanban'
+    str(get_local_path("wicked-kanban"))
 ))
 OLD_PROJECTS_DIR = DATA_DIR / 'projects'
 BACKUP_DIR = DATA_DIR / 'backup_v1'

@@ -117,7 +117,7 @@ Discovers chat and messaging platform data.
 
 ```bash
 # Check for conversation exports or cached data
-find ~/.something-wicked/voice/feedback/conversations/ -name "*.md" -o -name "*.json"
+find ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/conversations/ -name "*.md" -o -name "*.json"
 
 # Check for messaging platform exports
 find ~/Downloads -name "*slack*.json" -o \
@@ -147,8 +147,8 @@ Manually saved customer feedback from various channels.
 
 ```bash
 # Check voice store for direct feedback
-ls ~/.something-wicked/voice/feedback/direct/
-ls ~/.something-wicked/voice/feedback/social/
+ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/direct/
+ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/social/
 ```
 
 **Note**: Direct feedback and social mentions are typically manually collected and saved to the voice store.
@@ -187,7 +187,7 @@ ls ~/.something-wicked/voice/feedback/social/
 
 4. **Check Voice Store**:
    ```bash
-   ls -la ~/.something-wicked/voice/feedback/
+   ls -la ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/
    ```
 
 5. **Report Availability**:

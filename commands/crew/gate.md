@@ -55,7 +55,7 @@ Use Task tool to run qe-orchestrator with gate type:
 
 ```
 Task(
-  subagent_type="wicked-garden:crew/qe-orchestrator",
+  subagent_type="wicked-garden:crew:qe-orchestrator",
   prompt="""
   Run {gate} Gate analysis.
 

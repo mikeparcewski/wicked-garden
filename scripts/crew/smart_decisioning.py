@@ -23,6 +23,11 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional
 from dataclasses import dataclass, asdict, field
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
+
+_sm = StorageManager("wicked-crew")
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -956,18 +961,14 @@ def _apply_context(
 
 
 def _log_decision(analysis: 'SignalAnalysis', input_length: int) -> None:
-    """Log decision to JSONL audit trail and build memory_payload for significant decisions.
+    """Log decision via StorageManager and build memory_payload for significant decisions.
 
-    Every call writes to the JSONL file (fast, local audit trail).
+    Every call stores to the control plane (falls back to local JSON).
     Significant decisions get a memory_payload attached to the SignalAnalysis
     for the CALLER (a Claude command) to store via /wicked-mem:store using
     Claude's native tool system — scripts never call other plugins directly.
     """
     try:
-        log_dir = Path.home() / ".something-wicked" / "wicked-crew" / "decisions"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.jsonl"
-
         entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "input_length": input_length,
@@ -987,9 +988,8 @@ def _log_decision(analysis: 'SignalAnalysis', input_length: int) -> None:
             "confidence": analysis.confidence,
         }
 
-        # Always write JSONL audit trail
-        with open(log_file, "a") as f:
-            f.write(json.dumps(entry) + "\n")
+        # Store decision via control plane (falls back to local JSON)
+        _sm.create("decisions", entry)
 
         # Build memory_payload for significant decisions (caller stores via tool system)
         is_significant = (

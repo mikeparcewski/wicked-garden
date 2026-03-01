@@ -61,7 +61,7 @@ Creates:
 ```
 agents/platform/my-agent.md    # Agent with frontmatter
 ```
-Agent subagent_type: `wicked-garden:platform/my-agent`
+Agent subagent_type: `wicked-garden:platform:my-agent`
 
 ### Command
 ```bash

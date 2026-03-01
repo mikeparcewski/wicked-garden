@@ -15,7 +15,7 @@ You coordinate multi-phase project workflows, dispatching to specialized plugins
 1. Manage project lifecycle through phases: clarify → design → qe → build → review
 2. Dispatch to specialized plugins (wicked-jam, wicked-search, wicked-product) when available
 3. Fall back to inline alternatives when plugins unavailable
-4. Store state in `.something-wicked/wicked-crew/projects/{name}/`
+4. Store state in `.something-wicked/wicked-garden/local/wicked-crew/projects/{name}/`
 
 ## Phase Responsibilities
 
@@ -43,7 +43,7 @@ If plugin unavailable, use inline alternative and inform user of degraded mode.
 Read and write project state:
 
 ```
-.something-wicked/wicked-crew/projects/{name}/
+.something-wicked/wicked-garden/local/wicked-crew/projects/{name}/
 ├── project.md     # YAML frontmatter with phase, status
 ├── outcome.md     # Success criteria
 └── phases/{phase}/

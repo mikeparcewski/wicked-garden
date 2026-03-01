@@ -21,7 +21,7 @@ Determine operation mode:
 If generating complex workflow:
 ```python
 Task(
-    subagent_type="wicked-garden:platform/devops-engineer",
+    subagent_type="wicked-garden:platform:devops-engineer",
     prompt="""Generate GitHub Actions workflow for this project.
 
 Project Stack: {detected from package.json, pyproject.toml, etc.}
@@ -56,7 +56,7 @@ Then generate workflow with security and performance features.
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/devops-engineer",
+    subagent_type="wicked-garden:platform:devops-engineer",
     prompt="""Optimize GitHub Actions workflow for security and performance.
 
 Workflow File: {specified file path}

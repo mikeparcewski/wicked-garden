@@ -17,7 +17,7 @@ If user provides problem description, use it. Otherwise, spawn architect to gath
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/architect",
+  subagent_type="wicked-garden:agentic:architect",
   prompt="Mode: design\n\nInstructions:\nYou are helping design a new agentic system. Ask clarifying questions to understand:\n\n1. Problem Space - What problem are you solving? Who are the users? What is the success criteria?\n2. Functional Requirements - What tasks must the system perform? What data sources and integrations are needed?\n3. Non-Functional Requirements - Latency? Cost constraints? Scale expectations? Compliance?\n4. Constraints - Existing tech stack? Team expertise? Timeline?\n\nAsk 3-5 focused questions. Keep questions concrete and answerable."
 )
 ```
@@ -28,7 +28,7 @@ After gathering requirements:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/architect",
+  subagent_type="wicked-garden:agentic:architect",
   prompt="Context:\n- Problem: {problem_statement}\n- Requirements: {requirements_summary}\n\nInstructions:\nLoad skills:\n- wicked-garden:agentic:agentic-patterns\n- wicked-garden:agentic:five-layer-architecture\n\nBased on requirements, recommend:\n1. Appropriate agentic pattern (sequential, hierarchical, parallel, etc.)\n2. Five-layer architecture design\n3. Framework selection (if applicable)\n4. Agent decomposition strategy"
 )
 ```
@@ -125,7 +125,7 @@ Spawn safety reviewer to validate design:
 
 ```
 Task(
-  subagent_type="wicked-garden:agentic/safety-reviewer",
+  subagent_type="wicked-garden:agentic:safety-reviewer",
   prompt="Context:\n- Proposed architecture: {architecture_summary}\n- Tools planned: {tool_list}\n- Data handled: {data_types}\n\nInstructions:\nLoad skill wicked-garden:agentic:trust-and-safety\n\nReview design for safety:\n1. Tool risk assessment\n2. Required human-in-the-loop gates\n3. PII handling strategy\n4. Input validation requirements\n5. Rate limiting needs\n6. Failure modes and mitigations\n\nOutput safety considerations:\n- Required safeguards\n- Compliance requirements\n- Risk mitigations\n- Testing recommendations"
 )
 ```

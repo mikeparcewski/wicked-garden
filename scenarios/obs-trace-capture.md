@@ -18,7 +18,7 @@ whenever a tool is invoked. Confirms that Layer 1 (runtime tracing) is active an
 
 ```bash
 # Trace files are named {session_id}.jsonl — find the most recently modified one
-TRACE_DIR="${HOME}/.something-wicked/wicked-observability/traces"
+TRACE_DIR="${HOME}/.something-wicked/wicked-garden/local/wicked-observability/traces"
 mkdir -p "${TRACE_DIR}"
 
 # Snapshot: record total line count across all trace files as baseline
@@ -48,7 +48,7 @@ echo "trace test"
 python3 - <<'EOF'
 import glob, os, sys
 
-trace_dir = os.path.expanduser("~/.something-wicked/wicked-observability/traces")
+trace_dir = os.path.expanduser("~/.something-wicked/wicked-garden/local/wicked-observability/traces")
 baseline = int(os.environ.get("BASELINE", "0"))
 
 # Count total lines across all session trace files
@@ -75,7 +75,7 @@ EOF
 python3 - <<'EOF'
 import glob, json, os, sys
 
-trace_dir = os.path.expanduser("~/.something-wicked/wicked-observability/traces")
+trace_dir = os.path.expanduser("~/.something-wicked/wicked-garden/local/wicked-observability/traces")
 files = glob.glob(os.path.join(trace_dir, "*.jsonl"))
 if not files:
     print("FAIL: no trace files found")

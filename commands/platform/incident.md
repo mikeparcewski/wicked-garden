@@ -21,7 +21,7 @@ Collect information about the incident:
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/incident-responder",
+    subagent_type="wicked-garden:platform:incident-responder",
     prompt="""Triage production incident and provide remediation guidance.
 
 Symptom: {error/alert description}

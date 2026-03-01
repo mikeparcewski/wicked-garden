@@ -33,7 +33,7 @@ ls "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json"
 
 2. **Verify session creation**
    ```bash
-   ls ~/.something-wicked/wicked-smaht/sessions/
+   ls ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/
    ```
    Session directory should exist.
 
@@ -52,7 +52,7 @@ ls "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json"
 
    Facts should be extracted even without wicked-mem:
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/facts.jsonl
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/facts.jsonl
    ```
 
 5. **Test lane tracking (works standalone)**
@@ -62,7 +62,7 @@ ls "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json"
 
    Lanes should be created:
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/lanes.jsonl
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/lanes.jsonl
    ```
 
 6. **Verify no stack traces**

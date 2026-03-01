@@ -32,7 +32,7 @@ Based on `--focus` or inferred analysis type, dispatch to the appropriate agent:
 **stats/exploration** (default):
 ```
 Task(
-  subagent_type="wicked-garden:data/data-analyst",
+  subagent_type="wicked-garden:data:data-analyst",
   prompt="""
   Perform exploratory data analysis on the provided dataset.
 
@@ -54,7 +54,7 @@ Task(
 **quality/pipelines**:
 ```
 Task(
-  subagent_type="wicked-garden:data/data-engineer",
+  subagent_type="wicked-garden:data:data-engineer",
   prompt="""
   Assess data quality and pipeline readiness for the provided dataset.
 
@@ -75,7 +75,7 @@ Task(
 **warehouse**:
 ```
 Task(
-  subagent_type="wicked-garden:data/analytics-architect",
+  subagent_type="wicked-garden:data:analytics-architect",
   prompt="""
   Design warehouse integration for the provided dataset.
 
@@ -96,7 +96,7 @@ Task(
 **ml**:
 ```
 Task(
-  subagent_type="wicked-garden:data/ml-engineer",
+  subagent_type="wicked-garden:data:ml-engineer",
   prompt="""
   Assess ML readiness and recommend modeling approaches for the provided dataset.
 

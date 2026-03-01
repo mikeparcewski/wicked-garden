@@ -152,7 +152,7 @@ Gate decisions and artifacts are tracked as evidence. See [EVIDENCE.md](../../do
 
 ## Configuration
 
-Customize in `~/.something-wicked/wicked-crew/config.yaml`:
+Customize in `~/.something-wicked/wicked-garden/local/wicked-crew/config.yaml`:
 
 ```yaml
 defaults:

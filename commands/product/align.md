@@ -50,7 +50,7 @@ Read target document if provided and parse parameters:
 
 ```
 Task(
-  subagent_type="wicked-garden:product/alignment-lead",
+  subagent_type="wicked-garden:product:alignment-lead",
   prompt="""Facilitate stakeholder alignment and consensus building.
 
 ## Context

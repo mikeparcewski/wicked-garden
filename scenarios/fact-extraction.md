@@ -13,7 +13,7 @@ Test that wicked-smaht automatically detects decisions and topics from conversat
 
 ## Setup
 
-Start a Claude Code session. The HistoryCondenser initializes a session directory under `~/.something-wicked/wicked-smaht/sessions/{session_id}/` on first use.
+Start a Claude Code session. The HistoryCondenser initializes a session directory under `~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/` on first use.
 
 Identify your session ID:
 
@@ -46,7 +46,7 @@ echo $CLAUDE_SESSION_ID
 
 4. **Inspect summary.json**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/summary.json
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/summary.json
    ```
 
    Expected structure:
@@ -68,7 +68,7 @@ echo $CLAUDE_SESSION_ID
 
 5. **Inspect turns.jsonl**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/turns.jsonl
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/turns.jsonl
    ```
 
    **Expected**: Each turn recorded as a JSON object with `user`, `assistant`, `timestamp`, and `tools_used` fields. Rolling window of last 5 turns.

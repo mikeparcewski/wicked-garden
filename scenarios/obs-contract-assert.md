@@ -13,7 +13,7 @@ timeout: 60
 
 Validates that `assert_contracts.py` discovers the plugin's registered schemas, validates them
 against their targets, and reports a clean pass with 0 failures. Also confirms that a daily JSONL
-assertion log is written to `~/.something-wicked/wicked-observability/assertions/`.
+assertion log is written to `~/.something-wicked/wicked-garden/local/wicked-observability/assertions/`.
 Covers Layer 3 (contract assertions) of the observability stack.
 
 ## Setup
@@ -94,7 +94,7 @@ python3 - <<'EOF'
 import json, os, sys
 from datetime import date
 
-assertions_dir = os.path.expanduser("~/.something-wicked/wicked-observability/assertions")
+assertions_dir = os.path.expanduser("~/.something-wicked/wicked-garden/local/wicked-observability/assertions")
 today = date.today().strftime("%Y-%m-%d")
 log_path = os.path.join(assertions_dir, f"{today}.jsonl")
 
@@ -131,7 +131,7 @@ EOF
 ```
 
 **Expect**: Exit code 0, a JSONL file exists in
-`~/.something-wicked/wicked-observability/assertions/` with at least one valid JSON record
+`~/.something-wicked/wicked-garden/local/wicked-observability/assertions/` with at least one valid JSON record
 
 ## Cleanup
 

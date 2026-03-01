@@ -57,12 +57,9 @@ If no tasks found via TaskList, check for manual TODO tracking in phase status f
 Before starting phase work, assemble structured context from the ecosystem. This ensures specialists and fallback agents receive rich context — not just raw deliverable text.
 
 ```bash
-# Discover wicked-smaht (graceful degradation if not installed)
-SMAHT_PLUGIN_ROOT=$(find ~/.claude/plugins/cache/wicked-garden/wicked-smaht -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
-
-if [ -n "$SMAHT_PLUGIN_ROOT" ]; then
-  # Build context package for current phase
-  cd "${SMAHT_PLUGIN_ROOT}" && uv run python scripts/context_package.py build \
+# Build context package for current phase (graceful degradation if script not found)
+if [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/context_package.py" ]; then
+  cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/context_package.py build \
     --task "Execute {current_phase} phase for {project-name}" \
     --project "{project-name}" \
     --dispatch --prompt
@@ -84,7 +81,7 @@ This principle applies to EVERY phase. Even "simple" tasks should be dispatched 
 
 ### 3. Load User Preferences (if exists)
 
-Check for `~/.something-wicked/wicked-crew/preferences.yaml` for:
+Check for `~/.something-wicked/wicked-garden/local/wicked-crew/preferences.yaml` for:
 - Autonomy level (ask-first, balanced, just-finish)
 - Communication style
 
@@ -299,16 +296,10 @@ When engaging a specialist, use Task dispatch for heavy analysis work. Keep slas
 
 ```bash
 # Build a context package for the subagent
-python3 "${SMAHT_PLUGIN_ROOT}/scripts/context_package.py" build \
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/context_package.py build \
   --task "{task description}" \
   --project "{project-name}" \
   --dispatch --prompt
-```
-
-Where `SMAHT_PLUGIN_ROOT` is discovered via:
-```bash
-# Find wicked-smaht plugin root (check cache, then local)
-SMAHT_PLUGIN_ROOT=$(find ~/.claude/plugins/cache/wicked-garden/wicked-smaht -maxdepth 1 -type d | sort -V | tail -1)
 ```
 
 The context package outputs a structured prompt section with: task, decisions, constraints, file scope, relevant code, memories, and project state. Include this in the subagent prompt instead of raw deliverable text.
@@ -319,7 +310,7 @@ For each specialist engagement, the dispatch pattern is:
 TaskCreate(subject="{Phase}: {project-name} - {specialist} analysis", ...)
 TaskUpdate(taskId="{id}", status="in_progress")
 Task(
-  subagent_type="wicked-garden:{specialist}/{agent}",
+  subagent_type="wicked-garden:{specialist}:{agent}",
   prompt="""
   {Phase-appropriate analysis prompt}.
   Project: {project-name}
@@ -335,12 +326,12 @@ TaskUpdate(taskId="{id}", status="completed")
 | Specialist | Clarify | Design | Build | Review |
 |-----------|---------|--------|-------|--------|
 | wicked-jam | `/wicked-garden:jam:brainstorm` (interactive) | `/wicked-garden:jam:perspectives` (interactive) | - | - |
-| wicked-product | `Task(subagent_type="wicked-garden:product/requirements-analyst", ...)` | `Task(subagent_type="wicked-garden:product/business-strategist", ...)` | - | `Task(subagent_type="wicked-garden:product/ux-designer", ...)` |
-| wicked-engineering | - | `Task(subagent_type="wicked-garden:engineering/solution-architect", ...)` | `Task(subagent_type="wicked-garden:engineering/senior-engineer", ...)` | `Task(subagent_type="wicked-garden:engineering/senior-engineer", ...)` |
+| wicked-product | `Task(subagent_type="wicked-garden:product:requirements-analyst", ...)` | `Task(subagent_type="wicked-garden:product:business-strategist", ...)` | - | `Task(subagent_type="wicked-garden:product:ux-designer", ...)` |
+| wicked-engineering | - | `Task(subagent_type="wicked-garden:engineering:solution-architect", ...)` | `Task(subagent_type="wicked-garden:engineering:senior-engineer", ...)` | `Task(subagent_type="wicked-garden:engineering:senior-engineer", ...)` |
 | wicked-qe | - | - | `/wicked-garden:crew:gate` (quality gate) | `/wicked-garden:crew:gate` (quality gate) |
-| wicked-platform | - | - | `Task(subagent_type="wicked-garden:platform/security-engineer", ...)` | `Task(subagent_type="wicked-garden:platform/security-engineer", ...)` |
-| wicked-data | - | `Task(subagent_type="wicked-garden:data/data-analyst", ...)` | `Task(subagent_type="wicked-garden:data/data-engineer", ...)` | - |
-| wicked-agentic | - | `Task(subagent_type="wicked-garden:agentic/architect", ...)` | `Task(subagent_type="wicked-garden:agentic/pattern-advisor", ...)` | `Task(subagent_type="wicked-garden:agentic/safety-reviewer", ...)` |
+| wicked-platform | - | - | `Task(subagent_type="wicked-garden:platform:security-engineer", ...)` | `Task(subagent_type="wicked-garden:platform:security-engineer", ...)` |
+| wicked-data | - | `Task(subagent_type="wicked-garden:data:data-analyst", ...)` | `Task(subagent_type="wicked-garden:data:data-engineer", ...)` | - |
+| wicked-agentic | - | `Task(subagent_type="wicked-garden:agentic:architect", ...)` | `Task(subagent_type="wicked-garden:agentic:pattern-advisor", ...)` | `Task(subagent_type="wicked-garden:agentic:safety-reviewer", ...)` |
 | wicked-delivery | `/wicked-garden:delivery:report` (thin CLI) | - | `/wicked-garden:delivery:report` (thin CLI) | `/wicked-garden:delivery:report` (thin CLI) |
 
 **What stays as slash commands**:
@@ -361,12 +352,12 @@ For each phase, follow this pattern:
 
 | Phase | Fallback Agent | Prompt Pattern |
 |-------|---------------|----------------|
-| clarify | `wicked-garden:crew/facilitator` | "Guide outcome clarification for: {description}" |
-| design | `wicked-garden:crew/researcher` | "Research existing patterns and design approaches for: {outcome}" |
+| clarify | `wicked-garden:crew:facilitator` | "Guide outcome clarification for: {description}" |
+| design | `wicked-garden:crew:researcher` | "Research existing patterns and design approaches for: {outcome}" |
 | test-strategy | (inline) | Create test strategy from outcome.md success criteria |
-| build | `wicked-garden:crew/implementer` | "Implement according to design: {design summary}" |
-| test | `wicked-garden:crew/reviewer` | "Execute tests and verify against test strategy: {test-strategy summary}" |
-| review | `wicked-garden:crew/reviewer` | "Review implementation against outcome: {outcome summary}" |
+| build | `wicked-garden:crew:implementer` | "Implement according to design: {design summary}" |
+| test | `wicked-garden:crew:reviewer` | "Execute tests and verify against test strategy: {test-strategy summary}" |
+| review | `wicked-garden:crew:reviewer` | "Review implementation against outcome: {outcome summary}" |
 
 #### Build Phase: Task Creation
 
@@ -535,7 +526,7 @@ If `gate_required` is `true` (all phases except ideate):
 |----------|----------|-----|-------------|
 | 1 (best) | **Third-party CLI** | Codex, Gemini, or OpenCode | Always preferred — independent AI review |
 | 2 | **Specialist plugin** | wicked-garden:engineering:review, wicked-garden:qe:gate, etc. | If no CLI available |
-| 3 | **Generic crew agent** | `Task(subagent_type="wicked-garden:crew/reviewer", ...)` | Last resort automated |
+| 3 | **Generic crew agent** | `Task(subagent_type="wicked-garden:crew:reviewer", ...)` | Last resort automated |
 | 4 | **Human** | Show deliverables, ask for approval | Always offer if human is in the loop |
 
 #### Third-Party CLI Sign-Off (Priority 1)
@@ -584,14 +575,14 @@ If no third-party CLI is available, use installed specialists dynamically:
 
 2. **Filter to reviewers**: Select specialists whose `enhances` list includes the current phase or `"*"`
 
-3. **Cross-reference signals**: Prioritize specialists that match `signals_detected` from project.json (e.g., security signals → wicked-garden:platform/security-engineer)
+3. **Cross-reference signals**: Prioritize specialists that match `signals_detected` from project.json (e.g., security signals → wicked-garden:platform:security-engineer)
 
 4. **Dispatch ALL matching specialists in parallel** (not just first match):
    ```
    # Example: build phase with security signals
-   Task(subagent_type="wicked-garden:engineering/senior-engineer",
+   Task(subagent_type="wicked-garden:engineering:senior-engineer",
         prompt="Review {phase} phase deliverables for {project-name}. {deliverables}")
-   Task(subagent_type="wicked-garden:platform/security-engineer",
+   Task(subagent_type="wicked-garden:platform:security-engineer",
         prompt="Security review of {phase} deliverables. Signals: {signals}")
    ```
 
@@ -601,18 +592,18 @@ If no third-party CLI is available, use installed specialists dynamically:
 
 | Phase | Primary Specialist Agent | Signal-Based Additions |
 |-------|------------------------|----------------------|
-| clarify | `wicked-garden:product/requirements-analyst` | — |
-| design | `wicked-garden:engineering/solution-architect` | `wicked-garden:agentic/architect` (if agentic signals) |
-| test-strategy | `wicked-garden:qe/test-strategist` | — |
-| build | `wicked-garden:engineering/senior-engineer` | `wicked-garden:platform/security-engineer` (if security signals) |
-| test | `wicked-garden:qe/test-automation-engineer` | — |
-| review | `wicked-garden:engineering/senior-engineer` + `wicked-garden:qe/code-analyzer` | `wicked-garden:platform/security-engineer` (if security signals) |
+| clarify | `wicked-garden:product:requirements-analyst` | — |
+| design | `wicked-garden:engineering:solution-architect` | `wicked-garden:agentic:architect` (if agentic signals) |
+| test-strategy | `wicked-garden:qe:test-strategist` | — |
+| build | `wicked-garden:engineering:senior-engineer` | `wicked-garden:platform:security-engineer` (if security signals) |
+| test | `wicked-garden:qe:test-automation-engineer` | — |
+| review | `wicked-garden:engineering:senior-engineer` + `wicked-garden:qe:code-analyzer` | `wicked-garden:platform:security-engineer` (if security signals) |
 
 #### Generic Sign-Off (Priority 3)
 
 If no specialist is installed for the current phase, fall back to generic:
 ```
-Task(subagent_type="wicked-garden:crew/reviewer",
+Task(subagent_type="wicked-garden:crew:reviewer",
      prompt="Sign-off review for {phase} phase of {project-name}.
      Deliverables: {list deliverables}
      Success criteria: {from outcome.md}

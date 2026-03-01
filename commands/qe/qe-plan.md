@@ -36,7 +36,7 @@ Note:
 
 ```
 Task(
-  subagent_type="wicked-garden:qe/test-strategist",
+  subagent_type="wicked-garden:qe:test-strategist",
   prompt="""Create comprehensive test strategy.
 
 ## Feature Description
@@ -61,7 +61,7 @@ Provide test coverage matrix, unit/integration/e2e test breakdowns, and prioriti
 )
 
 Task(
-  subagent_type="wicked-garden:qe/risk-assessor",
+  subagent_type="wicked-garden:qe:risk-assessor",
   prompt="""Identify testing risks for this feature.
 
 ## Feature Description
@@ -148,7 +148,7 @@ Provide risk areas table with severity, test coverage needs, and confidence leve
 If user wants test implementation:
 ```
 Task(
-  subagent_type="wicked-garden:qe/test-automation-engineer",
+  subagent_type="wicked-garden:qe:test-automation-engineer",
   prompt="""Generate test stubs from this test plan.
 
 ## Test Plan

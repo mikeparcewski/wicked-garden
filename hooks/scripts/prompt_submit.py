@@ -18,6 +18,7 @@ Always fails open — any unhandled exception returns {"continue": true}.
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 # Add shared scripts directory to path
@@ -158,18 +159,36 @@ def _query_kanban(project: str) -> str:
 def _query_search_index(prompt: str) -> str:
     """Return a quick symbol hit if prompt references a code identifier."""
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-search")
-        # Extract potential symbol: first CamelCase or snake_case word
         import re
+        import sqlite3
+        # Extract potential symbol: first CamelCase or snake_case word
         symbols = re.findall(r"\b[A-Z][a-zA-Z0-9]{2,}|[a-z_][a-z0-9_]{3,}\b", prompt)
         if not symbols:
             return ""
-        results = sm.list("symbols", query=symbols[0], limit=2) or []
-        if not results:
+        db_path = Path.home() / ".something-wicked" / "wicked-search" / "unified_search.db"
+        if not db_path.exists():
             return ""
-        hits = [r.get("file", "") + ":" + str(r.get("line", "")) for r in results if r.get("file")]
-        return f"Symbol '{symbols[0]}' found at: {', '.join(hits)}" if hits else ""
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1)
+        try:
+            # Try common table/column patterns for symbol lookup
+            for table, name_col, file_col, line_col in [
+                ("symbols", "name", "file", "line"),
+                ("code_symbols", "name", "file_path", "line"),
+            ]:
+                try:
+                    cursor = conn.execute(
+                        f"SELECT {file_col}, {line_col} FROM {table} WHERE {name_col} = ? LIMIT 2",
+                        (symbols[0],),
+                    )
+                    rows = cursor.fetchall()
+                    if rows:
+                        hits = [f"{r[0]}:{r[1]}" for r in rows if r[0]]
+                        return f"Symbol '{symbols[0]}' found at: {', '.join(hits)}" if hits else ""
+                except sqlite3.OperationalError:
+                    continue
+            return ""
+        finally:
+            conn.close()
     except Exception:
         return ""
 
@@ -219,6 +238,57 @@ def _capture_session_goal(prompt: str, turn_count: int, project: str, session_id
         )
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Reconnect probe — checks for CP availability when in offline/fallback mode
+# ---------------------------------------------------------------------------
+
+_reconnect_notification = ""  # set by _maybe_attempt_reconnect, read by main()
+
+
+def _maybe_attempt_reconnect(state) -> None:
+    """Probe CP health when in fallback mode, rate-limited by config interval.
+
+    On successful reconnect: flips session state online, drains the offline
+    queue, and sets a notification message for the user.
+    """
+    global _reconnect_notification
+
+    if state is None or not state.fallback_mode:
+        return
+
+    now = time.time()
+    interval = 60  # default
+    try:
+        from _control_plane import load_config
+        cfg = load_config()
+        interval = cfg.get("health_check_interval_seconds", 60)
+    except Exception:
+        pass
+
+    last = getattr(state, "cp_last_checked_at", 0.0) or 0.0
+    if now - last < interval:
+        return
+
+    # Stamp before attempt to avoid racing with concurrent hooks
+    state.update(cp_last_checked_at=now)
+
+    try:
+        from _control_plane import ControlPlaneClient
+        ok, version = ControlPlaneClient(hook_mode=True).check_health()
+        if ok:
+            state.mark_online(version)
+            from _storage import drain_offline_queue
+            replayed, failed = drain_offline_queue(hook_mode=True)
+            parts = [f"Control plane reconnected (v{version})."]
+            if replayed:
+                parts.append(f"Replayed {replayed} queued writes.")
+            if failed:
+                parts.append(f"{failed} failed entries in _queue_failed.jsonl.")
+            _reconnect_notification = " ".join(parts)
+    except Exception:
+        pass  # fail open — stay in fallback mode
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +422,9 @@ def main():
     except Exception:
         state = None
 
+    # Reconnect probe — check for CP when in fallback/offline mode
+    _maybe_attempt_reconnect(state)
+
     turn_count = _increment_turn(state)
 
     # Session goal capture on turns 1-2
@@ -385,12 +458,17 @@ def main():
             f"| turn={turn_count} -->"
         )
 
+        # Include reconnect notification if CP was just restored
+        context_parts = [f"<system-reminder>\n{header}\n{sanitized}\n</system-reminder>"]
+        if _reconnect_notification:
+            context_parts.append(
+                f"<system-reminder>\n[wicked-garden] {_reconnect_notification}\n</system-reminder>"
+            )
+
         output = {
             "hookSpecificOutput": {
                 "hookEventName": "UserPromptSubmit",
-                "additionalContext": (
-                    f"<system-reminder>\n{header}\n{sanitized}\n</system-reminder>"
-                ),
+                "additionalContext": "\n".join(context_parts),
             },
             "continue": True,
         }

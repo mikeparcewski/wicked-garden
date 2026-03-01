@@ -24,7 +24,7 @@ Convert description to kebab-case slug:
 ### 3. Check for Existing Project
 
 ```bash
-ls -d ~/.something-wicked/wicked-crew/projects/*/ 2>/dev/null | xargs -I {} basename {}
+ls -d ~/.something-wicked/wicked-garden/local/wicked-crew/projects/*/ 2>/dev/null | xargs -I {} basename {}
 ```
 
 If project name exists, ask user: resume, rename, or cancel.
@@ -34,7 +34,7 @@ If project name exists, ask user: resume, rename, or cancel.
 Create directory and initial files:
 
 ```
-~/.something-wicked/wicked-crew/projects/{name}/
+~/.something-wicked/wicked-garden/local/wicked-crew/projects/{name}/
 ├── project.md
 ├── outcome.md
 └── phases/
@@ -288,7 +288,7 @@ Example output:
 ```markdown
 ## Project Created: {name}
 
-**Path**: ~/.something-wicked/wicked-crew/projects/{name}/
+**Path**: ~/.something-wicked/wicked-garden/local/wicked-crew/projects/{name}/
 **Current Phase**: clarify
 
 ### Signal Analysis

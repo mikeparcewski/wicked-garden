@@ -109,7 +109,7 @@ These ALWAYS require explicit approval regardless of autonomy level:
 
 ## Profile Configuration
 
-Stored in `~/.something-wicked/wicked-crew/preferences.yaml`:
+Stored in `~/.something-wicked/wicked-garden/local/wicked-crew/preferences.yaml`:
 
 ```yaml
 autonomy: balanced

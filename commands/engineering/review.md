@@ -43,7 +43,7 @@ NOTE: When available, use the wicked-* marketplace tools to speed up discovery.
 
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/senior-engineer",
+    subagent_type="wicked-garden:engineering:senior-engineer",
     prompt="""Review this code for quality, patterns, and maintainability.
 
 ## Target
@@ -80,7 +80,7 @@ If `--focus` specified:
 **security**: Security review
 ```python
 Task(
-    subagent_type="wicked-garden:qe/code-analyzer",
+    subagent_type="wicked-garden:qe:code-analyzer",
     prompt="""Security-focused analysis of code.
 
 ## Target
@@ -101,7 +101,7 @@ List findings with file:line references and severity.
 **performance**: Performance issues
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/backend-engineer",  # or frontend-engineer based on stack
+    subagent_type="wicked-garden:engineering:backend-engineer",  # or frontend-engineer based on stack
     prompt="""Performance analysis of code.
 
 ## Target
@@ -122,7 +122,7 @@ List findings with file:line references and impact estimates.
 **patterns**: Architecture and design patterns
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/solution-architect",
+    subagent_type="wicked-garden:engineering:solution-architect",
     prompt="""Pattern analysis of code.
 
 ## Target
@@ -143,7 +143,7 @@ Evaluate each pattern with examples from code.
 **tests**: Test quality and value
 ```python
 Task(
-    subagent_type="wicked-garden:qe/code-analyzer",
+    subagent_type="wicked-garden:qe:code-analyzer",
     prompt="""Evaluate test quality. Fewer, higher-quality tests beat many low-value ones.
 
 ## Target

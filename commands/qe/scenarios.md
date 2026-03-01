@@ -30,7 +30,7 @@ If implementation exists, read it to understand:
 
 ```
 Task(
-  subagent_type="wicked-garden:qe/test-strategist",
+  subagent_type="wicked-garden:qe:test-strategist",
   prompt="""Generate comprehensive test scenarios.
 
 ## Target

@@ -33,7 +33,7 @@ Based on argument:
 If tracing source available:
 ```python
 Task(
-    subagent_type="wicked-garden:platform/sre",
+    subagent_type="wicked-garden:platform:sre",
     prompt="""Analyze distributed traces for latency and bottleneck investigation.
 
 Target: {service name, trace ID, or 'slow requests'}

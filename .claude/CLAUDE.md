@@ -74,7 +74,7 @@ All commands use colon-separated namespacing: `wicked-garden:{domain}:{command}`
 /wicked-garden:setup                # no domain (root-level command)
 ```
 
-Agent subagent_type uses slash: `wicked-garden:{domain}/{agent-name}`
+Agent subagent_type uses colons: `wicked-garden:{domain}:{agent-name}`
 
 ### Domain Organization
 
@@ -141,13 +141,13 @@ Commands with matching agents MUST delegate via the Task tool:
 ```markdown
 <!-- DO: actual subagent dispatch -->
 Task(
-  subagent_type="wicked-garden:platform/security-engineer",
+  subagent_type="wicked-garden:platform:security-engineer",
   prompt="Perform security review. Scope: {scope}..."
 )
 
 <!-- DON'T: informal prose that executes inline -->
 ### Spawn Security Engineer
-Task: wicked-garden:platform/security-engineer
+Task: wicked-garden:platform:security-engineer
 ```
 
 - Commands with 2+ independent steps SHOULD use parallel dispatch
@@ -224,7 +224,7 @@ Skills use **progressive disclosure** for context efficiency:
 
 - All names: kebab-case, max 64 chars
 - Commands: `wicked-garden:{domain}:{command}` (colon-separated namespace)
-- Agents: `wicked-garden:{domain}/{agent-name}` (slash-separated)
+- Agents: `wicked-garden:{domain}:{agent-name}` (colon-separated)
 - Skills: `wicked-garden:{domain}:{skill-name}` (colon-separated)
 - Events: `{domain}:{action}:{outcome}` (lowercase, colon-separated)
 - Command headers: `# /wicked-garden:{domain}:{command}` as h1 after YAML frontmatter

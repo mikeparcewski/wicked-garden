@@ -43,7 +43,7 @@ Parse coverage output for:
 
 ```
 Task(
-  subagent_type="wicked-garden:qe/test-strategist",
+  subagent_type="wicked-garden:qe:test-strategist",
   prompt="""Review these test files for quality and effectiveness.
 
 ## Test Code

@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-115 commands. 78 specialist agents. 69 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
+116 commands. 78 specialist agents. 70 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden

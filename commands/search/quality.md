@@ -100,7 +100,7 @@ The Scout Agent discovers patterns by:
 
 Generated extraction scripts are cached at:
 ```
-~/something-wicked/wicked-search/tmp_scripts/
+~/.something-wicked/wicked-garden/local/wicked-search/tmp_scripts/
 ```
 
 ## Exit Codes

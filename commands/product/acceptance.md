@@ -52,7 +52,7 @@ Read requirements, design documents, or user story references. Parse parameters:
 
 ```
 Task(
-  subagent_type="wicked-garden:product/requirements-analyst",
+  subagent_type="wicked-garden:product:requirements-analyst",
   prompt="""Generate testable acceptance criteria from the following input.
 
 ## Input

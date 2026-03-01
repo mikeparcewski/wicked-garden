@@ -5,9 +5,9 @@ Outcome Feedback Loop + Statistical Validation for wicked-crew.
 Records project outcomes, tracks signal accuracy, and generates
 recommendations for keyword weight adjustments.
 
-Storage: ~/.something-wicked/wicked-crew/feedback/
-- outcomes.jsonl: Per-project outcome records
-- metrics.json: Running per-signal-category metrics
+Storage: via StorageManager("wicked-crew") → control plane with local fallback
+- feedback source: Per-project outcome records
+- metrics source: Running per-signal-category metrics
 
 Usage:
   feedback.py record --project NAME --outcome success|partial|failure \
@@ -25,7 +25,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 
-FEEDBACK_DIR = Path.home() / ".something-wicked" / "wicked-crew" / "feedback"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
+
+_sm = StorageManager("wicked-crew")
 
 # Import SIGNAL_TO_SPECIALISTS for validation ground truth
 # This is the only allowed import from smart_decisioning (no circular dep)
@@ -52,22 +55,14 @@ class OutcomeRecord:
     notes: str = ""
 
 
-def _ensure_dir():
-    """Create feedback directory if needed."""
-    FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)
-
-
 def record_outcome(record: OutcomeRecord) -> Dict:
-    """Store an outcome record to JSONL. Returns dict with path and memory_payload.
+    """Store an outcome record via StorageManager. Returns dict with memory_payload.
 
     The memory_payload is returned for the CALLER (a Claude command) to store
     via /wicked-mem:store using Claude's native tool system — scripts should
     never call other plugins directly.
     """
-    _ensure_dir()
-    outcomes_file = FEEDBACK_DIR / "outcomes.jsonl"
-    with open(outcomes_file, "a") as f:
-        f.write(json.dumps(asdict(record)) + "\n")
+    created = _sm.create("feedback", asdict(record))
 
     # Build reasoning narrative for the caller to store to memory
     missed = set(record.specialists_routed) - set(record.specialists_used)
@@ -94,7 +89,7 @@ def record_outcome(record: OutcomeRecord) -> Dict:
     )
 
     return {
-        "path": str(outcomes_file),
+        "id": created.get("id") if created else None,
         "memory_payload": {
             "title": f"Project outcome: {record.project_name} ({record.outcome})",
             "content": " | ".join(reasoning_parts),
@@ -106,18 +101,17 @@ def record_outcome(record: OutcomeRecord) -> Dict:
 
 
 def load_outcomes() -> List[OutcomeRecord]:
-    """Load all outcome records from disk."""
-    outcomes_file = FEEDBACK_DIR / "outcomes.jsonl"
-    if not outcomes_file.exists():
-        return []
-
+    """Load all outcome records via StorageManager."""
+    items = _sm.list("feedback")
     records = []
-    with open(outcomes_file) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                data = json.loads(line)
-                records.append(OutcomeRecord(**data))
+    for data in items:
+        # Strip SM-added fields before constructing OutcomeRecord
+        filtered = {k: v for k, v in data.items()
+                    if k in OutcomeRecord.__dataclass_fields__}
+        try:
+            records.append(OutcomeRecord(**filtered))
+        except TypeError:
+            continue
     return records
 
 
@@ -165,11 +159,12 @@ def compute_signal_metrics(outcomes: List[OutcomeRecord]) -> Dict[str, Dict]:
 
 
 def save_metrics(metrics: Dict[str, Dict]) -> None:
-    """Save metrics to disk."""
-    _ensure_dir()
-    metrics_file = FEEDBACK_DIR / "metrics.json"
-    with open(metrics_file, "w") as f:
-        json.dump(metrics, f, indent=2)
+    """Save metrics via StorageManager (upsert by 'latest' id)."""
+    existing = _sm.get("metrics", "latest")
+    if existing:
+        _sm.update("metrics", "latest", {"categories": metrics})
+    else:
+        _sm.create("metrics", {"id": "latest", "categories": metrics})
 
 
 def generate_suggestions(metrics: Dict[str, Dict], min_samples: int = 10) -> List[Dict]:
@@ -261,17 +256,14 @@ def main():
 
     if args.command == "record":
         # Load project state to get predicted signals
-        project_dir = Path.home() / ".something-wicked" / "wicked-crew" / "projects" / args.project
-        project_json = project_dir / "project.json"
+        data = _sm.get("projects", args.project)
 
         signals_predicted = []
         signal_confidences: Dict[str, float] = {}
         complexity_predicted = 0
         specialists_routed = []
 
-        if project_json.exists():
-            with open(project_json) as f:
-                data = json.load(f)
+        if data:
             signals_predicted = data.get("signals_detected", [])
             complexity_predicted = data.get("complexity_score", 0)
             specialists_routed = data.get("specialists_recommended", [])
@@ -295,7 +287,7 @@ def main():
         if args.json:
             print(json.dumps({"recorded": True, **result}))
         else:
-            print(f"Outcome recorded for {args.project} → {result['path']}")
+            print(f"Outcome recorded for {args.project} (id: {result.get('id', 'n/a')})")
 
     elif args.command == "report":
         outcomes = load_outcomes()

@@ -65,7 +65,7 @@ Captures the contents of a file at a point in time.
 
 ```markdown
 - `step-2-file`:
-  - path: /home/user/.something-wicked/wicked-mem/memories/mem_abc123.json
+  - path: /home/user/.something-wicked/wicked-garden/local/wicked-mem/memories/mem_abc123.json
   - exists: true
   - size_bytes: 245
   - content: ```json
@@ -87,7 +87,7 @@ Boolean check for file/directory existence.
 
 ```markdown
 - `step-3-dir`:
-  - path: /home/user/.something-wicked/wicked-mem/memories/
+  - path: /home/user/.something-wicked/wicked-garden/local/wicked-mem/memories/
   - exists: true
   - type: directory
   - children: 3 files
@@ -243,7 +243,7 @@ The executor produces this structure:
 - **Completed at**: 2024-01-15T10:30:45Z
 - **Steps executed**: 5 of 5
 - **Steps skipped**: 0
-- **Files created**: ~/.something-wicked/wicked-mem/memories/mem_abc123.json
+- **Files created**: ~/.something-wicked/wicked-garden/local/wicked-mem/memories/mem_abc123.json
 ```
 
 ## Common Pitfalls

@@ -97,10 +97,10 @@ When asked to analyze feedback:
 1. **Scope the Data**:
    ```bash
    # Check available feedback
-   ls -la ~/.something-wicked/voice/feedback/
+   ls -la ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/
 
    # Count records by source
-   find ~/.something-wicked/voice/feedback/ -type f | wc -l
+   find ~/.something-wicked/wicked-garden/local/wicked-product/voice/feedback/ -type f | wc -l
    ```
 
 2. **Extract Relevant Subset**:

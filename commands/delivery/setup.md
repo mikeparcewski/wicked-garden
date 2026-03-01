@@ -13,8 +13,8 @@ Interactive setup for delivery metrics configuration.
 ### 1. Check for Existing Configuration
 
 Read existing files if they exist:
-- `~/.something-wicked/wicked-delivery/cost_model.json`
-- `~/.something-wicked/wicked-delivery/settings.json`
+- `~/.something-wicked/wicked-garden/local/wicked-delivery/cost_model.json`
+- `~/.something-wicked/wicked-garden/local/wicked-delivery/settings.json`
 
 If `--reset` is passed, skip loading existing values and start fresh.
 
@@ -64,7 +64,7 @@ If yes, generate complexity costs scaled proportionally to their priority model:
 - Scale: complexity 0-7 maps linearly from ~20% of P3 cost to ~150% of P0 cost
 - Show and confirm
 
-Write `~/.something-wicked/wicked-delivery/cost_model.json`:
+Write `~/.something-wicked/wicked-garden/local/wicked-delivery/cost_model.json`:
 ```json
 {
   "currency": "{currency}",
@@ -117,9 +117,9 @@ Use AskUserQuestion:
 
 ### 6. Write Settings
 
-Create `~/.something-wicked/wicked-delivery/` directory if it doesn't exist.
+Create `~/.something-wicked/wicked-garden/local/wicked-delivery/` directory if it doesn't exist.
 
-Write `~/.something-wicked/wicked-delivery/settings.json`:
+Write `~/.something-wicked/wicked-garden/local/wicked-delivery/settings.json`:
 ```json
 {
   "rolling_window_days": {value},
@@ -167,8 +167,8 @@ Display the full configuration:
 - **Aging threshold**: {days} days
 
 ### Files
-- `~/.something-wicked/wicked-delivery/cost_model.json` {created/updated/unchanged}
-- `~/.something-wicked/wicked-delivery/settings.json` {created/updated}
+- `~/.something-wicked/wicked-garden/local/wicked-delivery/cost_model.json` {created/updated/unchanged}
+- `~/.something-wicked/wicked-garden/local/wicked-delivery/settings.json` {created/updated}
 
 To reconfigure later: `/wicked-garden:delivery:setup --reset`
 ```

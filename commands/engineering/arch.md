@@ -31,7 +31,7 @@ Map the architecture:
 For module/service scope:
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/system-designer",
+    subagent_type="wicked-garden:engineering:system-designer",
     prompt="""Analyze the architecture of this component.
 
 ## Component
@@ -58,7 +58,7 @@ Provide assessment with strengths, concerns, and recommendations.
 For system scope:
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/solution-architect",
+    subagent_type="wicked-garden:engineering:solution-architect",
     prompt="""Analyze the system architecture.
 
 ## Components
@@ -82,7 +82,7 @@ Provide overview, assessment (strengths + concerns), and strategic recommendatio
 If data-heavy system:
 ```python
 Task(
-    subagent_type="wicked-garden:engineering/data-architect",
+    subagent_type="wicked-garden:engineering:data-architect",
     prompt="""Analyze data architecture for this system.
 
 ## Evaluation Areas

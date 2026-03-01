@@ -5,10 +5,19 @@ _storage.py — StorageManager: unified interface for data operations.
 Domain scripts call StorageManager — never the control plane directly.
 This isolates all fallback logic in one place.
 
-Storage hierarchy:
-    Primary:  wicked-control-plane HTTP API (when available)
-    Fallback: local JSON files at ~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json
-    Queue:    offline writes appended to local/_queue.jsonl, replayed on reconnect
+Three modes (set in config.json):
+    remote:        CP on a team server (required, local for reads only)
+    local-install: CP on localhost (default, local fallback on miss)
+    offline:       Local JSON files always, every write queued for replay
+
+Storage paths:
+    Local:  ~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json
+    Queue:  ~/.something-wicked/wicked-garden/local/_queue.jsonl
+    Failed: ~/.something-wicked/wicked-garden/local/_queue_failed.jsonl
+
+Conflict resolution on queue drain:
+    - create: dedup-before-create (list by business keys, skip if match exists)
+    - update/delete: append-wins (last write wins, idempotent by ID)
 
 Usage:
     from _storage import StorageManager
@@ -19,6 +28,10 @@ Usage:
     new   = sm.create("memories", {"title": "...", "content": "..."})
     sm.update("memories", "abc123", {"title": "new title"})
     sm.delete("memories", "abc123")
+
+    # For truly ephemeral files (caches, temp session state) only:
+    from _storage import get_local_path
+    cache_dir = get_local_path("wicked-smaht", "cache", "context7")
 """
 
 import json
@@ -45,6 +58,55 @@ _QUEUE_FAILED_FILE = _LOCAL_ROOT / "_queue_failed.jsonl"
 # Migration-mode compatibility shim path prefix (gated by config flag)
 _LEGACY_ROOT = Path.home() / ".something-wicked"
 
+# ---------------------------------------------------------------------------
+# Dedup keys: (domain, source) → list of business key field names.
+# Used by drain_queue() to skip creating duplicates that already exist in CP.
+# ---------------------------------------------------------------------------
+
+_DEDUP_KEYS: dict[tuple[str, str], list[str]] = {
+    ("wicked-mem", "memories"): ["title", "scope", "project"],
+    ("wicked-crew", "projects"): ["name"],
+    ("wicked-kanban", "tasks"): ["subject", "initiative_id"],
+    ("wicked-kanban", "initiatives"): ["name"],
+    ("wicked-jam", "sessions"): ["name", "project"],
+}
+
+# ---------------------------------------------------------------------------
+# Valid modes
+# ---------------------------------------------------------------------------
+
+_VALID_MODES = frozenset({"remote", "local-install", "offline"})
+
+
+# ---------------------------------------------------------------------------
+# Public helpers
+# ---------------------------------------------------------------------------
+
+
+def get_local_path(domain: str, *subpath: str) -> Path:
+    """Delegate to _paths.get_local_path — see _paths.py for docs."""
+    from _paths import get_local_path as _glp
+    return _glp(domain, *subpath)
+
+
+def get_local_file(domain: str, *subpath: str) -> Path:
+    """Delegate to _paths.get_local_file — see _paths.py for docs."""
+    from _paths import get_local_file as _glf
+    return _glf(domain, *subpath)
+
+
+def drain_offline_queue(domain: str = "wicked-garden", *, hook_mode: bool = False) -> tuple[int, int]:
+    """Convenience wrapper: instantiate StorageManager and drain the offline queue.
+
+    Called by bootstrap.py at session start and by prompt_submit.py on
+    mid-session reconnect.
+
+    Returns:
+        (replayed, failed) counts.
+    """
+    sm = StorageManager(domain, hook_mode=hook_mode)
+    return sm.drain_queue()
+
 
 # ---------------------------------------------------------------------------
 # StorageManager
@@ -54,9 +116,12 @@ _LEGACY_ROOT = Path.home() / ".something-wicked"
 class StorageManager:
     """Unified read/write interface for plugin data.
 
-    Transparent fallback: tries the control plane first; on failure (or when
-    the session is in fallback mode) uses local JSON files.  Offline writes
-    are queued for later replay.
+    Mode routing:
+        remote / local-install: CP primary, local fallback, queue on miss.
+        offline: local always, every write enqueued for future replay.
+
+    The mode is read from config.json at construction time. Callers do not
+    need to know or care about the mode — the API is identical.
     """
 
     def __init__(self, domain: str, *, hook_mode: bool = False):
@@ -69,6 +134,9 @@ class StorageManager:
         self._hook_mode = hook_mode
         self._cp = get_client(hook_mode=hook_mode)
         self._cfg = load_config()
+        self._mode = self._cfg.get("mode") or "local-install"
+        if self._mode not in _VALID_MODES:
+            self._mode = "local-install"
 
     # ------------------------------------------------------------------
     # Read operations
@@ -80,7 +148,7 @@ class StorageManager:
         Returns:
             List of record dicts. Empty list on any error.
         """
-        if self._cp_available():
+        if self._should_use_cp():
             result = self._cp.request(
                 self._domain, source, "list", params=params or None
             )
@@ -95,7 +163,7 @@ class StorageManager:
         Returns:
             Record dict, or None if not found.
         """
-        if self._cp_available():
+        if self._should_use_cp():
             result = self._cp.request(self._domain, source, "get", id=id)
             if result is not None:
                 return _extract_item(result)
@@ -112,14 +180,14 @@ class StorageManager:
         Returns:
             Created record dict, or None on failure.
         """
-        if self._cp_available():
+        if self._should_use_cp():
             result = self._cp.request(
                 self._domain, source, "create", payload=payload
             )
             if result is not None:
                 return _extract_item(result)
 
-        # Fallback: assign a local ID and persist
+        # Local write: assign a local ID and persist
         record = dict(payload)
         if "id" not in record:
             record["id"] = str(uuid.uuid4())
@@ -136,14 +204,14 @@ class StorageManager:
         Returns:
             Updated record dict, or None if not found.
         """
-        if self._cp_available():
+        if self._should_use_cp():
             result = self._cp.request(
                 self._domain, source, "update", id=id, payload=diff
             )
             if result is not None:
                 return _extract_item(result)
 
-        # Fallback: read-modify-write
+        # Local: read-modify-write
         existing = self._local_get(source, id)
         if existing is None:
             return None
@@ -160,12 +228,12 @@ class StorageManager:
         Returns:
             True if the record was found and removed/marked deleted.
         """
-        if self._cp_available():
+        if self._should_use_cp():
             result = self._cp.request(self._domain, source, "delete", id=id)
             if result is not None:
                 return True
 
-        # Fallback: mark deleted in local file
+        # Local: mark deleted
         existing = self._local_get(source, id)
         if existing is None:
             return False
@@ -183,8 +251,14 @@ class StorageManager:
     def drain_queue(self) -> tuple[int, int]:
         """Replay queued offline writes against the control plane.
 
-        Called by bootstrap.py on successful health check after a period of
-        offline operation.
+        Called by bootstrap.py on successful health check and by
+        prompt_submit.py on mid-session reconnect.
+
+        Conflict resolution:
+            - create with dedup_keys: list CP by business keys first,
+              skip if a matching record already exists.
+            - create without dedup_keys: proceed directly (old queue entries).
+            - update/delete: append-wins (last write wins).
 
         Failed entries are moved to _queue_failed.jsonl with an error note.
 
@@ -219,9 +293,14 @@ class StorageManager:
             source = entry.get("source")
             payload = entry.get("payload", {})
             record_id = payload.get("id")
+            dedup_keys = entry.get("dedup_keys")
 
             try:
                 if verb == "create":
+                    # Dedup-before-create: check if record already exists in CP
+                    if dedup_keys and self._dedup_exists(domain, source, dedup_keys):
+                        replayed += 1  # count as "handled" — record is already there
+                        continue
                     result = self._cp.request(domain, source, "create", payload=payload)
                 elif verb == "update" and record_id:
                     diff = {k: v for k, v in payload.items() if k != "id"}
@@ -266,8 +345,7 @@ class StorageManager:
         """Read from old plugin storage layout during migration window.
 
         Only active when config flag migration_mode == true. The legacy path
-        is: ~/.something-wicked/wicked-{domain}/... (without the wicked- prefix
-        strip, since we store the full domain name like "wicked-mem").
+        is: ~/.something-wicked/wicked-{domain}/...
         """
         if not self._cfg.get("migration_mode"):
             return None
@@ -280,6 +358,45 @@ class StorageManager:
             return json.loads(legacy_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return None
+
+    # ------------------------------------------------------------------
+    # Private: mode-aware CP availability
+    # ------------------------------------------------------------------
+
+    def _should_use_cp(self) -> bool:
+        """Return True if the current mode and session state allow CP access.
+
+        offline mode: always False (never call CP).
+        remote/local-install: True when session reports CP is available.
+        """
+        if self._mode == "offline":
+            return False
+        try:
+            state = SessionState.load()
+            return state.cp_available and not state.fallback_mode
+        except Exception:
+            return False
+
+    # ------------------------------------------------------------------
+    # Private: dedup check for queue drain
+    # ------------------------------------------------------------------
+
+    def _dedup_exists(self, domain: str, source: str, dedup_keys: dict) -> bool:
+        """Check if a record matching dedup_keys already exists in CP.
+
+        Returns True if a matching record is found (create should be skipped).
+        Returns False on any error (proceed with create — fail open).
+        """
+        try:
+            result = self._cp.request(
+                domain, source, "list", params=dedup_keys
+            )
+            if result is not None:
+                records = _extract_list(result)
+                return len(records) > 0
+        except Exception:
+            pass
+        return False
 
     # ------------------------------------------------------------------
     # Private: local file operations
@@ -351,14 +468,31 @@ class StorageManager:
     # ------------------------------------------------------------------
 
     def _enqueue(self, verb: str, source: str, payload: dict) -> None:
-        """Append a write operation to the offline queue."""
-        entry = {
+        """Append a write operation to the offline queue.
+
+        Stamps dedup_keys from _DEDUP_KEYS when available, so drain_queue()
+        can skip duplicates on replay.
+        """
+        entry: dict[str, Any] = {
             "queued_at": _now(),
             "domain": self._domain,
             "source": source,
             "verb": verb,
             "payload": payload,
         }
+
+        # Stamp dedup keys for create operations
+        if verb == "create":
+            key_fields = _DEDUP_KEYS.get((self._domain, source))
+            if key_fields:
+                dedup = {}
+                for field in key_fields:
+                    val = payload.get(field)
+                    if val is not None:
+                        dedup[field] = val
+                if dedup:
+                    entry["dedup_keys"] = dedup
+
         _QUEUE_FILE.parent.mkdir(parents=True, exist_ok=True)
         try:
             with _QUEUE_FILE.open("a", encoding="utf-8") as fh:
@@ -368,18 +502,6 @@ class StorageManager:
                 f"[wicked-garden] Failed to enqueue {verb} {source}: {exc}",
                 file=sys.stderr,
             )
-
-    # ------------------------------------------------------------------
-    # Private: availability check
-    # ------------------------------------------------------------------
-
-    def _cp_available(self) -> bool:
-        """Return True if the session has a live control plane connection."""
-        try:
-            state = SessionState.load()
-            return state.cp_available and not state.fallback_mode
-        except Exception:
-            return False
 
 
 # ---------------------------------------------------------------------------

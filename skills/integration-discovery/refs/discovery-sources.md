@@ -76,7 +76,7 @@ Relevant skills:
 - wicked-qe (test-strategist for security test scenarios)
 - wicked-engineering (senior-engineer for code quality)
 
-Recommendation: Use wicked-garden:platform/security-engineer as primary reviewer.
+Recommendation: Use wicked-garden:platform:security-engineer as primary reviewer.
 ```
 
 ## Agents
@@ -102,8 +102,8 @@ Recommendation: Use wicked-garden:platform/security-engineer as primary reviewer
 Task: "Review PR for security issues"
 
 Relevant agents:
-- `wicked-garden:platform/security-engineer` - Security expertise
-- `wicked-garden:engineering/senior-engineer` - Code quality
+- `wicked-garden:platform:security-engineer` - Security expertise
+- `wicked-garden:engineering:senior-engineer` - Code quality
 - `Explore` - Understand codebase context
 
 Recommendation: Spawn security-engineer for focused review.

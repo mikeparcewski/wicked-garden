@@ -73,7 +73,7 @@ For **complex workflow operations** (multi-step CI/CD setup, workflow generation
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/devops-engineer",
+    subagent_type="wicked-garden:platform:devops-engineer",
     prompt="""Handle complex GitHub workflow operation.
 
 Operation: {what user requested}

@@ -13,11 +13,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from . import ContextItem
+from . import ContextItem, _SCRIPTS_ROOT
+
+if str(_SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_ROOT))
+
+from _paths import get_local_path
 
 
 # Cache configuration
-CACHE_DIR = Path.home() / ".something-wicked" / "wicked-smaht" / "cache" / "context7"
+CACHE_DIR = get_local_path("wicked-smaht", "cache", "context7")
 CACHE_TTL_SECONDS = 3600  # 1 hour
 MAX_CACHE_ENTRIES = 500
 

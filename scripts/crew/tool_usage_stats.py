@@ -3,30 +3,26 @@
 import json
 import sys
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-USAGE_DIR = Path.home() / ".something-wicked" / "wicked-crew" / "tool-usage"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _storage import StorageManager
+
+_sm = StorageManager("wicked-crew")
 
 def load_usage(days: int = 7) -> list:
-    """Load usage records from the last N days."""
-    records = []
-    if not USAGE_DIR.exists():
-        return records
+    """Load usage records from the last N days via StorageManager."""
+    records = _sm.list("tool-usage")
 
-    for f in sorted(USAGE_DIR.glob("usage-*.jsonl")):
-        try:
-            date_str = f.stem.replace("usage-", "")
-            file_date = datetime.strptime(date_str, "%Y-%m-%d")
-            age = (datetime.now() - file_date).days
-            if age <= days:
-                with open(f) as fp:
-                    for line in fp:
-                        if line.strip():
-                            records.append(json.loads(line))
-        except (ValueError, json.JSONDecodeError):
-            continue
-    return records
+    # Filter by created_at (SM adds this automatically on create)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    filtered = []
+    for r in records:
+        created = r.get("created_at", "")
+        if created >= cutoff:
+            filtered.append(r)
+    return filtered
 
 def print_stats(days: int = 7):
     """Print tool usage statistics."""
@@ -34,7 +30,6 @@ def print_stats(days: int = 7):
 
     if not records:
         print(f"No tool usage data found in last {days} days.")
-        print(f"Data location: {USAGE_DIR}")
         return
 
     # Aggregate by agent -> tools

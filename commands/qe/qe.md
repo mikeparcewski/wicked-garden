@@ -44,7 +44,7 @@ If `--focus` not specified, infer from target:
 
 ```
 Task(
-  subagent_type="wicked-garden:product/requirements-analyst",
+  subagent_type="wicked-garden:product:requirements-analyst",
   prompt="""Review these requirements for quality and testability.
 
 ## Requirements Content
@@ -90,7 +90,7 @@ Output:
 
 ```
 Task(
-  subagent_type="wicked-garden:product/ux-designer",
+  subagent_type="wicked-garden:product:ux-designer",
   prompt="""Review user experience for quality issues.
 
 ## UX Artifacts
@@ -134,7 +134,7 @@ Output:
 
 ```
 Task(
-  subagent_type="wicked-garden:product/ui-reviewer",
+  subagent_type="wicked-garden:product:ui-reviewer",
   prompt="""Review UI implementation for quality.
 
 ## UI Artifacts
@@ -177,7 +177,7 @@ Output:
 
 ```
 Task(
-  subagent_type="wicked-garden:engineering/solution-architect",
+  subagent_type="wicked-garden:engineering:solution-architect",
   prompt="""Review architecture for testability and deployability.
 
 ## Architecture Artifacts
@@ -227,7 +227,7 @@ Output:
 
 ```
 Task(
-  subagent_type="wicked-garden:qe/test-strategist",
+  subagent_type="wicked-garden:qe:test-strategist",
   prompt="""Review code for test coverage and quality.
 
 ## Source Code
@@ -257,7 +257,7 @@ Provide code assessment with:
 
 ```
 Task(
-  subagent_type="wicked-garden:platform/release-engineer",
+  subagent_type="wicked-garden:platform:release-engineer",
   prompt="""Review deployment readiness.
 
 ## Deployment Artifacts

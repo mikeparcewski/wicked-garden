@@ -37,7 +37,7 @@ Before executing this task, let me check what capabilities could help.
 **Discovery**:
 - MCP: github (PR context), atlassian (link to Jira)
 - Skills: wicked-qe (test scenarios), wicked-platform (security checks)
-- Agents: wicked-garden:platform/security-engineer
+- Agents: wicked-garden:platform:security-engineer
 
 **Recommendation**: Use security-engineer agent for review, github MCP for PR data.
 ```
@@ -84,8 +84,8 @@ Task: "Implement user authentication"
 
 | Need | Capability | Recommendation |
 |------|------------|----------------|
-| Security review | wicked-garden:platform/security-engineer | Use for auth review |
-| Test strategy | wicked-garden:qe/test-strategist | Use for test planning |
+| Security review | wicked-garden:platform:security-engineer | Use for auth review |
+| Test strategy | wicked-garden:qe:test-strategist | Use for test planning |
 | Store decisions | wicked-mem | Store auth decisions |
 | Track work | MCP:atlassian or wicked-kanban | Track implementation |
 ```
@@ -98,11 +98,11 @@ Output a clear recommendation the main agent can act on:
 ## Capability Recommendations for: [Task]
 
 **Use these**:
-1. **wicked-garden:platform/security-engineer** - Review for security issues
+1. **wicked-garden:platform:security-engineer** - Review for security issues
 2. **MCP:atlassian** - Link work to Jira ticket AUTH-123
 
 **Available but optional**:
-- wicked-garden:qe/test-strategist - If test planning needed
+- wicked-garden:qe:test-strategist - If test planning needed
 - wicked-mem - Store decisions for future reference
 
 **Not available** (consider installing):

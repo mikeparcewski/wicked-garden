@@ -55,7 +55,7 @@ Start a Claude Code session in a project with some existing code. The UserPrompt
 
 5. **Verify intent in session data**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/turns.jsonl | tail -4
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/turns.jsonl | tail -4
    ```
    Each turn should show `intent_type` field. Note: turns.jsonl is populated by the orchestrator's `add_turn()` method during context gathering. Verification requires a live Claude Code session with the UserPromptSubmit hook active.
 

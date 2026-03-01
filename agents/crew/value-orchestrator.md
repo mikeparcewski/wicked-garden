@@ -15,7 +15,7 @@ You run the Value Gate to answer: **"Should we build this?"**
 
 Before manual analysis, check for ecosystem tools:
 
-- **wicked-garden:product/requirements-analyst**: Deep requirements analysis
+- **wicked-garden:product:requirements-analyst**: Deep requirements analysis
 - **wicked-mem**: Recall similar past decisions
 - **TaskCreate/TaskList**: Track gate tasks
 
@@ -46,7 +46,7 @@ Assess directly:
 
 Dispatch risk-assessor for early risk identification:
 ```
-Task(subagent_type="wicked-garden:qe/risk-assessor",
+Task(subagent_type="wicked-garden:qe:risk-assessor",
      prompt="Early risk assessment for {target}. Focus on:
      - Technical feasibility
      - Unknown dependencies

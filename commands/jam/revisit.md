@@ -14,7 +14,7 @@ Revisit a past brainstorm decision to record whether it was validated, invalidat
 Search for the decision in wicked-garden:mem
 
 ```
-Task(subagent_type="wicked-garden:mem/memory-recaller",
+Task(subagent_type="wicked-garden:mem:memory-recaller",
      prompt="Search for decisions tagged with 'jam,decision' related to: {topic}. Return the full decision record including rationale and alternatives.")
 ```
 

@@ -26,7 +26,7 @@ Before assembling personas, gather real evidence from the ecosystem:
 
 **Step 1a: Recall past decisions** (if wicked-mem available)
 ```
-Task(subagent_type="wicked-garden:mem/memory-recaller",
+Task(subagent_type="wicked-garden:mem:memory-recaller",
      prompt="Search for past decisions related to: {topic}. Return decisions, outcomes, and any gotchas.")
 ```
 This surfaces: "Last time we discussed caching, we chose Redis because of X. Outcome: validated."
@@ -39,7 +39,7 @@ This surfaces: "There are 3 existing cache implementations in the codebase using
 
 **Step 1c: Check past brainstorm outcomes** (if wicked-mem available)
 ```
-Task(subagent_type="wicked-garden:mem/memory-recaller",
+Task(subagent_type="wicked-garden:mem:memory-recaller",
      prompt="Search for brainstorm outcomes and decision results tagged with 'jam,outcome'. Return what worked and what didn't.")
 ```
 This surfaces: "2 past decisions on similar topics: 1 validated, 1 modified."

@@ -19,7 +19,7 @@ Review and approve a completed phase to advance the project.
 If no project specified, use most recent:
 
 ```bash
-ls -t ~/.something-wicked/wicked-crew/projects/ 2>/dev/null | head -1
+ls -t ~/.something-wicked/wicked-garden/local/wicked-crew/projects/ 2>/dev/null | head -1
 ```
 
 ### 3. Verify Phase State
@@ -298,7 +298,7 @@ To customize, edit project.json:
 
 ### User Override Mechanism
 
-Edit `~/.something-wicked/wicked-crew/projects/{project}/project.json`:
+Edit `~/.something-wicked/wicked-garden/local/wicked-crew/projects/{project}/project.json`:
 
 ```json
 {

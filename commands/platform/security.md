@@ -20,7 +20,7 @@ Parse the argument to determine review scope:
 
 ```python
 Task(
-    subagent_type="wicked-garden:platform/security-engineer",
+    subagent_type="wicked-garden:platform:security-engineer",
     prompt="""Perform comprehensive security review.
 
 Scope: {determined scope}

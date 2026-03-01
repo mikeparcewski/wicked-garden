@@ -34,7 +34,7 @@ Read from recent analyze output or voice data store:
 
 ```bash
 # Check for analysis results
-ls ~/.something-wicked/voice/analysis/
+ls ~/.something-wicked/wicked-garden/local/wicked-product/voice/analysis/
 ```
 
 If no analysis found, prompt user to run `/wicked-garden:product:analyze` first.
@@ -43,7 +43,7 @@ If no analysis found, prompt user to run `/wicked-garden:product:analyze` first.
 
 ```
 Task(
-  subagent_type="wicked-garden:product/customer-advocate",
+  subagent_type="wicked-garden:product:customer-advocate",
   prompt="""Synthesize customer feedback analysis into actionable recommendations.
 
 ## Analysis Data

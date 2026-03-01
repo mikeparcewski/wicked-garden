@@ -32,12 +32,9 @@ Match available specialists to project signals for auto-engagement.
 Before starting phase work, assemble structured context from the ecosystem. This ensures specialists and fallback agents receive rich context — not just raw deliverable text.
 
 ```bash
-# Discover wicked-smaht (graceful degradation if not installed)
-SMAHT_PLUGIN_ROOT=$(find ~/.claude/plugins/cache/wicked-garden/wicked-smaht -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
-
-if [ -n "$SMAHT_PLUGIN_ROOT" ]; then
-  # Build context package for current phase
-  cd "${SMAHT_PLUGIN_ROOT}" && uv run python scripts/context_package.py build \
+# Build context package for current phase (graceful degradation if script not found)
+if [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/context_package.py" ]; then
+  cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/context_package.py build \
     --task "Execute {current_phase} phase for {project-name}" \
     --project "{project-name}" \
     --dispatch --prompt

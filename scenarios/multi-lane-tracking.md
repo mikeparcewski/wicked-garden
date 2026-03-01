@@ -16,7 +16,7 @@ Test that wicked-smaht correctly tracks the current task, accumulates topics acr
 Start a Claude Code session. All session state is stored in:
 
 ```
-~/.something-wicked/wicked-smaht/sessions/{session_id}/summary.json
+~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/summary.json
 ```
 
 ## Steps
@@ -30,7 +30,7 @@ Start a Claude Code session. All session state is stored in:
 
 2. **Check current_task was captured**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/summary.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('Task:', d['current_task'])"
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/summary.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('Task:', d['current_task'])"
    ```
 
 3. **Switch to a new task**
@@ -42,7 +42,7 @@ Start a Claude Code session. All session state is stored in:
 
 4. **Verify topics accumulate across switches**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/summary.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('Topics:', d['topics'])"
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/summary.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('Topics:', d['topics'])"
    ```
 
    **Expected**: Topics list contains keywords from both tasks. Topics are not cleared on task switch — they accumulate up to 10 entries.
@@ -58,7 +58,7 @@ Start a Claude Code session. All session state is stored in:
 
 6. **Inspect the full session state**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/summary.json
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/summary.json
    ```
 
    Expected structure after switching tasks:
@@ -77,7 +77,7 @@ Start a Claude Code session. All session state is stored in:
 
 7. **Verify turns.jsonl shows both tasks**
    ```bash
-   cat ~/.something-wicked/wicked-smaht/sessions/*/turns.jsonl | python3 -c "import sys,json; [print(json.loads(l)['user'][:60]) for l in sys.stdin if l.strip()]"
+   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/turns.jsonl | python3 -c "import sys,json; [print(json.loads(l)['user'][:60]) for l in sys.stdin if l.strip()]"
    ```
 
 ## Expected Outcome
