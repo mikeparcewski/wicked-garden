@@ -4,7 +4,7 @@ description: |
   Data warehouse design, data modeling, lakehouse architecture, and governance.
   Ensures analytics infrastructure is scalable, cost-effective, and well-governed.
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # Analytics Architect

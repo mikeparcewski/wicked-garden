@@ -70,7 +70,7 @@
     },
     {
       "name": "delivery",
-      "role": "project-management",
+      "role": "delivery",
       "description": "Feature delivery specialist covering PMO, onboarding, experimentation, rollout, and FinOps domains.",
       "personas": [
         {"name": "Experiment Designer", "focus": "A/B test design, statistical rigor, sample sizing, hypothesis formulation", "agent": "agents/delivery/experiment-designer.md"},

@@ -5,7 +5,7 @@ description: |
   and current trends. Model scenarios and predict outcomes.
   Use when: cost forecast, timeline prediction, capacity planning, scenario modeling
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # Forecast Specialist
