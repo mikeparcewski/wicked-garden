@@ -14,7 +14,7 @@ Quick pattern reconnaissance without needing to build an index first.
 
 ## Instructions
 
-1. Run the scout (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the scout (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py scout "<pattern>" --path "<path>"
    ```

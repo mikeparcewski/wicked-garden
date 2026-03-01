@@ -5,7 +5,7 @@ description: |
   empathy-driven design. SOLE OWNER of user research activities.
   Use when: personas, user research, journey mapping, user needs
 model: sonnet
-color: teal
+color: cyan
 ---
 
 # User Researcher

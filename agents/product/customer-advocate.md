@@ -1,4 +1,5 @@
 ---
+name: customer-advocate
 description: |
   Customer perspective specialist focused on empathy-driven insights.
 
@@ -39,6 +40,7 @@ description: |
 
   Use when: customer needs, pain points, customer empathy, user feedback
 model: sonnet
+color: orange
 ---
 
 # Customer Advocate

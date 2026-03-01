@@ -15,7 +15,7 @@ Analyze what would be affected if you changed a symbol. This is reverse lineage 
 
 ## Instructions
 
-1. Run the impact analysis (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the impact analysis (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python lineage_tracer.py "<symbol_id>" --db /path/to/graph.db --direction upstream --depth 10 --format table
    ```

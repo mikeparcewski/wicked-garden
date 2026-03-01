@@ -14,7 +14,7 @@ Analyze what would be affected if you changed a symbol.
 
 ## Instructions
 
-1. Run blast-radius analysis (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run blast-radius analysis (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py blast-radius "<symbol>" --depth <n>
    ```

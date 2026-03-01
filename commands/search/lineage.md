@@ -20,7 +20,7 @@ Trace data lineage paths through the symbol graph. Follow data flow from UI fiel
 
 ## Instructions
 
-1. Run the lineage tracer (see `skills/unified-search/references/script-runner.md` for runner details):
+1. Run the lineage tracer (see `skills/unified-search/refs/script-runner.md` for runner details):
    ```bash
    cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python lineage_tracer.py "<symbol_id>" --db /path/to/graph.db --direction downstream --depth 10 --format table
    ```

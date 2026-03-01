@@ -4,13 +4,7 @@ description: |
   Distributed tracing analysis for performance investigation and service dependency
   mapping. Analyze latency breakdowns, identify bottlenecks, map service calls,
   and correlate slow requests with code changes.
-triggers:
-  - trace analysis
-  - distributed tracing
-  - latency investigation
-  - performance tracing
-  - slow requests
-  - service dependencies
+  Use when: trace analysis, distributed tracing, latency investigation, slow requests, service dependencies
 ---
 
 # Distributed Tracing Analysis Skill
