@@ -45,7 +45,7 @@ from typing import Any
 # Internal import — same scripts/ directory
 sys.path.insert(0, str(Path(__file__).parent))
 from _control_plane import get_client, load_config
-from _schema_adapters import to_cp as _to_cp, from_cp as _from_cp
+from _schema_adapters import to_cp as _to_cp, from_cp as _from_cp, set_cp_client as _set_cp_client
 from _session import SessionState
 
 # ---------------------------------------------------------------------------
@@ -138,6 +138,8 @@ class StorageManager:
         self._mode = self._cfg.get("mode") or "local-install"
         if self._mode not in _VALID_MODES:
             self._mode = "local-install"
+        # Inject CP client into schema adapters for manifest_detail lookups
+        _set_cp_client(self._cp)
 
     # ------------------------------------------------------------------
     # Read operations
