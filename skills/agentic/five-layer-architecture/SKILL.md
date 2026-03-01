@@ -1,6 +1,8 @@
 ---
 name: five-layer-architecture
-description: Five-layer architectural model for building production-grade agentic systems with clear separation of concerns
+description: |
+  Five-layer architectural model for building production-grade agentic systems with clear separation of concerns.
+  Use when: "agent architecture layers", "five layer", "agent system design", "separation of concerns agents"
 ---
 
 # Five-Layer Architecture

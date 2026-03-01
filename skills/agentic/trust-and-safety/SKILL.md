@@ -1,6 +1,8 @@
 ---
 name: trust-and-safety
-description: Trust, safety, and control patterns for production agentic systems with human-in-the-loop gates and guardrails
+description: |
+  Trust, safety, and control patterns for production agentic systems with human-in-the-loop gates and guardrails.
+  Use when: "agent safety", "guardrails", "human-in-the-loop", "agent trust", "prompt injection defense"
 ---
 
 # Trust and Safety
