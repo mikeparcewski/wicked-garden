@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1] - 2026-03-02
+
+### Bug Fixes
+- fix: allow user responses through setup gate during setup flow (22614e0)
+
+### Chores
+- release: wicked-garden v1.6.0 (b3ce4a7)
+
 ## [1.6.0] - 2026-03-02
 
 ### Features
