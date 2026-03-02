@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0] - 2026-03-01
+
+### Features
+- feat: use CP FTS5 search verb for memory recall (#136) (6e2be5d)
+
+### Bug Fixes
+- fix: rewrite 31 scenarios to outcome-based criteria across 7 domains (33c207e)
+- fix: align memory with CP schema + standardize skill descriptions (e994f46)
+- fix: StorageManager CP fallback + local text search + wg-test CP preflight (#133, #134) (c125b7c)
+
+### Refactoring
+- refactor: migrate search domain from unified_search.py to control plane (895e018)
+
 ## [1.3.3] - 2026-03-01
 
 ### Bug Fixes
