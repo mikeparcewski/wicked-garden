@@ -177,7 +177,7 @@ def _run_memory_decay():
 def _check_onboarding_status():
     """Check if the current project has been onboarded (search index + memories).
 
-    Returns an imperative directive string if onboarding is needed, or None if done.
+    Returns (has_index, has_memories, directive_or_none).
     Both checks fail open — if we can't determine status, assume onboarded.
     """
     project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
@@ -232,8 +232,9 @@ def _check_onboarding_status():
     except Exception:
         pass  # Fail open
 
+    directive = None
     if not has_memories and not has_index:
-        return (
+        directive = (
             f"[Action Required] Project '{project}' has not been onboarded.\n"
             "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
             "to launch the interactive onboarding wizard.\n"
@@ -241,18 +242,19 @@ def _check_onboarding_status():
             "Do NOT respond with text first — invoke the skill as your first action."
         )
     elif not has_memories:
-        return (
+        directive = (
             f"[Action Required] Project '{project}' has a search index but no onboarding memories.\n"
             "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
             "to launch the interactive setup wizard.\n"
             "Do NOT ask the user for confirmation — invoke the skill now."
         )
     elif not has_index:
-        return (
+        directive = (
             f"[Onboarding] IMPORTANT: Project '{project}' has memories but no search index. "
             "You MUST run /wicked-garden:search:index now to build the search index."
         )
-    return None
+
+    return has_index, has_memories, directive
 
 
 def _validate_and_repair_kanban_link(project_data, project_name, cp_available):
@@ -538,14 +540,16 @@ def main():
 
         if config is None or not config.get("setup_complete", False):
             print(json.dumps({
-                "continue": True,
-                "systemMessage": (
-                    "[Action Required] wicked-garden is not configured for this project.\n"
-                    "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
-                    "to launch the interactive setup wizard.\n"
-                    "Do NOT ask the user for confirmation — invoke the skill now.\n"
-                    "Do NOT respond with text first — invoke the skill as your first action."
-                ),
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": (
+                        "[Action Required] wicked-garden is not configured for this project.\n"
+                        "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
+                        "to launch the interactive setup wizard.\n"
+                        "Do NOT ask the user for confirmation — invoke the skill now.\n"
+                        "Do NOT respond with text first — invoke the skill as your first action."
+                    ),
+                },
             }))
             return
 
@@ -706,63 +710,85 @@ def main():
         decay_summary = _run_memory_decay()
 
         # 8. Check onboarding status (search index + memories)
-        onboarding_note = _check_onboarding_status()
+        has_index, has_memories, onboarding_directive = _check_onboarding_status()
 
         # 9. Assemble session briefing
-        briefing_parts = [_MEMORY_INSTRUCTIONS]
+        # --- Status block (user-facing) ---
+        project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+        endpoint = config.get("endpoint") or "(none)"
 
-        # Mode-specific notes
-        for note in mode_notes:
-            briefing_parts.append(note)
+        if cp_available:
+            cp_status = f"Connected (v{cp_version})" if cp_version else "Connected"
+        elif mode == "offline":
+            cp_status = "N/A (offline mode)"
+        else:
+            cp_status = "Disconnected (offline fallback)"
+
+        onboarding_parts = []
+        if has_index:
+            onboarding_parts.append("search index")
+        if has_memories:
+            onboarding_parts.append("memories")
+        if onboarding_parts:
+            onboarding_status = "Complete (" + " + ".join(onboarding_parts) + ")"
+        else:
+            onboarding_status = "Not started"
+
+        status_lines = [
+            f"wicked-garden | {project}",
+            f"  Connection:  {mode} | {endpoint} | {cp_status}",
+            f"  Onboarding:  {onboarding_status}",
+        ]
 
         if project_data:
             name = project_data.get("name", project_name or "unknown")
             phase = project_data.get("current_phase", "unknown")
-            initiative_name = project_data.get("kanban_initiative") or name
-
-            valid, resolved_id = _validate_and_repair_kanban_link(
-                project_data, project_name, cp_available
-            )
-
-            crew_line = f"[Crew] Resuming: {name} ({phase})"
-            if valid and resolved_id:
-                crew_line += f" | Kanban: {initiative_name} (linked)"
-            elif not valid:
-                crew_line += f" | Kanban: initiative '{initiative_name}' not found (will be created on next task)"
-
-            briefing_parts.append(crew_line)
+            status_lines.append(f"  Crew:        {name} ({phase})")
 
             if state is not None:
                 state.update(active_project={"name": name, "phase": phase})
 
+            # Validate kanban link (side effect: repairs if needed)
+            _validate_and_repair_kanban_link(project_data, project_name, cp_available)
+
         if kanban_summary:
-            briefing_parts.append(f"[Kanban] {kanban_summary}")
+            status_lines.append(f"  Kanban:      {kanban_summary}")
+
+        briefing_parts = ["\n".join(status_lines)]
+
+        # --- Mode-specific warnings/notes ---
+        for note in mode_notes:
+            briefing_parts.append(note)
 
         if decay_summary:
             briefing_parts.append(f"[Memory] {decay_summary}")
 
-        # Setup hint (always present so user knows they can reset)
-        if not onboarding_note:
+        # --- Internal instructions for Claude ---
+        briefing_parts.append(_MEMORY_INSTRUCTIONS)
+
+        if not onboarding_directive:
             briefing_parts.append(
                 "[Setup] Run `/wicked-garden:setup --reconfigure` to change connection or re-onboard."
             )
 
         # Onboarding directive goes LAST for highest priority
-        if onboarding_note:
-            briefing_parts.append(onboarding_note)
+        if onboarding_directive:
+            briefing_parts.append(onboarding_directive)
 
         # 10. Persist final session state
         if state is not None:
             _save_session_state(state)
 
         print(json.dumps({
-            "continue": True,
-            "systemMessage": "\n".join(briefing_parts),
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "\n".join(briefing_parts),
+            },
         }))
 
     except Exception as e:
         print(f"[wicked-garden] bootstrap error: {e}", file=sys.stderr)
-        print(json.dumps({"continue": True}))
+        print(json.dumps({}))
 
 
 if __name__ == "__main__":

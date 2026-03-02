@@ -403,6 +403,36 @@ def _enforce_budget(content: str, path: str) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+def _check_setup_gate(prompt: str) -> dict | None:
+    """Block prompts if wicked-garden setup hasn't been completed.
+
+    Returns a block response dict if setup is needed, or None to continue.
+    Allows /wicked-garden:setup and /wicked-garden:help through the gate.
+    """
+    # Let setup and help commands through
+    stripped = prompt.strip().lower()
+    if stripped.startswith(("/wicked-garden:setup", "/wicked-garden:help", "/setup", "/help")):
+        return None
+
+    config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
+    try:
+        if config_path.exists():
+            config = json.loads(config_path.read_text())
+            if config.get("setup_complete", False):
+                return None  # Setup done, no gate
+    except (json.JSONDecodeError, OSError):
+        pass  # Treat as not configured
+
+    # Config missing or setup_complete is false — block the prompt
+    return {
+        "decision": "block",
+        "reason": (
+            "wicked-garden requires setup before first use.\n"
+            "Run: /wicked-garden:setup"
+        ),
+    }
+
+
 def main():
     try:
         raw = sys.stdin.read()
@@ -417,6 +447,12 @@ def main():
 
     if not prompt.strip():
         print(json.dumps({"continue": True}))
+        return
+
+    # Setup gate — block all prompts until wicked-garden is configured
+    gate = _check_setup_gate(prompt)
+    if gate is not None:
+        print(json.dumps(gate))
         return
 
     try:
