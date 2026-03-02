@@ -276,15 +276,19 @@ class MemoryStore:
         params = {}
         if type:
             params["type"] = type.value
-        if query:
-            params["q"] = query
         if not all_projects and self.project:
             params["project"] = self.project
 
         memories = []
         seen_ids = set()
 
-        for record in self._sm.list("memories", **params):
+        # Use FTS5 search when query is present, list for tag/type-only filters
+        if query:
+            records = self._sm.search("memories", query, **params)
+        else:
+            records = self._sm.list("memories", **params)
+
+        for record in records:
             memory = self._dict_to_memory(record)
             if memory and memory.id not in seen_ids:
                 seen_ids.add(memory.id)
@@ -309,14 +313,14 @@ class MemoryStore:
 
     def search(self, pattern: str, path: Optional[str] = None,
                all_projects: bool = False) -> List[Memory]:
-        """Search memories via StorageManager."""
-        params = {"q": pattern}
+        """Search memories via StorageManager FTS5 search."""
+        params = {}
         if not all_projects and self.project:
             params["project"] = self.project
 
         memories = []
         seen_ids: set = set()
-        for record in self._sm.list("memories", **params):
+        for record in self._sm.search("memories", pattern, **params):
             memory = self._dict_to_memory(record)
             if memory and memory.status == MemoryStatus.ACTIVE.value:
                 if memory.id not in seen_ids:
@@ -337,7 +341,7 @@ class MemoryStore:
         seen_ids = set()
         query_lower = query.lower()
 
-        for record in self._sm.list("memories", q=query):
+        for record in self._sm.search("memories", query):
             memory = self._dict_to_memory(record)
             if not memory or memory.id in seen_ids:
                 continue
