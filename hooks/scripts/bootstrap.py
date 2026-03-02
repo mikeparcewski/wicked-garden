@@ -729,6 +729,21 @@ def main():
         if cp_available:
             _drain_queue()
 
+        # 4b. Detect CP schema reset: CP available but empty while local data exists
+        cp_schema_reset_detected = False
+        if cp_available and state is not None:
+            try:
+                from _storage import StorageManager
+                sm = StorageManager("wicked-crew", hook_mode=True)
+                cp_projects = sm.list("projects") or []
+                if len(cp_projects) == 0:
+                    local_dir = Path.home() / ".something-wicked" / "wicked-crew" / "projects"
+                    if local_dir.exists() and any(local_dir.iterdir()):
+                        cp_schema_reset_detected = True
+                        state.update(cp_schema_reset_detected=True)
+            except Exception:
+                pass
+
         # 5 & 6. Load active crew project and kanban board summary (independent reads)
         project_data, project_name = _find_active_crew_project()
         kanban_summary = _load_kanban_summary()
@@ -778,7 +793,9 @@ def main():
             status_lines.append(f"  Crew:        {name} ({phase})")
 
             if state is not None:
-                state.update(active_project={"name": name, "phase": phase})
+                cp_project_id = project_data.get("cp_project_id") or ""
+                state.update(active_project={"name": name, "phase": phase},
+                             cp_project_id=cp_project_id)
 
             # Validate kanban link (side effect: repairs if needed)
             _validate_and_repair_kanban_link(project_data, project_name, cp_available)
@@ -794,6 +811,12 @@ def main():
 
         if decay_summary:
             briefing_parts.append(f"[Memory] {decay_summary}")
+
+        if cp_schema_reset_detected:
+            briefing_parts.append(
+                "CP appears empty — local data intact. "
+                "Run /wicked-garden:setup --sync-to-cp to restore."
+            )
 
         # --- Internal instructions for Claude ---
         briefing_parts.append(_MEMORY_INSTRUCTIONS)

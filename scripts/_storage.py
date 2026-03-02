@@ -318,6 +318,73 @@ class StorageManager:
         return True
 
     # ------------------------------------------------------------------
+    # Local→CP sync
+    # ------------------------------------------------------------------
+
+    def sync_to_cp(self, source: str) -> dict:
+        """Sync all local records for a source to the control plane.
+
+        Iterates local JSON files, deduplicates against CP using _DEDUP_KEYS,
+        and creates any records that do not already exist in CP.
+
+        Intended for use by the --sync-to-cp setup flow, not the hot path.
+
+        Args:
+            source: resource collection name, e.g. "projects", "memories"
+
+        Returns:
+            dict with keys "synced", "skipped", "failed"
+        """
+        counts = {"synced": 0, "skipped": 0, "failed": 0}
+
+        if not self._should_use_cp():
+            print(
+                f"[StorageManager] sync_to_cp: CP unavailable, skipping {self._domain}/{source}",
+                file=sys.stderr,
+            )
+            return counts
+
+        dedup_keys_fields = _DEDUP_KEYS.get((self._domain, source))
+        local_records = self._local_list(source, {})
+
+        for record in local_records:
+            if record.get("deleted"):
+                counts["skipped"] += 1
+                continue
+
+            try:
+                if dedup_keys_fields:
+                    dedup_params = {k: record[k] for k in dedup_keys_fields if k in record}
+                    if dedup_params and self._dedup_exists(self._domain, source, dedup_params):
+                        counts["skipped"] += 1
+                        continue
+
+                cp_payload = _to_cp(self._domain, source, "create", dict(record))
+                result = self._cp.request(self._domain, source, "create", payload=cp_payload)
+                if result is not None:
+                    counts["synced"] += 1
+                    # Write CP-assigned UUID back to local record (never overwrites local id)
+                    cp_uuid = None
+                    if isinstance(result, dict):
+                        data = result.get("data", result)
+                        cp_uuid = data.get("id") if isinstance(data, dict) else None
+                    if cp_uuid and not record.get("cp_project_id"):
+                        updated = dict(record)
+                        updated["cp_project_id"] = cp_uuid
+                        self._local_write(source, str(record.get("id", "")), updated)
+                else:
+                    counts["failed"] += 1
+            except Exception as exc:
+                print(
+                    f"[StorageManager] sync_to_cp error for {self._domain}/{source} "
+                    f"id={record.get('id', '?')}: {exc}",
+                    file=sys.stderr,
+                )
+                counts["failed"] += 1
+
+        return counts
+
+    # ------------------------------------------------------------------
     # Queue drain
     # ------------------------------------------------------------------
 

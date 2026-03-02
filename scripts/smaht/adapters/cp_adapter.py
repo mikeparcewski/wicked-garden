@@ -12,6 +12,8 @@ Strategy:
 """
 
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
@@ -42,6 +44,7 @@ _DOMAIN_QUERIES = {
         "source": "memories",
         "verb": "search",
         "query_key": "q",
+        "project_scoped": True,
         "label": "mem",
         "title_fn": lambda r: r.get("title", r.get("type", "memory")),
         "summary_fn": lambda r: (r.get("summary") or r.get("content") or "")[:200],
@@ -54,6 +57,7 @@ _DOMAIN_QUERIES = {
         "source": "tasks",
         "verb": "search",
         "query_key": "q",
+        "project_scoped": True,
         "label": "kanban",
         "title_fn": lambda r: f"[{r.get('swimlane', '?')}] {r.get('name', '')}",
         "summary_fn": lambda r: (r.get("description") or r.get("name") or "")[:200],
@@ -63,6 +67,7 @@ _DOMAIN_QUERIES = {
         "source": "projects",
         "verb": "list",
         "query_key": None,
+        "project_scoped": False,
         "label": "crew",
         "title_fn": lambda r: f"Project: {r.get('name', '?')} ({r.get('current_phase', '?')} phase)",
         "summary_fn": lambda r: f"Phase: {r.get('current_phase', '?')}, Complexity: {r.get('complexity_score', 0)}/7",
@@ -74,6 +79,7 @@ _DOMAIN_QUERIES = {
         "source": "sessions",
         "verb": "search",
         "query_key": "q",
+        "project_scoped": True,
         "label": "jam",
         "title_fn": lambda r: f"Brainstorm: {r.get('topic', '')}",
         "summary_fn": lambda r: (r.get("summary") or r.get("synthesis", {}).get("summary", ""))[:200],
@@ -83,6 +89,7 @@ _DOMAIN_QUERIES = {
         "source": "graph",
         "verb": "search",
         "query_key": "q",
+        "project_scoped": False,
         "label": "search",
         "title_fn": lambda r: _format_symbol_title(r),
         "summary_fn": lambda r: f"{r.get('type', 'symbol')}: {r.get('name', '')}",
@@ -127,23 +134,70 @@ def _keyword_score(prompt_lower: str, text: str, weight: float = 0.2) -> float:
     return min(score, 0.5)
 
 
-def _query_domain(domain: str, config: dict, keywords: str) -> list:
+def _emit_smaht_trace(entry: dict) -> None:
+    """Write a smaht adapter trace to the observability store. Fire-and-forget."""
+    try:
+        from _control_plane import ControlPlaneClient
+        from _session import SessionState
+        state = SessionState.load()
+        if not state.cp_available:
+            return
+        client = ControlPlaneClient(hook_mode=True)
+        client.request("observability", "traces", "create", payload=entry)
+    except Exception:
+        pass  # Traces are observability data — never block on failure
+
+
+def _query_domain(domain: str, config: dict, keywords: str,
+                  cp_project_id: str = "") -> list:
     """Query a single CP domain. Runs in thread pool."""
+    start_ns = time.monotonic_ns()
+    result_count = 0
+    error = None
     try:
         cp = get_client()
         params = {}
         if config["query_key"] and keywords:
             params[config["query_key"]] = keywords
 
+        if config.get("project_scoped") and cp_project_id:
+            params["project_id"] = cp_project_id
+
         resp = cp.request(
             domain, config["source"], config["verb"],
             params=params if params else None,
         )
         if resp and isinstance(resp.get("data"), list):
-            return resp["data"]
+            records = resp["data"]
+            result_count = len(records)
+            return records
         return []
-    except Exception:
+    except Exception as exc:
+        error = str(exc)
         return []
+    finally:
+        duration_ms = (time.monotonic_ns() - start_ns) // 1_000_000
+        entry = {
+            "trace_type": "smaht_adapter",
+            "event": "smaht.adapter.query",
+            "adapter": "cp_adapter",
+            "domain": domain,
+            "source": config.get("source", ""),
+            "verb": config.get("verb", ""),
+            "project_scoped": config.get("project_scoped", False),
+            "latency_ms": duration_ms,
+            "duration_ms": duration_ms,
+            "item_count": result_count,
+            "result_count": result_count,
+            "error": error,
+            "project_id": cp_project_id or None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        threading.Thread(
+            target=_emit_smaht_trace,
+            args=(entry,),
+            daemon=True,
+        ).start()
 
 
 async def query(prompt: str, project: str = None) -> List[ContextItem]:
@@ -160,12 +214,22 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     if not keywords:
         return []
 
+    # Load session-cached CP project UUID for scoped queries.
+    # Fail open: empty string disables scoping without breaking queries.
+    cp_project_id = ""
+    try:
+        from _session import SessionState
+        session_state = SessionState.load()
+        cp_project_id = session_state.cp_project_id or ""
+    except Exception:
+        pass
+
     prompt_lower = prompt.lower()
     items: list[ContextItem] = []
     now = datetime.now(timezone.utc)
 
     for domain, config in _DOMAIN_QUERIES.items():
-        records = await run_in_thread(_query_domain, domain, config, keywords)
+        records = await run_in_thread(_query_domain, domain, config, keywords, cp_project_id)
 
         for record in records[:10]:  # Cap per domain
             # Skip archived/deleted
