@@ -99,6 +99,13 @@ class SessionState:
     session_ended: bool = False
     cp_last_checked_at: float = 0.0
 
+    # CP UUID for the active crew project. Empty string when no active project
+    # or when CP was unavailable at session start.
+    cp_project_id: str = ""
+
+    # Set by bootstrap when CP appears empty while local data exists (schema reset signal).
+    cp_schema_reset_detected: bool = False
+
     # Kanban sync: maps Claude TaskCreate subjects → kanban task IDs.
     # Session-scoped (task IDs are ephemeral).
     kanban_sync: dict | None = None

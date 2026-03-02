@@ -277,6 +277,7 @@ class ProjectState:
     phases: Dict[str, PhaseState] = field(default_factory=dict)
     kanban_initiative: Optional[str] = None
     kanban_initiative_id: Optional[str] = None
+    cp_project_id: Optional[str] = None
     extras: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -342,6 +343,7 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         "signals_detected", "complexity_score", "specialists_recommended",
         "phase_plan", "phases",
         "kanban_initiative", "kanban_initiative_id",
+        "cp_project_id",
         "created_at", "updated_at", "deleted", "deleted_at",
     }
     extras = {k: v for k, v in data.items() if k not in known_keys}
@@ -358,6 +360,7 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         phases=phases,
         kanban_initiative=data.get("kanban_initiative"),
         kanban_initiative_id=data.get("kanban_initiative_id"),
+        cp_project_id=data.get("cp_project_id"),
         extras=extras,
     )
 
@@ -469,6 +472,7 @@ def save_project_state(state: ProjectState) -> None:
         "phases": phases_list,
         "kanban_initiative": state.kanban_initiative,
         "kanban_initiative_id": state.kanban_initiative_id,
+        "cp_project_id": state.cp_project_id,
         **state.extras,
     })
 
@@ -790,6 +794,14 @@ def create_project(
     # Persist via StorageManager (CP-first, local fallback)
     save_project_state(state)
 
+    # Capture CP-assigned UUID if available (CP-first path assigns UUID on create)
+    try:
+        saved = _sm.get("projects", name)
+        if saved and saved.get("cp_project_id"):
+            state.cp_project_id = saved["cp_project_id"]
+    except Exception:
+        pass  # UUID unavailable offline — state.cp_project_id remains None
+
     # Create local directory structure for deliverables
     project_dir = get_project_dir(name)
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -868,7 +880,7 @@ def _merge_data_into_state(state: ProjectState, data: Dict[str, Any]) -> Project
     known_fields = {
         "signals_detected", "complexity_score", "specialists_recommended",
         "phase_plan", "kanban_initiative", "kanban_initiative_id",
-        "current_phase", "version",
+        "current_phase", "version", "cp_project_id",
     }
 
     for key, value in data.items():
@@ -1009,6 +1021,7 @@ def main():
                     "signals_detected": state.signals_detected,
                     "phase_plan": state.phase_plan,
                     "specialists_recommended": state.specialists_recommended,
+                    "cp_project_id": state.cp_project_id,
                 },
                 "project_dir": str(project_dir),
                 "phase_started": "clarify",

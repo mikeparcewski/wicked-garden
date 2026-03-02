@@ -285,6 +285,9 @@ def _crew_decisions_to_cp(r: dict) -> dict:
         out["metadata"]["signals"] = signals
     out["decision_type"] = "analysis"
     out.setdefault("project_name", "unknown")
+    # FK propagation (#155)
+    if r.get("cp_project_id"):
+        out["project_id"] = r["cp_project_id"]
     return out
 
 
@@ -334,6 +337,9 @@ def _crew_feedback_to_cp(r: dict) -> dict:
         out["content"] = _json_str(details)
     out["source"] = "auto"
     out.setdefault("project_name", "unknown")
+    # FK propagation (#155)
+    if r.get("cp_project_id"):
+        out["project_id"] = r["cp_project_id"]
     return out
 
 
@@ -361,7 +367,7 @@ def _crew_metrics_to_cp(r: dict) -> dict:
     out = dict(r)
     # wrap all non-standard fields into metadata
     standard = {"id", "created_at", "updated_at", "project_name",
-                "category", "metadata", "name", "value", "timestamp"}
+                "category", "metadata", "name", "value", "timestamp", "project_id"}
     extras = {k: out.pop(k) for k in list(out) if k not in standard}
     if "categories" in extras:
         out.setdefault("metadata", {})
@@ -371,6 +377,9 @@ def _crew_metrics_to_cp(r: dict) -> dict:
         out["metadata"].update(extras)
     out["category"] = "signal-accuracy"
     out.setdefault("project_name", "global")
+    # FK propagation (#155)
+    if r.get("cp_project_id"):
+        out["project_id"] = r["cp_project_id"]
     return out
 
 
@@ -406,6 +415,9 @@ def _crew_signals_to_cp(r: dict) -> dict:
     if "library" in out:
         out["source"] = out.pop("library")
     out.setdefault("project_name", "global")
+    # FK propagation (#155)
+    if r.get("cp_project_id"):
+        out["project_id"] = r["cp_project_id"]
     return out
 
 
@@ -436,6 +448,9 @@ def _crew_tool_usage_to_cp(r: dict) -> dict:
         out["metadata"]["agent"] = agent
     out.setdefault("invocation_count", 1)
     out.setdefault("project_name", "global")
+    # FK propagation (#155)
+    if r.get("cp_project_id"):
+        out["project_id"] = r["cp_project_id"]
     return out
 
 
@@ -449,6 +464,28 @@ def _crew_tool_usage_from_cp(r: dict) -> dict:
         if not meta:
             out.pop("metadata", None)
     out.pop("invocation_count", None)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# crew / projects
+# ---------------------------------------------------------------------------
+
+def _crew_projects_to_cp(r: dict) -> dict:
+    out = dict(r)
+    if "cp_project_id" in out:
+        out["project_id"] = out.pop("cp_project_id")
+    archived = out.pop("archived", False)
+    out["status"] = "archived" if archived else "active"
+    return out
+
+
+def _crew_projects_from_cp(r: dict) -> dict:
+    out = dict(r)
+    if "project_id" in out:
+        out["cp_project_id"] = out.pop("project_id")
+    status = out.pop("status", "active")
+    out["archived"] = (status == "archived")
     return out
 
 
@@ -675,6 +712,7 @@ _REGISTRY: dict[tuple[str, str], tuple[AdapterFn, AdapterFn]] = {
     ("wicked-crew", "metrics"):      (_crew_metrics_to_cp, _crew_metrics_from_cp),
     ("wicked-crew", "signals"):      (_crew_signals_to_cp, _crew_signals_from_cp),
     ("wicked-crew", "tool-usage"):   (_crew_tool_usage_to_cp, _crew_tool_usage_from_cp),
+    ("wicked-crew", "projects"):     (_crew_projects_to_cp, _crew_projects_from_cp),
     ("wicked-kanban", "activity"):   (_kanban_activity_to_cp, _kanban_activity_from_cp),
     ("wicked-kanban", "config"):     (_kanban_config_to_cp, _kanban_config_from_cp),
     ("wicked-kanban", "indexes"):    (_kanban_indexes_to_cp, _kanban_indexes_from_cp),

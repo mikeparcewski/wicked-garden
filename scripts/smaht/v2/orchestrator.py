@@ -12,6 +12,8 @@ Usage:
 import asyncio
 import json
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -20,6 +22,24 @@ from router import Router, PathDecision, RouterDecision
 from fast_path import FastPathAssembler, FastPathResult
 from slow_path import SlowPathAssembler, SlowPathResult
 from history_condenser import HistoryCondenser
+
+
+def _emit_orchestrator_trace(entry: dict) -> None:
+    """Write an orchestrator routing trace. Fire-and-forget."""
+    try:
+        scripts_root = Path(__file__).resolve().parents[2]
+        import sys as _sys
+        if str(scripts_root) not in _sys.path:
+            _sys.path.insert(0, str(scripts_root))
+        from _control_plane import ControlPlaneClient
+        from _session import SessionState
+        state = SessionState.load()
+        if not state.cp_available:
+            return
+        client = ControlPlaneClient(hook_mode=True)
+        client.request("observability", "traces", "create", payload=entry)
+    except Exception:
+        pass
 
 
 @dataclass
@@ -48,8 +68,8 @@ class Orchestrator:
 
     async def gather_context(self, prompt: str) -> ContextResult:
         """Gather context for a prompt using tiered hybrid approach."""
-        import time
         start_time = time.time()
+        gather_start_ns = time.monotonic_ns()
 
         # Route the prompt
         decision = self.router.route(prompt)
@@ -102,6 +122,34 @@ class Orchestrator:
         self._update_metrics(items_pre_loaded)
 
         total_latency = int((time.time() - start_time) * 1000)
+
+        # Emit tier routing trace (fire-and-forget)
+        gather_duration_ms = (time.monotonic_ns() - gather_start_ns) // 1_000_000
+        _cp_project_id = None
+        try:
+            from _session import SessionState as _SS
+            _cp_project_id = _SS.load().cp_project_id or None
+        except Exception:
+            pass
+        trace_entry = {
+            "trace_type": "smaht_routing",
+            "event": "smaht.orchestrator.gather",
+            "path": path_used,
+            "routing_reason": decision.reason,
+            "intent": decision.analysis.intent_type.value,
+            "prompt_length": len(prompt),
+            "sources_queried": sources_queried,
+            "sources_failed": sources_failed,
+            "latency_ms": total_latency,
+            "gather_duration_ms": gather_duration_ms,
+            "project_id": _cp_project_id,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        threading.Thread(
+            target=_emit_orchestrator_trace,
+            args=(trace_entry,),
+            daemon=True,
+        ).start()
 
         return ContextResult(
             path_used=path_used,

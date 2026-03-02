@@ -11,6 +11,7 @@ The single entry point for getting started with wicked-garden. Always runs inter
 ## Arguments
 
 - `--reconfigure`: Force connection reconfiguration even if already set up
+- `--sync-to-cp`: Sync local wicked-garden data to the control plane. Pushes crew projects and memories that exist locally but not in CP. Useful after working offline or after connecting to a new CP instance.
 
 ## Question Mode
 
@@ -334,6 +335,35 @@ Quick start:
 - /wicked-garden:engineering:review — code review
 - /wicked-garden:search:search "query" — search code and docs
 ```
+
+### sync-to-cp Flow
+
+When `--sync-to-cp` is passed:
+
+1. **Check CP availability**:
+
+```bash
+python3 -c "
+import sys, os, json
+from pathlib import Path
+sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+from _session import SessionState
+state = SessionState.load()
+if not state.cp_available:
+    print('CP_UNAVAILABLE')
+    sys.exit(0)
+from _storage import StorageManager
+r1 = StorageManager('wicked-crew').sync_to_cp('projects')
+r2 = StorageManager('wicked-mem').sync_to_cp('memories')
+print(json.dumps({'crew_projects': r1, 'memories': r2}))
+"
+```
+
+2. **Report results** to the user:
+   - If `CP_UNAVAILABLE`: "The control plane is not reachable. Connect to CP first with `/wicked-garden:setup`."
+   - Otherwise: display the sync counts — "Synced N crew projects (M skipped, K failed), P memories (Q skipped, R failed)."
+
+3. **If any records failed**, advise: "Check stderr for details. Failed records remain in local storage and will sync automatically when CP is next available."
 
 ## Graceful Degradation
 
