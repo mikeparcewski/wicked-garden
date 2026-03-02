@@ -1,17 +1,21 @@
-# Release wicked-garden v1.5.2
+# Release wicked-garden v1.6.0
 
 **Date**: 2026-03-02
 **Component**: wicked-garden
 
 ## Summary
 
-This release includes: 1 bug fix(es).
+This release includes: 1 new feature(s).
 
 ## Changes
 
-### Bug Fixes
+### Features
 
-- fix: setup enforcement gate now actually blocks prompts (a891858)
+- feat: rewrite setup flow with batched questions and answer verification (64c8294)
+
+### Chores
+
+- release: wicked-garden v1.5.2 (f17cfce)
 
 ## Installation
 
