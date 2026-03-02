@@ -189,7 +189,23 @@ Store a skip memory so the bootstrap directive doesn't fire again:
 Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} skipped by user on {date}. Run /wicked-garden:setup to onboard later.\" --type procedural --tags onboarding,{project}")
 ```
 
-### 4. Done
+### 4. Clear Onboarding Gate
+
+After onboarding (or skip), clear the enforcement gate so prompts are no longer blocked:
+
+```bash
+python3 -c "
+import sys, os
+from pathlib import Path
+sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+from _session import SessionState
+state = SessionState.load()
+state.update(needs_onboarding=False)
+print('Onboarding gate cleared.')
+"
+```
+
+### 5. Done
 
 Show a summary:
 
