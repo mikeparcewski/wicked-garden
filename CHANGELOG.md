@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.1] - 2026-03-02
+
+### Features
+- feat: implement hub-and-spoke CP project UUID integration (#153-#157) (4f8f76e)
+
+### Chores
+- release: wicked-garden v1.7.0 (0a4b6e3)
+
 ## [1.7.0] - 2026-03-02
 
 ### Features
