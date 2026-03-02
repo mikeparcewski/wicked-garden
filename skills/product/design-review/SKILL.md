@@ -34,7 +34,7 @@ Deep visual design and UI implementation review.
 - Transitions, loading/empty/error states
 - Edge case handling
 
-**Full review criteria**: See [refs/review-criteria.md](refs/review-criteria.md)
+**Full review criteria**: See [Visual Consistency](refs/review-criteria-visual.md), [Components & Responsive](refs/review-criteria-components.md), and [Accessibility & Scoring](refs/review-criteria-accessibility.md)
 
 ## Quick Review Process
 
@@ -132,7 +132,7 @@ If no design system:
 - [ ] Propose scales
 - [ ] Identify component candidates
 
-**Design system guide**: See [refs/design-systems.md](refs/design-systems.md)
+**Design system guide**: See [Tokens & Foundations](refs/design-systems-tokens.md), [Components](refs/design-systems-components.md), [Governance](refs/design-systems-governance.md)
 
 ## Quick Wins
 
@@ -145,7 +145,7 @@ Fast improvements with high impact:
 5. Fix color contrast violations
 6. Add loading/empty state handling
 
-**Implementation guide**: See [refs/quick-wins.md](refs/quick-wins.md)
+**Implementation guide**: See [Top 10 Quick Wins](refs/quick-wins-top-10.md) and [Workflow & Planning](refs/quick-wins-workflow.md)
 
 ## Integration
 
@@ -184,15 +184,22 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
 - **Examples**: Material, Ant, Chakra, Tailwind
 
 **Detailed guides in refs/:**
-- [review-criteria.md](refs/review-criteria.md) - Full review checklist
+- [review-criteria-visual.md](refs/review-criteria-visual.md) - Visual consistency checklist
+- [review-criteria-components.md](refs/review-criteria-components.md) - Components and responsive design
+- [review-criteria-accessibility.md](refs/review-criteria-accessibility.md) - Polish, accessibility, scoring, review process
 - [scoring-guide.md](refs/scoring-guide.md) - How to score consistency
 - Common Issues:
   - [Color Issues](refs/common-issues-color-issues.md)
   - [Component Issues](refs/common-issues-component-issues.md)
   - [Animation Issues](refs/common-issues-animation-issues.md)
 - [report-template.md](refs/report-template.md) - Comprehensive report format
-- [design-systems.md](refs/design-systems.md) - Design system guide
-- [quick-wins.md](refs/quick-wins.md) - Fast improvement implementations
+- Design Systems:
+  - [design-systems-tokens.md](refs/design-systems-tokens.md) - Token foundations
+  - [design-systems-components.md](refs/design-systems-components.md) - Component library
+  - [design-systems-governance.md](refs/design-systems-governance.md) - Governance and versioning
+- Quick Wins:
+  - [quick-wins-top-10.md](refs/quick-wins-top-10.md) - Top 10 improvements
+  - [quick-wins-workflow.md](refs/quick-wins-workflow.md) - Workflow and planning
 - Responsive Design:
   - [Mobile-First](refs/responsive-guide-mobile-first-philosophy.md)
   - [Typography](refs/responsive-guide-responsive-typography.md)

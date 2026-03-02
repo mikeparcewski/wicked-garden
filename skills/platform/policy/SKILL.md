@@ -58,7 +58,10 @@ Translate to technical controls:
 - Key management
 - Encryption verification
 
-See [refs/frameworks.md](refs/frameworks.md) for detailed policy-to-control mappings.
+See detailed policy-to-control mappings:
+- [GDPR Mappings](refs/frameworks-gdpr.md)
+- [HIPAA Mappings](refs/frameworks-hipaa.md)
+- [SOC2 & PCI DSS Mappings](refs/frameworks-soc2-pci.md)
 
 ### 3. Identify Applicability
 

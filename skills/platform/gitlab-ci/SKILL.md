@@ -1,6 +1,10 @@
 ---
 name: gitlab-ci
-description: Write secure, optimized GitLab CI/CD pipelines. Use when creating .gitlab-ci.yml files, configuring runners, or debugging pipeline issues.
+description: |
+  Write secure, optimized GitLab CI/CD pipelines.
+
+  Use when: "create CI/CD pipeline", "GitLab CI config", "fix pipeline",
+  ".gitlab-ci.yml", "configure runners", "pipeline optimization"
 ---
 
 # GitLab CI/CD Pipeline Writing

@@ -1,9 +1,11 @@
 ---
 name: debugging
 description: |
-  Systematic debugging and root cause analysis. Use for investigating errors,
-  diagnosing complex issues, performance profiling, or developing debugging
-  strategies.
+  Systematic debugging and root cause analysis for investigating errors,
+  diagnosing complex issues, and performance profiling.
+
+  Use when: "debug this error", "why is this failing", "root cause analysis",
+  "fix this bug", "investigate crash", "stack trace", "not working"
 ---
 
 # Debugging Skill
