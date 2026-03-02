@@ -6,21 +6,27 @@ argument-hint: "[--reconfigure]"
 
 # /wicked-garden:setup
 
-The single entry point for getting started with wicked-garden. Auto-detects what's needed and walks through it interactively.
-
-- **No config?** → asks about control plane (local/remote/offline), configures it, then onboards
-- **Config exists but no onboarding?** → skips straight to onboarding
-- **Everything done?** → reports status, offers to reconfigure
+The single entry point for getting started with wicked-garden. Always runs interactively — detects current state and asks the user what they want to do.
 
 ## Arguments
 
-- `--reconfigure`: Force re-run of control plane configuration even if already set up
+- `--reconfigure`: Force connection reconfiguration even if already set up
+
+## Answer Verification (CRITICAL)
+
+After EVERY AskUserQuestion call, you MUST:
+
+1. **Check the response** — verify the user's selection is clearly present in the tool result
+2. **Echo it back** — say "You selected **[option]**. Proceeding with [action]..." before taking any action
+3. **If ambiguous or empty** — do NOT assume an answer. Instead, tell the user: "I couldn't determine your selection. Could you tell me which option you'd like?" and wait for their response.
+
+Never proceed with a default or assumed answer. Wrong actions are worse than asking twice.
 
 ## Instructions
 
 ### 1. Detect Current State
 
-Check what's already configured:
+Check config and CP health:
 
 ```bash
 WG_CONFIG="$HOME/.something-wicked/wicked-garden/config.json"
@@ -31,41 +37,81 @@ else
 fi
 ```
 
-Determine which phases to run:
-
-| State | Action |
-|-------|--------|
-| No config OR `--reconfigure` | Run Phase 1 (CP config) → Phase 2 (onboarding) |
-| Config exists, `setup_complete: true`, no onboarding memories | Skip to Phase 2 (onboarding) |
-| Config exists, onboarding memories exist | Report status. Ask: "Everything looks good. Want to reconfigure?" |
-
-To check onboarding status, look for memories tagged `onboarding`:
-
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/mem/memory.py" recall --tags onboarding --limit 1 2>/dev/null
+curl -s --connect-timeout 2 http://localhost:18889/health 2>/dev/null || echo "NOT_CONNECTED"
 ```
 
-### 2. Phase 1 — Control Plane Configuration
+This determines which questions to ask in Step 2.
 
-Use AskUserQuestion:
+### 2. Ask the User (batched questions)
 
-**Question**: "How would you like to connect wicked-garden?"
+Always ask questions upfront using a **single AskUserQuestion call** with multiple questions. Which questions to include depends on current state:
 
-| Option | Description |
-|--------|-------------|
-| **Local (Recommended)** | Run the control plane on your machine (localhost:18889). Best for solo development. |
-| **Remote** | Connect to a shared team server. Best for team collaboration. |
-| **Offline** | Local file storage only. No control plane needed. Features work but data stays on this machine. |
+#### 2a. If connected (config exists AND health check passes)
 
-#### 2.1 Local Setup
+Ask **two questions** in one call:
+
+- **Q1 — Connection**: "You're currently connected to {endpoint}. Would you like to keep this connection or update it?"
+  - `header`: "Connection"
+  - Options:
+    | Option | Description |
+    |--------|-------------|
+    | **Keep current connection (Recommended)** | Stay connected to {endpoint}. No changes needed. |
+    | **Update connection** | Reconfigure the control plane connection (local or remote). |
+
+- **Q2 — Onboarding**: "Would you like to run codebase onboarding?"
+  - `header`: "Onboarding"
+  - Options:
+    | Option | Description |
+    |--------|-------------|
+    | **Full onboarding (Recommended)** | Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes. |
+    | **Quick scout** | Fast reconnaissance without indexing. Gives you the lay of the land in seconds. |
+    | **Skip for now** | Skip onboarding. You can run `/wicked-garden:setup` later to onboard. |
+
+**After receiving answers**: Verify BOTH selections are clear. Echo back: "You selected **[Q1 answer]** and **[Q2 answer]**." If either is ambiguous, ask the user to clarify before proceeding.
+
+- If Q1 = "Keep current connection" → skip to Step 4 (onboarding) using Q2 answer
+- If Q1 = "Update connection" → proceed to Step 3 (ask connection type, then onboard using Q2 answer)
+
+#### 2b. If NOT connected (no config OR health check fails)
+
+Ask **two questions** in one call:
+
+- **Q1 — Connection type**: "How would you like to connect wicked-garden?"
+  - `header`: "Connection"
+  - Options:
+    | Option | Description |
+    |--------|-------------|
+    | **Local (Recommended)** | Run the control plane on your machine (localhost:18889). Best for solo development. |
+    | **Remote** | Connect to a shared team server. Best for team collaboration. |
+    | **Offline** | Local file storage only. No control plane needed. Features work but data stays on this machine. |
+
+- **Q2 — Onboarding**: "Would you like to run codebase onboarding?"
+  - `header`: "Onboarding"
+  - Options:
+    | Option | Description |
+    |--------|-------------|
+    | **Full onboarding (Recommended)** | Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes. |
+    | **Quick scout** | Fast reconnaissance without indexing. Gives you the lay of the land in seconds. |
+    | **Skip for now** | Skip onboarding. You can run `/wicked-garden:setup` later to onboard. |
+
+**After receiving answers**: Verify BOTH selections are clear. Echo back: "You selected **[Q1 answer]** and **[Q2 answer]**." If either is ambiguous, ask the user to clarify before proceeding.
+
+- Proceed to Step 3 with Q1 answer, then Step 4 with Q2 answer.
+
+### 3. Configure Connection
+
+Execute based on the connection answer from Step 2.
+
+#### 3.1 Local Setup
 
 1. Check if CP is already running:
    ```bash
    curl -s --connect-timeout 2 http://localhost:18889/health
    ```
-2. If running, write config and proceed to Phase 2
+2. If running, write config and proceed to Step 4.
 
-3. If NOT running, check if CP source exists in the plugin cache:
+3. If NOT running, check if CP source exists:
    ```bash
    ls ~/.claude/plugins/cache/wicked-control-plane/package.json 2>/dev/null
    ```
@@ -106,7 +152,9 @@ Use AskUserQuestion:
 9. Open dashboard: `open http://localhost:5173`
 
 10. Write config:
-    ```json
+    ```bash
+    mkdir -p "$HOME/.something-wicked/wicked-garden"
+    cat > "$HOME/.something-wicked/wicked-garden/config.json" << 'CONF'
     {
       "endpoint": "http://localhost:18889",
       "auth_token": null,
@@ -118,16 +166,17 @@ Use AskUserQuestion:
       "request_timeout_seconds": 10,
       "setup_complete": true
     }
+    CONF
     ```
 
-#### 2.2 Remote Setup
+#### 3.2 Remote Setup
 
-1. Ask for the endpoint URL
+1. Ask for the endpoint URL via AskUserQuestion (free text via "Other")
 2. Ask if authentication is needed; if yes, ask for the auth token
 3. Verify: `curl -s --connect-timeout 3 -H "Authorization: Bearer {token}" {endpoint}/health`
 4. Write config with `mode: "remote"`, the endpoint, and auth token
 
-#### 2.3 Offline Setup
+#### 3.3 Offline Setup
 
 1. Write config with `mode: "offline"`, `endpoint: null`
 2. Show storage location:
@@ -136,38 +185,55 @@ Use AskUserQuestion:
    ```
 3. Tell the user: "Run `/wicked-garden:setup` later to connect to a control plane. Queued writes will sync automatically."
 
-#### 2.4 Confirm
+#### 3.4 Keep Current Connection
+
+No changes needed. Proceed to Step 4.
+
+#### 3.5 Confirm Connection
+
+Show:
 
 ```
-Control plane configured!
-Mode: {Local | Remote | Offline}
+Connection configured!
+Mode: {Local | Remote | Offline | Kept}
 Endpoint: {url or "none (offline)"}
 Status: {Connected | Offline}
 ```
 
-### 3. Phase 2 — Codebase Onboarding
+### 4. Run Onboarding
+
+Execute based on the onboarding answer from Step 2.
+
+#### 4.1 Full Onboarding
+
+First, ask which directories to onboard:
 
 Use AskUserQuestion:
 
-**Question**: "What kind of onboarding would you like for this codebase?"
+- **Question**: "Which directories should be onboarded?"
+  - `header`: "Directories"
+  - `multiSelect`: false
+  - Options:
+    | Option | Description |
+    |--------|-------------|
+    | **Current directory (Recommended)** | Onboard the project root: {cwd} |
+    | **Specify directories** | Choose specific directories to index (enter paths via "Other") |
 
-| Option | Description |
-|--------|-------------|
-| **Full onboarding (Recommended)** | Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes. |
-| **Quick scout** | Fast reconnaissance without indexing. Gives you the lay of the land in seconds. |
-| **Skip for now** | Skip onboarding. You can run `/wicked-garden:setup` later to onboard. |
+**After receiving the answer**: Verify the selection. Echo it back.
 
-#### 3.1 Full Onboarding
-
-Invoke the onboarding engine:
+Then invoke the onboarding engine:
 
 ```
 Skill(skill="wicked-garden:smaht:onboard")
 ```
 
+If the user specified custom directories, pass them as context to the onboarding skill.
+
 This handles indexing, exploration, memory storage, and validation.
 
-#### 3.2 Quick Scout
+#### 4.2 Quick Scout
+
+Ask which directories to scout (same question pattern as 4.1).
 
 Run a fast scout:
 
@@ -181,7 +247,7 @@ Then store a basic onboarding memory:
 Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} quick-scouted on {date}. Full onboarding not yet run.\" --type procedural --tags onboarding,{project}")
 ```
 
-#### 3.3 Skip
+#### 4.3 Skip
 
 Store a skip memory so the bootstrap directive doesn't fire again:
 
@@ -189,7 +255,7 @@ Store a skip memory so the bootstrap directive doesn't fire again:
 Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} skipped by user on {date}. Run /wicked-garden:setup to onboard later.\" --type procedural --tags onboarding,{project}")
 ```
 
-### 4. Clear Onboarding Gate
+### 5. Clear Onboarding Gate
 
 After onboarding (or skip), clear the enforcement gate so prompts are no longer blocked:
 
@@ -205,7 +271,7 @@ print('Onboarding gate cleared.')
 "
 ```
 
-### 5. Done
+### 6. Done
 
 Show a summary:
 
@@ -214,6 +280,7 @@ wicked-garden is ready!
 
 Connection: {mode} ({endpoint or "offline"})
 Onboarding: {Full | Quick scout | Skipped}
+Directories: {paths onboarded}
 
 Quick start:
 - /wicked-garden:help — see all domains and commands
