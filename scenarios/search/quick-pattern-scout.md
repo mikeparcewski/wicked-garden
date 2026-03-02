@@ -118,7 +118,7 @@ EOF
 
 ## Steps
 
-1. Scout for API endpoint patterns (NO INDEX NEEDED):
+1. Scout for API endpoint patterns (no index needed):
    ```
    /wicked-garden:search:scout api --path /tmp/wicked-scout-test
    ```
@@ -143,92 +143,27 @@ EOF
    /wicked-garden:search:scout config --path /tmp/wicked-scout-test
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-### API Scout:
-```
-## Scout: api
-
-### Route definitions
-src/api/routes.py: 3 routes found
-  - GET /users (list_users)
-  - POST /users (create_user)
-  - DELETE /users/<user_id> (delete_user)
-
-### API directories
-src/api/: 1 file
-
-Summary: 3 API patterns across 1 file
-```
-
-### Test Scout:
-```
-## Scout: test
-
-### Test files
-tests/test_auth.py: 2 test methods
-
-### Test classes/functions
-TestAuthService: 2 tests
-  - test_authenticate_success
-  - test_generate_token
-
-### Mocks
-tests/test_auth.py: @patch decorator, Mock usage
-
-Summary: 2 test patterns across 1 file
-```
-
-### Auth Scout:
-```
-## Scout: auth
-
-### Authentication code
-src/auth/service.py: authenticate, generate_token, verify_token, logout
-  - jwt usage (encode/decode)
-  - session invalidation
-
-### Auth directories
-src/auth/: 1 file
-
-Summary: 4 auth patterns across 1 file
-```
-
-### DB Scout:
-```
-## Scout: db
-
-### Models
-src/models/user.py: User (SQLAlchemy model)
-  - __tablename__ = 'users'
-  - 3 columns
-
-### Repository methods
-src/models/user.py: find_by_id, save
-  - session.query usage
-  - session.commit usage
-
-Summary: 5 database patterns across 1 file
-```
-
-### Config Scout:
-```
-## Scout: config
-
-### Configuration files
-config/settings.yml: database + auth settings
-
-Summary: 1 config file found
-```
+- All scout commands run without requiring a pre-built index
+- API scout finds route definitions in routes.py (GET, POST, DELETE endpoints)
+- Test scout finds test classes and methods in test_auth.py, including mock usage
+- Auth scout finds authentication-related code in service.py (authenticate, token generation/verification)
+- DB scout finds SQLAlchemy models and repository methods in user.py
+- Config scout finds settings.yml with database and auth configuration
+- Each scout reports file locations alongside discovered patterns
+- `--path` argument correctly scopes searches to the specified directory
 
 ## Success Criteria
 
-- [ ] Scout runs WITHOUT requiring index
-- [ ] Scout completes in <2 seconds per pattern type
-- [ ] All 5 pattern types (api, test, auth, db, config) work correctly
-- [ ] File locations included with match details
-- [ ] Summary shows aggregate statistics
-- [ ] Works on fresh, un-indexed codebases
+- [ ] Scout runs without requiring an index
+- [ ] All 5 pattern types (api, test, auth, db, config) produce results
+- [ ] API scout finds the 3 route definitions in routes.py
+- [ ] Test scout finds test classes and test methods
+- [ ] Auth scout finds authentication code (JWT usage, login/logout)
+- [ ] DB scout finds ORM models and repository patterns
+- [ ] Config scout finds configuration files
+- [ ] File locations included with each result
 - [ ] `--path` argument correctly scopes the search directory
 
 ## Value Demonstrated
@@ -236,27 +171,7 @@ Summary: 1 config file found
 **Problem solved**: Full indexing takes time. Developers need quick answers before deciding if deep analysis is worth it.
 
 **Why this matters**:
-
-**Quick reconnaissance**:
-- New codebase: "Does this project have API endpoints?"
-- Run: `/wicked-garden:search:scout api`
-- See: Route definitions, endpoint patterns
-- Time: 2 seconds vs 30+ seconds for full indexing
-
-**Decision making**:
-- Question: "Does this project have tests?"
-- Run: `/wicked-garden:search:scout test`
-- Answer: Instant overview of test coverage
-- Decision: Proceed with confidence or add tests
-
-**Security assessment**:
-- Before review: `/wicked-garden:search:scout auth`
-- See: Where authentication is used, JWT patterns
-- Review: Check auth coverage across the codebase
-
-**Data layer overview**:
-- Run: `/wicked-garden:search:scout db`
-- Discover: ORM models, raw queries, migration patterns
-- Action: Understand data layer before making changes
-
-Scout is the "quick grep" to wicked-search's "full database" - use it for reconnaissance before committing to full analysis.
+- **Quick reconnaissance**: "Does this project have API endpoints?" answered in seconds
+- **Decision making**: "Does this project have tests?" gives instant coverage overview
+- **Security assessment**: Find where authentication is handled before a full review
+- **Data layer overview**: Discover ORM models and query patterns before making changes

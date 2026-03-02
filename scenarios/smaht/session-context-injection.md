@@ -15,9 +15,10 @@ Test that wicked-smaht automatically injects relevant context when a Claude Code
 
 Ensure wicked-smaht is installed and hooks are enabled. Optionally have wicked-mem, wicked-kanban, or wicked-crew with existing data.
 
-```bash
-# Check that wicked-smaht hooks are registered
-cat "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" | grep SessionStart
+Ensure wicked-garden is installed. Verify smaht commands are available:
+
+```
+/wicked-garden:smaht:help
 ```
 
 ## Steps
@@ -35,29 +36,31 @@ cat "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json" | grep SessionStart
    - Active tasks from wicked-kanban (if installed)
    - Current project phase from wicked-crew (if installed)
 
-3. **Verify session was created**
-   ```bash
-   ls ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/
+3. **Verify session context is active**
+
+   Run the debug command to confirm context was gathered:
+
    ```
-   Should show a new session directory with today's timestamp.
+   /wicked-garden:smaht:debug
+   ```
+
+   Expected: Shows the active session ID, sources queried, and any context items gathered during startup.
 
 4. **Check session metadata** (written at session end by Stop hook)
-   ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/session_meta.json | tail -1
-   ```
-   Shows session_id, start_time, end_time, key_topics
+
+   After ending the session and starting a new one, run `/wicked-garden:smaht:debug` again. The previous session's metadata (session_id, start_time, end_time, key_topics) should be recorded by the Stop hook.
 
 ## Expected Outcome
 
-- New session directory created at `~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{id}/`
-- session_meta.json written at session end with session summary
+- New session created and tracked internally
+- Session metadata written at session end with session summary
 - Context packet injected into Claude's system prompt
 - Sources queried based on what's available (graceful degradation)
 
 ## Success Criteria
 
-- [ ] Session directory created on startup
-- [ ] session_meta.json written at session end with valid session_id and start_time
+- [ ] Session created on startup (visible via `/wicked-garden:smaht:debug`)
+- [ ] Session metadata written at session end with valid session_id and start_time
 - [ ] No errors in hook execution (check Claude terminal)
 - [ ] Context gathered from available sources (may be empty if none installed)
 

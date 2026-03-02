@@ -14,7 +14,7 @@ estimated_minutes: 10
 Create initial content and index it:
 
 ```bash
-# Create and index initial content
+# Create initial content
 mkdir -p /tmp/wicked-incr-test/src
 
 cat > /tmp/wicked-incr-test/src/service.py << 'EOF'
@@ -34,9 +34,6 @@ class OrderRepository:
         """Save order to database."""
         pass
 EOF
-
-# Initial index
-# /wicked-garden:search:index /tmp/wicked-incr-test
 ```
 
 ## Steps
@@ -51,7 +48,7 @@ EOF
    /wicked-garden:search:stats
    ```
 
-3. Modify service.py to add a new method:
+3. Modify service.py to add new methods:
    ```bash
    cat > /tmp/wicked-incr-test/src/service.py << 'EOF'
    class OrderService:
@@ -86,34 +83,21 @@ EOF
    /wicked-garden:search:stats
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-1. **Initial index**: Both files indexed, all symbols extracted
-
-2. **After modification**:
-   - PostToolUse hook detects service.py was modified via Write tool
-   - File marked as "stale" in `~/.something-wicked/search/stale_files.json`
-
-3. **Re-indexing**:
-   - Only service.py is re-processed (not repository.py)
-   - Faster than full index
-   - New methods (cancel_order, get_order_status) appear in index
-
-4. **Stats show**:
-   - Last update timestamp
-   - File count: 2
-   - Symbol count increased
-   - Incremental update indicator
+- Initial index processes both files and extracts all symbols
+- After modification and re-index, re-indexing is faster than the initial full index
+- New methods (cancel_order, get_order_status) are searchable immediately after re-index
+- Stats show updated symbol counts reflecting the added methods
+- Unchanged file (repository.py) is not unnecessarily re-processed
 
 ## Success Criteria
 
-- [ ] Initial index processes both files
-- [ ] PostToolUse hook marks service.py as stale when modified
-- [ ] Re-index is faster than initial full index
-- [ ] Only modified file (service.py) is re-processed
-- [ ] New methods (cancel_order, get_order_status) searchable
-- [ ] Unchanged file (repository.py) not re-processed
-- [ ] `/stats` shows last update time and file counts
+- [ ] Initial index processes both files successfully
+- [ ] Re-index completes faster than initial full index
+- [ ] New methods (cancel_order, get_order_status) found by code search after re-index
+- [ ] Stats show increased symbol count after re-index
+- [ ] Unchanged file (repository.py) is not re-processed
 - [ ] Search finds new symbols immediately after re-index
 
 ## Value Demonstrated
@@ -121,13 +105,7 @@ EOF
 **Problem solved**: Full re-indexing large codebases is slow. Developers make small changes but have to wait for complete re-indexing to search new code.
 
 **Why this matters**:
-- **Rapid iteration**: Change a file → re-index in seconds, not minutes
-- **Large codebases**: 1000+ file projects become practical
+- **Rapid iteration**: Change a file, re-index in seconds, not minutes
+- **Large codebases**: 1000+ file projects remain practical with incremental updates
 - **Developer experience**: No waiting for full re-index after small changes
 - **CI/CD integration**: Fast incremental updates in build pipelines
-
-Real-world impact:
-- **Before**: Modify one file → wait 2 minutes for full re-index
-- **After**: Modify one file → wait 3 seconds for incremental update
-
-The PostToolUse hook automatically detects Write operations and marks files stale - zero manual tracking required.

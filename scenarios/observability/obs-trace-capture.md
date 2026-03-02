@@ -1,113 +1,71 @@
 ---
 name: obs-trace-capture
-description: Verify that the PostToolUse hook writes JSONL trace records when tools are invoked
+description: Verify that hook execution traces are captured and queryable via the traces command
 category: infra
 tags: [observability, traces, hooks]
 tools:
-  required: [python3]
+  required: [slash-command]
 difficulty: basic
 timeout: 30
 ---
 
 # Observability Trace Capture
 
-Validates that the PostToolUse hook appends JSONL trace records to a per-session trace file
-whenever a tool is invoked. Confirms that Layer 1 (runtime tracing) is active and recording.
+Validates that the PostToolUse hook captures trace records during tool invocations and that
+`/wicked-garden:observability:traces` can query them. Confirms that Layer 1 (runtime tracing)
+is active and recording.
 
 ## Setup
 
-```bash
-# Trace files are named {session_id}.jsonl — find the most recently modified one
-TRACE_DIR="${HOME}/.something-wicked/wicked-garden/local/wicked-observability/traces"
-mkdir -p "${TRACE_DIR}"
-
-# Snapshot: record total line count across all trace files as baseline
-BASELINE=$(cat "${TRACE_DIR}"/*.jsonl 2>/dev/null | wc -l | tr -d ' ')
-BASELINE=${BASELINE:-0}
-echo "Baseline total line count: ${BASELINE}"
-export TRACE_DIR BASELINE
-```
-
-**Expect**: Baseline total line count printed without error
+No setup required. The PostToolUse hook automatically captures trace records for every tool
+invocation. The `/wicked-garden:observability:traces` command queries the accumulated trace data.
 
 ## Steps
 
-### Step 1: Trigger a PostToolUse event (bash)
+### Step 1: Query existing traces to establish a baseline
 
-Run a shell command so that the PostToolUse hook fires and appends a trace record.
+Invoke the traces command to see what has been recorded so far in this session:
 
-```bash
-echo "trace test"
+```
+/wicked-garden:observability:traces --tail 5
 ```
 
-**Expect**: Exit code 0, output "trace test"
+**Expect**: The command completes and either shows recent trace records or indicates no traces
+exist yet for this session. Note the number of records visible.
 
-### Step 2: Assert trace file grew (python3)
+### Step 2: Trigger tool activity and query traces again
 
-```bash
-python3 - <<'EOF'
-import glob, os, sys
+Run any simple tool invocation (e.g., read a file or list a directory) to generate at least one
+new PostToolUse event. Then query traces again:
 
-trace_dir = os.path.expanduser("~/.something-wicked/wicked-garden/local/wicked-observability/traces")
-baseline = int(os.environ.get("BASELINE", "0"))
-
-# Count total lines across all session trace files
-files = glob.glob(os.path.join(trace_dir, "*.jsonl"))
-if not files:
-    print(f"FAIL: no trace files found in {trace_dir}")
-    sys.exit(1)
-
-current = sum(sum(1 for _ in open(f)) for f in files)
-if current > baseline:
-    print(f"OK: trace lines grew from {baseline} to {current}")
-    sys.exit(0)
-else:
-    print(f"FAIL: trace lines did not grow (still {current}, baseline {baseline})")
-    sys.exit(1)
-EOF
+```
+/wicked-garden:observability:traces --tail 5
 ```
 
-**Expect**: Exit code 0, "OK: trace lines grew" message
+**Expect**:
+- At least one new trace record appears compared to Step 1
+- Each trace record includes a tool name, timestamp, and session identifier
 
-### Step 3: Validate last JSONL record is well-formed (python3)
+### Step 3: Verify trace record structure with JSON output
 
-```bash
-python3 - <<'EOF'
-import glob, json, os, sys
+Query traces in machine-readable mode:
 
-trace_dir = os.path.expanduser("~/.something-wicked/wicked-garden/local/wicked-observability/traces")
-files = glob.glob(os.path.join(trace_dir, "*.jsonl"))
-if not files:
-    print("FAIL: no trace files found")
-    sys.exit(1)
-
-# Read the most recently modified trace file
-latest = max(files, key=os.path.getmtime)
-with open(latest) as f:
-    lines = [l.strip() for l in f if l.strip()]
-
-if not lines:
-    print("FAIL: latest trace file is empty")
-    sys.exit(1)
-
-last = json.loads(lines[-1])
-
-required_fields = {"ts", "tool", "session_id"}
-missing = required_fields - last.keys()
-if missing:
-    print(f"FAIL: last record missing fields: {missing}")
-    sys.exit(1)
-
-print(f"OK: last record valid — tool={last.get('tool')!r}, ts={last.get('ts')!r}")
-EOF
+```
+/wicked-garden:observability:traces --tail 1 --json
 ```
 
-**Expect**: Exit code 0, last record has required fields: ts, tool, session_id
+**Expect**:
+- The output is valid structured data (JSON)
+- The most recent record contains at minimum: `ts` (timestamp), `tool` (tool name), and `session_id`
+- The `tool` field reflects a real tool that was invoked during this session
+
+## Expected Outcomes
+
+1. The PostToolUse hook passively captures trace records without user intervention
+2. The traces command retrieves recorded traces for the current session
+3. Trace records contain the required fields (`ts`, `tool`, `session_id`) for debugging and audit
+4. Traces are append-only and persist across tool invocations within a session
 
 ## Cleanup
 
 Traces are append-only logs. No cleanup needed.
-
-```bash
-echo "No cleanup required — traces are append-only"
-```

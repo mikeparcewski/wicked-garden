@@ -168,178 +168,42 @@ EOF
    /wicked-garden:search:blast-radius DatabaseConnection
    ```
 
-3. Analyze blast radius of QueryBuilder (mid-level utility):
-   ```
-   /wicked-garden:search:blast-radius QueryBuilder
-   ```
-
-4. Analyze blast radius of UserService (high-level service):
+3. Analyze blast radius of UserService (high-level service):
    ```
    /wicked-garden:search:blast-radius UserService
    ```
 
-5. Compare with deeper analysis:
+4. Analyze blast radius with deeper traversal:
    ```
    /wicked-garden:search:blast-radius DatabaseConnection --depth 3
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-### Relationship Graph (from indexing):
-```
-Import relationships:
-base_repo.py --imports--> database.py
-base_repo.py --imports_symbol--> DatabaseConnection
-base_repo.py --imports_symbol--> QueryBuilder
-repositories.py --imports--> base_repo.py
-repositories.py --imports_symbol--> BaseRepository
-services.py --imports--> repositories.py
-api.py --imports--> services.py
-
-Inheritance relationships:
-UserRepository --inherits--> BaseRepository
-OrderRepository --inherits--> BaseRepository
-
-Call relationships:
-QueryBuilder.select --calls--> query
-BaseRepository.connect --calls--> connect (DatabaseConnection)
-UserRepository.find_by_id --calls--> connect, select, disconnect
-UserService.get_user --calls--> find_by_id
-UserAPI.get_user_profile --calls--> get_user, get_user_orders
-
-Defines relationships:
-DatabaseConnection --defines--> connect, disconnect, query
-BaseRepository --defines--> connect, disconnect
-UserRepository --defines--> find_by_id
-UserService --defines--> get_user
-
-Documentation references:
-architecture.md --documents--> DatabaseConnection, QueryBuilder
-architecture.md --documents--> BaseRepository, UserRepository, OrderRepository
-architecture.md --documents--> UserService, OrderService, UserAPI
-```
-
-### DatabaseConnection Analysis:
-```
-Blast Radius for: DatabaseConnection
-
-Dependencies (what it uses):
-[None - leaf node]
-
-Dependents (what uses it):
-Direct (depth 1):
-- QueryBuilder (imports_symbol)
-- BaseRepository (via QueryBuilder)
-
-Indirect (depth 2):
-- UserRepository (inherits BaseRepository)
-- OrderRepository (inherits BaseRepository)
-
-Indirect (depth 3):
-- UserService, OrderService (imports)
-- UserAPI (imports)
-
-Documentation:
-- architecture.md (documents)
-
-Impact Assessment: HIGH RISK
-- Core infrastructure component
-- 6+ transitive dependents
-- Changes propagate to all layers
-```
-
-### BaseRepository Analysis:
-```
-Blast Radius for: BaseRepository
-
-Dependencies (what it uses):
-- DatabaseConnection (imports_symbol)
-- QueryBuilder (imports_symbol)
-
-Dependents (what uses it):
-Direct:
-- UserRepository (inherits)
-- OrderRepository (inherits)
-
-Indirect:
-- UserService, OrderService, UserAPI
-
-Documentation:
-- architecture.md (documents)
-
-Impact Assessment: HIGH RISK
-- Inheritance means changes affect all subclasses
-- Method changes (connect/disconnect) affect all repositories
-```
-
-### UserService Analysis:
-```
-Blast Radius for: UserService
-
-Dependencies (what it uses):
-- UserRepository (imports_symbol)
-
-Dependents (what uses it):
-- UserAPI (imports_symbol, calls get_user)
-
-Documentation:
-- architecture.md (documents)
-
-Impact Assessment: LOW RISK
-- 1 direct dependent
-- High-level service, limited blast radius
-```
+- DatabaseConnection has a wide blast radius: changes propagate through QueryBuilder, BaseRepository, UserRepository, OrderRepository, UserService, OrderService, and UserAPI
+- UserService has a narrow blast radius: only UserAPI directly depends on it
+- Depth parameter controls how many layers of transitive dependents are shown
+- Both dependencies (what a symbol uses) and dependents (what uses it) are reported
+- Documentation references from architecture.md included in analysis
+- Core infrastructure components show higher risk than high-level services
 
 ## Success Criteria
 
-- [ ] Blast radius analysis runs for each symbol
-- [ ] Import relationships detected (file → file, symbol → symbol)
-- [ ] Inheritance relationships detected (subclass → superclass)
-- [ ] Call relationships detected (method → method across classes)
-- [ ] Defines relationships detected (class → method)
-- [ ] Documentation references detected (doc → code symbols)
-- [ ] Dependencies correctly identified (what the symbol uses)
-- [ ] Direct dependents correctly identified (depth 1)
-- [ ] Indirect dependents correctly identified (depth 2+)
+- [ ] Blast radius analysis runs for each queried symbol
+- [ ] DatabaseConnection shows wide impact across multiple layers (repos, services, API)
+- [ ] UserService shows narrow impact (only UserAPI depends on it)
+- [ ] Both direct and transitive dependents identified
 - [ ] Depth parameter controls traversal depth
-- [ ] Impact assessment reflects actual coupling
-- [ ] Core components show wider blast radius than high-level services
-- [ ] Results include file locations and relationship types
+- [ ] Dependencies (what the symbol uses) correctly identified
+- [ ] Documentation references included in blast radius
+- [ ] Impact assessment reflects actual coupling level
 
 ## Value Demonstrated
 
-**Problem solved**: Developers fear refactoring because they can't assess the risk. Questions like "What will break if I change this?" require manual code archaeology.
+**Problem solved**: Developers fear refactoring because they cannot assess the risk. "What will break if I change this?" requires manual code archaeology.
 
 **Why this matters**:
-
-**Pre-refactoring risk assessment**:
-- Question: "Should I refactor DatabaseConnection?"
-- Run: `/blast-radius DatabaseConnection`
-- See: 6 dependent classes across 4 files
-- Decision: High risk - needs careful planning and testing
-
-**Safe incremental changes**:
-- Question: "Can I safely change UserService?"
-- Run: `/blast-radius UserService`
-- See: 1 dependent (UserAPI)
-- Decision: Low risk - make the change confidently
-
-**Technical debt prioritization**:
-- Run blast radius on core utilities
-- Identify: Which components have the widest impact
-- Prioritize: Improve high-blast-radius components first
-
-**Onboarding safety**:
-- New dev: "Can I change this function?"
-- Run: `/blast-radius FunctionName`
-- Learn: Impact scope before making changes
-- Result: Confident contributions without fear
-
-**Real-world scenarios**:
-
-1. **Database migration**: Changing DatabaseConnection → see all affected code
-2. **API redesign**: Changing UserAPI → minimal blast radius, safe to refactor
-3. **Breaking change assessment**: Quantify impact before making breaking changes
-4. **Test planning**: Blast radius shows what needs testing
-
-The analysis prevents "change paralysis" by making impact visible and quantifiable.
+- **Pre-refactoring risk assessment**: See that DatabaseConnection impacts 6+ classes before touching it
+- **Safe incremental changes**: Confirm UserService has only 1 dependent, make the change confidently
+- **Technical debt prioritization**: Identify which components have the widest impact
+- **Test planning**: Blast radius shows exactly what needs testing after a change

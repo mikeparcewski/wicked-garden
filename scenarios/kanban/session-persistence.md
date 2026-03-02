@@ -13,94 +13,76 @@ Test that tasks persist across Claude Code sessions, demonstrating the core valu
 
 ## Setup
 
-Start with a clean slate to demonstrate persistence clearly.
+Start with a baseline view of existing projects.
 
-```bash
-# List existing projects to see baseline
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
 ```
+/wicked-garden:kanban:board-status
+```
+
+Note any existing projects so new work is clearly distinguishable.
 
 ## Steps
 
-1. **Create a project and tasks in the current session**
-   ```bash
-   # Create project
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "Long-Running Work" -d "Work that spans multiple sessions"
-   # Note PROJECT_ID from output
-
-   # Create several tasks
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Refactor authentication module" -p P1
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Update API documentation" -p P2
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Fix mobile responsive issues" -p P2
-   # Note TASK_1_ID, TASK_2_ID, TASK_3_ID from outputs
-
-   # Start work on first task
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_1_ID --swimlane in_progress
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_1_ID "Started refactoring - extracted auth logic to separate module"
+1. **Name the session and create tasks**
+   ```
+   /wicked-garden:kanban:name-session "Long-Running Work"
+   ```
+   Then create several tasks:
+   ```
+   /wicked-garden:kanban:new-task "Refactor authentication module" --project "Long-Running Work" --priority P1
+   /wicked-garden:kanban:new-task "Update API documentation" --project "Long-Running Work" --priority P2
+   /wicked-garden:kanban:new-task "Fix mobile responsive issues" --project "Long-Running Work" --priority P2
    ```
 
-2. **Verify data is stored on disk**
-   ```bash
-   # Check the project file exists
-   ls ~/.something-wicked/wicked-garden/local/wicked-kanban/projects/
-
-   # Verify project data
-   cat ~/.something-wicked/wicked-garden/local/wicked-kanban/projects/PROJECT_ID/project.json | head -50
+2. **Start work on first task**
+   Use `TaskUpdate` to set the first task to `in_progress`, then add a comment:
    ```
-   Should show the project with all three tasks.
-
-3. **Simulate session end by closing and reopening terminal**
-   In a real scenario, this would be:
-   - Closing Claude Code
-   - Restarting your computer
-   - Starting a new session the next day
-
-   For this test, we simply verify the data persists by reading from disk:
-   ```bash
-   # Data is still there
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project PROJECT_ID
+   /wicked-garden:kanban:comment PROJECT_ID TASK_ID "Started refactoring - extracted auth logic to separate module"
    ```
 
-4. **Continue work in the "new session"**
-   ```bash
-   # Complete the in-progress task
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_1_ID "refactor-auth-abc123"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_1_ID "Refactoring complete - all tests passing"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_1_ID --swimlane done
-
-   # Start second task
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_2_ID --swimlane in_progress
+3. **Verify board shows current state**
    ```
-
-5. **Verify all history is preserved**
-   ```bash
-   # Check activity log for full history
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py activity PROJECT_ID
+   /wicked-garden:kanban:board-status
    ```
-   Should show task_created, swimlane_changed, comment, commit_linked entries across the "session break".
+   Should show 1 task in progress, 2 tasks in To Do.
 
-6. **Verify task details show accumulated work**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID TASK_1_ID
+4. **Simulate session end and recovery**
+   In a real scenario, the user would close Claude Code and start a new session.
+   For this test, verify the data is still accessible by checking the board again:
    ```
-   Should show commits array with the linked commit hash and multiple comments.
+   /wicked-garden:kanban:board-status
+   ```
+   All tasks, statuses, and comments should still be visible.
 
-## Expected Outcome
+5. **Continue work in the "new session"**
+   Complete the in-progress task using `TaskUpdate` (status: `completed`), then add a comment:
+   ```
+   /wicked-garden:kanban:comment PROJECT_ID TASK_ID "Refactoring complete - all tests passing"
+   ```
+   Start the second task using `TaskUpdate` (status: `in_progress`).
+
+6. **Verify full history is preserved**
+   ```
+   /wicked-garden:kanban:board-status
+   ```
+   Should show: 1 task done, 1 in progress, 1 in To Do. All comments and status history should be intact.
+
+## Expected Outcomes
 
 - Tasks created in one session are visible in subsequent sessions
-- Task status, comments, and commits all persist
-- Activity log preserves complete history
+- Task status, comments, and initiative assignment all persist
+- Board status accurately reflects accumulated changes
 - Work can seamlessly continue across sessions
+- Session name (initiative) groups related tasks together
 - No data loss between sessions
 
 ## Success Criteria
 
 - [ ] Project and tasks visible after simulated "new session"
-- [ ] Task swimlanes, priorities, and descriptions persist
+- [ ] Task swimlanes and priorities persist
 - [ ] Comments added are still present
-- [ ] Commits linked are preserved
-- [ ] Activity log shows full history
+- [ ] Board status shows correct task distribution
+- [ ] Initiative groups session work together
 - [ ] No data loss
 
 ## Value Demonstrated
@@ -109,12 +91,10 @@ The core value of wicked-kanban is persistence. Unlike TodoWrite tasks that disa
 
 1. **Claude Code sessions** - Close and reopen Claude Code, tasks remain
 2. **Days/weeks of work** - Long-running projects stay organized
-3. **Team coordination** - Tasks are always available via shared files
+3. **Team coordination** - Tasks are always available via the Control Plane
 
 This makes wicked-kanban essential for:
 - Multi-day development efforts
 - Team coordination (tasks are always available)
 - Project continuity (no lost context between sessions)
 - Onboarding (new team members see full work history)
-
-The file-based storage (~/.something-wicked/wicked-garden/local/wicked-kanban/projects/) ensures data is durable and can even be version-controlled or backed up.

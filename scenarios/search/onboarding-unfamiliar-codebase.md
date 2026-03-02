@@ -145,176 +145,122 @@ class ProductAPI:
 EOF
 ```
 
-## Scenario: New Developer's First Day
-
-You're a new developer joining the team. You need to understand the codebase and implement a new feature.
-
 ## Steps
 
-### Phase 1: Quick Reconnaissance (NO INDEX)
+### Phase 1: Quick Reconnaissance (no index needed)
 
-1. Get a quick overview of patterns:
+1. Scout for API endpoint patterns:
    ```
-   /wicked-garden:search:scout error-handling
-   /wicked-garden:search:scout test-patterns
-   /wicked-garden:search:scout api-endpoints
+   /wicked-garden:search:scout api --path /tmp/onboarding-demo
    ```
 
-2. Assess: "Is there test coverage? How's error handling?"
+2. Scout for test patterns:
+   ```
+   /wicked-garden:search:scout test --path /tmp/onboarding-demo
+   ```
 
-### Phase 2: Deep Understanding (BUILD INDEX)
+3. Scout for database patterns:
+   ```
+   /wicked-garden:search:scout db --path /tmp/onboarding-demo
+   ```
 
-3. Index the entire project:
+### Phase 2: Build Index
+
+4. Index the entire project:
    ```
    /wicked-garden:search:index /tmp/onboarding-demo
    ```
 
-4. Check index statistics:
+5. Check index statistics:
    ```
    /wicked-garden:search:stats
    ```
 
 ### Phase 3: Understand Requirements
 
-5. Search documentation for "User Management":
+6. Search documentation for "User Management":
    ```
    /wicked-garden:search:docs "User Management"
    ```
 
-6. Find what code implements user management:
+7. Find what code implements user management:
    ```
    /wicked-garden:search:impl "User Management"
    ```
 
-7. Explore the UserService class:
+8. Explore the UserService class references:
    ```
    /wicked-garden:search:refs UserService
    ```
 
 ### Phase 4: Understand Architecture
 
-8. Trace API endpoint to implementation:
+9. Find UserAPI implementation:
    ```
    /wicked-garden:search:code UserAPI
    ```
 
-9. Understand dependencies of UserAPI:
-   ```
-   /wicked-garden:search:blast-radius UserAPI
-   ```
+10. Understand dependencies of UserAPI:
+    ```
+    /wicked-garden:search:blast-radius UserAPI
+    ```
 
-10. See what uses AuthService:
+11. See what uses AuthService:
     ```
     /wicked-garden:search:refs AuthService
     ```
 
-### Phase 5: Feature Implementation Planning
+### Phase 5: Plan a New Feature
 
-**Task**: Implement password reset functionality
-
-11. Find existing auth-related code:
+12. Find existing auth-related code:
     ```
     /wicked-garden:search:code "auth"
     ```
 
-12. Check API spec for related endpoints:
-    ```
-    /wicked-garden:search:docs "api"
-    ```
-
-13. Understand UserService dependencies:
+13. Understand UserService dependencies before adding password reset:
     ```
     /wicked-garden:search:blast-radius UserService
     ```
 
-## Expected Outcome
+## Expected Outcomes
 
-### After Scout (30 seconds):
-- Overview of codebase structure
-- Test coverage assessment
-- Error handling patterns identified
-
-### After Indexing (1-2 minutes):
-- Full knowledge graph built
-- All symbols indexed
-- Cross-references detected
-
-### After Exploration (5-10 minutes):
-- Understand: User Management → UserService → UserAPI flow
-- Understand: AuthService generates tokens
-- Understand: UserRepository handles persistence
-- See: Full dependency graph
-
-### Feature Implementation (10+ minutes):
-- Know where to add password reset logic
-- See all related components
-- Understand blast radius of changes
-- Identify which docs need updating
+- Scout commands run immediately without an index and reveal project structure (API patterns, test coverage gaps, database patterns)
+- After indexing, stats show accurate file and symbol counts for the entire project
+- Documentation search finds the User Management section in requirements.md
+- Implementation search traces User Management to UserService, AuthService, and related classes
+- References show where UserService is imported and used across the codebase
+- Code search finds UserAPI and its full implementation
+- Blast radius of UserAPI reveals its dependency chain (UserService, AuthService, UserRepository)
+- Blast radius of UserService shows its narrower scope, informing where to add password reset logic
+- The full workflow demonstrates progressive understanding: scout, index, explore, plan
 
 ## Success Criteria
 
-- [ ] Scout commands run without index in <5 seconds
-- [ ] Index completes and stats show file/symbol counts
-- [ ] Can trace from requirements doc to implementing code
-- [ ] Can trace from API spec to API implementation
-- [ ] Cross-references link docs to code symbols
-- [ ] Blast radius shows component dependencies
-- [ ] Can navigate full stack: API → Service → Repository
-- [ ] Understand where to add new feature (password reset)
+- [ ] Scout commands run without an index
+- [ ] Index completes and stats report accurate file/symbol counts
+- [ ] Can trace from requirements document to implementing code
+- [ ] Can trace from API spec to API implementation classes
+- [ ] Cross-references link documentation mentions to code symbols
+- [ ] Blast radius reveals component dependency chains
+- [ ] Full stack navigation works: API to Service to Repository to Model
+- [ ] Enough information gathered to confidently plan a new feature (password reset)
 
 ## Value Demonstrated
 
 **Problem solved**: Onboarding to unfamiliar codebases is slow and frustrating. Developers spend days reading code, asking questions, and making wrong assumptions.
+
+**Why this matters**:
 
 **Traditional onboarding** (2-3 days):
 1. Read README (incomplete)
 2. Grep through code randomly
 3. Ask senior developers questions
 4. Read code files sequentially
-5. Make mental notes (forget by tomorrow)
-6. Still confused about architecture
+5. Still confused about architecture
 
 **With wicked-search** (2-3 hours):
-
-**Hour 1 - Reconnaissance**:
-- Scout patterns: Get code structure overview
-- Index project: Build knowledge graph
-- Read requirements: Understand what system does
-
-**Hour 2 - Deep Dive**:
-- Trace requirements → implementation
-- Follow API → Service → Repository
-- Understand component relationships
-- See actual code structure
-
-**Hour 3 - Feature Work**:
-- Find similar features
-- Check blast radius
-- Implement confidently
-- Know what to test
-
-**Real-world impact**:
-
-**Scenario 1: Bug fix assigned**
-- Old way: "Where's the auth code?" → 30 minutes of searching
-- New way: `/code AuthService` → found in 5 seconds
-
-**Scenario 2: Understanding feature**
-- Old way: Read 10 files, still confused about flow
-- New way: `/impl "User Management"` → see entire stack
-
-**Scenario 3: Adding new endpoint**
-- Old way: Copy-paste from similar endpoint, hope it's correct
-- New way: `/blast-radius UserAPI` → understand impact before coding
-
-**Scenario 4: Documentation questions**
-- Old way: "Does this match the spec?" → read docs, read code, compare
-- New way: `/refs UserService` → see which docs mention it automatically
-
-**Metrics**:
-- Time to first commit: 3 days → 4 hours
-- Questions to senior devs: 20+ → 5
-- Wrong assumptions: Many → Few
-- Confidence level: Low → High
+- **Hour 1**: Scout patterns for structure overview, index project, read requirements
+- **Hour 2**: Trace requirements to implementation, follow API to Service to Repository chains
+- **Hour 3**: Find similar features, check blast radius, implement confidently
 
 The plugin transforms onboarding from "survival mode" to "productive contributor" in hours instead of days.

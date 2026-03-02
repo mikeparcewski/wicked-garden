@@ -1,7 +1,7 @@
 ---
 name: artifacts-and-commits
 title: Linking Code and Documentation
-description: Attach commits, files, and URLs to tasks for traceability
+description: Attach commits and documentation references to tasks for traceability
 type: feature
 difficulty: intermediate
 estimated_minutes: 6
@@ -9,97 +9,77 @@ estimated_minutes: 6
 
 # Linking Code and Documentation
 
-Test attaching artifacts and commit hashes to tasks to maintain traceability between work and implementation.
+Test attaching commits and documentation references to tasks to maintain traceability between work and implementation.
 
 ## Setup
 
-Create a project with tasks that will have associated code changes and documentation.
-
-```bash
-# Create project
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "User Profile Feature" -d "Implement user profile management"
-# Note PROJECT_ID from output
-
-# Create tasks
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Add profile API endpoints" -p P1 -d "REST endpoints for profile CRUD"
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Frontend profile component" -p P1
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Profile image upload" -p P2
-# Note TASK_ID_1, TASK_ID_2, TASK_ID_3 from outputs
-```
+No special setup needed beyond an active wicked-garden session with a git repository.
 
 ## Steps
 
-1. **Move first task to In Progress**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane in_progress
+1. **Create tasks for a feature**
+   ```
+   /wicked-garden:kanban:new-task "Add profile API endpoints" --project "User Profile Feature" --priority P1
+   /wicked-garden:kanban:new-task "Frontend profile component" --project "User Profile Feature" --priority P1
+   /wicked-garden:kanban:new-task "Profile image upload" --project "User Profile Feature" --priority P2
    ```
 
-2. **Link API documentation as artifact**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-artifact PROJECT_ID TASK_ID_1 "API Design Doc" --type url --url "https://docs.google.com/document/d/abc123"
+2. **Start work on the API task**
+   Use `TaskUpdate` to move the first task to `in_progress`.
+
+3. **Document design decisions via comments**
+   ```
+   /wicked-garden:kanban:comment PROJECT_ID TASK_ID_1 "API design: REST endpoints for profile CRUD. Using OpenAPI spec at docs/api/profile.yaml"
    ```
 
-3. **Simulate completing work and link commit**
-   ```bash
-   # Add commit hash (simulate a real commit)
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID_1 "a1b2c3d4"
-
-   # Add comment about the implementation
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID_1 "Implemented GET/POST/PUT/DELETE endpoints with validation"
-
-   # Move to Done
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_1 --swimlane done
+4. **Complete the work and document the commit**
+   After implementing the feature and committing the code, add a comment linking the work:
    ```
-
-4. **Work on frontend task with multiple commits and artifacts**
-   ```bash
-   # Move to In Progress
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_2 --swimlane in_progress
-
-   # Link design mockup as file artifact
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-artifact PROJECT_ID TASK_ID_2 "Profile Mockup" --type image --path "/path/to/mockup.png"
-
-   # Add multiple commits as work progresses
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID_2 "e5f6g7h8"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID_2 "Initial component structure"
-
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID_2 "i9j0k1l2"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID_2 "Added form validation and API integration"
-
-   # Move to Done
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID_2 --swimlane done
+   /wicked-garden:kanban:comment PROJECT_ID TASK_ID_1 "Implemented GET/POST/PUT/DELETE endpoints with validation. Commit: a1b2c3d4"
    ```
+   Use `TaskUpdate` to mark as `completed`.
 
-5. **View task with artifacts and commits**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID TASK_ID_1
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID TASK_ID_2
+5. **Work on frontend task with iterative progress**
+   Use `TaskUpdate` to start the second task (`in_progress`).
+   Document progress with comments:
    ```
-   Verify the `commits` and `artifacts` arrays contain the linked items.
-
-6. **View activity log showing all changes**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py activity PROJECT_ID
+   /wicked-garden:kanban:comment PROJECT_ID TASK_ID_2 "Initial component structure with React hooks. Commit: e5f6g7h8"
    ```
-   Should show artifact_added and commit_linked entries.
+   ```
+   /wicked-garden:kanban:comment PROJECT_ID TASK_ID_2 "Added form validation and API integration. Commit: i9j0k1l2"
+   ```
+   Use `TaskUpdate` to mark as `completed`.
 
-## Expected Outcome
+6. **View the board to see traceability**
+   ```
+   /wicked-garden:kanban:board-status
+   ```
+   Board shows 2 tasks completed with documented commit references, 1 task remaining.
 
-- Artifacts (URLs, files, images) are attached to tasks
-- Commit hashes are linked to tasks showing what code implemented them
-- Multiple artifacts and commits can be attached to a single task
-- Activity log tracks all artifact and commit additions
-- Full traceability from task to implementation
+7. **Review task comments for audit trail**
+   The comments on each completed task provide a full history of:
+   - Design decisions
+   - Implementation notes
+   - Commit references
+   - Progress narrative
+
+## Expected Outcomes
+
+- Tasks are created and tracked through the full lifecycle
+- Comments document design decisions, implementation notes, and commit references
+- Multiple progress updates are captured as the work evolves
+- Board status shows which tasks have associated work
+- Full traceability from task to implementation via comment history
 
 ## Success Criteria
 
-- [ ] Artifacts can be added to tasks with different types (url, file, image, document)
-- [ ] Commit hashes are stored and displayed on tasks
-- [ ] Multiple commits can be linked to a single task
-- [ ] Multiple artifacts can be attached to a single task
-- [ ] Activity log records artifact and commit additions
-- [ ] Comments provide narrative context for commits
+- [ ] Tasks created with appropriate priorities
+- [ ] Comments document design decisions before implementation
+- [ ] Commit references linked to tasks via comments
+- [ ] Multiple progress comments capture iterative work
+- [ ] Board status shows completed tasks with documentation trail
+- [ ] Comments provide narrative context connecting tasks to code changes
 
 ## Value Demonstrated
 
-Maintaining traceability between tasks and code is essential for understanding why changes were made. Claude can automatically link commits to tasks during development, and attach relevant documentation, making it easy to understand the full context of any work item. This is especially valuable during code reviews, debugging, or onboarding new team members.
+Maintaining traceability between tasks and code is essential for understanding why changes were made. Claude can document commits, design decisions, and progress in task comments during development, making it easy to understand the full context of any work item. This is especially valuable during code reviews, debugging, or onboarding new team members who need to understand the history behind the code.

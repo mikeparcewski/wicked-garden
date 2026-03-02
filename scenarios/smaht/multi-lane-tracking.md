@@ -9,15 +9,11 @@ estimated_minutes: 6
 
 # Topic Switching and Open Thread Tracking
 
-Test that wicked-smaht correctly tracks the current task, accumulates topics across task switches, and preserves open threads in summary.json.
+Test that wicked-smaht correctly tracks the current task, accumulates topics across task switches, and preserves open threads in the session summary.
 
 ## Setup
 
-Start a Claude Code session. All session state is stored in:
-
-```
-~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/{session_id}/summary.json
-```
+Start a Claude Code session with wicked-garden installed. Session state is managed automatically by wicked-smaht and can be inspected via `/wicked-garden:smaht:debug`.
 
 ## Steps
 
@@ -26,12 +22,17 @@ Start a Claude Code session. All session state is stored in:
    I'm working on fixing the user login. Users are getting 401 errors after token refresh.
    ```
 
-   **Expected**: `current_task` in summary.json set to something containing "fixing the user login". Topics updated with "authentication" keyword.
+   **Expected**: `current_task` tracked as something containing "fixing the user login". Topics updated with "authentication" keyword.
 
 2. **Check current_task was captured**
-   ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/summary.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('Task:', d['current_task'])"
+
+   Run the debug command to inspect session state:
+
    ```
+   /wicked-garden:smaht:debug
+   ```
+
+   Expected: Debug output shows `current_task` set to the login fix task.
 
 3. **Switch to a new task**
    ```
@@ -41,11 +42,10 @@ Start a Claude Code session. All session state is stored in:
    **Expected**: `current_task` updated to the notification task (overwritten, not stacked). Topics accumulate: previous topics remain, "notification" added if it matches the keyword list.
 
 4. **Verify topics accumulate across switches**
-   ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/summary.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('Topics:', d['topics'])"
-   ```
 
-   **Expected**: Topics list contains keywords from both tasks. Topics are not cleared on task switch — they accumulate up to 10 entries.
+   Run `/wicked-garden:smaht:debug` again.
+
+   **Expected**: Debug output shows topics list containing keywords from both tasks. Topics are not cleared on task switch — they accumulate up to 10 entries.
 
 5. **Add an open thread via the assistant**
 
@@ -57,9 +57,8 @@ Start a Claude Code session. All session state is stored in:
    **Expected**: If Claude asks a clarifying question back, it appears in `open_questions`. The assistant's questions (containing `?`) are tracked when they are 15–150 characters.
 
 6. **Inspect the full session state**
-   ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/summary.json
-   ```
+
+   Run `/wicked-garden:smaht:debug` to see the complete session summary.
 
    Expected structure after switching tasks:
    ```json
@@ -75,10 +74,9 @@ Start a Claude Code session. All session state is stored in:
    }
    ```
 
-7. **Verify turns.jsonl shows both tasks**
-   ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/turns.jsonl | python3 -c "import sys,json; [print(json.loads(l)['user'][:60]) for l in sys.stdin if l.strip()]"
-   ```
+7. **Verify turn history shows both tasks**
+
+   Run `/wicked-garden:smaht:debug` and check the turn history section. Both task prompts should appear in the recent turns list.
 
 ## Expected Outcome
 
@@ -105,8 +103,8 @@ Start a Claude Code session. All session state is stored in:
 - [ ] Topics from both tasks appear in the topics list
 - [ ] Topics list does not exceed 10 entries
 - [ ] Assistant questions appear in open_questions
-- [ ] summary.json is valid JSON after each turn
-- [ ] turns.jsonl shows all turns up to the 5-turn window
+- [ ] Session summary is valid and inspectable via `/wicked-garden:smaht:debug`
+- [ ] Turn history shows all turns up to the 5-turn window
 
 ## Value Demonstrated
 

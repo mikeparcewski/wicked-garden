@@ -1,118 +1,66 @@
 ---
 name: obs-health-probe
-description: Verify that health_probe.py validates plugin structures correctly and reports healthy status
+description: Verify that the health command validates plugin structures and reports healthy status
 category: infra
 tags: [observability, health, validation]
 tools:
-  required: [python3]
+  required: [slash-command]
 difficulty: basic
 timeout: 60
 ---
 
 # Observability Health Probe
 
-Validates that `health_probe.py` can inspect a plugin directory, confirm its structure is sound,
-and persist a `latest.json` health snapshot under `~/.something-wicked/wicked-garden/local/wicked-observability/health/`.
-Covers Layer 2 (health probes) of the observability stack.
+Validates that `/wicked-garden:observability:health` can inspect installed plugins, confirm their
+structure is sound, and report a healthy status. Covers Layer 2 (health probes) of the
+observability stack.
 
 ## Setup
 
-```bash
-# Confirm the script exists before running steps
-if [ ! -f "scripts/observability/health_probe.py" ]; then
-  echo "FAIL: health_probe.py not found at scripts/observability/health_probe.py"
-  exit 1
-fi
-echo "OK: health_probe.py found"
-```
-
-**Expect**: Exit code 0, "OK: health_probe.py found"
+No setup required. The `/wicked-garden:observability:health` command handles all discovery and
+invocation internally.
 
 ## Steps
 
-### Step 1: Run health probe against wicked-observability (python3)
+### Step 1: Run health probe against the observability domain
 
-```bash
-python3 scripts/observability/health_probe.py \
-  --plugin wicked-observability \
-  --json
+Invoke the health command targeting the observability domain:
+
+```
+/wicked-garden:observability:health --plugin wicked-garden --json
 ```
 
-**Expect**: Exit code 0, JSON output printed to stdout
+**Expect**: The command completes without error and produces structured output.
 
-### Step 2: Assert output contains healthy status (python3)
+### Step 2: Verify healthy status in the output
 
-```bash
-python3 - <<'EOF'
-import json, subprocess, sys
+Examine the output from Step 1.
 
-result = subprocess.run(
-    ["python3", "scripts/observability/health_probe.py",
-     "--plugin", "wicked-observability", "--json"],
-    capture_output=True, text=True
-)
+**Expect**:
+- The output contains a `status` field with value `healthy`
+- The output contains a `plugins_checked` field indicating at least 1 plugin was inspected
+- No violations with severity `error` appear in the results
 
-if result.returncode != 0:
-    print(f"FAIL: health_probe.py exited {result.returncode}")
-    print(result.stderr)
-    sys.exit(1)
+### Step 3: Verify health snapshot was persisted
 
-try:
-    data = json.loads(result.stdout)
-except json.JSONDecodeError as e:
-    print(f"FAIL: output is not valid JSON: {e}")
-    print(result.stdout[:500])
-    sys.exit(1)
+Run the health command again without `--json` (human-readable mode):
 
-status = data.get("status")
-if status != "healthy":
-    print(f"FAIL: expected status='healthy', got {status!r}")
-    print(json.dumps(data, indent=2)[:500])
-    sys.exit(1)
-
-print(f"OK: status={status!r}, plugins_checked={data.get('plugins_checked')!r}")
-EOF
+```
+/wicked-garden:observability:health
 ```
 
-**Expect**: Exit code 0, status is "healthy"
+**Expect**:
+- The command reports results grouped by plugin
+- The output references a `latest.json` path for programmatic consumption
+- The exit summary shows 0 failures
 
-### Step 3: Verify latest.json snapshot was persisted (python3)
+## Expected Outcomes
 
-```bash
-python3 - <<'EOF'
-import json, os, sys
-
-health_dir = os.path.expanduser("~/.something-wicked/wicked-garden/local/wicked-observability/health")
-latest_path = os.path.join(health_dir, "latest.json")
-
-if not os.path.exists(latest_path):
-    print(f"FAIL: latest.json not found at {latest_path}")
-    sys.exit(1)
-
-try:
-    with open(latest_path) as f:
-        data = json.load(f)
-except json.JSONDecodeError as e:
-    print(f"FAIL: latest.json is not valid JSON: {e}")
-    sys.exit(1)
-
-required = {"status", "checked_at", "plugins_checked"}
-missing = required - data.keys()
-if missing:
-    print(f"FAIL: latest.json missing required fields: {missing}")
-    sys.exit(1)
-
-print(f"OK: latest.json valid — status={data.get('status')!r}, plugins_checked={data.get('plugins_checked')!r}")
-EOF
-```
-
-**Expect**: Exit code 0, `~/.something-wicked/wicked-garden/local/wicked-observability/health/latest.json` exists with valid JSON
-containing `status`, `checked_at`, and `plugins_checked` fields
+1. The health command successfully probes at least one plugin and returns a healthy status
+2. The output includes structured fields (`status`, `checked_at`, `plugins_checked`) suitable for automation
+3. A persistent health snapshot is written so that subsequent runs can compare against prior state
+4. The human-readable output provides clear violation grouping and severity indicators
 
 ## Cleanup
 
 Health snapshots are intentionally persisted. No cleanup needed.
-
-```bash
-echo "No cleanup required — health snapshots are persistent records"
-```
