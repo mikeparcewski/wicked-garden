@@ -17,7 +17,7 @@ curl -s http://localhost:18889/health
 If not running, start it:
 
 ```bash
-cd ~/Projects/wicked-viewer && npm start &
+cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev &
 ```
 
 ## Kanban API Endpoints (via CP)

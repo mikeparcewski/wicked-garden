@@ -4,20 +4,20 @@ Three modes, configured via `/wicked-garden:setup` and stored in `{storage_root}
 
 ## local-install (Default)
 
-CP runs on your machine at `localhost:18889`. The SessionStart hook auto-starts it from `wicked-viewer` source.
+CP runs on your machine at `localhost:18889`. The SessionStart hook auto-starts it from the `wicked-control-plane` source.
 
 ```json
 {
   "endpoint": "http://localhost:18889",
   "mode": "local-install",
-  "viewer_path": "~/Projects/wicked-viewer"
+  "viewer_path": "~/.claude/plugins/cache/wicked-control-plane"
 }
 ```
 
 **Startup sequence** (bootstrap.py, 15s budget):
 1. Check if CP is already healthy at configured endpoint
 2. If not running, start `cd {viewer_path} && PORT=18889 pnpm run dev` as detached process
-3. Poll `/health` every 0.5s for up to 6s
+3. Poll `/health` every 0.5s for up to 10s
 4. If healthy: drain offline queue, mark session online, open browser to dashboard
 5. If timeout: mark session as fallback mode (local files only)
 
