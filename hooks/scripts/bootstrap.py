@@ -523,6 +523,33 @@ _MEMORY_INSTRUCTIONS = (
     "MEMORY.md is auto-generated and read-only."
 )
 
+_DANGEROUS_MODE_WARNING = (
+    "[Question Mode] Dangerous mode is active (skipDangerousModePermissionPrompt). "
+    "AskUserQuestion is BROKEN in this mode — it auto-completes with empty answers. "
+    "You MUST use plain text questions instead: present numbered options, "
+    "then STOP and wait for the user to reply before proceeding."
+)
+
+
+# ---------------------------------------------------------------------------
+# Dangerous mode detection
+# ---------------------------------------------------------------------------
+
+def _detect_dangerous_mode():
+    """Check if Claude Code is running in dangerous mode.
+
+    Dangerous mode (skipDangerousModePermissionPrompt=true) breaks
+    AskUserQuestion by auto-completing it with empty answers.
+    """
+    try:
+        settings_path = Path.home() / ".claude" / "settings.json"
+        if settings_path.exists():
+            settings = json.loads(settings_path.read_text())
+            return bool(settings.get("skipDangerousModePermissionPrompt"))
+    except Exception:
+        pass
+    return False
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -712,6 +739,11 @@ def main():
         # 8. Check onboarding status (search index + memories)
         has_index, has_memories, onboarding_directive = _check_onboarding_status()
 
+        # 8b. Detect dangerous mode (AskUserQuestion broken)
+        dangerous_mode = _detect_dangerous_mode()
+        if state is not None:
+            state.update(dangerous_mode=dangerous_mode)
+
         # 9. Assemble session briefing
         # --- Status block (user-facing) ---
         project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
@@ -765,6 +797,9 @@ def main():
 
         # --- Internal instructions for Claude ---
         briefing_parts.append(_MEMORY_INSTRUCTIONS)
+
+        if dangerous_mode:
+            briefing_parts.append(_DANGEROUS_MODE_WARNING)
 
         if not onboarding_directive:
             briefing_parts.append(

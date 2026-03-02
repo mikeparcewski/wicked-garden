@@ -12,13 +12,39 @@ The single entry point for getting started with wicked-garden. Always runs inter
 
 - `--reconfigure`: Force connection reconfiguration even if already set up
 
+## Question Mode
+
+Detect whether AskUserQuestion is available:
+
+```bash
+python3 -c "
+import json, os, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+from _session import SessionState
+state = SessionState.load()
+print('PLAIN_TEXT' if state.dangerous_mode else 'INTERACTIVE')
+"
+```
+
+- **INTERACTIVE**: Use AskUserQuestion as documented below.
+- **PLAIN_TEXT**: AskUserQuestion is broken (dangerous mode auto-completes with empty answers). Present all questions as **numbered plain text lists**, then **STOP and wait** for the user to reply. Do NOT proceed until you receive their answer.
+
 ## Answer Verification (CRITICAL)
+
+**If using AskUserQuestion (INTERACTIVE mode):**
 
 After EVERY AskUserQuestion call, you MUST:
 
 1. **Check the response** — verify the user's selection is clearly present in the tool result
 2. **Echo it back** — say "You selected **[option]**. Proceeding with [action]..." before taking any action
 3. **If ambiguous or empty** — do NOT assume an answer. Instead, tell the user: "I couldn't determine your selection. Could you tell me which option you'd like?" and wait for their response.
+
+**If using plain text (PLAIN_TEXT mode):**
+
+1. Present options as a numbered list
+2. **STOP** — do not continue until the user replies
+3. Parse their reply and echo back: "You selected **[option]**. Proceeding with [action]..."
 
 Never proceed with a default or assumed answer. Wrong actions are worse than asking twice.
 
@@ -45,57 +71,76 @@ This determines which questions to ask in Step 2.
 
 ### 2. Ask the User (batched questions)
 
-Always ask questions upfront using a **single AskUserQuestion call** with multiple questions. Which questions to include depends on current state:
+Ask questions upfront. The method depends on question mode detected above.
 
 #### 2a. If connected (config exists AND health check passes)
 
-Ask **two questions** in one call:
+**Questions to ask:**
 
 - **Q1 — Connection**: "You're currently connected to {endpoint}. Would you like to keep this connection or update it?"
-  - `header`: "Connection"
-  - Options:
-    | Option | Description |
-    |--------|-------------|
-    | **Keep current connection (Recommended)** | Stay connected to {endpoint}. No changes needed. |
-    | **Update connection** | Reconfigure the control plane connection (local or remote). |
+  - Options: **Keep current connection (Recommended)** | **Update connection**
 
 - **Q2 — Onboarding**: "Would you like to run codebase onboarding?"
-  - `header`: "Onboarding"
-  - Options:
-    | Option | Description |
-    |--------|-------------|
-    | **Full onboarding (Recommended)** | Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes. |
-    | **Quick scout** | Fast reconnaissance without indexing. Gives you the lay of the land in seconds. |
-    | **Skip for now** | Skip onboarding. You can run `/wicked-garden:setup` later to onboard. |
+  - Options: **Full onboarding (Recommended)** | **Quick scout** | **Skip for now**
 
-**After receiving answers**: Verify BOTH selections are clear. Echo back: "You selected **[Q1 answer]** and **[Q2 answer]**." If either is ambiguous, ask the user to clarify before proceeding.
+**INTERACTIVE mode**: Use a single AskUserQuestion call with both questions:
+- Q1: header "Connection", options with descriptions (Keep = "Stay connected to {endpoint}. No changes needed.", Update = "Reconfigure the control plane connection.")
+- Q2: header "Onboarding", options with descriptions (Full = "Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes.", Quick scout = "Fast reconnaissance without indexing.", Skip = "Skip onboarding. Run /wicked-garden:setup later.")
+
+**PLAIN_TEXT mode**: Present as numbered text and STOP:
+
+```
+Two questions before we start:
+
+**1. Connection** — You're connected to {endpoint} and it's healthy.
+   a) Keep current connection (recommended)
+   b) Update connection
+
+**2. Onboarding** — Would you like to run codebase onboarding?
+   a) Full onboarding — index codebase, explore architecture, save discoveries (1-2 min)
+   b) Quick scout — fast recon without indexing (seconds)
+   c) Skip for now
+```
+
+Then STOP and wait for the user's reply.
+
+**After receiving answers** (either mode): Verify BOTH selections are clear. Echo back: "You selected **[Q1 answer]** and **[Q2 answer]**." If either is ambiguous, ask the user to clarify before proceeding.
 
 - If Q1 = "Keep current connection" → skip to Step 4 (onboarding) using Q2 answer
 - If Q1 = "Update connection" → proceed to Step 3 (ask connection type, then onboard using Q2 answer)
 
 #### 2b. If NOT connected (no config OR health check fails)
 
-Ask **two questions** in one call:
+**Questions to ask:**
 
 - **Q1 — Connection type**: "How would you like to connect wicked-garden?"
-  - `header`: "Connection"
-  - Options:
-    | Option | Description |
-    |--------|-------------|
-    | **Local (Recommended)** | Run the control plane on your machine (localhost:18889). Best for solo development. |
-    | **Remote** | Connect to a shared team server. Best for team collaboration. |
-    | **Offline** | Local file storage only. No control plane needed. Features work but data stays on this machine. |
+  - Options: **Local (Recommended)** | **Remote** | **Offline**
 
-- **Q2 — Onboarding**: "Would you like to run codebase onboarding?"
-  - `header`: "Onboarding"
-  - Options:
-    | Option | Description |
-    |--------|-------------|
-    | **Full onboarding (Recommended)** | Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes. |
-    | **Quick scout** | Fast reconnaissance without indexing. Gives you the lay of the land in seconds. |
-    | **Skip for now** | Skip onboarding. You can run `/wicked-garden:setup` later to onboard. |
+- **Q2 — Onboarding**: Same as 2a.
 
-**After receiving answers**: Verify BOTH selections are clear. Echo back: "You selected **[Q1 answer]** and **[Q2 answer]**." If either is ambiguous, ask the user to clarify before proceeding.
+**INTERACTIVE mode**: Use a single AskUserQuestion call with both questions:
+- Q1: header "Connection", options with descriptions (Local = "Run the control plane on your machine (localhost:18889). Best for solo development.", Remote = "Connect to a shared team server.", Offline = "Local file storage only. No control plane needed.")
+- Q2: Same as 2a.
+
+**PLAIN_TEXT mode**: Present as numbered text and STOP:
+
+```
+Two questions before we start:
+
+**1. Connection** — How would you like to connect wicked-garden?
+   a) Local (recommended) — run control plane on your machine (localhost:18889)
+   b) Remote — connect to a shared team server
+   c) Offline — local file storage only, no control plane
+
+**2. Onboarding** — Would you like to run codebase onboarding?
+   a) Full onboarding — index codebase, explore architecture, save discoveries (1-2 min)
+   b) Quick scout — fast recon without indexing (seconds)
+   c) Skip for now
+```
+
+Then STOP and wait for the user's reply.
+
+**After receiving answers** (either mode): Verify BOTH selections are clear. Echo back: "You selected **[Q1 answer]** and **[Q2 answer]**." If either is ambiguous, ask the user to clarify before proceeding.
 
 - Proceed to Step 3 with Q1 answer, then Step 4 with Q2 answer.
 
@@ -120,7 +165,7 @@ Execute based on the connection answer from Step 2.
    ```bash
    git clone --depth 1 https://github.com/mikeparcewski/wicked-control-plane.git ~/.claude/plugins/cache/wicked-control-plane
    ```
-   If clone fails (no network, no git), offer Offline mode as fallback via AskUserQuestion.
+   If clone fails (no network, no git), offer Offline mode as fallback (use AskUserQuestion or plain text depending on question mode).
 
 5. Install dependencies if needed:
    ```bash
@@ -171,8 +216,8 @@ Execute based on the connection answer from Step 2.
 
 #### 3.2 Remote Setup
 
-1. Ask for the endpoint URL via AskUserQuestion (free text via "Other")
-2. Ask if authentication is needed; if yes, ask for the auth token
+1. Ask for the endpoint URL (via AskUserQuestion "Other" in INTERACTIVE mode, or plain text prompt in PLAIN_TEXT mode). STOP and wait for the user's reply.
+2. Ask if authentication is needed; if yes, ask for the auth token (same question mode pattern).
 3. Verify: `curl -s --connect-timeout 3 -H "Authorization: Bearer {token}" {endpoint}/health`
 4. Write config with `mode: "remote"`, the endpoint, and auth token
 
@@ -208,16 +253,17 @@ Execute based on the onboarding answer from Step 2.
 
 First, ask which directories to onboard:
 
-Use AskUserQuestion:
+**INTERACTIVE mode**: Use AskUserQuestion with header "Directories", options: "Current directory (Recommended)" = "Onboard the project root: {cwd}", "Specify directories" = "Choose specific directories to index (enter paths via Other)".
 
-- **Question**: "Which directories should be onboarded?"
-  - `header`: "Directories"
-  - `multiSelect`: false
-  - Options:
-    | Option | Description |
-    |--------|-------------|
-    | **Current directory (Recommended)** | Onboard the project root: {cwd} |
-    | **Specify directories** | Choose specific directories to index (enter paths via "Other") |
+**PLAIN_TEXT mode**: Ask in plain text:
+
+```
+Which directories should be onboarded?
+   a) Current directory (recommended) — {cwd}
+   b) Specify directories — tell me which paths to index
+```
+
+Then STOP and wait for the user's reply.
 
 **After receiving the answer**: Verify the selection. Echo it back.
 
@@ -233,7 +279,7 @@ This handles indexing, exploration, memory storage, and validation.
 
 #### 4.2 Quick Scout
 
-Ask which directories to scout (same question pattern as 4.1).
+Ask which directories to scout (same question mode pattern as 4.1 — use AskUserQuestion or plain text depending on mode).
 
 Run a fast scout:
 
