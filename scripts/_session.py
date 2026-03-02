@@ -115,6 +115,10 @@ class SessionState:
     # Set by bootstrap.py when onboarding is incomplete; checked by prompt_submit gate
     needs_onboarding: bool = False
 
+    # Set by prompt_submit gate when /wicked-garden:setup passes through;
+    # allows subsequent user answers (AskUserQuestion responses) through the gate
+    setup_in_progress: bool = False
+
     # Failure counts per tool (for issue reporter threshold)
     failure_counts: dict | None = None
 

@@ -266,7 +266,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
 from _session import SessionState
 state = SessionState.load()
-state.update(needs_onboarding=False)
+state.update(needs_onboarding=False, setup_in_progress=False)
 print('Onboarding gate cleared.')
 "
 ```
