@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1] - 2026-03-02
+
+### Bug Fixes
+- fix: SessionStart hook was using `systemMessage` (user-visible warning) instead of `hookSpecificOutput.additionalContext` (model context injection) — setup directive was never reaching Claude (6d5c3d0)
+- fix: add UserPromptSubmit setup gate that blocks all prompts with `decision: "block"` until `setup_complete` is true — enforces first-run setup instead of relying on advisory context
+- fix: restructure session briefing into user-facing status block showing connection mode, CP status, onboarding state, and active crew/kanban work
+
 ## [1.5.0] - 2026-03-02
 
 ### Features
