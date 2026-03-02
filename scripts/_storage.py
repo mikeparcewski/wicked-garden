@@ -165,6 +165,30 @@ class StorageManager:
 
         return self._local_list(source, params)
 
+    def search(self, source: str, q: str, **params) -> list[dict]:
+        """Full-text search via CP's FTS5 search verb.
+
+        Falls back to local token-based search if CP is unavailable.
+
+        Args:
+            source: Source name (e.g. "memories")
+            q:      Search query string
+            **params: Additional filter params (type, project, etc.)
+        """
+        search_params = {"q": q, **params}
+
+        if self._should_use_cp():
+            result = self._cp.request(
+                self._domain, source, "search", params=search_params
+            )
+            if result is not None:
+                items = _extract_list(result)
+                return [_from_cp(self._domain, source, "search", r) for r in items]
+            # CP search failed — fall through to local
+
+        # Local fallback: use list with q param (token-based search)
+        return self._local_list(source, search_params)
+
     def get(self, source: str, id: str) -> dict | None:
         """Fetch a single record by ID.
 
