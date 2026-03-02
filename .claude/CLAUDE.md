@@ -265,6 +265,21 @@ Skills use **progressive disclosure** for context efficiency:
 - For data lineage: use `/wicked-garden:search:lineage` — no native equivalent exists
 - **Fallback to Grep/Glob only** when: searching for simple string literals in known files, or index is not built
 
+## AskUserQuestion Fallback (Dangerous Mode)
+
+When the session briefing includes `[Question Mode] Dangerous mode is active`, `AskUserQuestion` is **broken** — it auto-completes with empty answers because dangerous mode auto-approves all tool calls.
+
+**Commands MUST use plain text questions instead:**
+
+1. Present options as a numbered list in plain text
+2. **STOP and wait** for the user to reply — do NOT proceed until they answer
+3. Parse their reply (number, keyword, or description) and echo it back for confirmation
+4. Only then continue with the chosen option
+
+This applies to ALL commands that use `AskUserQuestion`: setup, delivery/setup, scenarios/run, scenarios/setup, scenarios/report, qe/acceptance, report-issue, wg-test, wg-issue.
+
+**Detection**: Bootstrap detects dangerous mode from `~/.claude/settings.json` (`skipDangerousModePermissionPrompt: true`) and stores it in session state + briefing. Commands do not need to re-detect.
+
 ## Security
 
 - Use `${CLAUDE_PLUGIN_ROOT}` for all paths in plugin scripts — never hardcode paths

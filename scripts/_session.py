@@ -119,6 +119,10 @@ class SessionState:
     # allows subsequent user answers (AskUserQuestion responses) through the gate
     setup_in_progress: bool = False
 
+    # True when Claude Code is running in dangerous mode (skipDangerousModePermissionPrompt).
+    # AskUserQuestion is broken in this mode — commands must use plain text questions instead.
+    dangerous_mode: bool = False
+
     # Failure counts per tool (for issue reporter threshold)
     failure_counts: dict | None = None
 
