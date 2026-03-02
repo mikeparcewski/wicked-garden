@@ -216,6 +216,55 @@ def _persist_session_state() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Step 5b: Flush trace JSONL to control plane
+# ---------------------------------------------------------------------------
+
+def _flush_traces(session_id: str) -> None:
+    """Batch-flush any JSONL trace entries to the control plane via bulk-create.
+
+    Reads the session-scoped JSONL file written by post_tool.py's _write_trace()
+    fallback path. On success, deletes the file. On failure, leaves it for the
+    next session or manual cleanup.
+    """
+    try:
+        from _control_plane import ControlPlaneClient
+        from _session import SessionState
+
+        state = SessionState.load()
+        if not state.cp_available:
+            return
+
+        tmpdir = os.environ.get("TMPDIR", "/tmp")
+        trace_file = Path(tmpdir) / f"wicked-trace-{session_id}.jsonl"
+        if not trace_file.exists():
+            return
+
+        entries = []
+        for line in trace_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+        if not entries:
+            trace_file.unlink(missing_ok=True)
+            return
+
+        client = ControlPlaneClient(hook_mode=False)  # command timeout for batch
+        result = client.request(
+            "observability", "traces", "bulk-create",
+            payload={"traces": entries},
+        )
+        if result is not None:
+            trace_file.unlink(missing_ok=True)
+    except Exception as e:
+        print(f"[wicked-garden] trace flush error: {e}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
 # Smaht session meta persistence
 # ---------------------------------------------------------------------------
 
@@ -261,6 +310,9 @@ def main():
 
         # 5. Session end event (best-effort)
         _send_session_end_event(session_id)
+
+        # 5b. Flush trace JSONL to CP (best-effort)
+        _flush_traces(session_id)
 
         # Smaht history condenser persistence
         _persist_smaht_session_meta(session_id)
