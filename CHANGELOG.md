@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.2] - 2026-03-02
+
+### Bug Fixes
+- fix: use plain text questions when AskUserQuestion is broken in dangerous mode (8f77b01)
+
 ## [1.6.1] - 2026-03-02
 
 ### Bug Fixes
