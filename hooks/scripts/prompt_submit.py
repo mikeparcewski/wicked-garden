@@ -403,34 +403,52 @@ def _enforce_budget(content: str, path: str) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
-def _check_setup_gate(prompt: str) -> dict | None:
-    """Block prompts if wicked-garden setup hasn't been completed.
+def _check_setup_gate(prompt: str) -> bool:
+    """Block prompts if wicked-garden setup/onboarding hasn't been completed.
 
-    Returns a block response dict if setup is needed, or None to continue.
+    Returns True if blocked (already printed reason + will sys.exit(2)),
+    or False to continue.
+
     Allows /wicked-garden:setup and /wicked-garden:help through the gate.
     """
     # Let setup and help commands through
     stripped = prompt.strip().lower()
     if stripped.startswith(("/wicked-garden:setup", "/wicked-garden:help", "/setup", "/help")):
-        return None
+        return False
 
+    # Check 1: config.json setup_complete
     config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
+    config_ok = False
     try:
         if config_path.exists():
             config = json.loads(config_path.read_text())
-            if config.get("setup_complete", False):
-                return None  # Setup done, no gate
+            config_ok = config.get("setup_complete", False)
     except (json.JSONDecodeError, OSError):
-        pass  # Treat as not configured
+        pass
 
-    # Config missing or setup_complete is false — block the prompt
-    return {
-        "decision": "block",
-        "reason": (
+    if not config_ok:
+        print(
             "wicked-garden requires setup before first use.\n"
-            "Run: /wicked-garden:setup"
-        ),
-    }
+            "Run: /wicked-garden:setup",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    # Check 2: session state needs_onboarding (set by bootstrap.py)
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        if state.needs_onboarding:
+            print(
+                "wicked-garden needs onboarding for this project.\n"
+                "Run: /wicked-garden:setup",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+    except Exception:
+        pass  # fail open if session state unavailable
+
+    return False
 
 
 def main():
@@ -449,11 +467,9 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
-    # Setup gate — block all prompts until wicked-garden is configured
-    gate = _check_setup_gate(prompt)
-    if gate is not None:
-        print(json.dumps(gate))
-        return
+    # Setup gate — block all prompts until wicked-garden is configured/onboarded
+    # (_check_setup_gate calls sys.exit(2) if blocked, so we just call it)
+    _check_setup_gate(prompt)
 
     try:
         # Load and increment turn counter

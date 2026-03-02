@@ -112,6 +112,9 @@ class SessionState:
     # QE change tracking nudge flag
     qe_nudged: bool = False
 
+    # Set by bootstrap.py when onboarding is incomplete; checked by prompt_submit gate
+    needs_onboarding: bool = False
+
     # Failure counts per tool (for issue reporter threshold)
     failure_counts: dict | None = None
 

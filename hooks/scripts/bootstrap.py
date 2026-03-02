@@ -775,7 +775,11 @@ def main():
         if onboarding_directive:
             briefing_parts.append(onboarding_directive)
 
-        # 10. Persist final session state
+        # 10. Set onboarding gate flag for prompt_submit enforcement
+        if state is not None:
+            state.update(needs_onboarding=bool(onboarding_directive))
+
+        # 11. Persist final session state
         if state is not None:
             _save_session_state(state)
 
