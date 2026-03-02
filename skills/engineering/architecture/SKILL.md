@@ -158,4 +158,6 @@ See [Pattern Catalog](refs/patterns.md) for detailed examples.
 - [ADR Template](refs/adr-template.md)
 - [Architecture Document Template](refs/architecture-template.md)
 - [Pattern Catalog](refs/patterns.md)
-- [Example ADRs](refs/examples.md)
+- Example ADRs:
+  - [E-Commerce & Analytics](refs/examples-ecommerce-analytics.md)
+  - [SaaS & Trading](refs/examples-saas-trading.md)

@@ -2,8 +2,10 @@
 name: analyze
 description: |
   Sentiment analysis, theme extraction, and trend detection from customer feedback.
-  Use when you have aggregated feedback and need to extract patterns, themes,
-  sentiment scores, or identify emerging trends.
+
+  Use when: "what are customers saying about X", "feedback trends",
+  "analyze customer feedback", "sentiment analysis", "customer themes",
+  "what's the top complaint"
 ---
 
 # Analyze Skill

@@ -2,8 +2,11 @@
 name: backend
 description: |
   Backend engineering specialist for APIs, databases, server-side patterns,
-  data modeling, scalability, and integrations. Use for API design, database
-  questions, or backend-specific concerns.
+  data modeling, scalability, and integrations.
+
+  Use when: "design an API", "database schema", "how to handle auth",
+  "backend performance", "REST endpoint", "query optimization",
+  "server-side architecture"
 ---
 
 # Backend Skill

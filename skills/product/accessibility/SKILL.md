@@ -173,7 +173,9 @@ Run `ListMcpResourcesTool` to discover available integrations. Fall back to loca
 - [wcag-checklist.md](refs/wcag-checklist.md) - Complete WCAG checklists
 - [keyboard-testing.md](refs/keyboard-testing.md) - Keyboard navigation guide
 - [screen-reader-testing.md](refs/screen-reader-testing.md) - Screen reader testing
-- [aria-patterns.md](refs/aria-patterns.md) - ARIA implementation guide
+- [aria-patterns-basics.md](refs/aria-patterns-basics.md) - ARIA basics and simple widgets
+- [aria-patterns-interactive.md](refs/aria-patterns-interactive.md) - Tabs, modals, dropdown menus
+- [aria-patterns-dynamic.md](refs/aria-patterns-dynamic.md) - Combobox, alerts, live regions, best practices
 - [common-violations.md](refs/common-violations.md) - Fix examples
 - [audit-report.md](refs/audit-report.md) - Full report template
 

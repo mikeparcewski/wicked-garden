@@ -72,7 +72,7 @@ design/
 
 ### REST API
 Resource-oriented, stateless, HTTP verbs.
-See [REST API Guide](refs/rest-api.md) for OpenAPI template.
+See [REST API Fundamentals](refs/rest-api-fundamentals.md) and [Responses & Security](refs/rest-api-responses-security.md).
 
 ### GraphQL
 Flexible queries, strong typing.
@@ -145,7 +145,9 @@ Coordinates on:
 
 ## Reference Materials
 
-- [REST API Guide](refs/rest-api.md)
+- REST API:
+  - [Fundamentals](refs/rest-api-fundamentals.md)
+  - [Responses & Security](refs/rest-api-responses-security.md)
 - GraphQL:
   - [Basics](refs/graphql-graphql-basics.md)
   - [Query Examples](refs/graphql-query-examples.md)

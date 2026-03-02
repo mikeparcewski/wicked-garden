@@ -129,8 +129,14 @@ Called during design phase after architecture.
 
 ## Reference Materials
 
-- [Component Template](refs/component-template.md)
-- [Interface Template](refs/interface-template.md)
+- Component Template:
+  - [Structure & API](refs/component-template-structure.md)
+  - [Lifecycle & Deployment](refs/component-template-lifecycle.md)
+  - [Maintenance & Examples](refs/component-template-maintenance.md)
+- Interface Template:
+  - [Structure & Contracts](refs/interface-template-structure.md)
+  - [Testing & Operations](refs/interface-template-lifecycle.md)
+  - [Examples & Tips](refs/interface-template-maintenance.md)
 - Component Patterns:
   - [Layered](refs/patterns-layered-pattern.md)
   - [Plugin Architecture](refs/patterns-plugin-architecture.md)

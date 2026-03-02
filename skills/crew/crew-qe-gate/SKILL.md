@@ -9,9 +9,9 @@ description: |
   "should we build this", "does it work", "crew QE checkpoint"
 ---
 
-# QE Strategy Skill
+# Crew QE Gate Skill
 
-Shift-left quality engineering: embed quality thinking throughout delivery.
+Quality gates for crew phase transitions — validate readiness before advancing.
 
 ## Core Concept
 

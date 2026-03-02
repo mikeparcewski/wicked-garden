@@ -53,7 +53,7 @@ async def execute_with_approval(action, threshold=0.8):
 **Escalation Chains:** Route to higher authority if primary approver unavailable
 **Timeout Handling:** Define what happens if no approval received
 
-See `refs/guardrails.md` for detailed implementation patterns.
+See `refs/guardrails-input-output.md`, `refs/guardrails-actions.md`, and `refs/guardrails-resources.md` for detailed implementation patterns.
 
 ## Output Validation
 
@@ -76,7 +76,7 @@ Check outputs before acting on them:
 **Confidence Thresholds:** Reject low-confidence outputs
 **Fact Checking:** Use retrieval to verify factual claims
 
-See `refs/guardrails.md` for code examples.
+See `refs/guardrails-input-output.md` for code examples.
 
 ## Action Constraints and Sandboxing
 
@@ -100,7 +100,7 @@ Prevent runaway resource usage:
 - Max tokens per request/session
 - Max API calls
 
-See `refs/guardrails.md` for implementation details.
+See `refs/guardrails-actions.md` and `refs/guardrails-resources.md` for implementation details.
 
 ## Prompt Injection Defense
 
@@ -116,7 +116,7 @@ Use clear delimiters to separate system instructions from user input.
 
 Separate instruction and data contexts using role-based message formatting.
 
-See `refs/guardrails.md` for defense patterns and code examples.
+See `refs/guardrails-input-output.md` for defense patterns and code examples.
 
 ## PII Detection and Protection
 
@@ -135,7 +135,7 @@ Replace detected PII with `[REDACTED_TYPE]` tokens.
 - **Minimize PII collection** (only collect what's needed)
 - **Retention limits** (delete after specified period)
 
-See `refs/guardrails.md` for detection and redaction code.
+See `refs/guardrails-input-output.md` for detection and redaction code.
 
 ## Hallucination Mitigation
 
@@ -149,7 +149,7 @@ See `refs/guardrails.md` for detection and redaction code.
 **Multi-Agent Verification:** Independent verification by multiple agents
 **Confidence Calibration:** Require confidence scores, reject low-confidence outputs
 
-See `refs/guardrails.md` for implementation patterns.
+See `refs/guardrails-actions.md` and `refs/guardrails-resources.md` for implementation patterns.
 
 ## Kill Switches and Circuit Breakers
 
@@ -157,7 +157,7 @@ See `refs/guardrails.md` for implementation patterns.
 **Circuit Breaker:** Opens circuit after threshold failures to prevent cascading failures.
 **Rate Limiting:** Limits requests per user/time window to prevent abuse.
 
-See `refs/guardrails.md` for complete implementations.
+See `refs/guardrails-actions.md` and `refs/guardrails-resources.md` for complete implementations.
 
 ## Safety Checklist
 
@@ -193,4 +193,6 @@ Trigger phrases indicating you need this skill:
 ## References
 
 - `refs/safety-checklist.md` - Comprehensive safety review checklist
-- `refs/guardrails.md` - Implementation patterns for safety guardrails
+- `refs/guardrails-input-output.md` - Input validation, sanitization, prompt injection, output filtering
+- `refs/guardrails-actions.md` - Action whitelisting, approvals, sandboxed execution
+- `refs/guardrails-resources.md` - Resource limiting, monitoring, complete guardrail architecture

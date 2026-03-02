@@ -113,4 +113,5 @@ Safety, compliance, and audit.
 - `refs/layers-cognition-context.md` - Layer 1 (Cognition) and Layer 2 (Context) with implementation patterns
 - `refs/layers-interaction-runtime.md` - Layer 3 (Interaction) and Layer 4 (Runtime) with implementation patterns
 - `refs/layers-governance-integration.md` - Layer 5 (Governance) and cross-layer integration example
-- `refs/implementation-guide.md` - Step-by-step guide to building each layer
+- `refs/implementation-guide-layers-1-3.md` - Building Layers 1-3 (Cognition, Context, Interaction)
+- `refs/implementation-guide-layers-4-5.md` - Building Layers 4-5 (Runtime, Governance) and complete system

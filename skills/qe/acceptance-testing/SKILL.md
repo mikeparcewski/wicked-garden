@@ -3,7 +3,10 @@ name: acceptance-testing
 description: >
   Evidence-gated acceptance testing with three-agent separation of concerns.
   Writer designs test plans, Executor collects artifacts, Reviewer evaluates independently.
-  Eliminates false positives from self-grading. Reusable for any project's acceptance criteria.
+  Eliminates false positives from self-grading.
+
+  Use when: "run acceptance tests", "verify it works", "did it pass",
+  "test this scenario", "acceptance criteria", "validate the feature"
 ---
 
 # Acceptance Testing
