@@ -410,11 +410,29 @@ def _check_setup_gate(prompt: str) -> bool:
     or False to continue.
 
     Allows /wicked-garden:setup and /wicked-garden:help through the gate.
+    Also allows prompts through when setup is in progress (user answering
+    AskUserQuestion during the setup flow).
     """
-    # Let setup and help commands through
     stripped = prompt.strip().lower()
+
+    # Let setup and help commands through, and mark setup as in progress
     if stripped.startswith(("/wicked-garden:setup", "/wicked-garden:help", "/setup", "/help")):
+        try:
+            from _session import SessionState
+            state = SessionState.load()
+            state.update(setup_in_progress=True)
+        except Exception:
+            pass
         return False
+
+    # Allow prompts through when setup is actively running (user answering questions)
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        if state.setup_in_progress:
+            return False
+    except Exception:
+        pass  # fail open
 
     # Check 1: config.json setup_complete
     config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
