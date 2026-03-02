@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.5.0] - 2026-03-02
+
+### Features
+- feat: consolidate setup/onboarding into single interactive wizard (6c908ff)
+  - `/wicked-garden:setup` is now the single entry point for getting started
+  - Auto-detects what's needed: CP config, onboarding, or both
+  - Interactive questions via AskUserQuestion (local/remote/offline, full/quick/skip onboarding)
+  - `--reconfigure` flag to reset and re-run everything
+- feat: auto-clone wicked-control-plane from git on first use
+  - Bootstrap clones `github.com/mikeparcewski/wicked-control-plane` into plugin cache
+  - Auto-installs dependencies and starts CP when mode is local-install
+  - Saves resolved path to config for faster subsequent sessions
+- feat: setup hint in every session briefing for discoverability
+
+### Bug Fixes
+- fix: resolve issues #145-#148 — split refs, add triggers, fix H1, add observability skill (bd4d7e1)
+- fix: replace all `wicked-viewer` / `~/Projects` paths with `~/.claude/plugins/cache/wicked-control-plane`
+
+### Refactoring
+- refactor: delete `commands/welcome.md` — consolidated into `commands/setup.md`
+- refactor: bootstrap directives unified to always point at `/wicked-garden:setup`
+
 ## [1.4.0] - 2026-03-01
 
 ### Features
