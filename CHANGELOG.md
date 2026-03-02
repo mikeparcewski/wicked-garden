@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0] - 2026-03-02
+
+### Features
+- feat: rewrite setup flow with batched questions and answer verification (64c8294)
+
+### Chores
+- release: wicked-garden v1.5.2 (f17cfce)
+
 ## [1.5.2] - 2026-03-02
 
 ### Bug Fixes
