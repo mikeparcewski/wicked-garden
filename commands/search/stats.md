@@ -1,27 +1,33 @@
 ---
 description: Show index statistics
-argument-hint: "[--path <path>]"
+argument-hint: "[--project <name>]"
 ---
 
 # /wicked-garden:search:stats
 
-Show statistics about the current index.
+Show statistics about the indexed knowledge graph.
+
+## Arguments
+
+- `--project` (optional): Filter to a specific project
 
 ## Instructions
 
-1. Run stats (see `skills/unified-search/refs/script-runner.md` for runner details):
+1. Run the stats query via the CP proxy:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py stats
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph stats ${project:+--project "${project}"}
    ```
 
 2. Report:
-   - Files indexed (code and docs)
-   - Total nodes and edges in graph
-   - Code symbols count
-   - Doc sections count
+   - Total symbols indexed
+   - Total references/edges in graph
+   - Breakdown by symbol type
+   - Breakdown by architectural layer
+   - Projects indexed
 
 ## Example
 
 ```
 /wicked-garden:search:stats
+/wicked-garden:search:stats --project my-app
 ```

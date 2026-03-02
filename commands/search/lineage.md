@@ -5,7 +5,7 @@ argument-hint: <symbol> [--direction upstream|downstream|both] [--depth N]
 
 # /wicked-garden:search:lineage
 
-Trace data lineage paths through the symbol graph. Follow data flow from UI fields to database columns (downstream) or reverse (upstream).
+Trace data lineage paths through the knowledge graph. Follow data flow from UI fields to database columns (downstream) or reverse (upstream).
 
 ## Arguments
 
@@ -15,15 +15,15 @@ Trace data lineage paths through the symbol graph. Follow data flow from UI fiel
   - `upstream`: Sink → source (e.g., DB column → UI fields)
   - `both`: Trace in both directions
 - `--depth` (optional): Maximum traversal depth (default: 10)
-- `--format` (optional): Output format - table, json, mermaid (default: table)
-- `--save` (optional): Save computed paths to database
 
 ## Instructions
 
-1. Run the lineage tracer (see `skills/unified-search/refs/script-runner.md` for runner details):
+1. Run the lineage search via the CP proxy:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python lineage_tracer.py "<symbol_id>" --db /path/to/graph.db --direction downstream --depth 10 --format table
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge lineage search "<symbol_id>" --direction "${direction:-downstream}" --depth "${depth:-10}"
    ```
+
+2. Parse the response `data` which contains lineage paths.
 
 3. Report the lineage paths found:
    - Show each path with steps from source to sink
@@ -39,36 +39,28 @@ Trace data lineage paths through the symbol graph. Follow data flow from UI fiel
 # Find all UI fields that use a database column
 /wicked-garden:search:lineage column::USERS.EMAIL --direction upstream
 
-# Generate Mermaid diagram of data flow
-/wicked-garden:search:lineage entity_field::User.email --format mermaid
+# Trace both directions
+/wicked-garden:search:lineage entity_field::User.email --direction both
 ```
 
 ## Output
 
-### Table Format (default)
+### Table Format
 ```
 | # | Source | Sink | Steps | Confidence | Complete |
 |---|--------|------|-------|------------|----------|
-| 1 | firstName | FIRST_NAME | 3 | high | ✓ |
-| 2 | lastName | LAST_NAME | 3 | medium | ✓ |
-```
-
-### Mermaid Format
-```mermaid
-graph LR
-  ui_field["firstName<br/>form_binding"] -->|binds_to| entity["Person.firstName<br/>entity_field"]
-  entity -->|maps_to| column["FIRST_NAME<br/>column"]
+| 1 | firstName | FIRST_NAME | 3 | high | yes |
+| 2 | lastName | LAST_NAME | 3 | medium | yes |
 ```
 
 ## Use Cases
 
 - **Impact analysis**: Before changing a database column, find all UI fields that use it
-- **Data flow documentation**: Generate diagrams showing how data flows through the system
+- **Data flow documentation**: Understand how data flows through the system
 - **Debugging**: Trace why a UI field isn't displaying expected data
 - **Compliance**: Document which UI fields expose sensitive database columns
 
 ## Notes
 
 - Requires indexing first with `/wicked-garden:search:index`
-- Use `--save` to persist paths for faster future queries
-- Deeper depth = more complete but slower analysis
+- Use `/wicked-garden:search:impact` for reverse lineage (upstream consumers)

@@ -36,19 +36,19 @@ class OrderRepository:
 EOF
 
 # Initial index
-# /wicked-search:index /tmp/wicked-incr-test
+# /wicked-garden:search:index /tmp/wicked-incr-test
 ```
 
 ## Steps
 
 1. Index the initial project:
    ```
-   /wicked-search:index /tmp/wicked-incr-test
+   /wicked-garden:search:index /tmp/wicked-incr-test
    ```
 
 2. Check initial stats:
    ```
-   /wicked-search:stats
+   /wicked-garden:search:stats
    ```
 
 3. Modify service.py to add a new method:
@@ -73,17 +73,17 @@ EOF
 
 4. Re-index the project:
    ```
-   /wicked-search:index /tmp/wicked-incr-test
+   /wicked-garden:search:index /tmp/wicked-incr-test
    ```
 
 5. Search for the new method:
    ```
-   /wicked-search:code cancel_order
+   /wicked-garden:search:code cancel_order
    ```
 
 6. Check updated stats:
    ```
-   /wicked-search:stats
+   /wicked-garden:search:stats
    ```
 
 ## Expected Outcome

@@ -108,22 +108,22 @@ EOF
 
 1. Index the project:
    ```
-   /wicked-search:index /tmp/wicked-impl-test
+   /wicked-garden:search:index /tmp/wicked-impl-test
    ```
 
 2. Find code implementing "Payment Processing":
    ```
-   /wicked-search:impl "Payment Processing"
+   /wicked-garden:search:impl "Payment Processing"
    ```
 
 3. Find code implementing "User Authentication":
    ```
-   /wicked-search:impl "User Authentication"
+   /wicked-garden:search:impl "User Authentication"
    ```
 
 4. Verify bidirectional tracing - find docs for PaymentGateway:
    ```
-   /wicked-search:refs PaymentGateway
+   /wicked-garden:search:refs PaymentGateway
    ```
 
 ## Expected Outcome

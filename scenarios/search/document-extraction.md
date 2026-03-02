@@ -93,22 +93,22 @@ EOF
 
 1. Index the project:
    ```
-   /wicked-search:index /tmp/wicked-docs-test
+   /wicked-garden:search:index /tmp/wicked-docs-test
    ```
 
 2. Find code that implements "Authentication System":
    ```
-   /wicked-search:impl "Authentication System"
+   /wicked-garden:search:impl "Authentication System"
    ```
 
 3. Find code for "Data Processing Pipeline":
    ```
-   /wicked-search:impl "Data Processing"
+   /wicked-garden:search:impl "Data Processing"
    ```
 
 4. Search for what documents mention DataPipeline:
    ```
-   /wicked-search:refs DataPipeline
+   /wicked-garden:search:refs DataPipeline
    ```
 
 ## Expected Outcome

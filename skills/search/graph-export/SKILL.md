@@ -111,7 +111,8 @@ from graph_client import GraphClient
 
 To populate the cache, run indexing with `--export-cache`:
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py index /path/to/project --export-graph --export-cache
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols ingest < symbols.json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge refs ingest < refs.json
 ```
 
 This will:

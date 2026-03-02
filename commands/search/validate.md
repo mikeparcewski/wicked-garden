@@ -1,135 +1,67 @@
 ---
-description: Validate index accuracy using consistency checks and optional deep completeness analysis
-argument-hint: [--sample-size N] [--format table|json] [--deep]
+description: Validate index accuracy using consistency checks
+argument-hint: "[--sample-size N] [--format table|json]"
 ---
 
 # /wicked-garden:search:validate
 
-Validate the accuracy of wicked-search indexing using consistency-based checks. Adapts validation strategies based on detected language/framework. Reports accuracy with a 95% target.
+Validate the accuracy of the knowledge graph index using consistency-based checks.
 
 ## Arguments
 
 - `--sample-size` (optional): Number of samples per check (default: 100)
 - `--format` (optional): Output format - table, json (default: table)
-- `--deep` (optional): Run deep completeness check to discover missing symbols
+- `--project` (optional): Project to validate
 
 ## Instructions
 
-1. Run the accuracy validator (see `skills/unified-search/refs/script-runner.md` for runner details):
+1. Get graph statistics:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python accuracy_validator.py --db /path/to/graph.db --project /path/to/project --sample-size 100 --format table
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph stats ${project:+--project "${project}"}
    ```
 
-2. For deep completeness checking (slower but finds missing items):
+2. Sample symbols from the graph:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python accuracy_validator.py --db /path/to/graph.db --project /path/to/project --deep
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph list --limit "${sample_size:-100}" ${project:+--project "${project}"}
    ```
 
-4. Report the validation results:
-   - **Overall accuracy**: Combined accuracy across all checks
-   - **Per-check breakdown**: Each validation category
-   - **Target status**: Whether 95% accuracy is met
-   - **Issues found**: Details on failing checks
+3. For each sampled symbol, verify it exists at the stated file:line location:
+   - Read the file at the stated path
+   - Check that the symbol name appears near the stated line
+   - Track valid/invalid counts
 
-## Examples
+4. Sample references and verify targets exist:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<symbol_name>" ${project:+--project "${project}"}
+   ```
 
-```bash
-# Validate with default settings
-/wicked-garden:search:validate
+5. Report the validation results:
 
-# Larger sample for more thorough validation
-/wicked-garden:search:validate --sample-size 200
+   ```markdown
+   ## Accuracy Validation Report
 
-# Deep check to find missing symbols
-/wicked-garden:search:validate --deep
+   ### Summary
+   - **Overall Accuracy**: {percentage}%
+   - **Target (95%)**: MET/NOT MET
+   - **Checks Passed**: {n}/{total}
 
-# JSON output for CI integration
-/wicked-garden:search:validate --format json
-```
+   ### Validation Results
 
-## Output
-
-```markdown
-## Accuracy Validation Report
-
-**Project**: /path/to/project
-**Languages**: java, typescript
-**Frameworks**: spring
-
-### Summary
-
-- **Overall Accuracy**: 96.2%
-- **Target (95%)**: ✓ MET
-- **Checks Passed**: 4/4
-
-### Validation Results
-
-| Check | Category | Accuracy | Valid | Invalid | Status |
-|-------|----------|----------|-------|---------|--------|
-| symbol_existence | existence | 98.0% | 98 | 2 | ✓ |
-| reference_targets | reference | 97.0% | 97 | 3 | ✓ |
-| lineage_endpoints | traceability | 95.0% | 95 | 5 | ✓ |
-| spring_entity_mappings | framework | 94.0% | 94 | 6 | ✗ |
-| completeness | completeness | 92.0% | 230 | 20 | ✗ |
-```
-
-## Validation Checks
-
-| Check | Category | What it validates |
-|-------|----------|-------------------|
-| `symbol_existence` | existence | Indexed symbols exist at stated file/line locations |
-| `reference_targets` | reference | Reference targets exist in the symbol graph |
-| `lineage_endpoints` | traceability | Lineage path endpoints are valid |
-| `spring_entity_mappings` | framework | Spring @Column annotations match entity fields |
-| `django_model_fields` | framework | Django model fields are properly indexed |
-| `completeness` | completeness | Symbols found in source are in the index (--deep) |
-
-## Validation Modes
-
-### Standard Mode (default)
-Validates **consistency** - checks that what's in the index is correct:
-- Symbol locations are accurate
-- References point to valid targets
-- Lineage paths have valid endpoints
-- Framework patterns match source
-
-### Deep Mode (--deep)
-Validates **completeness** - discovers what's potentially missing:
-- Samples files from the project
-- Uses language-aware patterns to find symbols
-- Compares against indexed symbols
-- Reports coverage gaps
-
-## Framework Detection
-
-The validator auto-detects frameworks and runs appropriate checks:
-
-| Framework | Detection | Validation |
-|-----------|-----------|------------|
-| Spring | pom.xml, @Controller | Entity field → column mappings |
-| Django | manage.py, models.Model | Model field definitions |
-| Rails | Gemfile, ApplicationRecord | ActiveRecord associations |
-| Express | package.json, express() | Route handlers |
-| FastAPI | FastAPI() | Endpoint definitions |
-| NestJS | nest-cli.json | Controller/Injectable patterns |
-
-## Use Cases
-
-- **CI/CD Integration**: Fail builds if accuracy drops below 95%
-- **Regression Testing**: Verify indexer changes don't reduce accuracy
-- **Quality Assurance**: Validate before production deployment
-- **Coverage Analysis**: Use --deep to find gaps in indexing
-- **Debugging**: Identify which extraction patterns need improvement
+   | Check | Accuracy | Valid | Invalid | Status |
+   |-------|----------|-------|---------|--------|
+   | symbol_existence | 98.0% | 98 | 2 | pass |
+   | reference_targets | 97.0% | 97 | 3 | pass |
+   ```
 
 ## Exit Codes
 
-- `0`: All checks passed (accuracy ≥ 95%)
+- `0`: All checks passed (accuracy >= 95%)
 - `1`: One or more checks failed (accuracy < 95%)
 
-## Notes
+## Example
 
-- Requires indexing first with `/wicked-garden:search:index`
-- Larger sample sizes give more accurate metrics but take longer
-- Some variance is expected due to sampling
-- Deep mode is slower but provides completeness insights
-- Framework-specific checks only run when framework is detected
+```
+/wicked-garden:search:validate
+/wicked-garden:search:validate --sample-size 200
+/wicked-garden:search:validate --project my-app
+```

@@ -232,7 +232,7 @@ _QE_CHANGE_THRESHOLD = 3
 
 
 def _handle_write_edit(tool_input: dict) -> dict:
-    """Mark file as stale for search index + track change count for QE nudge."""
+    """Mark file as stale for search index + track change count for QE nudge + scenario staleness."""
     file_path = tool_input.get("file_path", "")
     if not file_path:
         return {"continue": True}
@@ -246,6 +246,11 @@ def _handle_write_edit(tool_input: dict) -> dict:
     qe_nudge = _track_qe_change(file_path)
     if qe_nudge:
         messages.append(qe_nudge)
+
+    # 3. Scenario staleness: warn when commands change but scenarios may be stale
+    scenario_nudge = _check_scenario_staleness(file_path)
+    if scenario_nudge:
+        messages.append(scenario_nudge)
 
     result = {"continue": True}
     if messages:
@@ -284,6 +289,62 @@ def _track_qe_change(file_path: str):
                 "Consider running tests or verifying imports before continuing."
             )
         return None
+    except Exception:
+        return None
+
+
+def _check_scenario_staleness(file_path: str):
+    """When a command or skill file changes, check if scenarios exist and may be stale.
+
+    Detects edits to commands/{domain}/*.md or skills/{domain}/**.md and warns
+    if scenarios/{domain}/ exists — those scenarios may need updating to match
+    the changed command/skill behavior.
+
+    Only fires once per domain per session (avoids repeated nudges).
+    """
+    try:
+        p = Path(file_path)
+        parts = p.parts
+
+        # Detect if the file is in commands/ or skills/ under the plugin
+        domain = None
+        for i, part in enumerate(parts):
+            if part in ("commands", "skills") and i + 1 < len(parts):
+                # commands/{domain}/file.md or skills/{domain}/...
+                candidate = parts[i + 1]
+                # Skip if it looks like a filename (has extension)
+                if "." not in candidate:
+                    domain = candidate
+                    break
+
+        if not domain:
+            return None
+
+        # Check if scenarios exist for this domain
+        plugin_root = _PLUGIN_ROOT
+        scenario_dir = plugin_root / "scenarios" / domain
+        if not scenario_dir.is_dir():
+            return None
+
+        scenario_count = len(list(scenario_dir.glob("*.md")))
+        if scenario_count == 0:
+            return None
+
+        # Only nudge once per domain per session
+        from _session import SessionState
+        state = SessionState.load()
+        warned_domains = getattr(state, "scenario_stale_warned", None) or []
+        if domain in warned_domains:
+            return None
+
+        warned_domains.append(domain)
+        state.update(scenario_stale_warned=warned_domains)
+
+        return (
+            f"[Scenarios] Command/skill in '{domain}' changed — "
+            f"{scenario_count} scenario(s) in scenarios/{domain}/ may need updating. "
+            f"Run `/wg-test {domain}` or `/wicked-garden:qe:acceptance scenarios/{domain}/ --all` to validate."
+        )
     except Exception:
         return None
 

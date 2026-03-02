@@ -100,42 +100,42 @@ EOF
 
 1. **Index the project:**
    ```
-   /wicked-search:index /tmp/wicked-xref-test
+   /wicked-garden:search:index /tmp/wicked-xref-test
    ```
 
 2. **Check import relationships:**
    ```
-   /wicked-search:refs UserRepository
+   /wicked-garden:search:refs UserRepository
    ```
    Should show: user_service.py imports UserRepository
 
 3. **Check inheritance relationships:**
    ```
-   /wicked-search:refs BaseRepository
+   /wicked-garden:search:refs BaseRepository
    ```
    Should show: UserRepository inherits from BaseRepository
 
 4. **Check call relationships:**
    ```
-   /wicked-search:refs log_operation
+   /wicked-garden:search:refs log_operation
    ```
    Should show: get_by_id and find_active_users call log_operation
 
 5. **Check class-method (defines) relationships:**
    ```
-   /wicked-search:refs get_by_id
+   /wicked-garden:search:refs get_by_id
    ```
    Should show: UserRepository defines get_by_id
 
 6. **Check documentation cross-references:**
    ```
-   /wicked-search:refs BaseRepository
+   /wicked-garden:search:refs BaseRepository
    ```
    Should also show: architecture.md documents BaseRepository
 
 7. **Find implementations from docs:**
    ```
-   /wicked-search:impl "Repository Layer"
+   /wicked-garden:search:impl "Repository Layer"
    ```
 
 ## Expected Outcome

@@ -15,194 +15,221 @@ Create a sample codebase with various patterns:
 
 ```bash
 # Create test directory
-mkdir -p /tmp/wicked-scout-test/src
+mkdir -p /tmp/wicked-scout-test/src/api
+mkdir -p /tmp/wicked-scout-test/src/auth
+mkdir -p /tmp/wicked-scout-test/src/models
 mkdir -p /tmp/wicked-scout-test/tests
+mkdir -p /tmp/wicked-scout-test/config
 
-# Error handling patterns
-cat > /tmp/wicked-scout-test/src/error_handler.py << 'EOF'
-def process_data(data):
-    try:
-        validate(data)
-        return transform(data)
-    except ValueError as e:
-        logger.error(f"Validation error: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        return None
+# API endpoint patterns
+cat > /tmp/wicked-scout-test/src/api/routes.py << 'EOF'
+from flask import Blueprint, request, jsonify
+
+api = Blueprint('api', __name__)
+
+@api.route('/users', methods=['GET'])
+def list_users():
+    return jsonify(users=[])
+
+@api.route('/users', methods=['POST'])
+def create_user():
+    data = request.get_json()
+    return jsonify(user=data), 201
+
+@api.route('/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    return '', 204
 EOF
 
-# Logging patterns
-cat > /tmp/wicked-scout-test/src/service.py << 'EOF'
-import logging
+# Auth patterns
+cat > /tmp/wicked-scout-test/src/auth/service.py << 'EOF'
+import jwt
 
-logger = logging.getLogger(__name__)
+class AuthService:
+    def authenticate(self, username: str, password: str):
+        user = self.find_user(username)
+        if not user or not self.verify_password(password, user.hash):
+            raise ValueError("Invalid credentials")
+        return self.generate_token(user)
 
-class DataService:
-    def fetch_data(self, id: int):
-        logger.info(f"Fetching data for id: {id}")
-        try:
-            result = self.query(id)
-            logger.debug(f"Found result: {result}")
-            return result
-        except Exception as e:
-            logger.error(f"Failed to fetch data: {e}")
-            raise
+    def generate_token(self, user) -> str:
+        return jwt.encode({"user_id": user.id}, "secret")
+
+    def verify_token(self, token: str):
+        return jwt.decode(token, "secret")
+
+    def logout(self, session_id: str):
+        self.invalidate_session(session_id)
 EOF
 
-# Validation patterns
-cat > /tmp/wicked-scout-test/src/validators.py << 'EOF'
-from pydantic import BaseModel, validator
+# Database model patterns
+cat > /tmp/wicked-scout-test/src/models/user.py << 'EOF'
+from sqlalchemy import Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
 
-class UserInput(BaseModel):
-    username: str
-    email: str
-    age: int
+Base = declarative_base()
 
-    @validator('age')
-    def check_age(cls, v):
-        if v < 0 or v > 150:
-            raise ValueError('Invalid age')
-        return v
+class User(Base):
+    __tablename__ = 'users'
 
-def validate_email(email: str) -> bool:
-    if '@' not in email:
-        raise ValueError('Invalid email')
-    return True
+    id = Column(Integer, primary_key=True)
+    username = Column(String(50), unique=True)
+    email = Column(String(120))
+
+class UserRepository:
+    def find_by_id(self, user_id: int):
+        return self.session.query(User).filter(User.id == user_id).first()
+
+    def save(self, user: User):
+        self.session.add(user)
+        self.session.commit()
+EOF
+
+# Config file
+cat > /tmp/wicked-scout-test/config/settings.yml << 'EOF'
+database:
+  host: localhost
+  port: 5432
+  name: myapp
+auth:
+  secret_key: change-me
+  token_expiry: 3600
 EOF
 
 # Test patterns
-cat > /tmp/wicked-scout-test/tests/test_service.py << 'EOF'
+cat > /tmp/wicked-scout-test/tests/test_auth.py << 'EOF'
 import unittest
 from unittest.mock import Mock, patch
 
-class TestDataService(unittest.TestCase):
-    def test_fetch_data(self):
-        service = DataService()
-        result = service.fetch_data(1)
-        self.assertIsNotNone(result)
+class TestAuthService(unittest.TestCase):
+    def test_authenticate_success(self):
+        service = AuthService()
+        token = service.authenticate("admin", "password")
+        self.assertIsNotNone(token)
 
-    @patch('service.query')
-    def test_fetch_with_mock(self, mock_query):
-        mock_query.return_value = {'id': 1}
-        service = DataService()
-        result = service.fetch_data(1)
-        self.assertEqual(result['id'], 1)
+    @patch('auth.service.jwt.encode')
+    def test_generate_token(self, mock_encode):
+        mock_encode.return_value = "test-token"
+        service = AuthService()
+        result = service.generate_token(Mock(id=1))
+        self.assertEqual(result, "test-token")
 EOF
 ```
 
 ## Steps
 
-1. Scout for error handling patterns (NO INDEX NEEDED):
+1. Scout for API endpoint patterns (NO INDEX NEEDED):
    ```
-   /wicked-search:scout error-handling
-   ```
-
-2. Scout for logging patterns:
-   ```
-   /wicked-search:scout logging
+   /wicked-garden:search:scout api --path /tmp/wicked-scout-test
    ```
 
-3. Scout for validation patterns:
+2. Scout for test patterns:
    ```
-   /wicked-search:scout validation
-   ```
-
-4. Scout for test patterns:
-   ```
-   /wicked-search:scout test-patterns
+   /wicked-garden:search:scout test --path /tmp/wicked-scout-test
    ```
 
-5. Compare speed with indexed search (optional):
+3. Scout for authentication patterns:
    ```
-   /wicked-search:index /tmp/wicked-scout-test
-   /wicked-search:code "error handling"
+   /wicked-garden:search:scout auth --path /tmp/wicked-scout-test
+   ```
+
+4. Scout for database patterns:
+   ```
+   /wicked-garden:search:scout db --path /tmp/wicked-scout-test
+   ```
+
+5. Scout for configuration files:
+   ```
+   /wicked-garden:search:scout config --path /tmp/wicked-scout-test
    ```
 
 ## Expected Outcome
 
-### Error Handling Scout:
+### API Scout:
 ```
-## Scout: error-handling
+## Scout: api
 
-### try/catch blocks
-src/error_handler.py:3 (2 matches)
-src/service.py:7 (1 match)
+### Route definitions
+src/api/routes.py: 3 routes found
+  - GET /users (list_users)
+  - POST /users (create_user)
+  - DELETE /users/<user_id> (delete_user)
 
-### throw statements
-src/error_handler.py:7 (2 matches)
-src/service.py:14 (1 match)
+### API directories
+src/api/: 1 file
 
-### Error types
-ValueError: 3 occurrences
-Exception: 2 occurrences
-
-Summary: 8 error handling patterns across 2 files
+Summary: 3 API patterns across 1 file
 ```
 
-### Logging Scout:
+### Test Scout:
 ```
-## Scout: logging
+## Scout: test
 
-### Logger imports
-src/service.py:1 (1 match)
-
-### Logger calls
-src/service.py:7 (logger.info)
-src/service.py:10 (logger.debug)
-src/service.py:13 (logger.error)
-
-Summary: 4 logging patterns across 1 file
-```
-
-### Validation Scout:
-```
-## Scout: validation
-
-### Pydantic models
-src/validators.py:3 (1 model)
-
-### Validators/decorators
-src/validators.py:9 (@validator)
-
-### Type checks
-src/validators.py:11 (age validation)
-src/validators.py:17 (email validation)
-
-Summary: 4 validation patterns across 1 file
-```
-
-### Test Patterns Scout:
-```
-## Scout: test-patterns
+### Test files
+tests/test_auth.py: 2 test methods
 
 ### Test classes/functions
-tests/test_service.py:5 (TestDataService)
-
-### Test methods
-tests/test_service.py:6 (test_fetch_data)
-tests/test_service.py:11 (test_fetch_with_mock)
-
-### Assertions
-tests/test_service.py:9 (assertIsNotNone)
-tests/test_service.py:16 (assertEqual)
+TestAuthService: 2 tests
+  - test_authenticate_success
+  - test_generate_token
 
 ### Mocks
-tests/test_service.py:11 (@patch decorator)
-tests/test_service.py:12 (mock_query)
+tests/test_auth.py: @patch decorator, Mock usage
 
-Summary: 7 test patterns across 1 file
+Summary: 2 test patterns across 1 file
+```
+
+### Auth Scout:
+```
+## Scout: auth
+
+### Authentication code
+src/auth/service.py: authenticate, generate_token, verify_token, logout
+  - jwt usage (encode/decode)
+  - session invalidation
+
+### Auth directories
+src/auth/: 1 file
+
+Summary: 4 auth patterns across 1 file
+```
+
+### DB Scout:
+```
+## Scout: db
+
+### Models
+src/models/user.py: User (SQLAlchemy model)
+  - __tablename__ = 'users'
+  - 3 columns
+
+### Repository methods
+src/models/user.py: find_by_id, save
+  - session.query usage
+  - session.commit usage
+
+Summary: 5 database patterns across 1 file
+```
+
+### Config Scout:
+```
+## Scout: config
+
+### Configuration files
+config/settings.yml: database + auth settings
+
+Summary: 1 config file found
 ```
 
 ## Success Criteria
 
 - [ ] Scout runs WITHOUT requiring index
-- [ ] Scout completes in <2 seconds
-- [ ] All pattern types detected correctly
-- [ ] File locations included with counts
+- [ ] Scout completes in <2 seconds per pattern type
+- [ ] All 5 pattern types (api, test, auth, db, config) work correctly
+- [ ] File locations included with match details
 - [ ] Summary shows aggregate statistics
 - [ ] Works on fresh, un-indexed codebases
-- [ ] Faster than building full index + searching
+- [ ] `--path` argument correctly scopes the search directory
 
 ## Value Demonstrated
 
@@ -211,49 +238,25 @@ Summary: 7 test patterns across 1 file
 **Why this matters**:
 
 **Quick reconnaissance**:
-- New codebase: "What's the error handling like here?"
-- Run: `/scout error-handling`
-- See: Try/catch usage, error types, patterns
+- New codebase: "Does this project have API endpoints?"
+- Run: `/wicked-garden:search:scout api`
+- See: Route definitions, endpoint patterns
 - Time: 2 seconds vs 30+ seconds for full indexing
 
 **Decision making**:
 - Question: "Does this project have tests?"
-- Run: `/scout test-patterns`
+- Run: `/wicked-garden:search:scout test`
 - Answer: Instant overview of test coverage
 - Decision: Proceed with confidence or add tests
 
-**Code review prep**:
-- Before review: `/scout logging`
-- See: Where logging is used (or missing)
-- Review: Check if critical paths have logging
+**Security assessment**:
+- Before review: `/wicked-garden:search:scout auth`
+- See: Where authentication is used, JWT patterns
+- Review: Check auth coverage across the codebase
 
-**Pattern consistency**:
-- Run: `/scout validation`
-- Discover: Mix of pydantic, manual checks, type guards
-- Action: Standardize validation approach
-
-**Real-world scenarios**:
-
-1. **Evaluating a project**:
-   - Fork unknown repo
-   - Run 6 scout commands in 12 seconds
-   - Get: Instant overview of code patterns
-   - vs Full index: 2+ minutes on large codebases
-
-2. **Debugging without context**:
-   - Bug report mentions error handling
-   - Run: `/scout error-handling`
-   - Find: All error handling patterns instantly
-   - Focus: Review relevant error handlers
-
-3. **Architecture assessment**:
-   - Scout multiple patterns quickly
-   - See: How team structures code
-   - Learn: Project conventions in seconds
-
-4. **Pair with full search**:
-   - Scout first: Get quick counts
-   - If interesting: Build full index
-   - Decision: Scout = filter, Index = deep dive
+**Data layer overview**:
+- Run: `/wicked-garden:search:scout db`
+- Discover: ORM models, raw queries, migration patterns
+- Action: Understand data layer before making changes
 
 Scout is the "quick grep" to wicked-search's "full database" - use it for reconnaissance before committing to full analysis.

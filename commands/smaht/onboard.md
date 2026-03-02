@@ -35,12 +35,10 @@ Run indexing and exploration concurrently. The goal: build understanding while t
 
 Unless `--skip-index`, start indexing in the background.
 
-The search scripts are located at `${CLAUDE_PLUGIN_ROOT}/scripts/search/`.
-
-Run:
+Run indexing via the knowledge graph:
 
 ```
-Bash(command="cd {wicked-search-scripts-dir} && uv run python unified_search.py index '{path}'",
+Bash(command="python3 '${CLAUDE_PLUGIN_ROOT}/scripts/cp.py' knowledge symbols ingest --project '{project_name}'",
      run_in_background=true)
 ```
 

@@ -5,7 +5,7 @@ argument-hint: <query>
 
 # /wicked-garden:search:docs
 
-Search documents only (PDF, Office docs, markdown).
+Search documents only (PDF, Office docs, markdown) via the knowledge graph.
 
 ## Arguments
 
@@ -13,15 +13,18 @@ Search documents only (PDF, Office docs, markdown).
 
 ## Instructions
 
-1. Run the doc search (see `skills/unified-search/refs/script-runner.md` for runner details):
+1. Run the doc search via the CP proxy:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py docs "<query>"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<query>" --type document
    ```
 
-2. Report matching document sections
+2. Parse the response `data` array. Each result contains: `name`, `type`, `file`, `line`, `description`.
+
+3. Report matching document sections with source file locations.
 
 ## Example
 
 ```
 /wicked-garden:search:docs "security requirements"
+/wicked-garden:search:docs "API design"
 ```
