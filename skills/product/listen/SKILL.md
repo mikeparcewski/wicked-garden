@@ -2,8 +2,11 @@
 name: listen
 description: |
   Aggregate customer feedback from discovered sources across support, surveys,
-  social, and direct channels. Use when you need to gather customer voice data
-  to inform product decisions or understand customer sentiment.
+  social, and direct channels. This skill should be used when the user needs to
+  gather customer voice data to inform product decisions or understand sentiment.
+
+  Use when: "listen to customers", "what are customers saying", "gather feedback",
+  "customer sentiment", "aggregate feedback", "voice of customer"
 ---
 
 # Listen Skill

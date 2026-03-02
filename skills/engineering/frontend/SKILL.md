@@ -2,8 +2,11 @@
 name: frontend
 description: |
   Frontend engineering specialist for React, CSS, browser APIs, component
-  design, accessibility, and performance. Use for UI implementation, component
-  review, or frontend-specific questions.
+  design, accessibility, and performance. This skill should be used when the
+  user asks about UI implementation, component review, or frontend-specific questions.
+
+  Use when: "build a React component", "CSS layout issue", "frontend performance",
+  "browser API", "component design", "accessibility check", "responsive design"
 ---
 
 # Frontend Skill

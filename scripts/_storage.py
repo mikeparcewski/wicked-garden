@@ -192,18 +192,31 @@ class StorageManager:
         Returns:
             Created record dict, or None on failure.
 
-        If the control plane write fails (404, network error, etc.), falls
-        back to local storage and enqueues the write for later replay.
+        When CP is available, it is the ID authority — the returned UUID
+        is used for both CP and local storage.  When offline, a local
+        UUID is generated and enqueued for later replay.
         """
+        record = dict(payload)
+        record.setdefault("created_at", _now())
+        record.setdefault("updated_at", _now())
+
         if self._should_use_cp():
-            cp_payload = _to_cp(self._domain, source, "create", dict(payload))
+            cp_payload = _to_cp(self._domain, source, "create", dict(record))
             result = self._cp.request(
                 self._domain, source, "create", payload=cp_payload
             )
             if result is not None:
                 item = _extract_item(result)
-                return _from_cp(self._domain, source, "create", item) if item else None
-            # CP write failed — fall through to local persistence
+                if item:
+                    cp_record = _from_cp(self._domain, source, "create", item)
+                    # Use CP-assigned UUID as the canonical ID.
+                    if cp_record and cp_record.get("id"):
+                        record["id"] = cp_record["id"]
+                    elif "id" not in record:
+                        record["id"] = str(uuid.uuid4())
+                    self._local_write(source, record["id"], record)
+                    return record
+            # CP write failed — fall through to local-only
             import sys
             print(
                 f"[StorageManager] CP write failed for {self._domain}/{source}, "
@@ -211,13 +224,9 @@ class StorageManager:
                 file=sys.stderr,
             )
 
-        # Offline / CP down: local write + queue for later replay.
-        record = dict(payload)
+        # Offline / CP failure: generate local UUID.
         if "id" not in record:
             record["id"] = str(uuid.uuid4())
-        record.setdefault("created_at", _now())
-        record.setdefault("updated_at", _now())
-
         self._local_write(source, record["id"], record)
         cp_record = _to_cp(self._domain, source, "create", dict(record))
         self._enqueue("create", source, cp_record)
@@ -236,8 +245,13 @@ class StorageManager:
             )
             if result is not None:
                 item = _extract_item(result)
+                # Also update local copy.
+                existing = self._local_get(source, id)
+                if existing:
+                    existing.update(diff)
+                    existing["updated_at"] = _now()
+                    self._local_write(source, id, existing)
                 return _from_cp(self._domain, source, "update", item) if item else None
-            return None
 
         # Offline / CP down: local read-modify-write + queue.
         existing = self._local_get(source, id)
@@ -251,6 +265,7 @@ class StorageManager:
         self._enqueue("update", source, cp_diff)
         return existing
 
+
     def delete(self, source: str, id: str) -> bool:
         """Delete a record.
 
@@ -259,9 +274,13 @@ class StorageManager:
         """
         if self._should_use_cp():
             result = self._cp.request(self._domain, source, "delete", id=id)
-            if result is not None:
-                return True
-            return False
+            # Also soft-delete locally.
+            existing = self._local_get(source, id)
+            if existing:
+                existing["deleted"] = True
+                existing["deleted_at"] = _now()
+                self._local_write(source, id, existing)
+            return result is not None
 
         # Offline / CP down: soft-delete locally + queue.
         existing = self._local_get(source, id)

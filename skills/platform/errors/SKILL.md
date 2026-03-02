@@ -4,7 +4,7 @@ description: |
   Error analysis and pattern detection from discovered error tracking sources.
   Aggregates errors across services, detects patterns, correlates with deployments,
   and assesses user impact. Use for error investigation and incident response.
-  Use when: error analysis, error patterns, production errors, error investigation, why are we seeing errors
+  Use when: "error analysis", "error patterns", "production errors", "error investigation", "why are we seeing errors"
 ---
 
 # Error Analysis Skill
