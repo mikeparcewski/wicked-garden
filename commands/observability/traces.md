@@ -4,22 +4,34 @@ description: Query hook execution traces for the current session
 
 # /wicked-garden:observability:traces
 
-Query trace data captured by the hook execution wrapper.
+Query trace data captured by the PostToolUse hook and stored in the control plane.
 
 Instructions:
-- Parse arguments: `--session {id}` (default: current session), `--tail N` (last N records), `--silent-only` (filter to silent failures), `--json`
-- For listing/tailing: query via the CP proxy:
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" observability traces list --limit {N}
+- Parse arguments: `--session {id}` (default: current session), `--tail N` (last N records), `--tool {name}` (filter by tool), `--json`
+- For listing/tailing, query the CP directly:
+  ```python
+  python3 -c "
+  import sys, os, json
+  from pathlib import Path
+  sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+  from _control_plane import ControlPlaneClient
+  client = ControlPlaneClient()
+  result = client.request('observability', 'traces', 'list', params={PARAMS})
+  print(json.dumps(result, indent=2))
+  "
   ```
-- For silent failure summary:
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" observability traces search --query "silent_failure"
-  ```
+  Where PARAMS is a dict with optional keys: `session_id`, `tool`, `event`, `limit`, `offset`.
 - For stats:
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" observability traces stats
+  ```python
+  python3 -c "
+  import sys, os, json
+  from pathlib import Path
+  sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+  from _control_plane import ControlPlaneClient
+  client = ControlPlaneClient()
+  result = client.request('observability', 'traces', 'stats')
+  print(json.dumps(result, indent=2))
+  "
   ```
-- Display: table of recent traces with tool_name, duration, exit_code, silent_failure flag
-- Highlight silent failures prominently
-- Show trace file path for raw access
+- Display: table of recent traces with session_id, tool, event, ts
+- If CP is unavailable, check for JSONL fallback in `$TMPDIR/wicked-trace-{session_id}.jsonl`

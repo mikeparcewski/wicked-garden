@@ -526,11 +526,11 @@ def _handle_task_update_mismatch(tool_input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def _write_trace(payload: dict) -> None:
-    """Append a trace entry to a session-scoped JSONL file (batched, not per-call SM create).
+    """Write a trace entry to the control plane, falling back to a session-scoped JSONL file.
 
-    Avoids creating individual JSON files + queue entries on every hook invocation
-    in offline/local-fallback mode. The session trace file is flushed to SM at
-    session end by stop.py.
+    CP-first: POST to observability/traces/create via ControlPlaneClient.
+    On failure (CP down, timeout, etc.): append to a JSONL file in $TMPDIR.
+    The JSONL fallback is batch-flushed to CP at session end by stop.py.
     """
     if os.environ.get("WICKED_TRACE_ACTIVE"):
         return
@@ -538,16 +538,37 @@ def _write_trace(payload: dict) -> None:
         os.environ["WICKED_TRACE_ACTIVE"] = "1"
         session_id = _get_session_id()
         tool_name = payload.get("tool_name", "")
-        entry = json.dumps({
-            "ts": _now_iso(),
+        event = payload.get("hook_event_name", "PostToolUse")
+        ts = _now_iso()
+
+        entry = {
+            "ts": ts,
             "session_id": session_id,
             "tool": tool_name,
-            "event": payload.get("hook_event_name", "PostToolUse"),
-        })
-        tmpdir = os.environ.get("TMPDIR", "/tmp")
-        trace_file = Path(tmpdir) / f"wicked-trace-{session_id}.jsonl"
-        with open(trace_file, "a", encoding="utf-8") as f:
-            f.write(entry + "\n")
+            "event": event,
+        }
+
+        # Try CP first (hook_mode for short timeout)
+        written = False
+        try:
+            from _control_plane import ControlPlaneClient
+            from _session import SessionState
+            state = SessionState.load()
+            if state.cp_available:
+                client = ControlPlaneClient(hook_mode=True)
+                result = client.request(
+                    "observability", "traces", "create", payload=entry,
+                )
+                written = result is not None
+        except Exception:
+            pass
+
+        # Fallback: append to JSONL for batch flush at session end
+        if not written:
+            tmpdir = os.environ.get("TMPDIR", "/tmp")
+            trace_file = Path(tmpdir) / f"wicked-trace-{session_id}.jsonl"
+            with open(trace_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
     except Exception:
         pass
     finally:

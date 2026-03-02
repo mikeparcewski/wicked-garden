@@ -403,11 +403,13 @@ def _enforce_budget(content: str, path: str) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
-def _check_setup_gate(prompt: str) -> bool:
-    """Block prompts if wicked-garden setup/onboarding hasn't been completed.
+def _check_setup_gate(prompt: str) -> str | None:
+    """Check if wicked-garden setup/onboarding is needed.
 
-    Returns True if blocked (already printed reason + will sys.exit(2)),
-    or False to continue.
+    Returns None if no action needed.
+    Returns a directive string if onboarding is required — caller includes
+    it in additionalContext so Claude sees the full context every turn.
+    Calls sys.exit(2) only for hard failures (no config at all).
 
     Allows /wicked-garden:setup and /wicked-garden:help through the gate.
     Also allows prompts through when setup is in progress (user answering
@@ -423,18 +425,18 @@ def _check_setup_gate(prompt: str) -> bool:
             state.update(setup_in_progress=True)
         except Exception:
             pass
-        return False
+        return None
 
     # Allow prompts through when setup is actively running (user answering questions)
     try:
         from _session import SessionState
         state = SessionState.load()
         if state.setup_in_progress:
-            return False
+            return None
     except Exception:
         pass  # fail open
 
-    # Check 1: config.json setup_complete
+    # Check 1: config.json setup_complete — hard block
     config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
     config_ok = False
     try:
@@ -452,21 +454,23 @@ def _check_setup_gate(prompt: str) -> bool:
         )
         sys.exit(2)
 
-    # Check 2: session state needs_onboarding (set by bootstrap.py)
+    # Check 2: session state needs_onboarding — soft gate with directive
     try:
         from _session import SessionState
         state = SessionState.load()
         if state.needs_onboarding:
-            print(
-                "wicked-garden needs onboarding for this project.\n"
-                "Run: /wicked-garden:setup",
-                file=sys.stderr,
+            project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+            return (
+                f"[Action Required] Project '{project}' has not been onboarded.\n"
+                "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
+                "to launch the interactive onboarding wizard.\n"
+                "Do NOT ask the user for confirmation — invoke the skill now.\n"
+                "Do NOT respond with text first — invoke the skill as your first action."
             )
-            sys.exit(2)
     except Exception:
         pass  # fail open if session state unavailable
 
-    return False
+    return None
 
 
 def main():
@@ -485,9 +489,8 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
-    # Setup gate — block all prompts until wicked-garden is configured/onboarded
-    # (_check_setup_gate calls sys.exit(2) if blocked, so we just call it)
-    _check_setup_gate(prompt)
+    # Setup gate — hard-block if no config, soft-gate with directive if needs onboarding
+    onboarding_directive = _check_setup_gate(prompt)
 
     try:
         # Load and increment turn counter
@@ -537,6 +540,12 @@ def main():
         if _reconnect_notification:
             context_parts.append(
                 f"<system-reminder>\n[wicked-garden] {_reconnect_notification}\n</system-reminder>"
+            )
+
+        # Include onboarding directive if setup gate detected it's needed
+        if onboarding_directive:
+            context_parts.append(
+                f"<system-reminder>\n{onboarding_directive}\n</system-reminder>"
             )
 
         output = {
