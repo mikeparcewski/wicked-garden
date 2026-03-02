@@ -155,9 +155,9 @@ You're a new developer joining the team. You need to understand the codebase and
 
 1. Get a quick overview of patterns:
    ```
-   /wicked-search:scout error-handling
-   /wicked-search:scout test-patterns
-   /wicked-search:scout api-endpoints
+   /wicked-garden:search:scout error-handling
+   /wicked-garden:search:scout test-patterns
+   /wicked-garden:search:scout api-endpoints
    ```
 
 2. Assess: "Is there test coverage? How's error handling?"
@@ -166,46 +166,46 @@ You're a new developer joining the team. You need to understand the codebase and
 
 3. Index the entire project:
    ```
-   /wicked-search:index /tmp/onboarding-demo
+   /wicked-garden:search:index /tmp/onboarding-demo
    ```
 
 4. Check index statistics:
    ```
-   /wicked-search:stats
+   /wicked-garden:search:stats
    ```
 
 ### Phase 3: Understand Requirements
 
 5. Search documentation for "User Management":
    ```
-   /wicked-search:docs "User Management"
+   /wicked-garden:search:docs "User Management"
    ```
 
 6. Find what code implements user management:
    ```
-   /wicked-search:impl "User Management"
+   /wicked-garden:search:impl "User Management"
    ```
 
 7. Explore the UserService class:
    ```
-   /wicked-search:refs UserService
+   /wicked-garden:search:refs UserService
    ```
 
 ### Phase 4: Understand Architecture
 
 8. Trace API endpoint to implementation:
    ```
-   /wicked-search:code UserAPI
+   /wicked-garden:search:code UserAPI
    ```
 
 9. Understand dependencies of UserAPI:
    ```
-   /wicked-search:blast-radius UserAPI
+   /wicked-garden:search:blast-radius UserAPI
    ```
 
 10. See what uses AuthService:
     ```
-    /wicked-search:refs AuthService
+    /wicked-garden:search:refs AuthService
     ```
 
 ### Phase 5: Feature Implementation Planning
@@ -214,17 +214,17 @@ You're a new developer joining the team. You need to understand the codebase and
 
 11. Find existing auth-related code:
     ```
-    /wicked-search:code "auth"
+    /wicked-garden:search:code "auth"
     ```
 
 12. Check API spec for related endpoints:
     ```
-    /wicked-search:docs "api"
+    /wicked-garden:search:docs "api"
     ```
 
 13. Understand UserService dependencies:
     ```
-    /wicked-search:blast-radius UserService
+    /wicked-garden:search:blast-radius UserService
     ```
 
 ## Expected Outcome

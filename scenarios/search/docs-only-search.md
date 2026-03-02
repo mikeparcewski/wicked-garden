@@ -71,17 +71,17 @@ EOF
 
 1. Index the project:
    ```
-   /wicked-search:index /tmp/wicked-docsonly-test
+   /wicked-garden:search:index /tmp/wicked-docsonly-test
    ```
 
 2. Search docs only for "password":
    ```
-   /wicked-search:docs password
+   /wicked-garden:search:docs password
    ```
 
 3. Compare with unified search:
    ```
-   /wicked-search:search password
+   /wicked-garden:search:search password
    ```
 
 ## Expected Outcome

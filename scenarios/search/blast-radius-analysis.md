@@ -160,27 +160,27 @@ EOF
 
 1. Index the project:
    ```
-   /wicked-search:index /tmp/wicked-blast-test
+   /wicked-garden:search:index /tmp/wicked-blast-test
    ```
 
 2. Analyze blast radius of DatabaseConnection (core infrastructure):
    ```
-   /wicked-search:blast-radius DatabaseConnection
+   /wicked-garden:search:blast-radius DatabaseConnection
    ```
 
 3. Analyze blast radius of QueryBuilder (mid-level utility):
    ```
-   /wicked-search:blast-radius QueryBuilder
+   /wicked-garden:search:blast-radius QueryBuilder
    ```
 
 4. Analyze blast radius of UserService (high-level service):
    ```
-   /wicked-search:blast-radius UserService
+   /wicked-garden:search:blast-radius UserService
    ```
 
 5. Compare with deeper analysis:
    ```
-   /wicked-search:blast-radius DatabaseConnection --depth 3
+   /wicked-garden:search:blast-radius DatabaseConnection --depth 3
    ```
 
 ## Expected Outcome

@@ -13,7 +13,7 @@ description: |
 
 # Unified Search Skill
 
-Search across code AND documents, with automatic cross-reference detection.
+Search across code AND documents via the knowledge graph in the control plane.
 
 ## Quick Start
 
@@ -74,25 +74,24 @@ Use `/wicked-garden:search:search` for:
 - When unsure if it's code or docs
 - "Find anything related to authentication"
 
-## Cross-Reference Detection
+## Architecture
 
-The indexer automatically detects when documents mention code symbols:
+All search commands query the **knowledge graph** via the control plane proxy:
 
-1. **CamelCase**: `AuthService`, `UserRepository`
-2. **snake_case**: `authenticate_user`, `get_user_by_id`
-3. **Backtick quoted**: `` `my_function` ``
-4. **Function calls**: `process_data()`
-
-These create "documents" edges in the graph, linking doc sections to code.
-
-## Reading Extracted Documents
-
-After indexing, extracted document text is cached locally under the wicked-search storage domain:
-```
-{SM_LOCAL_ROOT}/wicked-search/extracted/<filename>.txt
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge {source} {verb} [--param value ...]
 ```
 
-Read these files to get full document content for context.
+### Knowledge Domain Sources
+
+| Source | Verbs | Purpose |
+|--------|-------|---------|
+| `graph` | search, traverse, hotspots, impact, stats, list, get | Symbol graph queries |
+| `symbols` | list, categories, ingest | Symbol catalog |
+| `lineage` | search | Data flow tracing |
+| `code` | content | Source code retrieval |
+| `projects` | list | Multi-project isolation |
+| `refs` | ingest | Cross-reference ingestion |
 
 ## Graph Analysis
 
@@ -120,17 +119,24 @@ python3 scripts/cp.py knowledge projects list                     # List indexed
 python3 scripts/cp.py knowledge graph hotspots --project my-app   # Query specific project
 ```
 
-### Symbol Enrichment
-Symbols indexed after v1.6.0 include: `inferred_type` (test, configuration, data-model, controller, service, utility, general), `description` (first docstring/comment), and `domains` (path-derived tags).
+## Cross-Reference Detection
+
+The indexer automatically detects when documents mention code symbols:
+
+1. **CamelCase**: `AuthService`, `UserRepository`
+2. **snake_case**: `authenticate_user`, `get_user_by_id`
+3. **Backtick quoted**: `` `my_function` ``
+4. **Function calls**: `process_data()`
+
+These create "documents" edges in the graph, linking doc sections to code.
 
 ## Tips
 
 1. **Index first**: Always run `/wicked-garden:search:index` before searching
 2. **Be specific**: More specific queries = better results
 3. **Check cross-refs**: Use `/refs` to discover code-doc relationships
-4. **Read cached docs**: For full context, read the extracted .txt files
-5. **Use hotspots**: Find high-coupling symbols that are change-risk candidates
-6. **Use traverse**: Understand a symbol's neighborhood before refactoring
+4. **Use hotspots**: Find high-coupling symbols that are change-risk candidates
+5. **Use traverse**: Understand a symbol's neighborhood before refactoring
 
 ## Supported File Types
 

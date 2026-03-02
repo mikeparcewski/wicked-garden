@@ -13,7 +13,7 @@ Show the following help information:
 ```markdown
 # wicked-search Help
 
-Structural code search, document search, lineage tracing, and codebase intelligence powered by tree-sitter indexing.
+Structural code search, document search, lineage tracing, and codebase intelligence powered by the knowledge graph in the control plane.
 
 ## Commands
 
@@ -46,6 +46,15 @@ Structural code search, document search, lineage tracing, and codebase intellige
 /wicked-garden:search:blast-radius UserService --depth 3
 ```
 
+## Architecture
+
+All search commands query the **knowledge graph** in the control plane via `cp.py`:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge {source} {verb} [args]
+```
+
+Knowledge domain sources: `graph`, `symbols`, `lineage`, `code`, `projects`, `refs`.
+
 ## Examples
 
 ### Code Search
@@ -58,7 +67,7 @@ Structural code search, document search, lineage tracing, and codebase intellige
 ### Impact Analysis
 ```
 /wicked-garden:search:blast-radius PaymentService --depth 2
-/wicked-garden:search:impact UserModel --format json
+/wicked-garden:search:impact UserModel
 /wicked-garden:search:refs createOrder
 ```
 
@@ -73,13 +82,13 @@ Structural code search, document search, lineage tracing, and codebase intellige
 ```
 /wicked-garden:search:index . --derive-all
 /wicked-garden:search:stats
-/wicked-garden:search:validate --deep
+/wicked-garden:search:validate
 /wicked-garden:search:quality --max-iterations 3
 ```
 
 ## Integration
 
-- **wicked-smaht**: Search adapter feeds context assembly
+- **wicked-smaht**: Search adapter feeds context assembly via CP knowledge domain
 - **wicked-patch**: Symbol lookup for structural refactoring
 - **wicked-engineering**: Architecture and code analysis
 - **wicked-crew**: Context for all workflow phases

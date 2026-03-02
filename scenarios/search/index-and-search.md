@@ -54,17 +54,17 @@ EOF
 
 1. Index the test project:
    ```
-   /wicked-search:index /tmp/wicked-search-test
+   /wicked-garden:search:index /tmp/wicked-search-test
    ```
 
 2. Search for "authentication":
    ```
-   /wicked-search:search "authentication"
+   /wicked-garden:search:search "authentication"
    ```
 
 3. Check index statistics:
    ```
-   /wicked-search:stats
+   /wicked-garden:search:stats
    ```
 
 ## Expected Outcome

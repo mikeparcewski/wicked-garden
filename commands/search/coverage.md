@@ -1,101 +1,62 @@
 ---
 description: Report on lineage coverage and identify symbols without full traceability
-argument-hint: [--type <symbol_type>] [--format table|json] [--show-orphans]
+argument-hint: "[--type <symbol_type>] [--show-orphans]"
 ---
 
 # /wicked-garden:search:coverage
 
-Analyze lineage coverage across the indexed codebase. Identifies symbols without full source-to-sink traceability and reports coverage gaps.
+Analyze lineage coverage across the indexed codebase. Identifies symbols without full source-to-sink traceability.
 
 ## Arguments
 
 - `--type` (optional): Filter to specific symbol type (e.g., entity_field, column)
-- `--format` (optional): Output format - table, json (default: table)
 - `--show-orphans` (optional): Include list of orphan symbols in output
+- `--project` (optional): Filter to specific project
 
 ## Instructions
 
-1. Run the coverage reporter (see `skills/unified-search/refs/script-runner.md` for runner details):
+1. Get all symbols from the knowledge graph:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python coverage_reporter.py --db /path/to/graph.db --format table
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols list ${project:+--project "${project}"} ${type:+--type "${type}"}
    ```
 
-3. Report the coverage analysis:
-   - **Summary**: Total symbols, coverage percentage
-   - **By Type**: Breakdown by symbol type
-   - **Gaps**: Common coverage gaps found
-   - **Orphans**: Symbols with no lineage (if --show-orphans)
+2. For each symbol type that should have lineage (entity_field, column, form_binding), check lineage paths:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge lineage search "<symbol_id>" --direction both --depth 5
+   ```
 
-## Examples
+3. Classify each symbol:
+   - **Full coverage**: Complete lineage from UI to database (or reverse)
+   - **Partial coverage**: Some connections exist but gaps in the chain
+   - **Orphan**: No lineage connections found
 
-```bash
-# Full coverage report
+4. Report the coverage analysis:
+
+   ```markdown
+   ## Coverage Report
+
+   ### Summary
+   - **Total Symbols**: {count}
+   - **Full Coverage**: {count} ({percentage}%)
+   - **Partial Coverage**: {count}
+   - **Orphan Symbols**: {count}
+
+   ### Coverage by Type
+
+   | Type | Total | Full | Partial | Orphan | Coverage |
+   |------|-------|------|---------|--------|----------|
+   | entity_field | 234 | 198 | 28 | 8 | 84.6% |
+   ```
+
+## Example
+
+```
 /wicked-garden:search:coverage
-
-# Coverage for entity fields only
 /wicked-garden:search:coverage --type entity_field
-
-# Include orphan symbols list
 /wicked-garden:search:coverage --show-orphans
-
-# JSON output for tooling
-/wicked-garden:search:coverage --format json
 ```
-
-## Output
-
-### Table Format (default)
-```markdown
-## Coverage Report
-
-### Summary
-- **Total Symbols**: 847
-- **Full Coverage**: 612 (72.3%)
-- **Partial Coverage**: 156
-- **Orphan Symbols**: 79
-
-### Coverage by Type
-
-| Type | Total | Full | Partial | Orphan | Coverage |
-|------|-------|------|---------|--------|----------|
-| entity_field | 234 | 198 | 28 | 8 | 84.6% |
-| form_binding | 156 | 134 | 12 | 10 | 85.9% |
-| column | 89 | 72 | 11 | 6 | 80.9% |
-| el_expression | 245 | 145 | 67 | 33 | 59.2% |
-
-### Common Gaps
-
-| Gap | Count |
-|-----|-------|
-| No binding to entity/model | 43 |
-| No UI binding found | 28 |
-| No database mapping found | 8 |
-```
-
-## Coverage Status Definitions
-
-- **Full**: Complete lineage from UI to database (or reverse)
-- **Partial**: Some connections exist but gaps in the chain
-- **Orphan**: No lineage connections found at all
-
-## Expected Lineage by Symbol Type
-
-| Symbol Type | Expected Upstream | Expected Downstream |
-|-------------|-------------------|---------------------|
-| UI (form_binding, el_expression) | - | Entity/Model |
-| Entity (entity_field) | UI binding | Database column |
-| Database (column) | Entity mapping | - |
-
-## Use Cases
-
-- **Migration readiness**: Ensure all symbols have traceability before migration
-- **Tech debt tracking**: Identify orphaned code that may be dead
-- **Data dictionary**: Find columns without documented UI exposure
-- **Compliance**: Verify all PII fields have tracked lineage
 
 ## Notes
 
-- Requires indexing first with `/wicked-garden:search:index`
-- Run `/wicked-garden:search:lineage` to compute lineage paths before coverage
+- Requires indexing with `/wicked-garden:search:index --derive` for lineage data
 - High orphan count may indicate incomplete indexing
-- Use `--type` to focus on specific layers (entity, UI, database)

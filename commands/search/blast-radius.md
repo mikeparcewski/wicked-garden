@@ -5,7 +5,7 @@ argument-hint: <symbol> [--depth N]
 
 # /wicked-garden:search:blast-radius
 
-Analyze what would be affected if you changed a symbol.
+Analyze what would be affected if you changed a symbol. Shows both what this symbol depends on and what depends on it.
 
 ## Arguments
 
@@ -14,19 +14,30 @@ Analyze what would be affected if you changed a symbol.
 
 ## Instructions
 
-1. Run blast-radius analysis (see `skills/unified-search/refs/script-runner.md` for runner details):
+1. Resolve the symbol name to a graph node UUID:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py blast-radius "<symbol>" --depth <n>
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<symbol>" --limit 5
+   ```
+   Find the matching node in the results and extract its `id` (UUID).
+
+2. Run the graph traversal using the resolved UUID:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph traverse "<uuid>" --direction both --depth "${depth:-2}"
    ```
 
-2. Report the impact assessment:
-   - **Dependencies**: What this symbol uses/imports
-   - **Dependents**: What uses this symbol (direct and transitive)
+3. Parse the response `data` object containing `nodes` and `edges`.
+
+3. Report the impact assessment:
+   - **Dependencies** (outgoing): What this symbol uses/imports
+   - **Dependents** (incoming): What uses this symbol (direct and transitive)
+   - Total blast radius count
+   - Files affected
 
 ## Example
 
 ```
 /wicked-garden:search:blast-radius DatabaseConnection --depth 3
+/wicked-garden:search:blast-radius UserService
 ```
 
 ## Use Cases
@@ -39,3 +50,4 @@ Analyze what would be affected if you changed a symbol.
 
 - Requires indexing first with `/wicked-garden:search:index`
 - Deeper depth = more complete but slower analysis
+- For lineage-based impact (UI → DB tracing), use `/wicked-garden:search:impact` instead

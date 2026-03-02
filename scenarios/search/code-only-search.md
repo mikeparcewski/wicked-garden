@@ -59,17 +59,17 @@ EOF
 
 1. Index the project:
    ```
-   /wicked-search:index /tmp/wicked-code-test
+   /wicked-garden:search:index /tmp/wicked-code-test
    ```
 
 2. Search code only for "cache":
    ```
-   /wicked-search:code cache
+   /wicked-garden:search:code cache
    ```
 
 3. Compare with unified search:
    ```
-   /wicked-search:search cache
+   /wicked-garden:search:search cache
    ```
 
 ## Expected Outcome

@@ -5,7 +5,7 @@ argument-hint: <doc-section>
 
 # /wicked-garden:search:impl
 
-Find code that implements a documented feature or section.
+Find code that implements a documented feature or section by searching for implementation edges in the knowledge graph.
 
 ## Arguments
 
@@ -13,15 +13,23 @@ Find code that implements a documented feature or section.
 
 ## Instructions
 
-1. Run the impl search (see `skills/unified-search/refs/script-runner.md` for runner details):
+1. Run the search via the CP proxy with edge type filter:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT}/scripts && uv run python unified_search.py impl "<doc-section>"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<doc-section>" --edge_type implements
    ```
 
-2. Report the code symbols that implement this section
+2. Parse the response `data` array. Each result represents a code symbol linked to the documentation.
+
+3. Report the code symbols that implement this section, with file locations.
 
 ## Example
 
 ```
 /wicked-garden:search:impl "Repository Layer"
+/wicked-garden:search:impl "Security Requirements"
 ```
+
+## Notes
+
+- Requires indexing first with `/wicked-garden:search:index`
+- Cross-references are auto-detected during indexing (CamelCase, snake_case, backtick-quoted names)
