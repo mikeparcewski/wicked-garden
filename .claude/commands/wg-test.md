@@ -54,12 +54,12 @@ fi
 
 If the control plane is unreachable:
 
-1. **Attempt auto-start** (if `~/Projects/wicked-viewer` exists):
+1. **Attempt auto-start** (if `~/.claude/plugins/cache/wicked-control-plane` exists):
    ```bash
-   VIEWER_PATH="${HOME}/Projects/wicked-viewer"
-   if [ -d "${VIEWER_PATH}" ] && [ -f "${VIEWER_PATH}/package.json" ]; then
-     echo "Starting control plane from ${VIEWER_PATH}..."
-     cd "${VIEWER_PATH}" && PORT=18889 pnpm run dev &
+   CP_PATH="${HOME}/.claude/plugins/cache/wicked-control-plane"
+   if [ -d "${CP_PATH}" ] && [ -f "${CP_PATH}/package.json" ]; then
+     echo "Starting control plane from ${CP_PATH}..."
+     cd "${CP_PATH}" && PORT=18889 pnpm run dev &
      # Poll for up to 8 seconds
      for i in $(seq 1 16); do
        sleep 0.5
@@ -73,7 +73,7 @@ If the control plane is unreachable:
 
 2. **If still unreachable after auto-start attempt**, warn the user and ask whether to continue:
    - Scenarios that use `/wicked-garden:mem:store`, `/wicked-garden:kanban:*`, or crew workflows will have **degraded results** (silent failures, empty recalls, local-only storage)
-   - Use AskUserQuestion with options: "Continue without CP (expect degraded results)" and "Abort — start CP first (`cd ~/Projects/wicked-viewer && PORT=18889 pnpm run dev`)"
+   - Use AskUserQuestion with options: "Continue without CP (expect degraded results)" and "Abort — start CP first (`cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev`)"
 
 Also check whether the plugin runtime actually loaded:
 

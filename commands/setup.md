@@ -1,197 +1,214 @@
 ---
-allowed-tools: ["AskUserQuestion", "Bash", "Read", "Write"]
-description: "Configure wicked-garden to connect to a local or remote control plane"
+allowed-tools: ["AskUserQuestion", "Bash", "Read", "Write", "Skill", "Agent"]
+description: "Configure wicked-garden connection and onboard the current codebase"
+argument-hint: "[--reconfigure]"
 ---
 
 # /wicked-garden:setup
 
-Interactive setup wizard for connecting to the wicked-control-plane backend.
+The single entry point for getting started with wicked-garden. Auto-detects what's needed and walks through it interactively.
+
+- **No config?** → asks about control plane (local/remote/offline), configures it, then onboards
+- **Config exists but no onboarding?** → skips straight to onboarding
+- **Everything done?** → reports status, offers to reconfigure
+
+## Arguments
+
+- `--reconfigure`: Force re-run of control plane configuration even if already set up
 
 ## Instructions
 
-### 1. Check Current State
+### 1. Detect Current State
 
-Resolve the wicked-garden config path:
+Check what's already configured:
+
 ```bash
-WG_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden)
+WG_CONFIG="$HOME/.something-wicked/wicked-garden/config.json"
+if [ -f "$WG_CONFIG" ]; then
+  cat "$WG_CONFIG"
+else
+  echo "NO_CONFIG"
+fi
 ```
 
-Read `${WG_ROOT}/../../config.json` if it exists. If `setup_complete` is true, inform the user that setup is already complete and ask if they want to reconfigure.
+Determine which phases to run:
 
-### 2. Ask Connection Type
+| State | Action |
+|-------|--------|
+| No config OR `--reconfigure` | Run Phase 1 (CP config) → Phase 2 (onboarding) |
+| Config exists, `setup_complete: true`, no onboarding memories | Skip to Phase 2 (onboarding) |
+| Config exists, onboarding memories exist | Report status. Ask: "Everything looks good. Want to reconfigure?" |
+
+To check onboarding status, look for memories tagged `onboarding`:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/mem/memory.py" recall --tags onboarding --limit 1 2>/dev/null
+```
+
+### 2. Phase 1 — Control Plane Configuration
 
 Use AskUserQuestion:
 
-```
-Which control plane setup do you want?
-- Local (recommended): Run the control plane on your machine (localhost:18889)
-- Remote: Connect to a shared team server
-- Offline: Use local file storage only (no control plane)
-```
+**Question**: "How would you like to connect wicked-garden?"
 
-### 3. Local Setup
+| Option | Description |
+|--------|-------------|
+| **Local (Recommended)** | Run the control plane on your machine (localhost:18889). Best for solo development. |
+| **Remote** | Connect to a shared team server. Best for team collaboration. |
+| **Offline** | Local file storage only. No control plane needed. Features work but data stays on this machine. |
 
-If the user chose Local:
+#### 2.1 Local Setup
 
-1. Check if the control plane is already running:
+1. Check if CP is already running:
    ```bash
-   curl -s --connect-timeout 2 http://localhost:18889/health 2>/dev/null
+   curl -s --connect-timeout 2 http://localhost:18889/health
    ```
+2. If running, write config and proceed to Phase 2
 
-2. If not running, check if source is available:
+3. If NOT running, check if CP source exists in the plugin cache:
    ```bash
-   ls ~/Projects/wicked-viewer/package.json 2>/dev/null
+   ls ~/.claude/plugins/cache/wicked-control-plane/package.json 2>/dev/null
    ```
 
-3. If source exists, ask the user to confirm or change the path:
-   ```
-   Where is your wicked-viewer source? (default: ~/Projects/wicked-viewer)
-   ```
-
-4. If source exists but `node_modules/` is missing, install dependencies:
+4. If source NOT found, clone it:
    ```bash
-   cd {viewer_path} && pnpm install
+   git clone --depth 1 https://github.com/mikeparcewski/wicked-control-plane.git ~/.claude/plugins/cache/wicked-control-plane
+   ```
+   If clone fails (no network, no git), offer Offline mode as fallback via AskUserQuestion.
+
+5. Install dependencies if needed:
+   ```bash
+   CP_PATH=~/.claude/plugins/cache/wicked-control-plane
+   if [ ! -d "${CP_PATH}/node_modules" ]; then
+     cd "${CP_PATH}" && pnpm install
+   fi
    ```
 
-5. Start the full stack (backend on PORT=18889 + Vite frontend):
+6. Start the control plane:
    ```bash
-   cd {viewer_path} && PORT=18889 pnpm run dev &
+   cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev &
    ```
 
-6. Wait for backend health:
+7. Poll health (up to 15 seconds):
    ```bash
-   for i in $(seq 1 10); do
+   for i in $(seq 1 15); do
      curl -s --connect-timeout 1 http://localhost:18889/health 2>/dev/null && break
      sleep 1
    done
    ```
 
-7. Open the dashboard:
+8. Verify:
    ```bash
-   open http://localhost:5173
+   curl -s --connect-timeout 2 http://localhost:18889/health
    ```
+   If not responding, ask: "CP didn't start. Switch to offline mode or troubleshoot?"
 
-8. Verify connection:
-   ```bash
-   curl -s --connect-timeout 3 http://localhost:18889/health
-   ```
+9. Open dashboard: `open http://localhost:5173`
 
-9. Write config:
-   ```json
-   {
-     "endpoint": "http://localhost:18889",
-     "auth_token": null,
-     "api_version": "v1",
-     "mode": "local-install",
-     "viewer_path": "~/Projects/wicked-viewer",
-     "health_check_interval_seconds": 60,
-     "connect_timeout_seconds": 3,
-     "request_timeout_seconds": 10,
-     "setup_complete": true
-   }
-   ```
+10. Write config:
+    ```json
+    {
+      "endpoint": "http://localhost:18889",
+      "auth_token": null,
+      "api_version": "v1",
+      "mode": "local-install",
+      "viewer_path": "~/.claude/plugins/cache/wicked-control-plane",
+      "health_check_interval_seconds": 60,
+      "connect_timeout_seconds": 3,
+      "request_timeout_seconds": 10,
+      "setup_complete": true
+    }
+    ```
 
-   Use the actual `viewer_path` the user confirmed. Store with `~` prefix (not expanded).
+#### 2.2 Remote Setup
 
-### 4. Remote Setup
-
-If the user chose Remote:
-
-1. Ask for the endpoint URL using AskUserQuestion
+1. Ask for the endpoint URL
 2. Ask if authentication is needed; if yes, ask for the auth token
-3. Verify connection:
+3. Verify: `curl -s --connect-timeout 3 -H "Authorization: Bearer {token}" {endpoint}/health`
+4. Write config with `mode: "remote"`, the endpoint, and auth token
+
+#### 2.3 Offline Setup
+
+1. Write config with `mode: "offline"`, `endpoint: null`
+2. Show storage location:
    ```bash
-   curl -s --connect-timeout 3 -H "Authorization: Bearer {token}" {endpoint}/health
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden
    ```
-4. Write config with the remote endpoint, auth token, and `mode: "remote"`:
-   ```json
-   {
-     "endpoint": "{user-provided-endpoint}",
-     "auth_token": "{user-provided-token-or-null}",
-     "api_version": "v1",
-     "mode": "remote",
-     "health_check_interval_seconds": 60,
-     "connect_timeout_seconds": 3,
-     "request_timeout_seconds": 10,
-     "setup_complete": true
-   }
-   ```
+3. Tell the user: "Run `/wicked-garden:setup` later to connect to a control plane. Queued writes will sync automatically."
 
-### 5. Offline Setup
-
-If the user chose Offline:
-
-Write config:
-```json
-{
-  "endpoint": null,
-  "auth_token": null,
-  "api_version": "v1",
-  "mode": "offline",
-  "health_check_interval_seconds": 60,
-  "connect_timeout_seconds": 3,
-  "request_timeout_seconds": 10,
-  "setup_complete": true
-}
-```
-
-Show the user where their data will be stored:
-
-```markdown
-### Offline Storage
-
-All data is stored locally (paths resolved by StorageManager):
-- **Domain dir**: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden` → `~/.something-wicked/wicked-garden/local/wicked-garden/`
-- **Local root**: Parent of the domain dir → `~/.something-wicked/wicked-garden/local/`
-- **Sync queue**: `{local_root}/_queue.jsonl` (operations pending sync)
-- **Failed replays**: `{local_root}/_queue_failed.jsonl`
-
-Data is organized by domain (crew, kanban, mem, etc.) under the local root.
-When you connect to a control plane later, queued operations will sync automatically.
-```
-
-List any existing subdirectories under the local storage path.
-
-Re-run `/wicked-garden:setup` to connect later.
-
-### 6. Verify and Report
-
-After writing config, verify by loading it back and report:
-
-```markdown
-## Setup Complete
-
-**Mode**: {Local | Remote | Offline}
-**Endpoint**: {url or "none (offline)"}
-**Status**: Connected / Offline
-
-### Available Domains
-- Search: {connected/offline}
-- Memory: {connected/offline}
-- Kanban: {connected/offline}
-- Crew: {connected/offline}
-- Jam: {connected/offline}
-- Delivery: {connected/offline}
-- Agents: {connected/offline}
-
-Run `/wicked-garden:setup` again to reconfigure at any time.
-```
-
-### 7. Auto-trigger Onboarding
-
-After setup is confirmed, check if the current project has been onboarded:
-
-```bash
-SEARCH_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-search)
-python3 -c "from pathlib import Path; print('indexed' if (Path('${SEARCH_ROOT}') / 'unified_search.db').exists() else 'not-indexed')"
-```
-
-If not indexed, immediately run:
+#### 2.4 Confirm
 
 ```
-/wicked-garden:smaht:onboard
+Control plane configured!
+Mode: {Local | Remote | Offline}
+Endpoint: {url or "none (offline)"}
+Status: {Connected | Offline}
 ```
 
-Do not ask for confirmation — onboarding is the expected next step after setup.
+### 3. Phase 2 — Codebase Onboarding
 
-Note: On subsequent session starts, the bootstrap hook will auto-start the control plane (local mode), open the browser, and trigger onboarding if needed — no manual steps required.
+Use AskUserQuestion:
+
+**Question**: "What kind of onboarding would you like for this codebase?"
+
+| Option | Description |
+|--------|-------------|
+| **Full onboarding (Recommended)** | Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes. |
+| **Quick scout** | Fast reconnaissance without indexing. Gives you the lay of the land in seconds. |
+| **Skip for now** | Skip onboarding. You can run `/wicked-garden:setup` later to onboard. |
+
+#### 3.1 Full Onboarding
+
+Invoke the onboarding engine:
+
+```
+Skill(skill="wicked-garden:smaht:onboard")
+```
+
+This handles indexing, exploration, memory storage, and validation.
+
+#### 3.2 Quick Scout
+
+Run a fast scout:
+
+```
+Skill(skill="wicked-garden:search:scout")
+```
+
+Then store a basic onboarding memory:
+
+```
+Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} quick-scouted on {date}. Full onboarding not yet run.\" --type procedural --tags onboarding,{project}")
+```
+
+#### 3.3 Skip
+
+Store a skip memory so the bootstrap directive doesn't fire again:
+
+```
+Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} skipped by user on {date}. Run /wicked-garden:setup to onboard later.\" --type procedural --tags onboarding,{project}")
+```
+
+### 4. Done
+
+Show a summary:
+
+```
+wicked-garden is ready!
+
+Connection: {mode} ({endpoint or "offline"})
+Onboarding: {Full | Quick scout | Skipped}
+
+Quick start:
+- /wicked-garden:help — see all domains and commands
+- /wicked-garden:crew:start — start a project with crew workflow
+- /wicked-garden:engineering:review — code review
+- /wicked-garden:search:search "query" — search code and docs
+```
+
+## Graceful Degradation
+
+- If CP setup fails, offer offline as fallback
+- If onboarding indexing fails, fall back to quick scout
+- If memory store fails, still complete (just won't suppress future directives)
+- Never block the user from working — all failures offer alternatives

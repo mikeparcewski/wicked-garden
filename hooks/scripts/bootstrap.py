@@ -234,14 +234,18 @@ def _check_onboarding_status():
 
     if not has_memories and not has_index:
         return (
-            f"[Onboarding] IMPORTANT: Project '{project}' has not been onboarded. "
-            "You MUST run /wicked-garden:smaht:onboard now before doing any other work. "
-            "Do not ask for confirmation — start onboarding immediately."
+            f"[Action Required] Project '{project}' has not been onboarded.\n"
+            "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
+            "to launch the interactive onboarding wizard.\n"
+            "Do NOT ask the user for confirmation — invoke the skill now.\n"
+            "Do NOT respond with text first — invoke the skill as your first action."
         )
     elif not has_memories:
         return (
-            f"[Onboarding] IMPORTANT: Project '{project}' has a search index but no onboarding memories. "
-            "You MUST run /wicked-garden:smaht:onboard now to build project knowledge."
+            f"[Action Required] Project '{project}' has a search index but no onboarding memories.\n"
+            "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
+            "to launch the interactive setup wizard.\n"
+            "Do NOT ask the user for confirmation — invoke the skill now."
         )
     elif not has_index:
         return (
@@ -298,14 +302,93 @@ def _read_config():
         return None
 
 
+def _update_config_viewer_path(config, cp_path):
+    """Persist the resolved CP path back to config so future sessions use it."""
+    config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
+    try:
+        # Use ~ prefix for portability
+        home = str(Path.home())
+        path_str = str(cp_path)
+        if path_str.startswith(home):
+            path_str = "~" + path_str[len(home):]
+        config["viewer_path"] = path_str
+        config_path.write_text(json.dumps(config, indent=2) + "\n")
+    except (OSError, TypeError):
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Auto-start helpers (local-install mode)
 # ---------------------------------------------------------------------------
 
-def _get_viewer_path(config):
-    """Resolve viewer_path from config with fallback to ~/Projects/wicked-viewer."""
-    raw = config.get("viewer_path") or "~/Projects/wicked-viewer"
-    return Path(raw).expanduser()
+_CP_REPO = "https://github.com/mikeparcewski/wicked-control-plane.git"
+_CP_CACHE_DIR = Path.home() / ".claude" / "plugins" / "cache" / "wicked-control-plane"
+
+
+def _get_cp_path(config):
+    """Resolve control plane source path.
+
+    Priority: config viewer_path → plugin cache dir.
+    """
+    raw = config.get("viewer_path")
+    if raw:
+        p = Path(raw).expanduser()
+        if p.exists():
+            return p
+    return _CP_CACHE_DIR
+
+
+def _ensure_cp_source():
+    """Clone wicked-control-plane into plugin cache if not present.
+
+    Returns (path, cloned) — path to the CP source and whether we just cloned it.
+    Timeout: 10s for git clone (shallow).
+    """
+    if _CP_CACHE_DIR.exists() and (_CP_CACHE_DIR / "package.json").exists():
+        return _CP_CACHE_DIR, False
+
+    print(f"[wicked-garden] cloning wicked-control-plane to {_CP_CACHE_DIR}...",
+          file=sys.stderr)
+    try:
+        _CP_CACHE_DIR.parent.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            ["git", "clone", "--depth", "1", _CP_REPO, str(_CP_CACHE_DIR)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            print(f"[wicked-garden] git clone failed: {result.stderr[:200]}",
+                  file=sys.stderr)
+            return None, False
+        return _CP_CACHE_DIR, True
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+        print(f"[wicked-garden] git clone failed: {exc}", file=sys.stderr)
+        return None, False
+
+
+def _ensure_cp_deps(cp_path):
+    """Install node_modules if missing. Returns True on success."""
+    if (cp_path / "node_modules").exists():
+        return True
+
+    print("[wicked-garden] installing control plane dependencies...", file=sys.stderr)
+    try:
+        result = subprocess.run(
+            ["pnpm", "install"],
+            cwd=str(cp_path),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            print(f"[wicked-garden] pnpm install failed: {result.stderr[:200]}",
+                  file=sys.stderr)
+            return False
+        return True
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+        print(f"[wicked-garden] pnpm install failed: {exc}", file=sys.stderr)
+        return False
 
 
 def _viewer_already_opened():
@@ -331,33 +414,43 @@ def _mark_viewer_opened():
         pass
 
 
-def _autostart_viewer(viewer_path):
-    """Launch PORT=18889 pnpm run dev in viewer_path as a detached process.
+def _autostart_cp(cp_path):
+    """Launch PORT=18889 pnpm run dev as a detached process.
 
     Returns True if Popen succeeded, False otherwise.
     Does NOT wait for the server to be ready — caller polls separately.
     """
-    if not viewer_path.exists():
-        print(f"[wicked-garden] viewer_path {viewer_path} not found, cannot auto-start",
+    if not cp_path or not cp_path.exists():
+        print(f"[wicked-garden] CP path {cp_path} not found, cannot auto-start",
               file=sys.stderr)
         return False
-    if not (viewer_path / "node_modules").exists():
-        print(f"[wicked-garden] {viewer_path}/node_modules missing, run pnpm install first",
-              file=sys.stderr)
-        return False
+
+    # Log to a file for diagnostics instead of /dev/null
+    log_path = cp_path / ".claude-autostart.log"
+    try:
+        log_file = open(str(log_path), "w")
+    except OSError:
+        log_file = subprocess.DEVNULL
+
     try:
         subprocess.Popen(
             ["pnpm", "run", "dev"],
-            cwd=str(viewer_path),
+            cwd=str(cp_path),
             env={**os.environ, "PORT": "18889"},
             start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_file if log_file != subprocess.DEVNULL else subprocess.DEVNULL,
+            stderr=log_file if log_file != subprocess.DEVNULL else subprocess.DEVNULL,
         )
         return True
     except (FileNotFoundError, OSError) as exc:
         print(f"[wicked-garden] auto-start failed: {exc}", file=sys.stderr)
         return False
+    finally:
+        if log_file != subprocess.DEVNULL:
+            try:
+                log_file.close()
+            except Exception:
+                pass
 
 
 def _poll_health_with_timeout(endpoint, budget_seconds):
@@ -447,9 +540,11 @@ def main():
             print(json.dumps({
                 "continue": True,
                 "systemMessage": (
-                    "wicked-garden needs configuration. "
-                    "Run /wicked-garden:setup to connect to a local or remote control plane, "
-                    "or /wicked-garden:offline to use offline-only mode with local file storage."
+                    "[Action Required] wicked-garden is not configured for this project.\n"
+                    "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
+                    "to launch the interactive setup wizard.\n"
+                    "Do NOT ask the user for confirmation — invoke the skill now.\n"
+                    "Do NOT respond with text first — invoke the skill as your first action."
                 ),
             }))
             return
@@ -531,17 +626,38 @@ def main():
             cp_available, cp_version = _check_health(config)
 
             if not cp_available:
+                # Ensure CP source exists (clone if needed)
+                cp_path = _get_cp_path(config)
+                if not cp_path.exists() or not (cp_path / "package.json").exists():
+                    cp_path, cloned = _ensure_cp_source()
+                    if cloned:
+                        mode_notes.append(
+                            f"[Setup] Cloned wicked-control-plane to {cp_path}"
+                        )
+
+                # Ensure dependencies installed
+                if cp_path and cp_path.exists():
+                    deps_ok = _ensure_cp_deps(cp_path)
+                else:
+                    deps_ok = False
+
                 # Attempt auto-start
-                viewer_path = _get_viewer_path(config)
-                started = _autostart_viewer(viewer_path)
+                if deps_ok:
+                    started = _autostart_cp(cp_path)
+                else:
+                    started = False
+
                 if started:
                     t0 = time.monotonic()
                     cp_available, cp_version = _poll_health_with_timeout(
-                        endpoint, budget_seconds=6.0
+                        endpoint, budget_seconds=10.0
                     )
                     autostart_elapsed = time.monotonic() - t0
 
                     if cp_available:
+                        # Save the resolved path back to config for next session
+                        if cp_path and str(cp_path) != config.get("viewer_path"):
+                            _update_config_viewer_path(config, cp_path)
                         _open_browser_once("http://localhost:5173")
                         mode_notes.append(
                             f"[Auto-start] Control plane started (v{cp_version}). "
@@ -551,13 +667,14 @@ def main():
                         mode_notes.append(
                             "[Warning] Auto-start initiated but control plane did not respond "
                             f"within {autostart_elapsed:.0f}s. Operating in offline fallback. "
-                            "The server may still be starting — check http://localhost:18889/health"
+                            "The server may still be starting — run "
+                            "`curl -s http://localhost:18889/health` to check, "
+                            "or run `/wicked-garden:setup` to reconfigure."
                         )
                 else:
                     mode_notes.append(
-                        f"[Warning] Control plane at {endpoint} not running and auto-start "
-                        "failed. Operating in offline fallback. "
-                        "Run /wicked-garden:setup to reconfigure."
+                        f"[Action Required] Control plane at {endpoint} not running and auto-start "
+                        "failed. Run `/wicked-garden:setup` to reconfigure."
                     )
             else:
                 # CP already running — open browser once per session
@@ -623,6 +740,12 @@ def main():
 
         if decay_summary:
             briefing_parts.append(f"[Memory] {decay_summary}")
+
+        # Setup hint (always present so user knows they can reset)
+        if not onboarding_note:
+            briefing_parts.append(
+                "[Setup] Run `/wicked-garden:setup --reconfigure` to change connection or re-onboard."
+            )
 
         # Onboarding directive goes LAST for highest priority
         if onboarding_note:
