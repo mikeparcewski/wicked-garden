@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.2] - 2026-03-02
+
+### Bug Fixes
+- fix: setup enforcement gate now actually blocks prompts (a891858)
+
 ## [1.5.1] - 2026-03-02
 
 ### Bug Fixes
