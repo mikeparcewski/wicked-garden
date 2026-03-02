@@ -84,45 +84,28 @@ EOF
    /wicked-garden:search:search password
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-1. `/docs password` returns ONLY documentation results:
-   - api-spec.md: password field in request body
-   - security-policy.md: Password Requirements section
-   - security-policy.md: Password Storage section
-
-2. Code files (users.py) are NOT included in results
-
-3. Results show:
-   - Relevant document sections with context
-   - Section headers (e.g., "Password Requirements")
-   - Snippet of surrounding content
-
-4. `/search password` returns both for comparison
+- Docs-only search returns results exclusively from documentation files (.md), not code (.py)
+- Both api-spec.md and security-policy.md are found
+- Multiple relevant sections from security-policy.md appear (Password Requirements, Password Storage)
+- Section headers included for navigational context
+- Unified search returns both code and doc results, confirming the filter works
 
 ## Success Criteria
 
-- [ ] Only documentation files returned (no .py files)
+- [ ] Docs-only search excludes code files (users.py not in results)
 - [ ] Both api-spec.md and security-policy.md found
-- [ ] Multiple sections from security-policy.md shown
-- [ ] Section headers included for context
-- [ ] users.py excluded from docs-only results
-- [ ] Results show surrounding context from documents
+- [ ] Multiple sections from security-policy.md returned (requirements and storage)
+- [ ] Section headers visible in results for context
+- [ ] Unified search returns both code and doc results for comparison
 
 ## Value Demonstrated
 
 **Problem solved**: When learning about system policies, architecture, or requirements, developers need to read specifications without being distracted by implementation details.
 
 **Why this matters**:
-- **Understanding requirements**: "What are the password rules?" → see policy doc, not code
+- **Understanding requirements**: "What are the password rules?" returns policy docs, not code
 - **Compliance review**: Find security policies without implementation noise
 - **Architecture decisions**: Read design docs without code references
 - **API design**: Review specs before looking at implementation
-
-Docs-only search is essential for:
-- New team members learning system design
-- Product managers reviewing requirements
-- Security auditors checking policies
-- Architects reviewing design documents
-
-Filtering out code lets you focus on the "what and why" before diving into the "how".

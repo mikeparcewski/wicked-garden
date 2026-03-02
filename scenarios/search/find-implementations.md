@@ -121,75 +121,41 @@ EOF
    /wicked-garden:search:impl "User Authentication"
    ```
 
-4. Verify bidirectional tracing - find docs for PaymentGateway:
+4. Find code implementing "Notification System":
+   ```
+   /wicked-garden:search:impl "Notification System"
+   ```
+
+5. Verify bidirectional tracing for PaymentGateway:
    ```
    /wicked-garden:search:refs PaymentGateway
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-1. **Indexing**:
-   - Spec document parsed into sections
-   - Code symbols extracted
-   - Cross-references detected between spec sections and code classes
-
-2. **Implementation search**:
-   - `/impl "Payment Processing"` returns:
-     - PaymentGateway class with methods
-     - StripeAdapter class
-     - payments.py file location
-
-   - `/impl "User Authentication"` returns:
-     - Authenticator class with methods
-     - TokenService class
-     - auth.py file location
-
-3. **Reference search**:
-   - `/refs PaymentGateway` returns spec.md with "Payment Processing" section
-   - Shows context: which section mentions this class
+- Spec document parsed into searchable sections (User Authentication, Payment Processing, Notification System)
+- Each spec section maps to the correct implementing classes and file locations
+- "Payment Processing" maps to PaymentGateway and StripeAdapter in payments.py
+- "User Authentication" maps to Authenticator and TokenService in auth.py
+- "Notification System" maps to NotificationService, EmailDispatcher, and PushDispatcher in notifications.py
+- Bidirectional tracing works: `/refs PaymentGateway` returns spec.md with the relevant section context
 
 ## Success Criteria
 
-- [ ] Spec document indexed and parsed into sections
-- [ ] All code symbols detected and indexed
+- [ ] Spec document indexed and parsed into distinct sections
 - [ ] `/impl "Payment Processing"` returns PaymentGateway and StripeAdapter
 - [ ] `/impl "User Authentication"` returns Authenticator and TokenService
-- [ ] `/impl "Notification System"` returns NotificationService and dispatchers
-- [ ] `/refs PaymentGateway` returns spec.md with context
-- [ ] Bidirectional tracing works: spec → code and code → spec
-- [ ] Multiple classes per section correctly linked
+- [ ] `/impl "Notification System"` returns NotificationService, EmailDispatcher, and PushDispatcher
+- [ ] `/refs PaymentGateway` returns spec.md showing the Payment Processing section
+- [ ] Multiple classes per spec section are correctly linked
+- [ ] Bidirectional tracing works (spec to code and code to spec)
 
 ## Value Demonstrated
 
-**Problem solved**: Requirements live in separate documents from code. Teams struggle to:
-- Verify that all requirements are implemented
-- Find which code implements a specific requirement
-- Update code when requirements change
-- Prove compliance during audits
+**Problem solved**: Requirements live in separate documents from code. Teams struggle to verify that all requirements are implemented, find which code implements a specific requirement, and prove compliance during audits.
 
 **Why this matters**:
-
-**Onboarding scenario**: New developer joins team
-- Reads: "Payment Processing" spec section
-- Runs: `/impl "Payment Processing"`
-- Sees: Exact classes and methods that implement it
-- Result: Understanding in minutes, not hours
-
-**Compliance scenario**: Auditor asks about authentication
-- Question: "Show me the authentication implementation"
-- Runs: `/impl "User Authentication"`
-- Shows: Complete implementation with file locations
-- Result: Instant compliance proof
-
-**Refactoring scenario**: Need to update payment processing
-- Runs: `/impl "Payment Processing"`
-- Gets: All classes involved
-- Runs: `/blast-radius PaymentGateway` (see next scenario)
-- Result: Safe, informed refactoring
-
-**Gap analysis**: Product manager reviews features
-- Checks each spec section with `/impl`
-- Identifies: Which requirements lack implementation
-- Result: Visibility into development progress
-
-The automatic linking means specifications and code stay connected with zero manual maintenance.
+- **Onboarding**: New developer reads spec section, instantly sees implementing code
+- **Compliance**: Auditor asks "Show me the authentication implementation", answer is instant
+- **Refactoring**: Need to update payment processing, find all involved classes immediately
+- **Gap analysis**: Check each spec section to identify unimplemented requirements

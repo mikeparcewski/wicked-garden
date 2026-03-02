@@ -72,39 +72,30 @@ EOF
    /wicked-garden:search:search cache
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-1. `/code cache` returns ONLY code results:
-   - CacheManager class with methods
-   - RedisCache class with methods
-   - cache.py and redis_cache.py files
-
-2. Documentation file (caching.md) is NOT included in results
-
-3. Results show:
-   - Class hierarchy (RedisCache extends CacheManager)
-   - Method signatures (get, set, invalidate, connect)
-   - File locations
-
-4. `/search cache` returns both code and docs for comparison
+- Code-only search returns results exclusively from code files (.py), not documentation (.md)
+- Both CacheManager and RedisCache classes are found
+- All methods discovered: get, set, invalidate, connect
+- Inheritance relationship between RedisCache and CacheManager is visible
+- File locations shown for each result
+- Unified search returns results from both code and docs, confirming the filter works
 
 ## Success Criteria
 
-- [ ] Only code files returned (no .md files)
+- [ ] Code-only search excludes documentation files (caching.md not in results)
 - [ ] Both cache.py and redis_cache.py found
-- [ ] All classes found: CacheManager, RedisCache
-- [ ] All methods shown: get, set, invalidate, connect
-- [ ] Class hierarchy visible (inheritance relationship)
-- [ ] caching.md excluded from code-only results
+- [ ] CacheManager and RedisCache classes discovered
+- [ ] All methods (get, set, invalidate, connect) appear in results
+- [ ] Inheritance relationship (RedisCache extends CacheManager) detected
+- [ ] Unified search returns both code and doc results for comparison
 
 ## Value Demonstrated
 
 **Problem solved**: When debugging or refactoring, developers need to find actual implementations, not documentation mentions. Unified search can return too many doc results when you just need code.
 
 **Why this matters**:
-- **Performance debugging**: "Find all cache implementations" → see actual classes, not discussion docs
-- **Refactoring**: Need to change cache API → find all cache classes quickly
-- **Code review**: "How many places use caching?" → count implementations, not docs
+- **Performance debugging**: "Find all cache implementations" returns actual classes, not discussion docs
+- **Refactoring**: Need to change cache API, find all cache classes quickly
+- **Code review**: "How many places use caching?" counts implementations, not docs
 - **API exploration**: Discover available methods on cache classes
-
-Code-only search filters noise and shows implementation details like method signatures, inheritance, and file locations.

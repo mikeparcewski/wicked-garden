@@ -50,7 +50,7 @@ If this is a first run, configure the cost model and cadence:
 - Commentary sensitivity selection (Balanced recommended)
 - Rolling window selection (14 days recommended)
 - Aging threshold selection (7 days recommended)
-- Settings written to `~/.something-wicked/wicked-garden/local/wicked-delivery/settings.json`
+- Settings saved via `/wicked-garden:delivery:setup`
 
 Skip this step if settings already exist.
 
@@ -133,7 +133,7 @@ Run with output directory to save the reports:
 
 ## Success Criteria
 
-- [ ] `/wicked-delivery:setup` completes and writes settings to `~/.something-wicked/wicked-garden/local/wicked-delivery/`
+- [ ] `/wicked-garden:delivery:setup` completes and confirms settings saved
 - [ ] `/wicked-delivery:report` accepts CSV file path and processes it without errors
 - [ ] Default run generates 3 persona reports (Delivery Lead, Engineering Lead, Product Lead)
 - [ ] `--all` flag generates 6 persona reports

@@ -1,4 +1,13 @@
-# Scenario 6: Context7 External Documentation Integration
+---
+name: context7-integration
+title: "Context7 External Documentation Integration"
+description: Demonstrates automatic enrichment of context with external library docs via Context7
+type: integration
+difficulty: intermediate
+estimated_minutes: 10
+---
+
+# Context7 External Documentation Integration
 
 ## Overview
 
@@ -182,30 +191,9 @@ Demonstrates how wicked-smaht automatically enriches context with external libra
 
 ### Cache Warmup
 
-After several queries about React:
+After several queries about React, the Context7 adapter caches library IDs and query results locally. Each cached entry records the library ID, the original query, a timestamp, and the number of doc items returned.
 
-```
-~/.something-wicked/wicked-garden/local/wicked-smaht/cache/context7/
-├── index.json
-└── data/
-    ├── a1b2c3d4.json  # react + "useEffect hook fetch data"
-    ├── e5f6g7h8.json  # react + "cleanup in useEffect"
-    ├── i9j0k1l2.json  # swr + general query
-    └── ...
-```
-
-**index.json**:
-```json
-{
-  "a1b2c3d4": {
-    "library_id": "/facebook/react",
-    "query": "How do I use the useEffect hook in React to fetch data?",
-    "cached_at": "2025-01-15T10:30:00Z",
-    "item_count": 5
-  },
-  ...
-}
-```
+To verify cache behavior, use `/wicked-garden:smaht:debug` after a few library-related queries. The debug output shows which adapters returned cached results vs. fresh queries.
 
 ### TTL Expiration
 
@@ -359,12 +347,12 @@ If Context7 results are not helpful:
 1. Library mentioned in prompt?
 2. Context7 MCP integration installed?
 3. Check stderr for timeout/error messages
-4. Verify cache not corrupted: `ls ~/.something-wicked/wicked-garden/local/wicked-smaht/cache/context7/`
+4. Run `/wicked-garden:smaht:debug` to verify adapter status
 
 **Fix**:
 - Explicit library mention: "using React hooks"
 - Install wicked-garden with Context7
-- Clear cache if corrupted
+- Restart session to clear any stale cache state
 
 ### Wrong Library Detected
 
@@ -379,7 +367,7 @@ If Context7 results are not helpful:
 **Symptom**: Disk space usage
 **Expected**: ~10-20MB for 500 entries
 **Fix**: Cache auto-evicts oldest 10%
-**Manual**: Delete `~/.something-wicked/wicked-garden/local/wicked-smaht/cache/context7/`
+**Manual**: Restart session to reset cache state
 
 ---
 

@@ -111,42 +111,30 @@ EOF
    /wicked-garden:search:refs DataPipeline
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-1. Document parsed into searchable sections:
-   - Section 1: Authentication System
-   - Section 2: Data Processing Pipeline
-   - Section 3: Notification System
-
-2. Cross-references automatically detected:
-   - AuthService, GoogleAuth, GitHubAuth → auth.py
-   - DataPipeline, StreamHandler, RetryPolicy → pipeline.py
-   - EmailService, PushService, TwilioAdapter → notifications.py
-
-3. Bidirectional traceability:
-   - From requirement section → implementing classes
-   - From code class → which requirements mention it
+- Requirements document parsed into searchable sections (Authentication System, Data Processing Pipeline, Notification System)
+- Cross-references automatically detected between document mentions and code class definitions
+- "Authentication System" maps to AuthService, GoogleAuth, GitHubAuth in auth.py
+- "Data Processing" maps to DataPipeline, StreamHandler, RetryPolicy in pipeline.py
+- `/refs DataPipeline` returns requirements.txt showing the Data Processing section
+- Bidirectional traceability works: requirement sections to implementing classes and back
 
 ## Success Criteria
 
-- [ ] Document parsed and indexed successfully
-- [ ] All code symbols mentioned in document detected
-- [ ] `/impl "Authentication System"` returns auth.py classes
-- [ ] `/impl "Data Processing"` returns pipeline.py classes
-- [ ] `/refs DataPipeline` returns requirements.txt with context
-- [ ] Can trace any requirement section to its implementation
+- [ ] Requirements document parsed and indexed successfully
+- [ ] Code symbols mentioned in the document are detected as cross-references
+- [ ] `/impl "Authentication System"` returns AuthService, GoogleAuth, GitHubAuth
+- [ ] `/impl "Data Processing"` returns DataPipeline, StreamHandler, RetryPolicy
+- [ ] `/refs DataPipeline` returns requirements.txt with surrounding context
+- [ ] Bidirectional tracing works (requirement to code and code to requirement)
 
 ## Value Demonstrated
 
-**Problem solved**: Requirements live in Word/PDF documents disconnected from code. Developers can't easily:
-- Find which code implements a requirement
-- Verify that all requirements are implemented
-- Update docs when code changes
+**Problem solved**: Requirements live in Word/PDF documents disconnected from code. Developers cannot easily find which code implements a requirement, verify that all requirements are implemented, or update docs when code changes.
 
-**Why this matters**: Real-world scenarios:
-- **Onboarding**: New dev reads "Feature X spec" → instantly sees implementing code
-- **Compliance**: Auditor asks "Show me the code for requirement 2.3" → instant answer
+**Why this matters**:
+- **Onboarding**: New dev reads feature spec, instantly sees implementing code
+- **Compliance**: Auditor asks "Show me the code for requirement 2.3", answer is instant
 - **Refactoring**: Changing EmailService? See which requirements mention it
 - **Gap analysis**: Which requirements have no implementing code?
-
-The plugin extracts Office docs (PDF, Word, Excel, PowerPoint) and builds the knowledge graph automatically - no manual linking required.

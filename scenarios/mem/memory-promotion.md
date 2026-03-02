@@ -89,17 +89,12 @@ No additional plugins required. This scenario tests wicked-smaht's built-in cros
 
    **Expected**: Claude references the Redis decision from the session startup context. The answer comes from the injected session summary, not from wicked-mem.
 
-9. **Verify load_recent_sessions finds the past session**
-   ```bash
-   python3 -c "
-   import sys
-   sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts', 'smaht'))
-   from history_condenser import HistoryCondenser
-   sessions = HistoryCondenser.load_recent_sessions(max_sessions=3)
-   for s in sessions:
-       print(s.get('session_id', '?'), '|', s.get('decisions_made', []))
-   "
+9. **Verify past session decisions are surfaced in the new session**
    ```
+   /wicked-garden:mem:recall "redis caching postgres database"
+   ```
+
+   If the decisions were promoted to wicked-mem during the session, they appear here. If not, they are still visible via the startup context injected by the SessionStart hook — check the session preamble for a "Previous sessions:" section listing the decisions and topics from Session 1.
 
 ## Expected Outcome
 

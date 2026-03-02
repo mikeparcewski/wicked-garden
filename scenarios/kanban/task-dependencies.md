@@ -9,77 +9,88 @@ estimated_minutes: 5
 
 # Task Dependencies
 
-Test that task dependencies work correctly, showing blocked status when dependencies are incomplete.
+Test that task dependencies work correctly using Claude's native task tools, showing blocked status when dependencies are incomplete.
 
 ## Setup
 
-Create a project with tasks that have dependencies.
+No special setup needed beyond an active wicked-garden session.
 
 ## Steps
 
-1. **Create a project**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "API Development" -d "REST API implementation"
+1. **Create a foundation task**
+   Use `TaskCreate` to create the first task:
    ```
-   Note the project ID (e.g., PROJECT_ID).
-
-2. **Create the foundation task**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Design API schema" -p P0
+   TaskCreate(subject="Design API schema", description="Define REST API schema for endpoints")
    ```
-   Note this task's ID (e.g., SCHEMA_TASK_ID).
+   Note the task ID (e.g., SCHEMA_TASK_ID).
 
-3. **Create dependent tasks with --depends**
-   ```bash
-   # Endpoints depend on schema
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Implement endpoints" -p P1 --depends SCHEMA_TASK_ID
-
-   # Tests depend on endpoints (note the ENDPOINTS_TASK_ID from above)
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Write API tests" -p P1 --depends ENDPOINTS_TASK_ID
+2. **Create dependent tasks with blockedBy**
+   Use `TaskCreate` for the dependent task, then set up the dependency:
+   ```
+   TaskCreate(subject="Implement endpoints", description="Build REST endpoints based on schema")
+   ```
+   Then use `TaskUpdate` to set the dependency:
+   ```
+   TaskUpdate(taskId=ENDPOINTS_TASK_ID, addBlockedBy=[SCHEMA_TASK_ID])
    ```
 
-4. **Check blocking status**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID ENDPOINTS_TASK_ID --with-status
+3. **Create a third task blocked by the second**
    ```
-   Should show `is_blocked: true` with `blocking_details` listing the schema task.
-
-5. **Complete the schema task**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID SCHEMA_TASK_ID --swimlane done
+   TaskCreate(subject="Write API tests", description="Integration tests for all endpoints")
+   TaskUpdate(taskId=TESTS_TASK_ID, addBlockedBy=[ENDPOINTS_TASK_ID])
    ```
 
-6. **Verify endpoints task is now unblocked**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-task PROJECT_ID ENDPOINTS_TASK_ID --with-status
+4. **Verify the dependency chain**
+   Use `TaskList` to see the full task list with blocked/blocking relationships. The endpoints task should show as blocked by the schema task.
+
+5. **View the board to see the dependency context**
    ```
-   Should show `is_blocked: false` and empty `blocking_details`.
+   /wicked-garden:kanban:board-status
+   ```
+   Tasks should appear on the board with their status reflecting the dependency chain.
 
-7. **Modify dependencies on existing task**
-   ```bash
-   # Add another dependency
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TESTS_TASK_ID --add-depends SCHEMA_TASK_ID
-
-   # Remove a dependency
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TESTS_TASK_ID --remove-depends SCHEMA_TASK_ID
+6. **Complete the schema task to unblock the next**
+   ```
+   TaskUpdate(taskId=SCHEMA_TASK_ID, status="in_progress")
+   ```
+   Do the work, then:
+   ```
+   TaskUpdate(taskId=SCHEMA_TASK_ID, status="completed")
    ```
 
-## Expected Outcome
+7. **Verify the endpoints task is now unblocked**
+   Use `TaskList` or `TaskGet(taskId=ENDPOINTS_TASK_ID)` to confirm the blockedBy list is now empty (since the schema task is completed).
 
-- Dependencies are set correctly on tasks via `--depends` flag
-- Tasks with incomplete dependencies show `is_blocked: true`
-- `blocking_details` shows which tasks are blocking and their status
-- When a dependency is completed (moved to Done), dependent tasks become unblocked
-- Dependencies can be added/removed with `--add-depends` and `--remove-depends`
+8. **Work through the dependency chain**
+   ```
+   TaskUpdate(taskId=ENDPOINTS_TASK_ID, status="in_progress")
+   TaskUpdate(taskId=ENDPOINTS_TASK_ID, status="completed")
+   ```
+   Now the tests task should also be unblocked.
+
+9. **Final board state**
+   ```
+   /wicked-garden:kanban:board-status
+   ```
+   Shows 2 tasks done, 1 task now available to start.
+
+## Expected Outcomes
+
+- Dependencies are set correctly using TaskUpdate addBlockedBy
+- TaskList shows which tasks are blocked and what blocks them
+- Completing a dependency unblocks dependent tasks
+- Board status reflects the progression through the dependency chain
+- Work proceeds in the correct order (schema -> endpoints -> tests)
 
 ## Success Criteria
 
-- [ ] Dependencies can be set via `--depends` flag on create-task
-- [ ] Dependencies can be modified via `--depends`, `--add-depends`, `--remove-depends` on update-task
-- [ ] `get-task --with-status` shows is_blocked: true when dependencies are in non-complete swimlanes
-- [ ] blocking_details contains information about blocking tasks
+- [ ] Dependencies set via TaskUpdate addBlockedBy
+- [ ] TaskList/TaskGet shows blockedBy relationships
+- [ ] Blocked tasks cannot start until dependencies complete
 - [ ] Completing a dependency unblocks dependent tasks
+- [ ] Board status reflects the dependency chain progression
+- [ ] Full chain can be worked through in order
 
 ## Value Demonstrated
 
-Task dependencies help Claude understand what order work should be done. Blocked tasks can't be started until their dependencies are complete, preventing wasted effort on tasks that require prior work.
+Task dependencies help Claude understand what order work should be done. Blocked tasks cannot be started until their dependencies are complete, preventing wasted effort on tasks that require prior work. This is essential for complex development workflows where implementation depends on design, and testing depends on implementation.

@@ -1,142 +1,68 @@
 ---
 name: obs-contract-assert
-description: Verify that assert_contracts.py discovers and validates plugin schemas, reporting pass/fail counts
+description: Verify that the assert command discovers and validates plugin schemas, reporting pass/fail counts
 category: infra
 tags: [observability, contracts, schemas]
 tools:
-  required: [python3]
+  required: [slash-command]
 difficulty: intermediate
 timeout: 60
 ---
 
 # Observability Contract Assertions
 
-Validates that `assert_contracts.py` discovers the plugin's registered schemas, validates them
-against their targets, and reports a clean pass with 0 failures. Also confirms that a daily JSONL
-assertion log is written to `~/.something-wicked/wicked-garden/local/wicked-observability/assertions/`.
-Covers Layer 3 (contract assertions) of the observability stack.
+Validates that `/wicked-garden:observability:assert` discovers registered schemas, validates them
+against their targets, and reports a clean pass with 0 failures. Also confirms that assertion
+results are logged for audit purposes. Covers Layer 3 (contract assertions) of the observability
+stack.
 
 ## Setup
 
-```bash
-# Confirm the script exists before running steps
-if [ ! -f "scripts/observability/assert_contracts.py" ]; then
-  echo "FAIL: assert_contracts.py not found at scripts/observability/assert_contracts.py"
-  exit 1
-fi
-echo "OK: assert_contracts.py found"
-```
-
-**Expect**: Exit code 0, "OK: assert_contracts.py found"
+No setup required. The `/wicked-garden:observability:assert` command handles schema discovery
+and validation internally. Schemas must exist in `schemas/{plugin}/{script}.json` before assertions
+can run.
 
 ## Steps
 
-### Step 1: Run contract assertion against wicked-observability (python3)
+### Step 1: Run contract assertions against the observability domain
 
-```bash
-python3 scripts/observability/assert_contracts.py \
-  --plugin wicked-observability
+Invoke the assert command targeting the observability domain:
+
+```
+/wicked-garden:observability:assert --plugin wicked-garden
 ```
 
-**Expect**: Exit code 0, summary printed to stdout showing schemas passed and 0 failed
+**Expect**: The command completes without error and prints a summary of schemas validated.
 
-### Step 2: Assert output reports 3 schemas passed, 0 failed (python3)
+### Step 2: Verify all schemas pass with zero failures
 
-```bash
-python3 - <<'EOF'
-import subprocess, sys, re
+Examine the output from Step 1.
 
-result = subprocess.run(
-    ["python3", "scripts/observability/assert_contracts.py",
-     "--plugin", "wicked-observability"],
-    capture_output=True, text=True
-)
+**Expect**:
+- The summary shows at least 3 schemas passed
+- The summary shows 0 schemas failed
+- No violation details appear in the output (violations only print on failure)
 
-if result.returncode != 0:
-    print(f"FAIL: assert_contracts.py exited {result.returncode}")
-    print(result.stderr)
-    sys.exit(1)
+### Step 3: Run assertions in machine-readable mode and verify log persistence
 
-output = result.stdout + result.stderr
+Invoke the assert command again with JSON output:
 
-# Look for a summary line indicating pass/fail counts
-passed_match = re.search(r'(\d+)\s+passed', output, re.IGNORECASE)
-failed_match = re.search(r'(\d+)\s+failed', output, re.IGNORECASE)
-
-passed = int(passed_match.group(1)) if passed_match else None
-failed = int(failed_match.group(1)) if failed_match else 0
-
-if passed is None:
-    print("FAIL: could not parse passed count from output")
-    print(output[:800])
-    sys.exit(1)
-
-if passed < 3:
-    print(f"FAIL: expected at least 3 schemas passed, got {passed}")
-    print(output[:800])
-    sys.exit(1)
-
-if failed != 0:
-    print(f"FAIL: expected 0 schemas failed, got {failed}")
-    print(output[:800])
-    sys.exit(1)
-
-print(f"OK: {passed} schemas passed, {failed} failed")
-EOF
+```
+/wicked-garden:observability:assert --plugin wicked-garden --json
 ```
 
-**Expect**: Exit code 0, at least 3 schemas passed with 0 failures
+**Expect**:
+- The output is valid structured data (JSON) with per-script pass/fail results
+- Each result record includes a `schema` identifier and a `result` field
+- The command references or writes to a persistent assertion log for audit purposes
 
-### Step 3: Verify daily assertion JSONL log was written (python3)
+## Expected Outcomes
 
-```bash
-python3 - <<'EOF'
-import json, os, sys
-from datetime import date
-
-assertions_dir = os.path.expanduser("~/.something-wicked/wicked-garden/local/wicked-observability/assertions")
-today = date.today().strftime("%Y-%m-%d")
-log_path = os.path.join(assertions_dir, f"{today}.jsonl")
-
-if not os.path.exists(assertions_dir):
-    print(f"FAIL: assertions directory not found: {assertions_dir}")
-    sys.exit(1)
-
-if not os.path.exists(log_path):
-    # Accept any JSONL file in the directory if today's isn't present yet
-    files = [f for f in os.listdir(assertions_dir) if f.endswith(".jsonl")]
-    if not files:
-        print(f"FAIL: no JSONL files found in {assertions_dir}")
-        sys.exit(1)
-    log_path = os.path.join(assertions_dir, sorted(files)[-1])
-    print(f"NOTE: using most recent log file: {os.path.basename(log_path)}")
-
-with open(log_path) as f:
-    lines = [l.strip() for l in f if l.strip()]
-
-if not lines:
-    print(f"FAIL: assertion log is empty: {log_path}")
-    sys.exit(1)
-
-# Validate at least one record is parseable JSON
-try:
-    last = json.loads(lines[-1])
-except json.JSONDecodeError as e:
-    print(f"FAIL: last record is not valid JSON: {e}")
-    sys.exit(1)
-
-print(f"OK: {len(lines)} assertion record(s) in {os.path.basename(log_path)}")
-print(f"    last record schema={last.get('schema')!r}, result={last.get('result')!r}")
-EOF
-```
-
-**Expect**: Exit code 0, a JSONL file exists in
-`~/.something-wicked/wicked-garden/local/wicked-observability/assertions/` with at least one valid JSON record
+1. The assert command discovers all registered schemas for the target plugin and validates each one
+2. All schemas pass validation with 0 failures, confirming that plugin scripts return data matching their declared contracts
+3. Machine-readable output provides per-script results suitable for CI integration
+4. Assertion results are persisted as audit records so that regressions can be detected over time
 
 ## Cleanup
 
 Assertion logs are persistent audit records. No cleanup needed.
-
-```bash
-echo "No cleanup required — assertion logs are persistent audit records"
-```

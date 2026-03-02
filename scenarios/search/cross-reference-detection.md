@@ -98,115 +98,59 @@ EOF
 
 ## Steps
 
-1. **Index the project:**
+1. Index the project:
    ```
    /wicked-garden:search:index /tmp/wicked-xref-test
    ```
 
-2. **Check import relationships:**
+2. Find all references to UserRepository:
    ```
    /wicked-garden:search:refs UserRepository
    ```
-   Should show: user_service.py imports UserRepository
 
-3. **Check inheritance relationships:**
+3. Find all references to BaseRepository:
    ```
    /wicked-garden:search:refs BaseRepository
    ```
-   Should show: UserRepository inherits from BaseRepository
 
-4. **Check call relationships:**
+4. Find all references to log_operation:
    ```
    /wicked-garden:search:refs log_operation
    ```
-   Should show: get_by_id and find_active_users call log_operation
 
-5. **Check class-method (defines) relationships:**
+5. Find all references to get_by_id:
    ```
    /wicked-garden:search:refs get_by_id
    ```
-   Should show: UserRepository defines get_by_id
 
-6. **Check documentation cross-references:**
-   ```
-   /wicked-garden:search:refs BaseRepository
-   ```
-   Should also show: architecture.md documents BaseRepository
-
-7. **Find implementations from docs:**
+6. Find implementations for the Repository Layer doc section:
    ```
    /wicked-garden:search:impl "Repository Layer"
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-### Import Relationships:
-```
-user_repo.py --imports--> base.py
-user_repo.py --imports_symbol--> BaseRepository
-user_repo.py --imports_symbol--> log_operation
-user_service.py --imports--> user_repo.py
-user_service.py --imports_symbol--> UserRepository
-```
-
-### Inheritance Relationships:
-```
-UserRepository --inherits--> BaseRepository
-```
-
-### Call Relationships:
-```
-get_by_id --calls--> log_operation
-get_by_id --calls--> connect
-get_by_id --calls--> disconnect
-find_active_users --calls--> log_operation
-get_user --calls--> get_by_id
-list_active --calls--> find_active_users
-```
-
-### Defines Relationships:
-```
-BaseRepository --defines--> connect
-BaseRepository --defines--> disconnect
-UserRepository --defines--> get_by_id
-UserRepository --defines--> find_active_users
-UserService --defines--> get_user
-UserService --defines--> list_active
-```
-
-### Documentation References:
-```
-architecture.md --documents--> BaseRepository
-architecture.md --documents--> UserRepository
-architecture.md --documents--> UserService
-architecture.md --documents--> log_operation
-```
+- Import relationships detected: user_repo.py imports from base.py, user_service.py imports from user_repo.py
+- Inheritance detected: UserRepository extends BaseRepository
+- Call relationships detected: get_by_id calls log_operation, connect, disconnect; get_user calls get_by_id
+- Class-method (defines) relationships detected: BaseRepository defines connect/disconnect, UserRepository defines get_by_id/find_active_users
+- Documentation references detected: architecture.md mentions BaseRepository, UserRepository, UserService, log_operation
+- Bidirectional navigation works: code symbols link to docs and docs link back to code
 
 ## Success Criteria
 
-- [ ] Import relationships detected between files
-- [ ] Import symbol relationships link to specific classes/functions
-- [ ] Inheritance relationships detected (UserRepository → BaseRepository)
-- [ ] Call relationships detected within methods
-- [ ] Class-method (defines) relationships detected
-- [ ] Documentation references detected (backticks, function calls)
-- [ ] `/refs` shows all relationship types for a symbol
-- [ ] Bidirectional navigation works (code ↔ docs)
+- [ ] Import relationships detected between files (user_repo.py to base.py, user_service.py to user_repo.py)
+- [ ] Symbol-level import relationships link to specific classes and functions
+- [ ] Inheritance relationship detected (UserRepository extends BaseRepository)
+- [ ] Call relationships detected within methods (log_operation calls, connect/disconnect calls)
+- [ ] Class-method (defines) relationships detected for all classes
+- [ ] Documentation references detected from architecture.md to code symbols
+- [ ] `/refs` returns all relationship types for a given symbol
+- [ ] Bidirectional navigation works (code to docs and docs to code)
 
 ## Value Demonstrated
 
 **Problem solved**: Understanding code dependencies requires manual tracing through imports, inheritance chains, and call graphs. Documentation quickly becomes disconnected from actual code structure.
-
-**Relationship types detected automatically:**
-
-| Type | Example | Use Case |
-|------|---------|----------|
-| imports | file → file | Dependency analysis |
-| imports_symbol | file → class/function | Specific symbol usage |
-| inherits | class → class | Class hierarchy |
-| calls | function → function | Call graph analysis |
-| defines | class → method | Class structure |
-| documents | doc → code | Code-doc traceability |
 
 **Real-world applications:**
 - **Refactoring**: Know what breaks when you change a class

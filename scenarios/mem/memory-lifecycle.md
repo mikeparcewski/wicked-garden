@@ -62,18 +62,21 @@ Create memories with different characteristics to observe lifecycle behavior.
    ```
 
 3. **Check access tracking**
-   - Open the memory file directly or use stats
-   - Verify access_count increased
-   - Effective TTL should extend: `base_ttl * importance * (1 + access_count * 0.1)`
+   ```
+   /wicked-garden:mem:stats
+   ```
+
+   Verify the stats output shows increased access counts for the payment memory. Effective TTL extends with each access: `base_ttl * importance * (1 + access_count * 0.1)`
 
 4. **Simulate time passing** (manual test)
 
-   Option A: Manually edit memory files to simulate aging
-   - Navigate to `~/.something-wicked/memory/projects/[project]/episodic/`
-   - Edit frontmatter to set `created` date to 91 days ago for the low-importance memory
-   - Edit to 181 days ago for the regular episodic memory
+   Aging must be simulated since waiting for natural decay is impractical. Use `/wicked-garden:mem:forget` to manually archive the memories that would have expired, then verify the lifecycle transitions in the next step:
+   ```
+   /wicked-garden:mem:forget mem_[id-of-readme-memory]
+   /wicked-garden:mem:stats
+   ```
 
-   Option B: Wait for natural decay (impractical for testing)
+   Alternatively, wait for natural decay (impractical for automated testing).
 
 5. **Run cleanup/archival**
    ```

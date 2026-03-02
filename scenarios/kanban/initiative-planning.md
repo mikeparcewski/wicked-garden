@@ -9,117 +9,81 @@ estimated_minutes: 7
 
 # Initiative Planning
 
-Test initiative creation and management for time-boxed work.
+Test initiative creation and management for time-boxed work using kanban slash commands.
 
 ## Setup
 
-Create a project with several tasks ready for initiative assignment.
-
-```bash
-# Create project
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "Q1 Features" -d "First quarter development"
-# Note PROJECT_ID from output
-```
+No special setup needed beyond an active wicked-garden session.
 
 ## Steps
 
-1. **Add several tasks to the backlog**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "User dashboard" -p P1 -d "Interactive dashboard for user metrics"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "API rate limiting" -p P1 -d "Implement rate limiting middleware"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Email notifications" -p P2 -d "Send email alerts for important events"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Analytics dashboard" -p P2 -d "Admin dashboard for analytics"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Mobile responsive" -p P3 -d "Make UI responsive for mobile devices"
-   # Note DASHBOARD_TASK_ID, RATE_LIMIT_TASK_ID, EMAIL_TASK_ID, ANALYTICS_TASK_ID, MOBILE_TASK_ID
+1. **Name a session to create an initiative**
+   ```
+   /wicked-garden:kanban:name-session "Q1 Dashboard Sprint"
+   ```
+   This creates an initiative that groups related tasks together.
+
+2. **Add several tasks to the backlog**
+   ```
+   /wicked-garden:kanban:new-task "User dashboard" --project "Q1 Features" --priority P1
+   /wicked-garden:kanban:new-task "API rate limiting" --project "Q1 Features" --priority P1
+   /wicked-garden:kanban:new-task "Email notifications" --project "Q1 Features" --priority P2
+   /wicked-garden:kanban:new-task "Analytics dashboard" --project "Q1 Features" --priority P2
+   /wicked-garden:kanban:new-task "Mobile responsive" --project "Q1 Features" --priority P3
    ```
 
-2. **Create an initiative for the next two weeks**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-initiative PROJECT_ID "Initiative 1" \
-     --start 2024-01-15 --end 2024-01-29 \
-     --goal "Complete core dashboard features"
-   # Note INITIATIVE_ID from output
+3. **View the board to see the initiative's backlog**
+   ```
+   /wicked-garden:kanban:board-status
+   ```
+   All tasks should appear under the "Q1 Features" project, grouped by the initiative.
+
+4. **Work through the initiative tasks**
+   Start the first P1 task using `TaskUpdate` (status: `in_progress`).
+   Add a progress comment:
+   ```
+   /wicked-garden:kanban:comment PROJECT_ID DASHBOARD_TASK_ID "Implementing chart components for user metrics"
+   ```
+   Complete the task using `TaskUpdate` (status: `completed`).
+
+5. **Continue with the second P1 task**
+   Use `TaskUpdate` to start the rate limiting task (`in_progress`), then complete it (`completed`).
+
+6. **Check board progress mid-initiative**
+   ```
+   /wicked-garden:kanban:board-status
+   ```
+   Should show 2 tasks done, 3 remaining in To Do. P1 tasks are completed first.
+
+7. **Add a summary comment about initiative progress**
+   ```
+   /wicked-garden:kanban:comment PROJECT_ID ANY_TASK_ID "Initiative progress: 2/5 tasks complete. Core dashboard features delivered. Remaining: notifications, analytics, mobile."
    ```
 
-3. **List initiatives to verify creation**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-initiatives PROJECT_ID
+8. **View final board state**
    ```
-   Initiative should be in "planning" status.
-
-4. **Assign high-priority tasks to the initiative**
-   ```bash
-   # Assign dashboard task to the initiative
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID DASHBOARD_TASK_ID --initiative INITIATIVE_ID
-
-   # Assign rate limiting task to the initiative
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID RATE_LIMIT_TASK_ID --initiative INITIATIVE_ID
+   /wicked-garden:kanban:board-status
    ```
+   Board shows the initiative's progress: completed P1 items and remaining P2/P3 backlog.
 
-5. **Verify tasks are assigned to initiative**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-tasks PROJECT_ID --initiative INITIATIVE_ID
-   ```
-   Should show only the two tasks assigned to the initiative.
+## Expected Outcomes
 
-6. **Activate the initiative**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-initiative PROJECT_ID INITIATIVE_ID --status active
-   ```
-
-7. **Work through initiative tasks**
-   ```bash
-   # Start first task
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID DASHBOARD_TASK_ID --swimlane in_progress
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID DASHBOARD_TASK_ID "Implementing chart components"
-
-   # Complete it
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID DASHBOARD_TASK_ID "abc123"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID DASHBOARD_TASK_ID --swimlane done
-
-   # Work on second task
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID RATE_LIMIT_TASK_ID --swimlane in_progress
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID RATE_LIMIT_TASK_ID "def456"
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID RATE_LIMIT_TASK_ID --swimlane done
-   ```
-
-8. **Complete the initiative**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-initiative PROJECT_ID INITIATIVE_ID --status completed
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-project-comment PROJECT_ID "Initiative 1 complete: Delivered dashboard and rate limiting"
-   ```
-
-9. **List initiatives to see history**
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-initiatives PROJECT_ID
-   ```
-   Should show Initiative 1 with "completed" status.
-
-10. **Get initiative details**
-    ```bash
-    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-initiative PROJECT_ID INITIATIVE_ID
-    ```
-    Should show initiative with goal, dates, and status.
-
-## Expected Outcome
-
-- Initiative created with goal and dates
-- Tasks can be assigned to initiatives via CLI
-- Initiative moves through statuses: planning -> active -> completed
-- Initiative provides time-boxed focus for work
-- Initiative history is preserved for retrospectives
+- Initiative created via name-session groups related tasks
+- Tasks are created with appropriate priorities (P1 for core, P2/P3 for nice-to-haves)
+- Work proceeds in priority order (P1 first, then P2, then P3)
+- Board status shows progress through the initiative
+- Comments document progress and decisions
+- Initiative provides a focused view of time-boxed work
 
 ## Success Criteria
 
-- [ ] Initiative created with start/end dates and goal
-- [ ] Initiative starts in "planning" status
-- [ ] Tasks can be assigned to initiative via `--initiative` flag
-- [ ] Tasks can be listed by initiative with `--initiative` filter
-- [ ] Initiative status updates correctly (planning -> active -> completed)
-- [ ] Multiple initiatives can exist in a project
-- [ ] Initiative list shows all initiatives with their statuses
-- [ ] Completed initiative preserves history for retrospectives
+- [ ] Initiative created via name-session command
+- [ ] Tasks grouped under the initiative's project
+- [ ] P1 tasks worked first, reflecting priority-based planning
+- [ ] Board status shows accurate progress (done vs remaining)
+- [ ] Comments provide narrative of initiative progress
+- [ ] Initiative history preserved for retrospectives
 
 ## Value Demonstrated
 
-Time-boxed initiatives help organize work into focused iterations with clear goals. Claude can help plan initiatives, assign tasks, and track progress against initiative goals entirely through the CLI.
+Time-boxed initiatives help organize work into focused iterations with clear goals. Claude can help plan initiatives, create prioritized tasks, and track progress against initiative goals. The session-naming feature connects Claude Code sessions to kanban initiatives, making it easy to see what was accomplished in each work session.

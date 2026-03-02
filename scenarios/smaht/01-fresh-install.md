@@ -60,13 +60,13 @@ Expected: Session starts cleanly. No hook failure notifications. The hook's job 
 
 ### 5. Verify Skills Are Available
 
-Check that root-level skills are present:
+Ask Claude Code to list available skills:
 
-```bash
-ls "${CLAUDE_PLUGIN_ROOT}/skills/"
+```
+/wicked-garden:help
 ```
 
-Expected — skills should include (among domain-scoped skills):
+Expected — the help output should list skills across domains, including root-level skills such as:
 - `agent-browser` — browser automation via agent-browser CLI
 - `ai-conversation` — multi-AI orchestration with kanban as shared memory
 - `codex-cli` — OpenAI Codex CLI integration for code review
@@ -79,31 +79,33 @@ Expected — skills should include (among domain-scoped skills):
 
 ### 6. Verify Skill Documentation Is Valid
 
-Spot-check a few skills for valid structure:
+Ask Claude about a specific skill to confirm it loads correctly:
 
-```bash
-head -15 "${CLAUDE_PLUGIN_ROOT}/skills/ai-conversation/SKILL.md"
-head -10 "${CLAUDE_PLUGIN_ROOT}/skills/codex-cli/SKILL.md"
-head -10 "${CLAUDE_PLUGIN_ROOT}/skills/runtime-exec/SKILL.md"
+```
+Tell me about the ai-conversation skill. What does it do?
 ```
 
-Expected: Each file starts with valid YAML frontmatter containing `name` and `description` fields, followed by skill content. No file should be empty or malformed.
+Expected: Claude responds with a description drawn from the skill's frontmatter and SKILL.md content, confirming the skill is loaded and well-formed. Repeat for one or two other skills (e.g., codex-cli, runtime-exec) to spot-check.
 
-### 7. Verify Hook Scripts Are Present
+### 7. Verify Hooks Are Active
 
-```bash
-ls "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/"
+Start a new session and confirm the SessionStart hook runs without error:
+
+```
+# Simply start a new Claude Code session
 ```
 
-Expected: Hook scripts present including `bootstrap.py`, `stop.py`, `post_tool.py`, etc.
+Expected: Session starts cleanly with no hook failure notifications. The SessionStart hook fires silently and completes within 2 seconds.
 
 ### 8. Verify Issue Reporting Command
 
-```bash
-cat "${CLAUDE_PLUGIN_ROOT}/commands/report-issue.md" | head -5
+Run the issue reporting command to confirm it is registered:
+
+```
+/wicked-garden:report-issue --help
 ```
 
-Expected: Command file exists with valid YAML frontmatter.
+Expected: Command is recognized and shows usage information or prompts for input.
 
 ### 9. Confirm Session Runs Normally
 
@@ -116,8 +118,8 @@ Expected: Hook fires again silently. Session starts identically to the first. Th
 - Plugin installs without errors
 - context7 MCP server is configured (bundled MCP server)
 - SessionStart hook fires and completes silently within 2 seconds
-- Root-level skills are installed and have valid YAML frontmatter
-- Hook scripts exist for session lifecycle management
+- Root-level skills are discoverable and load correctly
+- Hooks fire silently during session lifecycle
 - Subsequent sessions behave identically — no first-run vs. repeat-run difference in startup behavior
 
 ## Success Criteria
@@ -127,9 +129,9 @@ Expected: Hook fires again silently. Session starts identically to the first. Th
 - [ ] SessionStart hook fires without errors (no failure notification in Claude Code)
 - [ ] Hook completes within 2 seconds (no timeout)
 - [ ] No setup message, nag, or prompt displayed on session start
-- [ ] Root-level skills present: agent-browser, ai-conversation, codex-cli, gemini-cli, integration-discovery, issue-reporting, opencode-cli, runtime-exec, wickedizer
-- [ ] Each skill has valid YAML frontmatter with name and description
-- [ ] Hook scripts present in hooks/scripts/
+- [ ] Root-level skills discoverable via `/wicked-garden:help`: agent-browser, ai-conversation, codex-cli, gemini-cli, integration-discovery, issue-reporting, opencode-cli, runtime-exec, wickedizer
+- [ ] Skills load correctly when queried (frontmatter and content accessible)
+- [ ] Hooks fire silently on session start with no error notifications
 
 ## Value Demonstrated
 

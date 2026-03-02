@@ -57,7 +57,7 @@ EOF
    /wicked-garden:search:index /tmp/wicked-search-test
    ```
 
-2. Search for "authentication":
+2. Search for "authentication" across everything:
    ```
    /wicked-garden:search:search "authentication"
    ```
@@ -67,23 +67,21 @@ EOF
    /wicked-garden:search:stats
    ```
 
-## Expected Outcome
+## Expected Outcomes
 
-1. Indexer processes both `.py` and `.md` files
-2. Cross-references automatically detected:
-   - `AuthService` mention in docs → code class
-   - `authenticate_user` mention in docs → code method
-   - `create_session` mention in docs → code method
-3. Search returns unified results from both sources
-4. Results show file paths, symbol types, and context
+- Indexing completes without errors for both code and documentation files
+- Search results include matches from both auth.py and security.md
+- Cross-references detected between documentation mentions and code definitions (AuthService, authenticate_user, create_session)
+- Results show file locations, symbol types, and surrounding context
+- Stats reflect correct counts for indexed files and discovered symbols
 
 ## Success Criteria
 
 - [ ] Index completes without errors
-- [ ] Both auth.py and security.md are indexed
-- [ ] Cross-references link docs mentions to code definitions
-- [ ] Search returns results from both code (AuthService, authenticate_user) and docs (security.md)
-- [ ] Stats show correct file counts and symbol counts
+- [ ] Both auth.py and security.md appear in the index
+- [ ] Search returns results from code (AuthService class, authenticate_user method) and docs (security.md)
+- [ ] Cross-references link documentation mentions to code symbol definitions
+- [ ] Stats report accurate file and symbol counts
 
 ## Value Demonstrated
 

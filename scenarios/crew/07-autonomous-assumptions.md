@@ -44,14 +44,14 @@ Expected:
 3. Documents assumptions in the phase deliverables (objective.md, acceptance-criteria.md)
 4. Advances to build phase automatically
 
-### 3. Verify assumptions are tracked in project.json
+### 3. Verify assumptions are tracked
 
 ```bash
-cat ~/.something-wicked/wicked-garden/local/wicked-crew/projects/improve-search-results-page/project.json | python3 -m json.tool
+/wicked-garden:crew:status
 ```
 
 Expected:
-1. `project.json` contains an `assumptions` array
+1. Status output includes an assumptions section or assumption count
 2. Each assumption has `phase`, `assumption`, and `reason` fields
 3. At least 2-3 assumptions from the clarify phase
 
@@ -106,7 +106,7 @@ Expected:
 - [ ] Assumptions are reasonable given the vague description
 
 ### Assumption Tracking
-- [ ] project.json contains `assumptions` array during execution
+- [ ] Status output reports assumptions as they are made
 - [ ] Each assumption has phase, assumption, and reason fields
 - [ ] Final output includes "Assumptions Made" appendix
 
