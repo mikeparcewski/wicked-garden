@@ -11,12 +11,9 @@ Extends the cache infrastructure with cognitive memory types:
 All data flows through StorageManager("wicked-mem") which routes to the
 Control Plane when available and falls back to local JSON files.
 
-Sources:
-    episodic     — event-based memories
-    procedural   — how-to knowledge
-    decision     — choice rationales
-    preference   — user/agent preferences
-    working      — current session context
+All memory types are stored in a single "memories" source with a "type"
+field for filtering.  CP is the ID authority (#106) and stores provenance
+fields plus a metadata JSON blob for display-only fields (#107).
 """
 
 import json
@@ -52,16 +49,22 @@ class MemoryStatus(Enum):
 
 
 class Importance(Enum):
-    """Memory importance levels."""
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
+    """Memory importance levels. Values are integers for CP compatibility."""
+    LOW = 2
+    MEDIUM = 5
+    HIGH = 8
 
 
-class Scope(Enum):
-    """Memory scope."""
-    PROJECT = "project"
-    GLOBAL = "global"
+_IMPORTANCE_FROM_STR = {"low": 2, "medium": 5, "high": 8, "critical": 9}
+
+
+def _parse_importance(val) -> int:
+    """Parse importance from int or legacy string format."""
+    if isinstance(val, int):
+        return val
+    if isinstance(val, str):
+        return _IMPORTANCE_FROM_STR.get(val.lower(), 5)
+    return 5
 
 
 # Default TTLs by memory type (in days)
@@ -85,53 +88,44 @@ class Memory:
     title: str
     summary: str
     content: str
-    context: str  # When is this relevant
-    outcome: Optional[str] = None
 
-    # Authorship
-    author: str = "claude"  # user, claude, or agent
+    # Metadata (stored in CP metadata JSON blob)
+    context: str = ""           # When is this relevant
+    outcome: Optional[str] = None
+    related: List[str] = field(default_factory=list)
+
+    # Provenance (CP columns)
+    author: str = "claude"      # user, claude, or agent
     agent_id: Optional[str] = None
-    agent_type: Optional[str] = None
-    shared_with: List[str] = field(default_factory=lambda: ["all"])
+    source: str = "manual"      # auto, manual, hook
 
     # Lifecycle
     created: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
     accessed: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
     access_count: int = 0
-    accessed_by: List[str] = field(default_factory=list)
     ttl_days: Optional[int] = None
-    importance: str = "medium"  # Importance value
-    status: str = "active"  # MemoryStatus value
+    importance: int = 5         # Importance value (2=low, 5=medium, 8=high)
+    status: str = "active"      # MemoryStatus value
 
-    # Search & Linking
+    # Search
     tags: List[str] = field(default_factory=list)
-    related: List[str] = field(default_factory=list)
 
-    # Scope
-    scope: str = "project"  # Scope value
+    # Scope (project=None means global)
     project: Optional[str] = None
 
-    # Source
-    source: str = "manual"  # auto, manual, hook
+    # Session
     session_id: Optional[str] = None
 
 
 def generate_id() -> str:
-    """Generate a unique memory ID."""
-    return f"mem_{uuid.uuid4().hex[:12]}"
+    """Generate a unique memory ID (UUID)."""
+    return str(uuid.uuid4())
 
 
 class MemoryStore:
     """StorageManager-backed memory storage and operations."""
 
     def __init__(self, project: Optional[str] = None):
-        """
-        Initialize memory store.
-
-        Args:
-            project: Project name for project-scoped memories.
-                    If None, will try to detect from current directory.
-        """
         self.project = project or self._detect_project()
         self._sm = StorageManager("wicked-mem")
 
@@ -147,30 +141,63 @@ class MemoryStore:
         return None
 
     def _source_for_type(self, mem_type: str) -> str:
-        """Map memory type string to StorageManager source name."""
-        return {
-            "episodic": "episodic",
-            "procedural": "procedural",
-            "decision": "decision",
-            "preference": "preference",
-            "working": "working",
-        }.get(mem_type, "episodic")
+        """Return the CP source name. All types use a single 'memories' source."""
+        return "memories"
 
     def _memory_to_dict(self, memory: Memory) -> Dict:
-        """Convert Memory dataclass to a dict for storage."""
-        return asdict(memory)
+        """Convert Memory dataclass to a dict for CP storage.
+
+        Packs context/outcome/related into a 'metadata' JSON blob
+        (CP #107) and maps field names to CP schema.
+        """
+        d = {
+            "id": memory.id,
+            "type": memory.type,
+            "title": memory.title,
+            "summary": memory.summary,
+            "content": memory.content,
+            "author": memory.author,
+            "agent_id": memory.agent_id,
+            "source": memory.source,
+            "importance": memory.importance,
+            "status": memory.status,
+            "tags": memory.tags,
+            "project": memory.project,
+            "session_id": memory.session_id,
+            "ttl_days": memory.ttl_days,
+            "accessed_at": memory.accessed,
+            "access_count": memory.access_count,
+            "metadata": {
+                "context": memory.context,
+                "outcome": memory.outcome,
+                "related": memory.related,
+            },
+        }
+        return d
 
     def _dict_to_memory(self, data: Dict) -> Optional[Memory]:
-        """Convert a stored dict back to a Memory object."""
+        """Convert a stored dict back to a Memory object.
+
+        Handles both CP format (accessed_at, metadata blob) and
+        legacy local format (accessed, flat fields).
+        """
         if not data:
             return None
-        # Ensure numeric types
         access_count = data.get("access_count", 0)
         if isinstance(access_count, str):
             access_count = int(access_count)
         ttl_days = data.get("ttl_days")
         if isinstance(ttl_days, str):
             ttl_days = int(ttl_days)
+
+        # Unpack metadata blob (CP #107) or fall back to flat fields
+        metadata = data.get("metadata") or {}
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except (json.JSONDecodeError, TypeError):
+                metadata = {}
+
         try:
             return Memory(
                 id=data.get("id", generate_id()),
@@ -178,24 +205,20 @@ class MemoryStore:
                 title=data.get("title", "Untitled"),
                 summary=data.get("summary", ""),
                 content=data.get("content", ""),
-                context=data.get("context", ""),
-                outcome=data.get("outcome"),
+                context=metadata.get("context", data.get("context", "")),
+                outcome=metadata.get("outcome", data.get("outcome")),
+                related=metadata.get("related", data.get("related", [])),
                 author=data.get("author", "claude"),
                 agent_id=data.get("agent_id"),
-                agent_type=data.get("agent_type"),
-                shared_with=data.get("shared_with", ["all"]),
-                created=data.get("created", datetime.now(timezone.utc).isoformat() + "Z"),
-                accessed=data.get("accessed", datetime.now(timezone.utc).isoformat() + "Z"),
+                source=data.get("source", "manual"),
+                created=data.get("created_at", data.get("created", datetime.now(timezone.utc).isoformat() + "Z")),
+                accessed=data.get("accessed_at", data.get("accessed", datetime.now(timezone.utc).isoformat() + "Z")),
                 access_count=access_count,
-                accessed_by=data.get("accessed_by", []),
                 ttl_days=ttl_days,
-                importance=data.get("importance", "medium"),
+                importance=_parse_importance(data.get("importance", 5)),
                 status=data.get("status", "active"),
                 tags=data.get("tags", []),
-                related=data.get("related", []),
-                scope=data.get("scope", "project"),
                 project=data.get("project"),
-                source=data.get("source", "manual"),
                 session_id=data.get("session_id"),
             )
         except Exception:
@@ -213,7 +236,6 @@ class MemoryStore:
         outcome: Optional[str] = None,
         tags: List[str] = None,
         importance: Importance = Importance.MEDIUM,
-        scope: Scope = Scope.PROJECT,
         author: str = "claude",
         agent_id: Optional[str] = None,
         source: str = "manual",
@@ -231,16 +253,14 @@ class MemoryStore:
             author=author,
             agent_id=agent_id,
             importance=importance.value,
-            scope=scope.value,
-            project=self.project if scope == Scope.PROJECT else None,
+            project=self.project,
             tags=tags or [],
             ttl_days=DEFAULT_TTLS.get(type),
             source=source,
             session_id=session_id,
         )
 
-        source_name = self._source_for_type(memory.type)
-        self._sm.create(source_name, self._memory_to_dict(memory))
+        self._sm.create("memories", self._memory_to_dict(memory))
         return memory
 
     def recall(
@@ -248,36 +268,27 @@ class MemoryStore:
         query: Optional[str] = None,
         tags: Optional[List[str]] = None,
         type: Optional[MemoryType] = None,
-        scope: Optional[Scope] = None,
         limit: int = 10,
         include_archived: bool = False,
         all_projects: bool = False,
     ) -> List[Memory]:
         """Recall memories matching criteria."""
-        # Determine which sources to search
+        params = {}
         if type:
-            sources = [self._source_for_type(type.value)]
-        else:
-            sources = ["episodic", "procedural", "decision", "preference", "working"]
+            params["type"] = type.value
+        if query:
+            params["q"] = query
+        if not all_projects and self.project:
+            params["project"] = self.project
 
         memories = []
         seen_ids = set()
 
-        for src in sources:
-            params = {}
-            if query:
-                params["q"] = query
-            if not all_projects and self.project:
-                params["project"] = self.project
-            if scope:
-                params["scope"] = scope.value
-
-            records = self._sm.list(src, **params)
-            for record in records:
-                memory = self._dict_to_memory(record)
-                if memory and memory.id not in seen_ids:
-                    seen_ids.add(memory.id)
-                    memories.append(memory)
+        for record in self._sm.list("memories", **params):
+            memory = self._dict_to_memory(record)
+            if memory and memory.id not in seen_ids:
+                seen_ids.add(memory.id)
+                memories.append(memory)
 
         # Filter by tags
         if tags:
@@ -299,23 +310,19 @@ class MemoryStore:
     def search(self, pattern: str, path: Optional[str] = None,
                all_projects: bool = False) -> List[Memory]:
         """Search memories via StorageManager."""
-        sources = ["episodic", "procedural", "decision", "preference", "working"]
+        params = {"q": pattern}
+        if not all_projects and self.project:
+            params["project"] = self.project
+
         memories = []
         seen_ids: set = set()
-
-        for src in sources:
-            params = {"q": pattern}
-            if not all_projects and self.project:
-                params["project"] = self.project
-
-            records = self._sm.list(src, **params)
-            for record in records:
-                memory = self._dict_to_memory(record)
-                if memory and memory.status == MemoryStatus.ACTIVE.value:
-                    if memory.id not in seen_ids:
-                        seen_ids.add(memory.id)
-                        self._update_access(memory)
-                        memories.append(memory)
+        for record in self._sm.list("memories", **params):
+            memory = self._dict_to_memory(record)
+            if memory and memory.status == MemoryStatus.ACTIVE.value:
+                if memory.id not in seen_ids:
+                    seen_ids.add(memory.id)
+                    self._update_access(memory)
+                    memories.append(memory)
 
         return memories
 
@@ -330,49 +337,44 @@ class MemoryStore:
         seen_ids = set()
         query_lower = query.lower()
 
-        sources = ["episodic", "procedural", "decision", "preference", "working"]
-        for src in sources:
-            records = self._sm.list(src, q=query)
-            for record in records:
-                memory = self._dict_to_memory(record)
-                if not memory or memory.id in seen_ids:
-                    continue
-                if not include_archived and memory.status != MemoryStatus.ACTIVE.value:
-                    continue
+        for record in self._sm.list("memories", q=query):
+            memory = self._dict_to_memory(record)
+            if not memory or memory.id in seen_ids:
+                continue
+            if not include_archived and memory.status != MemoryStatus.ACTIVE.value:
+                continue
 
-                # Determine match type
-                match_type = None
-                if query_lower in memory.title.lower():
-                    match_type = "title"
-                elif any(query_lower in tag.lower() for tag in memory.tags):
-                    match_type = "tags"
-                elif query_lower in memory.summary.lower():
-                    match_type = "summary"
-                elif query_lower in memory.content.lower():
-                    match_type = "content"
-                elif query_lower in memory.context.lower():
-                    match_type = "context"
+            # Determine match type
+            match_type = None
+            if query_lower in memory.title.lower():
+                match_type = "title"
+            elif any(query_lower in tag.lower() for tag in memory.tags):
+                match_type = "tags"
+            elif query_lower in memory.summary.lower():
+                match_type = "summary"
+            elif query_lower in memory.content.lower():
+                match_type = "content"
+            elif query_lower in memory.context.lower():
+                match_type = "context"
 
-                if match_type:
-                    seen_ids.add(memory.id)
-                    results.append({
-                        "id": memory.id,
-                        "title": memory.title,
-                        "type": memory.type,
-                        "project": memory.project or "global",
-                        "match_type": match_type,
-                        "tags": memory.tags,
-                        "importance": memory.importance,
-                        "summary": memory.summary[:100] + "..." if len(memory.summary) > 100 else memory.summary,
-                        "access_count": memory.access_count,
-                    })
-                    if len(results) >= limit:
-                        break
-            if len(results) >= limit:
-                break
+            if match_type:
+                seen_ids.add(memory.id)
+                results.append({
+                    "id": memory.id,
+                    "title": memory.title,
+                    "type": memory.type,
+                    "project": memory.project or "global",
+                    "match_type": match_type,
+                    "tags": memory.tags,
+                    "importance": memory.importance,
+                    "summary": memory.summary[:100] + "..." if len(memory.summary) > 100 else memory.summary,
+                    "access_count": memory.access_count,
+                })
+                if len(results) >= limit:
+                    break
 
-        importance_order = {"high": 0, "medium": 1, "low": 2}
-        results.sort(key=lambda r: (importance_order.get(r["importance"], 1), -r["access_count"]))
+        # Sort by importance (higher = more important) then access count
+        results.sort(key=lambda r: (-r["importance"], -r["access_count"]))
         return results[:limit]
 
     def forget(self, memory_id: str, hard: bool = False) -> bool:
@@ -381,20 +383,17 @@ class MemoryStore:
         if not memory:
             return False
 
-        source_name = self._source_for_type(memory.type)
         if hard:
-            self._sm.delete(source_name, memory_id)
+            self._sm.delete("memories", memory_id)
         else:
-            self._sm.update(source_name, memory_id, {"status": MemoryStatus.ARCHIVED.value})
+            self._sm.update("memories", memory_id, {"status": MemoryStatus.ARCHIVED.value})
         return True
 
     def get(self, memory_id: str) -> Optional[Memory]:
         """Get a specific memory by ID."""
-        # Search all sources for the memory
-        for src in ["episodic", "procedural", "decision", "preference", "working"]:
-            record = self._sm.get(src, memory_id)
-            if record:
-                return self._dict_to_memory(record)
+        record = self._sm.get("memories", memory_id)
+        if record:
+            return self._dict_to_memory(record)
         return None
 
     def link(self, source_id: str, target_id: str) -> bool:
@@ -407,13 +406,15 @@ class MemoryStore:
 
         if target_id not in source_mem.related:
             source_mem.related.append(target_id)
-            src = self._source_for_type(source_mem.type)
-            self._sm.update(src, source_id, {"related": source_mem.related})
+            self._sm.update("memories", source_id, {
+                "metadata": {"context": source_mem.context, "outcome": source_mem.outcome, "related": source_mem.related},
+            })
 
         if source_id not in target_mem.related:
             target_mem.related.append(source_id)
-            src = self._source_for_type(target_mem.type)
-            self._sm.update(src, target_id, {"related": target_mem.related})
+            self._sm.update("memories", target_id, {
+                "metadata": {"context": target_mem.context, "outcome": target_mem.outcome, "related": target_mem.related},
+            })
 
         return True
 
@@ -424,28 +425,26 @@ class MemoryStore:
         archived = 0
         deleted = 0
 
-        for src in ["episodic", "procedural", "decision", "preference", "working"]:
-            records = self._sm.list(src)
-            for record in records:
-                memory = self._dict_to_memory(record)
-                if not memory:
-                    continue
+        for record in self._sm.list("memories"):
+            memory = self._dict_to_memory(record)
+            if not memory:
+                continue
 
-                if memory.status == MemoryStatus.ACTIVE.value:
-                    if self._should_archive(memory):
-                        self._sm.update(src, memory.id, {"status": MemoryStatus.ARCHIVED.value})
-                        archived += 1
+            if memory.status == MemoryStatus.ACTIVE.value:
+                if self._should_archive(memory):
+                    self._sm.update("memories", memory.id, {"status": MemoryStatus.ARCHIVED.value})
+                    archived += 1
 
-                elif memory.status == MemoryStatus.DECAYED.value:
-                    decayed_at = datetime.fromisoformat(memory.accessed.replace("Z", "+00:00"))
-                    if datetime.now(decayed_at.tzinfo) - decayed_at > timedelta(days=7):
-                        self._sm.delete(src, memory.id)
-                        deleted += 1
+            elif memory.status == MemoryStatus.DECAYED.value:
+                decayed_at = datetime.fromisoformat(memory.accessed.replace("Z", "+00:00"))
+                if datetime.now(decayed_at.tzinfo) - decayed_at > timedelta(days=7):
+                    self._sm.delete("memories", memory.id)
+                    deleted += 1
 
-                elif memory.status == MemoryStatus.ARCHIVED.value:
-                    accessed_at = datetime.fromisoformat(memory.accessed.replace("Z", "+00:00"))
-                    if datetime.now(accessed_at.tzinfo) - accessed_at > timedelta(days=30):
-                        self._sm.update(src, memory.id, {"status": MemoryStatus.DECAYED.value})
+            elif memory.status == MemoryStatus.ARCHIVED.value:
+                accessed_at = datetime.fromisoformat(memory.accessed.replace("Z", "+00:00"))
+                if datetime.now(accessed_at.tzinfo) - accessed_at > timedelta(days=30):
+                    self._sm.update("memories", memory.id, {"status": MemoryStatus.DECAYED.value})
 
         return {"archived": archived, "deleted": deleted}
 
@@ -454,7 +453,7 @@ class MemoryStore:
         if memory.ttl_days is None:
             return False
 
-        importance_mult = {"low": 0.5, "medium": 1.0, "high": 2.0}.get(memory.importance, 1.0)
+        importance_mult = max(0.5, memory.importance / 5.0)  # 2→0.5, 5→1.0, 8→1.6
         access_boost = 1 + (memory.access_count * 0.1)
         effective_ttl = memory.ttl_days * importance_mult * access_boost
 
@@ -466,9 +465,8 @@ class MemoryStore:
         """Update access timestamp and count."""
         memory.accessed = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         memory.access_count += 1
-        source_name = self._source_for_type(memory.type)
-        self._sm.update(source_name, memory.id, {
-            "accessed": memory.accessed,
+        self._sm.update("memories", memory.id, {
+            "accessed_at": memory.accessed,
             "access_count": memory.access_count,
         })
 
@@ -476,14 +474,11 @@ class MemoryStore:
 
     def list_projects(self) -> List[str]:
         """List all projects with memories."""
-        # Query all sources for distinct projects
         projects = set()
-        for src in ["episodic", "procedural", "decision", "preference", "working"]:
-            records = self._sm.list(src)
-            for record in records:
-                proj = record.get("project")
-                if proj:
-                    projects.add(proj)
+        for record in self._sm.list("memories"):
+            proj = record.get("project")
+            if proj:
+                projects.add(proj)
         return sorted(projects)
 
     def stats(self) -> Dict:
@@ -492,22 +487,18 @@ class MemoryStore:
             "total": 0,
             "by_type": {},
             "by_status": {},
-            "by_scope": {"project": 0, "global": 0},
             "by_tag": {},
         }
 
-        for src in ["episodic", "procedural", "decision", "preference", "working"]:
-            records = self._sm.list(src)
-            for record in records:
-                memory = self._dict_to_memory(record)
-                if not memory:
-                    continue
-                stats["total"] += 1
-                stats["by_type"][memory.type] = stats["by_type"].get(memory.type, 0) + 1
-                stats["by_status"][memory.status] = stats["by_status"].get(memory.status, 0) + 1
-                stats["by_scope"][memory.scope] = stats["by_scope"].get(memory.scope, 0) + 1
-                for tag in memory.tags:
-                    stats["by_tag"][tag] = stats["by_tag"].get(tag, 0) + 1
+        for record in self._sm.list("memories"):
+            memory = self._dict_to_memory(record)
+            if not memory:
+                continue
+            stats["total"] += 1
+            stats["by_type"][memory.type] = stats["by_type"].get(memory.type, 0) + 1
+            stats["by_status"][memory.status] = stats["by_status"].get(memory.status, 0) + 1
+            for tag in memory.tags:
+                stats["by_tag"][tag] = stats["by_tag"].get(tag, 0) + 1
 
         return stats
 
@@ -574,9 +565,10 @@ def main():
     parser.add_argument("--project", help="Project name")
     parser.add_argument("--limit", type=int, default=10, help="Result limit")
     parser.add_argument("--stale", action="store_true", help="Show only stale memories (30+ days)")
-    parser.add_argument("--importance", choices=["low", "medium", "high"], help="Importance level")
+    parser.add_argument("--importance", choices=["low", "medium", "high"],
+                        help="Importance level (low=2, medium=5, high=8)")
     parser.add_argument("--summary", help="Memory summary")
-    parser.add_argument("--all-projects", action="store_true", help="Search ALL projects (like kanban)")
+    parser.add_argument("--all-projects", action="store_true", help="Search ALL projects")
 
     args = parser.parse_args()
 
@@ -589,7 +581,8 @@ def main():
 
         mem_type = MemoryType(args.type or "episodic")
         tags = args.tags.split(",") if args.tags else []
-        importance = Importance(args.importance) if args.importance else Importance.MEDIUM
+        _importance_map = {"low": Importance.LOW, "medium": Importance.MEDIUM, "high": Importance.HIGH}
+        importance = _importance_map.get(args.importance, Importance.MEDIUM)
 
         memory = ms.store(
             title=args.title,
@@ -655,24 +648,15 @@ def main():
         print(f"Archived: {result['archived']}, Deleted: {result['deleted']}")
 
     elif args.operation == "review":
-        # Get all memories grouped by type
         from datetime import datetime, timezone, timedelta
 
-        all_memories = []
-        sources = ["episodic", "procedural", "decision", "preference", "working"]
-        for src in sources:
-            params = {}
-            if args.project:
-                params["project"] = args.project
-            records = ms._sm.list(src, **params)
-            for record in records:
-                memory = ms._dict_to_memory(record)
-                if memory and memory.status == MemoryStatus.ACTIVE.value:
-                    if args.type and memory.type != args.type:
-                        continue
-                    all_memories.append(memory)
+        all_memories = ms.recall(
+            type=MemoryType(args.type) if args.type else None,
+            limit=1000,
+            include_archived=False,
+            all_projects=not args.project,
+        )
 
-        # Calculate age for each memory
         now = datetime.now(timezone.utc)
         stale_threshold = now - timedelta(days=30)
 
@@ -701,7 +685,6 @@ def main():
             except:
                 continue
 
-        # Group by type
         by_type = {}
         for m in memories_data:
             t = m["type"]
@@ -709,7 +692,6 @@ def main():
                 by_type[t] = []
             by_type[t].append(m)
 
-        # Sort each group by access count
         for t in by_type:
             by_type[t].sort(key=lambda x: x["access_count"], reverse=True)
 
@@ -757,7 +739,6 @@ def main():
             print(f"Not found: {args.id}")
             return 1
 
-        # Build diff
         diff = {}
         if args.title:
             diff["title"] = args.title
@@ -766,10 +747,9 @@ def main():
         if args.tags:
             diff["tags"] = args.tags.split(",")
         if args.importance:
-            diff["importance"] = args.importance
+            diff["importance"] = _IMPORTANCE_FROM_STR.get(args.importance, 5)
 
-        source_name = ms._source_for_type(memory.type)
-        ms._sm.update(source_name, args.id, diff)
+        ms._sm.update("memories", args.id, diff)
         print(f"Updated: {args.id}")
 
     elif args.operation == "archive":

@@ -2,9 +2,11 @@
 name: brainstorming
 description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
-  Use when user wants to brainstorm, explore ideas, get feedback on concepts,
-  or run a focus group discussion. Handles idea capture, context gathering,
-  persona generation, round execution, and synthesis.
+  This skill should be used when the user wants to brainstorm, explore ideas,
+  get feedback on concepts, or run a focus group discussion.
+
+  Use when: "brainstorm this", "explore ideas", "get different perspectives",
+  "focus group", "what do you think about", "pros and cons"
 ---
 
 # Brainstorming Skill

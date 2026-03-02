@@ -1,12 +1,12 @@
 ---
 name: crew-qe-gate
 description: |
-  Shift-left QE analysis with quality gates.
-  Generate test scenarios, assess risks, analyze code quality.
-  Works standalone or integrated with wicked-crew.
+  Crew-integrated quality gates for phase transitions.
+  Runs QE checks at crew checkpoints (clarify, design, build) to validate
+  readiness before advancing. Works within wicked-crew workflow context.
 
-  Use when: "test strategy", "what should I test", "quality gate",
-  "test scenarios", "QE analysis", "should we build this", "does it work"
+  Use when: "crew quality gate", "phase gate check", "ready to advance",
+  "should we build this", "does it work", "crew QE checkpoint"
 ---
 
 # QE Strategy Skill

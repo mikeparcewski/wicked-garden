@@ -2,13 +2,11 @@
 name: control-plane
 description: |
   Interface guide for the wicked-control-plane — the persistence backend for all wicked-garden domains.
-  Covers discovery via manifest, endpoint schemas via detail, and the request pattern.
+  This skill should be used when the user needs to interact with the CP API,
+  discover endpoints, or debug CP connectivity.
 
-  Use this skill when:
-  - Building scripts or commands that need to read/write domain data
-  - Discovering what endpoints the CP exposes
-  - Understanding request/response schemas before making API calls
-  - Debugging CP connectivity or data issues
+  Use when: "control plane API", "CP endpoint", "how to store data", "CP connectivity",
+  "manifest discovery", "domain data persistence", "debug CP issue"
 ---
 
 # Control Plane Interface

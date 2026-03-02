@@ -1,12 +1,12 @@
 ---
 name: qe-strategy
 description: |
-  Shift-left QE analysis with quality gates.
-  Generate test scenarios, assess risks, create test plans, and automate test generation.
-  Enables faster delivery through early quality validation.
+  Shift-left QE strategy for test planning and quality analysis.
+  This skill should be used when the user needs test scenarios, risk assessment,
+  test plans, or coverage analysis outside of a crew workflow context.
 
-  Use when: "test strategy", "quality gate", "test scenarios", "shift-left testing",
-  "generate test plan", "what should we test", "test coverage", "risk assessment"
+  Use when: "test strategy", "what should I test", "test scenarios", "shift-left testing",
+  "generate test plan", "test coverage", "risk assessment", "how do I test this"
 ---
 
 # QE Strategy

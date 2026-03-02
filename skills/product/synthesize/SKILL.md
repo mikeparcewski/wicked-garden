@@ -1,9 +1,12 @@
 ---
 name: synthesize
 description: |
-  Generate actionable recommendations from customer voice insights. Use when
-  you need to translate analyzed feedback into product priorities, feature
-  recommendations, or strategic guidance based on customer needs.
+  Generate actionable recommendations from customer voice insights. This skill
+  should be used when the user needs to translate analyzed feedback into product
+  priorities, feature recommendations, or strategic guidance.
+
+  Use when: "what should we build", "product recommendations", "prioritize features",
+  "translate feedback to action", "feature priorities from feedback"
 ---
 
 # Synthesize Skill
