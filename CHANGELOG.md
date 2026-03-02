@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0] - 2026-03-02
+
+### Features
+- feat: write traces to control plane and improve onboarding re-detection (c3a0599)
+
+### Chores
+- release: wicked-garden v1.6.2 (47a035d)
+
 ## [1.6.2] - 2026-03-02
 
 ### Bug Fixes
