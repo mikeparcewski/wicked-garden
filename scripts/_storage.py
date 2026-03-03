@@ -77,7 +77,7 @@ _DEDUP_KEYS: dict[tuple[str, str], list[str]] = {
 # Valid modes
 # ---------------------------------------------------------------------------
 
-_VALID_MODES = frozenset({"remote", "local-install", "offline"})
+_VALID_MODES = frozenset({"remote", "local-install", "offline", "local-only"})
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +141,13 @@ class StorageManager:
             self._mode = "local-install"
         # Inject CP client into schema adapters for manifest_detail lookups
         _set_cp_client(self._cp)
+        # local-only mode: wire in SqliteStore, skip all CP/queue paths
+        if self._mode == "local-only":
+            from _sqlite_store import SqliteStore
+            db_path = _LOCAL_ROOT / "wicked-garden.db"
+            self._sqlite: Any = SqliteStore(str(db_path))
+        else:
+            self._sqlite = None
 
     # ------------------------------------------------------------------
     # Read operations
@@ -154,6 +161,12 @@ class StorageManager:
 
         Falls back to local storage if the CP request fails.
         """
+        if self._sqlite is not None:
+            records = self._sqlite.list(self._domain, source)
+            if params:
+                records = [r for r in records if _matches_params(r, params)]
+            return records
+
         if self._should_use_cp():
             result = self._cp.request(
                 self._domain, source, "list", params=params or None
@@ -177,6 +190,10 @@ class StorageManager:
         """
         search_params = {"q": q, **params}
 
+        if self._sqlite is not None:
+            limit = int(params.get("limit", 20))
+            return self._sqlite.search(q, domain=self._domain, limit=limit)
+
         if self._should_use_cp():
             result = self._cp.request(
                 self._domain, source, "search", params=search_params
@@ -197,6 +214,9 @@ class StorageManager:
 
         Falls back to local storage if the CP request fails.
         """
+        if self._sqlite is not None:
+            return self._sqlite.get(self._domain, source, id)
+
         if self._should_use_cp():
             result = self._cp.request(self._domain, source, "get", id=id)
             if result is not None:
@@ -223,6 +243,11 @@ class StorageManager:
         record = dict(payload)
         record.setdefault("created_at", _now())
         record.setdefault("updated_at", _now())
+
+        if self._sqlite is not None:
+            if "id" not in record:
+                record["id"] = str(uuid.uuid4())
+            return self._sqlite.create(self._domain, source, record["id"], record)
 
         if self._should_use_cp():
             cp_payload = _to_cp(self._domain, source, "create", dict(record))
@@ -262,6 +287,14 @@ class StorageManager:
         Returns:
             Updated record dict, or None if not found.
         """
+        if self._sqlite is not None:
+            existing = self._sqlite.get(self._domain, source, id)
+            if existing is None:
+                return None
+            existing.update(diff)
+            existing["updated_at"] = _now()
+            return self._sqlite.update(self._domain, source, id, existing)
+
         if self._should_use_cp():
             cp_diff = _to_cp(self._domain, source, "update", dict(diff))
             result = self._cp.request(
@@ -296,6 +329,9 @@ class StorageManager:
         Returns:
             True if the record was found and removed/marked deleted.
         """
+        if self._sqlite is not None:
+            return self._sqlite.delete(self._domain, source, id)
+
         if self._should_use_cp():
             result = self._cp.request(self._domain, source, "delete", id=id)
             # Also soft-delete locally.
@@ -511,6 +547,8 @@ class StorageManager:
         """
         if self._mode == "offline":
             return False
+        if self._mode == "local-only":
+            return False
         try:
             state = SessionState.load()
             return state.cp_available and not state.fallback_mode
@@ -613,6 +651,9 @@ class StorageManager:
         Stamps dedup_keys from _DEDUP_KEYS when available, so drain_queue()
         can skip duplicates on replay.
         """
+        if self._mode == "local-only":
+            return  # local-only: direct writes only, no queue
+
         entry: dict[str, Any] = {
             "queued_at": _now(),
             "domain": self._domain,

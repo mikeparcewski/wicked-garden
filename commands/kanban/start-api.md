@@ -4,7 +4,9 @@ description: Check the Control Plane status for dashboard integration
 
 # /wicked-garden:kanban:start-api
 
-The kanban data API is now served by the **wicked-control-plane** (CP) at `http://localhost:18889`. A separate server is no longer needed.
+> **Note**: In the default `local-only` mode, kanban data is stored in SQLite at `~/.something-wicked/wicked-garden/wicked-garden.db` — no server is needed. The CP integration below is experimental and only applies to `local-install` or `remote` modes.
+
+The kanban data API can be served by the **wicked-control-plane** (CP, experimental) at `http://localhost:18889`.
 
 ## Instructions
 
