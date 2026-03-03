@@ -170,7 +170,20 @@ This is the default and recommended path. No external process required.
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden
    ```
 
-3. Tell the user: "All data is stored locally in SQLite at the path above. Full search, lineage, and all domain features are available with no external process needed."
+3. Update session state to match new mode (critical for mid-session switches):
+   ```bash
+   python3 -c "
+   import sys, os
+   from pathlib import Path
+   sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+   from _session import SessionState
+   state = SessionState.load()
+   state.update(cp_available=False, fallback_mode=False, setup_complete=True)
+   print('Session state updated for local-only mode.')
+   "
+   ```
+
+4. Tell the user: "All data is stored locally in SQLite at the path above. Full search, lineage, and all domain features are available with no external process needed."
 
 #### 3.1 Local CP Setup *(experimental)*
 
@@ -238,12 +251,37 @@ This is the default and recommended path. No external process required.
     CONF
     ```
 
+After writing config, update session state for mid-session mode switches:
+    ```bash
+    python3 -c "
+    import sys, os
+    from pathlib import Path
+    sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+    from _session import SessionState
+    state = SessionState.load()
+    state.update(cp_available=True, fallback_mode=False, setup_complete=True)
+    print('Session state updated for local-install mode.')
+    "
+    ```
+
 #### 3.2 Remote Setup
 
 1. Ask for the endpoint URL (via AskUserQuestion "Other" in INTERACTIVE mode, or plain text prompt in PLAIN_TEXT mode). STOP and wait for the user's reply.
 2. Ask if authentication is needed; if yes, ask for the auth token (same question mode pattern).
 3. Verify: `curl -s --connect-timeout 3 -H "Authorization: Bearer {token}" {endpoint}/health`
 4. Write config with `mode: "remote"`, the endpoint, and auth token
+5. Update session state:
+   ```bash
+   python3 -c "
+   import sys, os
+   from pathlib import Path
+   sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+   from _session import SessionState
+   state = SessionState.load()
+   state.update(cp_available=True, fallback_mode=False, setup_complete=True)
+   print('Session state updated for remote mode.')
+   "
+   ```
 
 #### 3.3 Offline Setup
 
@@ -252,7 +290,19 @@ This is the default and recommended path. No external process required.
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden
    ```
-3. Tell the user: "Run `/wicked-garden:setup` later to connect to a control plane. Queued writes will sync automatically."
+3. Update session state:
+   ```bash
+   python3 -c "
+   import sys, os
+   from pathlib import Path
+   sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+   from _session import SessionState
+   state = SessionState.load()
+   state.update(cp_available=False, fallback_mode=True, setup_complete=True)
+   print('Session state updated for offline mode.')
+   "
+   ```
+4. Tell the user: "Run `/wicked-garden:setup` later to connect to a control plane. Queued writes will sync automatically."
 
 #### 3.4 Keep Current Connection
 
