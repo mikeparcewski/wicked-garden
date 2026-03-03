@@ -1,6 +1,6 @@
 ---
 description: Trace data lineage from source to sink (UI → DB or reverse)
-argument-hint: <symbol> [--direction upstream|downstream|both] [--depth N]
+argument-hint: "<symbol> [--direction upstream|downstream|both] [--depth N]"
 ---
 
 # /wicked-garden:search:lineage

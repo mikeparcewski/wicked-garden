@@ -36,6 +36,10 @@ def _emit_orchestrator_trace(entry: dict) -> None:
         state = SessionState.load()
         if not state.cp_available:
             return
+        # Stamp session_id onto the trace entry before sending
+        if "session_id" not in entry:
+            import os
+            entry["session_id"] = os.environ.get("CLAUDE_SESSION_ID", "default")
         client = ControlPlaneClient(hook_mode=True)
         client.request("observability", "traces", "create", payload=entry)
     except Exception:

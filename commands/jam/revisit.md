@@ -1,6 +1,6 @@
 ---
 description: Revisit a past brainstorm decision and record its outcome
-argument-hint: <topic or decision keyword>
+argument-hint: "<topic or decision keyword>"
 ---
 
 # /wicked-garden:jam:revisit

@@ -1,6 +1,6 @@
 ---
 description: Gather intelligent context from wicked-garden sources before responding
-argument-hint: [query] [--deep]
+argument-hint: "[query] [--deep]"
 ---
 
 # /wicked-garden:smaht:smaht
