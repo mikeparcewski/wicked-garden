@@ -297,11 +297,16 @@ def _update_cp_project_status(state: 'ProjectState', status: str) -> None:
     """Update the CP Projects entity status. Fire-and-forget.
 
     Silently returns if CP is unavailable or the project has no CP UUID.
+    CP ProjectStatus only allows "active" and "archived" — any other status
+    is mapped to "active" to avoid sending invalid values.
 
     Args:
         state: The current ProjectState (uses state.cp_project_id).
-        status: Status string, e.g. "active", "in_review", "completed", "archived".
+        status: Status string. Only "archived" maps to "archived"; all others
+                map to "active" (CP does not support phase-level statuses).
     """
+    # CP ProjectStatus contract: only "active" or "archived"
+    cp_status = "archived" if status == "archived" else "active"
     try:
         if not state.cp_project_id:
             return
@@ -316,7 +321,7 @@ def _update_cp_project_status(state: 'ProjectState', status: str) -> None:
         cp.request(
             "crew", "projects", "update",
             id=state.cp_project_id,
-            payload={"status": status},
+            payload={"status": cp_status},
         )
     except Exception:
         pass  # Fire-and-forget — never block on CP failure
@@ -562,6 +567,11 @@ def save_project_state(state: ProjectState) -> None:
     else:
         _sm.create("projects", data)
     logger.debug(f"Project state saved for {state.name}")
+
+    # Sync CP project status after local write succeeds (AC #153)
+    if state.cp_project_id:
+        archived = state.extras.get("archived", False)
+        _update_cp_project_status(state, "archived" if archived else "active")
 
 
 def can_transition(

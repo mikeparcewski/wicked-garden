@@ -416,9 +416,9 @@ class StorageManager:
             source: resource collection name, e.g. "projects", "memories"
 
         Returns:
-            dict with keys "synced", "skipped", "failed"
+            dict with keys "synced", "skipped", "failed", "errors"
         """
-        counts = {"synced": 0, "skipped": 0, "failed": 0}
+        counts: dict = {"synced": 0, "skipped": 0, "failed": 0, "errors": []}
 
         if not self._should_use_cp():
             print(
@@ -458,12 +458,13 @@ class StorageManager:
                 else:
                     counts["failed"] += 1
             except Exception as exc:
-                print(
+                err_msg = (
                     f"[StorageManager] sync_to_cp error for {self._domain}/{source} "
-                    f"id={record.get('id', '?')}: {exc}",
-                    file=sys.stderr,
+                    f"id={record.get('id', '?')}: {exc}"
                 )
+                print(err_msg, file=sys.stderr)
                 counts["failed"] += 1
+                counts["errors"].append(err_msg)
 
         return counts
 

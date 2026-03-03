@@ -31,7 +31,7 @@ def _emit_orchestrator_trace(entry: dict) -> None:
         import sys as _sys
         if str(scripts_root) not in _sys.path:
             _sys.path.insert(0, str(scripts_root))
-        from _control_plane import ControlPlaneClient
+        from _control_plane import get_client
         from _session import SessionState
         state = SessionState.load()
         if not state.cp_available:
@@ -40,7 +40,7 @@ def _emit_orchestrator_trace(entry: dict) -> None:
         if "session_id" not in entry:
             import os
             entry["session_id"] = os.environ.get("CLAUDE_SESSION_ID", "default")
-        client = ControlPlaneClient(hook_mode=True)
+        client = get_client(hook_mode=True)
         client.request("observability", "traces", "create", payload=entry)
     except Exception:
         pass
