@@ -1,0 +1,37 @@
+{
+  "$comment": "Contract schema for scripts/observability/plugin_status.py --health-check output",
+  "type": "object",
+  "required": ["plugin", "version", "status", "checked_at", "counts", "domains"],
+  "properties": {
+    "plugin": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["installed", "missing", "error"]
+    },
+    "checked_at": {
+      "type": "string"
+    },
+    "counts": {
+      "type": "object",
+      "required": ["domains", "commands", "agents", "skills", "hooks"],
+      "properties": {
+        "domains": { "type": "integer" },
+        "commands": { "type": "integer" },
+        "agents": { "type": "integer" },
+        "skills": { "type": "integer" },
+        "hooks": { "type": "integer" }
+      }
+    },
+    "domains": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
