@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.0] - 2026-03-02
+
+### Bug Fixes
+- fix: resolve 4 post-test-run issues (c17d4de)
+- fix(setup): update session state on mid-session mode switch (1e1e011)
+- fix(search): restore 8 scripts dropped during plugin consolidation (bb0711d)
+
+### Chores
+- release: wicked-garden v1.8.0 (ef45879)
+
 ## [1.8.0] - 2026-03-02
 
 ### Features
