@@ -1,6 +1,6 @@
 ---
 description: Build unified index for code and documents in a directory
-argument-hint: <path> [--derive] [--derive-all]
+argument-hint: "<path> [--derive] [--derive-all]"
 ---
 
 # /wicked-garden:search:index

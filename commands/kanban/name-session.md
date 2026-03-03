@@ -1,6 +1,6 @@
 ---
 description: Name the current session for better sprint/initiative organization
-argument-hint: <session-name>
+argument-hint: "<session-name>"
 ---
 
 # /wicked-garden:kanban:name-session

@@ -1,6 +1,6 @@
 ---
 description: Intelligent codebase onboarding using the wicked-garden ecosystem
-argument-hint: [path] [--skip-index] [--resume]
+argument-hint: "[path] [--skip-index] [--resume]"
 ---
 
 # /wicked-garden:smaht:onboard

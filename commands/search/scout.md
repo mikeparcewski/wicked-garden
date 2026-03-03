@@ -1,6 +1,6 @@
 ---
 description: Quick pattern reconnaissance for common code patterns (no index required)
-argument-hint: <pattern-type> [--path PATH]
+argument-hint: "<pattern-type> [--path PATH]"
 ---
 
 # /wicked-garden:search:scout

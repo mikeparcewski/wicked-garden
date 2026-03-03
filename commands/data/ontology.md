@@ -1,6 +1,6 @@
 ---
 description: Sample a dataset and recommend public or custom ontologies based on the data
-argument-hint: <file-path>
+argument-hint: "<file-path>"
 ---
 
 # /wicked-garden:data:ontology

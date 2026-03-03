@@ -1,6 +1,6 @@
 ---
 description: Show what context was assembled for recent turns
-argument-hint: [--turns N] [--state] [--json]
+argument-hint: "[--turns N] [--state] [--json]"
 ---
 
 # /wicked-garden:smaht:debug

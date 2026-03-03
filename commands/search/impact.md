@@ -1,6 +1,6 @@
 ---
 description: Analyze what would be affected by changing a symbol (reverse lineage)
-argument-hint: <symbol> [--depth N]
+argument-hint: "<symbol> [--depth N]"
 ---
 
 # /wicked-garden:search:impact

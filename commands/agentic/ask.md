@@ -1,6 +1,6 @@
 ---
 description: Ask questions about agentic patterns, frameworks, architectures, and best practices
-argument-hint: <question>
+argument-hint: "<question>"
 ---
 
 # /wicked-garden:agentic:ask
