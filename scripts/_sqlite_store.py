@@ -21,6 +21,66 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
+def _sanitize_fts_query(query: str) -> str:
+    """Sanitize a query string for FTS5 MATCH expressions.
+
+    FTS5's default tokenizer splits on hyphens, so a query like
+    ``wicked-garden`` is interpreted as ``wicked NOT garden``.
+    This function wraps any hyphenated token in double-quotes so
+    FTS5 treats it as a phrase query (adjacent tokens) instead.
+
+    Already-quoted terms are left untouched.
+
+    Note: This is NOT a general-purpose input sanitization layer.
+    Callers are internal plugin agents (memory recall, search commands),
+    not raw end-user input. FTS5 operators (OR, NOT, NEAR, column
+    filters) are intentionally preserved for advanced queries.
+    Malformed FTS5 expressions raise OperationalError, caught by
+    ``SqliteStore.search()`` which returns ``[]`` gracefully.
+
+    Examples:
+        "wicked-garden"          -> '"wicked-garden"'
+        "code-review deployment" -> '"code-review" deployment'
+        '"already quoted"'       -> '"already quoted"'
+        "plain search"           -> 'plain search'
+    """
+    if not query:
+        return query
+
+    tokens: list[str] = []
+    i = 0
+    chars = query
+
+    while i < len(chars):
+        # Pass through already-quoted phrases untouched
+        if chars[i] == '"':
+            end = chars.find('"', i + 1)
+            if end == -1:
+                # Unmatched quote — take rest of string as-is
+                tokens.append(chars[i:])
+                break
+            tokens.append(chars[i:end + 1])
+            i = end + 1
+        elif chars[i] in (' ', '\t', '\n'):
+            tokens.append(chars[i])
+            i += 1
+        else:
+            # Collect a non-whitespace, non-quoted token
+            j = i
+            while j < len(chars) and chars[j] not in (' ', '\t', '\n', '"'):
+                j += 1
+            token = chars[i:j]
+            # Wrap tokens with internal hyphens in double-quotes.
+            # Preserve leading-hyphen tokens (FTS5 NOT operator, e.g. "-bar")
+            # and FTS5 column filters (e.g. "title:foo-bar").
+            if '-' in token and not token.startswith('"') and not token.startswith('-') and ':' not in token:
+                token = f'"{token}"'
+            tokens.append(token)
+            i = j
+
+    return ''.join(tokens)
+
 _connections: dict[str, sqlite3.Connection] = {}
 
 _PRAGMAS = [
@@ -160,6 +220,7 @@ class SqliteStore:
 
     def search(self, query: str, domain: str | None = None, limit: int = 20) -> list[dict]:
         """FTS5 BM25-ranked full-text search, optionally scoped to a domain."""
+        safe_query = _sanitize_fts_query(query)
         try:
             if domain:
                 rows = self._conn.execute(
@@ -167,14 +228,14 @@ class SqliteStore:
                     "FROM records_fts JOIN records r ON r.rowid = records_fts.rowid "
                     "WHERE records_fts MATCH ? AND records_fts.domain=? "
                     "ORDER BY bm25(records_fts) LIMIT ?",
-                    (query, domain, limit),
+                    (safe_query, domain, limit),
                 ).fetchall()
             else:
                 rows = self._conn.execute(
                     "SELECT r.id, r.data, r.created_at, r.updated_at "
                     "FROM records_fts JOIN records r ON r.rowid = records_fts.rowid "
                     "WHERE records_fts MATCH ? ORDER BY bm25(records_fts) LIMIT ?",
-                    (query, limit),
+                    (safe_query, limit),
                 ).fetchall()
         except sqlite3.OperationalError as exc:
             logger.error("[SqliteStore] search %r: %s", query, exc)
@@ -208,5 +269,27 @@ if __name__ == "__main__":
         assert u and u["title"] == "v2"
         assert s.delete("wicked-mem", "memories", "id-001") is True
         assert s.get("wicked-mem", "memories", "id-001") is None
+
+        # Issue #178: hyphenated tags must not cause FTS5 tokenization errors
+        s.create("wicked-mem", "memories", "id-hyp", {
+            "title": "Hyphen test",
+            "content": "tags: wicked-garden code-review",
+            "tags": ["wicked-garden", "code-review"],
+        })
+        hits = s.search("wicked-garden", domain="wicked-mem")
+        assert hits and hits[0]["id"] == "id-hyp", f"hyphenated search miss: {hits}"
+        hits = s.search("code-review", domain="wicked-mem")
+        assert hits and hits[0]["id"] == "id-hyp", f"hyphenated search miss: {hits}"
+        # Also test mixed: hyphenated + normal term
+        hits = s.search("wicked-garden test", domain="wicked-mem")
+        assert any(h["id"] == "id-hyp" for h in hits), f"mixed search miss: {hits}"
+
+        # Verify _sanitize_fts_query edge cases
+        assert _sanitize_fts_query("wicked-garden") == '"wicked-garden"'
+        assert _sanitize_fts_query("plain search") == "plain search"
+        assert _sanitize_fts_query('"already-quoted"') == '"already-quoted"'
+        assert _sanitize_fts_query("code-review deployment") == '"code-review" deployment'
+        assert _sanitize_fts_query("") == ""
+
         s.close()
     print("All smoke tests passed.")

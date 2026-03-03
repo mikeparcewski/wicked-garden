@@ -34,7 +34,7 @@ from _storage import StorageManager
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-PLUGIN_ROOT = Path(__file__).parent.parent
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent  # scripts/observability/ → scripts/ → wicked-garden/
 SCHEMAS_DIR = PLUGIN_ROOT / "schemas"
 PLUGINS_ROOT = PLUGIN_ROOT.parent  # …/plugins/
 TIMEOUT_SECONDS = 10
@@ -166,15 +166,38 @@ def discover_schemas(plugin_filter: str | None = None) -> list[dict]:
 
 
 def _find_script(plugin_name: str, script_name: str) -> Path | None:
-    """Locate the target script in the plugin's scripts/ directory."""
-    candidate = PLUGINS_ROOT / plugin_name / "scripts" / f"{script_name}.py"
+    """Locate the target script in the plugin's scripts/ directory.
+
+    Checks the flat scripts/ directory first, then scripts/v2/, and finally
+    searches all subdirectories under scripts/ (e.g. scripts/observability/).
+    """
+    scripts_dir = PLUGINS_ROOT / plugin_name / "scripts"
+    target = f"{script_name}.py"
+
+    # Direct match: scripts/{script_name}.py
+    candidate = scripts_dir / target
     if candidate.exists():
         return candidate
 
     # Also check scripts/v2/ sub-directory (wicked-smaht pattern)
-    candidate_v2 = PLUGINS_ROOT / plugin_name / "scripts" / "v2" / f"{script_name}.py"
+    candidate_v2 = scripts_dir / "v2" / target
     if candidate_v2.exists():
         return candidate_v2
+
+    # Search all subdirectories under scripts/ (e.g. scripts/observability/)
+    if scripts_dir.is_dir():
+        matches = sorted(
+            m for m in scripts_dir.rglob(target)
+            if not any(p.startswith((".", "__")) or p == ".venv"
+                       for p in m.relative_to(scripts_dir).parts)
+        )
+        if len(matches) > 1:
+            logger.warning(
+                "[assert_contracts] Ambiguous script match for %s: %s — using first",
+                target, [str(m) for m in matches],
+            )
+        if matches:
+            return matches[0]
 
     return None
 

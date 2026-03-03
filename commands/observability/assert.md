@@ -10,7 +10,7 @@ Instructions:
 - Parse arguments: `--plugin {name}` for single plugin, `--json` for machine-readable
 - Run the assertion script inline:
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/assert_contracts.py" {args}
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/observability/assert_contracts.py" {args}
   ```
 - Display results: pass/fail per script, violation details for failures
 - Note: schemas must exist in `schemas/{plugin}/{script}.json` before assertions can run

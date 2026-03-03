@@ -25,7 +25,7 @@ export API_URL="https://httpbin.org"
 ### Step 1: Basic connectivity check (curl)
 
 ```bash
-curl -sf --max-time 10 "${API_URL}/get" -o /dev/null -w '%{http_code}'
+curl -sfL --max-time 10 "${API_URL}/get" -o /dev/null -w '%{http_code}'
 ```
 
 **Expect**: Exit code 0, HTTP 200 response
@@ -33,7 +33,7 @@ curl -sf --max-time 10 "${API_URL}/get" -o /dev/null -w '%{http_code}'
 ### Step 2: JSON response validation (curl)
 
 ```bash
-curl -sf --max-time 10 "${API_URL}/get" -H "Accept: application/json" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'url' in d, 'Missing url field'; print('OK: JSON valid with url field')"
+curl -sfL --max-time 10 "${API_URL}/get" -H "Accept: application/json" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'url' in d, 'Missing url field'; print('OK: JSON valid with url field')"
 ```
 
 **Expect**: Exit code 0, JSON parsed successfully with expected field

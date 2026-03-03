@@ -16,9 +16,14 @@ Usage:
 
 import json
 import sqlite3
+import sys
 from collections import defaultdict, deque
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
+
+# Import FTS5 query sanitizer from sibling scripts directory
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _sqlite_store import _sanitize_fts_query
 
 
 class UnifiedQueryEngine:
@@ -156,7 +161,7 @@ class UnifiedQueryEngine:
                       AND {excl}
                     ORDER BY rank
                     LIMIT ?
-                """, (query, *excl_params, target - len(results)))
+                """, (_sanitize_fts_query(query), *excl_params, target - len(results)))
 
                 for row in cursor.fetchall():
                     result = self._row_to_dict(row)
@@ -236,7 +241,7 @@ class UnifiedQueryEngine:
                       AND {excl}
                     ORDER BY rank
                     LIMIT ?
-                """, (query, *excl_params, limit - len(results)))
+                """, (_sanitize_fts_query(query), *excl_params, limit - len(results)))
 
                 for row in cursor.fetchall():
                     result = self._row_to_dict(row)
@@ -282,7 +287,7 @@ class UnifiedQueryEngine:
                       AND {excl}
                     ORDER BY rank
                     LIMIT ?
-                """, (query, *excl_params, limit - len(results)))
+                """, (_sanitize_fts_query(query), *excl_params, limit - len(results)))
 
                 for row in cursor.fetchall():
                     result = self._row_to_dict(row)
@@ -546,7 +551,9 @@ class UnifiedQueryEngine:
                 'layers': layers
             })
 
-        # Cross-category relationships
+        # Cross-category relationships.
+        # Include same-category edges when they cross domains (e.g. doc→code)
+        # so that doc→code edges within the same project are visible.
         cursor.execute("""
             SELECT
                 s1.category as from_category,
@@ -557,7 +564,7 @@ class UnifiedQueryEngine:
             JOIN symbols s2 ON r.target_id = s2.id
             WHERE s1.category IS NOT NULL
               AND s2.category IS NOT NULL
-              AND s1.category != s2.category
+              AND (s1.category != s2.category OR s1.domain != s2.domain)
             GROUP BY s1.category, s2.category
             HAVING count > 2
             ORDER BY count DESC
