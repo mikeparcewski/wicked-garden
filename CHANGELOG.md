@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.10.0] - 2026-03-02
+
+### Features
+- feat(kanban): add initiative command for crew-kanban integration (08b0b99)
+- feat(smaht): add context command for structured context package building (08b0b99)
+
+### Bug Fixes
+- fix(crew): resolve cross-domain script coupling — crew no longer calls kanban/smaht scripts directly (08b0b99)
+- fix(crew): fix broken `{CREW_PLUGIN_ROOT}` variable in execute.md (08b0b99)
+- fix(smaht): fix wrong path for context_package.py in debug.md (08b0b99)
+
+### Chores
+- chore: remove stale RELEASE-1.7.1.md and RELEASE-1.8.0.md (025aee2)
+
 ## [1.9.0] - 2026-03-02
 
 ### Bug Fixes
