@@ -15,14 +15,32 @@ wicked-garden bundles only context7. There is no atlassian MCP server in this pl
 
 ## Setup
 
-Ensure wicked-garden is installed and context7 is configured:
-
 ```bash
-# Verify plugin is installed
-claude plugin list | grep wicked-garden
+# Verify plugin root is available
+if [ -z "${CLAUDE_PLUGIN_ROOT}" ]; then
+  PLUGIN_DIR=$(find "${HOME}/.claude/plugins/cache" -name "plugin.json" -path "*/wicked-garden/*" 2>/dev/null | head -1 | xargs dirname 2>/dev/null | xargs dirname 2>/dev/null)
+  if [ -z "$PLUGIN_DIR" ]; then
+    PLUGIN_DIR="."
+  fi
+else
+  PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
+fi
+echo "PLUGIN_DIR=$PLUGIN_DIR"
 
-# Check context7 MCP configuration
-cat ~/.claude/mcp.json | grep -A 6 '"context7"'
+# Check context7 MCP configuration exists
+if [ -f "${HOME}/.claude/mcp.json" ]; then
+  python3 -c "
+import json
+cfg = json.load(open('${HOME}/.claude/mcp.json'))
+c7 = cfg.get('context7', {})
+if c7:
+    print('context7 configured:', json.dumps(c7, indent=2))
+else:
+    print('WARNING: context7 not configured in mcp.json')
+"
+else
+  echo "WARNING: ~/.claude/mcp.json not found"
+fi
 ```
 
 Expected context7 configuration:
@@ -34,6 +52,8 @@ Expected context7 configuration:
   "env": {}
 }
 ```
+
+Note: Steps 2-6 and 9 require a live Claude Code session with the context7 MCP server running. They test MCP tool invocation which cannot be simulated via CLI scripts. When running without a live session, these steps should be marked MANUAL.
 
 ## Steps
 

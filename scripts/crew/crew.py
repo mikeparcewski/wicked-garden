@@ -27,6 +27,7 @@ def list_projects(active_only: bool = False) -> dict:
         projects = [
             p for p in projects
             if not p.get("archived")
+            and not p.get("paused")
             and p.get("current_phase", "") not in ("complete", "done", "")
         ]
 
@@ -41,10 +42,11 @@ def find_active_project() -> dict:
     """
     projects = _sm.list("projects") or []
 
-    # Filter to active projects
+    # Filter to active projects (exclude archived, paused, and completed)
     active = [
         p for p in projects
         if not p.get("archived")
+        and not p.get("paused")
         and p.get("current_phase", "") not in ("complete", "done", "")
     ]
 

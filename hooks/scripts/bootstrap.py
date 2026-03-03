@@ -799,17 +799,32 @@ def main():
             _drain_queue()
 
         # 4b. Detect CP schema reset: CP available but empty while local data exists
+        #     Check crew/projects, mem/memories, and kanban/tasks for broader coverage
         cp_schema_reset_detected = False
         if cp_available and state is not None:
             try:
                 from _storage import StorageManager
-                sm = StorageManager("wicked-crew", hook_mode=True)
-                cp_projects = sm.list("projects") or []
-                if len(cp_projects) == 0:
-                    local_dir = Path.home() / ".something-wicked" / "wicked-crew" / "projects"
-                    if local_dir.exists() and any(local_dir.iterdir()):
-                        cp_schema_reset_detected = True
-                        state.update(cp_schema_reset_detected=True)
+                _reset_checks = [
+                    ("wicked-crew", "projects"),
+                    ("wicked-mem", "memories"),
+                    ("wicked-kanban", "tasks"),
+                ]
+                for _domain, _source in _reset_checks:
+                    try:
+                        _sm_check = StorageManager(_domain, hook_mode=True)
+                        _cp_records = _sm_check.list(_source) or []
+                        if len(_cp_records) == 0:
+                            _local_dir = (
+                                Path.home() / ".something-wicked"
+                                / "wicked-garden" / "local" / _domain / _source
+                            )
+                            if _local_dir.exists() and any(_local_dir.iterdir()):
+                                cp_schema_reset_detected = True
+                                break
+                    except Exception:
+                        continue
+                if cp_schema_reset_detected:
+                    state.update(cp_schema_reset_detected=True)
             except Exception:
                 pass
 

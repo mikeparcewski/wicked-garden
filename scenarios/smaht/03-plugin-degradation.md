@@ -19,16 +19,19 @@ Test with three different plugin availability scenarios:
 **Level 2 (Partial)**: Only wicked-mem installed
 **Level 1 (Standalone)**: No plugins installed
 
-For testing, we'll use a simple TypeScript project:
+Note: This scenario tests crew workflow degradation and requires a live Claude Code session with plugin install/uninstall capability. Steps use slash commands that cannot be simulated via CLI scripts alone. When running in isolation, the test project setup below can validate that the project environment is correct, but the integration tests (Tests 1-3) require live execution.
 
 ```bash
 # Create test project
-mkdir -p ~/test-wicked-crew/ts-api
-cd ~/test-wicked-crew/ts-api
+TEST_DIR="${TMPDIR:-/tmp}/test-wicked-crew-$$"
+mkdir -p "$TEST_DIR/ts-api/src"
+cd "$TEST_DIR/ts-api"
+echo "$TEST_DIR" > "${TMPDIR:-/tmp}/wicked-scenario-degrade-dir"
 
-# Initialize project
-npm init -y
-npm install --save-dev typescript @types/node
+# Initialize project (minimal, no npm needed for structural test)
+cat > package.json <<'EOF'
+{"name": "ts-api-test", "version": "1.0.0", "private": true}
+EOF
 
 # Create existing code
 cat > src/api.ts <<'EOF'
@@ -55,6 +58,8 @@ cat > tsconfig.json <<'EOF'
   }
 }
 EOF
+
+echo "Test project created at $TEST_DIR/ts-api"
 ```
 
 ## Steps
@@ -233,6 +238,16 @@ Note: All project data stored locally via file-based persistence
 - Loads project state from local storage
 - Shows current phase and status correctly
 - No data loss from lack of wicked-mem
+
+## Cleanup
+
+```bash
+TEST_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-degrade-dir" 2>/dev/null)
+if [ -n "$TEST_DIR" ] && [ -d "$TEST_DIR" ]; then
+  rm -rf "$TEST_DIR"
+fi
+rm -f "${TMPDIR:-/tmp}/wicked-scenario-degrade-dir"
+```
 
 ## Expected Outcome
 

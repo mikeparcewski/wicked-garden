@@ -41,7 +41,7 @@ For each scenario file:
    - **Bash commands**: Execute via Bash tool
    - **Mixed blocks**: Execute bash parts via Bash, slash parts via Skill, in order
    - **Prose-only steps**: Interpret and execute (see Prose Interpretation below)
-   - Record: status (PASS/FAIL/SKIPPED), duration, output snippet
+   - Record: status (PASS/FAIL/SKIPPED/MANUAL), duration, output snippet
 5. **Execute `## Cleanup`** section if present (always, even on failure)
 6. **Report results** in the standard format
 
@@ -71,7 +71,7 @@ If a slash command is on its own line in a code block, it's the primary action. 
 
 ## Verdict Rules
 
-- **Per-step**: PASS / FAIL based on above (SKIPPED only for missing external CLI tools)
+- **Per-step**: PASS / FAIL based on above (SKIPPED only for missing external CLI tools; MANUAL for truly non-automatable steps like visual UI inspection)
 - **Per-scenario**: All PASS → PASS, Any FAIL → FAIL
 - **Overall exit**: PASS=0, FAIL=1
 
@@ -92,7 +92,66 @@ If a slash command is on its own line in a code block, it's the primary action. 
 | {name} | prose | PASS | 1.5s | Verified field X = Y |
 ```
 
-## Prose Interpretation
+## Prose Step Decision Tree
+
+When a step has no fenced code block, classify it using this decision tree **in order** (first match wins):
+
+### 1. Slash Command Reference
+**Signal**: Step mentions `/wicked-garden:*` or `/wicked-*`
+**Action**: Extract the command and args, invoke via Skill tool.
+```
+Skill(skill="wicked-garden:{domain}:{command}", args="{args}")
+```
+**Example**: "Run `/wicked-garden:smaht:debug`" → `Skill(skill="wicked-garden:smaht:debug")`
+
+### 2. Prompt Submission
+**Signal**: Step says "send", "submit", "ask", "prompt", or quotes a user message to process
+**Action**: This is a user prompt to process through smaht. Run the orchestrator directly:
+```bash
+cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/orchestrator.py gather "the prompt text" --session "scenario-test-$$" --json
+```
+If the step is about routing only (not full context), use `route` instead of `gather`:
+```bash
+cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/orchestrator.py route "the prompt text" --json
+```
+
+### 3. Verification / Assertion
+**Signal**: Step says "verify", "check", "confirm", "expect", "should", "assert", "must"
+**Action**: Run the relevant status/debug command and check output against the expected condition.
+- For smaht state: `Skill(skill="wicked-garden:smaht:debug")` or read session files directly
+- For crew state: `Skill(skill="wicked-garden:crew:status")`
+- For memory: `Skill(skill="wicked-garden:mem:recall", args="query")`
+- For file content: Use Read/Grep tools to inspect the expected file
+- Parse the output and compare against the stated expectation. PASS if met, FAIL if not.
+
+### 4. Observation / Inspection
+**Signal**: Step says "observe", "look at", "inspect", "examine", "review"
+**Action**: Run the relevant debug/status command and capture its output for subsequent verification steps.
+- For smaht: `Skill(skill="wicked-garden:smaht:debug")`
+- For crew: `Skill(skill="wicked-garden:crew:status")`
+- For kanban: `Skill(skill="wicked-garden:kanban:board")`
+- For files/logs: Use Read tool on the specified path
+- Record the captured output as evidence for the step result.
+
+### 5. Session Lifecycle
+**Signal**: Step says "start a session", "open a new session", "begin a session", "session startup"
+**Action**: Run the bootstrap hook script directly:
+```bash
+echo '{"session_id": "scenario-test-'$$'"}' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bootstrap.py"
+```
+
+### 6. Fallback — Best Interpretation
+**Signal**: None of the above matched
+**Action**: Execute your best interpretation of the step. Analyze the prose for:
+- What action is being described (the verb)
+- What system/component is involved (the noun)
+- What the expected outcome is (after "expected", "should", "result")
+
+Then execute using the most appropriate tool (Bash, Skill, Read, Grep, Write).
+
+**NEVER mark as SKIPPED.** Use MANUAL only for steps that are truly non-automatable (e.g., "visually inspect UI in a browser with your eyes", "have a human review this"). Even UI checks can often be automated with `agent-browser snapshot` or `curl`.
+
+## Prose Interpretation Details
 
 Prose steps describe what to do and what to expect. You are a tester — figure out the action and verify the outcome. Never skip a step just because it lacks a fenced code block.
 

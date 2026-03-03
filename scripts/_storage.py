@@ -110,6 +110,53 @@ def drain_offline_queue(domain: str = "wicked-garden", *, hook_mode: bool = Fals
     return sm.drain_queue()
 
 
+def sync_all_to_cp() -> dict[str, dict]:
+    """Sync all local domain data to the control plane in dependency order.
+
+    Order:
+        1. wicked-crew/projects   (first, to establish CP UUIDs)
+        2. wicked-mem/memories
+        3. wicked-kanban/initiatives
+        4. wicked-kanban/tasks
+        5. wicked-jam/sessions
+
+    Returns:
+        Dict mapping "domain/source" to {"synced": N, "skipped": N, "failed": N}.
+        On CP unavailability, returns a single entry with an error note.
+    """
+    # Pre-check: is CP reachable?
+    try:
+        state = SessionState.load()
+        if not state.cp_available:
+            return {"error": {"synced": 0, "skipped": 0, "failed": 0,
+                              "note": "CP unavailable"}}
+    except Exception:
+        return {"error": {"synced": 0, "skipped": 0, "failed": 0,
+                          "note": "Could not load session state"}}
+
+    sync_plan: list[tuple[str, str]] = [
+        ("wicked-crew", "projects"),
+        ("wicked-mem", "memories"),
+        ("wicked-kanban", "initiatives"),
+        ("wicked-kanban", "tasks"),
+        ("wicked-jam", "sessions"),
+    ]
+
+    results: dict[str, dict] = {}
+    for domain, source in sync_plan:
+        try:
+            sm = StorageManager(domain)
+            counts = sm.sync_to_cp(source)
+            results[f"{domain}/{source}"] = counts
+        except Exception as exc:
+            results[f"{domain}/{source}"] = {
+                "synced": 0, "skipped": 0, "failed": 0,
+                "error": str(exc),
+            }
+
+    return results
+
+
 # ---------------------------------------------------------------------------
 # StorageManager
 # ---------------------------------------------------------------------------
