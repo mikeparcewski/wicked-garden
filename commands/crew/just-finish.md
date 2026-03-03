@@ -46,6 +46,36 @@ Include the context package output in ALL subagent Task() dispatches. If the com
 - Manage context through tools (TaskList, TaskGet, Read) — do NOT accumulate large working state in the main conversation
 - When in doubt, delegate to a subagent rather than doing work inline
 
+### 2.7 Fresh-Start Phase Dispatch
+
+**CRITICAL: Each phase MUST execute via a fresh `Task()` dispatch (subagent) so context does not accumulate across phases.** The main orchestrator loop stays lean and never carries forward phase-specific working state.
+
+The orchestrator loop for each phase:
+
+1. **Load project state** via phase_manager:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} status --json
+   ```
+
+2. **Dispatch the phase** as a fresh subagent via `Task()`. The subagent bootstraps its own context from persistent state rather than inheriting the orchestrator's conversation history. Include bootstrap instructions in the Task prompt so the subagent knows how to self-orient.
+
+3. **After the Task() returns**, the orchestrator verifies completion (deliverables exist, task counts met), runs checkpoint analysis if the phase has `checkpoint: true`, and approves the phase.
+
+**Context bootstrap order** (for the subagent to follow inside the Task):
+
+1. **Project metadata** — phase_manager status --json (current phase, signals, complexity, phase plan)
+2. **Outcome** — outcome.md (desired outcome, success criteria)
+3. **Prior phase deliverables** — read deliverables from the immediately preceding phase(s) in `phases/{prev-phase}/`
+4. **Task evidence** — TaskList filtered to project name for in-progress and completed tasks
+5. **Smaht context** — if available, `Skill(skill="wicked-garden:smaht:context", args="build --task \"...\" --project \"...\" --dispatch --prompt")` for ecosystem-wide context
+
+**Why fresh dispatch matters:**
+
+- Prevents context window bloat — each subagent starts with only the state it needs
+- Enables parallel phase execution for independent phases
+- Makes phase retries clean — a failed phase can be re-dispatched without leftover state
+- The orchestrator remains stateless and can always reconstruct progress from phase_manager + TaskList
+
 ### 3. Autonomy Mode
 
 In "just-finish" mode:

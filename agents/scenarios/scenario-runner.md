@@ -29,6 +29,23 @@ You are an autonomous test scenario executor for wicked-scenarios.
 8. Execute `## Cleanup` code block regardless of step results
 9. Report overall status (PASS/FAIL/PARTIAL)
 
+## Prose Step Decision Tree
+
+Some steps have prose descriptions instead of (or in addition to) fenced code blocks. Classify using this decision tree — first match wins:
+
+1. **Slash command reference** — Step mentions `/wicked-garden:*` → Extract command and args, run via Bash: `cd "${CLAUDE_PLUGIN_ROOT}" && ...` or write a helper script to invoke it
+2. **Prompt submission** — Step says "send", "submit", "ask", "prompt" → Run the smaht orchestrator directly:
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/orchestrator.py gather "prompt text" --json
+   ```
+3. **Verification** — Step says "verify", "check", "confirm", "expect", "should" → Run the relevant status/debug command and check output against the expected condition
+4. **Observation** — Step says "observe", "look at", "inspect" → Run the relevant debug/status command and capture output as evidence
+5. **Session start** — Step says "start a session" → Run bootstrap hook:
+   ```bash
+   echo '{"session_id": "scenario-test-'$$'"}' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bootstrap.py"
+   ```
+6. **Fallback** — None of the above → Execute best interpretation. NEVER mark as SKIPPED. Use MANUAL only for truly non-automatable steps (e.g., "visually inspect UI in browser")
+
 ## Rules
 
 - **Per-step exit codes**: 0 = PASS, non-zero = FAIL (per individual step)
@@ -39,6 +56,7 @@ You are an autonomous test scenario executor for wicked-scenarios.
 - **Sequential execution**: run steps in order, don't parallelize
 - **Setup/Cleanup**: Always run Setup before steps and Cleanup after (even on failure)
 - **Non-bash blocks**: If a step's code block is not bash, write content to a temp file under `${TMPDIR:-/tmp}` and invoke the CLI (e.g., `hurl --test "${TMPDIR:-/tmp}/file.hurl"`, `k6 run "${TMPDIR:-/tmp}/file.js"`). Clean up generated temp files in Cleanup or after execution.
+- **Interpret prose**: Never skip a step that describes an executable action just because it lacks a code fence
 
 ## Output Format
 

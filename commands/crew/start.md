@@ -27,7 +27,22 @@ Convert description to kebab-case slug:
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" find-active --json
 ```
 
-Parse the JSON result. If an active project exists, ask user: resume existing, rename new, or cancel.
+Parse the JSON result. If an active project exists, ask user to choose one of four options:
+
+1. **Resume** — continue working on the existing project (abort new project creation)
+2. **Rename** — rename the new project to avoid conflict, then proceed with creation
+3. **Cancel** — abort entirely
+4. **Switch** — pause the current project and create the new one
+
+If the user chooses **Switch**:
+1. Set `paused: true` on the existing project via phase_manager so it no longer appears as active:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {existing-project} update \
+     --data '{"paused": true}' \
+     --json
+   ```
+2. The old project's state remains intact (not archived, not deleted) and can be resumed later by setting `paused: false`
+3. Proceed to Step 4 to create the new project
 
 ### 4. Create Project
 
