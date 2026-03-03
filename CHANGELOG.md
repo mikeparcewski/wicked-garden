@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.10.1] - 2026-03-03
+
+### Bug Fixes
+- fix: add `integrity-check` subcommand to `unified_search.py` with `--repair` flag for FTS5 index corruption (#158)
+- fix: add general Python symbol extraction fallback via tree-sitter AST in `python_adapter.py` (#159)
+- fix: support multi-specialist array format `{"specialists": [...]}` in `health_probe.py` (#161)
+- fix: remove false-positive "scoring" keyword from infrastructure-framework archetype (#162)
+- fix: update stale model ID to `anthropic/claude-sonnet-4-6` in jam scenario (#163)
+- fix: rewrite 3 smaht scenarios with executable bash steps calling CLI scripts directly (#165)
+- fix: migrate all 18 search commands to local-first routing with CP as optional enhancement (#166)
+- fix: route kanban comments through local `kanban.py add-comment` instead of CP (#167)
+- fix: accept specialist role values (not just category keys) in `specialist_discovery.py` validation (#168)
+- fix(kanban): fix KanbanStore import shadowed by package `__init__.py` (0a9a0b4)
+
+### Documentation
+- docs: update README and CLAUDE.md with current component counts (125 commands, 79 agents, 71 skills, 48 personas)
+- docs: update plugin.json and marketplace.json descriptions with correct persona count
+
 ## [1.10.0] - 2026-03-02
 
 ### Features
