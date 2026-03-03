@@ -176,13 +176,6 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
 - Design handoff to dev
 - Multiple devs touching UI
 
-## Resources
-
-- **Refactoring UI**: Book on visual design
-- **Design Systems Handbook**: Build design systems
-- **Component Gallery**: component.gallery
-- **Examples**: Material, Ant, Chakra, Tailwind
-
 **Detailed guides in refs/:**
 - [review-criteria-visual.md](refs/review-criteria-visual.md) - Visual consistency checklist
 - [review-criteria-components.md](refs/review-criteria-components.md) - Components and responsive design

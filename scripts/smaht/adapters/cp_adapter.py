@@ -220,6 +220,8 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     try:
         from _session import SessionState
         session_state = SessionState.load()
+        if not session_state.cp_available:
+            return []
         cp_project_id = session_state.cp_project_id or ""
     except Exception:
         pass

@@ -115,12 +115,12 @@ Then STOP and wait for the user's reply.
 **Questions to ask:**
 
 - **Q1 — Connection type**: "How would you like to connect wicked-garden?"
-  - Options: **Local (Recommended)** | **Remote** | **Offline**
+  - Options: **Standalone / local-only (Recommended)** | **Local CP (experimental)** | **Remote (experimental)** | **Offline (experimental)**
 
 - **Q2 — Onboarding**: Same as 2a.
 
 **INTERACTIVE mode**: Use a single AskUserQuestion call with both questions:
-- Q1: header "Connection", options with descriptions (Local = "Run the control plane on your machine (localhost:18889). Best for solo development.", Remote = "Connect to a shared team server.", Offline = "Local file storage only. No control plane needed.")
+- Q1: header "Connection", options with descriptions (Standalone = "Local SQLite storage. No server required. All features work out of the box.", Local CP = "Run the control plane on your machine (localhost:18889). Experimental — requires Node.js + pnpm.", Remote = "Connect to a shared team server. Experimental.", Offline = "Local file storage with CP sync queue. Experimental.")
 - Q2: Same as 2a.
 
 **PLAIN_TEXT mode**: Present as numbered text and STOP:
@@ -129,9 +129,10 @@ Then STOP and wait for the user's reply.
 Two questions before we start:
 
 **1. Connection** — How would you like to connect wicked-garden?
-   a) Local (recommended) — run control plane on your machine (localhost:18889)
-   b) Remote — connect to a shared team server
-   c) Offline — local file storage only, no control plane
+   a) Standalone / local-only (recommended) — local SQLite, no server required
+   b) Local CP (experimental) — run control plane on your machine (localhost:18889)
+   c) Remote (experimental) — connect to a shared team server
+   d) Offline (experimental) — local file storage with CP sync queue
 
 **2. Onboarding** — Would you like to run codebase onboarding?
    a) Full onboarding — index codebase, explore architecture, save discoveries (1-2 min)
@@ -149,7 +150,29 @@ Then STOP and wait for the user's reply.
 
 Execute based on the connection answer from Step 2.
 
-#### 3.1 Local Setup
+#### 3.0 Standalone / Local-Only Setup
+
+This is the default and recommended path. No external process required.
+
+1. Write config:
+   ```bash
+   mkdir -p "$HOME/.something-wicked/wicked-garden"
+   cat > "$HOME/.something-wicked/wicked-garden/config.json" << 'CONF'
+   {
+     "mode": "local-only",
+     "setup_complete": true
+   }
+   CONF
+   ```
+
+2. Show storage location:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden
+   ```
+
+3. Tell the user: "All data is stored locally in SQLite at the path above. Full search, lineage, and all domain features are available with no external process needed."
+
+#### 3.1 Local CP Setup *(experimental)*
 
 1. Check if CP is already running:
    ```bash
@@ -241,9 +264,9 @@ Show:
 
 ```
 Connection configured!
-Mode: {Local | Remote | Offline | Kept}
-Endpoint: {url or "none (offline)"}
-Status: {Connected | Offline}
+Mode: {Standalone | Local CP | Remote | Offline | Kept}
+Endpoint: {url or "none (local-only/offline)"}
+Status: {Connected | Local SQLite | Offline}
 ```
 
 ### 4. Run Onboarding

@@ -1,8 +1,27 @@
 # Connection Modes
 
-Three modes, configured via `/wicked-garden:setup` and stored in `{storage_root}/config.json`.
+Four modes, configured via `/wicked-garden:setup` and stored in `{storage_root}/config.json`.
 
-## local-install (Default)
+## local-only (Default)
+
+No external process. All data stored in a local SQLite database (`~/.something-wicked/wicked-garden/wicked-garden.db`).
+Full search, lineage, and all domain features work without the control plane.
+
+```json
+{
+  "mode": "local-only",
+  "setup_complete": true
+}
+```
+
+**Startup sequence**: Init SQLite DB → run migration (idempotent) → ready.
+**Data flow**: Direct SQLite reads/writes. No queue. No network.
+
+---
+
+> **Experimental modes** — the following modes require the `wicked-control-plane` server and are considered experimental. Use `local-only` unless you need team-shared persistence.
+
+## local-install *(experimental)*
 
 CP runs on your machine at `localhost:18889`. The SessionStart hook auto-starts it from the `wicked-control-plane` source.
 
@@ -23,7 +42,7 @@ CP runs on your machine at `localhost:18889`. The SessionStart hook auto-starts 
 
 **Data flow**: CP primary → local fallback on miss → queued writes replayed on reconnect.
 
-## remote
+## remote *(experimental)*
 
 CP on a shared team server. Requires endpoint URL and optional auth token.
 
@@ -44,9 +63,10 @@ CP on a shared team server. Requires endpoint URL and optional auth token.
 
 **Data flow**: Same as local-install — CP primary, local fallback, queue replay.
 
-## offline
+## offline *(experimental)*
 
-No CP at all. Everything stays on disk.
+No CP at all. Everything stays on disk. Writes are enqueued for future CP sync.
+Prefer `local-only` if you don't need CP team sync — it's simpler and has no queue accumulation.
 
 ```json
 {
@@ -74,7 +94,7 @@ No CP at all. Everything stays on disk.
 
 ## Mode Doesn't Change the API
 
-Scripts using `StorageManager` work identically in all three modes. The routing is transparent:
+Scripts using `StorageManager` work identically in all four modes. The routing is transparent:
 
 ```python
 sm = StorageManager("memory")

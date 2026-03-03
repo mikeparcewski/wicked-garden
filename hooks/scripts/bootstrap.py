@@ -552,6 +552,59 @@ def _detect_dangerous_mode():
 
 
 # ---------------------------------------------------------------------------
+# local-only mode setup
+# ---------------------------------------------------------------------------
+
+def _setup_local_only(config, state, mode_notes):
+    """Initialize local-only (SQLite) mode.
+
+    - No health check, no auto-start, no queue drain.
+    - Sets cp_available=False, fallback_mode=False (this IS the intended mode).
+    - Ensures the SQLite DB exists and schema is up to date.
+    """
+    # Ensure local root directory exists
+    try:
+        from _storage import _LOCAL_ROOT
+        _LOCAL_ROOT.mkdir(parents=True, exist_ok=True)
+        db_path = _LOCAL_ROOT / "wicked-garden.db"
+    except Exception:
+        db_path = (
+            Path.home() / ".something-wicked" / "wicked-garden" / "local"
+            / "wicked-garden.db"
+        )
+
+    # Init SQLite DB (schema creation is idempotent via CREATE TABLE IF NOT EXISTS)
+    try:
+        from _sqlite_store import SqliteStore
+        SqliteStore(str(db_path))
+    except Exception as exc:
+        print(f"[wicked-garden] local-only db init error: {exc}", file=sys.stderr)
+
+    # Run migration if available (fail-open — migration errors must not block session)
+    migrate_script = _PLUGIN_ROOT / "scripts" / "_migrate_local.py"
+    if migrate_script.exists():
+        try:
+            subprocess.run(
+                [sys.executable, str(migrate_script)],
+                capture_output=True,
+                timeout=10,
+            )
+        except Exception as exc:
+            print(f"[wicked-garden] local-only migration error: {exc}", file=sys.stderr)
+
+    # Update session state — not a fallback, this is the intended mode
+    if state is not None:
+        state.update(
+            cp_available=False,
+            fallback_mode=False,
+            setup_complete=True,
+        )
+
+    # Storage note for briefing (set on mode_notes so briefing block can use it)
+    mode_notes.append(f"[local-only] Storage: {db_path}")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -586,7 +639,7 @@ def main():
 
         # Determine mode (default: local-install for backward compat)
         mode = config.get("mode") or "local-install"
-        if mode not in ("remote", "local-install", "offline"):
+        if mode not in ("remote", "local-install", "offline", "local-only"):
             mode = "local-install"
 
         # 2. Mode-branched initialization
@@ -650,6 +703,10 @@ def main():
                         fallback_mode=False,
                         setup_complete=True,
                     )
+
+        elif mode == "local-only":
+            # local-only mode: SQLite-backed, no CP, not a fallback
+            _setup_local_only(config, state, mode_notes)
 
         else:
             # local-install mode (default): auto-start if CP not running
@@ -768,6 +825,8 @@ def main():
             cp_status = f"Connected (v{cp_version})" if cp_version else "Connected"
         elif mode == "offline":
             cp_status = "N/A (offline mode)"
+        elif mode == "local-only":
+            cp_status = "N/A (local-only mode)"
         else:
             cp_status = "Disconnected (offline fallback)"
 
@@ -781,9 +840,22 @@ def main():
         else:
             onboarding_status = "Not started"
 
+        if mode == "local-only":
+            try:
+                from _storage import _LOCAL_ROOT
+                _local_db = _LOCAL_ROOT / "wicked-garden.db"
+            except Exception:
+                _local_db = (
+                    Path.home() / ".something-wicked" / "wicked-garden"
+                    / "local" / "wicked-garden.db"
+                )
+            _storage_line = f"  Storage:     local-only | {_local_db}"
+        else:
+            _storage_line = f"  Connection:  {mode} | {endpoint} | {cp_status}"
+
         status_lines = [
             f"wicked-garden | {project}",
-            f"  Connection:  {mode} | {endpoint} | {cp_status}",
+            _storage_line,
             f"  Onboarding:  {onboarding_status}",
         ]
 
