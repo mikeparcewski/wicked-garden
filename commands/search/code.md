@@ -1,6 +1,6 @@
 ---
 description: Search code symbols only (functions, classes, methods)
-argument-hint: <query>
+argument-hint: "<query>"
 ---
 
 # /wicked-garden:search:code

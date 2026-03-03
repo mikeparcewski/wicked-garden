@@ -1,6 +1,6 @@
 ---
 description: Show evidence summary for a task or project
-argument-hint: [task-id] [--project project-id]
+argument-hint: "[task-id] [--project project-id]"
 ---
 
 # /wicked-garden:crew:evidence

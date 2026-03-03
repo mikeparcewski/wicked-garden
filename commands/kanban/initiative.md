@@ -1,6 +1,6 @@
 ---
 description: Manage kanban initiatives for crew projects and issue tracking
-argument-hint: <lookup|create|ensure-issues> [name]
+argument-hint: "<lookup|create|ensure-issues> [name]"
 ---
 
 # /wicked-garden:kanban:initiative

@@ -1,6 +1,6 @@
 ---
 description: Approve a phase and advance to next stage
-argument-hint: <phase> [project-name]
+argument-hint: "<phase> [project-name]"
 ---
 
 # /wicked-garden:crew:approve

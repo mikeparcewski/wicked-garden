@@ -1,6 +1,6 @@
 ---
 description: Search documents only (PDF, Office docs, markdown)
-argument-hint: <query>
+argument-hint: "<query>"
 ---
 
 # /wicked-garden:search:docs

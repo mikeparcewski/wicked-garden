@@ -1,6 +1,6 @@
 ---
 description: Search across all code and documents
-argument-hint: <query>
+argument-hint: "<query>"
 ---
 
 # /wicked-garden:search:search

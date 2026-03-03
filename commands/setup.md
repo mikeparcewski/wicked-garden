@@ -413,7 +413,7 @@ Quick start:
 
 When `--sync-to-cp` is passed:
 
-1. **Check CP availability**:
+1. **Check CP availability and sync all domains** (in dependency order):
 
 ```bash
 python3 -c "
@@ -425,16 +425,31 @@ state = SessionState.load()
 if not state.cp_available:
     print('CP_UNAVAILABLE')
     sys.exit(0)
-from _storage import StorageManager
-r1 = StorageManager('wicked-crew').sync_to_cp('projects')
-r2 = StorageManager('wicked-mem').sync_to_cp('memories')
-print(json.dumps({'crew_projects': r1, 'memories': r2}))
+from _storage import sync_all_to_cp
+results = sync_all_to_cp()
+print(json.dumps(results, indent=2))
 "
 ```
 
-2. **Report results** to the user:
+This syncs all domains in dependency order:
+1. `wicked-crew/projects` (first, to establish CP UUIDs)
+2. `wicked-mem/memories`
+3. `wicked-kanban/initiatives`
+4. `wicked-kanban/tasks`
+5. `wicked-jam/sessions`
+
+2. **Report results** to the user per domain:
    - If `CP_UNAVAILABLE`: "The control plane is not reachable. Connect to CP first with `/wicked-garden:setup`."
-   - Otherwise: display the sync counts — "Synced N crew projects (M skipped, K failed), P memories (Q skipped, R failed)."
+   - If results contain an `error` key: display the error note.
+   - Otherwise: display the sync counts per domain, e.g.:
+     ```
+     Sync results:
+       wicked-crew/projects:     2 synced, 1 skipped, 0 failed
+       wicked-mem/memories:      5 synced, 3 skipped, 0 failed
+       wicked-kanban/initiatives: 1 synced, 0 skipped, 0 failed
+       wicked-kanban/tasks:      4 synced, 2 skipped, 0 failed
+       wicked-jam/sessions:      0 synced, 0 skipped, 0 failed
+     ```
 
 3. **If any records failed**, advise: "Check stderr for details. Failed records remain in local storage and will sync automatically when CP is next available."
 
