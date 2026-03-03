@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0] - 2026-03-02
+
+### Features
+- feat: add local-only SQLite storage mode as default (475bc98)
+
+### Chores
+- release: wicked-garden v1.7.1 (3e5e129)
+
 ## [1.7.1] - 2026-03-02
 
 ### Features
