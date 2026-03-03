@@ -803,7 +803,7 @@ def main():
         cp_schema_reset_detected = False
         if cp_available and state is not None:
             try:
-                from _storage import StorageManager
+                from _storage import StorageManager, get_local_path
                 _reset_checks = [
                     ("wicked-crew", "projects"),
                     ("wicked-mem", "memories"),
@@ -814,11 +814,11 @@ def main():
                         _sm_check = StorageManager(_domain, hook_mode=True)
                         _cp_records = _sm_check.list(_source) or []
                         if len(_cp_records) == 0:
-                            _local_dir = (
-                                Path.home() / ".something-wicked"
-                                / "wicked-garden" / "local" / _domain / _source
-                            )
-                            if _local_dir.exists() and any(_local_dir.iterdir()):
+                            _local_dir = get_local_path(_domain, _source)
+                            if _local_dir.exists() and any(
+                                f for f in _local_dir.iterdir()
+                                if f.suffix == ".json" and not f.name.startswith("_")
+                            ):
                                 cp_schema_reset_detected = True
                                 break
                     except Exception:

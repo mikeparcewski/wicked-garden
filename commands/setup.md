@@ -413,7 +413,25 @@ Quick start:
 
 When `--sync-to-cp` is passed:
 
-1. **Check CP availability and sync all domains** (in dependency order):
+1. **Confirm with user before syncing**:
+
+**INTERACTIVE mode**: Use AskUserQuestion with header "Sync", question "This will push local wicked-garden data to the control plane. Existing CP records will not be overwritten. Proceed?", options: "Yes, sync now (Recommended)" = "Push local-only records to CP. Safe — uses dedup, won't overwrite.", "Cancel" = "Abort sync. No changes will be made."
+
+**PLAIN_TEXT mode**: Ask in plain text:
+
+```
+--sync-to-cp will push local wicked-garden data to the control plane.
+Existing CP records will NOT be overwritten (dedup is enforced).
+
+   a) Yes, sync now (recommended)
+   b) Cancel
+```
+
+Then STOP and wait for the user's reply.
+
+If the user cancels, say "Sync cancelled. No changes were made." and stop.
+
+2. **Check CP availability and sync all domains** (in dependency order):
 
 ```bash
 python3 -c "
@@ -438,7 +456,7 @@ This syncs all domains in dependency order:
 4. `wicked-kanban/tasks`
 5. `wicked-jam/sessions`
 
-2. **Report results** to the user per domain:
+3. **Report results** to the user per domain:
    - If `CP_UNAVAILABLE`: "The control plane is not reachable. Connect to CP first with `/wicked-garden:setup`."
    - If results contain an `error` key: display the error note.
    - Otherwise: display the sync counts per domain, e.g.:
@@ -451,7 +469,7 @@ This syncs all domains in dependency order:
        wicked-jam/sessions:      0 synced, 0 skipped, 0 failed
      ```
 
-3. **If any records failed**, advise: "Check stderr for details. Failed records remain in local storage and will sync automatically when CP is next available."
+4. **If any records failed**, advise: "Check stderr for details. Failed records remain in local storage and will sync automatically when CP is next available."
 
 ## Graceful Degradation
 

@@ -293,6 +293,9 @@ def _crew_decisions_to_cp(r: dict) -> dict:
 
 def _crew_decisions_from_cp(r: dict) -> dict:
     out = dict(r)
+    # Reverse FK mapping (#155)
+    if "project_id" in out:
+        out["cp_project_id"] = out.pop("project_id")
     # content JSON → analysis fields
     content = out.pop("content", None)
     if content:
@@ -345,6 +348,9 @@ def _crew_feedback_to_cp(r: dict) -> dict:
 
 def _crew_feedback_from_cp(r: dict) -> dict:
     out = dict(r)
+    # Reverse FK mapping (#155)
+    if "project_id" in out:
+        out["cp_project_id"] = out.pop("project_id")
     if "category" in out:
         out["outcome"] = out.pop("category")
     if "rating" in out:
@@ -385,6 +391,9 @@ def _crew_metrics_to_cp(r: dict) -> dict:
 
 def _crew_metrics_from_cp(r: dict) -> dict:
     out = dict(r)
+    # Reverse FK mapping (#155)
+    if "project_id" in out:
+        out["cp_project_id"] = out.pop("project_id")
     meta = out.get("metadata", {})
     if isinstance(meta, dict):
         if "categories" in meta:
@@ -423,6 +432,9 @@ def _crew_signals_to_cp(r: dict) -> dict:
 
 def _crew_signals_from_cp(r: dict) -> dict:
     out = dict(r)
+    # Reverse FK mapping (#155)
+    if "project_id" in out:
+        out["cp_project_id"] = out.pop("project_id")
     if "signal_type" in out:
         out["category"] = out.pop("signal_type")
     if "content" in out:
@@ -456,6 +468,9 @@ def _crew_tool_usage_to_cp(r: dict) -> dict:
 
 def _crew_tool_usage_from_cp(r: dict) -> dict:
     out = dict(r)
+    # Reverse FK mapping (#155)
+    if "project_id" in out:
+        out["cp_project_id"] = out.pop("project_id")
     if "tool_name" in out:
         out["tool"] = out.pop("tool_name")
     meta = out.get("metadata", {})
