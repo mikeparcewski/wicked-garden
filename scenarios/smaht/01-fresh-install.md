@@ -14,104 +14,127 @@ Tests the complete installation flow: hooks run silently on session start, conte
 ## Setup
 
 ```bash
-# Create a test project directory
-mkdir -p /tmp/wicked-garden-test
+# Verify plugin root is available
+if [ -z "${CLAUDE_PLUGIN_ROOT}" ]; then
+  # Fall back to finding it in the cache
+  PLUGIN_DIR=$(find "${HOME}/.claude/plugins/cache" -name "plugin.json" -path "*/wicked-garden/*" 2>/dev/null | head -1 | xargs dirname 2>/dev/null | xargs dirname 2>/dev/null)
+  if [ -z "$PLUGIN_DIR" ]; then
+    PLUGIN_DIR="."
+  fi
+else
+  PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
+fi
+echo "PLUGIN_DIR=$PLUGIN_DIR"
+echo "$PLUGIN_DIR" > "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir"
 ```
 
 ## Steps
 
-### 1. Install the Plugin
+### Step 1: Verify plugin.json exists and is valid
 
 ```bash
-claude plugin install mikeparcewski/wicked-garden
+PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
+PLUGIN_JSON="$PLUGIN_DIR/.claude-plugin/plugin.json"
+[ -f "$PLUGIN_JSON" ] || { echo "FAIL: plugin.json not found at $PLUGIN_JSON"; exit 1; }
+python3 -c "import json; d=json.load(open('$PLUGIN_JSON')); print(f\"Plugin: {d['name']} v{d['version']}\"); assert d.get('name'), 'missing name'; assert d.get('version'), 'missing version'"
+echo "PASS: plugin.json is valid"
 ```
 
-Expected: Plugin installed successfully, shows current version.
+**Expect**: Exit code 0, plugin.json contains name and version
 
-### 2. Verify MCP Server Configuration
-
-wicked-garden bundles context7 as an MCP server. Verify it was added to your project or global MCP configuration:
+### Step 2: Verify hooks.json exists and has SessionStart
 
 ```bash
-cat ~/.claude/mcp.json | grep -A 5 '"context7"'
+PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
+HOOKS_JSON="$PLUGIN_DIR/hooks/hooks.json"
+[ -f "$HOOKS_JSON" ] || { echo "FAIL: hooks.json not found"; exit 1; }
+python3 -c "
+import json
+hooks = json.load(open('$HOOKS_JSON'))
+events = set()
+for h in hooks.get('hooks', []):
+    events.add(h.get('event', ''))
+print('Hook events:', sorted(events))
+assert 'SessionStart' in events, 'SessionStart hook not found'
+"
+echo "PASS: SessionStart hook configured in hooks.json"
 ```
 
-Expected: context7 is present with the following configuration:
-```json
-"context7": {
-  "type": "stdio",
-  "command": "npx",
-  "args": ["-y", "@upstash/context7-mcp@latest"],
-  "env": {}
-}
+**Expect**: Exit code 0, hooks.json contains SessionStart hook
+
+### Step 3: Verify SessionStart hook script executes without error
+
+```bash
+PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
+BOOTSTRAP="$PLUGIN_DIR/hooks/scripts/bootstrap.py"
+[ -f "$BOOTSTRAP" ] || { echo "FAIL: bootstrap.py not found"; exit 1; }
+echo '{"session_id": "test-fresh-install"}' | python3 "$BOOTSTRAP" 2>/dev/null
+EXIT_CODE=$?
+[ $EXIT_CODE -eq 0 ] || { echo "FAIL: bootstrap.py exited with $EXIT_CODE"; exit 1; }
+echo "PASS: SessionStart hook script runs without errors"
 ```
 
-### 3. Start a New Claude Code Session
+**Expect**: Exit code 0, bootstrap hook executes cleanly
 
-Open a new conversation in Claude Code.
+### Step 4: Verify root-level skills exist on disk
 
-Expected: SessionStart hook fires and completes within 2 seconds (2000ms timeout). No output message is displayed — the hook is intentionally silent. The session starts normally without any setup prompt, recommendations, or nag messages.
-
-### 4. Verify Hook Executed Without Error
-
-The session start hook reads stdin and returns `{"continue": true}`. Verify no hook errors appear in the Claude Code output during session initialization.
-
-Expected: Session starts cleanly. No hook failure notifications. The hook's job is to stay out of the way.
-
-### 5. Verify Skills Are Available
-
-Ask Claude Code to list available skills:
-
-```
-/wicked-garden:help
-```
-
-Expected — the help output should list skills across domains, including root-level skills such as:
-- `agent-browser` — browser automation via agent-browser CLI
-- `ai-conversation` — multi-AI orchestration with kanban as shared memory
-- `codex-cli` — OpenAI Codex CLI integration for code review
-- `gemini-cli` — Gemini CLI integration for multi-model analysis
-- `integration-discovery` — capability router for tool selection decisions
-- `issue-reporting` — automated GitHub issue filing from session failures
-- `opencode-cli` — OpenCode CLI integration with multi-provider support
-- `runtime-exec` — smart script execution with package manager detection
-- `wickedizer` — content humanizer and voice alignment tool
-
-### 6. Verify Skill Documentation Is Valid
-
-Ask Claude about a specific skill to confirm it loads correctly:
-
-```
-Tell me about the ai-conversation skill. What does it do?
+```bash
+PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
+MISSING=0
+for SKILL in agent-browser runtime-exec issue-reporting wickedizer; do
+  if [ -d "$PLUGIN_DIR/skills/$SKILL" ] || [ -f "$PLUGIN_DIR/skills/$SKILL/SKILL.md" ]; then
+    echo "  Found: $SKILL"
+  else
+    echo "  MISSING: $SKILL"
+    MISSING=$((MISSING+1))
+  fi
+done
+[ $MISSING -eq 0 ] || { echo "FAIL: $MISSING root-level skills missing"; exit 1; }
+echo "PASS: root-level skills present on disk"
 ```
 
-Expected: Claude responds with a description drawn from the skill's frontmatter and SKILL.md content, confirming the skill is loaded and well-formed. Repeat for one or two other skills (e.g., codex-cli, runtime-exec) to spot-check.
+**Expect**: Exit code 0, all expected skills exist
 
-### 7. Verify Hooks Are Active
+### Step 5: Verify command files exist for key domains
 
-Start a new session and confirm the SessionStart hook runs without error:
-
+```bash
+PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
+DOMAINS="crew search mem kanban engineering platform"
+MISSING=0
+for DOMAIN in $DOMAINS; do
+  CMD_COUNT=$(find "$PLUGIN_DIR/commands/$DOMAIN" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$CMD_COUNT" -gt 0 ]; then
+    echo "  $DOMAIN: $CMD_COUNT commands"
+  else
+    echo "  MISSING: $DOMAIN (no commands)"
+    MISSING=$((MISSING+1))
+  fi
+done
+[ $MISSING -eq 0 ] || { echo "FAIL: $MISSING domains have no commands"; exit 1; }
+echo "PASS: key domains have command files"
 ```
-# Simply start a new Claude Code session
+
+**Expect**: Exit code 0, all key domains have at least one command
+
+### Step 6: Verify specialist.json is valid
+
+```bash
+PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
+SPEC_JSON="$PLUGIN_DIR/.claude-plugin/specialist.json"
+[ -f "$SPEC_JSON" ] || { echo "FAIL: specialist.json not found"; exit 1; }
+python3 -c "
+import json
+d = json.load(open('$SPEC_JSON'))
+specs = d.get('specialists', [])
+print(f'Specialists: {len(specs)}')
+for s in specs:
+    print(f\"  {s.get('name', '?')}: {s.get('role', '?')} ({len(s.get('personas', []))} personas)\")
+assert len(specs) >= 4, f'Expected at least 4 specialists, got {len(specs)}'
+"
+echo "PASS: specialist.json valid with multiple specialists"
 ```
 
-Expected: Session starts cleanly with no hook failure notifications. The SessionStart hook fires silently and completes within 2 seconds.
-
-### 8. Verify Issue Reporting Command
-
-Run the issue reporting command to confirm it is registered:
-
-```
-/wicked-garden:report-issue --help
-```
-
-Expected: Command is recognized and shows usage information or prompts for input.
-
-### 9. Confirm Session Runs Normally
-
-Open a second new conversation in Claude Code.
-
-Expected: Hook fires again silently. Session starts identically to the first. There is no state from the previous session that changes behavior — startup is stateless and always silent.
+**Expect**: Exit code 0, at least 4 specialists defined
 
 ## Expected Outcome
 

@@ -9,12 +9,18 @@ Identify hotspot symbols ranked by total reference count (incoming + outgoing). 
 
 ## Instructions
 
-1. Run the hotspots query via the CP proxy:
+1. Run the hotspots query via the local unified index (primary):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph hotspots --limit "${limit:-20}" ${layer:+--layer "${layer}"} ${type:+--type "${type}"} ${category:+--category "${category}"}
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py hotspots --limit "${limit:-20}" ${layer:+--layer "${layer}"}
    ```
 
    With no arguments, returns the top 20 most-connected symbols across the whole codebase.
+
+   If the control plane is available, also query for enrichment:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph hotspots --limit "${limit:-20}" ${layer:+--layer "${layer}"} ${type:+--type "${type}"} ${category:+--category "${category}"}
+   ```
+   This step is optional — the local index is fully functional without CP.
 
 2. Arguments (all optional):
 

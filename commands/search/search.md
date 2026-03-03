@@ -5,7 +5,7 @@ argument-hint: <query>
 
 # /wicked-garden:search:search
 
-Search across both code symbols and documents via the knowledge graph.
+Search across both code symbols and documents via the unified index.
 
 ## Arguments
 
@@ -13,17 +13,21 @@ Search across both code symbols and documents via the knowledge graph.
 
 ## Instructions
 
-1. Run the search via the CP proxy:
+1. Run the unified search via the local index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py search "<query>"
+   ```
+
+2. If the control plane is available, also query for additional results:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<query>"
    ```
-
-2. Parse the response `data` array. Each result contains: `name`, `type`, `file`, `line`, `layer`, `description`.
+   Merge CP results with local results, deduplicating by file+line.
 
 3. Report results grouped by type (code symbols vs documents), with relevance context:
    - Symbol name and type
    - File location
-   - Architectural layer (if present)
+   - Score
    - Description snippet
 
 ## Example

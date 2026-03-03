@@ -293,7 +293,7 @@ ARCHETYPE_KEYWORDS = {
     "infrastructure-framework": [
         "plugin", "framework", "build system", "ci/cd",
         "scaffold", "hook", "middleware", "engine", "core",
-        "execution", "scoring", "routing", "dispatch", "orchestrat*",
+        "execution", "routing", "dispatch", "orchestrat*",
         "phase", "workflow", "configuration", "tooling", "cli",
         "command", "agent", "prompt engineering", "behavior",
         "core path", "execution path", "foundational",

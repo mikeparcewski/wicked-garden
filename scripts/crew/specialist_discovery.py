@@ -406,8 +406,11 @@ def validate_specialist(specialist: Specialist) -> List[str]:
         issues.append("Missing specialist name")
     if not specialist.role:
         issues.append("Missing specialist role")
-    if specialist.role and specialist.role not in ROLE_CATEGORIES:
-        issues.append(f"Unknown role: {specialist.role}")
+    if specialist.role:
+        # Accept role as a category key OR as a value within any category
+        all_role_values = {v for vals in ROLE_CATEGORIES.values() for v in vals}
+        if specialist.role not in ROLE_CATEGORIES and specialist.role not in all_role_values:
+            issues.append(f"Unknown role: {specialist.role}")
 
     # Check personas
     if not specialist.personas:

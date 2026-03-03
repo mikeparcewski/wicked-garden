@@ -15,15 +15,16 @@ Analyze lineage coverage across the indexed codebase. Identifies symbols without
 
 ## Instructions
 
-1. Get all symbols from the knowledge graph:
+1. Run the coverage report via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py coverage
+   ```
+
+2. If the control plane is available, also query for enrichment:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols list ${project:+--project "${project}"} ${type:+--type "${type}"}
    ```
-
-2. For each symbol type that should have lineage (entity_field, column, form_binding), check lineage paths:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge lineage search "<symbol_id>" --direction both --depth 5
-   ```
+   This step is optional — the local index is fully functional without CP.
 
 3. Classify each symbol:
    - **Full coverage**: Complete lineage from UI to database (or reverse)

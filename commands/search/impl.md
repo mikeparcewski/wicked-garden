@@ -13,12 +13,16 @@ Find code that implements a documented feature or section by searching for imple
 
 ## Instructions
 
-1. Run the search via the CP proxy with edge type filter:
+1. Run the implementation search via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py impl "<doc-section>"
+   ```
+
+2. If the control plane is available, also query for additional implementation edges:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<doc-section>" --edge_type implements
    ```
-
-2. Parse the response `data` array. Each result represents a code symbol linked to the documentation.
+   Merge CP results with local results.
 
 3. Report the code symbols that implement this section, with file locations.
 

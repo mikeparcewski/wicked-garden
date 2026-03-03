@@ -204,6 +204,11 @@ class PythonAdapter(LanguageAdapter):
                     # Build symbols for detected ORM models
                     symbols = self._build_symbols(models, file_path)
 
+            # Fallback: extract general Python symbols (classes, functions, methods)
+            # if no ORM-specific symbols were found
+            if not symbols:
+                symbols = self._extract_general_symbols(tree, content, file_path)
+
         except Exception as e:
             logger.debug(f"Python parsing error for {file_path}: {e}")
 
@@ -285,3 +290,73 @@ class PythonAdapter(LanguageAdapter):
     def _to_snake_case(self, name: str) -> str:
         """Convert CamelCase to snake_case."""
         return NamingUtils.to_snake_case(name)
+
+    def _extract_general_symbols(self, tree, content: str, file_path: str) -> List["Symbol"]:
+        """Extract general Python symbols (classes, functions, methods) via tree-sitter AST.
+
+        This runs as a fallback when no ORM-specific symbols are found, ensuring
+        the Symbol Graph has entries for plain Python files.
+        """
+        if not HAS_SYMBOL_GRAPH or not HAS_TREESITTER:
+            return []
+
+        symbols = []
+        root = tree.root_node
+
+        def _walk(node, parent_class=None):
+            if node.type == 'class_definition':
+                name_node = node.child_by_field_name('name')
+                if name_node:
+                    cls_name = content[name_node.start_byte:name_node.end_byte]
+                    symbols.append(Symbol(
+                        id=f"{file_path}::{cls_name}",
+                        type=SymbolType.CLASS,
+                        name=cls_name,
+                        qualified_name=f"{file_path}::{cls_name}",
+                        file_path=file_path,
+                        line_start=node.start_point[0] + 1,
+                        line_end=node.end_point[0] + 1,
+                        metadata={},
+                    ))
+                    # Recurse into class body for methods
+                    body = node.child_by_field_name('body')
+                    if body:
+                        for child in body.children:
+                            _walk(child, parent_class=cls_name)
+                    return  # Don't recurse further from here
+
+            elif node.type == 'function_definition':
+                name_node = node.child_by_field_name('name')
+                if name_node:
+                    func_name = content[name_node.start_byte:name_node.end_byte]
+                    if func_name.startswith('_') and func_name != '__init__':
+                        pass  # Skip private helpers for cleaner graph
+                    elif parent_class:
+                        symbols.append(Symbol(
+                            id=f"{file_path}::{parent_class}.{func_name}",
+                            type=SymbolType.METHOD,
+                            name=func_name,
+                            qualified_name=f"{parent_class}.{func_name}",
+                            file_path=file_path,
+                            line_start=node.start_point[0] + 1,
+                            line_end=node.end_point[0] + 1,
+                            metadata={'class': parent_class},
+                        ))
+                    else:
+                        symbols.append(Symbol(
+                            id=f"{file_path}::{func_name}",
+                            type=SymbolType.FUNCTION,
+                            name=func_name,
+                            qualified_name=f"{file_path}::{func_name}",
+                            file_path=file_path,
+                            line_start=node.start_point[0] + 1,
+                            line_end=node.end_point[0] + 1,
+                            metadata={},
+                        ))
+                return  # Don't recurse into function bodies
+
+            for child in node.children:
+                _walk(child, parent_class=parent_class)
+
+        _walk(root)
+        return symbols

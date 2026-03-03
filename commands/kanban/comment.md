@@ -20,12 +20,12 @@ Add a comment to an existing task on the kanban board.
 
 1. Parse the three required arguments from user input: project_id, task_id, and comment_content
 
-2. Add the comment to the task:
+2. Add the comment to the task via the local kanban store (primary):
    ```bash
-   python3 -c "import json,sys; print(json.dumps({'task_id':sys.argv[1],'project_id':sys.argv[2],'text':sys.argv[3]}))" "${TASK_ID}" "${PROJECT_ID}" "${COMMENT_CONTENT}" | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" kanban comments create
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-comment "${PROJECT_ID}" "${TASK_ID}" "${COMMENT_CONTENT}"
    ```
 
-   Note: The cp.py create verb reads a JSON payload from stdin with task_id, project_id, and text fields.
+   If the control plane is available, the StorageManager inside kanban.py will automatically sync to CP.
 
 3. If the command succeeds, confirm the comment was added. If it fails, report the error.
 

@@ -3,26 +3,19 @@ name: browser-page-audit
 description: Verify page loads correctly and passes basic interaction checks
 category: browser
 tools:
-  required: [playwright]
-  optional: [agent-browser]
+  required: [agent-browser]
+  optional: [playwright]
 difficulty: intermediate
 timeout: 60
 ---
 
 # Browser Page Audit
 
-Verifies that a web page loads successfully, renders expected content, and responds to basic interactions. Uses a local HTML fixture served via `python3 -m http.server` so assertions are deterministic and never break due to external content changes.
+Verifies that a web page loads successfully, renders expected content, and responds to basic interactions using browser CLI tools. Uses a local HTML fixture served via `python3 -m http.server` so assertions are deterministic and never break due to external content changes.
 
 ## Setup
 
 ```bash
-# Check required tools
-if ! command -v npx &>/dev/null; then
-  echo "SKIP: npx not available (needed for playwright)"
-  exit 0
-fi
-# Ensure Playwright browsers are installed
-npx playwright install chromium 2>/dev/null || true
 mkdir -p "${TMPDIR:-/tmp}/wicked-scenario-pw"
 
 # Create a local HTML fixture for deterministic testing
@@ -57,59 +50,58 @@ done
 
 ## Steps
 
-### Step 1: Page load and title check (playwright)
+### Step 1: Page load and DOM snapshot
 
 ```bash
-if ! npx playwright --version &>/dev/null; then
-  echo "SKIP: playwright not installed. Run /wicked-garden:scenarios:setup to install."
-  exit 0
-fi
 SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
-cat > "${TMPDIR:-/tmp}/wicked-scenario-pw"/title.spec.ts << PW_EOF
-import { test, expect } from '@playwright/test';
-test('page loads with correct title', async ({ page }) => {
-  await page.goto('http://localhost:${SCEN_PORT}/');
-  await expect(page).toHaveTitle(/Wicked Test Page/);
-});
-PW_EOF
-npx playwright test "${TMPDIR:-/tmp}/wicked-scenario-pw"/title.spec.ts --reporter=line
+agent-browser open "http://localhost:${SCEN_PORT}/" --headless
+SNAPSHOT=$(agent-browser snapshot)
+echo "$SNAPSHOT"
+echo "$SNAPSHOT" | grep -qi "Wicked" || { echo "FAIL: page content not rendered"; exit 1; }
+echo "PASS: page loaded and DOM snapshot captured"
 ```
 
-**Expect**: Exit code 0, page loads with expected title
+**Expect**: Exit code 0, agent-browser loads page and snapshot contains page content
 
-### Step 2: Content verification (playwright)
+### Step 2: Content verification via DOM
 
 ```bash
-if ! npx playwright --version &>/dev/null; then
-  echo "SKIP: playwright not installed. Run /wicked-garden:scenarios:setup to install."
-  exit 0
-fi
-SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
-cat > "${TMPDIR:-/tmp}/wicked-scenario-pw"/content.spec.ts << PW_EOF
-import { test, expect } from '@playwright/test';
-test('page has expected content', async ({ page }) => {
-  await page.goto('http://localhost:${SCEN_PORT}/');
-  await expect(page.locator('h1')).toHaveText('Wicked Garden Scenario Test');
-  await expect(page.locator('p').first()).toContainText('browser-page-audit scenario validation');
-});
-PW_EOF
-npx playwright test "${TMPDIR:-/tmp}/wicked-scenario-pw"/content.spec.ts --reporter=line
+SNAPSHOT=$(agent-browser snapshot)
+echo "$SNAPSHOT" | grep -qi "Wicked Garden Scenario Test" || { echo "FAIL: h1 not found in DOM"; exit 1; }
+echo "$SNAPSHOT" | grep -qi "browser-page-audit" || { echo "FAIL: paragraph not found in DOM"; exit 1; }
+echo "$SNAPSHOT" | grep -qi "About" || { echo "FAIL: about section not found in DOM"; exit 1; }
+echo "PASS: all expected content present in DOM"
 ```
 
-**Expect**: Exit code 0, page content matches expectations
+**Expect**: Exit code 0, heading, paragraph, and about section all present in the rendered DOM
 
-### Step 3: Snapshot with agent-browser (agent-browser)
+### Step 3: Screenshot capture
 
 ```bash
-if ! command -v agent-browser &>/dev/null; then
-  echo "SKIP: agent-browser not installed. Run /wicked-garden:scenarios:setup to install."
-  exit 0
-fi
 SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
-agent-browser open "http://localhost:${SCEN_PORT}/" --headless && agent-browser snapshot
+if command -v playwright &>/dev/null; then
+  playwright screenshot "http://localhost:${SCEN_PORT}/" "${TMPDIR:-/tmp}/wicked-scenario-pw/screenshot.png" 2>&1
+  [ -f "${TMPDIR:-/tmp}/wicked-scenario-pw/screenshot.png" ] || { echo "FAIL: screenshot not created"; exit 1; }
+  echo "PASS: screenshot captured via playwright CLI"
+else
+  agent-browser screenshot "${TMPDIR:-/tmp}/wicked-scenario-pw/screenshot.png" 2>&1
+  [ -f "${TMPDIR:-/tmp}/wicked-scenario-pw/screenshot.png" ] || { echo "FAIL: screenshot not created"; exit 1; }
+  echo "PASS: screenshot captured via agent-browser"
+fi
 ```
 
-**Expect**: Exit code 0, page snapshot captured
+**Expect**: Exit code 0, screenshot file created
+
+### Step 4: Link interaction
+
+```bash
+agent-browser click "a[href='#about']" 2>&1
+SNAPSHOT=$(agent-browser snapshot)
+echo "$SNAPSHOT" | grep -qi "fixture for reliable testing" || { echo "FAIL: about section content not accessible after click"; exit 1; }
+echo "PASS: link click navigated to about section"
+```
+
+**Expect**: Exit code 0, clicking the "Learn more" link navigates to the about section
 
 ## Cleanup
 
