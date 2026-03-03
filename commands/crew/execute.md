@@ -62,15 +62,11 @@ If no tasks found via TaskList, check for manual TODO tracking in phase status f
 
 Before starting phase work, assemble structured context from the ecosystem. This ensures specialists and fallback agents receive rich context — not just raw deliverable text.
 
-```bash
-# Build context package for current phase (graceful degradation if script not found)
-if [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/context_package.py" ]; then
-  cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/context_package.py build \
-    --task "Execute {current_phase} phase for {project-name}" \
-    --project "{project-name}" \
-    --dispatch --prompt
-fi
 ```
+Skill(skill="wicked-garden:smaht:context", args="build --task \"Execute {current_phase} phase for {project-name}\" --project \"{project-name}\" --dispatch --prompt")
+```
+
+If the command fails, proceed with project.json signals and deliverable text only.
 
 Include the context package output in ALL subagent Task() dispatches. If wicked-smaht is not available, proceed with project.json signals and deliverable text only.
 
@@ -299,14 +295,10 @@ This table mirrors specialist.json `enhances` declarations. Always use the disco
 
 When engaging a specialist, use Task dispatch for heavy analysis work. Keep slash commands only for interactive or thin CLI operations. `-` means no direct dispatch for that phase.
 
-**Structured context packages**: Instead of dumping prose context into subagent prompts, use the context package builder to assemble task-scoped context from session state + memory + search:
+**Structured context packages**: Instead of dumping prose context into subagent prompts, use the smaht context command:
 
-```bash
-# Build a context package for the subagent
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/context_package.py build \
-  --task "{task description}" \
-  --project "{project-name}" \
-  --dispatch --prompt
+```
+Skill(skill="wicked-garden:smaht:context", args="build --task \"{task description}\" --project \"{project-name}\" --dispatch --prompt")
 ```
 
 The context package outputs a structured prompt section with: task, decisions, constraints, file scope, relevant code, memories, and project state. Include this in the subagent prompt instead of raw deliverable text.
@@ -577,7 +569,7 @@ If no third-party CLI is available, use installed specialists dynamically:
 
 1. **Discover available specialists**:
    ```bash
-   python3 "{CREW_PLUGIN_ROOT}/scripts/crew/specialist_discovery.py" --json
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/specialist_discovery.py" --json
    ```
 
 2. **Filter to reviewers**: Select specialists whose `enhances` list includes the current phase or `"*"`

@@ -165,23 +165,23 @@ Every crew project should be tracked as a kanban initiative. This provides visib
 
 **Goal**: store both the initiative *name* and *UUID* via phase_manager update so session_start can reconnect without a kanban round-trip.
 
-1. **Look up existing initiative by name**. If wicked-kanban is installed:
-   ```bash
-   python3 "${KANBAN_PLUGIN_ROOT}/scripts/kanban_initiative.py" lookup "{project-name}"
+1. **Look up existing initiative by name**:
+   ```
+   Skill(skill="wicked-garden:kanban:initiative", args="lookup {project-name}")
    ```
    Returns: `{"found": true, "initiative_id": "a1b2c3d4", "project_id": "..."}` or `{"found": false}`.
 
-   If wicked-kanban is not installed (`discover_script` returns None), skip all kanban steps gracefully — both IDs remain null.
+   If the command fails, skip all kanban steps gracefully — both IDs remain null.
 
 2. **If not found, create the initiative**:
-   ```bash
-   python3 "${KANBAN_PLUGIN_ROOT}/scripts/kanban_initiative.py" create "{project-name}"
+   ```
+   Skill(skill="wicked-garden:kanban:initiative", args="create {project-name}")
    ```
    Returns: `{"initiative_id": "a1b2c3d4", "project_id": "b5c6d7e8"}`.
 
 3. **Ensure "Issues" initiative exists** for this repo:
-   ```bash
-   python3 "${KANBAN_PLUGIN_ROOT}/scripts/kanban_initiative.py" ensure-issues
+   ```
+   Skill(skill="wicked-garden:kanban:initiative", args="ensure-issues")
    ```
 
 4. **Store both name and UUID** via phase_manager:

@@ -120,7 +120,7 @@ Read metrics from `{SMAHT_SESSION}/metrics.json`:
 Run the context package builder to show what a subagent would receive:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/context_package.py" build --task "current session work" --prompt
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/context_package.py build --task "current session work" --prompt
 ```
 
 Display the output under:

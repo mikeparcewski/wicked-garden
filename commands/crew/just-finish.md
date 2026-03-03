@@ -31,17 +31,11 @@ Match available specialists to project signals for auto-engagement.
 
 Before starting phase work, assemble structured context from the ecosystem. This ensures specialists and fallback agents receive rich context — not just raw deliverable text.
 
-```bash
-# Build context package for current phase (graceful degradation if script not found)
-if [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/context_package.py" ]; then
-  cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/context_package.py build \
-    --task "Execute {current_phase} phase for {project-name}" \
-    --project "{project-name}" \
-    --dispatch --prompt
-fi
+```
+Skill(skill="wicked-garden:smaht:context", args="build --task \"Execute {current_phase} phase for {project-name}\" --project \"{project-name}\" --dispatch --prompt")
 ```
 
-Include the context package output in ALL subagent Task() dispatches. If wicked-smaht is not available, proceed with project.json signals and deliverable text only.
+Include the context package output in ALL subagent Task() dispatches. If the command fails, proceed with project.json signals and deliverable text only.
 
 ### 2.6 Orchestrator-Only Principle
 
