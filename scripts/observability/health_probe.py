@@ -60,6 +60,8 @@ SILENT_EVENTS: frozenset[str] = frozenset(["TaskCompleted"])
 REQUIRED_PLUGIN_FIELDS: tuple[str, ...] = ("name", "version", "description")
 
 REQUIRED_SPECIALIST_FIELDS: tuple[str, ...] = ("specialist", "personas", "enhances")
+# Multi-specialist format: top-level "specialists" array, each entry has these
+REQUIRED_MULTI_SPECIALIST_ENTRY_FIELDS: tuple[str, ...] = ("name", "role", "personas", "enhances")
 
 # Pattern for subagent_type references to wicked-* plugins
 # Matches: subagent_type="wicked-foo:agent-name"
@@ -283,6 +285,79 @@ def check_cross_plugin_refs(
 # Check 4: Ghost specialist validation
 # ---------------------------------------------------------------------------
 
+def _check_single_specialist_entry(
+    plugin_name: str,
+    plugin_root: Path,
+    rel_file: str,
+    spec_data: dict[str, Any],
+    personas: list,
+    enhances: list,
+    label: str = "",
+) -> list[dict[str, Any]]:
+    """Validate one specialist entry (shared by single and multi formats)."""
+    violations: list[dict[str, Any]] = []
+    prefix = f"[{label}] " if label else ""
+
+    # Validate specialist has 'role'
+    if not isinstance(spec_data, dict) or not spec_data.get("role"):
+        violations.append(
+            make_violation(
+                plugin=plugin_name,
+                vtype="ghost_specialist",
+                severity="error",
+                message=f"{prefix}specialist block missing or has no 'role'.",
+                file=rel_file,
+            )
+        )
+
+    # Validate personas is a non-empty list
+    if not isinstance(personas, list) or not personas:
+        violations.append(
+            make_violation(
+                plugin=plugin_name,
+                vtype="ghost_specialist",
+                severity="error",
+                message=f"{prefix}'personas' must be a non-empty list.",
+                file=rel_file,
+            )
+        )
+    else:
+        for persona in personas:
+            if not isinstance(persona, dict):
+                continue
+            agent_rel = persona.get("agent", "")
+            if not agent_rel:
+                continue
+            agent_path = plugin_root / agent_rel
+            if not agent_path.exists():
+                violations.append(
+                    make_violation(
+                        plugin=plugin_name,
+                        vtype="ghost_specialist",
+                        severity="error",
+                        message=(
+                            f"{prefix}Persona '{persona.get('name', '?')}' references agent "
+                            f"'{agent_rel}' which does not exist."
+                        ),
+                        file=rel_file,
+                    )
+                )
+
+    # Validate enhances is a non-empty list
+    if not isinstance(enhances, list) or not enhances:
+        violations.append(
+            make_violation(
+                plugin=plugin_name,
+                vtype="ghost_specialist",
+                severity="error",
+                message=f"{prefix}'enhances' must be a non-empty list.",
+                file=rel_file,
+            )
+        )
+
+    return violations
+
+
 def check_specialist(
     plugin_name: str,
     plugin_root: Path,
@@ -304,77 +379,61 @@ def check_specialist(
             )
         ]
 
-    # Validate top-level required fields
-    for field in REQUIRED_SPECIALIST_FIELDS:
-        if field not in data:
-            violations.append(
-                make_violation(
-                    plugin=plugin_name,
-                    vtype="ghost_specialist",
-                    severity="error",
-                    message=f"specialist.json missing required field '{field}'.",
-                    file=rel_file,
-                )
-            )
-
-    # Validate specialist sub-object has 'role'
-    specialist_block = data.get("specialist", {})
-    if not isinstance(specialist_block, dict) or not specialist_block.get("role"):
-        violations.append(
-            make_violation(
-                plugin=plugin_name,
-                vtype="ghost_specialist",
-                severity="error",
-                message="specialist.json 'specialist' block missing or has no 'role'.",
-                file=rel_file,
-            )
-        )
-
-    # Validate personas is a non-empty list
-    personas = data.get("personas", [])
-    if not isinstance(personas, list) or not personas:
-        violations.append(
-            make_violation(
-                plugin=plugin_name,
-                vtype="ghost_specialist",
-                severity="error",
-                message="specialist.json 'personas' must be a non-empty list.",
-                file=rel_file,
-            )
-        )
-    else:
-        # Each persona should have a name and agent path that exists
-        for persona in personas:
-            if not isinstance(persona, dict):
-                continue
-            agent_rel = persona.get("agent", "")
-            if not agent_rel:
-                continue
-            agent_path = plugin_root / agent_rel
-            if not agent_path.exists():
+    # Detect format: multi-specialist array vs. legacy single-specialist
+    if "specialists" in data and isinstance(data["specialists"], list):
+        # Multi-specialist format: {"specialists": [{name, role, personas, enhances}, ...]}
+        for entry in data["specialists"]:
+            if not isinstance(entry, dict):
                 violations.append(
                     make_violation(
                         plugin=plugin_name,
                         vtype="ghost_specialist",
                         severity="error",
-                        message=(
-                            f"Persona '{persona.get('name', '?')}' references agent "
-                            f"'{agent_rel}' which does not exist."
-                        ),
+                        message="specialist.json 'specialists' array contains non-object entry.",
                         file=rel_file,
                     )
                 )
-
-    # Validate enhances is a non-empty list
-    enhances = data.get("enhances", [])
-    if not isinstance(enhances, list) or not enhances:
-        violations.append(
-            make_violation(
-                plugin=plugin_name,
-                vtype="ghost_specialist",
-                severity="error",
-                message="specialist.json 'enhances' must be a non-empty list.",
-                file=rel_file,
+                continue
+            label = entry.get("name", "?")
+            for field in REQUIRED_MULTI_SPECIALIST_ENTRY_FIELDS:
+                if field not in entry:
+                    violations.append(
+                        make_violation(
+                            plugin=plugin_name,
+                            vtype="ghost_specialist",
+                            severity="error",
+                            message=f"[{label}] missing required field '{field}'.",
+                            file=rel_file,
+                        )
+                    )
+            violations.extend(
+                _check_single_specialist_entry(
+                    plugin_name, plugin_root, rel_file,
+                    spec_data=entry,
+                    personas=entry.get("personas", []),
+                    enhances=entry.get("enhances", []),
+                    label=label,
+                )
+            )
+    else:
+        # Legacy single-specialist format: {"specialist": {}, "personas": [], "enhances": []}
+        for field in REQUIRED_SPECIALIST_FIELDS:
+            if field not in data:
+                violations.append(
+                    make_violation(
+                        plugin=plugin_name,
+                        vtype="ghost_specialist",
+                        severity="error",
+                        message=f"specialist.json missing required field '{field}'.",
+                        file=rel_file,
+                    )
+                )
+        violations.extend(
+            _check_single_specialist_entry(
+                plugin_name, plugin_root, rel_file,
+                spec_data=data.get("specialist", {}),
+                personas=data.get("personas", []),
+                enhances=data.get("enhances", []),
             )
         )
 

@@ -5,7 +5,7 @@ argument-hint: <path> [--derive] [--derive-all]
 
 # /wicked-garden:search:index
 
-Build a unified index of code symbols and document content, then ingest into the knowledge graph via the control plane.
+Build a unified index of code symbols and document content in the local SQLite database. Optionally sync to the control plane knowledge graph if available.
 
 ## Arguments
 
@@ -16,25 +16,21 @@ Build a unified index of code symbols and document content, then ingest into the
 
 ## Instructions
 
-1. Ingest symbols into the knowledge graph via the CP proxy:
+1. Build the local unified index (primary — always runs):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols ingest < payload.json
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py index "<path>" ${project:+--project "${project}"}
    ```
 
-   The payload should contain the extracted symbols from the target directory. If a local indexing pipeline is available:
+2. Verify the local index:
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py stats
+   ```
+
+3. If the control plane is available, sync symbols to the knowledge graph:
    ```bash
    cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py index "<path>" --export-json | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols ingest
    ```
-
-2. Ingest cross-references:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge refs ingest < refs_payload.json
-   ```
-
-3. Verify the ingest by checking stats:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph stats ${project:+--project "${project}"}
-   ```
+   This step is optional — the local index is fully functional without CP.
 
 4. Report the results showing:
    - Code files indexed

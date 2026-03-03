@@ -22,15 +22,16 @@ Detect services and their connections from infrastructure configuration files an
 
    Parse found files to extract service names, types, and connections.
 
-2. Query the knowledge graph for code-level services:
+2. Query the local unified index for code-level services (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py service-map
+   ```
+
+3. If the control plane is available, also query for enrichment:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "service" --type code ${project:+--project "${project}"}
    ```
-
-3. Get hotspot services (high connectivity = likely service boundaries):
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph hotspots --type CLASS --limit 20 ${project:+--project "${project}"}
-   ```
+   This step is optional — the local index is fully functional without CP.
 
 4. Merge infrastructure and code-level discoveries into a unified service map.
 

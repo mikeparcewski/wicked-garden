@@ -14,12 +14,18 @@ Analyze what would be affected if you changed a symbol. Uses the knowledge graph
 
 ## Instructions
 
-1. Run the impact analysis via the CP proxy:
+1. Run the impact analysis via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py impact "<symbol>"
+   ```
+
+2. If the control plane is available, also query for enrichment:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph impact "<symbol>" --depth "${depth:-10}"
    ```
+   This step is optional — the local index is fully functional without CP.
 
-2. Parse the response `data` which contains affected symbols and paths.
+3. Parse the response which contains affected symbols and paths.
 
 3. Report the impact assessment:
    - **Affected UI Fields**: What UI elements display/collect this data

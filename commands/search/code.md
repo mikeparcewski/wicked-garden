@@ -13,14 +13,20 @@ Search code symbols only (functions, classes, methods) via the knowledge graph.
 
 ## Instructions
 
-1. Run the code search via the CP proxy:
+1. Run the code search via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py code "<query>"
+   ```
+
+2. If the control plane is available, also query it for additional results:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<query>" --type code
    ```
+   Merge CP results with local results, deduplicating by file+line.
 
-2. Parse the response `data` array. Each result contains: `name`, `type`, `file`, `line`, `layer`, `description`.
+3. Parse results. Each contains: `name`, `type`, `file`, `line`, `score`.
 
-3. Report matching symbols with file locations and types.
+4. Report matching symbols with file locations and types.
 
 ## Example
 

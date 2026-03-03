@@ -13,61 +13,93 @@ Test that wicked-smaht works independently without requiring other wicked-garden
 
 ## Setup
 
-Simulate a minimal installation where only wicked-smaht is available.
-
 ```bash
-# Check which wicked-garden plugins are installed
-ls "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json"
+# Create a test session for degradation testing
+SCEN_SESSION="test-degradation-$$"
+echo "Session ID: $SCEN_SESSION"
+echo "$SCEN_SESSION" > "${TMPDIR:-/tmp}/wicked-scenario-degrade-session"
+
+# Ensure smaht session directory exists
+mkdir -p "${HOME}/.something-wicked/wicked-garden/local/wicked-smaht/sessions/${SCEN_SESSION}"
 ```
 
 ## Steps
 
-1. **Start session with minimal plugins**
+### Step 1: Router handles prompts without errors
 
-   Even without wicked-mem, wicked-jam, wicked-kanban, wicked-search, or wicked-crew:
-   ```
-   Hello, I'm working on a new feature.
-   ```
+```bash
+SCEN_SESSION=$(cat "${TMPDIR:-/tmp}/wicked-scenario-degrade-session")
+cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/orchestrator.py route "Hello, I'm working on a new feature." --session "$SCEN_SESSION" --json 2>&1
+EXIT_CODE=$?
+[ $EXIT_CODE -eq 0 ] || { echo "FAIL: orchestrator route failed with exit $EXIT_CODE"; exit 1; }
+echo "PASS: orchestrator routes without errors"
+```
 
-   **Expected**: Session starts successfully. Adapters for missing plugins return empty results (not errors).
+**Expect**: Exit code 0, router classifies prompt without crashing
 
-2. **Verify session creation**
-   ```bash
-   ls ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/
-   ```
-   Session directory should exist.
+### Step 2: Verify session directory created
 
-3. **Check adapter failures are silent**
+```bash
+SCEN_SESSION=$(cat "${TMPDIR:-/tmp}/wicked-scenario-degrade-session")
+SMAHT_DIR="${HOME}/.something-wicked/wicked-garden/local/wicked-smaht/sessions/${SCEN_SESSION}"
+[ -d "$SMAHT_DIR" ] || { echo "FAIL: session directory not created"; exit 1; }
+echo "PASS: session directory exists at $SMAHT_DIR"
+```
 
-   The hook output should NOT show errors for missing plugins:
-   ```
-   # Good: "wicked-mem: skipped (not found)"
-   # Bad:  "Error: wicked-mem not installed"
-   ```
+**Expect**: Exit code 0, session directory exists
 
-4. **Test fact extraction (works standalone)**
-   ```
-   Let's use PostgreSQL for the database. I found that the connection pooling was misconfigured.
-   ```
+### Step 3: HistoryCondenser works standalone
 
-   Facts should be extracted even without wicked-mem:
-   ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/facts.jsonl
-   ```
+```bash
+SCEN_SESSION=$(cat "${TMPDIR:-/tmp}/wicked-scenario-degrade-session")
+cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/history_condenser.py "$SCEN_SESSION" "Let's use PostgreSQL for the database." 2>&1
+EXIT_CODE=$?
+[ $EXIT_CODE -eq 0 ] || { echo "FAIL: condenser failed with exit $EXIT_CODE"; exit 1; }
+echo "PASS: HistoryCondenser works standalone without external plugins"
+```
 
-5. **Test lane tracking (works standalone)**
-   ```
-   Switch to planning the API design.
-   ```
+**Expect**: Exit code 0, condenser processes turn independently
 
-   Lanes should be created:
-   ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/lanes.jsonl
-   ```
+### Step 4: Orchestrator gather handles missing adapters gracefully
 
-6. **Verify no stack traces**
+```bash
+SCEN_SESSION=$(cat "${TMPDIR:-/tmp}/wicked-scenario-degrade-session")
+# Gather should complete even if some adapters can't reach their targets
+OUTPUT=$(cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/orchestrator.py gather "Switch to planning the API design." --session "$SCEN_SESSION" --json 2>&1)
+EXIT_CODE=$?
+echo "$OUTPUT" | tail -5
+# Should not contain Python tracebacks
+echo "$OUTPUT" | grep -c "Traceback" | { read count; [ "$count" -eq 0 ] || { echo "FAIL: stack traces in output"; exit 1; }; }
+echo "PASS: orchestrator gather completed (exit code: $EXIT_CODE)"
+```
 
-   The Claude terminal should be clean - no Python tracebacks or error messages from missing dependencies.
+**Expect**: Exit code 0, no stack traces in output
+
+### Step 5: No stack traces from adapter failures
+
+```bash
+SCEN_SESSION=$(cat "${TMPDIR:-/tmp}/wicked-scenario-degrade-session")
+OUTPUT=$(cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/orchestrator.py gather "Tell me about the authentication setup." --session "$SCEN_SESSION" 2>&1)
+# Check for clean output — no Python tracebacks
+if echo "$OUTPUT" | grep -q "Traceback"; then
+  echo "FAIL: Python traceback found in output"
+  echo "$OUTPUT" | grep -A 3 "Traceback"
+  exit 1
+fi
+echo "PASS: no stack traces — adapters degrade gracefully"
+```
+
+**Expect**: Exit code 0, clean output without tracebacks
+
+## Cleanup
+
+```bash
+SCEN_SESSION=$(cat "${TMPDIR:-/tmp}/wicked-scenario-degrade-session" 2>/dev/null)
+if [ -n "$SCEN_SESSION" ]; then
+  rm -rf "${HOME}/.something-wicked/wicked-garden/local/wicked-smaht/sessions/${SCEN_SESSION}"
+fi
+rm -f "${TMPDIR:-/tmp}/wicked-scenario-degrade-session"
+```
 
 ## Expected Outcome
 

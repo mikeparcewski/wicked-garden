@@ -14,18 +14,21 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
 
 ## Instructions
 
-1. Resolve the symbol name to a graph node UUID:
+1. Run the blast radius analysis via the local unified index (primary):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<symbol>" --limit 5
-   ```
-   Find the matching node in the results and extract its `id` (UUID).
-
-2. Run the graph traversal using the resolved UUID:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph traverse "<uuid>" --direction both --depth "${depth:-2}"
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py blast-radius "<symbol>" --depth "${depth:-2}"
    ```
 
-3. Parse the response `data` object containing `nodes` and `edges`.
+2. If the control plane is available, also query the graph for additional transitive dependencies:
+   a. Resolve symbol to UUID:
+      ```bash
+      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<symbol>" --limit 5
+      ```
+   b. Traverse from UUID:
+      ```bash
+      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph traverse "<uuid>" --direction both --depth "${depth:-2}"
+      ```
+   Merge CP results with local results.
 
 3. Report the impact assessment:
    - **Dependencies** (outgoing): What this symbol uses/imports

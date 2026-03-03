@@ -5,7 +5,7 @@ argument-hint: "[--project <name>]"
 
 # /wicked-garden:search:stats
 
-Show statistics about the indexed knowledge graph.
+Show statistics about the indexed search database.
 
 ## Arguments
 
@@ -13,16 +13,21 @@ Show statistics about the indexed knowledge graph.
 
 ## Instructions
 
-1. Run the stats query via the CP proxy:
+1. Run the stats query via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py stats
+   ```
+
+2. If the control plane is available, also query CP stats:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph stats ${project:+--project "${project}"}
    ```
+   Report both local and CP stats if available.
 
-2. Report:
+3. Report:
    - Total symbols indexed
-   - Total references/edges in graph
+   - Total references/edges
    - Breakdown by symbol type
-   - Breakdown by architectural layer
    - Projects indexed
 
 ## Example

@@ -9,15 +9,16 @@ Show how indexed symbols break down by type, architectural layer, and directory 
 
 ## Instructions
 
-1. Run the categories query via the CP proxy:
+1. Run the categories query via the local unified index (primary):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols categories
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py categories
    ```
 
-   If a project is specified:
+   If the control plane is available, also query for enrichment:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols categories --project "<project>"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols categories ${project:+--project "${project}"}
    ```
+   This step is optional — the local index is fully functional without CP.
 
 2. Present results in five sections:
 

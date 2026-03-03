@@ -48,12 +48,19 @@ Structural code search, document search, lineage tracing, and codebase intellige
 
 ## Architecture
 
-All search commands query the **knowledge graph** in the control plane via `cp.py`:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge {source} {verb} [args]
-```
+Search commands use a **local-first** architecture:
 
-Knowledge domain sources: `graph`, `symbols`, `lineage`, `code`, `projects`, `refs`.
+1. **Primary**: Local unified index via `unified_search.py` (always available, SQLite-backed)
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py {command} [args]
+   ```
+
+2. **Enhancement**: Control plane knowledge graph via `cp.py` (optional, adds team-shared data)
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge {source} {verb} [args]
+   ```
+
+In local-only mode, all search commands work without the control plane. When CP is available, results are merged for richer coverage.
 
 ## Examples
 
@@ -88,7 +95,7 @@ Knowledge domain sources: `graph`, `symbols`, `lineage`, `code`, `projects`, `re
 
 ## Integration
 
-- **wicked-smaht**: Search adapter feeds context assembly via CP knowledge domain
+- **wicked-smaht**: Search adapter feeds context assembly via local index (CP optional)
 - **wicked-patch**: Symbol lookup for structural refactoring
 - **wicked-engineering**: Architecture and code analysis
 - **wicked-crew**: Context for all workflow phases

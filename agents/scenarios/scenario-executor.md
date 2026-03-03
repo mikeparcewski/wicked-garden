@@ -40,7 +40,7 @@ For each scenario file:
      - `/wicked-garden:search:index /tmp/project` → `Skill(skill="wicked-garden:search:index", args="/tmp/project")`
    - **Bash commands**: Execute via Bash tool
    - **Mixed blocks**: Execute bash parts via Bash, slash parts via Skill, in order
-   - **No code block / prose only**: Mark as SKIPPED
+   - **Prose-only steps**: Interpret and execute (see Prose Interpretation below)
    - Record: status (PASS/FAIL/SKIPPED), duration, output snippet
 5. **Execute `## Cleanup`** section if present (always, even on failure)
 6. **Report results** in the standard format
@@ -66,13 +66,14 @@ If a slash command is on its own line in a code block, it's the primary action. 
 - **Bash steps**: Exit code 0 = PASS, non-zero = FAIL
 - **Slash command steps**: If the Skill tool returns without error = PASS. If it returns an error or the slash command produces an error message indicating failure = FAIL
 - **Steps with both bash AND slash**: All must succeed for PASS. Any failure = FAIL
-- **Missing tool / unregistered skill**: SKIPPED (not FAIL)
+- **Prose steps**: Execute the interpreted action and verify the expected outcome. Met = PASS, not met = FAIL
+- **Missing tool / unregistered skill**: SKIPPED (not FAIL) — but only for external CLI tools not bundled with the plugin
 
 ## Verdict Rules
 
-- **Per-step**: PASS / FAIL / SKIPPED based on above
-- **Per-scenario**: All PASS → PASS, Any FAIL → FAIL, No FAILs but SKIPs → PARTIAL
-- **Overall exit**: PASS=0, FAIL=1, PARTIAL=2
+- **Per-step**: PASS / FAIL based on above (SKIPPED only for missing external CLI tools)
+- **Per-scenario**: All PASS → PASS, Any FAIL → FAIL
+- **Overall exit**: PASS=0, FAIL=1
 
 ## Output Format
 
@@ -88,8 +89,60 @@ If a slash command is on its own line in a code block, it's the primary action. 
 | {name} | bash | PASS | 0.5s | |
 | {name} | skill | PASS | 2.1s | |
 | {name} | skill | FAIL | 1.0s | Error: ... |
-| {name} | - | SKIPPED | - | No code block |
+| {name} | prose | PASS | 1.5s | Verified field X = Y |
 ```
+
+## Prose Interpretation
+
+Prose steps describe what to do and what to expect. You are a tester — figure out the action and verify the outcome. Never skip a step just because it lacks a fenced code block.
+
+**How to interpret prose steps:**
+
+1. **Identify the action**: What is the step asking you to do?
+   - "Run `/wicked-garden:smaht:debug`" → invoke the Skill tool
+   - "Verify the output contains X" → check previous step output or run a command to get current state
+   - "Send this prompt: ..." → this is a user prompt to submit; simulate by invoking the relevant skill or running the underlying script
+   - "Check that topics list contains authentication" → run the debug/status command and grep for the expected value
+
+2. **Identify the expected outcome**: What should the result look like?
+   - "Expected: current_task is set to ..." → after executing, verify the field value
+   - "Output should include ..." → grep or parse the output
+
+3. **Execute and verify**: Run the action, then check the outcome against expectations. PASS if expectations met, FAIL if not.
+
+4. **Never SKIP**: You have tools for everything — Bash for CLI commands, Skill for slash commands, Read/Grep for file inspection, and CLI browser tools (`agent-browser`, `playwright`, `curl`) for web/visual checks. There is no step you cannot execute. If a step says "observe the UI", use `agent-browser snapshot` or `curl` to capture the state programmatically. If a step says "visually verify", capture a screenshot or DOM snapshot and check for the expected elements.
+
+**Common prose patterns and how to handle them:**
+
+| Prose pattern | Action |
+|--------------|--------|
+| "Run `/wicked-garden:X:Y`" | `Skill(skill="wicked-garden:X:Y")` |
+| "Verify output contains X" | Check previous output or re-run command, grep for X |
+| "Check that field F has value V" | Run the relevant debug/status command, parse output |
+| "Expected: list includes A, B" | Run query command, verify A and B appear |
+| "Submit this prompt: ..." | Invoke the underlying skill or script that processes it |
+| "Observe the session startup" | Run `/wicked-garden:smaht:debug` to inspect session state |
+| "Configure X to Y" | Run the relevant config/setup command |
+| "Visually inspect the page" | `agent-browser open <url> && agent-browser snapshot` or `curl -sf <url>` |
+| "Open a new session" | Run the session init script or invoke `smaht:debug` to verify state |
+| "Check the UI renders correctly" | Capture DOM snapshot, grep for expected elements |
+| "Verify no errors in console" | Check stderr, log files, or debug output for error patterns |
+
+## Active Project Handling
+
+Before executing scenarios that invoke `crew:start`, check for an active crew project:
+
+```
+Skill(skill="wicked-garden:crew:status")
+```
+
+If a project is active, archive it first:
+
+```
+Skill(skill="wicked-garden:crew:archive", args="{active-project-slug}")
+```
+
+Then proceed with the scenario's setup. This prevents "active project" conflicts from blocking scenario execution.
 
 ## Rules
 
@@ -99,3 +152,4 @@ If a slash command is on its own line in a code block, it's the primary action. 
 - **Respect timeouts**: Use `timeout` for bash commands if scenario specifies one
 - **Capture evidence**: Save stdout/stderr snippets for failed steps
 - **Be honest**: Don't mark PASS if the output indicates an error, even if exit code is 0
+- **Interpret prose**: Never skip a step that describes an executable action just because it lacks a code fence

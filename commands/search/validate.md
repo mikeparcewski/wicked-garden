@@ -15,14 +15,14 @@ Validate the accuracy of the knowledge graph index using consistency-based check
 
 ## Instructions
 
-1. Get graph statistics:
+1. Run validation via the local unified index (primary):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph stats ${project:+--project "${project}"}
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py validate
    ```
 
-2. Sample symbols from the graph:
+2. Get detailed statistics:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph list --limit "${sample_size:-100}" ${project:+--project "${project}"}
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py stats
    ```
 
 3. For each sampled symbol, verify it exists at the stated file:line location:
@@ -30,9 +30,9 @@ Validate the accuracy of the knowledge graph index using consistency-based check
    - Check that the symbol name appears near the stated line
    - Track valid/invalid counts
 
-4. Sample references and verify targets exist:
+4. Check FTS5 index integrity:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<symbol_name>" ${project:+--project "${project}"}
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py integrity-check
    ```
 
 5. Report the validation results:

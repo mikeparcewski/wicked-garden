@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -2077,6 +2078,46 @@ async def main():
     graph_parser.add_argument("--list-linkers", action="store_true",
                              help="List available linkers")
 
+    # hotspots
+    hotspots_parser = subparsers.add_parser("hotspots", help="Find most-referenced symbols")
+    hotspots_parser.add_argument("--path", "-p", default=".", help="Project path")
+    hotspots_parser.add_argument("--limit", "-n", type=int, default=20, help="Max results")
+    hotspots_parser.add_argument("--layer", help="Filter by layer")
+
+    # impact
+    impact_parser = subparsers.add_parser("impact", help="Analyze change impact")
+    impact_parser.add_argument("symbol", help="Symbol name to analyze")
+    impact_parser.add_argument("--path", "-p", default=".", help="Project path")
+
+    # categories
+    categories_parser = subparsers.add_parser("categories", help="Show symbol categories")
+    categories_parser.add_argument("--path", "-p", default=".", help="Project path")
+
+    # lineage
+    lineage_parser = subparsers.add_parser("lineage", help="Trace data lineage")
+    lineage_parser.add_argument("symbol", nargs="?", help="Symbol to trace (optional, lists all if omitted)")
+    lineage_parser.add_argument("--path", "-p", default=".", help="Project path")
+    lineage_parser.add_argument("--limit", "-n", type=int, default=20, help="Max results")
+    lineage_parser.add_argument("--direction", choices=["source", "sink", "both"], default="both")
+
+    # coverage
+    coverage_parser = subparsers.add_parser("coverage", help="Report lineage coverage")
+    coverage_parser.add_argument("--path", "-p", default=".", help="Project path")
+
+    # service-map
+    svcmap_parser = subparsers.add_parser("service-map", help="Detect service architecture")
+    svcmap_parser.add_argument("--path", "-p", default=".", help="Project path")
+    svcmap_parser.add_argument("--limit", "-n", type=int, default=20, help="Max results")
+
+    # validate
+    validate_parser = subparsers.add_parser("validate", help="Validate index accuracy")
+    validate_parser.add_argument("--path", "-p", default=".", help="Project path")
+
+    # integrity-check
+    integrity_parser = subparsers.add_parser("integrity-check", help="Check and repair FTS5 index")
+    integrity_parser.add_argument("--path", "-p", default=".", help="Project path")
+    integrity_parser.add_argument("--repair", action="store_true", help="Auto-repair if corruption detected")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -2252,7 +2293,63 @@ async def main():
                 graph.export_sqlite(Path(args.export_db))
                 print(f"  Exported SQLite: {args.export_db}")
 
-    elif args.command in ("search", "code", "docs", "refs", "impl", "blast-radius", "stats"):
+    elif args.command == "integrity-check":
+        # FTS5 integrity check and auto-repair
+        unified_db = index._get_unified_db_path()
+        if not unified_db.exists():
+            print("Error: No unified database found. Run /wicked-search:index first.", file=sys.stderr)
+            return
+
+        print(f"Checking FTS5 index integrity...")
+        conn = sqlite3.connect(str(unified_db))
+        try:
+            # Check if symbols_fts table exists
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='symbols_fts'"
+            )
+            if not cursor.fetchone():
+                print("  FTS5 table 'symbols_fts' not found.")
+                if getattr(args, 'repair', False):
+                    print("  Repair requires re-indexing. Run: /wicked-garden:search:index .")
+                return
+
+            # Try a simple FTS query to detect corruption
+            try:
+                conn.execute("SELECT count(*) FROM symbols_fts")
+                # Try an actual MATCH query
+                conn.execute("SELECT count(*) FROM symbols_fts WHERE symbols_fts MATCH 'test'")
+                print("  FTS5 index: OK (no corruption detected)")
+            except sqlite3.DatabaseError as fts_err:
+                err_msg = str(fts_err)
+                print(f"  FTS5 index: CORRUPT — {err_msg}")
+                if getattr(args, 'repair', False):
+                    print("  Rebuilding FTS5 index...")
+                    try:
+                        conn.execute("INSERT INTO symbols_fts(symbols_fts) VALUES('rebuild')")
+                        conn.commit()
+                        # Verify repair
+                        conn.execute("SELECT count(*) FROM symbols_fts WHERE symbols_fts MATCH 'test'")
+                        print("  FTS5 index: REPAIRED successfully")
+                    except sqlite3.DatabaseError as rebuild_err:
+                        print(f"  FTS5 rebuild failed: {rebuild_err}")
+                        print("  Drop and re-index: rm the unified.db and run /wicked-garden:search:index .")
+                else:
+                    print("  Run with --repair to attempt auto-rebuild")
+
+            # Show row counts for comparison
+            sym_count = conn.execute("SELECT count(*) FROM symbols").fetchone()[0]
+            try:
+                fts_count = conn.execute("SELECT count(*) FROM symbols_fts").fetchone()[0]
+            except sqlite3.DatabaseError:
+                fts_count = "ERROR"
+            print(f"  symbols table: {sym_count} rows")
+            print(f"  symbols_fts table: {fts_count} rows")
+        finally:
+            conn.close()
+
+    elif args.command in ("search", "code", "docs", "refs", "impl", "blast-radius", "stats",
+                          "hotspots", "impact", "categories", "lineage", "coverage",
+                          "service-map", "validate"):
         # Auto-ensure fresh index (builds if missing)
         await index.ensure_fresh(verbose=True)
 
@@ -2558,6 +2655,150 @@ async def main():
                         print(f"\n  No {group_by} breakdown available in stats")
                 else:
                     print(f"\n  Warning: Unsupported group-by field '{args.group_by}'. Use 'layer' or 'type'.")
+
+        elif args.command == "hotspots":
+            results = engine.hotspots(limit=args.limit)
+            print(f"\nHotspots (most-referenced symbols):")
+            print("-" * 60)
+            layer_filter = getattr(args, 'layer', None)
+            for i, h in enumerate(results, 1):
+                if layer_filter and h.get('layer', '').lower() != layer_filter.lower():
+                    continue
+                name = h.get('name', '?')
+                stype = h.get('type', '?')
+                ref_count = h.get('ref_count', h.get('incoming_count', 0))
+                layer = h.get('layer', '?')
+                print(f"  {i}. {name} ({stype}) — {ref_count} refs [layer: {layer}]")
+
+        elif args.command == "impact":
+            # Resolve symbol name to ID
+            symbol_input = args.symbol
+            sym = engine.get_symbol(symbol_input)
+            if not sym:
+                candidates = engine.search_code(symbol_input, limit=5)
+                if not candidates:
+                    candidates = engine.search_all(symbol_input, limit=5)
+                if candidates:
+                    symbol_input = candidates[0]['id']
+                else:
+                    print(f"\nSymbol '{args.symbol}' not found")
+                    return
+
+            result = engine.impact_analysis(symbol_input)
+            print(f"\nImpact Analysis for: {args.symbol}")
+            print("-" * 60)
+            print(f"  Direct dependents: {result.get('direct_dependents', 0)}")
+            print(f"  Transitive dependents: {result.get('transitive_dependents', 0)}")
+            print(f"  Risk level: {result.get('risk_level', '?')}")
+            if result.get('affected_files'):
+                print(f"\n  Affected files:")
+                for f in result['affected_files'][:20]:
+                    print(f"    - {f}")
+
+        elif args.command == "categories":
+            cats = engine.get_categories()
+            print(f"\nSymbol Categories:")
+            print("-" * 60)
+            for cat_type, cat_data in sorted(cats.items()):
+                if isinstance(cat_data, dict):
+                    print(f"\n  {cat_type}:")
+                    for key, count in sorted(cat_data.items(), key=lambda x: -x[1] if isinstance(x[1], (int, float)) else 0):
+                        print(f"    {key}: {count}")
+                elif isinstance(cat_data, list):
+                    print(f"\n  {cat_type}: {len(cat_data)} entries")
+
+        elif args.command == "lineage":
+            sym_arg = getattr(args, 'symbol', None)
+            if sym_arg:
+                results = engine.search_lineage(sym_arg, limit=args.limit)
+            else:
+                results = engine.list_lineage(limit=args.limit)
+            print(f"\nLineage Paths:")
+            print("-" * 60)
+            if results:
+                for path in results:
+                    src = path.get('source_name', path.get('source_id', '?'))
+                    tgt = path.get('target_name', path.get('target_id', '?'))
+                    ptype = path.get('path_type', '?')
+                    print(f"  {src} → {tgt} [{ptype}]")
+            else:
+                print("  No lineage paths found. Run /wicked-garden:search:index . --derive to generate.")
+
+        elif args.command == "coverage":
+            lineage_count = stats_data.get('lineage_paths', 0) if 'stats_data' in dir() else 0
+            cov_stats = engine.get_stats()
+            total = cov_stats.get('total_symbols', 0)
+            lineage_count = cov_stats.get('lineage_paths', 0)
+            # Sample orphans (symbols with no refs)
+            orphans = engine.list_symbols(limit=200)
+            orphan_count = 0
+            for sym in orphans[:200]:
+                refs = engine.find_references(sym['id'])
+                if not refs.get('incoming') and not refs.get('outgoing'):
+                    orphan_count += 1
+
+            covered = total - orphan_count if total > orphan_count else total
+            coverage_pct = (covered / total * 100) if total > 0 else 0
+
+            print(f"\nLineage Coverage Report:")
+            print("-" * 60)
+            print(f"  Total symbols: {total}")
+            print(f"  Lineage paths: {lineage_count}")
+            print(f"  Orphan symbols (sampled): ~{orphan_count}")
+            print(f"  Coverage: ~{coverage_pct:.1f}%")
+
+        elif args.command == "service-map":
+            services = engine.list_services(limit=args.limit)
+            print(f"\nService Map:")
+            print("-" * 60)
+            if services:
+                for svc in services:
+                    name = svc.get('name', svc.get('service_name', '?'))
+                    stype = svc.get('type', svc.get('service_type', '?'))
+                    deps = svc.get('dependencies', [])
+                    print(f"  {name} ({stype})")
+                    if deps:
+                        for dep in deps[:5]:
+                            print(f"    → {dep}")
+            else:
+                print("  No services detected. Run /wicked-garden:search:index . --derive-all to generate.")
+
+        elif args.command == "validate":
+            val_stats = engine.get_stats()
+            total_symbols = val_stats.get('total_symbols', 0)
+            total_refs = val_stats.get('total_refs', 0)
+            print(f"\nIndex Validation:")
+            print("-" * 60)
+            print(f"  Total symbols: {total_symbols}")
+            print(f"  Total refs: {total_refs}")
+
+            issues = []
+            if total_symbols == 0:
+                issues.append("No symbols indexed — run /wicked-garden:search:index first")
+            if total_refs == 0 and total_symbols > 10:
+                issues.append("No cross-references detected — references may not be resolved")
+
+            # Check FTS5 consistency
+            unified_db = index._get_unified_db_path()
+            if unified_db.exists():
+                conn = sqlite3.connect(str(unified_db))
+                try:
+                    sym_count = conn.execute("SELECT count(*) FROM symbols").fetchone()[0]
+                    try:
+                        fts_count = conn.execute("SELECT count(*) FROM symbols_fts").fetchone()[0]
+                        if sym_count != fts_count:
+                            issues.append(f"FTS5 row count mismatch: symbols={sym_count}, fts={fts_count}")
+                    except sqlite3.DatabaseError as e:
+                        issues.append(f"FTS5 index corrupt: {e}")
+                finally:
+                    conn.close()
+
+            if issues:
+                print(f"\n  Issues found ({len(issues)}):")
+                for issue in issues:
+                    print(f"    - {issue}")
+            else:
+                print(f"\n  Status: VALID — no issues detected")
 
 
 if __name__ == "__main__":

@@ -21,9 +21,9 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
 
 ## Instructions
 
-1. First, check current index quality:
+1. First, check current index quality via the local unified index:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph stats ${project:+--project "${project}"}
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py stats
    ```
 
 2. Run validation to establish baseline:
@@ -40,9 +40,9 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
 
    **Strategy phase**: Create extraction plan based on discoveries.
 
-   **Execute phase**: Index discovered symbols via:
+   **Execute phase**: Re-index with the discovered patterns:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols ingest < discovered_symbols.json
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py index "<project_path>" --force
    ```
 
    **Validate phase**: Re-run `/wicked-garden:search:validate` to check improvement.

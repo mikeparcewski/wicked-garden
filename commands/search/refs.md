@@ -13,29 +13,30 @@ Find all references to/from a code symbol, including documentation cross-referen
 
 ## Instructions
 
-1. Resolve the symbol name to a graph node UUID:
+1. Run the refs lookup via the local unified index (primary):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<symbol>" --limit 5
-   ```
-   Find the matching node in the results and extract its `id` (UUID).
-
-2. Run the graph traversal using the resolved UUID:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph traverse "<uuid>" --direction both --depth 1
+   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py refs "<symbol>"
    ```
 
-3. Parse the response. The `data` object contains:
-   - `nodes`: Connected nodes (symbols, doc sections), with the target node included
-   - `edges`: Typed relationships between them
+2. If the control plane is available, also query the graph for additional relationships:
+   a. Resolve symbol to UUID:
+      ```bash
+      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<symbol>" --limit 5
+      ```
+   b. Traverse from UUID:
+      ```bash
+      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph traverse "<uuid>" --direction both --depth 1
+      ```
+   Merge CP results with local results.
 
 3. Report the relationships found, grouped by type:
-   - **Documented in**: Docs that mention this symbol (edges with type `documents`)
-   - **Called by**: Functions/methods that call this (incoming `calls` edges)
-   - **Calls**: Functions/methods this calls (outgoing `calls` edges)
-   - **Inherited by**: Classes that extend this (incoming `extends` edges)
-   - **Inherits from**: Classes this extends (outgoing `extends` edges)
-   - **Imports**: Modules this imports (outgoing `imports` edges)
-   - **Imported by**: Modules that import this (incoming `imports` edges)
+   - **Documented in**: Docs that mention this symbol
+   - **Called by**: Functions/methods that call this
+   - **Calls**: Functions/methods this calls
+   - **Inherited by**: Classes that extend this
+   - **Inherits from**: Classes this extends
+   - **Imports**: Modules this imports
+   - **Imported by**: Modules that import this
 
 ## Example
 
