@@ -72,8 +72,8 @@ claude plugin install wicked-mem@wicked-garden
 
 **Execute**:
 ```bash
-/wicked-crew:start "Add retry logic with exponential backoff to API client"
-/wicked-crew:status
+/wicked-garden:crew:start "Add retry logic with exponential backoff to API client"
+/wicked-garden:crew:status
 ```
 
 **Expected status output**:
@@ -93,7 +93,7 @@ Available Integrations:
 
 **Execute clarify with wicked-jam**:
 ```bash
-/wicked-crew:execute
+/wicked-garden:crew:execute
 ```
 
 **Expected**:
@@ -118,8 +118,8 @@ claude plugin uninstall wicked-kanban
 
 **Execute**:
 ```bash
-/wicked-crew:start "Add request timeout configuration to API client"
-/wicked-crew:status
+/wicked-garden:crew:start "Add request timeout configuration to API client"
+/wicked-garden:crew:status
 ```
 
 **Expected status output**:
@@ -139,7 +139,7 @@ Available Integrations:
 
 **Execute clarify without wicked-jam**:
 ```bash
-/wicked-crew:execute
+/wicked-garden:crew:execute
 ```
 
 **Expected**:
@@ -150,8 +150,8 @@ Available Integrations:
 
 **Progress to design**:
 ```bash
-/wicked-crew:approve clarify
-/wicked-crew:execute
+/wicked-garden:crew:approve clarify
+/wicked-garden:crew:execute
 ```
 
 **Expected**:
@@ -163,9 +163,9 @@ Available Integrations:
 
 **Progress to build**:
 ```bash
-/wicked-crew:approve design
-/wicked-crew:approve test-strategy
-/wicked-crew:execute
+/wicked-garden:crew:approve design
+/wicked-garden:crew:approve test-strategy
+/wicked-garden:crew:execute
 ```
 
 **Expected**:
@@ -182,8 +182,8 @@ claude plugin uninstall wicked-mem
 
 **Execute**:
 ```bash
-/wicked-crew:start "Add request/response logging to API client"
-/wicked-crew:status
+/wicked-garden:crew:start "Add request/response logging to API client"
+/wicked-garden:crew:status
 ```
 
 **Expected status output**:
@@ -205,15 +205,15 @@ Note: All project data stored locally via file-based persistence
 
 **Complete full workflow standalone**:
 ```bash
-/wicked-crew:execute           # clarify
-/wicked-crew:approve clarify
-/wicked-crew:execute           # design
-/wicked-crew:approve design
-/wicked-crew:execute           # test-strategy
-/wicked-crew:approve test-strategy
-/wicked-crew:execute           # build
-/wicked-crew:approve build
-/wicked-crew:execute           # review
+/wicked-garden:crew:execute           # clarify
+/wicked-garden:crew:approve clarify
+/wicked-garden:crew:execute           # design
+/wicked-garden:crew:approve design
+/wicked-garden:crew:execute           # test-strategy
+/wicked-garden:crew:approve test-strategy
+/wicked-garden:crew:execute           # build
+/wicked-garden:crew:approve build
+/wicked-garden:crew:execute           # review
 ```
 
 **Expected**:
@@ -226,7 +226,7 @@ Note: All project data stored locally via file-based persistence
 ```bash
 # Exit and restart Claude Code
 # Then:
-/wicked-crew:status
+/wicked-garden:crew:status
 ```
 
 **Expected**:

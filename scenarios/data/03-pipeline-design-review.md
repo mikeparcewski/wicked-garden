@@ -99,7 +99,7 @@ EOF
 Ask for a pipeline review.
 
 ```
-/wicked-data:pipeline review /tmp/pipelines/sales_etl/
+/wicked-garden:data:pipeline review /tmp/pipelines/sales_etl/
 ```
 
 Expected review should identify:

@@ -9,7 +9,7 @@ estimated_minutes: 15
 
 # Just-Finish Autonomous Assumptions
 
-This scenario validates that `/wicked-crew:just-finish` completes autonomously without stopping for clarification, making reasonable assumptions and documenting them at the end. The key behavior: just-finish should FINISH, not stop at clarify to ask questions.
+This scenario validates that `/wicked-garden:crew:just-finish` completes autonomously without stopping for clarification, making reasonable assumptions and documenting them at the end. The key behavior: just-finish should FINISH, not stop at clarify to ask questions.
 
 ## Setup
 
@@ -17,7 +17,7 @@ Create a project with an intentionally vague description that would normally tri
 
 ```bash
 # Create test project
-/wicked-crew:start "Improve the search results page"
+/wicked-garden:crew:start "Improve the search results page"
 ```
 
 This description is intentionally vague -- it doesn't specify:
@@ -33,7 +33,7 @@ Normally, the clarify phase would ask the user to clarify these. In just-finish 
 ### 1. Launch just-finish mode
 
 ```bash
-/wicked-crew:just-finish
+/wicked-garden:crew:just-finish
 ```
 
 ### 2. Verify clarify phase completes without questions
@@ -123,3 +123,9 @@ Expected:
 ## Value Demonstrated
 
 Users invoke just-finish because they want autonomous completion. Stopping at clarify to ask questions defeats the purpose -- it's the opposite of "just finish." By making reasonable assumptions and documenting them transparently at the end, crew delivers results while maintaining accountability. Users can review assumptions post-hoc and course-correct if needed, which is faster than blocking on clarification upfront.
+
+## Cleanup
+
+```bash
+/wicked-garden:crew:archive improve-the-search-results-page
+```

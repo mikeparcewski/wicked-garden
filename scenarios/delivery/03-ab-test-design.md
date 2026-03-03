@@ -86,8 +86,7 @@ echo "Setup complete. Experiment context created."
 Ask the experiment designer to create a testable hypothesis:
 
 ```
-Task tool: subagent_type="wicked-delivery:experiment-designer"
-prompt="I want to test one-click checkout for returning customers. Help me formulate a proper hypothesis. Context is in feature-spec.md"
+/wicked-garden:delivery:experiment I want to test one-click checkout for returning customers. Help me formulate a proper hypothesis. Context is in feature-spec.md
 ```
 
 **Expected Output**:
@@ -103,8 +102,7 @@ prompt="I want to test one-click checkout for returning customers. Help me formu
 Define what success looks like:
 
 ```
-Task tool: subagent_type="wicked-delivery:experiment-designer"
-prompt="What metrics should we track for this experiment? I need primary, secondary, and guardrail metrics."
+/wicked-garden:delivery:experiment What metrics should we track for this experiment? I need primary, secondary, and guardrail metrics.
 ```
 
 **Expected Output**:
@@ -124,8 +122,7 @@ prompt="What metrics should we track for this experiment? I need primary, second
 Determine statistical requirements:
 
 ```
-Task tool: subagent_type="wicked-delivery:experiment-designer"
-prompt="Calculate the sample size needed to detect an 8% improvement in conversion. Our baseline conversion is 68%. We want 95% confidence and 80% power."
+/wicked-garden:delivery:experiment Calculate the sample size needed to detect an 8% improvement in conversion. Our baseline conversion is 68%. We want 95% confidence and 80% power.
 ```
 
 **Expected Output**:
@@ -146,8 +143,7 @@ prompt="Calculate the sample size needed to detect an 8% improvement in conversi
 Define control and treatment:
 
 ```
-Task tool: subagent_type="wicked-delivery:experiment-designer"
-prompt="Define the control and treatment variants for this experiment. What exactly will each group see?"
+/wicked-garden:delivery:experiment Define the control and treatment variants for this experiment. What exactly will each group see?
 ```
 
 **Expected Output**:
@@ -167,8 +163,7 @@ prompt="Define the control and treatment variants for this experiment. What exac
 Create tracking plan:
 
 ```
-Task tool: subagent_type="wicked-delivery:experiment-designer"
-prompt="What events do I need to instrument for this experiment? Create a tracking plan."
+/wicked-garden:delivery:experiment What events do I need to instrument for this experiment? Create a tracking plan.
 ```
 
 **Expected Output**:
@@ -200,8 +195,7 @@ trackEvent('support_ticket_opened', {category: 'checkout'})
 Request the complete design document:
 
 ```
-Task tool: subagent_type="wicked-delivery:experiment-designer"
-prompt="Generate a complete experiment design document I can share with the team."
+/wicked-garden:delivery:experiment Generate a complete experiment design document I can share with the team. Include hypothesis, metrics, variants, sample size, instrumentation, and risks.
 ```
 
 **Expected Output**:

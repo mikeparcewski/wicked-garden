@@ -53,7 +53,7 @@ EOF
 Begin with an open exploration of the dataset.
 
 ```
-/wicked-data:analysis explore /tmp/ecommerce_orders.csv
+/wicked-garden:data:analysis explore /tmp/ecommerce_orders.csv
 ```
 
 Expected initial output:

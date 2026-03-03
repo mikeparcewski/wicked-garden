@@ -104,7 +104,7 @@ EOF
 Start by understanding what's in the data.
 
 ```
-/wicked-data:data profile /tmp/customers.csv
+/wicked-garden:data:data profile /tmp/customers.csv
 ```
 
 Expected: Profile shows column types, null rates, and cardinality.
@@ -126,7 +126,7 @@ Expected assessment should cover:
 Validate against the expected schema.
 
 ```
-/wicked-data:data validate --schema /tmp/customer_schema.json --data /tmp/customers.csv
+/wicked-garden:data:data validate --schema /tmp/customer_schema.json --data /tmp/customers.csv
 ```
 
 Expected violations:

@@ -9,7 +9,7 @@ estimated_minutes: 6
 
 # Large File Analysis with DuckDB SQL
 
-Demonstrate the wicked-data:numbers capability for analyzing large files that would crash Excel or pandas. Uses DuckDB for efficient SQL querying directly against files without loading them entirely into memory.
+Demonstrate the wicked-garden:data:numbers capability for analyzing large files that would crash Excel or pandas. Uses DuckDB for efficient SQL querying directly against files without loading them entirely into memory.
 
 ## Setup
 
@@ -70,7 +70,7 @@ EOF
 Open the file for analysis.
 
 ```
-/wicked-data:analyze /tmp/transactions_large.csv
+/wicked-garden:data:analyze /tmp/transactions_large.csv
 ```
 
 Expected: System detects CSV, samples intelligently (head + random + tail), infers schema, reports file size and row count estimate.

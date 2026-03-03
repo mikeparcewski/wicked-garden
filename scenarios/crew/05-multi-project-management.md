@@ -56,7 +56,7 @@ EOF
 ```bash
 # Start project 1
 cd ~/test-wicked-crew/multi-project/web-app
-/wicked-crew:start "Add dark mode toggle to React app"
+/wicked-garden:crew:start "Add dark mode toggle to React app"
 ```
 
 Note the project directory created: `~/.something-wicked/wicked-garden/local/wicked-crew/projects/add-dark-mode-toggle/`
@@ -64,7 +64,7 @@ Note the project directory created: `~/.something-wicked/wicked-garden/local/wic
 ```bash
 # Start project 2 (different working directory)
 cd ~/test-wicked-crew/multi-project/api-service
-/wicked-crew:start "Fix 500 error on /health endpoint when database is down"
+/wicked-garden:crew:start "Fix 500 error on /health endpoint when database is down"
 ```
 
 Note second project: `~/.something-wicked/wicked-garden/local/wicked-crew/projects/fix-500-error-on-health/`
@@ -72,7 +72,7 @@ Note second project: `~/.something-wicked/wicked-garden/local/wicked-crew/projec
 ```bash
 # Start project 3 (different working directory)
 cd ~/test-wicked-crew/multi-project/db-schema
-/wicked-crew:start "Add user roles and permissions to database schema"
+/wicked-garden:crew:start "Add user roles and permissions to database schema"
 ```
 
 Note third project: `~/.something-wicked/wicked-garden/local/wicked-crew/projects/add-user-roles-and-permissions/`
@@ -81,20 +81,20 @@ Note third project: `~/.something-wicked/wicked-garden/local/wicked-crew/project
 
 **Work on project 1** (most recently started, so it's the active project):
 ```bash
-/wicked-crew:execute  # clarify phase for project 1
+/wicked-garden:crew:execute  # clarify phase for project 1
 ```
 
 Expected: Discusses dark mode toggle (React context) — project 1 is active because it was most recently created/modified.
 
 **Advance project 1**:
 ```bash
-/wicked-crew:approve clarify
-/wicked-crew:execute  # design phase for project 1
+/wicked-garden:crew:approve clarify
+/wicked-garden:crew:execute  # design phase for project 1
 ```
 
 Expected: Design for dark mode (CSS variables, localStorage)
 
-**Note on project switching**: The active project is determined by recency (most recently modified `project.json`). When you run `/wicked-crew:execute` or `/wicked-crew:status`, it operates on the most recently active project. To work on a different project, use `/wicked-crew:start` to create/resume it, which updates its modification time.
+**Note on project switching**: The active project is determined by recency (most recently modified `project.json`). When you run `/wicked-garden:crew:execute` or `/wicked-garden:crew:status`, it operates on the most recently active project. To work on a different project, use `/wicked-garden:crew:start` to create/resume it, which updates its modification time.
 
 ### 3. Verify Independent State
 
@@ -102,7 +102,7 @@ Check that each project maintains independent state:
 
 ```bash
 cd ~/test-wicked-crew/multi-project/web-app
-/wicked-crew:status
+/wicked-garden:crew:status
 ```
 
 **Expected output**:
@@ -117,36 +117,36 @@ Deliverables:
   ⧗ phases/design/architecture.md (in progress)
 ```
 
-**Note**: The active project is determined by recency (most recently modified), not by working directory. After working on project 1 most recently, `/wicked-crew:status` shows project 1 regardless of current directory.
+**Note**: The active project is determined by recency (most recently modified), not by working directory. After working on project 1 most recently, `/wicked-garden:crew:status` shows project 1 regardless of current directory.
 
 ### 4. Complete One Project While Others Remain Active
 
 Complete project 2 (smallest scope). Since project 2 was most recently started, it becomes the active project:
 
 ```bash
-/wicked-crew:approve clarify
-/wicked-crew:execute  # design
-/wicked-crew:approve design
-/wicked-crew:execute  # test-strategy
-/wicked-crew:approve test-strategy
-/wicked-crew:execute  # build
-/wicked-crew:approve build
-/wicked-crew:execute  # review
-/wicked-crew:approve review
+/wicked-garden:crew:approve clarify
+/wicked-garden:crew:execute  # design
+/wicked-garden:crew:approve design
+/wicked-garden:crew:execute  # test-strategy
+/wicked-garden:crew:approve test-strategy
+/wicked-garden:crew:execute  # build
+/wicked-garden:crew:approve build
+/wicked-garden:crew:execute  # review
+/wicked-garden:crew:approve review
 ```
 
 **Expected**: Project 2 completes successfully
 
 **Verify other projects unaffected**:
 ```bash
-/wicked-crew:status
+/wicked-garden:crew:status
 ```
 
 Expected: Shows project 2 as completed (it's still the most recently modified). Other projects remain at their previous phases when checked.
 
 ```bash
 cd ~/test-wicked-crew/multi-project/db-schema
-/wicked-crew:status
+/wicked-garden:crew:status
 ```
 
 Expected: Still in clarify phase (unchanged)
@@ -162,7 +162,7 @@ ls -lt ~/.something-wicked/wicked-garden/local/wicked-crew/projects/ | head -10
 Then check each project status:
 
 ```bash
-/wicked-crew:status
+/wicked-garden:crew:status
 ```
 
 **Expected**: Shows the most recently active project. To check a specific project, specify it by name or navigate to its associated working directory.
@@ -225,3 +225,12 @@ Each project is fully independent with its own state in `~/.something-wicked/wic
 For teams, this means pair programming doesn't require syncing project state. Each developer can work on their own projects, and collaboration happens at the artifact level (reviewing the generated designs, test scenarios, etc.) rather than at the state level.
 
 The status command provides a quick view of the current active project, and filesystem listing gives an overview of all in-flight work, helping with daily standup updates and context switching decisions.
+
+## Cleanup
+
+```bash
+/wicked-garden:crew:archive add-dark-mode-toggle
+/wicked-garden:crew:archive fix-500-error-on-health
+/wicked-garden:crew:archive add-user-roles-and-permissions
+rm -rf ~/test-wicked-crew/multi-project
+```
