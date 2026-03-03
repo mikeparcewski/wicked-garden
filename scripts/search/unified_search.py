@@ -2409,12 +2409,12 @@ async def main():
             refs = {}
             for r in raw_refs.get('incoming', []):
                 rt = r.get('ref_type', 'unknown')
-                key_map = {'calls': 'called_by', 'imports': 'imported_by', 'extends': 'inherited_by', 'depends_on': 'depended_on_by'}
+                key_map = {'calls': 'called_by', 'imports': 'imported_by', 'extends': 'inherited_by', 'depends_on': 'depended_on_by', 'documents': 'documented_in'}
                 key = key_map.get(rt, f'{rt}_by')
                 refs.setdefault(key, []).append(r)
             for r in raw_refs.get('outgoing', []):
                 rt = r.get('ref_type', 'unknown')
-                key_map = {'calls': 'calls', 'imports': 'imports', 'extends': 'inherits', 'depends_on': 'depends_on'}
+                key_map = {'calls': 'calls', 'imports': 'imports', 'extends': 'inherits', 'depends_on': 'depends_on', 'documents': 'documents'}
                 key = key_map.get(rt, rt)
                 refs.setdefault(key, []).append(r)
 
@@ -2491,9 +2491,11 @@ async def main():
                 return
 
             node_id = matches[0]['id']
-            # Find code symbols that reference this doc section
+            # Find code symbols linked from this doc section.
+            # Doc→code crossrefs are stored as source=doc, target=code,
+            # so the code symbols appear in the outgoing direction.
             refs = engine.find_references(node_id)
-            implementations = refs.get('incoming', [])
+            implementations = refs.get('outgoing', [])
 
             print(f"\nImplementations of: {args.section}")
             print("-" * 60)
