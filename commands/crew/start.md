@@ -1,6 +1,6 @@
 ---
 description: Start a new wicked-crew project with outcome clarification
-argument-hint: <project description>
+argument-hint: "<project description>"
 ---
 
 # /wicked-garden:crew:start

@@ -1,6 +1,6 @@
 ---
 description: Quick task creation with optional project and priority
-argument-hint: <task_name> [--project name] [--priority P0|P1|P2|P3]
+argument-hint: "<task_name> [--project name] [--priority P0|P1|P2|P3]"
 ---
 
 # /wicked-garden:kanban:new-task

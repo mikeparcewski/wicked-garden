@@ -1,6 +1,6 @@
 ---
 description: Find code that implements a documented feature/section
-argument-hint: <doc-section>
+argument-hint: "<doc-section>"
 ---
 
 # /wicked-garden:search:impl

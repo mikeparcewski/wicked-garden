@@ -1,6 +1,6 @@
 ---
 description: Archive or unarchive a crew project
-argument-hint: <project-name> [--unarchive]
+argument-hint: "<project-name> [--unarchive]"
 ---
 
 # /wicked-garden:crew:archive

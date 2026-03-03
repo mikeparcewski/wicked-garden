@@ -1,6 +1,6 @@
 ---
 description: Configure wicked-crew preferences and working style
-argument-hint: [--autonomy ask-first|balanced|just-finish] [--style verbose|balanced|concise] [--plan-mode on|off]
+argument-hint: "[--autonomy ask-first|balanced|just-finish] [--style verbose|balanced|concise] [--plan-mode on|off]"
 ---
 
 # /wicked-garden:crew:profile

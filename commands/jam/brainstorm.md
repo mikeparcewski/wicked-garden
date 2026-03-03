@@ -1,6 +1,6 @@
 ---
 description: Start a new brainstorm session with dynamic focus groups
-argument-hint: <topic> [--personas list] [--rounds n]
+argument-hint: "<topic> [--personas list] [--rounds n]"
 ---
 
 # /wicked-garden:jam:brainstorm

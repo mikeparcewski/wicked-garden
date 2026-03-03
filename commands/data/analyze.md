@@ -1,6 +1,6 @@
 ---
 description: Start interactive data analysis session for CSV/Excel files
-argument-hint: <file-path> [--focus <type>] [--context <file>] [--refresh] [--scenarios]
+argument-hint: "<file-path> [--focus <type>] [--context <file>] [--refresh] [--scenarios]"
 ---
 
 # /wicked-garden:data:analyze

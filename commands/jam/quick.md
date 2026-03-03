@@ -1,6 +1,6 @@
 ---
 description: Quick exploration with fewer personas and one round
-argument-hint: <idea or question>
+argument-hint: "<idea or question>"
 ---
 
 # /wicked-garden:jam:quick

@@ -1,6 +1,6 @@
 ---
 description: Find where a symbol is referenced and documented
-argument-hint: <symbol>
+argument-hint: "<symbol>"
 ---
 
 # /wicked-garden:search:refs

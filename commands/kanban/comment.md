@@ -1,6 +1,6 @@
 ---
 description: Add a comment to a task
-argument-hint: <project_id> <task_id> <comment_content>
+argument-hint: "<project_id> <task_id> <comment_content>"
 user_facing: true
 allowed_tools:
   - Bash

@@ -1,6 +1,6 @@
 ---
 description: Analyze dependencies and dependents of a symbol
-argument-hint: <symbol> [--depth N]
+argument-hint: "<symbol> [--depth N]"
 ---
 
 # /wicked-garden:search:blast-radius
