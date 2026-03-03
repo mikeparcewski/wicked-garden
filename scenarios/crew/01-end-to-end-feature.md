@@ -62,7 +62,7 @@ npm install express --save
 ### 1. Start Project
 
 ```bash
-/wicked-crew:start "Add OAuth2 social login (Google and GitHub) to existing authentication system"
+/wicked-garden:crew:start "Add OAuth2 social login (Google and GitHub) to existing authentication system"
 ```
 
 **Expected**:
@@ -74,7 +74,7 @@ npm install express --save
 ### 2. Clarify Phase - Define Outcome
 
 ```bash
-/wicked-crew:execute
+/wicked-garden:crew:execute
 ```
 
 **With wicked-jam available**:
@@ -106,7 +106,7 @@ phases/clarify/acceptance-criteria.md containing:
 ### 3. Approve Clarify
 
 ```bash
-/wicked-crew:approve clarify
+/wicked-garden:crew:approve clarify
 ```
 
 **Expected**:
@@ -117,7 +117,7 @@ phases/clarify/acceptance-criteria.md containing:
 ### 4. Design Phase - Research Patterns
 
 ```bash
-/wicked-crew:execute
+/wicked-garden:crew:execute
 ```
 
 **With wicked-search available**:
@@ -142,7 +142,7 @@ phases/design/architecture.md containing:
 ### 5. Approve Design
 
 ```bash
-/wicked-crew:approve design
+/wicked-garden:crew:approve design
 ```
 
 **Expected**: Phase advances to "test-strategy"
@@ -150,7 +150,7 @@ phases/design/architecture.md containing:
 ### 6. Test Strategy Phase - Test Planning
 
 ```bash
-/wicked-crew:execute
+/wicked-garden:crew:execute
 ```
 
 **With wicked-qe available**:
@@ -175,7 +175,7 @@ phases/test-strategy/test-strategy.md containing:
 ### 7. Approve Test Strategy
 
 ```bash
-/wicked-crew:approve test-strategy
+/wicked-garden:crew:approve test-strategy
 ```
 
 **Expected**: Phase advances to "build"
@@ -183,7 +183,7 @@ phases/test-strategy/test-strategy.md containing:
 ### 8. Build Phase - Implementation
 
 ```bash
-/wicked-crew:execute
+/wicked-garden:crew:execute
 ```
 
 **With wicked-kanban available**:
@@ -209,7 +209,7 @@ phases/test-strategy/test-strategy.md containing:
 ### 9. Approve Build
 
 ```bash
-/wicked-crew:approve build
+/wicked-garden:crew:approve build
 ```
 
 **Expected**: Phase advances to "test"
@@ -217,7 +217,7 @@ phases/test-strategy/test-strategy.md containing:
 ### 10. Test Phase - Test Execution
 
 ```bash
-/wicked-crew:execute
+/wicked-garden:crew:execute
 ```
 
 **With wicked-qe available**:
@@ -239,7 +239,7 @@ phases/test/test-results.md containing:
 ### 11. Approve Test
 
 ```bash
-/wicked-crew:approve test
+/wicked-garden:crew:approve test
 ```
 
 **Expected**: Phase advances to "review"
@@ -247,7 +247,7 @@ phases/test/test-results.md containing:
 ### 12. Review Phase - Final Validation
 
 ```bash
-/wicked-crew:execute
+/wicked-garden:crew:execute
 ```
 
 **With wicked-engineering available**:
@@ -271,7 +271,7 @@ phases/review/review-findings.md containing:
 ### 13. Complete Project
 
 ```bash
-/wicked-crew:approve review
+/wicked-garden:crew:approve review
 ```
 
 **Expected**:
@@ -313,3 +313,10 @@ By forcing outcome clarification upfront, the team knows what success looks like
 This replaces ad-hoc project management where developers start coding without clear acceptance criteria, skip testing until the end, and then discover they built the wrong thing. The explicit approval gates ensure stakeholder alignment at key decision points.
 
 For teams using wicked-kanban, wicked-search, and wicked-engineering, the integration provides seamless orchestration across tools. For teams without those plugins, the graceful degradation ensures the workflow still works with built-in alternatives.
+
+## Cleanup
+
+```bash
+/wicked-garden:crew:archive add-oauth2-social-login
+rm -rf ~/test-wicked-crew/api-project
+```

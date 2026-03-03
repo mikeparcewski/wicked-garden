@@ -71,14 +71,14 @@ EOF
 ### 1. Start Project
 
 ```bash
-/wicked-crew:start "Add password reset functionality using email verification"
+/wicked-garden:crew:start "Add password reset functionality using email verification"
 ```
 
 ### 2. Design Phase - Pattern Detection
 
 ```bash
-/wicked-crew:approve clarify
-/wicked-crew:execute  # design phase
+/wicked-garden:crew:approve clarify
+/wicked-garden:crew:execute  # design phase
 ```
 
 **Expected behavior with SADD**:
@@ -101,9 +101,9 @@ The design agent should:
 ### 3. Build Phase - Pattern Application
 
 ```bash
-/wicked-crew:approve design
-/wicked-crew:approve qe
-/wicked-crew:execute  # build phase
+/wicked-garden:crew:approve design
+/wicked-garden:crew:approve qe
+/wicked-garden:crew:execute  # build phase
 ```
 
 **Expected behavior with SADD**:
@@ -135,7 +135,7 @@ Create a scenario designed to test if context leaks between phases:
 
 ```bash
 # Create a new project with misleading discussion
-/wicked-crew:start "Add rate limiting to API endpoints"
+/wicked-garden:crew:start "Add rate limiting to API endpoints"
 ```
 
 During clarify, manually add confusing information:
@@ -149,8 +149,8 @@ Let the facilitator respond and create the clarify deliverables (`objective.md` 
 Then proceed to design:
 
 ```bash
-/wicked-crew:approve clarify
-/wicked-crew:execute  # design phase
+/wicked-garden:crew:approve clarify
+/wicked-garden:crew:execute  # design phase
 ```
 
 **Test for context isolation**:

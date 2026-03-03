@@ -86,8 +86,7 @@ echo "Setup complete. Rollout context created."
 Ask the rollout manager to evaluate the risk:
 
 ```
-Task tool: subagent_type="wicked-delivery:rollout-manager"
-prompt="Assess the risk of rolling out our new payment processing pipeline. Context is in feature-description.md and baseline-metrics.md"
+/wicked-garden:delivery:rollout Assess the risk of rolling out our new payment processing pipeline. Context is in feature-description.md and baseline-metrics.md
 ```
 
 **Expected Output**:
@@ -105,8 +104,7 @@ prompt="Assess the risk of rolling out our new payment processing pipeline. Cont
 Plan the staged rollout:
 
 ```
-Task tool: subagent_type="wicked-delivery:rollout-manager"
-prompt="Define rollout stages for this payment migration. We need to be very careful - this is revenue-critical."
+/wicked-garden:delivery:rollout Define rollout stages for this payment migration. We need to be very careful - this is revenue-critical.
 ```
 
 **Expected Output**:
@@ -128,8 +126,7 @@ prompt="Define rollout stages for this payment migration. We need to be very car
 Establish clear thresholds:
 
 ```
-Task tool: subagent_type="wicked-delivery:rollout-manager"
-prompt="What are the success and rollback criteria for each stage? When should we automatically roll back?"
+/wicked-garden:delivery:rollout What are the success and rollback criteria for each stage? When should we automatically roll back?
 ```
 
 **Expected Output**:
@@ -153,8 +150,7 @@ prompt="What are the success and rollback criteria for each stage? When should w
 Define what to watch:
 
 ```
-Task tool: subagent_type="wicked-delivery:rollout-manager"
-prompt="What monitoring should be in place during the rollout? What dashboards and alerts do we need?"
+/wicked-garden:delivery:rollout What monitoring should be in place during the rollout? What dashboards and alerts do we need?
 ```
 
 **Expected Output**:
@@ -181,8 +177,7 @@ prompt="What monitoring should be in place during the rollout? What dashboards a
 Define stakeholder communication:
 
 ```
-Task tool: subagent_type="wicked-delivery:rollout-manager"
-prompt="Create a communication plan for this rollout. Who needs to know what, and when?"
+/wicked-garden:delivery:rollout Create a communication plan for this rollout. Who needs to know what, and when?
 ```
 
 **Expected Output**:
@@ -204,8 +199,7 @@ prompt="Create a communication plan for this rollout. Who needs to know what, an
 Request the complete plan document:
 
 ```
-Task tool: subagent_type="wicked-delivery:rollout-manager"
-prompt="Generate a complete rollout plan document I can share with the team and get sign-off."
+/wicked-garden:delivery:rollout Generate a complete rollout plan document I can share with the team and get sign-off. Include risk assessment, stages, criteria, monitoring, communication, and rollback procedure.
 ```
 
 **Expected Output**:

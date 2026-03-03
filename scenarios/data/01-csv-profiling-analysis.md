@@ -43,7 +43,7 @@ EOF
 Use the analyze command to profile the CSV file.
 
 ```
-/wicked-data:analyze /tmp/sales_data.csv
+/wicked-garden:data:analyze /tmp/sales_data.csv
 ```
 
 Expected: System detects the file, samples rows, infers schema, and displays initial analysis.

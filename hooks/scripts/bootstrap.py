@@ -614,6 +614,18 @@ def main():
     except Exception:
         pass
 
+    # Export CLAUDE_PLUGIN_ROOT to CLAUDE_ENV_FILE so Bash tool calls can access it.
+    # Hooks receive CLAUDE_PLUGIN_ROOT from the plugin runtime, but Bash tool calls
+    # do not inherit it.  Writing to CLAUDE_ENV_FILE bridges the gap.
+    env_file = os.environ.get("CLAUDE_ENV_FILE")
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if env_file and plugin_root:
+        try:
+            with open(env_file, "a") as f:
+                f.write(f'export CLAUDE_PLUGIN_ROOT="{plugin_root}"\n')
+        except OSError:
+            pass
+
     try:
         # 1. Read config
         config = _read_config()

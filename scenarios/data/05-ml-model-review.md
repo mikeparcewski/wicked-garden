@@ -128,7 +128,7 @@ EOF
 Request a comprehensive review.
 
 ```
-/wicked-data:ml review /tmp/ml_models/churn_predictor/
+/wicked-garden:data:ml review /tmp/ml_models/churn_predictor/
 ```
 
 Expected review to identify issues across categories:
