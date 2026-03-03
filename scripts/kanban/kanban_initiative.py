@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from _storage import StorageManager
-from kanban import KanbanStore
+from kanban.kanban import KanbanStore
 
 _sm = StorageManager("wicked-kanban")
 
