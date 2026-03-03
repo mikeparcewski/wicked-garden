@@ -1060,7 +1060,9 @@ def populate_categories_cache(conn: sqlite3.Connection):
         VALUES (?, ?, ?, ?)
     """, cache_rows)
 
-    # Aggregate cross-category relationships
+    # Aggregate cross-category relationships.
+    # Include same-category edges when they cross domains (e.g. doc→code)
+    # so that doc→code edges within the same project are not dropped.
     cursor.execute("""
         INSERT INTO category_relationships_cache (from_category, to_category, ref_count)
         SELECT s1.category, s2.category, COUNT(*)
@@ -1069,7 +1071,7 @@ def populate_categories_cache(conn: sqlite3.Connection):
         JOIN symbols s2 ON r.target_id = s2.id
         WHERE s1.category IS NOT NULL
           AND s2.category IS NOT NULL
-          AND s1.category != s2.category
+          AND (s1.category != s2.category OR s1.domain != s2.domain)
         GROUP BY s1.category, s2.category
         HAVING COUNT(*) > 2
     """)
