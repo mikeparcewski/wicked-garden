@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.13.0] - 2026-03-04
+
+### Features
+- feat: memory auto-extraction via MemoryPromoter in Stop hook (#198)
+- feat: QE trio delegation for scenario testing with --no-qe flag (#199)
+- feat: normalized scoring model with 8 dimensions and 5 routing lanes (#201)
+- feat: QE evidence enforcement with SHA-256 checksums and INCONCLUSIVE verdicts (#202)
+- feat: complexity pre-flight gate in crew:start with --quick/--force flags (#203)
+
+### Bug Fixes
+- fix: context inflation via session state dedup and pressure-scaled budgets (#200)
+- fix: reversibility inversion in smart_decisioning scoring (Codex review)
+- fix: context_hash field missing from SessionState (Codex review)
+- fix: onboarding bypass on HOT path dedup (Codex review)
+- fix: crew hint guard checking wrong session field (Codex review)
+
 ## [1.12.1] - 2026-03-04
 
 ### Chores
