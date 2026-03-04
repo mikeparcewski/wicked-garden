@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.12.1] - 2026-03-04
+
+### Chores
+- release: wicked-garden v1.12.0 (daa429e)
+
 ## [1.12.0] - 2026-03-03
 
 ### Bug Fixes

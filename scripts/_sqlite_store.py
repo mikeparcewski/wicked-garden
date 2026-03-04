@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,12 @@ def _sanitize_fts_query(query: str) -> str:
 
 _connections: dict[str, sqlite3.Connection] = {}
 
+# Per-path locks protect concurrent execute/commit sequences on the shared connection.
+# _locks_lock serializes lock creation so two threads racing on the same new db_path
+# don't each create a separate Lock object.
+_locks: dict[str, threading.Lock] = {}
+_locks_lock = threading.Lock()
+
 _PRAGMAS = [
     "PRAGMA journal_mode=WAL",
     "PRAGMA busy_timeout=5000",
@@ -133,6 +140,16 @@ def _get_connection(db_path: str) -> sqlite3.Connection:
     return _connections[db_path]
 
 
+def _get_lock(db_path: str) -> threading.Lock:
+    """Return the per-path lock, creating it if needed (thread-safe via _locks_lock)."""
+    if db_path not in _locks:
+        with _locks_lock:
+            # Double-checked locking: re-test after acquiring the meta-lock
+            if db_path not in _locks:
+                _locks[db_path] = threading.Lock()
+    return _locks[db_path]
+
+
 def _row(record_id: str, data_json: str, created_at: str, updated_at: str) -> dict:
     try:
         rec = json.loads(data_json)
@@ -149,107 +166,134 @@ class SqliteStore:
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
+        self._lock = _get_lock(db_path)
         self._conn = _get_connection(db_path)
 
     def create(self, domain: str, source: str, record_id: str, data: dict) -> dict:
         """INSERT OR IGNORE — idempotent, returns existing record if already present."""
-        try:
-            self._conn.execute(
-                "INSERT OR IGNORE INTO records (domain, source, id, data) VALUES (?, ?, ?, ?)",
-                (domain, source, record_id, json.dumps(data)),
-            )
-            self._conn.commit()
-        except sqlite3.OperationalError as exc:
-            logger.error("[SqliteStore] create %s/%s/%s: %s", domain, source, record_id, exc)
-        return self.get(domain, source, record_id) or data
+        with self._lock:
+            try:
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO records (domain, source, id, data) VALUES (?, ?, ?, ?)",
+                    (domain, source, record_id, json.dumps(data)),
+                )
+                self._conn.commit()
+            except sqlite3.OperationalError as exc:
+                logger.error("[SqliteStore] create %s/%s/%s: %s", domain, source, record_id, exc)
+            try:
+                r = self._conn.execute(
+                    "SELECT data, created_at, updated_at FROM records "
+                    "WHERE domain=? AND source=? AND id=?",
+                    (domain, source, record_id),
+                ).fetchone()
+            except sqlite3.OperationalError:
+                r = None
+        return (_row(record_id, r["data"], r["created_at"], r["updated_at"]) if r else None) or data
 
     def update(self, domain: str, source: str, record_id: str, data: dict) -> dict | None:
         """Replace record data. Returns None if record not found."""
-        try:
-            cur = self._conn.execute(
-                "UPDATE records SET data=?, updated_at=datetime('now') "
-                "WHERE domain=? AND source=? AND id=?",
-                (json.dumps(data), domain, source, record_id),
-            )
-            self._conn.commit()
-            if cur.rowcount == 0:
+        with self._lock:
+            try:
+                cur = self._conn.execute(
+                    "UPDATE records SET data=?, updated_at=datetime('now') "
+                    "WHERE domain=? AND source=? AND id=?",
+                    (json.dumps(data), domain, source, record_id),
+                )
+                self._conn.commit()
+                if cur.rowcount == 0:
+                    return None
+            except sqlite3.OperationalError as exc:
+                logger.error("[SqliteStore] update %s/%s/%s: %s", domain, source, record_id, exc)
                 return None
-        except sqlite3.OperationalError as exc:
-            logger.error("[SqliteStore] update %s/%s/%s: %s", domain, source, record_id, exc)
-            return None
-        return self.get(domain, source, record_id)
+            try:
+                r = self._conn.execute(
+                    "SELECT data, created_at, updated_at FROM records "
+                    "WHERE domain=? AND source=? AND id=?",
+                    (domain, source, record_id),
+                ).fetchone()
+            except sqlite3.OperationalError:
+                r = None
+        return _row(record_id, r["data"], r["created_at"], r["updated_at"]) if r else None
 
     def delete(self, domain: str, source: str, record_id: str) -> bool:
         """Hard-delete a record. Returns True if a row was removed."""
-        try:
-            cur = self._conn.execute(
-                "DELETE FROM records WHERE domain=? AND source=? AND id=?",
-                (domain, source, record_id),
-            )
-            self._conn.commit()
-            return cur.rowcount > 0
-        except sqlite3.OperationalError as exc:
-            logger.error("[SqliteStore] delete %s/%s/%s: %s", domain, source, record_id, exc)
-            return False
+        with self._lock:
+            try:
+                cur = self._conn.execute(
+                    "DELETE FROM records WHERE domain=? AND source=? AND id=?",
+                    (domain, source, record_id),
+                )
+                self._conn.commit()
+                return cur.rowcount > 0
+            except sqlite3.OperationalError as exc:
+                logger.error("[SqliteStore] delete %s/%s/%s: %s", domain, source, record_id, exc)
+                return False
 
     def get(self, domain: str, source: str, record_id: str) -> dict | None:
         """Fetch by primary key. Returns None if not found."""
-        try:
-            r = self._conn.execute(
-                "SELECT data, created_at, updated_at FROM records "
-                "WHERE domain=? AND source=? AND id=?",
-                (domain, source, record_id),
-            ).fetchone()
-        except sqlite3.OperationalError as exc:
-            logger.error("[SqliteStore] get %s/%s/%s: %s", domain, source, record_id, exc)
-            return None
-        return _row(record_id, r["data"], r["created_at"], r["updated_at"]) if r else None
+        with self._lock:
+            try:
+                r = self._conn.execute(
+                    "SELECT data, created_at, updated_at FROM records "
+                    "WHERE domain=? AND source=? AND id=?",
+                    (domain, source, record_id),
+                ).fetchone()
+            except sqlite3.OperationalError as exc:
+                logger.error("[SqliteStore] get %s/%s/%s: %s", domain, source, record_id, exc)
+                return None
+            return _row(record_id, r["data"], r["created_at"], r["updated_at"]) if r else None
 
     def list(self, domain: str, source: str, limit: int = 100, offset: int = 0) -> list[dict]:
         """List records, newest first."""
-        try:
-            rows = self._conn.execute(
-                "SELECT id, data, created_at, updated_at FROM records "
-                "WHERE domain=? AND source=? ORDER BY updated_at DESC LIMIT ? OFFSET ?",
-                (domain, source, limit, offset),
-            ).fetchall()
-        except sqlite3.OperationalError as exc:
-            logger.error("[SqliteStore] list %s/%s: %s", domain, source, exc)
-            return []
-        return [_row(r["id"], r["data"], r["created_at"], r["updated_at"]) for r in rows]
+        with self._lock:
+            try:
+                rows = self._conn.execute(
+                    "SELECT id, data, created_at, updated_at FROM records "
+                    "WHERE domain=? AND source=? ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+                    (domain, source, limit, offset),
+                ).fetchall()
+            except sqlite3.OperationalError as exc:
+                logger.error("[SqliteStore] list %s/%s: %s", domain, source, exc)
+                return []
+            return [_row(r["id"], r["data"], r["created_at"], r["updated_at"]) for r in rows]
 
     def search(self, query: str, domain: str | None = None, limit: int = 20) -> list[dict]:
         """FTS5 BM25-ranked full-text search, optionally scoped to a domain."""
         safe_query = _sanitize_fts_query(query)
-        try:
-            if domain:
-                rows = self._conn.execute(
-                    "SELECT r.id, r.data, r.created_at, r.updated_at "
-                    "FROM records_fts JOIN records r ON r.rowid = records_fts.rowid "
-                    "WHERE records_fts MATCH ? AND records_fts.domain=? "
-                    "ORDER BY bm25(records_fts) LIMIT ?",
-                    (safe_query, domain, limit),
-                ).fetchall()
-            else:
-                rows = self._conn.execute(
-                    "SELECT r.id, r.data, r.created_at, r.updated_at "
-                    "FROM records_fts JOIN records r ON r.rowid = records_fts.rowid "
-                    "WHERE records_fts MATCH ? ORDER BY bm25(records_fts) LIMIT ?",
-                    (safe_query, limit),
-                ).fetchall()
-        except sqlite3.OperationalError as exc:
-            logger.error("[SqliteStore] search %r: %s", query, exc)
-            return []
-        return [_row(r["id"], r["data"], r["created_at"], r["updated_at"]) for r in rows]
+        with self._lock:
+            try:
+                if domain:
+                    rows = self._conn.execute(
+                        "SELECT r.id, r.data, r.created_at, r.updated_at "
+                        "FROM records_fts JOIN records r ON r.rowid = records_fts.rowid "
+                        "WHERE records_fts MATCH ? AND records_fts.domain=? "
+                        "ORDER BY bm25(records_fts) LIMIT ?",
+                        (safe_query, domain, limit),
+                    ).fetchall()
+                else:
+                    rows = self._conn.execute(
+                        "SELECT r.id, r.data, r.created_at, r.updated_at "
+                        "FROM records_fts JOIN records r ON r.rowid = records_fts.rowid "
+                        "WHERE records_fts MATCH ? ORDER BY bm25(records_fts) LIMIT ?",
+                        (safe_query, limit),
+                    ).fetchall()
+            except sqlite3.OperationalError as exc:
+                logger.error("[SqliteStore] search %r: %s", query, exc)
+                return []
+            return [_row(r["id"], r["data"], r["created_at"], r["updated_at"]) for r in rows]
 
     def close(self) -> None:
         """Close connection and remove from process cache."""
-        conn = _connections.pop(self._db_path, None)
-        if conn:
-            try:
-                conn.close()
-            except sqlite3.OperationalError as exc:
-                logger.error("[SqliteStore] close: %s", exc)
+        with self._lock:
+            conn = _connections.pop(self._db_path, None)
+            if conn:
+                try:
+                    conn.close()
+                except sqlite3.OperationalError as exc:
+                    logger.error("[SqliteStore] close: %s", exc)
+        # Remove the lock entry after the connection is gone so _locks doesn't grow unboundedly.
+        with _locks_lock:
+            _locks.pop(self._db_path, None)
 
 
 if __name__ == "__main__":

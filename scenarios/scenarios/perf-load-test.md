@@ -3,8 +3,7 @@ name: perf-load-test
 description: API endpoint load test with response time thresholds
 category: perf
 tools:
-  required: [hey]
-  optional: [k6]
+  optional: [hey, k6]
 difficulty: intermediate
 timeout: 120
 ---

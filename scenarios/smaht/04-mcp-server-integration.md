@@ -27,9 +27,14 @@ else
 fi
 echo "PLUGIN_DIR=$PLUGIN_DIR"
 
+# Guard: skip entire scenario if mcp.json is not present
+if [ ! -f "${HOME}/.claude/mcp.json" ]; then
+  echo "SKIP: ~/.claude/mcp.json not found — MCP not configured"
+  exit 0
+fi
+
 # Check context7 MCP configuration exists
-if [ -f "${HOME}/.claude/mcp.json" ]; then
-  python3 -c "
+python3 -c "
 import json
 cfg = json.load(open('${HOME}/.claude/mcp.json'))
 c7 = cfg.get('context7', {})
@@ -38,9 +43,6 @@ if c7:
 else:
     print('WARNING: context7 not configured in mcp.json')
 "
-else
-  echo "WARNING: ~/.claude/mcp.json not found"
-fi
 ```
 
 Expected context7 configuration:
@@ -60,6 +62,10 @@ Note: Steps 2-6 and 9 require a live Claude Code session with the context7 MCP s
 ### 1. Verify MCP Server Configuration Parameters
 
 ```bash
+if [ ! -f "${HOME}/.claude/mcp.json" ]; then
+  echo "SKIP: ~/.claude/mcp.json not found — MCP not configured"
+  exit 0
+fi
 cat ~/.claude/mcp.json | python3 -c "import json,sys; cfg = json.load(sys.stdin); c7 = cfg.get('context7', {}); print('type:', c7.get('type')); print('command:', c7.get('command')); print('args:', c7.get('args'))"
 ```
 
@@ -128,6 +134,10 @@ Expected: Claude gracefully handles the case where context7 cannot resolve the l
 ### 7. Test Error Handling — MCP Server Unavailable
 
 ```bash
+if [ ! -f "${HOME}/.claude/mcp.json" ]; then
+  echo "SKIP: ~/.claude/mcp.json not found — MCP not configured"
+  exit 0
+fi
 # Temporarily corrupt context7 config to test fallback behavior
 python3 -c "
 import json
@@ -163,6 +173,10 @@ echo "Config restored"
 Verify context7 uses `@latest` for automatic updates:
 
 ```bash
+if [ ! -f "${HOME}/.claude/mcp.json" ]; then
+  echo "SKIP: ~/.claude/mcp.json not found — MCP not configured"
+  exit 0
+fi
 cat ~/.claude/mcp.json | python3 -c "
 import json, sys
 cfg = json.load(sys.stdin)

@@ -86,12 +86,12 @@ echo "PASS: context gathering completed for session"
 SCEN_SESSION=$(cat "${TMPDIR:-/tmp}/wicked-scenario-session-ctx-id")
 SMAHT_DIR="${HOME}/.something-wicked/wicked-garden/local/wicked-smaht/sessions/${SCEN_SESSION}"
 
-# Simulate session end by calling end_session on the condenser
+# Simulate session end by calling persist_session_meta on the condenser (replaces removed end_session())
 cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python -c "
 from smaht.v2.history_condenser import HistoryCondenser
 c = HistoryCondenser('$SCEN_SESSION')
 c.add_turn(user_msg='Test prompt for session', assistant_msg='Test response')
-c.end_session()
+c.persist_session_meta()
 print('Session ended, metadata written')
 "
 
@@ -106,7 +106,8 @@ assert d.get('session_id'), 'Missing session_id in metadata'
 print('PASS: session_meta.json has valid session_id and start_time')
 "
 else
-  echo "PASS: session processed (metadata written on end_session or by stop hook)"
+  echo "FAIL: session_meta.json was not written after persist_session_meta()"
+  exit 1
 fi
 ```
 
