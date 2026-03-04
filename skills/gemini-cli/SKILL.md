@@ -1,8 +1,9 @@
 ---
 name: gemini-cli
 description: |
-  Use the Gemini CLI for AI-assisted tasks, code review, and multi-model collaboration.
-  Gemini provides a second perspective on code, designs, and decisions.
+  This skill should be used when working with the Gemini CLI for AI-assisted tasks,
+  code review, and multi-model collaboration. Gemini provides a second perspective on
+  code, designs, and decisions.
 
   Use when:
   - Getting a second opinion on code or architecture

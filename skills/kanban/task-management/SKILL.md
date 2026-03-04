@@ -1,7 +1,6 @@
 ---
 name: task-management
 description: This skill should be used when the user asks to "track tasks", "create a task", "add a todo", "manage tasks", "show my tasks", "what should I work on", "move task to done", "update task status", or mentions persistent task tracking, kanban boards, or project management. Provides guidance for using wicked-kanban for persistent task management.
-version: 1.0.0
 ---
 
 # Task Management with Wicked Kanban
@@ -177,4 +176,5 @@ For detailed patterns and workflows:
 
 - **`refs/api-reference.md`** - Core script commands (projects, tasks, search)
 - **`refs/api-advanced.md`** - Advanced features (sprints, artifacts, data model)
-- **`refs/workflow-patterns.md`** - Common workflow examples
+- **`refs/workflow-patterns.md`** - Common workflow examples (feature dev, bug fix, session resume)
+- **`refs/advanced-patterns.md`** - Sprint planning, dependency graphs, project docs, priority filtering

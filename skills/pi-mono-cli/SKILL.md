@@ -1,8 +1,9 @@
 ---
 name: pi-mono-cli
 description: |
-  Use the Inflection Pi-Mono CLI for AI-assisted conversational reasoning and multi-model collaboration.
-  Pi excels at empathetic perspective-taking, nuanced reasoning, and conversational analysis.
+  This skill should be used when working with the Inflection Pi-Mono CLI for conversational
+  reasoning and multi-model collaboration. Pi excels at empathetic perspective-taking,
+  nuanced reasoning, and conversational analysis.
 
   Use when:
   - Getting a conversational/empathetic perspective on decisions
