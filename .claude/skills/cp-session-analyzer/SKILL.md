@@ -1,11 +1,9 @@
 ---
 name: cp-session-analyzer
-description: Post-session analysis of control plane errors with GitHub issue filing
-triggers:
-  - "session analyzer"
-  - "cp errors this session"
-  - "analyze transcript"
-dev_only: true
+description: |
+  Post-session analysis of control plane errors with GitHub issue filing.
+  Use when: "session analyzer", "cp errors this session", "analyze transcript",
+  or reviewing CP error patterns after a session.
 ---
 
 # CP Session Analyzer
