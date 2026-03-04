@@ -112,6 +112,17 @@
         ]
       }
     ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py\"",
+            "timeout": 2000
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "matcher": "*",

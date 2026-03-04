@@ -38,22 +38,76 @@ Read three documents:
 2. **Test plan** — the writer's structured assertions and evidence requirements
 3. **Evidence report** — the executor's captured artifacts
 
+#### 1a. Artifact Registry Pre-Check (AC-202-3, AC-202-4)
+
+**Before reading the evidence report**, check for the artifact registry file at the canonical path:
+
+```bash
+QE_DIR=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-qe 2>/dev/null || echo "${TMPDIR:-/tmp}/wicked-qe-evidence")
+SCENARIO_SLUG=$(echo "{scenario_name}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+REGISTRY_PATH="${QE_DIR}/evidence/${SCENARIO_SLUG}-registry.json"
+```
+
+**Case 1 — Registry absent**: If the registry file does not exist at `${REGISTRY_PATH}`, return INCONCLUSIVE immediately. Do not attempt to evaluate any assertions.
+
+```markdown
+## Overall Verdict
+
+### Status: INCONCLUSIVE
+
+### Cause: EVIDENCE_GAP
+
+Artifact registry missing — evidence was not validated by executor checkpoint.
+
+The executor did not write `{REGISTRY_PATH}`. This means:
+- The evidence checkpoint (Step 5b) was not completed
+- Evidence integrity cannot be verified
+- Assertions cannot be evaluated without confirmed evidence
+
+**Required action**: Re-run the executor phase (`--phase execute`) to generate a valid artifact registry before review can proceed.
+```
+
+**Case 2 — Registry present, checksums match**: Proceed normally through Steps 2–7.
+
+**Case 3 — Registry present, checksum mismatch detected** (AC-202-4): If any artifact's SHA-256 in the registry does not match the content in the evidence report (compute SHA-256 of the evidence item's raw content to verify), return INCONCLUSIVE with cause `EVIDENCE_INTEGRITY_FAILURE`:
+
+```markdown
+## Overall Verdict
+
+### Status: INCONCLUSIVE
+
+### Cause: EVIDENCE_INTEGRITY_FAILURE
+
+One or more evidence artifacts failed checksum verification.
+
+| Evidence ID | Registry SHA-256 | Computed SHA-256 | Status |
+|-------------|-----------------|-----------------|--------|
+| {step-N-output} | {expected hex} | {actual hex} | MISMATCH |
+
+Evidence integrity cannot be confirmed. The evidence report may have been modified after the executor checkpoint wrote the registry.
+
+**Required action**: Re-run the executor phase (`--phase execute`) to regenerate both the evidence report and registry.
+```
+
+**Case 4 — Registry missing evidence items**: If the registry's `completeness.missing` array is non-empty, record which items are missing. For assertions that reference missing evidence IDs, verdict is INCONCLUSIVE (not PASS or FAIL). Document all missing evidence in the "Human Review Required" section of the overall verdict.
+
 ### 2. Verify Evidence Completeness
 
 Before evaluating assertions, check that the evidence is complete:
 
 For each evidence item in the test plan's evidence manifest:
 - Is there a corresponding artifact in the evidence report?
-- If missing, flag as `EVIDENCE_MISSING` — this is not a PASS or FAIL, it means the assertion cannot be evaluated
+- Cross-reference against the artifact registry: the registry is the authoritative record of what was captured.
+- If missing, flag as `EVIDENCE_MISSING` — this is not a PASS or FAIL, it means the assertion cannot be evaluated. Use INCONCLUSIVE, not PASS.
 
 ```markdown
 ## Evidence Completeness
 
-| Evidence ID | Required by | Present | Notes |
-|-------------|-------------|---------|-------|
-| `step-1-output` | STEP-1 | YES | |
-| `step-1-state` | STEP-1 | YES | |
-| `step-2-output` | STEP-2 | NO | Executor noted: "command timed out" |
+| Evidence ID | Required by | Present | In Registry | SHA-256 Verified | Notes |
+|-------------|-------------|---------|-------------|-----------------|-------|
+| `step-1-output` | STEP-1 | YES | YES | PASS | |
+| `step-1-state` | STEP-1 | YES | YES | PASS | |
+| `step-2-output` | STEP-2 | NO | NO | N/A | Executor noted: "command timed out" |
 ```
 
 ### 3. Evaluate Each Assertion
@@ -168,12 +222,19 @@ These are bugs in the scenario or missing features in the implementation.}
 
 ## Verdict Taxonomy
 
-| Verdict | Meaning | Action |
-|---------|---------|--------|
-| `PASS` | All automated assertions pass, no human review needed | Ship it |
-| `FAIL` | One or more assertions definitively failed | Fix and re-run |
-| `PARTIAL` | Automated assertions pass, but human review items pending | Human reviews remaining items |
-| `INCONCLUSIVE` | Missing evidence prevents evaluation | Re-run with better evidence capture |
+| Verdict | Meaning | Cause Type | Action |
+|---------|---------|------------|--------|
+| `PASS` | All automated assertions pass, no human review needed | — | Ship it |
+| `FAIL` | One or more assertions definitively failed | See Failure Cause Taxonomy | Fix and re-run |
+| `PARTIAL` | Automated assertions pass, but human review items pending | — | Human reviews remaining items |
+| `INCONCLUSIVE` | Evidence integrity or completeness prevents evaluation | `EVIDENCE_GAP` or `EVIDENCE_INTEGRITY_FAILURE` | Re-run executor phase |
+
+**INCONCLUSIVE** is a first-class verdict, not a fallback. It is returned when:
+- The artifact registry is absent (`EVIDENCE_GAP`)
+- A SHA-256 checksum in the registry does not match the evidence report content (`EVIDENCE_INTEGRITY_FAILURE`)
+- The registry's `completeness.missing` is non-empty and the missing items are required for all assertions
+
+An INCONCLUSIVE verdict means **evaluation was not attempted** — not that the implementation failed. The executor phase must be re-run before review can proceed.
 
 ## Failure Cause Taxonomy
 
@@ -183,6 +244,8 @@ These are bugs in the scenario or missing features in the implementation.}
 | `SPECIFICATION_BUG` | Scenario expects behavior the code was never designed to provide | Product/scenario author |
 | `ENVIRONMENT_ISSUE` | Missing tools, permissions, config, or dependencies | DevOps/setup |
 | `TEST_DESIGN_ISSUE` | Test plan assertions are too strict, too loose, or checking the wrong thing | Test writer |
+| `EVIDENCE_GAP` | Artifact registry absent or evidence items missing — executor checkpoint incomplete | QE pipeline operator |
+| `EVIDENCE_INTEGRITY_FAILURE` | SHA-256 checksum mismatch — evidence report modified after registry was written | QE pipeline operator |
 
 ## Quality Checks
 

@@ -13,6 +13,10 @@ Create a new project and begin the clarify phase.
 
 Extract the project description from arguments. If no description provided, ask for one.
 
+**Flags**:
+- `--force` — Skip the pre-flight complexity gate entirely. Use when you know crew is the right tool.
+- `--quick` — Use a lightweight phase plan: build + review only. Skips clarify, design, test-strategy, and test phases. Useful for well-understood, low-risk changes.
+
 ### 2. Generate Project Name
 
 Convert description to kebab-case slug:
@@ -122,6 +126,73 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
   --json
 ```
 
+### 5.6 Pre-Flight Complexity Gate
+
+After smart decisioning completes, read the `routing_lane` field from the JSON output (added in #201). If the field is absent, default to `"standard"` and skip the gate.
+
+**Store `preflight_lane` in project state** regardless of which branch is taken:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+  --data '{"preflight_lane": "{routing_lane}"}' \
+  --json
+```
+
+**If `--force` flag was passed**: skip the rest of this step and proceed directly to Step 6.
+
+**If `--quick` flag was passed**: skip the rest of this step, proceed directly to Step 6, and override the phase plan in Step 7 (see below).
+
+**If `routing_lane == "auto"` AND `--force` was NOT passed**:
+
+This request has low complexity (score 0-1 out of 7). Crew may be heavier than needed. Present a choice to the user.
+
+**In normal mode** — use `AskUserQuestion`:
+
+```
+AskUserQuestion(
+  question="This request has low complexity (score: {complexity_score}/7). Crew may be heavier than needed.\n\nRecommended approach: use kanban + direct tools instead.\n\nOptions:\n1. Continue with crew anyway\n2. Switch to kanban (creates a task and proceeds without crew phases)\n3. Cancel\n\n(Pass --force to bypass this check next time)",
+  options=["1", "2", "3"]
+)
+```
+
+**In dangerous mode** (when session briefing contains `[Question Mode] Dangerous mode is active`):
+
+Do NOT use `AskUserQuestion`. Present as plain text and STOP — wait for the user to reply before continuing:
+
+```
+This request has low complexity (score: {complexity_score}/7). Crew may be heavier than needed.
+
+Recommended approach: use kanban + direct tools instead.
+
+Options:
+1. Continue with crew anyway
+2. Switch to kanban (creates a task and proceeds without crew phases)
+3. Cancel
+
+(Pass --force to bypass this check next time)
+
+Please reply with 1, 2, or 3.
+```
+
+Do NOT proceed until the user replies with their selection.
+
+**Handling the selection**:
+
+- **Option 1 (Continue with crew)**: Proceed to Step 6 normally.
+- **Option 2 (Switch to kanban)**: Invoke `Skill(skill="wicked-garden:kanban:task", args="create {description}")` and exit. Do not continue the crew setup.
+- **Option 3 (Cancel)**: Inform the user the operation was cancelled and exit.
+
+**If `routing_lane == "fast"` AND `--quick` was NOT passed AND `--force` was NOT passed**:
+
+Suggest `--quick` as a lighter option, but do not block:
+
+```
+Note: This request has moderate complexity (score: {complexity_score}/7). Consider using --quick for a
+lightweight build+review-only run. Continuing with full crew phase plan.
+```
+
+Then proceed to Step 6 normally.
+
 ### 6. Discover Available Specialists
 
 Run specialist discovery:
@@ -138,6 +209,18 @@ This returns available specialist plugins and their roles:
 - **wicked-platform**: devsecops (build phase)
 
 ### 7. Select Phase Plan
+
+**If `--quick` flag was passed**: Skip all phase selection logic below. Use a static phase plan of `["build", "review"]` only:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+  --data '{"phase_plan": ["build", "review"], "phase_plan_mode": "static"}' \
+  --json
+```
+
+Then proceed directly to Step 8. Do not read phases.json or run signal-based phase selection.
+
+**Otherwise** (no `--quick` flag): Run the full phase selection:
 
 Read `${CLAUDE_PLUGIN_ROOT}/phases.json` to see all available phases with their triggers, complexity ranges, and skip rules.
 

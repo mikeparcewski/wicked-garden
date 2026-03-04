@@ -25,6 +25,21 @@ Scenario ──→ [Writer] ──→ Test Plan ──→ [Executor] ──→ E
 
 ## Instructions
 
+### 0. Resolve Canonical Artifact Paths
+
+Before parsing arguments, resolve canonical paths for QE artifacts. These paths are used throughout the pipeline.
+
+```bash
+QE_DIR=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-qe 2>/dev/null || echo "${TMPDIR:-/tmp}/wicked-qe-evidence")
+SCENARIO_SLUG=$(echo "{scenario_name}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+TEST_PLAN="${QE_DIR}/test-plans/${SCENARIO_SLUG}.md"
+EVIDENCE="${QE_DIR}/evidence/${SCENARIO_SLUG}.md"
+VERDICT="${QE_DIR}/verdicts/${SCENARIO_SLUG}.json"
+REGISTRY="${QE_DIR}/evidence/${SCENARIO_SLUG}-registry.json"
+```
+
+These canonical paths are passed to executor and reviewer agents so all three agents write to and read from consistent locations.
+
 ### 1. Parse Arguments
 
 Parse `$ARGUMENTS`:
@@ -125,7 +140,32 @@ Return the complete evidence report.
 )
 ```
 
-**Output**: Save the evidence report and display execution summary:
+**Output**: After the executor returns, check the response for the forced recapture directive.
+
+#### Forced Recapture Detection
+
+If the executor's response contains the line `## Forced Recapture Required`:
+
+- **Do NOT dispatch the reviewer** (Step 5).
+- Present the recapture directive to the user exactly as the executor emitted it.
+- Display an additional notice:
+
+```markdown
+## Evidence Collection Incomplete
+
+The executor reported missing evidence items. Review has been blocked until evidence is complete.
+
+**Next steps**:
+1. Investigate why the evidence items were not captured (see Forced Recapture Required section above)
+2. Fix the issue (e.g., missing file, failing command, misconfigured step)
+3. Re-invoke with `--phase execute --plan {TEST_PLAN}` to re-run execution
+
+The reviewer will return INCONCLUSIVE until the artifact registry at `{REGISTRY}` is present and complete.
+```
+
+Stop here — do not proceed to Step 5.
+
+If the executor's response does NOT contain `## Forced Recapture Required`, save the evidence report and display execution summary:
 
 ```markdown
 ## Execution Complete: {scenario name}
@@ -134,6 +174,7 @@ Return the complete evidence report.
 **Steps skipped**: {count}
 **Duration**: {total seconds}
 **Evidence items collected**: {count}
+**Registry written**: {YES — path: {REGISTRY} | NO — see execution notes}
 
 ### Execution Log
 | Step | Status | Duration | Evidence |
@@ -146,6 +187,38 @@ Return the complete evidence report.
 If `--phase execute`, stop here.
 
 ### 5. Phase: Review (Evidence Evaluation)
+
+#### Registry Pre-Check
+
+Before dispatching the reviewer, verify that the artifact registry exists:
+
+```bash
+ls "${REGISTRY}" 2>/dev/null && echo "REGISTRY_OK" || echo "REGISTRY_MISSING"
+```
+
+If the registry is missing, do not dispatch the reviewer. Display an error instead:
+
+```markdown
+## Review Blocked: Evidence Registry Not Found
+
+The artifact registry was not found at:
+`{REGISTRY}`
+
+This means either:
+- The executor phase has not been run yet, or
+- The executor encountered missing evidence and did not complete the checkpoint
+
+**Required action**: Run the executor phase first:
+```
+/wicked-garden:qe:acceptance --phase execute --plan {TEST_PLAN}
+```
+
+The reviewer will return INCONCLUSIVE without a valid registry.
+```
+
+Stop here — do not dispatch the reviewer.
+
+If the registry exists, proceed to dispatch the reviewer:
 
 ```
 Task(
@@ -161,13 +234,20 @@ Task(
 ## Evidence Report
 {evidence report content}
 
+## Artifact Registry
+Registry path: {REGISTRY}
+Scenario slug: {SCENARIO_SLUG}
+
 ## Instructions
-1. Verify evidence completeness — is every required artifact present?
-2. Evaluate each assertion against its evidence using the specified operator
-3. Check specification notes from the writer
-4. Render step-level verdicts
-5. Map results to original acceptance criteria
-6. Produce overall verdict with failure analysis
+1. Perform the artifact registry pre-check (Step 1a) — verify the registry at the path above
+2. Verify evidence completeness against the registry — is every required artifact present?
+3. Verify SHA-256 checksums for each evidence item in the registry
+4. Evaluate each assertion against its evidence using the specified operator
+5. Check specification notes from the writer
+6. Render step-level verdicts
+7. Map results to original acceptance criteria
+8. Produce overall verdict with failure analysis
+   - Return INCONCLUSIVE (not PASS or FAIL) if registry absent or checksums mismatched
 
 Return the complete review verdict.
 """
