@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-TaskCompleted hook — wicked-garden memory compliance tracking.
+TaskCompleted hook — wicked-garden memory capture on task completion.
 
 Fires when Claude Code marks a task as completed (TaskCompleted event).
 This hook does NOT use matchers — it fires for all task completions.
 
 Responsibilities:
 1. Increment memory_compliance_tasks_completed in session state.
-2. When memory_compliance_required is True (crew project active), emit a
-   brief systemMessage directive asking Claude to evaluate the completed
-   task for storable learnings if the task looks like it produced a
-   deliverable.
+2. For any deliverable-producing task, emit a systemMessage directive
+   asking Claude to evaluate the completed task for storable learnings.
+   Uses stronger language when memory_compliance_required (crew project).
 
 Always returns {"ok": true} — task completion is never blocked.
 Wraps all logic in try/except and fails open.
@@ -103,19 +102,27 @@ def main():
             print(f"[wicked-garden] task_completed session state error: {e}", file=sys.stderr)
             compliance_required = False
 
-        # Emit a memory directive only when compliance is required and the task
-        # looks like it produced a deliverable worth storing.
+        # Emit a memory directive for any deliverable-producing task.
+        # Crew projects get stronger "REQUIRED" language; normal sessions
+        # get a lighter nudge so memories still get captured.
         system_message = ""
-        if compliance_required and subject and _is_deliverable_task(subject):
+        if subject and _is_deliverable_task(subject):
             mem_type = _infer_mem_type(subject)
             task_label = f'"{subject}"' if subject else f"task {task_id}"
-            escalation_prefix = "[ESCALATION] " if escalations >= 3 else ""
-            system_message = (
-                f"{escalation_prefix}[Memory] Task {task_label} completed. "
-                f"REQUIRED: Call /wicked-garden:mem:store with type={mem_type} "
-                "to capture any decision, gotcha, or pattern from this work. "
-                "If genuinely nothing is worth storing, respond with 'No memory stored: <reason>'."
-            )
+            if compliance_required:
+                escalation_prefix = "[ESCALATION] " if escalations >= 3 else ""
+                system_message = (
+                    f"{escalation_prefix}[Memory] Task {task_label} completed. "
+                    f"REQUIRED: Call /wicked-garden:mem:store with type={mem_type} "
+                    "to capture any decision, gotcha, or pattern from this work. "
+                    "If genuinely nothing is worth storing, respond with 'No memory stored: <reason>'."
+                )
+            else:
+                system_message = (
+                    f"[Memory] Task {task_label} completed. "
+                    "If this produced a decision, gotcha, or reusable pattern, "
+                    f"store it with /wicked-garden:mem:store (type={mem_type})."
+                )
 
         output: dict = {"ok": True}
         if system_message:
