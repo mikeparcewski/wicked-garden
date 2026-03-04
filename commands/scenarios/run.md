@@ -9,14 +9,40 @@ Execute an E2E test scenario by orchestrating CLI tools.
 ## Usage
 
 ```
-/wicked-garden:scenarios:run <scenario-file> [--junit report.xml] [--verbose] [--json]
+/wicked-garden:scenarios:run <scenario-file> [--junit report.xml] [--verbose] [--json] [--no-qe]
 ```
 
 **Modes:**
 - **Interactive** (default): Markdown report, install prompts, PASS/FAIL verdicts
 - **JSON** (`--json`): Machine-readable output, no prompts, no verdicts — pure execution artifacts for programmatic consumption (e.g., QE executor delegation)
 
+**Flags:**
+- `--no-qe`: Bypass QE delegation and execute the scenario directly, even if wicked-qe is installed
+
 ## Instructions
+
+### 0. QE Availability Detection (Interactive Mode Only)
+
+**Skip this step entirely if `--json` mode is active.** The `--json` mode is the QE executor's execution backend and must never recurse into QE delegation.
+
+**Skip this step if `--no-qe` flag is present.** Fall through to Step 1 directly.
+
+Check whether wicked-qe is installed:
+
+```bash
+ls "${CLAUDE_PLUGIN_ROOT}/../wicked-qe/.claude-plugin/plugin.json" 2>/dev/null && echo QE_AVAILABLE
+```
+
+**If QE is available** (command printed `QE_AVAILABLE`): Delegate to the QE acceptance pipeline instead of running the scenario directly.
+
+1. Announce the delegation: "Delegating to QE acceptance pipeline for evidence-gated testing. Use `--no-qe` to bypass."
+2. Invoke the QE acceptance skill:
+   ```
+   Skill(skill="wicked-garden:qe:acceptance", args="{scenario_file}")
+   ```
+3. **Stop here.** Do not continue to Steps 1–9. The QE pipeline handles all subsequent execution, evidence collection, and verdict generation.
+
+**If QE is not available** (command produced no output or exited non-zero): Fall through to Step 1 silently. No error message, no warning. The existing behavior is unchanged.
 
 ### 1. Parse Scenario
 

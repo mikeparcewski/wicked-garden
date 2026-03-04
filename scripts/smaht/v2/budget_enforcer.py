@@ -146,3 +146,17 @@ class BudgetEnforcer:
     def estimate_tokens(text: str) -> int:
         """Estimate token count from text length."""
         return len(text) // 4
+
+    @staticmethod
+    def scale(path: str, multiplier: float) -> int:
+        """Return scaled character budget for a given path and pressure multiplier.
+
+        Args:
+            path: "hot", "fast", or "slow"
+            multiplier: pressure scale factor (1.0=normal, 0.5=high, 0.25=critical)
+
+        Returns:
+            Integer character budget after applying the multiplier.
+        """
+        base = BudgetEnforcer.CHAR_BUDGETS.get(path, 2000)
+        return int(base * multiplier)

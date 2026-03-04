@@ -15,6 +15,7 @@ Turn counter incremented on every call.
 Always fails open — any unhandled exception returns {"continue": true}.
 """
 
+import hashlib
 import json
 import os
 import sys
@@ -42,14 +43,85 @@ _HOT_MAX_WORDS = 6
 
 
 def _is_hot_path(prompt: str) -> bool:
-    """Return True if the prompt is a short continuation/confirmation."""
+    """Return True if the prompt is a short continuation/confirmation.
+
+    Matches when:
+    - The full stripped phrase is a HOT token (e.g. "sounds good"), OR
+    - The prompt is short (<=6 words) AND its opening token(s) signal continuation —
+      this catches planning acknowledgments like "yes, continue with the plan" where
+      the user is simply acknowledging and agreeing to proceed, not requesting new work.
+
+    Opening-token matching checks both the first word and the first two-word phrase
+    (e.g. "sounds good, let us proceed" starts with "sounds good" which is a HOT token).
+    """
     stripped = prompt.strip().lower().rstrip("!.?,;")
     if not stripped:
         return True
     words = stripped.split()
     if len(words) > _HOT_MAX_WORDS:
         return False
-    return stripped in _HOT_TOKENS or (len(words) == 1 and stripped in _HOT_TOKENS)
+    # Full-phrase match
+    if stripped in _HOT_TOKENS:
+        return True
+    # First word matches a HOT token (e.g. "yes, continue with the plan")
+    first_word = words[0].rstrip("!.?,;")
+    if first_word in _HOT_TOKENS:
+        return True
+    # First two words as phrase match a HOT token (e.g. "sounds good, ...")
+    if len(words) >= 2:
+        first_two = (words[0].rstrip("!.?,;") + " " + words[1].rstrip("!.?,;"))
+        if first_two in _HOT_TOKENS:
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Session state hash — change detection for deduplication
+# ---------------------------------------------------------------------------
+
+def _session_state_hash(state) -> str:
+    """Compute a short hash of the fields that drive context injection.
+
+    Turn count is rounded to the nearest 5 so that minor turn increments do
+    not invalidate the hash on every turn — only meaningful state transitions
+    (project change, CP availability change, etc.) force re-injection.
+
+    Returns an 8-character hex string or "" on any error.
+    """
+    try:
+        turn = getattr(state, "turn_count", 0) or 0
+        state_dict = {
+            "active_project": getattr(state, "active_project", None),
+            "turn_bucket": (turn // 5) * 5,  # round to nearest 5
+            "cp_available": getattr(state, "cp_available", None),
+            "fallback_mode": getattr(state, "fallback_mode", None),
+        }
+        raw = json.dumps(state_dict, sort_keys=True).encode()
+        return hashlib.md5(raw).hexdigest()[:8]
+    except Exception:
+        return ""
+
+
+# ---------------------------------------------------------------------------
+# Complexity heuristic — prevents over-escalation to SLOW path
+# ---------------------------------------------------------------------------
+
+def _estimate_complexity(prompt: str) -> int:
+    """Quick inline complexity estimate on a 0-3 scale.
+
+    0 — trivially simple (short, no planning/architecture keywords)
+    1 — moderate (planning vocabulary but not deep)
+    2 — complex (long prompt OR architectural keywords)
+    3 — very complex (multiple signals)
+    """
+    score = 0
+    if len(prompt.split()) > 80:
+        score += 1
+    if any(w in prompt.lower() for w in ["multiple", "cross-cutting", "refactor", "migration", "architecture"]):
+        score += 1
+    if any(w in prompt.lower() for w in ["plan", "design", "strategy", "approach"]):
+        score += 1
+    return score
 
 
 # ---------------------------------------------------------------------------
@@ -76,10 +148,37 @@ def _classify_intents(prompt: str) -> list:
     return matched
 
 
+def _is_planning_prompt(prompt: str) -> bool:
+    """Return True if the prompt contains planning / design vocabulary."""
+    planning_words = [
+        "plan", "design", "strategy", "approach", "roadmap", "architecture",
+        "trade-off", "tradeoff", "options", "alternatives", "pros and cons",
+        "brainstorm", "should we", "how should",
+    ]
+    lower = prompt.lower()
+    return any(w in lower for w in planning_words)
+
+
 def _is_fast_path(prompt: str, intents: list) -> bool:
-    """Return True for short prompts with clear, high-confidence intent."""
+    """Return True for short prompts with clear, high-confidence intent.
+
+    SLOW requires word_count > 40 OR complexity >= 2 OR (is_planning AND complexity >= 1).
+    Short planning acknowledgments ("yes, continue with the plan") should stay HOT or FAST,
+    not escalate to SLOW.
+    """
     word_count = len(prompt.split())
-    return word_count <= 40 and len(intents) >= 1
+    complexity = _estimate_complexity(prompt)
+    is_planning = _is_planning_prompt(prompt)
+
+    # Escalation conditions that push toward SLOW
+    if word_count > 40:
+        return False
+    if complexity >= 2:
+        return False
+    if is_planning and complexity >= 1:
+        return False
+
+    return len(intents) >= 1
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +504,32 @@ def _enforce_budget(content: str, path: str) -> str:
     return content[:limit - 3] + "..."
 
 
+def _enforce_budget_scaled(content: str, path: str, multiplier: float) -> str:
+    """Apply a pressure-scaled budget cap.
+
+    Delegates to BudgetEnforcer.scale() when available for a consistent budget
+    value. Falls back to the local _BUDGETS dict on import failure.
+
+    Args:
+        content: The assembled briefing text.
+        path: "hot", "fast", or "slow".
+        multiplier: Scale factor — 1.0=normal, 0.5=HIGH pressure, 0.25=CRITICAL.
+
+    Returns:
+        Content truncated to the scaled budget limit.
+    """
+    try:
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
+        from budget_enforcer import BudgetEnforcer
+        limit = BudgetEnforcer.scale(path, multiplier)
+    except Exception:
+        limit = int(_BUDGETS.get(path, 2000) * multiplier)
+
+    if len(content) <= limit:
+        return content
+    return content[:limit - 3] + "..."
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -514,9 +639,26 @@ def main():
     _capture_session_goal(prompt, turn_count, project, session_id)
 
     try:
+        # --- Change 1: Hash-based deduplication ---
+        # Compute the current session state hash. If it matches the stored hash
+        # AND we're beyond the early turns AND the prompt resolves to HOT, skip
+        # re-injection entirely — the context hasn't changed.
+        current_hash = _session_state_hash(state)
+        stored_hash = getattr(state, "context_hash", "") if state else ""
+
         # Routing decision
         if _is_hot_path(prompt):
             path = "hot"
+            # HOT path dedup: if state is unchanged since last turn, short-circuit
+            if (
+                current_hash
+                and current_hash == stored_hash
+                and turn_count > 2
+                and not getattr(state, "needs_onboarding", False)
+            ):
+                # State unchanged and no onboarding required — skip context re-injection
+                print(json.dumps({"continue": True}))
+                return
             briefing = _assemble_hot(_query_session_state(session_id))
         else:
             intents = _classify_intents(prompt)
@@ -527,37 +669,89 @@ def main():
                 path = "slow"
                 briefing = _assemble_slow(prompt, project, session_id)
 
-        briefing = _enforce_budget(briefing, path)
+        # Persist new hash after routing (only update when we proceed past the short-circuit)
+        if state and current_hash and current_hash != stored_hash:
+            try:
+                state.update(context_hash=current_hash)
+            except Exception:
+                pass
 
-        if not briefing:
+        # --- Change 2: Pressure-scaled budget ---
+        # Query context pressure level and apply corresponding budget multiplier
+        budget_multiplier = 1.0
+        try:
+            sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
+            from context_pressure import PressureTracker, PressureLevel
+            pressure = PressureTracker(session_id).get_level()
+            if pressure == PressureLevel.CRITICAL:
+                budget_multiplier = 0.25
+            elif pressure == PressureLevel.HIGH:
+                budget_multiplier = 0.5
+        except Exception:
+            pass  # fail open — use default 1.0 multiplier
+
+        if budget_multiplier < 1.0:
+            briefing = _enforce_budget_scaled(briefing, path, budget_multiplier)
+        else:
+            briefing = _enforce_budget(briefing, path)
+
+        if not briefing and not onboarding_directive and not _reconnect_notification:
             print(json.dumps({"continue": True}))
             return
 
-        # Sanitize against injection
-        sanitized = briefing.replace("</system-reminder>", "")
-
+        # --- Change 3: Merge all content into a single <system-reminder> block ---
+        # Sanitize injection attempts in each part individually
         header = (
             f"<!-- wicked-garden | path={path} "
             f"| turn={turn_count} -->"
         )
+        all_parts = [header]
 
-        # Include reconnect notification if CP was just restored
-        context_parts = [f"<system-reminder>\n{header}\n{sanitized}\n</system-reminder>"]
+        if briefing:
+            sanitized = briefing.replace("</system-reminder>", "")
+            all_parts.append(sanitized)
+
         if _reconnect_notification:
-            context_parts.append(
-                f"<system-reminder>\n[wicked-garden] {_reconnect_notification}\n</system-reminder>"
-            )
+            reconnect_safe = _reconnect_notification.replace("</system-reminder>", "")
+            all_parts.append(f"[Reconnect] {reconnect_safe}")
 
-        # Include onboarding directive if setup gate detected it's needed
         if onboarding_directive:
-            context_parts.append(
-                f"<system-reminder>\n{onboarding_directive}\n</system-reminder>"
-            )
+            onboarding_safe = onboarding_directive.replace("</system-reminder>", "")
+            all_parts.append(onboarding_safe)
+
+        merged_context = f"<system-reminder>\n{chr(10).join(all_parts)}\n</system-reminder>"
+
+        # --- (Task 203-B) Crew recommendation heuristic ---
+        # Suggest crew on SLOW path for complex requests when:
+        #   1. Path is "slow" (complex / ambiguous prompt)
+        #   2. Inline complexity estimate >= 2
+        #   3. Prompt does not already reference a crew command
+        #   4. No active crew project in session state
+        #   5. Hint has not already been shown this session (once-per-session gate)
+        if path == "slow" and _estimate_complexity(prompt) >= 2:
+            if "/crew:" not in prompt:
+                # Check cp_project_id — bootstrap sets this when a crew project is active
+                # (active_project field is NOT populated by bootstrap)
+                _active_project = getattr(state, "cp_project_id", None) if state else None
+                _hint_shown = getattr(state, "crew_hint_shown", False) if state else False
+                if not _active_project and not _hint_shown:
+                    crew_hint = (
+                        "[Suggestion] This prompt has characteristics of a complex project task. "
+                        "Consider using /wicked-garden:crew:start to manage it as a crew project."
+                    )
+                    # Append hint inside the existing merged block (still one block)
+                    merged_context = merged_context[:-len("</system-reminder>")] + crew_hint + "\n</system-reminder>"
+                    # Mark as shown so it does not repeat this session
+                    try:
+                        if state:
+                            state.update(crew_hint_shown=True)
+                    except Exception:
+                        pass
 
         output = {
             "hookSpecificOutput": {
                 "hookEventName": "UserPromptSubmit",
-                "additionalContext": "\n".join(context_parts),
+                "additionalContext": merged_context,
             },
             "continue": True,
         }

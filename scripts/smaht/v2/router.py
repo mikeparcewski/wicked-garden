@@ -300,14 +300,36 @@ class Router:
                 return True
         return False
 
+    def _estimate_complexity(self, prompt: str) -> int:
+        """Quick inline complexity estimate on a 0-3 scale.
+
+        Mirrors the heuristic in prompt_submit.py to ensure consistent routing
+        when the Router class is used directly.
+        """
+        score = 0
+        if len(prompt.split()) > 80:
+            score += 1
+        if any(w in prompt.lower() for w in ["multiple", "cross-cutting", "refactor", "migration", "architecture"]):
+            score += 1
+        if any(w in prompt.lower() for w in ["plan", "design", "strategy", "approach"]):
+            score += 1
+        return score
+
     def _should_escalate(self, analysis: PromptAnalysis) -> bool:
-        """Check if any escalation trigger fires."""
+        """Check if any escalation trigger fires.
+
+        SLOW path requires is_planning AND complexity >= 1 — a bare planning
+        label (e.g. "yes, continue with the plan") no longer escalates alone.
+        This prevents short planning acknowledgments from triggering expensive
+        context assembly.
+        """
+        complexity = self._estimate_complexity(analysis.prompt)
         return (
             analysis.confidence < 0.5 or
             analysis.competing_intents >= 3 or  # Escalate only for genuinely ambiguous multi-topic
             analysis.entity_count > 5 or
             analysis.requires_history or
-            analysis.is_planning or
+            (analysis.is_planning and complexity >= 1) or  # Require complexity alongside planning
             analysis.is_novel or
             analysis.word_count > 200 or
             analysis.is_compound

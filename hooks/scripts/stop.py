@@ -117,6 +117,51 @@ def _analyze_cp_errors() -> list:
 
 
 # ---------------------------------------------------------------------------
+# Step 2b: Automatic memory promotion via MemoryPromoter
+# ---------------------------------------------------------------------------
+
+def _run_memory_promotion(session_id: str) -> list:
+    """Promote high-value facts from the smaht session to wicked-mem.
+
+    Returns a list of message strings (empty when nothing was promoted or on
+    any error). Always fails open — exceptions are caught and logged to stderr.
+    """
+    try:
+        smaht_dir = _session_dir("wicked-smaht")
+        if not smaht_dir.exists():
+            # No smaht session this run — nothing to promote
+            return []
+
+        # Add smaht/v2 to sys.path so FactExtractor / MemoryPromoter are importable.
+        # This mirrors the pattern used in _persist_smaht_session_meta().
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+
+        from fact_extractor import FactExtractor
+        from memory_promoter import MemoryPromoter
+
+        fact_extractor = FactExtractor(smaht_dir)
+        promoter = MemoryPromoter(smaht_dir, fact_extractor)
+        result = promoter.promote()
+
+        status = result.get("status", "")
+        promoted = result.get("promoted", 0)
+
+        if status == "no_candidates" or promoted == 0:
+            return []
+
+        failed = result.get("failed", 0)
+        msg = f"[Memory] Auto-extracted {promoted} memory/memories from this session."
+        if failed:
+            msg += f" ({failed} failed — review with /wicked-garden:mem:recall)"
+        return [msg]
+
+    except Exception as e:
+        print(f"[wicked-garden] memory promotion error: {e}", file=sys.stderr)
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Step 2 & 3: Memory flush reminder + decay
 # ---------------------------------------------------------------------------
 
@@ -302,6 +347,9 @@ def main():
         # 1b. CP error summary
         cp_messages = _analyze_cp_errors()
 
+        # 2b. Automatic memory promotion (fail open — never blocks session end)
+        promotion_messages = _run_memory_promotion(session_id)
+
         # 3. Memory decay
         decay_messages = _run_memory_decay()
 
@@ -320,21 +368,37 @@ def main():
         # 6. Persist session state
         _persist_session_state()
 
-        # 2. Memory flush reminder — always included as directive to Claude
+        # 2. Memory flush reminder — always included as directive to Claude.
+        # Auto-promotion already ran (step 2b); adjust directive accordingly.
         decay_prefix = f"{'; '.join(decay_messages)}. " if decay_messages else ""
-        reflection = (
-            f"[Memory] {decay_prefix}REQUIRED: Session ending. "
-            "Run TaskList to review completed tasks from this session. "
-            "For each completed task, evaluate: did it produce a decision, gotcha, or reusable pattern? "
-            "Store each learning with /wicked-garden:mem:store "
-            "(type: decision, procedural, or episodic). "
-            "If no tasks completed or no learnings found, state 'No memories to store.' "
-            "Do NOT skip silently."
-        )
+        promoted_count = sum(
+            int(m.split("Auto-extracted ")[1].split(" ")[0])
+            for m in promotion_messages
+            if "Auto-extracted" in m
+        ) if promotion_messages else 0
 
-        # Combine all pre-reflection messages (outcome + CP errors)
+        if promoted_count > 0:
+            reflection = (
+                f"[Memory] {decay_prefix}"
+                f"Auto-extracted {promoted_count} memories this session. "
+                "Review or supplement with /wicked-garden:mem:recall if needed. "
+                "If additional decisions or discoveries were made that were not captured, "
+                "store them with /wicked-garden:mem:store (type: decision, procedural, or episodic)."
+            )
+        else:
+            reflection = (
+                f"[Memory] {decay_prefix}REQUIRED: Session ending. "
+                "Run TaskList to review completed tasks from this session. "
+                "For each completed task, evaluate: did it produce a decision, gotcha, or reusable pattern? "
+                "Store each learning with /wicked-garden:mem:store "
+                "(type: decision, procedural, or episodic). "
+                "If no tasks completed or no learnings found, state 'No memories to store.' "
+                "Do NOT skip silently."
+            )
+
+        # Combine all pre-reflection messages (outcome + CP errors + promotion notices)
         # Note: decay_messages already included via decay_prefix in reflection
-        prepend_messages = outcome_messages + cp_messages
+        prepend_messages = outcome_messages + cp_messages + promotion_messages
         if prepend_messages:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         else:

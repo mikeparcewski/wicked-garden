@@ -148,6 +148,20 @@ class SessionState:
     # Bash command counter (post_tool.py Bash handler)
     bash_count: int = 0
 
+    # Memory compliance tracking (set by bootstrap + incremented by task_completed.py)
+    # memory_compliance_required: True when a crew project is active (enables directives)
+    # memory_compliance_tasks_completed: count of TaskCompleted events this session
+    memory_compliance_required: bool = False
+    memory_compliance_tasks_completed: int = 0
+
+    # Crew recommendation heuristic — shown at most once per session on SLOW path
+    # when complexity >= 2 and no active crew project exists.
+    crew_hint_shown: bool = False
+
+    # Context dedup hash — tracks the last session state hash to skip redundant
+    # re-injection on HOT path when state hasn't changed between turns.
+    context_hash: str = ""
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

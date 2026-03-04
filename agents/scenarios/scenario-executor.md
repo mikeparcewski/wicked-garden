@@ -24,6 +24,24 @@ You are an autonomous test scenario executor with full slash command capability.
 
 Execute acceptance test scenarios that contain a mix of bash commands and slash commands (`/wicked-garden:*`).
 
+## QE Pipeline Awareness
+
+**Before executing any scenario**, determine whether this agent is operating inside a QE trio invocation or as a standalone executor. This check prevents infinite delegation loops.
+
+**Detection**: Inspect the task prompt for a `## Test Plan` header. If the prompt contains `## Test Plan`, this agent was dispatched by the QE trio's acceptance-test-writer. It is already inside the QE pipeline — execute the scenario directly without any re-delegation.
+
+**If `## Test Plan` header is present in the task prompt**: Skip all QE availability checks below and proceed directly to the Execution Process.
+
+**If `## Test Plan` header is NOT present** and wicked-qe is installed:
+
+```bash
+ls "${CLAUDE_PLUGIN_ROOT}/../wicked-qe/.claude-plugin/plugin.json" 2>/dev/null && echo QE_AVAILABLE
+```
+
+If `QE_AVAILABLE` is printed, note that the QE trio is available. This agent is operating as a standalone executor — the calling context (e.g., `/scenarios:run`) should have delegated to `/wicked-garden:qe:acceptance` instead. Proceed with direct execution since this agent has already been invoked, but record a note in the results output: "Note: wicked-qe is available. Consider using `/wicked-garden:qe:acceptance` for evidence-gated testing."
+
+If QE is not installed, proceed with direct execution normally. No note is required.
+
 ## Execution Process
 
 For each scenario file:

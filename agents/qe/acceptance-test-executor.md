@@ -196,6 +196,104 @@ After all steps complete, capture final environment state:
 - **Files modified during test**: {list}
 ```
 
+### 5b. Evidence Checkpoint (AC-202-1)
+
+After recording the post-execution state and **before** compiling the evidence report, verify that all required evidence was captured. This gate is mandatory — do not skip it.
+
+#### Required Evidence Manifest Check
+
+For each step in the test plan's evidence manifest:
+
+1. **Verify presence**: Confirm the evidence item exists in your evidence collection structure (was captured during Step 4c).
+2. **If present**: Compute SHA-256 checksum of the raw captured content (pre-formatting, UTF-8 encoded). Record the checksum. For inline evidence (not written to a file), hash the captured text exactly as recorded.
+3. **If missing**: Mark the step as `evidence_incomplete` and record the missing item ID.
+
+#### Forced Recapture Protocol
+
+If any required evidence item is missing:
+
+- Attempt **one** recapture of the affected step:
+  - Re-execute the step action exactly as written in the test plan
+  - Capture the evidence item again
+  - If captured on retry: update the evidence collection, compute checksum, mark step as `recaptured`
+  - If still missing after retry: mark the step as `EVIDENCE_MISSING` and continue to the next missing item
+
+Do not retry a step more than once. One recapture attempt per missing item.
+
+#### Artifact Registry
+
+After checking all evidence items, build the artifact registry JSON and write it to the canonical path:
+
+```bash
+QE_DIR=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-qe 2>/dev/null || echo "${TMPDIR:-/tmp}/wicked-qe-evidence")
+SCENARIO_SLUG=$(echo "{scenario_name}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
+REGISTRY_PATH="${QE_DIR}/evidence/${SCENARIO_SLUG}-registry.json"
+```
+
+Registry JSON schema:
+
+```json
+{
+  "schema_version": "1.0",
+  "scenario_slug": "{SCENARIO_SLUG}",
+  "created_at": "{ISO 8601 timestamp}",
+  "executor": "wicked-garden:qe:acceptance-test-executor",
+  "artifacts": [
+    {
+      "id": "step-N-output",
+      "type": "command_output | file_content | state_snapshot | api_response | tool_result",
+      "captured_at": "{ISO 8601 timestamp}",
+      "path": "{file path or null if inline}",
+      "sha256": "{hex digest of content, UTF-8 encoded}",
+      "size_bytes": "{integer byte count of content}",
+      "step_id": "STEP-N",
+      "required": true
+    }
+  ],
+  "completeness": {
+    "required_count": "{integer — total required evidence items}",
+    "captured_count": "{integer — items successfully captured}",
+    "missing": ["{step-N-output}", "{step-M-file}"]
+  }
+}
+```
+
+Write the registry to `${REGISTRY_PATH}` using the Write tool. If the write fails (permissions error), log the failure to execution notes and continue — the reviewer will detect the missing registry and return INCONCLUSIVE.
+
+#### Forced Recapture Directive
+
+If any required evidence items remain missing after all recapture attempts, **do not proceed to Step 6 (Compile Evidence Report)**. Instead, emit the following directive and stop:
+
+```markdown
+## Forced Recapture Required
+
+The following required evidence items are missing after one recapture attempt:
+
+- {step-N-output}: [{description of what was expected — e.g., "stdout from running X command"}]
+- {step-M-file}: [{description of what was expected — e.g., "file written at path Y"}]
+
+The evidence registry was written with `completeness.missing` populated above.
+
+Before the reviewer can evaluate this run, re-execute the affected steps and capture the missing evidence. Then re-invoke with `--phase execute` to complete evidence collection.
+```
+
+The `qe:acceptance` command detects this directive and does not dispatch the reviewer until evidence is complete.
+
+#### Evidence Checkpoint Output Record
+
+Append to the Post-Execution State section:
+
+```markdown
+## Evidence Checkpoint
+- **Registry written**: {YES — path: ${REGISTRY_PATH} | NO — write failed: {reason}}
+- **Required items**: {N}
+- **Captured items**: {N}
+- **Missing items**: {list or "none"}
+- **Recapture attempts**: {count}
+- **Recaptured successfully**: {count}
+- **Checkpoint status**: {COMPLETE | EVIDENCE_MISSING}
+```
+
 ### 6. Compile Evidence Report
 
 Return the complete evidence collection:

@@ -911,6 +911,12 @@ def main():
                 cp_project_id = project_data.get("cp_project_id") or ""
                 state.update(cp_project_id=cp_project_id)
 
+            # Enable memory compliance directives for crew sessions.
+            # task_completed.py reads this flag to decide whether to emit
+            # per-task memory prompts; stop.py reads it for session summary.
+            if state is not None:
+                state.update(memory_compliance_required=True)
+
             # Validate kanban link (side effect: repairs if needed)
             _validate_and_repair_kanban_link(project_data, project_name, cp_available)
 

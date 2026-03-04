@@ -19,6 +19,7 @@ import os
 import re
 import sys
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional
 from dataclasses import dataclass, asdict, field
@@ -531,6 +532,210 @@ class SignalAnalysis:
     flags: Dict[str, bool] = field(default_factory=dict)
     overrides_applied: Dict = field(default_factory=dict)
     memory_payload: Optional[Dict] = field(default=None)  # For caller to store via /wicked-mem:store
+    # Normalized scoring model fields (Issue #201 — additive, backward-compatible)
+    normalized_dimensions: Dict[str, float] = field(default_factory=dict)  # 8-dim normalized score
+    weighted_risk_index: float = 0.0                # Single composite [0.0, 1.0]
+    routing_lane: str = "standard"                  # Routing lane string value
+
+
+# ---------------------------------------------------------------------------
+# Normalized scoring model (Issue #201)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class NormalizedScore:
+    """8-dimension normalized risk score, each field in [0.0, 1.0].
+
+    Derived from the existing keyword-based RiskDimensions and detected signals.
+    This is a DERIVED representation — it does not replace the 0-7 complexity score
+    but provides a finer-grained, named view of the same underlying analysis.
+
+    Field semantics:
+    - impact: blast radius (0=local change, 1=system-wide)
+    - reversibility: difficulty of rollback (0=easy, 1=irreversible)
+    - novelty: prior team experience (0=well-known, 1=novel/first-time)
+    - coupling: cross-system dependency breadth
+    - data_risk: potential for data loss or corruption
+    - compliance_exposure: regulatory/audit surface area
+    - ux_surface: user-facing change exposure
+    - team_coordination: multi-team involvement
+    """
+    impact: float = 0.0
+    reversibility: float = 0.0
+    novelty: float = 0.0
+    coupling: float = 0.0
+    data_risk: float = 0.0
+    compliance_exposure: float = 0.0
+    ux_surface: float = 0.0
+    team_coordination: float = 0.0
+
+
+# Dimension weights for weighted risk index computation.
+# Must sum to <= 1.0. Used in compute_weighted_index().
+DIMENSION_WEIGHTS: Dict[str, float] = {
+    "impact": 0.24,
+    "reversibility": 0.24,
+    "novelty": 0.18,
+    "coupling": 0.10,
+    "data_risk": 0.06,
+    "compliance_exposure": 0.05,
+    "ux_surface": 0.03,
+    "team_coordination": 0.03,
+}
+
+
+class RoutingLane(str, Enum):
+    """Five routing lanes that map normalized risk to concrete workflow paths.
+
+    Determined by hard rules first; weighted risk index as fallback.
+    - AUTO: Execute immediately — very low risk, no crew overhead needed
+    - FAST: Minimal gates — trivial, well-understood work
+    - STANDARD: Full crew gates — well-understood but non-trivial
+    - ELEVATED: Human review required — complex, regulated, or high-risk
+    - LOOP: Incident/iterative remediation with learning checkpoints
+    """
+    AUTO = "auto"
+    FAST = "fast"
+    STANDARD = "standard"
+    ELEVATED = "elevated"
+    LOOP = "loop"
+
+
+def compute_normalized_score(
+    risk_dims: RiskDimensions,
+    signals: List[str],
+    signal_confidences: Dict[str, float],
+    coordination: int,
+) -> NormalizedScore:
+    """Map existing RiskDimensions and detected signals to a NormalizedScore.
+
+    All output fields are floats in [0.0, 1.0].
+
+    Args:
+        risk_dims: RiskDimensions from the existing keyword-based analysis.
+        signals: List of detected signal category names.
+        signal_confidences: Raw confidence scores per signal category.
+        coordination: 0 or 1 stakeholder-coordination indicator from compute_composite().
+    """
+    try:
+        # Map 0-3 dimension scores to 0-1 range
+        impact = risk_dims.impact / 3.0
+
+        # Reversibility: 0=easily reversible, 3=irreversible in RiskDimensions.
+        # Map directly to 0-1: 0→0.0 (low risk), 3→1.0 (high risk, hard to undo).
+        # No inversion needed — the existing scale already has higher = worse.
+        reversibility = risk_dims.reversibility / 3.0
+
+        novelty = risk_dims.novelty / 3.0
+
+        # Coupling: normalized signal count as a proxy for cross-system breadth
+        coupling = min(1.0, len(signals) / 6.0)
+
+        # Data risk: derived from data signal confidence
+        data_risk = signal_confidences.get("data", 0.0)
+
+        # Compliance exposure: derived from compliance signal confidence
+        compliance_exposure = signal_confidences.get("compliance", 0.0)
+
+        # UX surface: derived from ux signal confidence
+        ux_surface = signal_confidences.get("ux", 0.0)
+
+        # Team coordination: stakeholder-coordination indicator (0 or 1)
+        team_coordination = min(1.0, coordination / 1.0)
+
+        return NormalizedScore(
+            impact=round(impact, 4),
+            reversibility=round(reversibility, 4),
+            novelty=round(novelty, 4),
+            coupling=round(coupling, 4),
+            data_risk=round(data_risk, 4),
+            compliance_exposure=round(compliance_exposure, 4),
+            ux_surface=round(ux_surface, 4),
+            team_coordination=round(team_coordination, 4),
+        )
+    except Exception:
+        # Fail open: return all-zero score rather than blocking analysis
+        return NormalizedScore()
+
+
+def compute_weighted_index(score: NormalizedScore) -> float:
+    """Compute a single weighted risk index from a NormalizedScore.
+
+    Returns a float in [0.0, 1.0]. Uses DIMENSION_WEIGHTS.
+    The total is normalized by the sum of all weights, so partial weight
+    sets are handled gracefully.
+    """
+    weight_sum = sum(DIMENSION_WEIGHTS.values())
+    if weight_sum == 0:
+        return 0.0
+    total = sum(
+        getattr(score, dim, 0.0) * w
+        for dim, w in DIMENSION_WEIGHTS.items()
+    )
+    return round(total / weight_sum, 4)
+
+
+def apply_hard_rules(score: NormalizedScore) -> Optional[RoutingLane]:
+    """Evaluate deterministic routing overrides before the weighted fallback.
+
+    Rules are evaluated in order; first match wins and returns a RoutingLane.
+    Returns None if no rule matches — caller should fall through to weighted index.
+
+    Hard rules exist for cases where the routing decision should be deterministic
+    regardless of the composite score (compliance exposure, incident response, etc.).
+    """
+    try:
+        # Rule 1: Incident remediation — high impact + strong team coordination
+        if score.impact >= 0.7 and score.team_coordination >= 0.8:
+            return RoutingLane.LOOP
+
+        # Rule 2: Regulatory elevated — strong compliance exposure
+        if score.compliance_exposure >= 0.85:
+            return RoutingLane.ELEVATED
+
+        # Rule 3: Low reversibility + high impact or novelty — hard-to-undo risky change
+        if score.reversibility >= 0.8 and (score.impact >= 0.7 or score.novelty >= 0.8):
+            return RoutingLane.ELEVATED
+
+        # Rule 4: Urgent safe auto-execute — very low novelty, impact, and reversibility
+        if score.novelty <= 0.25 and score.impact <= 0.3 and score.reversibility <= 0.2:
+            return RoutingLane.AUTO
+
+        # Rule 5: Low-risk fast-track — all three primary dimensions at floor
+        if score.impact <= 0.2 and score.novelty <= 0.2 and score.reversibility <= 0.2:
+            return RoutingLane.FAST
+
+    except Exception:
+        pass  # Fail open — never block on a hard-rule evaluation error
+
+    return None
+
+
+def determine_routing_lane(score: NormalizedScore) -> RoutingLane:
+    """Determine the routing lane for a request.
+
+    Evaluates hard rules first. If no hard rule matches, falls back to the
+    weighted risk index with the following exclusive thresholds:
+    - AUTO:     WRI in [0.00, 0.15)
+    - FAST:     WRI in [0.15, 0.30)
+    - STANDARD: WRI in [0.30, 0.55)
+    - ELEVATED: WRI in [0.55, 1.00]
+    """
+    hard = apply_hard_rules(score)
+    if hard is not None:
+        return hard
+
+    wri = compute_weighted_index(score)
+
+    if wri < 0.15:
+        return RoutingLane.AUTO
+    elif wri < 0.30:
+        return RoutingLane.FAST
+    elif wri < 0.55:
+        return RoutingLane.STANDARD
+    else:
+        return RoutingLane.ELEVATED
 
 
 # ---------------------------------------------------------------------------
@@ -1247,6 +1452,20 @@ def analyze_input(
     if overrides_applied:
         logger.info(f"Overrides applied: {overrides_applied}")
 
+    # Normalized scoring model (Issue #201) — computed after all final values are settled.
+    # Uses the final signal_confidences (post-context-injection) and risk_dims.
+    # coordination is extracted from the complexity breakdown (0 or 1).
+    _coordination = breakdown.get("coordination", 0)
+    norm_score = compute_normalized_score(risk_dims, signals, signal_confidences, _coordination)
+    _wri = compute_weighted_index(norm_score)
+    _routing_lane = determine_routing_lane(norm_score)
+    _norm_dims = {dim: getattr(norm_score, dim) for dim in DIMENSION_WEIGHTS}
+
+    logger.debug(
+        f"Normalized scoring: WRI={_wri:.4f}, lane={_routing_lane.value}, "
+        f"dims={_norm_dims}"
+    )
+
     analysis = SignalAnalysis(
         signals=signals,
         signal_confidences=signal_confidences,
@@ -1265,6 +1484,9 @@ def analyze_input(
         archetype_adjustments_applied=archetype_adj_applied,
         flags=flags,
         overrides_applied=overrides_applied,
+        normalized_dimensions=_norm_dims,
+        weighted_risk_index=_wri,
+        routing_lane=_routing_lane.value,
     )
 
     # Decision observability logging (best-effort)
