@@ -1436,15 +1436,19 @@ class UnifiedSearchIndex:
 
         # Pass 2: Link dependencies (code-to-code: calls, imports, inheritance)
         if jsonl_path.exists():
+            print(f"  Pass 2: Linking code dependencies...", file=sys.stderr)
             linker = DependencyLinker()
             stats["cross_refs"] = linker.link(jsonl_path)
+            print(f"  Pass 2: Resolved {stats['cross_refs']} code references", file=sys.stderr)
 
             # Pass 2b: Link doc-to-code cross-references (doc sections → code symbols)
             # Writes metadata["documents"] on each doc node so migration creates
             # ref_type='documents' edges in symbol_refs for impl/refs commands.
+            print(f"  Pass 2b: Linking doc-to-code references...", file=sys.stderr)
             doc_linker = DocLinker()
             doc_refs = doc_linker.link(jsonl_path)
             stats["cross_refs"] += doc_refs
+            print(f"  Pass 2b: Created {doc_refs} doc-to-code edges", file=sys.stderr)
 
         # Update metadata
         metadata = IndexMetadata.create(str(self.root_path))
