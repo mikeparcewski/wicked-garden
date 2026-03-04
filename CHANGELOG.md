@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.17.1] - 2026-03-04
+
+### Bug Fixes
+- fix: O(1) import resolution and progress reporting in search linker (cba23f4)
+
+### Chores
+- release: wicked-garden v1.17.0 (ddc1dc2)
+
 ## [1.17.0] - 2026-03-04
 
 ### Bug Fixes
