@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.15.2] - 2026-03-04
+
+### Bug Fixes
+- fix: move phases.json to .claude-plugin/ where plugin config belongs (7e275aa)
+
 ## [1.15.1] - 2026-03-04
 
 ### Refactoring
