@@ -58,14 +58,20 @@ def _deny(reason: str) -> str:
 def _find_active_crew_project():
     """Return (project_data_dict, project_name, kanban_initiative_name).
 
+    Scoped to the current workspace (CLAUDE_PROJECT_NAME or cwd basename).
+    Only returns projects whose ``workspace`` field matches.
     Uses StorageManager exclusively — SM handles CP-first with local fallback.
     """
+    workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
     try:
         from _storage import StorageManager
         sm = StorageManager("wicked-crew", hook_mode=True)
         projects = sm.list("projects") or []
         for p in sorted(projects, key=lambda x: x.get("updated_at", x.get("created_at", "")), reverse=True):
             if p.get("archived"):
+                continue
+            # Workspace scoping — skip projects from other workspaces
+            if workspace and p.get("workspace", "") != workspace:
                 continue
             phase = p.get("current_phase", "")
             if phase and phase not in ("complete", "done", ""):
