@@ -170,32 +170,43 @@ def _find_script(plugin_name: str, script_name: str) -> Path | None:
 
     Checks the flat scripts/ directory first, then scripts/v2/, and finally
     searches all subdirectories under scripts/ (e.g. scripts/observability/).
+
+    Also supports the single-repo layout where this plugin IS the repo root
+    (i.e. schemas/wicked-garden/ lives alongside scripts/ at the repo root).
+    In that case PLUGINS_ROOT / plugin_name does not exist, so we fall back to
+    searching PLUGIN_ROOT / "scripts" directly.
     """
-    scripts_dir = PLUGINS_ROOT / plugin_name / "scripts"
     target = f"{script_name}.py"
 
-    # Direct match: scripts/{script_name}.py
-    candidate = scripts_dir / target
-    if candidate.exists():
-        return candidate
+    # Candidates in priority order: multi-repo layout first, single-repo fallback second.
+    scripts_dirs: list[Path] = []
 
-    # Also check scripts/v2/ sub-directory (wicked-smaht pattern)
-    candidate_v2 = scripts_dir / "v2" / target
-    if candidate_v2.exists():
-        return candidate_v2
+    external_scripts = PLUGINS_ROOT / plugin_name / "scripts"
+    if external_scripts.is_dir():
+        scripts_dirs.append(external_scripts)
 
-    # Search all subdirectories under scripts/ (e.g. scripts/observability/)
-    if scripts_dir.is_dir():
+    # Single-repo fallback: this plugin's own scripts/ directory (e.g. scripts/observability/)
+    own_scripts = PLUGIN_ROOT / "scripts"
+    if own_scripts.is_dir() and own_scripts not in scripts_dirs:
+        scripts_dirs.append(own_scripts)
+
+    for scripts_dir in scripts_dirs:
+        # Direct match: scripts/{script_name}.py
+        candidate = scripts_dir / target
+        if candidate.exists():
+            return candidate
+
+        # Also check scripts/v2/ sub-directory (wicked-smaht pattern)
+        candidate_v2 = scripts_dir / "v2" / target
+        if candidate_v2.exists():
+            return candidate_v2
+
+        # Search all subdirectories under scripts/ (e.g. scripts/observability/)
         matches = sorted(
             m for m in scripts_dir.rglob(target)
             if not any(p.startswith((".", "__")) or p == ".venv"
                        for p in m.relative_to(scripts_dir).parts)
         )
-        if len(matches) > 1:
-            logger.warning(
-                "[assert_contracts] Ambiguous script match for %s: %s — using first",
-                target, [str(m) for m in matches],
-            )
         if matches:
             return matches[0]
 

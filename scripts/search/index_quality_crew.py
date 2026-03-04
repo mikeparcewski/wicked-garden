@@ -362,7 +362,7 @@ class StrategyAgent:
 
     def create_plan(self, discoveries: List[Discovery], current_state: QualityState) -> ExtractionPlan:
         """Create an extraction plan from discoveries."""
-        plan_id = hashlib.md5(
+        plan_id = hashlib.sha256(
             f"{current_state.iteration}:{datetime.now().isoformat()}".encode()
         ).hexdigest()[:8]
 
@@ -448,7 +448,7 @@ class ValidatorAgent:
     def _compute_plan_hash(self, plan: ExtractionPlan) -> str:
         """Compute hash of plan for plateau detection."""
         parts = [f"{d.category}:{d.pattern_type}" for d in plan.discoveries]
-        return hashlib.md5(':'.join(sorted(parts)).encode()).hexdigest()[:8]
+        return hashlib.sha256(':'.join(sorted(parts)).encode()).hexdigest()[:8]
 
 
 class Executor:
@@ -634,7 +634,7 @@ class IndexQualityCrew:
 
             # 6. Update history
             self.history.append((
-                hashlib.md5(plan.plan_id.encode()).hexdigest()[:8],
+                hashlib.sha256(plan.plan_id.encode()).hexdigest()[:8],
                 state.overall_accuracy
             ))
 

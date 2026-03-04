@@ -15,7 +15,7 @@ Show statistics about the indexed search database.
 
 1. Run the stats query via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
    ```
 
 2. If the control plane is available, also query CP stats:

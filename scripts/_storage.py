@@ -662,7 +662,14 @@ class StorageManager:
 
         Stamps dedup_keys from _DEDUP_KEYS when available, so drain_queue()
         can skip duplicates on replay.
+
+        In local mode (no CP configured) the queue is pointless — there is no
+        control plane to replay to. Skip the write entirely to avoid unbounded
+        accumulation in _queue.jsonl.
         """
+        if self._mode == "local":
+            return
+
         entry: dict[str, Any] = {
             "queued_at": _now(),
             "domain": self._domain,

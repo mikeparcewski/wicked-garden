@@ -68,8 +68,11 @@ Task(
    - As a {persona}
    - I want {capability}
    - So that {benefit}
-4. **Define Acceptance Criteria**: Given/When/Then format for each story
-5. **Provide Recommendations**: Next steps for requirements refinement
+4. **Assign Priority**: P0 (must-have/launch blocker), P1 (important/near-term), P2 (nice-to-have/deferrable) for each story
+5. **Assign Complexity**: S (hours), M (1-2 days), L (3-5 days), XL (week+) for each story
+6. **Define Dependencies**: List formal story-to-story or system dependencies for each story (use story IDs or component names)
+7. **Define Acceptance Criteria**: Given/When/Then format for each story
+8. **Provide Recommendations**: Next steps for requirements refinement
 
 ## Return Format
 
@@ -77,7 +80,7 @@ Provide:
 - User Stories count
 - Acceptance Criteria count
 - Open Questions count
-- Individual user stories with AC
+- Individual user stories with priority, complexity, dependencies, and AC
 - Open questions list
 - Recommendations
 """
@@ -103,6 +106,10 @@ Format the agent's output into the standard elicitation report structure.
 **As a** {persona}
 **I want** {capability}
 **So that** {benefit}
+
+**Priority**: P0 | P1 | P2
+**Complexity**: S | M | L | XL
+**Dependencies**: {story IDs or system components this story depends on, or "None"}
 
 **Acceptance Criteria**:
 1. Given {context}, When {action}, Then {outcome}

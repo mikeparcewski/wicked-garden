@@ -24,7 +24,7 @@ Detect services and their connections from infrastructure configuration files an
 
 2. Query the local unified index for code-level services (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py service-map
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py service-map --path "${PWD}"
    ```
 
 3. If the control plane is available, also query for enrichment:

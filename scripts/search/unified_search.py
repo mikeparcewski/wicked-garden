@@ -1090,7 +1090,7 @@ class UnifiedSearchIndex:
 
     def _path_hash(self) -> str:
         """Generate hash for index filename."""
-        return hashlib.md5(str(self.root_path).encode()).hexdigest()[:12]
+        return hashlib.sha256(str(self.root_path).encode()).hexdigest()[:12]
 
     def _load_index_metadata(self) -> Optional[IndexMetadata]:
         """Load index metadata from disk."""
