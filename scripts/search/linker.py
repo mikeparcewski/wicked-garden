@@ -95,7 +95,10 @@ class DependencyLinker:
         """Resolve call targets and inheritance, building reverse index."""
         resolved = 0
 
-        for node_id, node in self.nodes.items():
+        total = len(self.nodes)
+        for i, (node_id, node) in enumerate(self.nodes.items()):
+            if i > 0 and i % 10000 == 0:
+                print(f"  Resolved {i}/{total} symbols...", file=sys.stderr)
             # Resolve function/method calls
             for call in node.calls:
                 target_id = self._resolve_symbol(call.name, node.file)

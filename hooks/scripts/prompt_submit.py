@@ -189,36 +189,34 @@ def _has_ambiguity_signals(prompt: str) -> bool:
     return any(sig in lower for sig in _JAM_AMBIGUITY_SIGNALS)
 
 
-def _suggest_jam(prompt: str, state, merged_context: str) -> str:
-    """Append a jam suggestion to merged_context if conditions are met.
+def _suggest_jam(prompt: str, state) -> str | None:
+    """Return a jam suggestion string if conditions are met, or None.
 
     Conditions:
     1. Prompt contains ambiguity signals
     2. Prompt does not already reference a jam command
     3. Hint not shown this session
 
-    Returns updated merged_context (unchanged if conditions not met).
+    Returns the hint string to append, or None if no suggestion should be shown.
     """
     if "/jam:" in prompt.lower():
-        return merged_context  # Already using jam — no suggestion needed
+        return None  # Already using jam — no suggestion needed
     if not _has_ambiguity_signals(prompt):
-        return merged_context
+        return None
     jam_shown = getattr(state, "jam_hint_shown", False) if state else False
     if jam_shown:
-        return merged_context
+        return None
 
-    jam_hint = (
-        "[Suggestion] This prompt involves exploring options or tradeoffs. "
-        "Consider /wicked-garden:jam:quick for fast structured thinking, "
-        "or /wicked-garden:jam:brainstorm for a full multi-perspective session."
-    )
-    updated = merged_context[:-len("</system-reminder>")] + jam_hint + "\n</system-reminder>"
     try:
         if state:
             state.update(jam_hint_shown=True)
     except Exception:
         pass
-    return updated
+    return (
+        "[Suggestion] This prompt involves exploring options or tradeoffs. "
+        "Consider /wicked-garden:jam:quick for fast structured thinking, "
+        "or /wicked-garden:jam:brainstorm for a full multi-perspective session."
+    )
 
 
 def _is_fast_path(prompt: str, intents: list) -> bool:
@@ -837,7 +835,8 @@ def main():
             return
 
         # --- Change 3: Merge all content into a single <system-reminder> block ---
-        # Sanitize injection attempts in each part individually
+        # Collect all context parts in a list; sanitize each one individually to
+        # prevent injection of </system-reminder> from any source. Wrap once at the end.
         header = (
             f"<!-- wicked-garden | path={path} "
             f"| turn={turn_count} -->"
@@ -856,8 +855,6 @@ def main():
             onboarding_safe = onboarding_directive.replace("</system-reminder>", "")
             all_parts.append(onboarding_safe)
 
-        merged_context = f"<system-reminder>\n{chr(10).join(all_parts)}\n</system-reminder>"
-
         # --- Crew recommendation heuristic ---
         # Suggest crew on SLOW path for complex requests when:
         #   1. Path is "slow" (complex / ambiguous prompt)
@@ -874,12 +871,10 @@ def main():
                 # Re-fire if very high complexity (3), even if hint was shown before
                 _should_show = (not _hint_shown) or (complexity_score >= 3)
                 if not _active_project and _should_show:
-                    crew_hint = (
+                    all_parts.append(
                         "[Suggestion] This request has characteristics of a complex multi-phase project. "
                         "Consider using /wicked-garden:crew:start to manage it as a structured crew project."
                     )
-                    # Append hint inside the existing merged block (still one block)
-                    merged_context = merged_context[:-len("</system-reminder>")] + crew_hint + "\n</system-reminder>"
                     # Mark as shown (caps re-fires until next session)
                     try:
                         if state:
@@ -891,7 +886,12 @@ def main():
         # Suggest jam on FAST or SLOW path when prompt contains ambiguity signals,
         # not blocked by an urgent onboarding directive.
         if path in ("fast", "slow") and not onboarding_directive:
-            merged_context = _suggest_jam(prompt, state, merged_context)
+            jam_hint = _suggest_jam(prompt, state)
+            if jam_hint:
+                all_parts.append(jam_hint)
+
+        # Wrap all collected parts once with a single <system-reminder> tag
+        merged_context = f"<system-reminder>\n{chr(10).join(all_parts)}\n</system-reminder>"
 
         output = {
             "hookSpecificOutput": {

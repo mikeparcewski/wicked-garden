@@ -1262,7 +1262,7 @@ class UnifiedSearchIndex:
 
         return nodes
 
-    def _parse_doc_to_nodes(self, path: Path) -> List["JsonlGraphNode"]:
+    async def _parse_doc_to_nodes(self, path: Path) -> List["JsonlGraphNode"]:
         """Parse a document file into JSONL GraphNode objects.
 
         For text-based docs (md, txt, rst), reads directly.
@@ -1285,8 +1285,7 @@ class UnifiedSearchIndex:
                     sections = self.doc_extractor._parse_sections(text, file_str)
             # Binary docs - use kreuzberg if available
             elif ext in DOC_EXTENSIONS and self.doc_extractor and HAS_KREUZBERG:
-                import asyncio
-                text, sections = asyncio.run(self.doc_extractor.extract(path))
+                text, sections = await self.doc_extractor.extract(path)
             else:
                 # Try reading as text anyway
                 try:
@@ -1421,7 +1420,7 @@ class UnifiedSearchIndex:
             with open(jsonl_path, 'a', encoding='utf-8') as f:
                 for i, path in enumerate(doc_files):
                     try:
-                        nodes = self._parse_doc_to_nodes(path)
+                        nodes = await self._parse_doc_to_nodes(path)
                         for node in nodes:
                             f.write(node.model_dump_json(by_alias=True) + '\n')
                             doc_node_count += 1

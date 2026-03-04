@@ -452,6 +452,34 @@ def _handle_read(tool_input: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Handler: Skill (mem:store compliance counter reset)
+# ---------------------------------------------------------------------------
+
+def _handle_skill(tool_input: dict) -> dict:
+    """Reset memory_compliance_escalations when a mem:store skill call succeeds.
+
+    The TaskCompleted hook increments memory_compliance_escalations on every
+    deliverable task completion. After 3 completions the [ESCALATION] prefix
+    fires indefinitely. Resetting the counter here — triggered by any Skill
+    invocation whose skill name matches *:mem:store — breaks the cycle.
+
+    We reset on the Skill call regardless of whether the inner bash command
+    succeeded: if the user invoked mem:store we treat that as intent to comply.
+    """
+    skill = (tool_input.get("skill") or "").lower()
+    if ":mem:store" not in skill and skill != "mem:store":
+        return {"continue": True}
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        if (state.memory_compliance_escalations or 0) > 0:
+            state.update(memory_compliance_escalations=0)
+    except Exception:
+        pass
+    return {"continue": True}
+
+
+# ---------------------------------------------------------------------------
 # Handler: Bash (general activity tracking)
 # ---------------------------------------------------------------------------
 
@@ -697,6 +725,9 @@ def main():
         elif tool_name == "Bash":
             tool_response = payload.get("tool_response", {})
             result = _handle_bash(tool_input, tool_response)
+        # Skill (mem:store escalation counter reset)
+        elif tool_name == "Skill":
+            result = _handle_skill(tool_input)
         # All other tools — pass through
         else:
             result = {"continue": True}
