@@ -11,6 +11,7 @@ Handles:
 
 import json
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -363,6 +364,7 @@ class ProjectState:
     kanban_initiative: Optional[str] = None
     kanban_initiative_id: Optional[str] = None
     cp_project_id: Optional[str] = None
+    workspace: Optional[str] = None
     extras: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -870,11 +872,13 @@ def create_project(
     if existing:
         raise ValueError(f"Project already exists: {name}")
 
-    # Build initial state
+    # Build initial state — workspace scopes the project to the current folder
+    workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
     state = ProjectState(
         name=name,
         current_phase="clarify",
         created_at=get_utc_timestamp(),
+        workspace=workspace,
     )
 
     # Merge initial_data if provided

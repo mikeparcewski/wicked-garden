@@ -10,6 +10,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -19,9 +20,12 @@ from _storage import StorageManager, get_local_path
 _sm = StorageManager("wicked-crew")
 
 
-def list_projects(active_only: bool = False) -> dict:
-    """List crew projects, optionally filtered to active ones."""
+def list_projects(active_only: bool = False, workspace: str = "") -> dict:
+    """List crew projects, optionally filtered to active ones and/or workspace."""
     projects = _sm.list("projects")
+
+    if workspace:
+        projects = [p for p in projects if p.get("workspace", "") == workspace]
 
     if active_only:
         projects = [
@@ -34,20 +38,26 @@ def list_projects(active_only: bool = False) -> dict:
     return {"projects": projects}
 
 
-def find_active_project() -> dict:
-    """Find the most recently updated active (non-archived, non-complete) project.
+def find_active_project(workspace: str = "") -> dict:
+    """Find the most recently updated active (non-archived, non-complete) project
+    scoped to the given workspace.
 
     Uses StorageManager (CP-first, local fallback). Returns project data
-    and local directory path.
+    and local directory path. Only returns projects whose ``workspace``
+    field matches the current workspace.
     """
+    if not workspace:
+        workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+
     projects = _sm.list("projects") or []
 
-    # Filter to active projects (exclude archived, paused, and completed)
+    # Filter to active projects scoped to this workspace
     active = [
         p for p in projects
         if not p.get("archived")
         and not p.get("paused")
         and p.get("current_phase", "") not in ("complete", "done", "")
+        and p.get("workspace", "") == workspace
     ]
 
     if not active:
@@ -97,6 +107,7 @@ def main():
 
     ls_parser = subparsers.add_parser("list-projects", help="List crew projects")
     ls_parser.add_argument("--active", action="store_true", help="Only active projects")
+    ls_parser.add_argument("--workspace", default="", help="Filter by workspace (default: current)")
     ls_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     get_parser = subparsers.add_parser("get-project", help="Get a specific project")
@@ -104,6 +115,7 @@ def main():
     get_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     find_parser = subparsers.add_parser("find-active", help="Find most recent active project")
+    find_parser.add_argument("--workspace", default="", help="Filter by workspace (default: current)")
     find_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
@@ -113,7 +125,7 @@ def main():
         sys.exit(1)
 
     if args.command == "list-projects":
-        result = list_projects(active_only=args.active)
+        result = list_projects(active_only=args.active, workspace=args.workspace)
         if getattr(args, "json", False):
             print(json.dumps(result, indent=2))
         else:
@@ -137,7 +149,7 @@ def main():
                     print(f"Outcome: {p['outcome_summary']}")
 
     elif args.command == "find-active":
-        result = find_active_project()
+        result = find_active_project(workspace=args.workspace)
         if getattr(args, "json", False):
             print(json.dumps(result, indent=2))
         else:

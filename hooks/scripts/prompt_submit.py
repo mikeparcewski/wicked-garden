@@ -127,17 +127,23 @@ def _query_memory(project: str, prompt: str) -> str:
 
 
 def _query_crew(project: str) -> str:
-    """Return current crew project phase context."""
+    """Return current crew project phase context, scoped to workspace."""
     try:
+        workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
         from _storage import StorageManager
         sm = StorageManager("wicked-crew")
-        projects = sm.list("projects", archived=False, limit=1) or []
-        if not projects:
-            return ""
-        p = projects[0]
-        name = p.get("name", "")
-        phase = p.get("current_phase", "")
-        return f"Crew project: {name} | Phase: {phase}" if name else ""
+        projects = sm.list("projects") or []
+        # Filter to active projects in this workspace
+        for p in sorted(projects, key=lambda x: x.get("updated_at", ""), reverse=True):
+            if p.get("archived"):
+                continue
+            if workspace and p.get("workspace", "") != workspace:
+                continue
+            phase = p.get("current_phase", "")
+            if phase and phase not in ("complete", "done", ""):
+                name = p.get("name", "")
+                return f"Crew project: {name} | Phase: {phase}" if name else ""
+        return ""
     except Exception:
         return ""
 

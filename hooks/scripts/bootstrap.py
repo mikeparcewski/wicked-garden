@@ -93,8 +93,12 @@ def _load_agents(cp_available):
         return 0
 
 
-def _find_active_crew_project():
-    """Return (project_data, project_name) for most recently updated active crew project.
+def _find_active_crew_project(workspace: str = ""):
+    """Return (project_data, project_name) for most recently updated active crew project
+    scoped to the given workspace.
+
+    Only returns projects whose ``workspace`` field matches the current folder.
+    Projects without a workspace field (legacy) are never auto-selected.
 
     Uses StorageManager for consistent data access. Falls back to filesystem
     scan if StorageManager fails (legacy compat for one release).
@@ -104,8 +108,12 @@ def _find_active_crew_project():
         sm = StorageManager("wicked-crew", hook_mode=True)
         projects = sm.list("projects") or []
         # Sort by updated_at descending, return first non-archived, non-complete
+        # that matches the current workspace
         for p in sorted(projects, key=lambda x: x.get("updated_at", ""), reverse=True):
             if p.get("archived"):
+                continue
+            # Workspace scoping — skip projects from other workspaces
+            if workspace and p.get("workspace", "") != workspace:
                 continue
             phase = p.get("current_phase", "")
             if phase and phase != "complete":
@@ -115,10 +123,10 @@ def _find_active_crew_project():
         pass
 
     # Legacy fallback: direct filesystem scan (remove after one release)
-    return _find_active_crew_project_legacy()
+    return _find_active_crew_project_legacy(workspace)
 
 
-def _find_active_crew_project_legacy():
+def _find_active_crew_project_legacy(workspace: str = ""):
     """Filesystem-based crew project scan. Legacy fallback."""
     projects_dir = Path.home() / ".something-wicked" / "wicked-crew" / "projects"
     if not projects_dir.exists():
@@ -132,6 +140,9 @@ def _find_active_crew_project_legacy():
         try:
             data = json.loads(pf.read_text())
             if data.get("archived"):
+                continue
+            # Workspace scoping — skip projects from other workspaces
+            if workspace and data.get("workspace", "") != workspace:
                 continue
             phase = data.get("current_phase", "")
             if phase and phase != "complete":
@@ -828,8 +839,9 @@ def main():
             except Exception:
                 pass
 
-        # 5 & 6. Load active crew project and kanban board summary (independent reads)
-        project_data, project_name = _find_active_crew_project()
+        # 5 & 6. Load last crew project for this workspace and kanban board summary
+        workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+        project_data, project_name = _find_active_crew_project(workspace)
         kanban_summary = _load_kanban_summary()
 
         # 7. Run memory decay
@@ -883,18 +895,21 @@ def main():
         status_lines = [
             f"wicked-garden | {project}",
             _storage_line,
+            f"  Config:      mode={mode} endpoint={endpoint}",
             f"  Onboarding:  {onboarding_status}",
         ]
 
+        # Show last crew project for this workspace as informational only.
+        # Do NOT auto-activate — the user must explicitly start/resume a project.
         if project_data:
             name = project_data.get("name", project_name or "unknown")
             phase = project_data.get("current_phase", "unknown")
-            status_lines.append(f"  Crew:        {name} ({phase})")
+            status_lines.append(f"  Last crew:   {name} ({phase})")
 
+            # Store as reference info only — NOT as active_project
             if state is not None:
                 cp_project_id = project_data.get("cp_project_id") or ""
-                state.update(active_project={"name": name, "phase": phase},
-                             cp_project_id=cp_project_id)
+                state.update(cp_project_id=cp_project_id)
 
             # Validate kanban link (side effect: repairs if needed)
             _validate_and_repair_kanban_link(project_data, project_name, cp_available)
