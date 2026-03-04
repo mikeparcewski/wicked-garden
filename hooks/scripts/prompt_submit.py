@@ -115,12 +115,28 @@ def _estimate_complexity(prompt: str) -> int:
     3 — very complex (multiple signals)
     """
     score = 0
+    lower = prompt.lower()
+    # Length signal
     if len(prompt.split()) > 80:
         score += 1
-    if any(w in prompt.lower() for w in ["multiple", "cross-cutting", "refactor", "migration", "architecture"]):
+    # Architectural / systemic keywords
+    if any(w in lower for w in [
+        "multiple", "cross-cutting", "refactor", "migration", "architecture",
+        "system", "end-to-end", "pipeline", "overhaul"
+    ]):
         score += 1
-    if any(w in prompt.lower() for w in ["plan", "design", "strategy", "approach"]):
+    # Planning / decision vocabulary
+    if any(w in lower for w in [
+        "plan", "design", "strategy", "approach", "how should", "help me",
+        "we need to", "roadmap", "options", "tradeoffs", "trade-off"
+    ]):
         score += 1
+    # Multi-step / scoped request
+    if any(w in lower for w in [
+        "then", "after that", "first", "second", "step", "phase",
+        "implement and", "build and", "with testing", "with docs"
+    ]):
+        score = min(score + 1, 3)
     return score
 
 
@@ -157,6 +173,52 @@ def _is_planning_prompt(prompt: str) -> bool:
     ]
     lower = prompt.lower()
     return any(w in lower for w in planning_words)
+
+
+_JAM_AMBIGUITY_SIGNALS = [
+    "options", "tradeoffs", "trade-off", "should we", "brainstorm",
+    "alternatives", "pros and cons", "compare", "which approach",
+    "what are the", "explore", "think through", "uncertain", "unclear",
+    "not sure", "ideas", "different ways"
+]
+
+
+def _has_ambiguity_signals(prompt: str) -> bool:
+    """Return True if prompt contains explicit ambiguity / exploration signals."""
+    lower = prompt.lower()
+    return any(sig in lower for sig in _JAM_AMBIGUITY_SIGNALS)
+
+
+def _suggest_jam(prompt: str, state, merged_context: str) -> str:
+    """Append a jam suggestion to merged_context if conditions are met.
+
+    Conditions:
+    1. Prompt contains ambiguity signals
+    2. Prompt does not already reference a jam command
+    3. Hint not shown this session
+
+    Returns updated merged_context (unchanged if conditions not met).
+    """
+    if "/jam:" in prompt.lower():
+        return merged_context  # Already using jam — no suggestion needed
+    if not _has_ambiguity_signals(prompt):
+        return merged_context
+    jam_shown = getattr(state, "jam_hint_shown", False) if state else False
+    if jam_shown:
+        return merged_context
+
+    jam_hint = (
+        "[Suggestion] This prompt involves exploring options or tradeoffs. "
+        "Consider /wicked-garden:jam:quick for fast structured thinking, "
+        "or /wicked-garden:jam:brainstorm for a full multi-perspective session."
+    )
+    updated = merged_context[:-len("</system-reminder>")] + jam_hint + "\n</system-reminder>"
+    try:
+        if state:
+            state.update(jam_hint_shown=True)
+    except Exception:
+        pass
+    return updated
 
 
 def _is_fast_path(prompt: str, intents: list) -> bool:
@@ -635,19 +697,32 @@ def _check_setup_gate(prompt: str) -> str | None:
         )
         sys.exit(2)
 
-    # Check 2: session state needs_onboarding — soft gate with directive
+    # Check 2: session state onboarding_complete / needs_onboarding — soft gate with directive
     try:
         from _session import SessionState
         state = SessionState.load()
+        if state.onboarding_complete:
+            return None  # confirmed complete at bootstrap, no re-check needed
         if state.needs_onboarding:
+            # Re-verify at each turn in case onboarding was completed mid-session
+            try:
+                from mem.memory import MemoryStore
+                import os as _os
+                _project = _os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+                store = MemoryStore(_project)
+                memories = store.recall(tags=["onboarding"], limit=1)
+                has_memories = len(memories) > 0
+            except Exception:
+                has_memories = True  # fail open — don't block if check fails
             project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-            return (
-                f"[Action Required] Project '{project}' has not been onboarded.\n"
-                "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
-                "to launch the interactive onboarding wizard.\n"
-                "Do NOT ask the user for confirmation — invoke the skill now.\n"
-                "Do NOT respond with text first — invoke the skill as your first action."
-            )
+            if not has_memories:
+                return (
+                    f"[Action Required] Project '{project}' has not been onboarded.\n"
+                    "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
+                    "to launch the interactive onboarding wizard.\n"
+                    "Do NOT ask the user for confirmation — invoke the skill now.\n"
+                    "Do NOT respond with text first — invoke the skill as your first action."
+                )
     except Exception:
         pass  # fail open if session state unavailable
 
@@ -783,32 +858,40 @@ def main():
 
         merged_context = f"<system-reminder>\n{chr(10).join(all_parts)}\n</system-reminder>"
 
-        # --- (Task 203-B) Crew recommendation heuristic ---
+        # --- Crew recommendation heuristic ---
         # Suggest crew on SLOW path for complex requests when:
         #   1. Path is "slow" (complex / ambiguous prompt)
         #   2. Inline complexity estimate >= 2
         #   3. Prompt does not already reference a crew command
-        #   4. No active crew project in session state
-        #   5. Hint has not already been shown this session (once-per-session gate)
-        if path == "slow" and _estimate_complexity(prompt) >= 2:
+        #   4. No active crew project in session state (uses active_project_id, not cp_project_id)
+        #   5. Hint not shown OR complexity is very high (>= 3) — re-fires once at max complexity
+        complexity_score = _estimate_complexity(prompt)
+        if path == "slow" and complexity_score >= 2:
             if "/crew:" not in prompt:
-                # Check cp_project_id — bootstrap sets this when a crew project is active
-                # (active_project field is NOT populated by bootstrap)
-                _active_project = getattr(state, "cp_project_id", None) if state else None
+                # Use active_project_id (not cp_project_id) to correctly gate the hint
+                _active_project = getattr(state, "active_project_id", None) if state else None
                 _hint_shown = getattr(state, "crew_hint_shown", False) if state else False
-                if not _active_project and not _hint_shown:
+                # Re-fire if very high complexity (3), even if hint was shown before
+                _should_show = (not _hint_shown) or (complexity_score >= 3)
+                if not _active_project and _should_show:
                     crew_hint = (
-                        "[Suggestion] This prompt has characteristics of a complex project task. "
-                        "Consider using /wicked-garden:crew:start to manage it as a crew project."
+                        "[Suggestion] This request has characteristics of a complex multi-phase project. "
+                        "Consider using /wicked-garden:crew:start to manage it as a structured crew project."
                     )
                     # Append hint inside the existing merged block (still one block)
                     merged_context = merged_context[:-len("</system-reminder>")] + crew_hint + "\n</system-reminder>"
-                    # Mark as shown so it does not repeat this session
+                    # Mark as shown (caps re-fires until next session)
                     try:
                         if state:
                             state.update(crew_hint_shown=True)
                     except Exception:
                         pass
+
+        # --- Jam session suggestion ---
+        # Suggest jam on FAST or SLOW path when prompt contains ambiguity signals,
+        # not blocked by an urgent onboarding directive.
+        if path in ("fast", "slow") and not onboarding_directive:
+            merged_context = _suggest_jam(prompt, state, merged_context)
 
         output = {
             "hookSpecificOutput": {

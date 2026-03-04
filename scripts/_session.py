@@ -162,6 +162,22 @@ class SessionState:
     # re-injection on HOT path when state hasn't changed between turns.
     context_hash: str = ""
 
+    # Escalation counter: incremented by task_completed.py on each deliverable completion.
+    # Reset by post_tool.py when a mem:store Write/Edit is detected.
+    memory_compliance_escalations: int = 0
+
+    # Written by bootstrap.py when onboarding is confirmed complete (both memories and index).
+    # prompt_submit.py reads this as the primary signal, bypassing per-turn re-check.
+    onboarding_complete: bool = False
+
+    # Separate from cp_project_id (which is a CP UUID reference).
+    # active_project_id is the LOCAL project name (slug) for a project that is currently
+    # in an active (non-complete) phase in this workspace. None when no active project.
+    active_project_id: str | None = None
+
+    # One-per-session gate for jam suggestion (reset each session).
+    jam_hint_shown: bool = False
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

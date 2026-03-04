@@ -45,6 +45,14 @@ _DELIVERABLE_PATTERNS = (
     "integrate",
     "add",
     "update",
+    "test",
+    "review",
+    "document",
+    "configure",
+    "setup",
+    "scaffold",
+    "generate",
+    "analyze",
 )
 
 
@@ -52,6 +60,16 @@ def _is_deliverable_task(subject: str) -> bool:
     """Return True if the task subject suggests it produced a deliverable."""
     subject_lower = subject.lower()
     return any(kw in subject_lower for kw in _DELIVERABLE_PATTERNS)
+
+
+def _infer_mem_type(subject: str) -> str:
+    """Infer the most appropriate mem:store type from task subject."""
+    s = subject.lower()
+    if any(kw in s for kw in ("fix", "resolve", "bug", "defect")):
+        return "decision"
+    if any(kw in s for kw in ("phase:", "design", "architect", "strategy")):
+        return "episodic"
+    return "procedural"
 
 
 def main():
@@ -66,7 +84,8 @@ def main():
         subject = input_data.get("subject", "")
         task_id = input_data.get("task_id", "")
 
-        # Load session state and increment the completion counter
+        # Load session state, increment counters, and read escalation level
+        escalations = 0
         try:
             from _session import SessionState
             state = SessionState.load()
@@ -74,6 +93,11 @@ def main():
                 (state.memory_compliance_tasks_completed or 0) + 1
             )
             compliance_required = bool(state.memory_compliance_required)
+            # Increment escalation counter (reset by post_tool.py on mem:store)
+            state.memory_compliance_escalations = (
+                (state.memory_compliance_escalations or 0) + 1
+            )
+            escalations = state.memory_compliance_escalations
             state.save()
         except Exception as e:
             print(f"[wicked-garden] task_completed session state error: {e}", file=sys.stderr)
@@ -83,12 +107,14 @@ def main():
         # looks like it produced a deliverable worth storing.
         system_message = ""
         if compliance_required and subject and _is_deliverable_task(subject):
+            mem_type = _infer_mem_type(subject)
             task_label = f'"{subject}"' if subject else f"task {task_id}"
+            escalation_prefix = "[ESCALATION] " if escalations >= 3 else ""
             system_message = (
-                f"[Memory] Task {task_label} completed. "
-                "Evaluate whether this task produced a decision, gotcha, or reusable pattern. "
-                "If yes, store it now with /wicked-garden:mem:store before continuing. "
-                "If no learnings apply, proceed without storing."
+                f"{escalation_prefix}[Memory] Task {task_label} completed. "
+                f"REQUIRED: Call /wicked-garden:mem:store with type={mem_type} "
+                "to capture any decision, gotcha, or pattern from this work. "
+                "If genuinely nothing is worth storing, respond with 'No memory stored: <reason>'."
             )
 
         output: dict = {"ok": True}

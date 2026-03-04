@@ -1252,6 +1252,7 @@ def analyze_input(
     overrides: Optional[AnalysisOverrides] = None,
     context: Optional[ContextualVariables] = None,
     archetype_hints: Optional[Dict] = None,
+    file_hints: Optional[List[str]] = None,
 ) -> SignalAnalysis:
     """
     Main entry point: Analyze user input and return signal analysis.
@@ -1345,6 +1346,30 @@ def analyze_input(
     impact, impact_reasons = assess_impact(text)
     reversibility, rev_reasons = assess_reversibility(text)
     novelty, nov_reasons = assess_novelty(text, signals, ambiguous)
+
+    # File impact scoring — if file_hints provided, elevate impact if higher than text-derived score
+    if file_hints:
+        # Compute weight for each file, take top-3 average, cap at MAX_FILE_IMPACT
+        file_weights = sorted(
+            [
+                max(
+                    (w for pat, w in _COMPILED_FILE_PATTERNS if pat.search(fp)),
+                    default=0.0
+                )
+                for fp in file_hints
+            ],
+            reverse=True
+        )[:3]
+        if file_weights:
+            file_impact_score = min(
+                sum(file_weights) / max(len(file_weights), 1),
+                MAX_FILE_IMPACT
+            )
+            if file_impact_score > impact:
+                impact_reasons.append(
+                    f"file impact from hints (score={file_impact_score:.1f})"
+                )
+                impact = min(round(file_impact_score), 3)
 
     # Apply MAXIMUM impact bonus from ALL detected archetypes
     # Core infrastructure/framework changes have broad impact even without file references
@@ -1518,6 +1543,13 @@ def main():
                              "Format: {\"archetype-name\": {\"confidence\": 0.8, "
                              "\"impact_bonus\": 2, \"inject_signals\": {}, "
                              "\"min_complexity\": 3, \"description\": \"why\"}}")
+    parser.add_argument(
+        "--files",
+        type=str,
+        default=None,
+        help="Comma-separated list of affected file paths for impact scoring. "
+             "Scored against FILE_ROLE_PATTERNS to produce file impact bonus."
+    )
 
     args = parser.parse_args()
 
@@ -1543,8 +1575,13 @@ def main():
         except json.JSONDecodeError:
             logger.warning(f"Invalid archetype hints JSON, ignoring: {args.archetype_hints}")
 
+    # Parse file hints from --files flag
+    file_hints = None
+    if args.files:
+        file_hints = [f.strip() for f in args.files.split(",") if f.strip()]
+
     analysis = analyze_input(text, args.plugin_dir, overrides=overrides, context=context,
-                             archetype_hints=hints)
+                             archetype_hints=hints, file_hints=file_hints)
 
     if args.json:
         # Convert RoutingInfo objects to dicts for JSON serialization

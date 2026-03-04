@@ -710,6 +710,36 @@ def _check_gate_run(project_dir: Path, phase: str) -> bool:
     return False
 
 
+def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
+    """Load gate-result.json if it exists. Returns None if missing or unreadable."""
+    gate_file = project_dir / "phases" / phase / "gate-result.json"
+    if not gate_file.exists():
+        return None
+    try:
+        return json.loads(gate_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _record_gate_override(
+    project_dir: Path, phase: str, reason: str, approver: str
+) -> None:
+    """Append a gate override record to status.md."""
+    status_file = project_dir / "phases" / phase / "status.md"
+    timestamp = get_utc_timestamp()
+    override_block = (
+        f"\n## Gate Override\n\n"
+        f"- **Date**: {timestamp}\n"
+        f"- **Approver**: {approver}\n"
+        f"- **Reason**: {reason or '(none provided)'}\n"
+    )
+    try:
+        existing = status_file.read_text() if status_file.exists() else ""
+        status_file.write_text(existing + override_block)
+    except OSError:
+        pass
+
+
 def _load_session_dispatches() -> List[Dict[str, Any]]:
     """Load specialist dispatch records from session state file."""
     import os
@@ -726,12 +756,15 @@ def _load_session_dispatches() -> List[Dict[str, Any]]:
 def approve_phase(
     state: ProjectState,
     phase: str,
-    approver: str = "user"
+    approver: str = "user",
+    override_gate: bool = False,
+    override_reason: str = "",
 ) -> Tuple[ProjectState, Optional[str]]:
     """Approve a phase and return next phase (or None if done).
 
-    Performs gate checks and deliverable checks, emitting warnings.
-    Always approves — warnings are advisory only (v1 backward compat).
+    Performs gate checks and deliverable checks.
+    Raises ValueError when gate enforcement blocks advancement.
+    Caller (CLI handle_approve) catches this and exits non-zero.
     """
     phase = resolve_phase(phase)
     warnings: List[str] = []
@@ -741,18 +774,43 @@ def approve_phase(
     if deliverable_issues:
         warnings.extend(deliverable_issues)
 
-    # Check 2: gate_required from phases.json
+    # Check 2: gate_required from phases.json — now BLOCKING
     phases_config = load_phases_config()
     phase_config = phases_config.get(phase, {})
     gate_required = phase_config.get("gate_required", False)
 
     if gate_required:
         project_dir = get_project_dir(state.name)
-        if not _check_gate_run(project_dir, phase):
-            warnings.append(
-                f"Gate not run for phase '{phase}' (gate_required=true). "
-                f"Run /wicked-crew:gate before approving."
-            )
+        gate_run = _check_gate_run(project_dir, phase)
+
+        if not gate_run:
+            if override_gate:
+                # Record the override in status.md for audit trail
+                _record_gate_override(project_dir, phase, override_reason, approver)
+                warnings.append(
+                    f"Gate override applied for phase '{phase}'. "
+                    f"Reason: {override_reason or '(none provided)'}"
+                )
+            else:
+                # BLOCKING: raise ValueError — CLI exits non-zero, output shows to user
+                raise ValueError(
+                    f"Gate not run for phase '{phase}' (gate_required=true). "
+                    f"Run /wicked-garden:crew:gate before approving, "
+                    f"or use --override-gate --reason '<why>' to bypass."
+                )
+        else:
+            # Gate was run — check if it passed or failed
+            gate_result = _load_gate_result(project_dir, phase)
+            if gate_result and gate_result.get("result") == "REJECT":
+                if override_gate:
+                    _record_gate_override(project_dir, phase, override_reason, approver)
+                    warnings.append(f"Gate REJECT overridden. Reason: {override_reason or '(none provided)'}")
+                else:
+                    raise ValueError(
+                        f"Gate returned REJECT for phase '{phase}'. "
+                        f"Resolve findings before approving, "
+                        f"or use --override-gate --reason '<why>' to bypass."
+                    )
 
     # Emit warnings to stderr (stdout is for structured output)
     for w in warnings:
@@ -1009,8 +1067,14 @@ def main():
     parser.add_argument("project", help="Project name")
     parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update"])
     parser.add_argument("--phase", help="Target phase")
-    parser.add_argument("--reason", help="Reason for skip")
+    parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
+    parser.add_argument(
+        "--override-gate",
+        action="store_true",
+        default=False,
+        help="Bypass gate enforcement for approve action (requires --reason)"
+    )
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--description", default="", help="Project description (for create)")
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
@@ -1079,7 +1143,17 @@ def main():
 
     elif args.action == "approve":
         phase = args.phase or state.current_phase
-        state, next_phase = approve_phase(state, phase, approver=args.approved_by or "user")
+        try:
+            state, next_phase = approve_phase(
+                state,
+                phase,
+                approver=args.approved_by or "user",
+                override_gate=args.override_gate,
+                override_reason=args.reason or "",
+            )
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
         save_project_state(state)
         print(f"Approved phase: {resolve_phase(phase)}")
         if next_phase:
