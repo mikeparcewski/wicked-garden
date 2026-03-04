@@ -38,6 +38,9 @@ class DependencyLinker:
         self.nodes: Dict[str, GraphNode] = {}
         # target_id -> set of caller_ids for dependents
         self.reverse_refs: Dict[str, Set[str]] = defaultdict(set)
+        # Pre-built indexes for O(1) import resolution
+        self._file_stem_index: Dict[str, str] = {}  # stem -> node_id
+        self._module_path_index: Dict[str, str] = {}  # dotted.module.path -> node_id
 
     def link(self, index_path: Path) -> int:
         """Perform two-pass linking on an index file.
@@ -73,6 +76,7 @@ class DependencyLinker:
         if not index_path.exists():
             return
 
+        print(f"  Linker: loading nodes from {index_path.name}...", file=sys.stderr)
         with open(index_path, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
                 line = line.strip()
@@ -83,6 +87,9 @@ class DependencyLinker:
                     self.nodes[node.id] = node
                 except Exception as e:
                     print(f"Warning: Failed to parse line {line_num}: {e}", file=sys.stderr)
+                if line_num % 10000 == 0:
+                    print(f"  Linker: loaded {line_num} nodes...", file=sys.stderr)
+        print(f"  Linker: loaded {len(self.nodes)} nodes total", file=sys.stderr)
 
     def _build_symbol_index(self):
         """Build name -> node_ids lookup for resolution."""
@@ -90,6 +97,19 @@ class DependencyLinker:
             # Index functions, classes, methods by name
             if node.node_type not in (NodeType.FILE, NodeType.IMPORT):
                 self.symbol_index[node.name].append(node_id)
+        self._build_import_index()
+
+    def _build_import_index(self):
+        """Pre-build file-stem and module-path indexes for O(1) import resolution."""
+        for node_id, node in self.nodes.items():
+            if node.node_type == NodeType.FILE:
+                file_stem = Path(node.file).stem
+                # First match wins for stem index
+                if file_stem not in self._file_stem_index:
+                    self._file_stem_index[file_stem] = node_id
+                # Build dotted module path (src/utils/helpers.py -> src.utils.helpers)
+                module_path = str(Path(node.file).with_suffix('')).replace('/', '.').replace('\\', '.')
+                self._module_path_index[module_path] = node_id
 
     def _resolve_references(self) -> int:
         """Resolve call targets and inheritance, building reverse index."""
@@ -124,6 +144,7 @@ class DependencyLinker:
                     self.reverse_refs[target_id].add(node_id)
                     resolved += 1
 
+        print(f"  Resolved {resolved} references across {total} symbols", file=sys.stderr)
         return resolved
 
     def _resolve_symbol(
@@ -172,17 +193,21 @@ class DependencyLinker:
         Returns:
             The file node ID, or None if not found.
         """
-        # Try exact file node match
-        for node_id, node in self.nodes.items():
-            if node.node_type == NodeType.FILE:
-                # Match by stem (file.py -> file)
-                file_stem = Path(node.file).stem
-                if file_stem == module_name:
-                    return node_id
-                # Match by module path (src/utils/helpers.py -> src.utils.helpers)
-                module_path = str(Path(node.file).with_suffix('')).replace('/', '.').replace('\\', '.')
-                if module_path.endswith(module_name) or module_name.endswith(file_stem):
-                    return node_id
+        # O(1) lookup by exact file stem
+        if module_name in self._file_stem_index:
+            return self._file_stem_index[module_name]
+
+        # O(1) lookup by exact module path
+        if module_name in self._module_path_index:
+            return self._module_path_index[module_name]
+
+        # O(N) fallback for suffix matches (e.g. "utils.helpers" matching "src.utils.helpers")
+        for mod_path, node_id in self._module_path_index.items():
+            if mod_path.endswith(module_name):
+                return node_id
+            file_stem = mod_path.rsplit('.', 1)[-1]
+            if module_name == file_stem or module_name.endswith('.' + file_stem):
+                return node_id
 
         return None
 
@@ -195,13 +220,18 @@ class DependencyLinker:
     def _write_index(self, index_path: Path):
         """Write nodes back to JSONL (atomic)."""
         temp_path = index_path.with_suffix('.jsonl.tmp')
+        total = len(self.nodes)
+        print(f"  Linker: writing {total} nodes...", file=sys.stderr)
 
         with open(temp_path, 'w', encoding='utf-8') as f:
-            for node in self.nodes.values():
+            for i, node in enumerate(self.nodes.values()):
                 f.write(node.model_dump_json(by_alias=True) + '\n')
+                if (i + 1) % 10000 == 0:
+                    print(f"  Linker: wrote {i + 1}/{total} nodes...", file=sys.stderr)
 
         # Atomic rename
         temp_path.rename(index_path)
+        print(f"  Linker: write complete", file=sys.stderr)
 
 
 class DocLinker:
@@ -264,6 +294,7 @@ class DocLinker:
         if not index_path.exists():
             return
 
+        print(f"  DocLinker: loading nodes...", file=sys.stderr)
         with open(index_path, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
                 line = line.strip()
@@ -274,6 +305,9 @@ class DocLinker:
                     self.nodes[node.id] = node
                 except Exception as e:
                     print(f"Warning: DocLinker failed to parse line {line_num}: {e}", file=sys.stderr)
+                if line_num % 10000 == 0:
+                    print(f"  DocLinker: loaded {line_num} nodes...", file=sys.stderr)
+        print(f"  DocLinker: loaded {len(self.nodes)} nodes total", file=sys.stderr)
 
     def _build_code_symbol_index(self):
         """Build name -> node_id lookup for code symbols only.
@@ -382,13 +416,18 @@ class DocLinker:
     def _write_index(self, index_path: Path):
         """Write nodes back to JSONL (atomic)."""
         temp_path = index_path.with_suffix('.jsonl.tmp')
+        total = len(self.nodes)
+        print(f"  DocLinker: writing {total} nodes...", file=sys.stderr)
 
         with open(temp_path, 'w', encoding='utf-8') as f:
-            for node in self.nodes.values():
+            for i, node in enumerate(self.nodes.values()):
                 f.write(node.model_dump_json(by_alias=True) + '\n')
+                if (i + 1) % 10000 == 0:
+                    print(f"  DocLinker: wrote {i + 1}/{total} nodes...", file=sys.stderr)
 
         # Atomic rename
         temp_path.rename(index_path)
+        print(f"  DocLinker: write complete", file=sys.stderr)
 
 
 def link_index(index_path: Path) -> int:
