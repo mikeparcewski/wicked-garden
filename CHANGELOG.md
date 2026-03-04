@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.17.5] - 2026-03-04
+
+### Bug Fixes
+- fix: wire lineage derivation and service map into search index command (ea7cac0)
+
+### Chores
+- release: wicked-garden v1.17.4 (656ebfd)
+
 ## [1.17.4] - 2026-03-04
 
 ### Bug Fixes
