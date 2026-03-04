@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.17.4] - 2026-03-04
+
+### Bug Fixes
+- fix: restore aggressive memory capture lost during plugin unification (5fd21c0)
+- fix: smaht onboard now triggers deep linking (lineage + service-map) (14c08e4)
+
 ## [1.17.3] - 2026-03-04
 
 ### Chores
