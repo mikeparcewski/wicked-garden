@@ -44,7 +44,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
     "endpoint": "http://localhost:18889",
     "auth_token": None,
     "api_version": "v1",
-    "mode": None,  # "remote", "local-install", or "offline". None = local-install.
+    "mode": None,  # "local" or "remote". None = local.
     "viewer_path": None,  # Path to wicked-control-plane source. None = ~/.claude/plugins/cache/wicked-control-plane.
     "health_check_interval_seconds": 60,
     "connect_timeout_seconds": 3,

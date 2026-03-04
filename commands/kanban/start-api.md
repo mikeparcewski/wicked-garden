@@ -4,9 +4,7 @@ description: Check the Control Plane status for dashboard integration
 
 # /wicked-garden:kanban:start-api
 
-> **Note**: In the default `local-only` mode, kanban data is stored in SQLite at `~/.something-wicked/wicked-garden/wicked-garden.db` — no server is needed. The CP integration below is experimental and only applies to `local-install` or `remote` modes.
-
-The kanban data API can be served by the **wicked-control-plane** (CP, experimental) at `http://localhost:18889`.
+The kanban data API is served by the **wicked-control-plane** (CP) at `http://localhost:18889`. In `local` mode, the CP is auto-started on session start. When CP is unavailable, data falls back to local JSON files.
 
 ## Instructions
 
@@ -19,7 +17,7 @@ curl -s http://localhost:18889/health
 If not running, start it:
 
 ```bash
-cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev &
+cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev:backend &
 ```
 
 ## Kanban API Endpoints (via CP)

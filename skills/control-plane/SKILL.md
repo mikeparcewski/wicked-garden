@@ -2,20 +2,20 @@
 name: control-plane
 description: |
   Interface guide for the wicked-control-plane — an experimental team-shared persistence backend.
-  wicked-garden defaults to local-only SQLite storage (no server required).
+  wicked-garden defaults to local mode (auto-starts CP on localhost, falls back to local JSON files).
   Use this skill only when the user needs CP API access, endpoint discovery, or CP connectivity debugging.
 
   Use when: "control plane API", "CP endpoint", "CP connectivity", "team sync",
-  "manifest discovery", "debug CP issue", "local-install mode", "remote mode"
+  "manifest discovery", "debug CP issue", "local mode", "remote mode"
 ---
 
 # Control Plane Interface *(experimental)*
 
-> **Note**: wicked-garden's default storage mode is `local-only` — SQLite on your machine, no server needed. The control plane (CP) is an optional experimental feature for team-shared persistence.
+> **Note**: wicked-garden defaults to `local` mode — auto-starts CP on localhost with local JSON fallback. Use `remote` mode for team-shared persistence.
 
-The control plane is a Fastify + SQLite backend that stores domain data on a shared server — memories, tasks, crew projects, brainstorm sessions, delivery metrics, and more.
+The control plane is a Fastify + SQLite backend that stores domain data — memories, tasks, crew projects, brainstorm sessions, delivery metrics, and more.
 
-You don't need to know whether the CP is local-install or remote. The interface is the same.
+You don't need to know whether the CP is local or remote. The interface is the same.
 
 ## The Pattern: Discover → Understand → Request
 
