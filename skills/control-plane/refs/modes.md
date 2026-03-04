@@ -1,48 +1,28 @@
 # Connection Modes
 
-Four modes, configured via `/wicked-garden:setup` and stored in `{storage_root}/config.json`.
+Two modes, configured via `/wicked-garden:setup` and stored in `{storage_root}/config.json`.
 
-## local-only (Default)
+## local (Default)
 
-No external process. All data stored in a local SQLite database (`~/.something-wicked/wicked-garden/wicked-garden.db`).
-Full search, lineage, and all domain features work without the control plane.
+CP runs on your machine at `localhost:18889`. The SessionStart hook auto-starts it from the `wicked-control-plane` source. When CP is unavailable, all operations fall back to local JSON files.
 
 ```json
 {
-  "mode": "local-only",
+  "mode": "local",
   "setup_complete": true
-}
-```
-
-**Startup sequence**: Init SQLite DB → run migration (idempotent) → ready.
-**Data flow**: Direct SQLite reads/writes. No queue. No network.
-
----
-
-> **Experimental modes** — the following modes require the `wicked-control-plane` server and are considered experimental. Use `local-only` unless you need team-shared persistence.
-
-## local-install *(experimental)*
-
-CP runs on your machine at `localhost:18889`. The SessionStart hook auto-starts it from the `wicked-control-plane` source.
-
-```json
-{
-  "endpoint": "http://localhost:18889",
-  "mode": "local-install",
-  "viewer_path": "~/.claude/plugins/cache/wicked-control-plane"
 }
 ```
 
 **Startup sequence** (bootstrap.py, 15s budget):
 1. Check if CP is already healthy at configured endpoint
-2. If not running, start `cd {viewer_path} && PORT=18889 pnpm run dev` as detached process
+2. If not running, start `cd {viewer_path} && PORT=18889 pnpm run dev:backend` as detached process
 3. Poll `/health` every 0.5s for up to 10s
 4. If healthy: drain offline queue, mark session online, open browser to dashboard
-5. If timeout: mark session as fallback mode (local files only)
+5. If timeout: mark session as fallback mode (local JSON files)
 
-**Data flow**: CP primary → local fallback on miss → queued writes replayed on reconnect.
+**Data flow**: CP primary → local JSON fallback on miss → queued writes replayed on reconnect.
 
-## remote *(experimental)*
+## remote
 
 CP on a shared team server. Requires endpoint URL and optional auth token.
 
@@ -61,40 +41,11 @@ CP on a shared team server. Requires endpoint URL and optional auth token.
 
 **Auth**: Bearer token sent in `Authorization` header. Never logged or echoed in error output.
 
-**Data flow**: Same as local-install — CP primary, local fallback, queue replay.
-
-## offline *(experimental)*
-
-No CP at all. Everything stays on disk. Writes are enqueued for future CP sync.
-Prefer `local-only` if you don't need CP team sync — it's simpler and has no queue accumulation.
-
-```json
-{
-  "endpoint": null,
-  "mode": "offline"
-}
-```
-
-**Startup sequence**:
-1. Skip all CP checks
-2. Report local storage location
-
-**Data flow**: All reads from local JSON files. All writes saved locally AND enqueued in `_queue.jsonl`. When user runs `/wicked-garden:setup` to connect later, queued writes replay automatically.
-
-**Storage location**:
-```
-{SM_LOCAL_ROOT}/
-├── _queue.jsonl              # Writes pending CP sync
-├── _queue_failed.jsonl       # Failed replay attempts
-├── wicked-mem/memories/      # Memory records
-├── wicked-kanban/tasks/      # Kanban tasks
-├── wicked-crew/projects/     # Crew projects
-└── ...                       # Other domains
-```
+**Data flow**: Same as local — CP primary, local JSON fallback, queue replay.
 
 ## Mode Doesn't Change the API
 
-Scripts using `StorageManager` work identically in all four modes. The routing is transparent:
+Scripts using `StorageManager` work identically in both modes. The routing is transparent:
 
 ```python
 sm = StorageManager("memory")

@@ -1,19 +1,22 @@
 ---
-name: local-only-mode
-title: Local-Only Storage Mode
-description: StorageManager local-only mode uses SQLite exclusively — no HTTP calls, no queue accumulation, migration from JSON, and crew integration all work correctly
+name: local-mode
+title: Local Storage Mode
+description: StorageManager local mode uses CP primary with local JSON fallback — auto-start, graceful degradation, queue replay, and crew integration all work correctly
 type: integration
 difficulty: intermediate
 estimated_minutes: 12
 requires: [python3]
 ---
 
-# Scenario: Local-Only Storage Mode
+# Scenario: Local Storage Mode
 
-Validates `local-only` mode end-to-end: StorageManager routes every operation through
-SqliteStore, the bootstrap briefing reflects the mode correctly, legacy JSON files are
-migrated on first boot, concurrent WAL writes succeed, no offline queue is ever written,
-and wicked-crew can create a project without a control plane.
+Validates `local` mode end-to-end: StorageManager falls back to local JSON files when CP
+is unavailable, the bootstrap briefing reflects the mode correctly, queued writes accumulate
+for later replay, and wicked-crew can create a project without a control plane.
+
+> **Note**: This scenario was previously `local-only-mode` testing SQLite storage. The test
+> cases below still reference the legacy `local-only` config value which is auto-mapped to
+> `local`. The SqliteStore tests validate backward compatibility.
 
 ## Setup
 

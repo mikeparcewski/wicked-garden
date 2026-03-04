@@ -60,7 +60,7 @@ Search commands use a **local-first** architecture:
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge {source} {verb} [args]
    ```
 
-In local-only mode, all search commands work without the control plane. When CP is available, results are merged for richer coverage.
+All search commands work without the control plane. When CP is available, results are merged for richer coverage.
 
 ## Examples
 

@@ -248,7 +248,7 @@ def _ensure_cp_project(state: 'ProjectState', description: str = "") -> str | No
 
     Returns the CP-assigned UUID on success, or None if CP is unavailable
     or the operation fails.  Never raises — all errors are swallowed so
-    the plugin works in local-only / offline mode.
+    the plugin works in local fallback mode.
 
     Args:
         state: The current ProjectState (uses state.name as the key).

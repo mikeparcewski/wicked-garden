@@ -59,7 +59,7 @@ If the control plane is unreachable:
    CP_PATH="${HOME}/.claude/plugins/cache/wicked-control-plane"
    if [ -d "${CP_PATH}" ] && [ -f "${CP_PATH}/package.json" ]; then
      echo "Starting control plane from ${CP_PATH}..."
-     cd "${CP_PATH}" && PORT=18889 pnpm run dev &
+     cd "${CP_PATH}" && PORT=18889 pnpm run dev:backend &
      # Poll for up to 8 seconds
      for i in $(seq 1 16); do
        sleep 0.5
@@ -72,8 +72,8 @@ If the control plane is unreachable:
    ```
 
 2. **If still unreachable after auto-start attempt**, warn the user and ask whether to continue:
-   - Scenarios that use `/wicked-garden:mem:store`, `/wicked-garden:kanban:*`, or crew workflows will have **degraded results** (silent failures, empty recalls, local-only storage)
-   - Use AskUserQuestion with options: "Continue without CP (expect degraded results)" and "Abort — start CP first (`cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev`)"
+   - Scenarios that use `/wicked-garden:mem:store`, `/wicked-garden:kanban:*`, or crew workflows will have **degraded results** (silent failures, empty recalls, local JSON fallback storage)
+   - Use AskUserQuestion with options: "Continue without CP (expect degraded results)" and "Abort — start CP first (`cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev:backend`)"
 
 Also check whether the plugin runtime actually loaded:
 

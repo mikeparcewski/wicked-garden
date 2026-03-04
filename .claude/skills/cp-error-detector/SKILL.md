@@ -127,9 +127,9 @@ Key rules:
    lsof -i :18889
    ```
 2. **Is the endpoint configured correctly?**
-   Check `~/.something-wicked/wicked-garden/config.json` for the `endpoint` field. Default for local-install is `http://localhost:18889`.
+   Check `~/.something-wicked/wicked-garden/config.json` for the `endpoint` field. Default for local mode is `http://localhost:18889`.
 3. **Is the mode correct?**
-   The `mode` field in config.json should be `local-install`, `remote`, or `offline`. If `offline`, CP is never contacted (by design).
+   The `mode` field in config.json should be `local` or `remote`. Legacy values (`local-install`, `local-only`, `offline`) are auto-mapped to `local`.
 4. **Network issues (remote mode)?**
    Verify the remote endpoint is reachable: `curl -s http://YOUR_ENDPOINT/api/v1/health`
 

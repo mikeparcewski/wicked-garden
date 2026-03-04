@@ -5,10 +5,9 @@ _storage.py — StorageManager: unified interface for data operations.
 Domain scripts call StorageManager — never the control plane directly.
 This isolates all fallback logic in one place.
 
-Three modes (set in config.json):
-    remote:        CP on a team server (required, local for reads only)
-    local-install: CP on localhost (default, local fallback on miss)
-    offline:       Local JSON files always, every write queued for replay
+Two modes (set in config.json):
+    local:  CP on localhost (default, auto-start, local fallback on miss)
+    remote: CP on a team server (required, local for reads only)
 
 Storage paths:
     Local:  ~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json
@@ -77,7 +76,10 @@ _DEDUP_KEYS: dict[tuple[str, str], list[str]] = {
 # Valid modes
 # ---------------------------------------------------------------------------
 
-_VALID_MODES = frozenset({"remote", "local-install", "offline", "local-only"})
+# Active modes
+_VALID_MODES = frozenset({"local", "remote"})
+# Legacy aliases — mapped to "local" at load time
+_LEGACY_MODE_MAP = {"local-install": "local", "local-only": "local", "offline": "local"}
 
 
 # ---------------------------------------------------------------------------
@@ -166,8 +168,8 @@ class StorageManager:
     """Unified read/write interface for plugin data.
 
     Mode routing:
-        remote / local-install: CP primary, local fallback, queue on miss.
-        offline: local always, every write enqueued for future replay.
+        local:  CP on localhost, auto-start, local fallback on miss, queue on miss.
+        remote: CP on a team server, local fallback, queue on miss.
 
     The mode is read from config.json at construction time. Callers do not
     need to know or care about the mode — the API is identical.
@@ -183,18 +185,14 @@ class StorageManager:
         self._hook_mode = hook_mode
         self._cp = get_client(hook_mode=hook_mode)
         self._cfg = load_config()
-        self._mode = self._cfg.get("mode") or "local-install"
+        self._mode = self._cfg.get("mode") or "local"
+        # Normalize legacy mode names
+        self._mode = _LEGACY_MODE_MAP.get(self._mode, self._mode)
         if self._mode not in _VALID_MODES:
-            self._mode = "local-install"
+            self._mode = "local"
         # Inject CP client into schema adapters for manifest_detail lookups
         _set_cp_client(self._cp)
-        # local-only mode: wire in SqliteStore, skip all CP/queue paths
-        if self._mode == "local-only":
-            from _sqlite_store import SqliteStore
-            db_path = _LOCAL_ROOT / "wicked-garden.db"
-            self._sqlite: Any = SqliteStore(str(db_path))
-        else:
-            self._sqlite = None
+        self._sqlite = None
 
     # ------------------------------------------------------------------
     # Read operations
@@ -208,12 +206,6 @@ class StorageManager:
 
         Falls back to local storage if the CP request fails.
         """
-        if self._sqlite is not None:
-            records = self._sqlite.list(self._domain, source)
-            if params:
-                records = [r for r in records if _matches_params(r, params)]
-            return records
-
         if self._should_use_cp():
             result = self._cp.request(
                 self._domain, source, "list", params=params or None
@@ -237,10 +229,6 @@ class StorageManager:
         """
         search_params = {"q": q, **params}
 
-        if self._sqlite is not None:
-            limit = int(params.get("limit", 20))
-            return self._sqlite.search(q, domain=self._domain, limit=limit)
-
         if self._should_use_cp():
             result = self._cp.request(
                 self._domain, source, "search", params=search_params
@@ -261,9 +249,6 @@ class StorageManager:
 
         Falls back to local storage if the CP request fails.
         """
-        if self._sqlite is not None:
-            return self._sqlite.get(self._domain, source, id)
-
         if self._should_use_cp():
             result = self._cp.request(self._domain, source, "get", id=id)
             if result is not None:
@@ -291,11 +276,6 @@ class StorageManager:
         record.setdefault("created_at", _now())
         record.setdefault("updated_at", _now())
 
-        if self._sqlite is not None:
-            if "id" not in record:
-                record["id"] = str(uuid.uuid4())
-            return self._sqlite.create(self._domain, source, record["id"], record)
-
         if self._should_use_cp():
             cp_payload = _to_cp(self._domain, source, "create", dict(record))
             result = self._cp.request(
@@ -312,7 +292,7 @@ class StorageManager:
                         record["id"] = str(uuid.uuid4())
                     self._local_write(source, record["id"], record)
                     return record
-            # CP write failed — fall through to local-only
+            # CP write failed — fall through to local
             import sys
             print(
                 f"[StorageManager] CP write failed for {self._domain}/{source}, "
@@ -320,7 +300,7 @@ class StorageManager:
                 file=sys.stderr,
             )
 
-        # Offline / CP failure: generate local UUID.
+        # CP failure: generate local UUID.
         if "id" not in record:
             record["id"] = str(uuid.uuid4())
         self._local_write(source, record["id"], record)
@@ -334,14 +314,6 @@ class StorageManager:
         Returns:
             Updated record dict, or None if not found.
         """
-        if self._sqlite is not None:
-            existing = self._sqlite.get(self._domain, source, id)
-            if existing is None:
-                return None
-            existing.update(diff)
-            existing["updated_at"] = _now()
-            return self._sqlite.update(self._domain, source, id, existing)
-
         if self._should_use_cp():
             cp_diff = _to_cp(self._domain, source, "update", dict(diff))
             result = self._cp.request(
@@ -357,7 +329,7 @@ class StorageManager:
                     self._local_write(source, id, existing)
                 return _from_cp(self._domain, source, "update", item) if item else None
 
-        # Offline / CP down: local read-modify-write + queue.
+        # CP down: local read-modify-write + queue.
         existing = self._local_get(source, id)
         if existing is None:
             return None
@@ -376,9 +348,6 @@ class StorageManager:
         Returns:
             True if the record was found and removed/marked deleted.
         """
-        if self._sqlite is not None:
-            return self._sqlite.delete(self._domain, source, id)
-
         if self._should_use_cp():
             result = self._cp.request(self._domain, source, "delete", id=id)
             # Also soft-delete locally.
@@ -389,7 +358,7 @@ class StorageManager:
                 self._local_write(source, id, existing)
             return result is not None
 
-        # Offline / CP down: soft-delete locally + queue.
+        # CP down: soft-delete locally + queue.
         existing = self._local_get(source, id)
         if existing is None:
             return False
@@ -590,13 +559,8 @@ class StorageManager:
     def _should_use_cp(self) -> bool:
         """Return True if the current mode and session state allow CP access.
 
-        offline mode: always False (never call CP).
-        remote/local-install: True when session reports CP is available.
+        Both local and remote modes use CP when available, with local fallback.
         """
-        if self._mode == "offline":
-            return False
-        if self._mode == "local-only":
-            return False
         try:
             state = SessionState.load()
             return state.cp_available and not state.fallback_mode
@@ -699,9 +663,6 @@ class StorageManager:
         Stamps dedup_keys from _DEDUP_KEYS when available, so drain_queue()
         can skip duplicates on replay.
         """
-        if self._mode == "local-only":
-            return  # local-only: direct writes only, no queue
-
         entry: dict[str, Any] = {
             "queued_at": _now(),
             "domain": self._domain,

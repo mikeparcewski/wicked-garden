@@ -9,9 +9,8 @@ Flow:
 1. Read config from ~/.something-wicked/wicked-garden/config.json
 2. If missing or setup_complete=false: emit setup instructions, return
 3. Mode-branched initialization:
-   - local-install: health check → auto-start if down → poll → open browser
+   - local: health check → auto-start if down → poll → open browser
    - remote: health check → report status
-   - offline: storage summary → opportunistic probe
 4. Load dynamic agents
 5. Drain offline write queue if CP available
 6. Load active crew project + kanban summary
@@ -28,7 +27,6 @@ import os
 import subprocess
 import sys
 import time
-import webbrowser
 from pathlib import Path
 
 # Add shared scripts directory to path so hook can import shared modules
@@ -331,7 +329,7 @@ def _update_config_viewer_path(config, cp_path):
 
 
 # ---------------------------------------------------------------------------
-# Auto-start helpers (local-install mode)
+# Auto-start helpers (local mode)
 # ---------------------------------------------------------------------------
 
 _CP_REPO = "https://github.com/mikeparcewski/wicked-control-plane.git"
@@ -404,27 +402,6 @@ def _ensure_cp_deps(cp_path):
         return False
 
 
-def _viewer_already_opened():
-    """Return True if the browser was already opened this session."""
-    flag = Path.home() / ".something-wicked" / "wicked-garden" / ".viewer_opened"
-    session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
-    if not flag.exists():
-        return False
-    try:
-        return flag.read_text().strip() == session_id
-    except OSError:
-        return False
-
-
-def _mark_viewer_opened():
-    """Write the session ID to the viewer-opened flag file."""
-    session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
-    flag = Path.home() / ".something-wicked" / "wicked-garden" / ".viewer_opened"
-    try:
-        flag.parent.mkdir(parents=True, exist_ok=True)
-        flag.write_text(session_id)
-    except OSError:
-        pass
 
 
 def _autostart_cp(cp_path):
@@ -447,7 +424,7 @@ def _autostart_cp(cp_path):
 
     try:
         subprocess.Popen(
-            ["pnpm", "run", "dev"],
+            ["pnpm", "run", "dev:backend"],
             cwd=str(cp_path),
             env={**os.environ, "PORT": "18889"},
             start_new_session=True,
@@ -487,42 +464,6 @@ def _poll_health_with_timeout(endpoint, budget_seconds):
     return False, ""
 
 
-def _open_browser_once(url):
-    """Open url in the default browser, but only once per session."""
-    if _viewer_already_opened():
-        return
-    try:
-        webbrowser.open(url)
-        _mark_viewer_opened()
-    except Exception:
-        pass
-
-
-def _offline_storage_summary():
-    """Return a formatted offline storage status string."""
-    local_root = Path.home() / ".something-wicked" / "wicked-garden" / "local"
-    queue_file = local_root / "_queue.jsonl"
-
-    parts = [f"Storage: {local_root}"]
-
-    if local_root.exists():
-        domains = sorted(
-            d.name for d in local_root.iterdir()
-            if d.is_dir() and not d.name.startswith("_")
-        )
-        if domains:
-            parts.append(f"Domains: {', '.join(domains)}")
-
-    if queue_file.exists():
-        try:
-            count = sum(1 for line in queue_file.read_text().splitlines() if line.strip())
-            if count > 0:
-                parts.append(f"Queued writes: {count}")
-        except OSError:
-            pass
-
-    return " | ".join(parts)
-
 
 # ---------------------------------------------------------------------------
 # Memory behavior instructions (injected every session)
@@ -561,58 +502,6 @@ def _detect_dangerous_mode():
         pass
     return False
 
-
-# ---------------------------------------------------------------------------
-# local-only mode setup
-# ---------------------------------------------------------------------------
-
-def _setup_local_only(config, state, mode_notes):
-    """Initialize local-only (SQLite) mode.
-
-    - No health check, no auto-start, no queue drain.
-    - Sets cp_available=False, fallback_mode=False (this IS the intended mode).
-    - Ensures the SQLite DB exists and schema is up to date.
-    """
-    # Ensure local root directory exists
-    try:
-        from _storage import _LOCAL_ROOT
-        _LOCAL_ROOT.mkdir(parents=True, exist_ok=True)
-        db_path = _LOCAL_ROOT / "wicked-garden.db"
-    except Exception:
-        db_path = (
-            Path.home() / ".something-wicked" / "wicked-garden" / "local"
-            / "wicked-garden.db"
-        )
-
-    # Init SQLite DB (schema creation is idempotent via CREATE TABLE IF NOT EXISTS)
-    try:
-        from _sqlite_store import SqliteStore
-        SqliteStore(str(db_path))
-    except Exception as exc:
-        print(f"[wicked-garden] local-only db init error: {exc}", file=sys.stderr)
-
-    # Run migration if available (fail-open — migration errors must not block session)
-    migrate_script = _PLUGIN_ROOT / "scripts" / "_migrate_local.py"
-    if migrate_script.exists():
-        try:
-            subprocess.run(
-                [sys.executable, str(migrate_script)],
-                capture_output=True,
-                timeout=10,
-            )
-        except Exception as exc:
-            print(f"[wicked-garden] local-only migration error: {exc}", file=sys.stderr)
-
-    # Update session state — not a fallback, this is the intended mode
-    if state is not None:
-        state.update(
-            cp_available=False,
-            fallback_mode=False,
-            setup_complete=True,
-        )
-
-    # Storage note for briefing (set on mode_notes so briefing block can use it)
-    mode_notes.append(f"[local-only] Storage: {db_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -660,10 +549,13 @@ def main():
         flag = Path.home() / ".something-wicked" / "wicked-crew" / ".task_suggest_shown"
         flag.unlink(missing_ok=True)
 
-        # Determine mode (default: local-install for backward compat)
-        mode = config.get("mode") or "local-install"
-        if mode not in ("remote", "local-install", "offline", "local-only"):
-            mode = "local-install"
+        # Determine mode (default: local)
+        # Normalize legacy mode names
+        _legacy_map = {"local-install": "local", "local-only": "local", "offline": "local"}
+        mode = config.get("mode") or "local"
+        mode = _legacy_map.get(mode, mode)
+        if mode not in ("local", "remote"):
+            mode = "local"
 
         # 2. Mode-branched initialization
         # All modes fall through to the shared briefing assembly — no early returns.
@@ -673,35 +565,7 @@ def main():
         mode_notes = []       # mode-specific briefing notes
         autostart_elapsed = 0.0
 
-        if mode == "offline":
-            # Offline mode: init local dirs, mark offline, opportunistic CP probe
-            try:
-                from _storage import get_local_path
-                get_local_path("wicked-garden")  # ensure local root exists
-            except Exception:
-                pass
-
-            if state is not None:
-                state.update(
-                    cp_available=False,
-                    fallback_mode=True,
-                    setup_complete=True,
-                )
-
-            # Storage summary for briefing
-            mode_notes.append(f"[Offline] {_offline_storage_summary()}")
-
-            # Opportunistic: check if a CP has appeared (1s timeout)
-            endpoint = config.get("endpoint")
-            if endpoint:
-                probe_ok, probe_version = _check_health(config)
-                if probe_ok:
-                    mode_notes.append(
-                        f"[Info] Control plane detected at {endpoint} (v{probe_version}). "
-                        "Run /wicked-garden:setup to switch from offline to connected mode."
-                    )
-
-        elif mode == "remote":
+        if mode == "remote":
             # Remote mode: CP required, report status
             endpoint = config.get("endpoint")
             if endpoint:
@@ -715,7 +579,7 @@ def main():
                     )
                 mode_notes.append(
                     f"[Warning] Remote control plane at {endpoint or '(not configured)'} "
-                    "is unreachable. Operating in offline fallback. "
+                    "is unreachable. Operating in local fallback."
                     "Run /wicked-garden:setup to reconfigure."
                 )
             else:
@@ -727,12 +591,8 @@ def main():
                         setup_complete=True,
                     )
 
-        elif mode == "local-only":
-            # local-only mode: SQLite-backed, no CP, not a fallback
-            _setup_local_only(config, state, mode_notes)
-
         else:
-            # local-install mode (default): auto-start if CP not running
+            # local mode (default): auto-start CP if not running
             endpoint = config.get("endpoint") or "http://localhost:18889"
             cp_available, cp_version = _check_health(config)
 
@@ -769,15 +629,13 @@ def main():
                         # Save the resolved path back to config for next session
                         if cp_path and str(cp_path) != config.get("viewer_path"):
                             _update_config_viewer_path(config, cp_path)
-                        _open_browser_once("http://localhost:5173")
                         mode_notes.append(
-                            f"[Auto-start] Control plane started (v{cp_version}). "
-                            "Dashboard opened in browser."
+                            f"[Auto-start] Control plane started (v{cp_version})."
                         )
                     else:
                         mode_notes.append(
                             "[Warning] Auto-start initiated but control plane did not respond "
-                            f"within {autostart_elapsed:.0f}s. Operating in offline fallback. "
+                            f"within {autostart_elapsed:.0f}s. Operating in local fallback."
                             "The server may still be starting — run "
                             "`curl -s http://localhost:18889/health` to check, "
                             "or run `/wicked-garden:setup` to reconfigure."
@@ -787,10 +645,6 @@ def main():
                         f"[Action Required] Control plane at {endpoint} not running and auto-start "
                         "failed. Run `/wicked-garden:setup` to reconfigure."
                     )
-            else:
-                # CP already running — open browser once per session
-                _open_browser_once("http://localhost:5173")
-
             # Write session state
             if state is not None:
                 state.update(
@@ -862,12 +716,8 @@ def main():
 
         if cp_available:
             cp_status = f"Connected (v{cp_version})" if cp_version else "Connected"
-        elif mode == "offline":
-            cp_status = "N/A (offline mode)"
-        elif mode == "local-only":
-            cp_status = "N/A (local-only mode)"
         else:
-            cp_status = "Disconnected (offline fallback)"
+            cp_status = "Disconnected (local fallback)"
 
         onboarding_parts = []
         if has_index:
@@ -879,18 +729,7 @@ def main():
         else:
             onboarding_status = "Not started"
 
-        if mode == "local-only":
-            try:
-                from _storage import _LOCAL_ROOT
-                _local_db = _LOCAL_ROOT / "wicked-garden.db"
-            except Exception:
-                _local_db = (
-                    Path.home() / ".something-wicked" / "wicked-garden"
-                    / "local" / "wicked-garden.db"
-                )
-            _storage_line = f"  Storage:     local-only | {_local_db}"
-        else:
-            _storage_line = f"  Connection:  {mode} | {endpoint} | {cp_status}"
+        _storage_line = f"  Connection:  {mode} | {endpoint} | {cp_status}"
 
         status_lines = [
             f"wicked-garden | {project}",

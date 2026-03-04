@@ -115,12 +115,12 @@ Then STOP and wait for the user's reply.
 **Questions to ask:**
 
 - **Q1 — Connection type**: "How would you like to connect wicked-garden?"
-  - Options: **Standalone / local-only (Recommended)** | **Local CP (experimental)** | **Remote (experimental)** | **Offline (experimental)**
+  - Options: **Local (Recommended)** | **Remote**
 
 - **Q2 — Onboarding**: Same as 2a.
 
 **INTERACTIVE mode**: Use a single AskUserQuestion call with both questions:
-- Q1: header "Connection", options with descriptions (Standalone = "Local SQLite storage. No server required. All features work out of the box.", Local CP = "Run the control plane on your machine (localhost:18889). Experimental — requires Node.js + pnpm.", Remote = "Connect to a shared team server. Experimental.", Offline = "Local file storage with CP sync queue. Experimental.")
+- Q1: header "Connection", options with descriptions (Local = "Run the control plane on your machine (localhost:18889). Auto-starts on session start. Falls back to local JSON files when CP is unavailable.", Remote = "Connect to a shared team server.")
 - Q2: Same as 2a.
 
 **PLAIN_TEXT mode**: Present as numbered text and STOP:
@@ -129,10 +129,8 @@ Then STOP and wait for the user's reply.
 Two questions before we start:
 
 **1. Connection** — How would you like to connect wicked-garden?
-   a) Standalone / local-only (recommended) — local SQLite, no server required
-   b) Local CP (experimental) — run control plane on your machine (localhost:18889)
-   c) Remote (experimental) — connect to a shared team server
-   d) Offline (experimental) — local file storage with CP sync queue
+   a) Local (recommended) — auto-start CP on localhost, local JSON fallback
+   b) Remote — connect to a shared team server
 
 **2. Onboarding** — Would you like to run codebase onboarding?
    a) Full onboarding — index codebase, explore architecture, save discoveries (1-2 min)
@@ -150,42 +148,7 @@ Then STOP and wait for the user's reply.
 
 Execute based on the connection answer from Step 2.
 
-#### 3.0 Standalone / Local-Only Setup
-
-This is the default and recommended path. No external process required.
-
-1. Write config:
-   ```bash
-   mkdir -p "$HOME/.something-wicked/wicked-garden"
-   cat > "$HOME/.something-wicked/wicked-garden/config.json" << 'CONF'
-   {
-     "mode": "local-only",
-     "setup_complete": true
-   }
-   CONF
-   ```
-
-2. Show storage location:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden
-   ```
-
-3. Update session state to match new mode (critical for mid-session switches):
-   ```bash
-   python3 -c "
-   import sys, os
-   from pathlib import Path
-   sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
-   from _session import SessionState
-   state = SessionState.load()
-   state.update(cp_available=False, fallback_mode=False, setup_complete=True)
-   print('Session state updated for local-only mode.')
-   "
-   ```
-
-4. Tell the user: "All data is stored locally in SQLite at the path above. Full search, lineage, and all domain features are available with no external process needed."
-
-#### 3.1 Local CP Setup *(experimental)*
+#### 3.1 Local Setup (Default)
 
 1. Check if CP is already running:
    ```bash
@@ -202,7 +165,7 @@ This is the default and recommended path. No external process required.
    ```bash
    git clone --depth 1 https://github.com/mikeparcewski/wicked-control-plane.git ~/.claude/plugins/cache/wicked-control-plane
    ```
-   If clone fails (no network, no git), offer Offline mode as fallback (use AskUserQuestion or plain text depending on question mode).
+   If clone fails (no network, no git), tell the user the clone failed and write config anyway — local JSON fallback will handle storage until CP is available.
 
 5. Install dependencies if needed:
    ```bash
@@ -214,7 +177,7 @@ This is the default and recommended path. No external process required.
 
 6. Start the control plane:
    ```bash
-   cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev &
+   cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev:backend &
    ```
 
 7. Poll health (up to 15 seconds):
@@ -229,11 +192,9 @@ This is the default and recommended path. No external process required.
    ```bash
    curl -s --connect-timeout 2 http://localhost:18889/health
    ```
-   If not responding, ask: "CP didn't start. Switch to offline mode or troubleshoot?"
+   If not responding, tell the user: "CP didn't start yet. Local JSON fallback is active — all features work. CP will auto-start on next session."
 
-9. Open dashboard: `open http://localhost:5173`
-
-10. Write config:
+9. Write config:
     ```bash
     mkdir -p "$HOME/.something-wicked/wicked-garden"
     cat > "$HOME/.something-wicked/wicked-garden/config.json" << 'CONF'
@@ -241,7 +202,7 @@ This is the default and recommended path. No external process required.
       "endpoint": "http://localhost:18889",
       "auth_token": null,
       "api_version": "v1",
-      "mode": "local-install",
+      "mode": "local",
       "viewer_path": "~/.claude/plugins/cache/wicked-control-plane",
       "health_check_interval_seconds": 60,
       "connect_timeout_seconds": 3,
@@ -260,7 +221,7 @@ After writing config, update session state for mid-session mode switches:
     from _session import SessionState
     state = SessionState.load()
     state.update(cp_available=True, fallback_mode=False, setup_complete=True)
-    print('Session state updated for local-install mode.')
+    print('Session state updated for local mode.')
     "
     ```
 
@@ -283,40 +244,19 @@ After writing config, update session state for mid-session mode switches:
    "
    ```
 
-#### 3.3 Offline Setup
-
-1. Write config with `mode: "offline"`, `endpoint: null`
-2. Show storage location:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden
-   ```
-3. Update session state:
-   ```bash
-   python3 -c "
-   import sys, os
-   from pathlib import Path
-   sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
-   from _session import SessionState
-   state = SessionState.load()
-   state.update(cp_available=False, fallback_mode=True, setup_complete=True)
-   print('Session state updated for offline mode.')
-   "
-   ```
-4. Tell the user: "Run `/wicked-garden:setup` later to connect to a control plane. Queued writes will sync automatically."
-
-#### 3.4 Keep Current Connection
+#### 3.3 Keep Current Connection
 
 No changes needed. Proceed to Step 4.
 
-#### 3.5 Confirm Connection
+#### 3.4 Confirm Connection
 
 Show:
 
 ```
 Connection configured!
-Mode: {Standalone | Local CP | Remote | Offline | Kept}
-Endpoint: {url or "none (local-only/offline)"}
-Status: {Connected | Local SQLite | Offline}
+Mode: {Local | Remote | Kept}
+Endpoint: {url or "http://localhost:18889"}
+Status: {Connected | Local fallback}
 ```
 
 ### 4. Run Onboarding
@@ -415,7 +355,7 @@ When `--sync-to-cp` is passed:
 
 1. **Confirm with user before syncing**:
 
-**INTERACTIVE mode**: Use AskUserQuestion with header "Sync", question "This will push local wicked-garden data to the control plane. Existing CP records will not be overwritten. Proceed?", options: "Yes, sync now (Recommended)" = "Push local-only records to CP. Safe — uses dedup, won't overwrite.", "Cancel" = "Abort sync. No changes will be made."
+**INTERACTIVE mode**: Use AskUserQuestion with header "Sync", question "This will push local wicked-garden data to the control plane. Existing CP records will not be overwritten. Proceed?", options: "Yes, sync now (Recommended)" = "Push local records to CP. Safe — uses dedup, won't overwrite.", "Cancel" = "Abort sync. No changes will be made."
 
 **PLAIN_TEXT mode**: Ask in plain text:
 
@@ -473,7 +413,7 @@ This syncs all domains in dependency order:
 
 ## Graceful Degradation
 
-- If CP setup fails, offer offline as fallback
+- If CP setup fails, local JSON fallback handles storage automatically
 - If onboarding indexing fails, fall back to quick scout
 - If memory store fails, still complete (just won't suppress future directives)
 - Never block the user from working — all failures offer alternatives
