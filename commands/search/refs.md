@@ -15,7 +15,7 @@ Find all references to/from a code symbol, including documentation cross-referen
 
 1. Run the refs lookup via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py refs "<symbol>"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py refs "<symbol>"
    ```
 
 2. If the control plane is available, also query the graph for additional relationships:

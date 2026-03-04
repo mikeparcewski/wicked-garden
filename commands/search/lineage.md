@@ -18,32 +18,18 @@ Trace data lineage paths through the knowledge graph. Follow data flow from UI f
 
 ## Instructions
 
-1. Determine which execution path to use:
-   - **Local-only mode** (session mode is `local-only`, or CP is unavailable): use the vendored tracer directly (Step 2a).
-   - **CP available**: proxy through the control plane (Step 2b).
-
-2a. **Local-only — vendored tracer** (use when CP is unavailable or mode is `local-only`):
+1. Run the lineage trace via the local unified index (primary):
    ```bash
-   DB_PATH=$(python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts'); from _paths import get_local_file; print(get_local_file('wicked-search', 'unified_search.db'))")
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/search/lineage_tracer.py" \
-     "${symbol_id}" \
-     --db "${DB_PATH}" \
-     --direction "${direction:-downstream}" \
-     --depth "${depth:-10}"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py lineage "<symbol_id>"
    ```
 
-   If `${DB_PATH}` does not exist yet, report that the search index has not been built and suggest running `/wicked-garden:search:index` first.
-
-2b. **CP available — proxy**:
+2. If the control plane is available, also query for enrichment:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge lineage search "<symbol_id>" --direction "${direction:-downstream}" --depth "${depth:-10}"
    ```
+   This step is optional — the local index is fully functional without CP.
 
-3. Parse the response:
-   - For the vendored tracer (2a): output is plain text (table or mermaid). Present it directly.
-   - For the CP proxy (2b): parse the `data` field of the JSON envelope.
-
-4. Report the lineage paths found:
+3. Report the lineage paths found:
    - Show each path with steps from source to sink
    - Include confidence level and completeness status
    - Note any gaps in the lineage chain

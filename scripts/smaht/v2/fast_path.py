@@ -74,6 +74,9 @@ class FastPathAssembler:
         import time
         start_time = time.time()
 
+        # Check session state for context-dependent prompts
+        session_summary = self._get_session_summary()
+
         # Get adapters for this intent
         adapter_names = list(ADAPTER_RULES.get(analysis.intent_type, ["search"]))
 
@@ -124,7 +127,8 @@ class FastPathAssembler:
             all_items.extend(items)
 
         # Format briefing
-        briefing = self._format_briefing(prompt, analysis, all_items, sources_failed)
+        briefing = self._format_briefing(prompt, analysis, all_items, sources_failed,
+                                         session_summary=session_summary)
 
         latency_ms = int((time.time() - start_time) * 1000)
 
@@ -156,7 +160,8 @@ class FastPathAssembler:
         prompt: str,
         analysis: PromptAnalysis,
         items: list,
-        failed_sources: list[str]
+        failed_sources: list[str],
+        session_summary: str = "",
     ) -> str:
         """Format items into a simple briefing."""
         # Compact situation line
@@ -165,6 +170,12 @@ class FastPathAssembler:
             f"[{analysis.intent_type.value}{entities_str}]",
             "",
         ]
+
+        # Inject session context when available (keeps fast path context-aware)
+        if session_summary:
+            lines.append("## Session Context")
+            lines.append(session_summary)
+            lines.append("")
 
         # Group items by source (with safe attribute access)
         by_source: dict[str, list] = {}
@@ -215,6 +226,34 @@ class FastPathAssembler:
             lines.append("")
 
         return "\n".join(lines)
+
+    def _get_session_summary(self) -> str:
+        """Build a lightweight session context summary for the fast path.
+
+        Returns a short string (current task + last 2-3 decisions) if the
+        session has established context, or empty string for new sessions.
+        Designed to keep the fast path context-aware without adapter queries.
+        """
+        try:
+            from history_condenser import HistoryCondenser
+            import os
+            session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
+            condenser = HistoryCondenser(session_id)
+            state = condenser.get_session_state()
+
+            parts = []
+            if state.get("current_task"):
+                parts.append(f"**Current task**: {state['current_task'][:120]}")
+            if state.get("decisions"):
+                recent = state["decisions"][-3:]
+                parts.append(f"**Recent decisions**: {'; '.join(recent)[:200]}")
+            if state.get("file_scope"):
+                files = state["file_scope"][-5:]
+                parts.append(f"**Active files**: {', '.join(files)[:150]}")
+
+            return "\n".join(parts)
+        except Exception:
+            return ""
 
     def _generate_suggestion(self, analysis: PromptAnalysis, items: list) -> str:
         """Generate at most one proactive suggestion based on context patterns."""

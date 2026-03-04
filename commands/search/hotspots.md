@@ -11,7 +11,7 @@ Identify hotspot symbols ranked by total reference count (incoming + outgoing). 
 
 1. Run the hotspots query via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py hotspots --limit "${limit:-20}" ${layer:+--layer "${layer}"}
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py hotspots --limit "${limit:-20}" ${layer:+--layer "${layer}"}
    ```
 
    With no arguments, returns the top 20 most-connected symbols across the whole codebase.

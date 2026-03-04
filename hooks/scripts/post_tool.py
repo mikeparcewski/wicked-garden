@@ -140,6 +140,15 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
                     "kanban_id": task_id,
                     "initiative_name": initiative_name,
                 }
+                # Log activity for the new task
+                if task_id:
+                    sm.create("activity", {
+                        "project_id": project_id,
+                        "task_id": task_id,
+                        "action": "created",
+                        "details": {"from": None, "to": "todo"},
+                        "source": "hook:post_tool",
+                    })
 
             # Enrichment nudge
             hints = []
@@ -169,6 +178,7 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
 
             if kanban_id and status:
                 swimlane_map = {"pending": "todo", "in_progress": "in_progress", "completed": "done"}
+                old_swimlane = None  # previous swimlane unknown from hook context
                 swimlane = swimlane_map.get(status)
                 updates = {}
                 if swimlane:
@@ -179,6 +189,14 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
                     updates["description"] = tool_input["description"]
                 if updates:
                     sm.update("tasks", kanban_id, updates)
+                    # Log activity for the status change
+                    sm.create("activity", {
+                        "project_id": project_id,
+                        "task_id": kanban_id,
+                        "action": "status_change",
+                        "details": {"from": old_swimlane, "to": swimlane},
+                        "source": "hook:post_tool",
+                    })
 
         elif tool_name == "TodoWrite":
             todos = tool_input.get("todos", [])
@@ -194,6 +212,14 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
                 existing_id = existing.get("kanban_id") if isinstance(existing, dict) else existing
                 if existing_id:
                     sm.update("tasks", existing_id, {"swimlane": swimlane})
+                    # Log activity for TodoWrite status change
+                    sm.create("activity", {
+                        "project_id": project_id,
+                        "task_id": existing_id,
+                        "action": "status_change",
+                        "details": {"from": None, "to": swimlane},
+                        "source": "hook:post_tool",
+                    })
                 else:
                     task = sm.create("tasks", {
                         "project_id": project_id,
@@ -209,6 +235,15 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
                             "kanban_id": tid,
                             "initiative_name": "Issues",
                         }
+                        # Log activity for new TodoWrite task
+                        if tid:
+                            sm.create("activity", {
+                                "project_id": project_id,
+                                "task_id": tid,
+                                "action": "created",
+                                "details": {"from": None, "to": swimlane},
+                                "source": "hook:post_tool",
+                            })
                 synced += 1
 
         _save_kanban_sync_state(state)

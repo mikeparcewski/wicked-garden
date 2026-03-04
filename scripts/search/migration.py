@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -1152,9 +1153,22 @@ def main():
     temp_fd, temp_path = tempfile.mkstemp(suffix='.db')
     os.close(temp_fd)
 
+    # Acquire an exclusive file lock to prevent concurrent migration writes.
+    # Multiple processes running `unified_search.py index` simultaneously would
+    # otherwise deadlock on the shared output database.
+    lock_path = f"{args.output}.lock"
+    lock_fd = None
+
     try:
+        # Take file lock before any writes
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = open(lock_path, 'w')
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
         conn = sqlite3.connect(temp_path)
         conn.row_factory = sqlite3.Row
+        # Enable WAL mode for safe concurrent reads during migration
+        conn.execute("PRAGMA journal_mode=WAL")
 
         # Create schema
         create_schema(conn)
@@ -1202,7 +1216,6 @@ def main():
 
         # Move to final location if not dry-run
         if not args.dry_run:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
             # os.replace is atomic on POSIX — no separate unlink needed
             os.replace(temp_path, str(args.output))
         else:
@@ -1233,6 +1246,11 @@ def main():
             os.unlink(temp_path)
         print(json.dumps({'ok': False, 'error': str(e)}))
         sys.exit(1)
+    finally:
+        # Release file lock
+        if lock_fd is not None:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
 
 
 if __name__ == '__main__':

@@ -11,7 +11,7 @@ Show how indexed symbols break down by type, architectural layer, and directory 
 
 1. Run the categories query via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py categories
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py categories
    ```
 
    If the control plane is available, also query for enrichment:

@@ -15,7 +15,7 @@ Search documents only (PDF, Office docs, markdown) via the unified index.
 
 1. Run the doc search via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py docs "<query>"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py docs "<query>"
    ```
 
 2. If the control plane is available, also query for additional results:

@@ -73,6 +73,7 @@ class Specialist:
 # Role categories for grouping specialists
 ROLE_CATEGORIES = {
     "ideation": ["brainstorming", "exploration", "idea generation"],
+    "brainstorming": ["ideation", "exploration", "idea generation", "creative thinking"],
     "business-strategy": ["planning", "roadmap", "prioritization"],
     "project-management": ["tracking", "reporting", "coordination"],
     "quality-engineering": ["testing", "quality gates", "risk assessment"],

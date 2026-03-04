@@ -51,9 +51,10 @@ HOOKS_JSON="$PLUGIN_DIR/hooks/hooks.json"
 python3 -c "
 import json
 hooks = json.load(open('$HOOKS_JSON'))
+hooks_data = hooks.get('hooks', {})
 events = set()
-for h in hooks.get('hooks', []):
-    events.add(h.get('event', ''))
+for event_name, handlers in hooks_data.items():
+    events.add(event_name)
 print('Hook events:', sorted(events))
 assert 'SessionStart' in events, 'SessionStart hook not found'
 "
@@ -99,9 +100,9 @@ echo "PASS: root-level skills present on disk"
 
 ```bash
 PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
-DOMAINS="crew search mem kanban engineering platform"
+DOMAINS=(crew search mem kanban engineering platform)
 MISSING=0
-for DOMAIN in $DOMAINS; do
+for DOMAIN in "${DOMAINS[@]}"; do
   CMD_COUNT=$(find "$PLUGIN_DIR/commands/$DOMAIN" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
   if [ "$CMD_COUNT" -gt 0 ]; then
     echo "  $DOMAIN: $CMD_COUNT commands"

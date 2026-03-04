@@ -15,7 +15,7 @@ Search across both code symbols and documents via the unified index.
 
 1. Run the unified search via the local index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py search "<query>"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py search "<query>"
    ```
 
 2. If the control plane is available, also query for additional results:

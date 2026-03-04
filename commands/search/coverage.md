@@ -17,7 +17,7 @@ Analyze lineage coverage across the indexed codebase. Identifies symbols without
 
 1. Run the coverage report via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py coverage
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py coverage
    ```
 
 2. If the control plane is available, also query for enrichment:

@@ -15,7 +15,7 @@ Search code symbols only (functions, classes, methods) via the knowledge graph.
 
 1. Run the code search via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py code "<query>"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py code "<query>"
    ```
 
 2. If the control plane is available, also query it for additional results:

@@ -1334,6 +1334,7 @@ class UnifiedSearchIndex:
                 file=file_str,
                 line_start=section.get('line_start', 0),
                 line_end=section.get('line_end', 0),
+                content=section.get('content'),
                 domain="doc",
             )
             nodes.append(node)
@@ -1670,6 +1671,43 @@ class UnifiedSearchIndex:
                         adapter_name = adapter.name
                         stats["files_by_adapter"][adapter_name] = \
                             stats["files_by_adapter"].get(adapter_name, 0) + 1
+
+                # Fallback: if adapter returned 0 symbols, try JSONL parser (#159)
+                if not symbols and HAS_JSONL_MODULES and HAS_SYMBOL_GRAPH:
+                    jsonl_nodes = self._parse_file_to_nodes(path)
+                    # Skip file nodes, only use symbol nodes
+                    sym_nodes = [n for n in jsonl_nodes if n.node_type not in (NodeType.FILE,)]
+                    if sym_nodes:
+                        print(f"  Warning: adapter returned 0 symbols for {path.name}, "
+                              f"using JSONL fallback ({len(sym_nodes)} symbols)", file=sys.stderr)
+                        _type_map = {
+                            'function': SymbolType.FUNCTION,
+                            'method': SymbolType.METHOD,
+                            'class': SymbolType.CLASS,
+                            'interface': SymbolType.INTERFACE,
+                            'struct': SymbolType.STRUCT,
+                            'enum': SymbolType.ENUM_TYPE,
+                            'import': SymbolType.IMPORT,
+                        }
+                        current_class = None
+                        for node in sym_nodes:
+                            st = _type_map.get(node.node_type.value if hasattr(node.node_type, 'value') else str(node.node_type), SymbolType.FUNCTION)
+                            sym_id = node.id
+                            qualified = node.name
+                            if st == SymbolType.CLASS:
+                                current_class = node.name
+                            elif current_class and st in (SymbolType.METHOD, SymbolType.FUNCTION):
+                                qualified = f"{current_class}.{node.name}"
+                            fallback_sym = Symbol(
+                                id=sym_id,
+                                type=st,
+                                name=node.name,
+                                qualified_name=qualified,
+                                file_path=file_path,
+                                line_start=node.line_start,
+                                line_end=node.line_end,
+                            )
+                            symbols.append(fallback_sym)
 
                 # Add symbols to graph (with enrichment)
                 for sym in symbols:
@@ -2022,6 +2060,7 @@ async def main():
     search_parser.add_argument("--limit", "-n", type=int, default=10, help="Max results")
     search_parser.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
     search_parser.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
+    search_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # code
     code_parser = subparsers.add_parser("code", help="Search code only")
@@ -2030,22 +2069,26 @@ async def main():
     code_parser.add_argument("--limit", "-n", type=int, default=10, help="Max results")
     code_parser.add_argument("--layer", help="Filter by architectural layer (backend, frontend, database, view)")
     code_parser.add_argument("--type", help="Filter by symbol type (e.g., CLASS, FUNCTION, METHOD, TABLE)")
+    code_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # docs
     docs_parser = subparsers.add_parser("docs", help="Search docs only")
     docs_parser.add_argument("query", help="Search query")
     docs_parser.add_argument("--path", "-p", default=".", help="Project path")
     docs_parser.add_argument("--limit", "-n", type=int, default=10, help="Max results")
+    docs_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # refs
     refs_parser = subparsers.add_parser("refs", help="Find references")
     refs_parser.add_argument("symbol", help="Symbol name")
     refs_parser.add_argument("--path", "-p", default=".", help="Project path")
+    refs_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # impl
     impl_parser = subparsers.add_parser("impl", help="Find implementations")
     impl_parser.add_argument("section", help="Doc section name")
     impl_parser.add_argument("--path", "-p", default=".", help="Project path")
+    impl_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # blast-radius
     blast_parser = subparsers.add_parser("blast-radius", help="Analyze dependencies and dependents")
@@ -2058,6 +2101,7 @@ async def main():
                              default="both", help="Traversal direction (default: both)")
     blast_parser.add_argument("--use-graph", "-g", action="store_true",
                              help="Use Symbol Graph for cross-layer lineage (Java/JSP/HTML/DB)")
+    blast_parser.add_argument("--project", help="Project name for multi-project isolation")
 
     # db-path
     dbpath_parser = subparsers.add_parser("db-path", help="Show database file path")
@@ -2242,6 +2286,14 @@ async def main():
             if result.returncode == 0:
                 report = json.loads(result.stdout)
                 print(f"  Unified DB: {report['stats']['symbols_total']} symbols, {report['stats']['refs_total']} refs")
+                # Rebuild FTS5 index to prevent stale row corruption (#176/#158)
+                try:
+                    fts_conn = sqlite3.connect(str(unified_db_path))
+                    fts_conn.execute("INSERT INTO symbols_fts(symbols_fts) VALUES('rebuild')")
+                    fts_conn.commit()
+                    fts_conn.close()
+                except Exception as fts_err:
+                    print(f"  Warning: FTS5 rebuild skipped: {fts_err}", file=sys.stderr)
             else:
                 print(f"  Warning: Unified DB build failed: {result.stderr[:200]}", file=sys.stderr)
         except Exception as e:
@@ -2314,14 +2366,27 @@ async def main():
                 return
 
             # Try a simple FTS query to detect corruption
+            fts_corrupt = False
             try:
                 conn.execute("SELECT count(*) FROM symbols_fts")
                 # Try an actual MATCH query
                 conn.execute("SELECT count(*) FROM symbols_fts WHERE symbols_fts MATCH 'test'")
-                print("  FTS5 index: OK (no corruption detected)")
             except sqlite3.DatabaseError as fts_err:
+                fts_corrupt = True
                 err_msg = str(fts_err)
                 print(f"  FTS5 index: CORRUPT — {err_msg}")
+
+            # Detect FTS5 stale rows via integrity-check command (#176/#158)
+            if not fts_corrupt:
+                try:
+                    conn.execute("INSERT INTO symbols_fts(symbols_fts, rank) VALUES('integrity-check', 1)")
+                except sqlite3.DatabaseError as ic_err:
+                    fts_corrupt = True
+                    print(f"  FTS5 index: STALE ROWS detected — {ic_err}")
+
+            if not fts_corrupt:
+                print("  FTS5 index: OK (no corruption detected)")
+            elif fts_corrupt:
                 if getattr(args, 'repair', False):
                     print("  Rebuilding FTS5 index...")
                     try:
@@ -2390,18 +2455,32 @@ async def main():
             print(format_results(results, "Document Results"))
 
         elif args.command == "refs":
-            # Resolve symbol name to ID: try exact ID first, then search by name
+            # Resolve symbol name to ID: try exact ID first, then by name, then search
             symbol_input = args.symbol
             symbol_id = symbol_input
             sym = engine.get_symbol(symbol_input)
             if not sym:
-                # Not a direct ID — search by name to resolve
-                candidates = engine.search_code(symbol_input, limit=5)
-                if not candidates:
-                    candidates = engine.search_all(symbol_input, limit=5)
-                if candidates:
-                    symbol_id = candidates[0]['id']
-                # else: pass through and let find_references return empty
+                # Not a direct ID — try resolving by symbol name (handles path-based IDs)
+                try:
+                    name_cursor = engine.conn.cursor()
+                    name_cursor.execute("SELECT id FROM symbols WHERE name = ? AND domain = 'code' ORDER BY id LIMIT 1", (symbol_input,))
+                    name_row = name_cursor.fetchone()
+                    if name_row:
+                        symbol_id = name_row['id']
+                    else:
+                        # Fall back to search
+                        candidates = engine.search_code(symbol_input, limit=5)
+                        if not candidates:
+                            candidates = engine.search_all(symbol_input, limit=5)
+                        if candidates:
+                            symbol_id = candidates[0]['id']
+                except Exception:
+                    # Fall back to search on any DB error
+                    candidates = engine.search_code(symbol_input, limit=5)
+                    if not candidates:
+                        candidates = engine.search_all(symbol_input, limit=5)
+                    if candidates:
+                        symbol_id = candidates[0]['id']
 
             raw_refs = engine.find_references(symbol_id)
             # Adapt engine format {incoming, outgoing} to display format

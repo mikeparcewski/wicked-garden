@@ -1,5 +1,6 @@
 ---
 name: framework-researcher
+subagent_type: wicked-garden:agentic:framework-researcher
 description: |
   Framework comparison, selection guidance, migration paths, ecosystem assessment,
   and latest framework updates. Live research capabilities for emerging frameworks.
