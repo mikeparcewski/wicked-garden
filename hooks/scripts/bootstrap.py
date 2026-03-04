@@ -242,20 +242,13 @@ def _check_onboarding_status():
         pass  # Fail open
 
     directive = None
-    if not has_memories and not has_index:
+    if not has_memories:
         directive = (
             f"[Action Required] Project '{project}' has not been onboarded.\n"
             "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
             "to launch the interactive onboarding wizard.\n"
             "Do NOT ask the user for confirmation — invoke the skill now.\n"
             "Do NOT respond with text first — invoke the skill as your first action."
-        )
-    elif not has_memories:
-        directive = (
-            f"[Action Required] Project '{project}' has a search index but no onboarding memories.\n"
-            "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
-            "to launch the interactive setup wizard.\n"
-            "Do NOT ask the user for confirmation — invoke the skill now."
         )
     elif not has_index:
         directive = (
@@ -749,6 +742,10 @@ def main():
             if state is not None:
                 cp_project_id = project_data.get("cp_project_id") or ""
                 state.update(cp_project_id=cp_project_id)
+                # active_project_id: only set when project is in a non-complete, non-skipped phase
+                active_phase = project_data.get("current_phase", "")
+                is_active = active_phase not in ("", "complete", "done", "archived")
+                state.update(active_project_id=project_name if is_active else None)
 
             # Enable memory compliance directives for crew sessions.
             # task_completed.py reads this flag to decide whether to emit
@@ -794,7 +791,10 @@ def main():
 
         # 10. Set onboarding gate flag for prompt_submit enforcement
         if state is not None:
-            state.update(needs_onboarding=bool(onboarding_directive))
+            state.update(
+                needs_onboarding=bool(onboarding_directive),
+                onboarding_complete=(has_memories and has_index),
+            )
 
         # 11. Persist final session state
         if state is not None:

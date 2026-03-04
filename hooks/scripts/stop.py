@@ -370,6 +370,16 @@ def main():
         # 6. Persist session state
         _persist_session_state()
 
+        # Read session state for task completion count (fail open)
+        tasks_completed_this_session = 0
+        try:
+            sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+            from _session import SessionState
+            session_state = SessionState.load()
+            tasks_completed_this_session = session_state.memory_compliance_tasks_completed or 0
+        except Exception:
+            pass
+
         # 2. Memory flush reminder — always included as directive to Claude.
         # Auto-promotion already ran (step 2b); adjust directive accordingly.
         decay_prefix = f"{'; '.join(decay_messages)}. " if decay_messages else ""
@@ -388,9 +398,14 @@ def main():
                 "store them with /wicked-garden:mem:store (type: decision, procedural, or episodic)."
             )
         else:
+            task_count_note = (
+                f"You completed {tasks_completed_this_session} tasks this session — review each with TaskList. "
+                if tasks_completed_this_session > 0
+                else "Run TaskList to review completed tasks from this session. "
+            )
             reflection = (
                 f"[Memory] {decay_prefix}REQUIRED: Session ending. "
-                "Run TaskList to review completed tasks from this session. "
+                f"{task_count_note}"
                 "For each completed task, evaluate: did it produce a decision, gotcha, or reusable pattern? "
                 "Store each learning with /wicked-garden:mem:store "
                 "(type: decision, procedural, or episodic). "
