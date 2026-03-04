@@ -57,10 +57,20 @@ def main():
         input_data = {}
 
     context = input_data.get("context", "")
+    session_id = os.environ.get("CLAUDE_SESSION_ID") or f"sess_{uuid.uuid4().hex[:8]}"
     if context and len(context) > 100:
         project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-        session_id = os.environ.get("CLAUDE_SESSION_ID") or f"sess_{uuid.uuid4().hex[:8]}"
         _save_working_memory_snapshot(context, project, session_id)
+
+    # Notify the pressure tracker that compaction just occurred so it resets
+    # cumulative byte pressure by ~70% (avoids over-aggressive budget scaling
+    # on the first turns after a compaction).
+    try:
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
+        from context_pressure import PressureTracker
+        PressureTracker(session_id).mark_compacted()
+    except Exception:
+        pass  # fail open
 
     print(json.dumps({
         "continue": True,

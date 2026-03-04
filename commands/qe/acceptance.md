@@ -196,7 +196,17 @@ Before dispatching the reviewer, verify that the artifact registry exists:
 ls "${REGISTRY}" 2>/dev/null && echo "REGISTRY_OK" || echo "REGISTRY_MISSING"
 ```
 
-If the registry is missing, do not dispatch the reviewer. Display an error instead:
+If the registry file is missing, attempt to recover it from StorageManager before blocking:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/registry_lookup.py" \
+  --scenario-slug "${SCENARIO_SLUG}" \
+  --output "${REGISTRY}"
+```
+
+If `registry_lookup.py` exits 0, the registry has been restored — proceed to dispatch the reviewer as normal.
+
+If `registry_lookup.py` exits non-zero (not found in StorageManager either), do not dispatch the reviewer. Display an error instead:
 
 ```markdown
 ## Review Blocked: Evidence Registry Not Found
