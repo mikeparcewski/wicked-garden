@@ -16,7 +16,7 @@ Analyze what would be affected if you changed a symbol. Uses the knowledge graph
 
 1. Run the impact analysis via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py impact "<symbol>"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py impact "<symbol>"
    ```
 
 2. If the control plane is available, also query for enrichment:

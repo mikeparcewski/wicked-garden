@@ -95,6 +95,15 @@ class UnifiedQueryEngine:
             'domain': 'unknown', 'layer': 'unknown', 'category': '', 'content': '', 'metadata': {}
         }
 
+    def _rebuild_fts5(self):
+        """Rebuild FTS5 index to fix stale/missing rows."""
+        try:
+            self.conn.execute("INSERT INTO symbols_fts(symbols_fts) VALUES('rebuild')")
+            self.conn.commit()
+            print("FTS5 index auto-rebuilt after stale row detection", file=sys.stderr)
+        except Exception as e:
+            print(f"FTS5 auto-rebuild failed: {e}", file=sys.stderr)
+
     @staticmethod
     def _exclusion_clause(seen_ids: Set[str], col: str = "id") -> Tuple[str, tuple]:
         """Build NOT IN clause that handles empty sets correctly.
@@ -153,25 +162,33 @@ class UnifiedQueryEngine:
         # Tier 3: FTS5 match (score=50+rank)
         if len(results) < target:
             excl, excl_params = self._exclusion_clause(seen_ids, col="s.id")
-            try:
-                cursor.execute(f"""
+            fts_query = _sanitize_fts_query(query)
+            fts_params = (fts_query, *excl_params, target - len(results))
+            fts_sql = f"""
                     SELECT s.*, rank AS fts_rank FROM symbols s
                     JOIN symbols_fts ON symbols_fts.id = s.id
                     WHERE symbols_fts MATCH ?
                       AND {excl}
                     ORDER BY rank
                     LIMIT ?
-                """, (_sanitize_fts_query(query), *excl_params, target - len(results)))
-
-                for row in cursor.fetchall():
-                    result = self._row_to_dict(row)
-                    fts_rank = row['fts_rank'] if 'fts_rank' in row.keys() else 0
-                    result['score'] = 50 + min(abs(fts_rank), 50)
-                    result['match_type'] = 'fts'
-                    results.append(result)
-                    seen_ids.add(row['id'])
-            except sqlite3.OperationalError:
-                pass  # Malformed FTS query — skip this tier
+                """
+            for _attempt in range(2):
+                try:
+                    cursor.execute(fts_sql, fts_params)
+                    for row in cursor.fetchall():
+                        result = self._row_to_dict(row)
+                        fts_rank = row['fts_rank'] if 'fts_rank' in row.keys() else 0
+                        result['score'] = 50 + min(abs(fts_rank), 50)
+                        result['match_type'] = 'fts'
+                        results.append(result)
+                        seen_ids.add(row['id'])
+                    break
+                except sqlite3.DatabaseError as db_err:
+                    err_msg = str(db_err).lower()
+                    if 'missing row' in err_msg and _attempt == 0:
+                        self._rebuild_fts5()
+                        continue
+                    break
 
         # Tier 4: Qualified name LIKE (score=50)
         if len(results) < target:
@@ -233,25 +250,33 @@ class UnifiedQueryEngine:
         # FTS
         if len(results) < limit:
             excl, excl_params = self._exclusion_clause(seen_ids, col="s.id")
-            try:
-                cursor.execute(f"""
+            fts_query = _sanitize_fts_query(query)
+            fts_params = (fts_query, *excl_params, limit - len(results))
+            fts_sql = f"""
                     SELECT s.*, rank AS fts_rank FROM symbols s
                     JOIN symbols_fts ON symbols_fts.id = s.id
                     WHERE symbols_fts MATCH ? AND s.domain = 'code'
                       AND {excl}
                     ORDER BY rank
                     LIMIT ?
-                """, (_sanitize_fts_query(query), *excl_params, limit - len(results)))
-
-                for row in cursor.fetchall():
-                    result = self._row_to_dict(row)
-                    fts_rank = row['fts_rank'] if 'fts_rank' in row.keys() else 0
-                    result['score'] = 50 + min(abs(fts_rank), 50)
-                    result['match_type'] = 'fts'
-                    results.append(result)
-                    seen_ids.add(row['id'])
-            except sqlite3.OperationalError:
-                pass
+                """
+            for _attempt in range(2):
+                try:
+                    cursor.execute(fts_sql, fts_params)
+                    for row in cursor.fetchall():
+                        result = self._row_to_dict(row)
+                        fts_rank = row['fts_rank'] if 'fts_rank' in row.keys() else 0
+                        result['score'] = 50 + min(abs(fts_rank), 50)
+                        result['match_type'] = 'fts'
+                        results.append(result)
+                        seen_ids.add(row['id'])
+                    break
+                except sqlite3.DatabaseError as db_err:
+                    err_msg = str(db_err).lower()
+                    if 'missing row' in err_msg and _attempt == 0:
+                        self._rebuild_fts5()
+                        continue
+                    break
 
         return results
 
@@ -279,25 +304,33 @@ class UnifiedQueryEngine:
         # FTS (more important for docs than prefix)
         if len(results) < limit:
             excl, excl_params = self._exclusion_clause(seen_ids, col="s.id")
-            try:
-                cursor.execute(f"""
+            fts_query = _sanitize_fts_query(query)
+            fts_params = (fts_query, *excl_params, limit - len(results))
+            fts_sql = f"""
                     SELECT s.*, rank AS fts_rank FROM symbols s
                     JOIN symbols_fts ON symbols_fts.id = s.id
                     WHERE symbols_fts MATCH ? AND s.domain = 'doc'
                       AND {excl}
                     ORDER BY rank
                     LIMIT ?
-                """, (_sanitize_fts_query(query), *excl_params, limit - len(results)))
-
-                for row in cursor.fetchall():
-                    result = self._row_to_dict(row)
-                    fts_rank = row['fts_rank'] if 'fts_rank' in row.keys() else 0
-                    result['score'] = 50 + min(abs(fts_rank), 50)
-                    result['match_type'] = 'fts'
-                    results.append(result)
-                    seen_ids.add(row['id'])
-            except sqlite3.OperationalError:
-                pass
+                """
+            for _attempt in range(2):
+                try:
+                    cursor.execute(fts_sql, fts_params)
+                    for row in cursor.fetchall():
+                        result = self._row_to_dict(row)
+                        fts_rank = row['fts_rank'] if 'fts_rank' in row.keys() else 0
+                        result['score'] = 50 + min(abs(fts_rank), 50)
+                        result['match_type'] = 'fts'
+                        results.append(result)
+                        seen_ids.add(row['id'])
+                    break
+                except sqlite3.DatabaseError as db_err:
+                    err_msg = str(db_err).lower()
+                    if 'missing row' in err_msg and _attempt == 0:
+                        self._rebuild_fts5()
+                        continue
+                    break
 
         # Prefix
         if len(results) < limit:

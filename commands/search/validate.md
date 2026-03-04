@@ -17,12 +17,12 @@ Validate the accuracy of the knowledge graph index using consistency-based check
 
 1. Run validation via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py validate
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py validate
    ```
 
 2. Get detailed statistics:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py stats
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats
    ```
 
 3. For each sampled symbol, verify it exists at the stated file:line location:
@@ -32,7 +32,7 @@ Validate the accuracy of the knowledge graph index using consistency-based check
 
 4. Check FTS5 index integrity:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py integrity-check
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py integrity-check
    ```
 
 5. Report the validation results:

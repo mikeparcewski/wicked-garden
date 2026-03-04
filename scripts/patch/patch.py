@@ -83,7 +83,11 @@ def _discover_search_script() -> Optional[Path]:
 
 
 def get_default_db_path() -> Path:
-    """Get the default wicked-search database path via its CLI."""
+    """Get the default wicked-search database path via its CLI.
+
+    Falls back to the most recently modified .db file in the wicked-search
+    storage directory when the primary lookup returns a non-existent path.
+    """
     # Try discovering via wicked-search's db-path subcommand
     search_script = _discover_search_script()
     if search_script:
@@ -102,7 +106,42 @@ def get_default_db_path() -> Path:
             pass
 
     # Fallback: default path via _paths (unified root with legacy fallback)
-    return get_local_file("wicked-search", "unified_search.db")
+    default_path = get_local_file("wicked-search", "unified_search.db")
+    if default_path.exists():
+        return default_path
+
+    return default_path
+
+
+def _resolve_symbol_id(symbol_id: str, db_path: Path) -> str:
+    """Resolve a relative symbol ID against the indexed project path.
+
+    When a symbol ID doesn't start with '/', it's treated as a relative path.
+    The function queries the database for symbols whose ID ends with the
+    given relative ID, returning the first match.  If no match is found or
+    the ID is already absolute, it is returned unchanged.
+    """
+    if not symbol_id or symbol_id.startswith("/"):
+        return symbol_id
+
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        # Look for a symbol whose ID ends with the relative path
+        cursor.execute(
+            "SELECT id FROM symbols WHERE id LIKE ? LIMIT 1",
+            (f"%/{symbol_id}",),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return row["id"]
+    except Exception:
+        pass
+
+    return symbol_id
 
 
 def _assess_risk(plan: PropagationPlan, change_type: str = "") -> dict:
@@ -288,12 +327,14 @@ def cmd_plan(args):
         print("Run '/wicked-search:index' first to build the symbol graph.", file=sys.stderr)
         return 1
 
+    resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
+
     engine = PropagationEngine(db_path)
     try:
         change_type = ChangeType(args.change) if args.change else ChangeType.MODIFY_FIELD
         change_spec = ChangeSpec(
             change_type=change_type,
-            target_symbol_id=args.symbol_id,
+            target_symbol_id=resolved_id,
         )
 
         plan = engine.plan_propagation(change_spec, max_depth=args.depth)
@@ -332,6 +373,8 @@ def cmd_add_field(args):
         print(f"Error: Database not found at {db_path}", file=sys.stderr)
         return 1
 
+    resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
+
     engine = PropagationEngine(db_path)
     try:
         field_spec = FieldSpec(
@@ -345,7 +388,7 @@ def cmd_add_field(args):
 
         change_spec = ChangeSpec(
             change_type=ChangeType.ADD_FIELD,
-            target_symbol_id=args.symbol_id,
+            target_symbol_id=resolved_id,
             field_spec=field_spec,
         )
 
@@ -382,11 +425,13 @@ def cmd_rename(args):
         print(f"Error: Database not found at {db_path}", file=sys.stderr)
         return 1
 
+    resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
+
     engine = PropagationEngine(db_path)
     try:
         change_spec = ChangeSpec(
             change_type=ChangeType.RENAME_FIELD,
-            target_symbol_id=args.symbol_id,
+            target_symbol_id=resolved_id,
             old_name=args.old,
             new_name=args.new,
         )
@@ -419,11 +464,13 @@ def cmd_remove(args):
         print(f"Error: Database not found at {db_path}", file=sys.stderr)
         return 1
 
+    resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
+
     engine = PropagationEngine(db_path)
     try:
         change_spec = ChangeSpec(
             change_type=ChangeType.REMOVE_FIELD,
-            target_symbol_id=args.symbol_id,
+            target_symbol_id=resolved_id,
             old_name=args.field,
         )
 

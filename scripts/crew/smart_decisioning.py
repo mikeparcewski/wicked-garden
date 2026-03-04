@@ -704,6 +704,8 @@ def detect_archetype(text: str) -> Dict[str, float]:
     Returns dict of archetype -> confidence (0.0-1.0).
     Multiple archetypes can be detected simultaneously.
     Confidence is based on keyword density relative to archetype threshold.
+    Requires at least 2 keyword matches to avoid single-keyword false positives
+    (e.g., "scoring" alone should not trigger infrastructure-framework).
     """
     text_lower = text.lower()
     results: Dict[str, float] = {}
@@ -712,7 +714,7 @@ def detect_archetype(text: str) -> Dict[str, float]:
         if not patterns:
             continue
         matches = sum(1 for p in patterns if p.search(text_lower))
-        if matches > 0:
+        if matches >= 2:
             # Confidence scales with match density; 30% of keywords = 1.0
             confidence = min(matches / max(len(patterns) * 0.3, 1), 1.0)
             results[archetype] = round(confidence, 3)

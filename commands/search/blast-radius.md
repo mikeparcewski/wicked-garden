@@ -16,7 +16,7 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
 
 1. Run the blast radius analysis via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py blast-radius "<symbol>" --depth "${depth:-2}"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py blast-radius "<symbol>" --depth "${depth:-2}"
    ```
 
 2. If the control plane is available, also query the graph for additional transitive dependencies:

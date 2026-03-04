@@ -416,7 +416,10 @@ def check_specialist(
                 )
             )
     else:
-        # Legacy single-specialist format: {"specialist": {}, "personas": [], "enhances": []}
+        # Legacy single-specialist format:
+        #   {"specialist": {..., "role": "..."}, "personas": [], "enhances": []}
+        # or shorthand string form:
+        #   {"specialist": "role-name", "personas": [...]}
         for field in REQUIRED_SPECIALIST_FIELDS:
             if field not in data:
                 violations.append(
@@ -428,10 +431,14 @@ def check_specialist(
                         file=rel_file,
                     )
                 )
+        raw_specialist = data.get("specialist", {})
+        # Normalise string shorthand ("specialist": "engineering") into a dict
+        if isinstance(raw_specialist, str):
+            raw_specialist = {"role": raw_specialist}
         violations.extend(
             _check_single_specialist_entry(
                 plugin_name, plugin_root, rel_file,
-                spec_data=data.get("specialist", {}),
+                spec_data=raw_specialist,
                 personas=data.get("personas", []),
                 enhances=data.get("enhances", []),
             )

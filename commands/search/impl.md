@@ -15,7 +15,7 @@ Find code that implements a documented feature or section by searching for imple
 
 1. Run the implementation search via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python unified_search.py impl "<doc-section>"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py impl "<doc-section>"
    ```
 
 2. If the control plane is available, also query for additional implementation edges:

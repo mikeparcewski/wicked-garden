@@ -125,7 +125,7 @@ EOF
    3. Performance problems
    4. API best practices
 
-   Be specific about line numbers and provide actionable fixes." -f user_service.py -m anthropic/claude-sonnet-4-6
+   Be specific about line numbers and provide actionable fixes." -f user_service.py -m claude-sonnet-4-20250514
    ```
 
    Expected: OpenCode provides analysis.
