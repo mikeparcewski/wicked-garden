@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.0] - 2026-03-03
+
+### Bug Fixes
+- fix: scope crew projects by workspace to prevent cross-session bleed (598e30d)
+
+### Chores
+- release: wicked-garden v1.11.2 (c6cda0e)
+
 ## [1.11.2] - 2026-03-03
 
 ### Bug Fixes

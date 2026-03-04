@@ -1,22 +1,21 @@
-# Release wicked-garden v1.11.2
+# Release wicked-garden v1.12.0
 
 **Date**: 2026-03-03
 **Component**: wicked-garden
 
 ## Summary
 
-This release includes: 2 bug fix(es).
+This release includes: 1 bug fix(es).
 
 ## Changes
 
 ### Bug Fixes
 
-- fix: resolve 19 open issues across search, kanban, crew, patch, smaht, agentic, observability, and scenarios (5ee4935)
-- fix: resolve Codex review findings for cp-uuid-integration (#153-#157) (60256ee)
+- fix: scope crew projects by workspace to prevent cross-session bleed (598e30d)
 
 ### Chores
 
-- release: wicked-garden v1.11.1 (0082b50)
+- release: wicked-garden v1.11.2 (c6cda0e)
 
 ## Installation
 
