@@ -51,6 +51,7 @@ class SlowPathAssembler:
         adapters = {}
         adapter_modules = {
             "cp": "cp_adapter",
+            "mem": "mem_adapter",
             "context7": "context7_adapter",
             "tools": "startah_adapter",
             "delegation": "delegation_adapter",

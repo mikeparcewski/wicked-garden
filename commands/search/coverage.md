@@ -15,23 +15,30 @@ Analyze lineage coverage across the indexed codebase. Identifies symbols without
 
 ## Instructions
 
-1. Run the coverage report via the local unified index (primary):
+1. Check that an index exists for the current project:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py coverage
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
+   ```
+   If the output shows 0 symbols or the index is not found, stop and inform the user:
+   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+
+2. Run the coverage report via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py coverage --path "${PWD}"
    ```
 
-2. If the control plane is available, also query for enrichment:
+3. If the control plane is available, also query for enrichment:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols list ${project:+--project "${project}"} ${type:+--type "${type}"}
    ```
    This step is optional — the local index is fully functional without CP.
 
-3. Classify each symbol:
+4. Classify each symbol:
    - **Full coverage**: Complete lineage from UI to database (or reverse)
    - **Partial coverage**: Some connections exist but gaps in the chain
    - **Orphan**: No lineage connections found
 
-4. Report the coverage analysis:
+5. Report the coverage analysis:
 
    ```markdown
    ## Coverage Report

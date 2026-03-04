@@ -97,7 +97,7 @@ def _session_state_hash(state) -> str:
             "fallback_mode": getattr(state, "fallback_mode", None),
         }
         raw = json.dumps(state_dict, sort_keys=True).encode()
-        return hashlib.md5(raw).hexdigest()[:8]
+        return hashlib.sha256(raw).hexdigest()[:8]
     except Exception:
         return ""
 
@@ -199,7 +199,7 @@ def _suggest_jam(prompt: str, state) -> str | None:
 
     Returns the hint string to append, or None if no suggestion should be shown.
     """
-    if "/jam:" in prompt.lower():
+    if ":jam:" in prompt.lower() or "/jam:" in prompt.lower():
         return None  # Already using jam — no suggestion needed
     if not _has_ambiguity_signals(prompt):
         return None

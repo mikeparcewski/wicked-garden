@@ -74,8 +74,9 @@ class FastPathAssembler:
         import time
         start_time = time.time()
 
-        # Check session state for context-dependent prompts
-        session_summary = self._get_session_summary()
+        # Check session state for context-dependent prompts.
+        # Pass prompt so topic-overlap detection can surface relevant prior decisions.
+        session_summary = self._get_session_summary(prompt)
 
         # Get adapters for this intent
         adapter_names = list(ADAPTER_RULES.get(analysis.intent_type, ["search"]))
@@ -227,11 +228,13 @@ class FastPathAssembler:
 
         return "\n".join(lines)
 
-    def _get_session_summary(self) -> str:
+    def _get_session_summary(self, prompt: str = "") -> str:
         """Build a lightweight session context summary for the fast path.
 
         Returns a short string (current task + last 2-3 decisions) if the
         session has established context, or empty string for new sessions.
+        When a prompt is provided, also checks whether the prompt's topics
+        overlap with session decision topics and surfaces those decisions first.
         Designed to keep the fast path context-aware without adapter queries.
         """
         try:
@@ -244,9 +247,23 @@ class FastPathAssembler:
             parts = []
             if state.get("current_task"):
                 parts.append(f"**Current task**: {state['current_task'][:120]}")
-            if state.get("decisions"):
-                recent = state["decisions"][-3:]
+
+            decisions = state.get("decisions", [])
+            if decisions:
+                # When we have a prompt, check if any session topics overlap
+                # with prompt terms to surface the most relevant past decisions first.
+                if prompt and state.get("topics"):
+                    prompt_words = set(prompt.lower().split())
+                    session_topics = set(t.lower() for t in state["topics"])
+                    topic_overlap = prompt_words & session_topics
+                    if topic_overlap:
+                        # Topic match: flag it so the user knows prior context applies
+                        overlap_str = ", ".join(sorted(topic_overlap)[:3])
+                        parts.append(f"**Prior context on**: {overlap_str}")
+
+                recent = decisions[-3:]
                 parts.append(f"**Recent decisions**: {'; '.join(recent)[:200]}")
+
             if state.get("file_scope"):
                 files = state["file_scope"][-5:]
                 parts.append(f"**Active files**: {', '.join(files)[:150]}")

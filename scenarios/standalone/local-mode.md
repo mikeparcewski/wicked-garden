@@ -140,7 +140,7 @@ with unittest.mock.patch.object(
     side_effect=lambda *a, **kw: call_log.append((a, kw)) or None
 ):
     sm = StorageManager("wicked-mem")
-    assert sm._mode == "local-only", f"mode is {sm._mode!r}, expected local-only"
+    assert sm._mode == "local", f"mode is {sm._mode!r}, expected local (normalized from local-only)"
 
     sm.create("memories", {"id": "tc2-id", "title": "no-CP test", "content": "isolated"})
     sm.get("memories", "tc2-id")
@@ -149,7 +149,7 @@ with unittest.mock.patch.object(
     sm.delete("memories", "tc2-id")
 
 assert call_log == [], f"ControlPlaneClient.request was called {len(call_log)} times: {call_log}"
-print("TC-2 PASS: StorageManager local-only never calls ControlPlaneClient")
+print("TC-2 PASS: StorageManager local-only (normalized to local) never calls ControlPlaneClient")
 PYEOF
 ```
 
@@ -250,15 +250,15 @@ assert result.returncode == 0, f"bootstrap exited {result.returncode}\nstderr: {
 output = json.loads(result.stdout)
 ctx = output.get("hookSpecificOutput", {}).get("additionalContext", "")
 
-assert "local-only" in ctx, (
-    f"'local-only' not found in briefing.\nContext: {ctx[:400]}"
+assert "local" in ctx, (
+    f"'local' not found in briefing.\nContext: {ctx[:400]}"
 )
 assert "Storage:" in ctx, (
     f"'Storage:' not found in briefing.\nContext: {ctx[:400]}"
 )
 
-print("TC-4 PASS: Bootstrap briefing contains Storage: local-only")
-print(f"  Relevant line: {[l for l in ctx.splitlines() if 'local-only' in l or 'Storage:' in l]}")
+print("TC-4 PASS: Bootstrap briefing contains Storage: local")
+print(f"  Relevant line: {[l for l in ctx.splitlines() if 'local' in l or 'Storage:' in l]}")
 PYEOF
 ```
 
@@ -429,7 +429,7 @@ if _QUEUE_FILE.exists():
     _QUEUE_FILE.unlink()
 
 sm = StorageManager("wicked-mem")
-assert sm._mode == "local-only", f"expected local-only, got {sm._mode}"
+assert sm._mode == "local", f"expected local (normalized from local-only), got {sm._mode}"
 
 sm.create("memories", {"id": "tc8-id", "title": "queue test", "content": "no queue"})
 sm.update("memories", "tc8-id", {"title": "updated"})
@@ -542,7 +542,7 @@ All nine test cases pass with `PASS` in their output and exit code 0.
 - [ ] TC-1: SqliteStore CRUD roundtrip and FTS5 search pass
 - [ ] TC-2: No HTTP calls to ControlPlaneClient in local-only mode
 - [ ] TC-3: Session state has `cp_available=False` and `fallback_mode=False` after local-only bootstrap
-- [ ] TC-4: Bootstrap briefing includes `Storage: local-only` line
+- [ ] TC-4: Bootstrap briefing includes `Storage: local` line
 - [ ] TC-5: JSON migration inserts planted record into SQLite
 - [ ] TC-6: Re-running migration skips already-present records (INSERT OR IGNORE)
 - [ ] TC-7: Concurrent WAL writes complete without `sqlite3.OperationalError`

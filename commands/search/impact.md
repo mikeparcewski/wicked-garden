@@ -14,20 +14,27 @@ Analyze what would be affected if you changed a symbol. Uses the knowledge graph
 
 ## Instructions
 
-1. Run the impact analysis via the local unified index (primary):
+1. Check that an index exists for the current project:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py impact "<symbol>"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
+   ```
+   If the output shows 0 symbols or the index is not found, stop and inform the user:
+   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+
+2. Run the impact analysis via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py impact "<symbol>" --path "${PWD}"
    ```
 
-2. If the control plane is available, also query for enrichment:
+3. If the control plane is available, also query for enrichment:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph impact "<symbol>" --depth "${depth:-10}"
    ```
    This step is optional — the local index is fully functional without CP.
 
-3. Parse the response which contains affected symbols and paths.
+4. Parse the response which contains affected symbols and paths.
 
-3. Report the impact assessment:
+5. Report the impact assessment:
    - **Affected UI Fields**: What UI elements display/collect this data
    - **Affected Entities**: What entity fields map to this column
    - **Affected Pages**: What pages contain the affected UI fields

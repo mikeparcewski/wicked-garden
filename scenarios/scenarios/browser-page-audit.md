@@ -3,8 +3,8 @@ name: browser-page-audit
 description: Verify page loads correctly and passes basic interaction checks
 category: browser
 tools:
-  required: [agent-browser]
-  optional: [playwright]
+  required: []
+  optional: [agent-browser, playwright]
 difficulty: intermediate
 timeout: 60
 ---
@@ -53,6 +53,10 @@ done
 ### Step 1: Page load and DOM snapshot
 
 ```bash
+if ! command -v agent-browser &>/dev/null; then
+  echo "SKIP: agent-browser not installed — skipping step 1"
+  exit 0
+fi
 SCEN_PORT=$(cat "${TMPDIR:-/tmp}/wicked-scenario-pw/port")
 agent-browser open "http://localhost:${SCEN_PORT}/" --headless
 SNAPSHOT=$(agent-browser snapshot)
@@ -61,11 +65,15 @@ echo "$SNAPSHOT" | grep -qi "Wicked" || { echo "FAIL: page content not rendered"
 echo "PASS: page loaded and DOM snapshot captured"
 ```
 
-**Expect**: Exit code 0, agent-browser loads page and snapshot contains page content
+**Expect**: Exit code 0, agent-browser loads page and snapshot contains page content (or SKIP when agent-browser is unavailable)
 
 ### Step 2: Content verification via DOM
 
 ```bash
+if ! command -v agent-browser &>/dev/null; then
+  echo "SKIP: agent-browser not installed — skipping step 2"
+  exit 0
+fi
 SNAPSHOT=$(agent-browser snapshot)
 echo "$SNAPSHOT" | grep -qi "Wicked Garden Scenario Test" || { echo "FAIL: h1 not found in DOM"; exit 1; }
 echo "$SNAPSHOT" | grep -qi "browser-page-audit" || { echo "FAIL: paragraph not found in DOM"; exit 1; }
@@ -73,7 +81,7 @@ echo "$SNAPSHOT" | grep -qi "About" || { echo "FAIL: about section not found in 
 echo "PASS: all expected content present in DOM"
 ```
 
-**Expect**: Exit code 0, heading, paragraph, and about section all present in the rendered DOM
+**Expect**: Exit code 0, heading, paragraph, and about section all present in the rendered DOM (or SKIP when agent-browser is unavailable)
 
 ### Step 3: Screenshot capture
 
@@ -83,25 +91,32 @@ if command -v playwright &>/dev/null; then
   playwright screenshot "http://localhost:${SCEN_PORT}/" "${TMPDIR:-/tmp}/wicked-scenario-pw/screenshot.png" 2>&1
   [ -f "${TMPDIR:-/tmp}/wicked-scenario-pw/screenshot.png" ] || { echo "FAIL: screenshot not created"; exit 1; }
   echo "PASS: screenshot captured via playwright CLI"
-else
+elif command -v agent-browser &>/dev/null; then
   agent-browser screenshot "${TMPDIR:-/tmp}/wicked-scenario-pw/screenshot.png" 2>&1
   [ -f "${TMPDIR:-/tmp}/wicked-scenario-pw/screenshot.png" ] || { echo "FAIL: screenshot not created"; exit 1; }
   echo "PASS: screenshot captured via agent-browser"
+else
+  echo "SKIP: neither playwright nor agent-browser installed — skipping step 3"
+  exit 0
 fi
 ```
 
-**Expect**: Exit code 0, screenshot file created
+**Expect**: Exit code 0, screenshot file created (or SKIP when neither playwright nor agent-browser is available)
 
 ### Step 4: Link interaction
 
 ```bash
+if ! command -v agent-browser &>/dev/null; then
+  echo "SKIP: agent-browser not installed — skipping step 4"
+  exit 0
+fi
 agent-browser click "a[href='#about']" 2>&1
 SNAPSHOT=$(agent-browser snapshot)
 echo "$SNAPSHOT" | grep -qi "fixture for reliable testing" || { echo "FAIL: about section content not accessible after click"; exit 1; }
 echo "PASS: link click navigated to about section"
 ```
 
-**Expect**: Exit code 0, clicking the "Learn more" link navigates to the about section
+**Expect**: Exit code 0, clicking the "Learn more" link navigates to the about section (or SKIP when agent-browser is unavailable)
 
 ## Cleanup
 

@@ -9,9 +9,16 @@ Show how indexed symbols break down by type, architectural layer, and directory 
 
 ## Instructions
 
-1. Run the categories query via the local unified index (primary):
+1. Check that an index exists for the current project:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py categories
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
+   ```
+   If the output shows 0 symbols or the index is not found, stop and inform the user:
+   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+
+2. Run the categories query via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py categories --path "${PWD}"
    ```
 
    If the control plane is available, also query for enrichment:
@@ -20,7 +27,7 @@ Show how indexed symbols break down by type, architectural layer, and directory 
    ```
    This step is optional — the local index is fully functional without CP.
 
-2. Present results in five sections:
+3. Present results in five sections:
 
    **By Layer** — architectural layers (backend, frontend, database, view):
    | Layer | Symbols |

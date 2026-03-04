@@ -693,11 +693,22 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
 
 
 def _check_gate_run(project_dir: Path, phase: str) -> bool:
-    """Return True if evidence of a gate run exists for this phase."""
+    """Return True if evidence of a valid gate run exists for this phase.
+
+    A gate-result.json that exists but cannot be parsed as JSON is treated as
+    gate-not-run — malformed output from a crashed gate process should not
+    silently allow phase advancement.
+    """
     phase_dir = project_dir / "phases" / phase
     # Primary: gate result file written by /wicked-crew:gate
-    if (phase_dir / "gate-result.json").exists():
-        return True
+    gate_file = phase_dir / "gate-result.json"
+    if gate_file.exists():
+        try:
+            json.loads(gate_file.read_text())
+            return True
+        except (json.JSONDecodeError, OSError):
+            # Malformed or unreadable — treat as gate-not-run
+            return False
     # Secondary: status.md contains gate_status field
     status_md = phase_dir / "status.md"
     if status_md.exists():
@@ -846,6 +857,8 @@ def approve_phase(
         current_idx = phase_order.index(phase)
         if current_idx < len(phase_order) - 1:
             next_phase = phase_order[current_idx + 1]
+            # Advance current_phase so callers and saved state reflect the new phase
+            state.current_phase = next_phase
             # Update CP project status when entering review (next phase is review)
             if next_phase == "review":
                 _update_cp_project_status(state, "in_review")

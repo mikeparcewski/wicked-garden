@@ -17,12 +17,22 @@ the original behavior exactly.
 ## Setup
 
 ```bash
+# IMPORTANT: This scenario requires smart_decisioning.py from the working directory
+# (scripts/crew/smart_decisioning.py in the checked-out repo), NOT the cached plugin
+# installed at CLAUDE_PLUGIN_ROOT if it is an older version (pre-v1.17).
+#
+# If CLAUDE_PLUGIN_ROOT points to an installed v1.16.x, the --files flag will not be
+# present and the setup check below will report it. In that case, run the scenario
+# steps by substituting the local path:
+#   python3 "$(pwd)/scripts/crew/smart_decisioning.py" instead of the ${CLAUDE_PLUGIN_ROOT} variant
+
 # Verify smart_decisioning.py is available and supports --files
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "test" > /dev/null 2>&1 \
-  && echo "smart_decisioning.py available" || echo "NOT FOUND — ensure T6-1 is deployed"
+  && echo "smart_decisioning.py available" || echo "NOT FOUND — ensure plugin root is correct"
 
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "test" --files "" > /dev/null 2>&1 \
-  && echo "--files flag available" || echo "--files NOT available — T6-1 not yet deployed"
+  && echo "--files flag available" \
+  || echo "--files NOT available — CLAUDE_PLUGIN_ROOT may point to pre-v1.17 install; use local scripts/ path"
 ```
 
 ## Steps

@@ -18,18 +18,25 @@ Trace data lineage paths through the knowledge graph. Follow data flow from UI f
 
 ## Instructions
 
-1. Run the lineage trace via the local unified index (primary):
+1. Check that an index exists for the current project:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py lineage "<symbol_id>"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
+   ```
+   If the output shows 0 symbols or the index is not found, stop and inform the user:
+   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+
+2. Run the lineage trace via the local unified index (primary):
+   ```bash
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py lineage "<symbol_id>" --path "${PWD}"
    ```
 
-2. If the control plane is available, also query for enrichment:
+3. If the control plane is available, also query for enrichment:
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge lineage search "<symbol_id>" --direction "${direction:-downstream}" --depth "${depth:-10}"
    ```
    This step is optional — the local index is fully functional without CP.
 
-3. Report the lineage paths found:
+4. Report the lineage paths found:
    - Show each path with steps from source to sink
    - Include confidence level and completeness status
    - Note any gaps in the lineage chain

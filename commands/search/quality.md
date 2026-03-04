@@ -23,7 +23,7 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
 
 1. First, check current index quality via the local unified index:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
    ```
 
 2. Run validation to establish baseline:
