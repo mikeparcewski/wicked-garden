@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.2] - 2026-03-03
+
+### Bug Fixes
+- fix: resolve 19 open issues across search, kanban, crew, patch, smaht, agentic, observability, and scenarios (5ee4935)
+- fix: resolve Codex review findings for cp-uuid-integration (#153-#157) (60256ee)
+
+### Chores
+- release: wicked-garden v1.11.1 (0082b50)
+
 ## [1.11.0] - 2026-03-03
 
 ### Features
