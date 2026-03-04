@@ -203,8 +203,41 @@ def _query_session_state(session_id: str) -> str:
         return ""
 
 
-def _query_memory(project: str, prompt: str) -> str:
+# ---------------------------------------------------------------------------
+# Session-scoped adapter result cache (file-backed per session, TTL = session)
+# ---------------------------------------------------------------------------
+# Each hook invocation is a fresh process — module-level variables don't persist.
+# We use a tmp file keyed by session_id so that cache entries survive across
+# back-to-back hook calls within the same session without re-querying StorageManager.
+# Cache keys are (adapter_name, state_hash) — if state changes, the hash changes
+# and the old entry is simply not found (stale entries are benign dead weight).
+
+
+def _read_adapter_cache(session_id: str) -> dict:
+    """Read the session-scoped adapter result cache from tmp."""
+    cache_path = Path(os.environ.get("TMPDIR", "/tmp")) / f"wicked-smaht-cache-{session_id}.json"
+    try:
+        return json.loads(cache_path.read_text())
+    except Exception:
+        return {}
+
+
+def _write_adapter_cache(session_id: str, cache: dict) -> None:
+    """Persist the session-scoped adapter result cache to tmp."""
+    cache_path = Path(os.environ.get("TMPDIR", "/tmp")) / f"wicked-smaht-cache-{session_id}.json"
+    try:
+        cache_path.write_text(json.dumps(cache))
+    except Exception:
+        pass  # fail open — cache miss is safe
+
+
+def _query_memory(project: str, prompt: str, session_id: str = "", state_hash: str = "") -> str:
     """Return relevant memory snippets for the prompt."""
+    cache_key = f"memory:{state_hash}" if state_hash else ""
+    if cache_key and session_id:
+        cache = _read_adapter_cache(session_id)
+        if cache_key in cache:
+            return cache[cache_key]
     try:
         from _storage import StorageManager
         sm = StorageManager("wicked-mem")
@@ -213,25 +246,37 @@ def _query_memory(project: str, prompt: str) -> str:
         query = " ".join(words) or prompt[:50]
         results = sm.list("memories", query=query, limit=3) or []
         if not results:
-            return ""
-        items = []
-        for r in results:
-            title = r.get("title", "")
-            content = r.get("content", "") or r.get("summary", "")
-            if title or content:
-                items.append(f"- {title}: {content[:120]}" if title else f"- {content[:120]}")
-        return "\n".join(items) if items else ""
+            result = ""
+        else:
+            items = []
+            for r in results:
+                title = r.get("title", "")
+                content = r.get("content", "") or r.get("summary", "")
+                if title or content:
+                    items.append(f"- {title}: {content[:120]}" if title else f"- {content[:120]}")
+            result = "\n".join(items) if items else ""
     except Exception:
-        return ""
+        result = ""
+    if cache_key and session_id:
+        cache = _read_adapter_cache(session_id)
+        cache[cache_key] = result
+        _write_adapter_cache(session_id, cache)
+    return result
 
 
-def _query_crew(project: str) -> str:
+def _query_crew(project: str, session_id: str = "", state_hash: str = "") -> str:
     """Return current crew project phase context, scoped to workspace."""
+    cache_key = f"crew:{state_hash}" if state_hash else ""
+    if cache_key and session_id:
+        cache = _read_adapter_cache(session_id)
+        if cache_key in cache:
+            return cache[cache_key]
     try:
         workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
         from _storage import StorageManager
         sm = StorageManager("wicked-crew")
         projects = sm.list("projects") or []
+        result = ""
         # Filter to active projects in this workspace
         for p in sorted(projects, key=lambda x: x.get("updated_at", ""), reverse=True):
             if p.get("archived"):
@@ -241,10 +286,15 @@ def _query_crew(project: str) -> str:
             phase = p.get("current_phase", "")
             if phase and phase not in ("complete", "done", ""):
                 name = p.get("name", "")
-                return f"Crew project: {name} | Phase: {phase}" if name else ""
-        return ""
+                result = f"Crew project: {name} | Phase: {phase}" if name else ""
+                break
     except Exception:
-        return ""
+        result = ""
+    if cache_key and session_id:
+        cache = _read_adapter_cache(session_id)
+        cache[cache_key] = result
+        _write_adapter_cache(session_id, cache)
+    return result
 
 
 def _query_kanban(project: str) -> str:
@@ -426,7 +476,7 @@ def _assemble_hot(state_summary: str) -> str:
     return state_summary
 
 
-def _assemble_fast(prompt: str, intents: list, project: str, session_id: str) -> str:
+def _assemble_fast(prompt: str, intents: list, project: str, session_id: str, state_hash: str = "") -> str:
     """FAST path: query 2-5 domains matched by intent."""
     parts = []
 
@@ -435,14 +485,14 @@ def _assemble_fast(prompt: str, intents: list, project: str, session_id: str) ->
     if state_summary:
         parts.append(state_summary)
 
-    # Domain-specific queries
+    # Domain-specific queries (pass session_id + state_hash for adapter caching)
     if "memory" in intents or "crew" in intents or "kanban" in intents or not intents:
-        mem_result = _query_memory(project, prompt)
+        mem_result = _query_memory(project, prompt, session_id=session_id, state_hash=state_hash)
         if mem_result:
             parts.append(f"[Memory]\n{mem_result}")
 
     if "crew" in intents:
-        crew_result = _query_crew(project)
+        crew_result = _query_crew(project, session_id=session_id, state_hash=state_hash)
         if crew_result:
             parts.append(f"[Crew] {crew_result}")
 
@@ -459,7 +509,7 @@ def _assemble_fast(prompt: str, intents: list, project: str, session_id: str) ->
     return "\n".join(parts)
 
 
-def _assemble_slow(prompt: str, project: str, session_id: str) -> str:
+def _assemble_slow(prompt: str, project: str, session_id: str, state_hash: str = "") -> str:
     """SLOW path: query all domains plus history condenser."""
     parts = []
 
@@ -471,11 +521,11 @@ def _assemble_slow(prompt: str, project: str, session_id: str) -> str:
     if condenser_result:
         parts.append(f"[History]\n{condenser_result}")
 
-    mem_result = _query_memory(project, prompt)
+    mem_result = _query_memory(project, prompt, session_id=session_id, state_hash=state_hash)
     if mem_result:
         parts.append(f"[Memory]\n{mem_result}")
 
-    crew_result = _query_crew(project)
+    crew_result = _query_crew(project, session_id=session_id, state_hash=state_hash)
     if crew_result:
         parts.append(f"[Crew] {crew_result}")
 
@@ -664,10 +714,10 @@ def main():
             intents = _classify_intents(prompt)
             if _is_fast_path(prompt, intents):
                 path = "fast"
-                briefing = _assemble_fast(prompt, intents, project, session_id)
+                briefing = _assemble_fast(prompt, intents, project, session_id, state_hash=current_hash)
             else:
                 path = "slow"
-                briefing = _assemble_slow(prompt, project, session_id)
+                briefing = _assemble_slow(prompt, project, session_id, state_hash=current_hash)
 
         # Persist new hash after routing (only update when we proceed past the short-circuit)
         if state and current_hash and current_hash != stored_hash:
@@ -694,6 +744,18 @@ def main():
             briefing = _enforce_budget_scaled(briefing, path, budget_multiplier)
         else:
             briefing = _enforce_budget(briefing, path)
+
+        # --- Feed the pressure tracker with this turn's byte contribution ---
+        try:
+            sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
+            from context_pressure import PressureTracker
+            _tracker = PressureTracker(session_id)
+            _tracker.increment_turn(
+                prompt_bytes=len(prompt.encode("utf-8")),
+                briefing_bytes=len(briefing.encode("utf-8")) if briefing else 0,
+            )
+        except Exception:
+            pass  # fail open
 
         if not briefing and not onboarding_directive and not _reconnect_notification:
             print(json.dumps({"continue": True}))

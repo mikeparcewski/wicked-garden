@@ -130,6 +130,8 @@ def _run_memory_promotion(session_id: str) -> list:
         smaht_dir = _session_dir("wicked-smaht")
         if not smaht_dir.exists():
             # No smaht session this run — nothing to promote
+            if os.environ.get("WICKED_DEBUG"):
+                print(f"[wicked-garden] memory promotion: no smaht session at {smaht_dir}", file=sys.stderr)
             return []
 
         # Add smaht/v2 to sys.path so FactExtractor / MemoryPromoter are importable.
