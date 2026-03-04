@@ -855,6 +855,17 @@ def main():
             onboarding_safe = onboarding_directive.replace("</system-reminder>", "")
             all_parts.append(onboarding_safe)
 
+        # --- Periodic memory storage nudge (every 10 turns) ---
+        # Restored from old wicked-mem prompt_submit.py behavior.
+        # Reminds Claude to store learnings periodically so memories don't
+        # only get captured at session end (which is async and unreliable).
+        _STORAGE_NUDGE_INTERVAL = 10
+        if turn_count > 0 and turn_count % _STORAGE_NUDGE_INTERVAL == 0:
+            all_parts.append(
+                "[Memory] Checkpoint: If recent work produced any decisions, gotchas, "
+                "or reusable patterns, store them now with /wicked-garden:mem:store."
+            )
+
         # --- Crew recommendation heuristic ---
         # Suggest crew on SLOW path for complex requests when:
         #   1. Path is "slow" (complex / ambiguous prompt)
