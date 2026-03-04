@@ -33,7 +33,7 @@ try:
     from models import GraphNode as JsonlGraphNode, CallRef, NodeType, IndexMetadata
     from models import FileMetadata as JsonlFileMetadata
     from indexer import ParallelIndexer
-    from linker import DependencyLinker
+    from linker import DependencyLinker, DocLinker
     from updater import IncrementalUpdater
     HAS_JSONL_MODULES = True
 except ImportError:
@@ -1435,10 +1435,17 @@ class UnifiedSearchIndex:
             stats["doc_files"] = len(doc_files)
             stats["doc_sections"] = doc_node_count
 
-        # Pass 2: Link dependencies
+        # Pass 2: Link dependencies (code-to-code: calls, imports, inheritance)
         if jsonl_path.exists():
             linker = DependencyLinker()
             stats["cross_refs"] = linker.link(jsonl_path)
+
+            # Pass 2b: Link doc-to-code cross-references (doc sections → code symbols)
+            # Writes metadata["documents"] on each doc node so migration creates
+            # ref_type='documents' edges in symbol_refs for impl/refs commands.
+            doc_linker = DocLinker()
+            doc_refs = doc_linker.link(jsonl_path)
+            stats["cross_refs"] += doc_refs
 
         # Update metadata
         metadata = IndexMetadata.create(str(self.root_path))
