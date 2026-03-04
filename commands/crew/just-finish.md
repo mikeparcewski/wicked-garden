@@ -132,7 +132,7 @@ Proceed? (Y/n)
 
 **Same as execute.md Section 4.5 — run after every checkpoint phase completes.**
 
-Read `${CLAUDE_PLUGIN_ROOT}/phases.json` and check if the completed phase has `"checkpoint": true` (clarify, design, build).
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` and check if the completed phase has `"checkpoint": true` (clarify, design, build).
 
 When a checkpoint phase completes:
 
@@ -177,7 +177,7 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
 
 **Same as execute.md Section 7.5 — run after deliverables are complete, before sign-off.**
 
-Read `${CLAUDE_PLUGIN_ROOT}/phases.json` for the current phase's `gate_required` and `gate_type`.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` for the current phase's `gate_required` and `gate_type`.
 
 If `gate_required` is `true`:
 

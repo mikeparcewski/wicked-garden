@@ -233,8 +233,8 @@ wicked-garden/
 ├── .claude-plugin/
 │   ├── plugin.json          # name, version, description
 │   ├── specialist.json      # 8 specialist roles, 48 personas
-│   └── marketplace.json     # marketplace registration
-├── phases.json              # 7-phase catalog with gates and checkpoints
+│   ├── marketplace.json     # marketplace registration
+│   └── phases.json          # 7-phase catalog with gates and checkpoints
 ├── commands/
 │   ├── {domain}/            # domain-scoped slash commands
 │   └── *.md                 # root-level commands (setup, help, report-issue)
