@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.14.0] - 2026-03-04
+
+### Features
+- feat: resolve remaining gaps in #198, #200, #202 issue implementations (0626882)
+
 ## [1.13.0] - 2026-03-04
 
 ### Features
