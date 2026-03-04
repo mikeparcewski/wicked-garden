@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.1] - 2026-03-04
+
+### Refactoring
+- refactor: replace file-based release notes with GitHub releases (0a5a470)
+
+### Chores
+- release: wicked-garden v1.15.0 (266e070)
+
 ## [1.15.0] - 2026-03-04
 
 ### Chores
