@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.17.2] - 2026-03-04
+
+### Bug Fixes
+- fix: resolve 14 GitHub issues across search, smaht, crew, and infrastructure (022df1b)
+
+### Chores
+- release: wicked-garden v1.17.1 (3a30ffc)
+
 ## [1.17.1] - 2026-03-04
 
 ### Bug Fixes
