@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.0] - 2026-03-04
+
+### Bug Fixes
+- fix: strengthen lifecycle enforcement across 6 areas (2458c48)
+
 ## [1.16.0] - 2026-03-04
 
 ### Bug Fixes

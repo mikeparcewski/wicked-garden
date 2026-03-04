@@ -79,7 +79,22 @@ Parse the JSON response to get `project_dir` for later use.
 3. **Analyze codebase structure** (if wicked-search available):
    - `/wicked-garden:search:scout` for pattern detection (component library? API routes? data pipelines? content templates?)
 
-4. **Build archetype hints** as JSON — define what quality dimensions matter for this project:
+4. **Explore codebase for affected files** (pre-analysis for smart decisioning):
+
+   Dispatch an Explore subagent to identify files that would be affected based on the project description. This populates `--files` for impact scoring in step 5.5.
+
+   ```
+   Task(
+     subagent_type="wicked-garden:search:code",
+     prompt="Based on this project description, identify file paths in the codebase that would likely be affected or are most relevant. Use Glob and Grep to find relevant files by examining the directory structure, key source files, and any modules or components related to: {description}. Return a plain comma-separated list of up to 20 relative file paths, nothing else."
+   )
+   ```
+
+   **Timeout**: If the exploration subagent does not return results within 15 seconds or returns an error, skip file hints entirely — set `FILE_HINTS_CSV` to an empty string and proceed without `--files`. File hints are an enhancement, not a blocker.
+
+   Capture the result as `FILE_HINTS_CSV` (the comma-separated file paths returned by the subagent). If the result is empty or the subagent was skipped, `FILE_HINTS_CSV` remains empty.
+
+5. **Build archetype hints** as JSON — define what quality dimensions matter for this project:
    ```json
    {
      "archetype-name": {
@@ -93,11 +108,22 @@ Parse the JSON response to get `project_dir` for later use.
    ```
    You can use built-in archetypes (content-heavy, ui-heavy, api-backend, infrastructure-framework, data-pipeline, mobile-app, ml-ai, compliance-regulated, monorepo-platform, real-time) OR define new ones dynamically.
 
-5. **Store archetype hints** via phase_manager update as `archetype_hints` for reuse at checkpoints (do NOT write project.json directly — use the update command in step 5.5).
+6. **Store archetype hints** via phase_manager update as `archetype_hints` for reuse at checkpoints (do NOT write project.json directly — use the update command in step 5.5).
 
 ### 5.5 Analyze Input with Smart Decisioning
 
-Run smart decisioning with archetype hints:
+Run smart decisioning with archetype hints and file impact scoring.
+
+**If `FILE_HINTS_CSV` is non-empty** (populated by the exploration subagent in step 5):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
+  --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
+  --files "${FILE_HINTS_CSV}" \
+  "{description}"
+```
+
+**If `FILE_HINTS_CSV` is empty** (exploration timed out or was skipped):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \

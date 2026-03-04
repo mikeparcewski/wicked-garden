@@ -35,10 +35,10 @@ Run indexing and exploration concurrently. The goal: build understanding while t
 
 Unless `--skip-index`, start indexing in the background.
 
-Run indexing via the knowledge graph:
+Run indexing via the search indexer:
 
 ```
-Bash(command="python3 '${CLAUDE_PLUGIN_ROOT}/scripts/cp.py' knowledge symbols ingest --project '{project_name}'",
+Bash(command="cd '${CLAUDE_PLUGIN_ROOT}' && uv run python scripts/search/unified_search.py index '{path}' --project '{project_name}'",
      run_in_background=true)
 ```
 
