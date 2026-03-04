@@ -2062,6 +2062,10 @@ async def main():
     index_parser.add_argument("--skip-graph", action="store_true",
                              help="Skip Symbol Graph + linker pipeline (JSONL only, faster)")
     index_parser.add_argument("--project", help="Project name for multi-project isolation")
+    index_parser.add_argument("--derive", action="store_true",
+                             help="Auto-derive lineage paths after indexing")
+    index_parser.add_argument("--derive-all", action="store_true",
+                             help="Auto-derive lineage paths AND service map after indexing")
 
     # search
     search_parser = subparsers.add_parser("search", help="Search everything")
@@ -2308,6 +2312,75 @@ async def main():
                 print(f"  Warning: Unified DB build failed: {result.stderr[:200]}", file=sys.stderr)
         except Exception as e:
             print(f"  Warning: Unified DB build failed: {str(e)[:200]}", file=sys.stderr)
+
+        # --- Lineage derivation (--derive or --derive-all) ---
+        do_derive = getattr(args, 'derive', False) or getattr(args, 'derive_all', False)
+        do_service_map = getattr(args, 'derive_all', False)
+
+        if do_derive and unified_db_path.exists():
+            print("\nDeriving lineage paths...")
+            try:
+                from lineage_tracer import LineageTracer
+
+                # Ensure 'refs' view exists — lineage_tracer expects 'refs' but
+                # the unified DB uses 'symbol_refs'
+                _compat_conn = sqlite3.connect(str(unified_db_path))
+                # Create 'refs' view with 'confidence' column that lineage_tracer expects.
+                # The unified DB's symbol_refs lacks a confidence column, so we default to 'medium'.
+                _compat_conn.execute("DROP VIEW IF EXISTS refs")
+                _compat_conn.execute(
+                    "CREATE VIEW refs AS "
+                    "SELECT source_id, target_id, ref_type, 'medium' AS confidence "
+                    "FROM symbol_refs"
+                )
+                _compat_conn.commit()
+                # Find all symbols that have outgoing references (potential sources)
+                # Query symbols with outgoing references — use all layers since
+                # the unified DB uses broad layers (backend/frontend/unknown),
+                # not the fine-grained layers (api/controller/service/model/database/ui)
+                # that the Symbol Graph uses.
+                cursor = _compat_conn.execute(
+                    "SELECT DISTINCT s.id FROM symbols s "
+                    "JOIN symbol_refs r ON s.id = r.source_id "
+                    "LIMIT 500"
+                )
+                source_ids = [row[0] for row in cursor.fetchall()]
+                _compat_conn.close()
+
+                tracer = LineageTracer(unified_db_path)
+
+                total_paths = 0
+                for sym_id in source_ids:
+                    try:
+                        paths = tracer.trace(sym_id, direction="downstream", max_depth=6)
+                        if paths:
+                            total_paths += tracer.save_lineage_paths(paths)
+                    except Exception:
+                        pass  # skip symbols that fail to trace
+
+                tracer.close()
+                print(f"  Lineage: {total_paths} paths derived from {len(source_ids)} source symbols")
+            except ImportError:
+                print("  Warning: lineage_tracer module not available", file=sys.stderr)
+            except Exception as e:
+                print(f"  Warning: Lineage derivation failed: {str(e)[:200]}", file=sys.stderr)
+
+        if do_service_map:
+            print("\nDetecting service architecture...")
+            try:
+                from service_detector import ServiceDetector
+                detector = ServiceDetector(
+                    project_path,
+                    unified_db_path if unified_db_path.exists() else None
+                )
+                result = detector.detect_all()
+                saved = detector.save_to_database(unified_db_path)
+                print(f"  Services: {len(detector.services)} nodes, {len(detector.connections)} connections")
+                print(f"  Sources: {', '.join(result['metadata']['sources'])}")
+            except ImportError:
+                print("  Warning: service_detector module not available", file=sys.stderr)
+            except Exception as e:
+                print(f"  Warning: Service detection failed: {str(e)[:200]}", file=sys.stderr)
 
     elif args.command == "graph":
         # Symbol Graph specific command

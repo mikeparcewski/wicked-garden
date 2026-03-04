@@ -16,9 +16,9 @@ Build a unified index of code symbols and document content in the local SQLite d
 
 ## Instructions
 
-1. Build the local unified index (primary — always runs):
+1. Build the local unified index (primary — always runs). Pass `--derive` or `--derive-all` if the user requested them:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py index "<path>" ${project:+--project "${project}"}
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py index "<path>" ${project:+--project "${project}"} ${derive:+--derive} ${derive_all:+--derive-all}
    ```
 
 2. Verify the local index:
