@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.3] - 2026-03-04
+
+### Chores
+- release: wicked-garden v1.17.2 (aed5a85)
+
 ## [1.17.2] - 2026-03-04
 
 ### Bug Fixes

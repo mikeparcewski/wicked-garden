@@ -159,9 +159,25 @@ Once the background index completes:
 
 Read the background task output. If still running, report progress and continue to the report (validation can happen later).
 
-#### 4.2 Validate Navigability
+#### 4.2 Deep Linking (Lineage + Service Map)
 
-If index is ready, run validation checks:
+If the index is ready, derive cross-layer relationships that raw indexing alone doesn't produce:
+
+```
+/wicked-garden:search:service-map
+```
+
+This detects services, layers, and their dependencies. Then derive lineage for key entry points discovered in Phase 1:
+
+```
+/wicked-garden:search:lineage "{key_symbol}" --direction both
+```
+
+Run this for 2-3 key symbols from the exploration to populate the lineage graph.
+
+#### 4.3 Validate Navigability
+
+Run validation checks against the fully-linked index:
 
 ```
 /wicked-garden:search:stats
@@ -171,7 +187,7 @@ Then verify the discovered architecture matches the indexed data:
 
 - Can we find the entry points we discovered? → `/wicked-garden:search:code "{main function/class}"`
 - Can we trace the flows we identified? → `/wicked-garden:search:refs "{key symbol}"`
-- Do the layers map correctly? → `/wicked-garden:search:service-map`
+- Do the layers map correctly? → (service-map already generated above)
 
 Report validation results:
 
@@ -181,7 +197,8 @@ Report validation results:
 |-------|--------|--------|
 | Entry points findable | {pass/fail} | {count}/{total} found in index |
 | Key flows traceable | {pass/fail} | {count}/{total} traceable |
-| Service map matches | {pass/fail} | {detail} |
+| Service map derived | {pass/fail} | {service_count} services, {layer_count} layers |
+| Lineage paths | {pass/fail} | {lineage_count} paths traced |
 | Index coverage | {percentage} | {indexed}/{total} files |
 ```
 
@@ -224,8 +241,9 @@ Based on your onboarding discoveries:
 
 ### For Continued Learning
 
-- `/wicked-garden:search:lineage {key symbol}` — Trace data flow
-- `/wicked-garden:search:blast-radius {key symbol}` — Impact analysis
+- `/wicked-garden:search:blast-radius {key symbol}` — Impact analysis (index + lineage already built)
+- `/wicked-garden:search:lineage {key symbol}` — Trace additional data flows
+- `/wicked-garden:search:hotspots` — Find the most-referenced symbols
 - `/wicked-garden:delivery:report --orient` — Detailed orientation guide
 - `/wicked-garden:smaht:onboard --resume` — Continue from where you left off
 
@@ -242,10 +260,11 @@ After the report, offer to go deeper:
 ---
 
 **Want to go deeper?** I can:
-- `/wicked-garden:search:index {path} --derive-all` — Full lineage + service map derivation
-- Trace a specific flow end-to-end
+- `/wicked-garden:search:blast-radius {symbol}` — Analyze impact of changing a symbol
+- `/wicked-garden:search:lineage {symbol}` — Trace more data flows end-to-end
 - Explain any component in detail
 - Generate a learning path for this codebase
+- Re-index with `/wicked-garden:search:index {path}` if the index looks incomplete
 ```
 
 ## Graceful Degradation
