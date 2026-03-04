@@ -1,8 +1,8 @@
 ---
 name: agent-browser
 description: |
-  Browser automation via agent-browser CLI. Screenshots, scraping, accessibility audits,
-  form automation, and live viewport streaming.
+  This skill should be used when automating browser interactions via the agent-browser CLI.
+  Provides screenshots, scraping, accessibility audits, form automation, and live viewport streaming.
 
   Use when:
   - Taking screenshots or extracting page content

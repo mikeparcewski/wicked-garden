@@ -1,6 +1,12 @@
 ---
 name: gh-cli
-description: GitHub CLI power utilities - workflow debugging, PR management, release automation, and repo operations. Use when working with GitHub via CLI for anything beyond basic git commands.
+description: |
+  GitHub CLI power utilities — workflow debugging, PR management, release automation,
+  and repo operations beyond basic git commands.
+
+  Use when: "debug CI", "failed workflow", "why did CI fail", "PR review queue",
+  "merge PRs", "create release", "repo health check", "bulk issue operations",
+  "GitHub Actions", "workflow runs"
 ---
 
 # GitHub CLI Power Utilities

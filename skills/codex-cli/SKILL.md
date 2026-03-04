@@ -1,8 +1,9 @@
 ---
 name: codex-cli
 description: |
-  Use the OpenAI Codex CLI for AI-assisted coding, code review, and multi-model collaboration.
-  Codex excels at code generation, refactoring, and technical analysis.
+  This skill should be used when working with the OpenAI Codex CLI for AI-assisted coding,
+  code review, and multi-model collaboration. Codex excels at code generation, refactoring,
+  and technical analysis.
 
   Use when:
   - Getting a second opinion on code or architecture

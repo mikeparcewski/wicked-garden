@@ -1,8 +1,9 @@
 ---
 name: opencode-cli
 description: |
-  Use the OpenCode CLI for AI-assisted coding with multiple models and providers.
-  OpenCode supports various AI models and includes built-in MCP server management.
+  This skill should be used when working with the OpenCode CLI for AI-assisted coding
+  with multiple models and providers. OpenCode supports various AI models and includes
+  built-in MCP server management.
 
   Use when:
   - Getting a second opinion from different AI providers
