@@ -119,7 +119,7 @@ Supports [Conventional Commits](https://www.conventionalcommits.org/) format:
 4. **Update** `.claude-plugin/plugin.json` version field
 5. **Generate** CHANGELOG.md entries
 6. **Create git tag** (e.g., `v1.3.0`)
-7. **Generate** release notes (RELEASE-{version}.md)
+7. **Create GitHub release** with release notes via `gh release create`
 
 ### Change Detection
 

@@ -1,7 +1,7 @@
 ---
 description: Manage versions and generate changelogs for the wicked-garden plugin
 argument-hint: [--bump major|minor|patch] [--dry-run]
-allowed-tools: Read, Write, Bash(python3:*, git:*)
+allowed-tools: Read, Write, Bash(python3:*, git:*, gh:*)
 ---
 
 Release the wicked-garden plugin with version management and changelog generation.
@@ -50,14 +50,14 @@ Enter interactive mode:
 5. Update version in `.claude-plugin/marketplace.json`
 6. Generate/update `CHANGELOG.md` at repo root
 7. Create git tag (unless --no-tag)
-8. Generate release notes (`RELEASE-{version}.md`)
+8. Create GitHub release with release notes via `gh release create`
 
 ## After release
 
 1. Show new version number
 2. Display changelog entries
-3. Remind to push tags: `git push --tags`
-4. Suggest announcing the release
+3. The script automatically creates a GitHub release with release notes via `gh release create`
+4. Remind to push: `git push && git push --tags`
 
 ## Dry Run Mode
 
