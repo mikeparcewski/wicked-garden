@@ -401,25 +401,30 @@ class ReleaseManager:
 
         return "\n".join(lines)
 
-    def save_release_notes(self, content: str, version: str):
-        """Save release notes to file, removing old RELEASE-*.md files."""
-        notes_path = self.component_path / f"RELEASE-{version}.md"
-
+    def create_github_release(self, content: str, version: str, tag_name: str):
+        """Create a GitHub release with release notes via gh CLI."""
         if self.dry_run:
-            print(f"[DRY RUN] Would save release notes to {notes_path}")
+            print(f"[DRY RUN] Would create GitHub release for tag {tag_name}")
             print("\nRelease notes:")
             print(content)
             return
 
-        # Remove old RELEASE files
-        for old in self.component_path.glob("RELEASE-*.md"):
-            if old.name != notes_path.name:
-                old.unlink()
-
-        with open(notes_path, "w") as f:
-            f.write(content)
-
-        print(f"✓ Generated release notes: {notes_path.name}")
+        try:
+            subprocess.run(
+                [
+                    "gh", "release", "create", tag_name,
+                    "--title", f"wicked-garden v{version}",
+                    "--notes", content,
+                ],
+                check=True,
+            )
+            print(f"✓ Created GitHub release: {tag_name}")
+        except FileNotFoundError:
+            print("Warning: gh CLI not found. Skipping GitHub release creation.")
+            print("Install with: brew install gh")
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: Failed to create GitHub release: {e}")
+            print("You can create it manually: gh release create " + tag_name)
 
     def run_release(
         self,
@@ -497,13 +502,16 @@ class ReleaseManager:
         changelog_content = self.generate_changelog_content(categorized, new_version)
         self.update_changelog(changelog_content)
 
-        # Generate release notes
-        release_notes = self.generate_release_notes(categorized, new_version)
-        self.save_release_notes(release_notes, new_version)
-
         # Create git tag
+        component_name = self.get_plugin_name()
+        tag_name = f"{component_name}-v{new_version}"
         if create_tag:
             self.create_git_tag(new_version)
+
+        # Generate release notes and create GitHub release
+        release_notes = self.generate_release_notes(categorized, new_version)
+        if create_tag:
+            self.create_github_release(release_notes, new_version, tag_name)
 
         print()
         if self.dry_run:
@@ -516,9 +524,7 @@ class ReleaseManager:
                 f"  2. Commit changes: git add . && git commit -m 'release: {self.component_path.name} v{new_version}'"
             )
             if create_tag:
-                print(
-                    f"  3. Push tag: git push origin {self.component_path.name}-v{new_version}"
-                )
+                print(f"  3. Push: git push && git push origin {tag_name}")
 
         return new_version, categorized
 
