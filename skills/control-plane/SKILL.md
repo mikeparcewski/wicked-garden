@@ -5,8 +5,9 @@ description: |
   wicked-garden defaults to local mode (auto-starts CP on localhost, falls back to local JSON files).
   Use this skill only when the user needs CP API access, endpoint discovery, or CP connectivity debugging.
 
-  Use when: "control plane API", "CP endpoint", "CP connectivity", "team sync",
-  "manifest discovery", "debug CP issue", "local mode", "remote mode"
+  Use when querying the control plane API directly, discovering CP endpoints,
+  debugging connectivity issues, switching between local and remote modes,
+  or migrating team configuration between environments.
 ---
 
 # Control Plane Interface *(experimental)*

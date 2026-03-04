@@ -1,11 +1,9 @@
 ---
 name: cp-error-detector
-description: Diagnose and fix control plane HTTP errors (400/500/connection)
-triggers:
-  - "[CP Error]"
-  - "control plane HTTP"
-  - "CP rejected"
-dev_only: true
+description: |
+  Diagnose and fix control plane HTTP errors (400/500/connection failures).
+  Use when: "[CP Error]" in output, "control plane HTTP" errors, "CP rejected" responses,
+  or any HTTP 400/500 from the control plane.
 ---
 
 # Control Plane Error Diagnosis

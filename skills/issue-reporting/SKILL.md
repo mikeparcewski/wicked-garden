@@ -4,7 +4,9 @@ description: |
   Automated GitHub issue detection and filing from Claude sessions. Tracks tool
   failures and task completion mismatches. Files issues automatically at session
   end or on demand via /wicked-garden:report-issue.
-  Use when: filing a bug, reporting UX friction, logging unmet outcomes, tool failures, report issue, create issue, something went wrong, not working as expected
+
+  Use when: "file a bug", "report issue", "something went wrong", "not working as expected",
+  "create issue", reporting UX friction, logging unmet outcomes, or investigating tool failures.
 ---
 
 # Issue Reporting

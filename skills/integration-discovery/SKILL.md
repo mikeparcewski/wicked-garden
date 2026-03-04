@@ -4,11 +4,9 @@ description: |
   Capability router that decides which tools, skills, and agents to use for a task.
   Reduces cognitive load on the main agent by making tool selection decisions.
 
-  Use this skill (or spawn as subagent) when:
-  - Starting a complex task that might benefit from available integrations
-  - Unsure what tools/skills could help with current work
-  - Want to discover capabilities before executing
-  - Building a task plan that should leverage available resources
+  Use when: planning work for unfamiliar domains, evaluating task scope before execution,
+  discovering what integrations or MCP servers could help, building task execution strategies,
+  or when unsure which tools, skills, or agents to use for current work.
 ---
 
 # Capability Router
