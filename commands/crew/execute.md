@@ -213,7 +213,7 @@ Read project.json for:
 
 **CRITICAL: Run after every checkpoint phase completes.**
 
-Read `${CLAUDE_PLUGIN_ROOT}/phases.json` and check if the current phase has `"checkpoint": true`. Checkpoint phases are: **clarify**, **design**, **build**.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` and check if the current phase has `"checkpoint": true`. Checkpoint phases are: **clarify**, **design**, **build**.
 
 When a checkpoint phase completes:
 
@@ -233,7 +233,7 @@ When a checkpoint phase completes:
 
 When new signals are detected OR complexity increases at a checkpoint, check if any phases NOT in the current `phase_plan` should be injected:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/phases.json` for all phases
+1. Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` for all phases
 2. **Normalize legacy aliases**: `qe` in `phase_plan` = `test-strategy`. Before checking, normalize all plan entries to canonical names to prevent duplicate injection.
 3. For each phase NOT currently in `phase_plan` (after normalization):
    - Check if any new signal matches the phase's `triggers` (or triggers is `["*"]` and complexity is in range)
@@ -416,7 +416,7 @@ Tasks created via TaskCreate are automatically synced to kanban (if installed) v
 
 #### Phase Deliverables
 
-Read `${CLAUDE_PLUGIN_ROOT}/phases.json` for the current phase's `required_deliverables` and `optional_deliverables`. Each phase defines what it needs to produce. Common patterns:
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` for the current phase's `required_deliverables` and `optional_deliverables`. Each phase defines what it needs to produce. Common patterns:
 
 - **clarify**: objective.md, complexity.md, acceptance-criteria.md
 - **design**: architecture.md, optional task-breakdown.md and ADRs
@@ -447,7 +447,7 @@ Call `TaskList` and filter tasks by phase AND project name in their subject (cas
    - test: 1-3 (test execution)
    - review: 1-3 (review completion)
 
-   Read `${CLAUDE_PLUGIN_ROOT}/phases.json` for the canonical phase list. These are defaults.
+   Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` for the canonical phase list. These are defaults.
 
    **Note**: Minimum is enforced (blocks completion). Maximum is advisory (warns but doesn't block).
 
@@ -501,7 +501,7 @@ Prevent phase completion race conditions:
 
 **CRITICAL: Run AFTER deliverables are complete, BEFORE sign-off.**
 
-Read `${CLAUDE_PLUGIN_ROOT}/phases.json` for the current phase's `gate_required` and `gate_type`.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` for the current phase's `gate_required` and `gate_type`.
 
 If `gate_required` is `true` (all phases except ideate):
 
@@ -772,7 +772,7 @@ Available in `project.json`:
 
 ### should_skip_phase Priority Order
 
-Read `${CLAUDE_PLUGIN_ROOT}/phases.json` — phases with `is_skippable: false` can NEVER be skipped.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` — phases with `is_skippable: false` can NEVER be skipped.
 
 For skippable phases:
 1. **User Override** (highest priority)

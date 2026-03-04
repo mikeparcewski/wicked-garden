@@ -44,7 +44,7 @@ def resolve_phase(name: str) -> str:
 def _get_plugin_root() -> Path:
     """Resolve the plugin root directory (repo root).
 
-    Walks up from scripts/crew/ to find phases.json or .claude-plugin/.
+    Walks up from scripts/crew/ to find .claude-plugin/.
     Falls back to 3 levels up from this file.
     """
     here = Path(__file__).resolve().parent  # scripts/crew/
@@ -52,8 +52,6 @@ def _get_plugin_root() -> Path:
     candidate = here
     for _ in range(5):
         candidate = candidate.parent
-        if (candidate / "phases.json").exists():
-            return candidate
         if (candidate / ".claude-plugin").is_dir():
             return candidate
     # Fallback: 3 levels up from this file (scripts/crew/ -> scripts/ -> repo root)
@@ -61,8 +59,8 @@ def _get_plugin_root() -> Path:
 
 
 def load_phases_config() -> dict:
-    """Load phase definitions from phases.json at plugin root."""
-    config_path = _get_plugin_root() / "phases.json"
+    """Load phase definitions from phases.json in .claude-plugin/."""
+    config_path = _get_plugin_root() / ".claude-plugin" / "phases.json"
     if config_path.exists():
         with open(config_path) as f:
             return json.load(f).get("phases", {})

@@ -222,7 +222,7 @@ Then proceed directly to Step 8. Do not read phases.json or run signal-based pha
 
 **Otherwise** (no `--quick` flag): Run the full phase selection:
 
-Read `${CLAUDE_PLUGIN_ROOT}/phases.json` to see all available phases with their triggers, complexity ranges, and skip rules.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` to see all available phases with their triggers, complexity ranges, and skip rules.
 
 Select which phases to include based on the signal analysis and complexity score:
 
