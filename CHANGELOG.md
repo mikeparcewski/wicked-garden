@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.0] - 2026-03-04
+
+### Bug Fixes
+- fix: resolve remaining skill review findings (round 2) (b12790b)
+- fix: resolve skill review findings (9e875f2)
+
 ## [1.15.2] - 2026-03-04
 
 ### Bug Fixes
