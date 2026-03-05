@@ -1,18 +1,11 @@
 ---
 name: presentation
-namespace: wicked-garden:presentation:presentation
 description: >
-  Full-featured presentation creation skill for wicked-garden. Use this skill whenever the user
-  wants to create, plan, or brainstorm a presentation in any format — especially when they mention
-  slides, decks, topics, content directories, or say things like "make a deck", "build a
-  presentation", "I need slides on X", "turn this into a presentation", "show this as an HTML
-  page", or "make a reveal.js deck." Also triggers on: "learn my brand", "extract styles from
-  this deck", "sync registry", "what templates do I have", "render as HTML", or any request
-  to create a presentation with style awareness or content sourcing. This skill coordinates the
-  full workflow: style learning from existing assets, content indexing, integration with brainstorm
-  and research capabilities, registry sync, four distinct creation modes (interactive brainstorm,
-  content-driven create, fast path, overview), and dual-format rendering to .pptx (via PptxGenJS)
-  and/or self-contained .html (via reveal.js) from a single deck spec.
+  Presentation creation skill. Triggers on: "make a deck", "build a presentation", "I need slides
+  on X", "turn this into a presentation", "make a reveal.js deck", "learn my brand", "extract
+  styles", "sync registry", "render as HTML." Four creation modes (brainstorm, create, fast path,
+  overview), style learning from existing assets, shared design registry, and dual-format rendering
+  to .pptx (PptxGenJS) and self-contained .html (reveal.js) from a single deck spec.
 ---
 
 # Presentation
@@ -118,23 +111,9 @@ Never hardcode paths. Use the storage keys defined in each reference file. Stora
 
 ## Hint System
 
-Fire contextual hints whenever these conditions are detected. Hints are brief, actionable, friendly.
-
-| Condition | Hint |
-|---|---|
-| No style profile exists | *"No style profile found — using minimal light. Run style extraction on existing decks to match your brand."* |
-| Topic only, no content, research off | *"This will be AI-generated without source material. Consider enabling research or providing a content directory."* |
-| Slide count >> content volume | *"That's a lot of slides for the content available — I'd suggest N. Want me to adjust?"* |
-| Index has relevant content | *"Found related content in your index — want to include it?"* |
-| `brainstorm` skill unavailable | *"Brainstorm skill not found — starting in create mode instead."* |
-| `research` skill unavailable | *"Research skill not found — I'll work with what you provide."* |
-| No content + no research + shallow topic | *"Not much to work with yet. Try: providing a file, enabling research, or expanding the topic description."* |
-| Image/PDF provided without context | *"Got it. Should I use these for content, style reference, or both?"* |
-| Prior versions exist for this topic | *"Found prior versions of a deck on this topic — start fresh or build from the latest?"* |
-| Registry available but not synced | *"Your design registry hasn't been synced this session — want to pull latest?"* |
-| Unsplash chosen, no attribution preference set | *"Unsplash images require attribution — I'll add it to speaker notes by default. Change this in your profile."* |
-| Format not set, deck will be shared as URL | *"This looks like something you'd share as a link — HTML output might work better. Want to switch or add both formats?"* |
-| Format not set, deck needs post-editing | *"Looks like you'll want to edit this after — use pptx format to keep it editable in PowerPoint."* |
+Contextual hints fire automatically during creation flows — missing profiles, content gaps, format
+suggestions, registry sync reminders, and more. See [hints.md](refs/hints.md) for the full hint
+table and edge case handling.
 
 ---
 
