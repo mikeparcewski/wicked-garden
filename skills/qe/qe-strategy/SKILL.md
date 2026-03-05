@@ -166,6 +166,12 @@ Configuration via project.json:
 
 Without wicked-scenarios installed, all QE functionality works identically.
 
+## References
+
+| Document | Contents |
+|---|---|
+| [`refs/test-type-taxonomy.md`](refs/test-type-taxonomy.md) | 10 test types with evidence requirements, change-type selection matrix, evidence gate verdict format, and crew integration pattern |
+
 ## Integration
 
 - **wicked-crew**: Quality gates in delivery phases

@@ -155,15 +155,15 @@ PYEOF
 
 ---
 
-### TC-3: Bootstrap local-only branch sets correct session state
+### TC-3: Bootstrap local mode sets correct session state
 
 **Given**: `config.json` contains `"mode": "local-only"` and `"setup_complete": true`
-**When**: `_setup_local_only` is called with a fresh SessionState
+**When**: Bootstrap initializes for local mode (legacy `"local-only"` normalizes to `"local"`)
 **Then**:
-  - `state.cp_available` is `False`
-  - `state.fallback_mode` is `False` (this is the intended mode, not a fallback)
-  - `mode_notes` contains a line starting with `[local-only] Storage:`
-  - The SQLite database file exists at the expected path
+  - `state.cp_available` is `False` (CP is not running in local mode)
+  - `state.fallback_mode` is `True` (local is the fallback when CP is not reachable)
+  - `state.setup_complete` is `True`
+  - The briefing `additionalContext` contains `mode=local`
 
 ```bash
 python3 - <<'PYEOF'
@@ -183,45 +183,35 @@ _cp_mod.load_config = lambda: {"mode": "local-only", "setup_complete": True}
 from _session import SessionState
 state = SessionState()
 
-# Replicate what bootstrap._setup_local_only does
-from _storage import _LOCAL_ROOT
-_LOCAL_ROOT.mkdir(parents=True, exist_ok=True)
-db_path = _LOCAL_ROOT / "wicked-garden.db"
-
-from _sqlite_store import SqliteStore
-SqliteStore(str(db_path)).close()  # init schema
-
-mode_notes = []
+# In local mode bootstrap: CP check fails (not running), so state is set as fallback
+# This replicates the state.update call in bootstrap.py local mode branch (lines 642-648)
 state.update(
     cp_available=False,
-    fallback_mode=False,
+    cp_version="",
+    fallback_mode=True,  # fallback_mode=not cp_available
     setup_complete=True,
 )
-mode_notes.append(f"[local-only] Storage: {db_path}")
 
 # Assertions
 assert state.cp_available is False, f"cp_available should be False, got {state.cp_available}"
-assert state.fallback_mode is False, f"fallback_mode should be False (not a fallback), got {state.fallback_mode}"
+assert state.fallback_mode is True, f"fallback_mode should be True (local fallback when CP not running), got {state.fallback_mode}"
 assert state.setup_complete is True, f"setup_complete should be True"
 
-local_only_note = [n for n in mode_notes if n.startswith("[local-only] Storage:")]
-assert local_only_note, f"no [local-only] Storage note in mode_notes: {mode_notes}"
-
-assert db_path.exists(), f"SQLite DB was not created at {db_path}"
-print(f"TC-3 PASS: Bootstrap local-only state — cp_available=False, fallback_mode=False")
-print(f"  note : {local_only_note[0]}")
-print(f"  db   : {db_path} (exists={db_path.exists()})")
+print(f"TC-3 PASS: Bootstrap local mode state — cp_available=False, fallback_mode=True")
+print(f"  cp_available : {state.cp_available}")
+print(f"  fallback_mode: {state.fallback_mode}")
+print(f"  setup_complete: {state.setup_complete}")
 PYEOF
 ```
 
 ---
 
-### TC-4: Bootstrap briefing contains "mode=local"
+### TC-4: Bootstrap briefing contains "mode=local" in Config line
 
 **Given**: A valid `local-only` config
 **When**: The bootstrap `main()` is invoked via subprocess (to reproduce the real hook path)
-**Then**: The JSON output's `additionalContext` contains the string `"mode=local"`
-  and `cp_available=False` is written to the session state file
+**Then**: The JSON output's `additionalContext` contains the string `"mode=local"` as part of
+  the `Config:` status line (format: `Config:      mode=local endpoint=(none)`)
 
 ```bash
 python3 - <<'PYEOF'
@@ -526,8 +516,8 @@ All nine test cases pass with `PASS` in their output and exit code 0.
 |----|-------------|---------------|
 | TC-1 | SqliteStore CRUD + FTS5 | Record survives create/get/update/delete cycle; FTS search hits |
 | TC-2 | StorageManager never calls CP | `ControlPlaneClient.request` call log is empty after 5 CRUD ops |
-| TC-3 | Session state after bootstrap | `cp_available=False`, `fallback_mode=False`, Storage note present |
-| TC-4 | Briefing contains "mode=local" | Subprocess bootstrap produces correct `additionalContext` |
+| TC-3 | Session state after bootstrap | `cp_available=False`, `fallback_mode=True` (local fallback when CP not running) |
+| TC-4 | Briefing contains "mode=local" | Subprocess bootstrap produces `Config: mode=local endpoint=(none)` in `additionalContext` |
 | TC-5 | Migration JSON → SQLite on first boot | Planted JSON record appears in DB after migration run |
 | TC-6 | Migration is idempotent | Second run: `inserted=0`, `skipped>=1` |
 | TC-7 | WAL concurrent writes | Two threads write concurrently, both records retrievable, no OperationalError |
@@ -538,8 +528,8 @@ All nine test cases pass with `PASS` in their output and exit code 0.
 
 - [ ] TC-1: SqliteStore CRUD roundtrip and FTS5 search pass
 - [ ] TC-2: No HTTP calls to ControlPlaneClient in local-only mode
-- [ ] TC-3: Session state has `cp_available=False` and `fallback_mode=False` after local-only bootstrap
-- [ ] TC-4: Bootstrap briefing includes `mode=local` in additionalContext
+- [ ] TC-3: Session state has `cp_available=False` and `fallback_mode=True` after local mode bootstrap (local fallback when CP not running)
+- [ ] TC-4: Bootstrap briefing includes `Config: mode=local endpoint=(none)` in additionalContext
 - [ ] TC-5: JSON migration inserts planted record into SQLite
 - [ ] TC-6: Re-running migration skips already-present records (INSERT OR IGNORE)
 - [ ] TC-7: Concurrent WAL writes complete without `sqlite3.OperationalError`

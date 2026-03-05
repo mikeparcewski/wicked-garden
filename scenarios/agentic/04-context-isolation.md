@@ -174,15 +174,15 @@ Track token usage across phases to verify SADD reduces context:
 **Without SADD** (hypothetical - all discussion in one context):
 - Clarify: 5000 tokens of discussion
 - Design: 5000 (clarify) + 8000 (research) = 13000 tokens
-- QE: 13000 + 6000 (scenarios) = 19000 tokens
+- Test-Strategy: 13000 + 6000 (scenarios) = 19000 tokens
 - Build: 19000 + 15000 (implementation) = 34000 tokens
 - Review: 34000 + 5000 (review) = 39000 tokens
 
 **With SADD** (actual - fresh context per phase):
 - Clarify: 5000 tokens
 - Design: ~2000 (objective.md + acceptance-criteria.md) + 8000 (research) = 10000 tokens
-- QE: ~3000 (design artifacts) + 6000 (scenarios) = 9000 tokens
-- Build: ~4000 (design + QE) + 15000 (implementation) = 19000 tokens
+- Test-Strategy: ~3000 (design artifacts) + 6000 (scenarios) = 9000 tokens
+- Build: ~4000 (design + test-strategy) + 15000 (implementation) = 19000 tokens
 - Review: ~2000 (acceptance-criteria.md) + 5000 (review) = 7000 tokens
 
 **Expected**: Each phase starts with minimal context (only artifacts, not discussion)
@@ -217,7 +217,7 @@ Track token usage across phases to verify SADD reduces context:
 
 ### Context Isolation
 - [ ] Design phase only reads `objective.md` and `acceptance-criteria.md` (not clarify discussion)
-- [ ] Build phase only reads design/QE artifacts (not discussions)
+- [ ] Build phase only reads design/test-strategy artifacts (not discussions)
 - [ ] Review phase only reads outcome + final code (not process)
 - [ ] Agents don't reference conversations from previous phases
 
