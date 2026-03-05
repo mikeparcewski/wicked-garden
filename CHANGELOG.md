@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.18.0] - 2026-03-05
+
+### Features
+- feat: add default skill validation mode to wg-test using skill-creator (#257) (215693f)
+- feat: add operational logging and observability commands (94ec07d)
+
+### Chores
+- release: wicked-garden v1.17.10 (8f5e2e5)
+
 ## [1.17.10] - 2026-03-05
 
 ### Bug Fixes

@@ -86,6 +86,35 @@ TaskUpdate(taskId="{id}", status="completed",      # After finishing work
 - Enrich the description with what was done, decisions made, and learnings
 - If blocked, keep as `in_progress` and note the blocker
 
+## Evidence Requirements
+
+**Every completed task MUST include structured evidence in the TaskUpdate description.**
+
+Use this format in the `## Outcome` section of every TaskUpdate:
+
+```markdown
+## Outcome
+{what was accomplished — what problem was solved, what changed}
+
+## Evidence
+- Test: {test file or test name} — PASS/FAIL
+- File: {path/to/file.py} — created/modified/deleted
+- Verification: {command run + output excerpt, e.g. curl response or script output}
+- Performance: {latency/throughput metric, required for complexity >= 5}
+- Benchmark: {benchmark tool output, required for complexity >= 5}
+
+## Assumptions
+- {assumption 1 and rationale}
+- {assumption 2 and rationale}
+```
+
+**Evidence requirements by complexity:**
+- Complexity 1-2 (low): Test results + code diff reference
+- Complexity 3-4 (medium): Above + verification step
+- Complexity 5+ (high): Above + performance data + documented assumptions
+
+Reviewers use evidence to verify correctness without re-running the work. Missing evidence is a task quality failure.
+
 ## Output Format
 
 ```markdown

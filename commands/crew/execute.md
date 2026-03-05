@@ -388,6 +388,142 @@ For each phase, follow this pattern:
 | test | `wicked-garden:crew:reviewer` | "Execute tests and verify against test strategy: {test-strategy summary}" |
 | review | `wicked-garden:crew:reviewer` | "Review implementation against outcome: {outcome summary}" |
 
+#### Build Phase: TDD Enforcement (Issue #255)
+
+**CRITICAL: All build tasks with complexity >= 2 MUST follow the red-green-refactor cycle.**
+
+For each build task, check its complexity (from the task description or the project's complexity_score):
+
+**If task complexity >= 3** — three-step TDD dispatch (full red-green-refactor):
+
+1. **Red phase** (write failing tests first):
+   ```
+   Task(
+     subagent_type="wicked-garden:qe:tdd-coach",
+     prompt="Write failing tests (red phase) for: {task description}.
+     Project: {project-name}. Design: {relevant design excerpt}.
+     Output: failing test files that define the acceptance criteria.
+     Do NOT implement the feature yet."
+   )
+   ```
+   If `wicked-garden:qe:tdd-coach` is unavailable, include TDD red-phase instructions in the implementer prompt instead.
+
+2. **Green phase** (implement to pass tests):
+   ```
+   Task(
+     subagent_type="wicked-garden:crew:implementer",
+     prompt="Implement the feature to make failing tests pass (green phase).
+     Task: {task description}. Project: {project-name}.
+     Failing tests from red phase: {test file paths}.
+     Design: {design summary}. Do not refactor yet — just make tests pass."
+   )
+   ```
+
+3. **Refactor verification** (clean up without breaking tests):
+   ```
+   Task(
+     subagent_type="wicked-garden:qe:tdd-coach",
+     prompt="Verify and guide the refactor phase for: {task description}.
+     Project: {project-name}. Tests should remain passing after refactor.
+     Check: code quality, duplication, naming, test coverage completeness."
+   )
+   ```
+
+**If task complexity < 3** — include TDD guidance in the implementer prompt (lighter touch):
+```
+Task(
+  subagent_type="wicked-garden:crew:implementer",
+  prompt="Implement: {task description}. Project: {project-name}.
+  TDD guidance: Write a minimal test first to verify your change works,
+  then implement. Even for simple changes, a test proves correctness."
+)
+```
+
+#### Build Phase: Parallel Execution via Git Worktrees (Issue #252)
+
+Before dispatching build tasks, check whether parallel execution is feasible:
+
+**Step 1: Capability check**
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/worktree_manager.py" check-capability
+```
+
+If capability check returns `not capable` (dirty repo, detached HEAD, git not available), skip to sequential dispatch.
+
+**Step 2: Dependency analysis**
+
+If worktrees are available, analyze task dependencies to determine parallel batches:
+
+```bash
+# Pass current task list as JSON (from TaskList output)
+echo '{TASK_LIST_JSON}' | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/build_dependency_analyzer.py" \
+  --stdin --max-parallelism 3
+```
+
+This outputs batches: `[{"batch": 1, "tasks": ["id-1","id-2"], "parallel": true}, ...]`
+
+**Step 3: Parallel dispatch with worktrees**
+
+For each batch that has `"parallel": true` AND contains >= 2 tasks:
+
+1. Create a worktree per task:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/worktree_manager.py" \
+     create-worktree --project "{project-name}" --task-id "{task_id}" --json
+   ```
+
+2. Dispatch implementer subagents in parallel (one Task() call per task, all in the same message):
+   ```
+   Task(subagent_type="wicked-garden:crew:implementer", prompt="... --worktree {path}")
+   Task(subagent_type="wicked-garden:crew:implementer", prompt="... --worktree {path}")
+   ```
+
+3. After all parallel subagents complete, merge each worktree back **SEQUENTIALLY** (one at a time, never in parallel — concurrent merges can corrupt the repository):
+   ```bash
+   # Merge worktrees ONE AT A TIME in dependency order (leaf tasks first)
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/worktree_manager.py" \
+     merge-worktree --path "{worktree_path}" --json
+   ```
+
+**Step 4: Conflict escalation guardrail**
+
+If any merge returns `"success": false` with `"conflicts"`:
+
+- **DO NOT auto-resolve conflicts** — escalate to human review
+- Report the conflicted files and task pair
+- Ask user to choose: resolve manually, re-sequence the conflicting tasks, or abort
+- Clean up the worktree after escalation:
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/worktree_manager.py" \
+    cleanup-worktree --path "{worktree_path}"
+  ```
+
+**Step 5: Cleanup**
+
+After successful merge, clean up each worktree:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/worktree_manager.py" \
+  cleanup-worktree --path "{worktree_path}"
+```
+
+**Fallback: Sequential dispatch**
+
+When worktrees are unavailable or the batch has `"parallel": false`, dispatch tasks sequentially using the standard implementer Task() pattern without worktrees.
+
+#### Build Phase: Traceability
+
+After all build tasks complete, generate the traceability matrix to link test-strategy criteria to build outcomes:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" \
+  --phases-dir phases/ \
+  --project "{project-name}" \
+  --output phases/build/traceability-matrix.md
+```
+
+This maps acceptance criteria from `phases/test-strategy/` to completed build tasks. Include `traceability-matrix.md` in the build phase deliverables.
+
 #### Build Phase: Task Creation
 
 In the build phase, create rich tasks for implementation work:

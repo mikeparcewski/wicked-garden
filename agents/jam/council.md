@@ -123,6 +123,35 @@ Run ALL available CLIs in parallel using multiple Bash tool calls in a single me
 
 Claude also answers the same 4 questions independently (you already have the scaffold). Answer BEFORE reading external responses to maintain independence.
 
+### 6.5. Persist Council Responses as Transcript Entries
+
+After collecting all external model responses AND Claude's own evaluation, persist them as transcript entries so they are retrievable via `jam.py transcript`. Run once after all responses are in hand:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
+  --session-id "{session_id}" \
+  --entries '{json_array_of_entries}'
+```
+
+Each model's response becomes one entry:
+```json
+{
+  "session_id": "{session_id}",
+  "round": 1,
+  "persona_name": "Gemini",
+  "persona_type": "council",
+  "raw_text": "{full raw response from that model}",
+  "timestamp": "{ISO timestamp}",
+  "entry_type": "council_response"
+}
+```
+
+- Use `persona_name` = model name (e.g., "Claude", "Codex", "Gemini", "OpenCode", "Pi").
+- `persona_type` is always `council` for these entries.
+- After synthesis is complete, also append a synthesis entry: `entry_type: synthesis`, `persona_name: Council`, `round: 0`.
+
+If `save_transcript.py` is unavailable, skip transcript storage silently.
+
 ### 7. Synthesize Three-Stage Output
 
 #### Stage 1: Independent Responses
