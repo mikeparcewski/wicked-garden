@@ -3,27 +3,33 @@ name: wg-test
 description: Execute acceptance test scenarios for the wicked-garden plugin
 arguments:
   - name: target
-    description: "Domain name, or domain/scenario (e.g., mem or mem/decision-recall). Append --issues to auto-file GitHub issues for failures."
+    description: "Domain name, domain/scenario, --skills, or --skills domain. Append --issues to auto-file GitHub issues for failures."
     required: false
 ---
 
 # Test Scenarios
 
-Dev-tool wrapper that delegates to the best available testing pipeline. QE owns acceptance testing end-to-end; the scenarios domain provides standalone execution as a fallback.
+Dev-tool wrapper that delegates to the best available testing pipeline. QE owns acceptance testing end-to-end; the scenarios domain provides standalone execution as a fallback. The `--skills` mode validates plugin skills against standards using the skill-creator skill.
 
 ## Process
 
 ### 1. Parse Arguments
 
 Parse `$ARGUMENTS` to determine what to test:
-- No args → List domains with scenarios, ask user to pick
-- `domain-name` → List scenarios for that domain, ask user to pick
-- `domain/scenario-name` → Run that specific scenario
-- `domain --all` → Run all scenarios for that domain
-- `--all` → Run all scenarios across all domains
+- No args → Run skill validation (Step 7) THEN list domains with scenarios and ask user to pick
+- `domain-name` → Run skill validation for that domain (Step 7), then list scenarios for that domain and ask user to pick
+- `domain/scenario-name` → Run skill validation for that domain (Step 7), then run that specific scenario
+- `domain --all` → Run skill validation for that domain (Step 7), then run all scenarios for that domain
+- `--all` → Run skill validation for all domains (Step 7), then run all scenarios across all domains
+- `--skills-only` → Run ONLY skill validation (Step 7), skip scenarios entirely
+- `--skills-only domain-name` → Run ONLY skill validation for a specific domain
+- `--no-skills` → Skip skill validation, run scenarios only (legacy behavior)
+- `--fix` → During skill validation, auto-fix issues found
 - `--issues` flag (combinable with any above) → Auto-file GitHub issues for failures
 - `--batch N` → Run scenarios in batches of N in parallel (default: sequential)
 - `--debug` → Write debug log capturing tool-usage traces per batch
+
+**Execution order**: Skill validation (Step 7) always runs first unless `--no-skills` is specified. Scenario execution (Steps 2-6) runs after, unless `--skills-only` is specified.
 
 ### 2. Preflight Environment Check
 
@@ -314,38 +320,221 @@ for structured test verdicts. File manually: gh issue create --title "test(<doma
 
 **Neither available:** No testing occurred, no issue filing.
 
+### 7. Skill Validation (if --skills)
+
+When `--skills` is specified, validate plugin skills against standards using the `skill-creator:skill-creator` skill. This bypasses the scenario pipeline entirely.
+
+#### 7a. Discover Skills
+
+```bash
+# Find all skills, optionally filtered by domain
+if [ -n "${target_domain}" ]; then
+  skill_dirs=$(find "skills/${target_domain}" -name "SKILL.md" -type f 2>/dev/null)
+else
+  skill_dirs=$(find "skills" -name "SKILL.md" -type f 2>/dev/null)
+fi
+
+echo "Found $(echo "$skill_dirs" | wc -l | tr -d ' ') skills to validate"
+```
+
+If no skills found, report error and exit.
+
+#### 7b. Structural Pre-Check
+
+Before invoking skill-creator, run fast structural checks on each skill (same as wg-check Steps 3 and 6):
+
+For each SKILL.md:
+1. **Line count** — MUST be ≤200 lines
+2. **YAML frontmatter** — MUST have `name` and `description` fields
+3. **Refs directory** — If `refs/` exists, each file MUST be ≤300 lines
+4. **Hardcoded tool references** — Flag any hardcoded external tool names (Sentry, Datadog, Jira, etc.)
+5. **Description quality** — `description` field MUST include trigger phrases (lines starting with "Use when")
+
+```bash
+for skill_file in ${skill_dirs}; do
+  skill_dir=$(dirname "$skill_file")
+  skill_name=$(basename "$skill_dir")
+  domain=$(basename "$(dirname "$skill_dir")")
+
+  # Line count
+  lines=$(wc -l < "$skill_file")
+  if [ "$lines" -gt 200 ]; then
+    echo "FAIL: ${domain}/${skill_name} — ${lines} lines (max 200)"
+  fi
+
+  # YAML frontmatter check
+  if ! head -1 "$skill_file" | grep -q "^---"; then
+    echo "FAIL: ${domain}/${skill_name} — missing YAML frontmatter"
+  fi
+
+  # Check required frontmatter fields
+  frontmatter=$(sed -n '/^---$/,/^---$/p' "$skill_file")
+  if ! echo "$frontmatter" | grep -q "^name:"; then
+    echo "FAIL: ${domain}/${skill_name} — missing 'name' in frontmatter"
+  fi
+  if ! echo "$frontmatter" | grep -q "^description:"; then
+    echo "FAIL: ${domain}/${skill_name} — missing 'description' in frontmatter"
+  fi
+
+  # Trigger phrases in description
+  if ! echo "$frontmatter" | grep -qi "use when"; then
+    echo "WARN: ${domain}/${skill_name} — description missing trigger phrases ('Use when...')"
+  fi
+
+  # Refs line counts
+  if [ -d "${skill_dir}/refs" ]; then
+    for ref_file in "${skill_dir}"/refs/*.md; do
+      if [ -f "$ref_file" ]; then
+        ref_lines=$(wc -l < "$ref_file")
+        if [ "$ref_lines" -gt 300 ]; then
+          ref_name=$(basename "$ref_file")
+          echo "FAIL: ${domain}/${skill_name}/refs/${ref_name} — ${ref_lines} lines (max 300)"
+        fi
+      fi
+    done
+  fi
+done
+```
+
+Record structural results. Skills that fail structural checks are still passed to skill-creator for quality review — structural failures don't block the quality assessment.
+
+#### 7c. Skill-Creator Quality Review
+
+Dispatch skill validation to `skill-creator:skill-creator` via the Skill tool. To avoid overwhelming context, batch skills by domain and run one review per domain.
+
+For each domain with skills:
+
+```
+Skill(
+  skill="skill-creator:skill-creator",
+  args="Review and validate the following skills in the '${domain}' domain of the wicked-garden plugin for quality, standards compliance, and completeness. Do NOT create or modify any files — analysis only.
+
+## Standards to Check
+
+1. **Progressive Disclosure**: SKILL.md is a concise entry point (≤200 lines). Detailed content lives in refs/ (≤300 lines each). SKILL.md should link to refs/ when they exist.
+2. **Frontmatter Quality**: name matches directory name, description is clear and includes trigger phrases ('Use when...') so the skill loader can match user intent.
+3. **Content Structure**: Has clear sections — what the skill does, when to use it, key concepts, integration points.
+4. **Actionability**: Provides concrete guidance, not just abstract principles. Includes examples, templates, or decision frameworks.
+5. **Cross-References**: Links to related skills/commands use the correct namespace format (wicked-garden:{domain}:{name}).
+6. **No Duplication**: Content doesn't duplicate what's in other skills or in CLAUDE.md.
+7. **Refs Quality**: If refs/ exist, they provide depth without redundancy. Each ref file has a focused topic.
+
+## Skills to Review
+
+${list each skill path in this domain}
+
+## Output Format
+
+For each skill, provide:
+- **Status**: PASS / WARN / FAIL
+- **Issues**: List of specific problems found (if any)
+- **Suggestions**: Concrete improvements (if any)
+
+End with a domain summary: X passed, Y warnings, Z failures."
+)
+```
+
+If `--fix` flag is present, change the prompt to include: "For any issues found, also generate the corrected content. Apply fixes directly to the skill files."
+
+#### 7d. Aggregate Results
+
+After all domains are reviewed, produce a summary report:
+
+```markdown
+## Skill Validation Results
+
+**Mode**: ${--fix ? "Validate + Fix" : "Validate Only"}
+**Scope**: ${target_domain || "All domains"}
+**Skills Checked**: ${total_count}
+
+### Structural Checks
+
+| Domain | Skill | Lines | Frontmatter | Triggers | Refs | Status |
+|--------|-------|-------|-------------|----------|------|--------|
+| ${domain} | ${skill_name} | ${lines}/200 | OK/FAIL | OK/WARN | OK/FAIL/- | PASS/FAIL |
+
+### Quality Review (via skill-creator)
+
+| Domain | Skill | Quality | Issues | Suggestions |
+|--------|-------|---------|--------|-------------|
+| ${domain} | ${skill_name} | PASS/WARN/FAIL | ${count} | ${count} |
+
+### Summary
+
+- **Structural**: ${pass_count} passed, ${warn_count} warnings, ${fail_count} failures
+- **Quality**: ${pass_count} passed, ${warn_count} warnings, ${fail_count} failures
+- **Overall**: ${PASS|WARN|FAIL}
+
+${if failures}
+### Required Fixes
+
+${numbered list of all FAIL items with specific fix instructions}
+${endif}
+
+${if warnings}
+### Recommended Improvements
+
+${numbered list of all WARN items with improvement suggestions}
+${endif}
+```
+
+#### 7e. Issue Filing (if --issues with --skills)
+
+If `--issues` is specified alongside `--skills` and there are failures:
+
+For each FAIL result, file a GitHub issue:
+```bash
+gh issue create \
+  --title "skill(${domain}/${skill_name}): ${brief description of failure}" \
+  --label "bug,skills" \
+  --body "${detailed failure description with fix instructions}"
+```
+
+Group related failures into a single issue per skill (not per check).
+
 ## Examples
 
 ```bash
-# List domains with scenarios
+# Validate all skills, then list domains with scenarios
 /wg-test
 
-# List scenarios for mem domain
-/wg-test mem
+# Validate engineering skills, then list its scenarios
+/wg-test engineering
 
-# Run specific scenario
+# Validate mem skills, then run specific scenario
 /wg-test mem/decision-recall
 
-# Run all crew scenarios
+# Validate crew skills, then run all crew scenarios
 /wg-test crew --all
 
-# Run all scenarios and auto-file issues for failures
-/wg-test crew --all --issues
+# Full run: validate all skills + all scenarios + file issues
+/wg-test --all --issues
 
-# Run all scenarios in batches of 8 with debug logging
-/wg-test crew --all --batch 8
+# Skills validation only (no scenarios)
+/wg-test --skills-only
 
-# Run all scenarios across all domains in parallel batches
-/wg-test --all --batch 8 --debug
+# Skills validation for one domain only
+/wg-test --skills-only engineering
+
+# Skills validation with auto-fix
+/wg-test --skills-only --fix
+
+# Scenarios only, skip skill validation (legacy behavior)
+/wg-test crew --all --no-skills
+
+# Scenarios in parallel batches with debug logging
+/wg-test --all --batch 8 --debug --no-skills
 ```
 
 ## Architecture Note
 
 This command (`/wg-test`) is a dev-tool wrapper that adds only:
 - Scenario discovery across `scenarios/{domain}/`
+- Skill validation via `skill-creator:skill-creator` (--skills mode)
 - Preflight `SKIP_PLUGIN_MARKETPLACE` check
 - Pipeline detection and degradation fallback
 
 Testing intelligence is owned by:
 - **qe domain** — acceptance pipeline (Writer/Executor/Reviewer), evidence protocol, assertions
 - **scenarios domain** — E2E CLI execution (`/wicked-garden:scenarios:run`), issue filing (`/wicked-garden:scenarios:report`)
+- **skill-creator** — skill quality assessment, standards validation, and improvement suggestions
