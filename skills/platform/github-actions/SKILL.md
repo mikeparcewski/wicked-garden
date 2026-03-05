@@ -1,6 +1,11 @@
 ---
 name: github-actions
-description: Write secure, optimized GitHub Actions workflows. Use when creating CI/CD pipelines, automating deployments, or debugging workflow issues. Security-first approach with performance optimization.
+description: |
+  Write secure, optimized GitHub Actions workflows. Security-first approach
+  with performance optimization.
+
+  Use when: "GitHub Actions", "CI/CD pipeline", "workflow YAML", "deploy pipeline",
+  "automate deployment", "debug workflow", "Actions security"
 ---
 
 # GitHub Actions Workflow Writing

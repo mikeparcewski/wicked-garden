@@ -171,19 +171,11 @@ audit:
 
 ## Best Practices
 
-1. **Set Realistic Targets** - 100% coverage may not be needed
-2. **Prioritize Public APIs** - Focus on what users see
-3. **Track Over Time** - Monitor improvement trends
-4. **Focus on Quality** - Better good docs for 80% than poor docs for 100%
-5. **Automate Checks** - Run in CI to prevent regression
-6. **Make It Actionable** - Provide specific next steps
-
-## Tips
-
-1. **Start with Public API** - Most important to document
-2. **Parse Code Structure** - Extract actual info
-3. **Check Multiple Sources** - Comments, docs, specs
-4. **Measure Quality** - Not just presence
-5. **Show Trends** - Track improvement
-6. **Integrate with CI** - Block PRs that reduce coverage
-7. **Provide Context** - Explain why items are high priority
+1. **Prioritize Public APIs** - Focus on what users see first
+2. **Set Realistic Targets** - 100% coverage may not be needed
+3. **Focus on Quality** - Better good docs for 80% than poor docs for 100%
+4. **Parse Code Structure** - Extract actual info from source, not just check presence
+5. **Check Multiple Sources** - Comments, inline docs, specs, READMEs
+6. **Track Over Time** - Monitor improvement trends, show progress
+7. **Automate Checks** - Run in CI to block PRs that reduce coverage
+8. **Make It Actionable** - Provide specific next steps with priority context
