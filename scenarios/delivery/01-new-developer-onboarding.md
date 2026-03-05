@@ -9,7 +9,7 @@ estimated_minutes: 8
 
 # New Developer Onboarding via Delivery Reporting
 
-This scenario validates that wicked-delivery helps new developers quickly understand team health, delivery patterns, and current blockers using the `/wicked-delivery:report` command. Rather than navigating unfamiliar codebases blind, new developers can read the delivery picture first.
+This scenario validates that wicked-delivery helps new developers quickly understand team health, delivery patterns, and current blockers using the `/wicked-garden:delivery:report` command. Rather than navigating unfamiliar codebases blind, new developers can read the delivery picture first.
 
 ## Setup
 
@@ -42,7 +42,7 @@ echo "Setup complete. Export at /tmp/wicked-delivery-onboarding/team-status.csv"
 If this is a first run, configure the cost model and cadence:
 
 ```
-/wicked-delivery:setup
+/wicked-garden:delivery:setup
 ```
 
 **Expected Output**:
@@ -59,7 +59,7 @@ Skip this step if settings already exist.
 Run the report command against the sprint export:
 
 ```
-/wicked-delivery:report /tmp/wicked-delivery-onboarding/team-status.csv
+/wicked-garden:delivery:report /tmp/wicked-delivery-onboarding/team-status.csv
 ```
 
 **Expected Output**:
@@ -88,7 +88,7 @@ Run the report command against the sprint export:
 Run with `--all` to also get QE, Architecture, and DevSecOps perspectives:
 
 ```
-/wicked-delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --all
+/wicked-garden:delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --all
 ```
 
 **Expected Output**:
@@ -102,7 +102,7 @@ Run with `--all` to also get QE, Architecture, and DevSecOps perspectives:
 Run a focused analysis on just the delivery and product perspectives:
 
 ```
-/wicked-delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --personas delivery-lead,product-lead
+/wicked-garden:delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --personas delivery-lead,product-lead
 ```
 
 **Expected Output**:
@@ -115,7 +115,7 @@ Run a focused analysis on just the delivery and product perspectives:
 Run with output directory to save the reports:
 
 ```
-/wicked-delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --output /tmp/wicked-delivery-onboarding/reports/
+/wicked-garden:delivery:report /tmp/wicked-delivery-onboarding/team-status.csv --output /tmp/wicked-delivery-onboarding/reports/
 ```
 
 **Expected Output**:
@@ -134,7 +134,7 @@ Run with output directory to save the reports:
 ## Success Criteria
 
 - [ ] `/wicked-garden:delivery:setup` completes and confirms settings saved
-- [ ] `/wicked-delivery:report` accepts CSV file path and processes it without errors
+- [ ] `/wicked-garden:delivery:report` accepts CSV file path and processes it without errors
 - [ ] Default run generates 3 persona reports (Delivery Lead, Engineering Lead, Product Lead)
 - [ ] `--all` flag generates 6 persona reports
 - [ ] `--personas` flag limits output to specified personas

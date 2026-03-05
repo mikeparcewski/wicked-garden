@@ -98,7 +98,7 @@ EOF
 
 1. **Run Full Strategic Analysis**
    ```bash
-   /wicked-product:strategy platform-rewrite.md --focus all
+   /wicked-garden:product:strategy platform-rewrite.md --focus all
    ```
 
    **Expected**: Analysis from multiple perspectives:

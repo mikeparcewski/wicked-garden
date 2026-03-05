@@ -182,7 +182,7 @@ EOF
 
 1. **Run User Flow Review**
    ```bash
-   /wicked-product:ux-review src/pages/checkout --focus flows
+   /wicked-garden:product:ux-review src/pages/checkout --focus flows
    ```
 
    **Expected**: The ux-designer should identify:
@@ -216,7 +216,7 @@ EOF
 
 4. **Verify Research Integration**
    ```bash
-   /wicked-product:ux-review src/pages/checkout --focus research
+   /wicked-garden:product:ux-review src/pages/checkout --focus research
    ```
 
    If user-research.md is available, should connect:

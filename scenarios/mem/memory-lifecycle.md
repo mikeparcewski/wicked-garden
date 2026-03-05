@@ -17,34 +17,34 @@ Create memories with different characteristics to observe lifecycle behavior.
 
 1. **Store episodic memory (90-day TTL)**
    ```
-   /wicked-mem:store "Deployed v2.1.0 with new checkout flow. Monitoring error rates closely." --type episodic --tags deployment,checkout
+   /wicked-garden:mem:store "Deployed v2.1.0 with new checkout flow. Monitoring error rates closely." --type episodic --tags deployment,checkout
    ```
 
 2. **Store episodic with high importance (180-day effective TTL: 90 * 2.0)**
    ```
-   /wicked-mem:store "Critical bug in payment processing: race condition caused duplicate charges. Fixed by adding distributed lock with Redis. Must monitor for recurrence." --type episodic --tags bug,payment,critical
+   /wicked-garden:mem:store "Critical bug in payment processing: race condition caused duplicate charges. Fixed by adding distributed lock with Redis. Must monitor for recurrence." --type episodic --tags bug,payment,critical
    ```
 
 3. **Store episodic with low importance (45-day effective TTL: 90 * 0.5)**
    ```
-   /wicked-mem:store "Updated README with new setup instructions." --type episodic --tags docs,maintenance
+   /wicked-garden:mem:store "Updated README with new setup instructions." --type episodic --tags docs,maintenance
    ```
 
 4. **Store permanent memory (procedural)**
    ```
-   /wicked-mem:store "Database migration checklist: (1) Backup production, (2) Test on staging, (3) Run during low traffic window, (4) Monitor error rates for 1 hour, (5) Rollback plan ready." --type procedural --tags database,process,migration
+   /wicked-garden:mem:store "Database migration checklist: (1) Backup production, (2) Test on staging, (3) Run during low traffic window, (4) Monitor error rates for 1 hour, (5) Rollback plan ready." --type procedural --tags database,process,migration
    ```
 
 5. **Store permanent memory (decision)**
    ```
-   /wicked-mem:store "Chose Stripe over Braintree for payment processing. Primary reasons: Better international support, clearer pricing, superior documentation." --type decision --tags payments,stripe
+   /wicked-garden:mem:store "Chose Stripe over Braintree for payment processing. Primary reasons: Better international support, clearer pricing, superior documentation." --type decision --tags payments,stripe
    ```
 
 ## Steps
 
 1. **Check initial state**
    ```
-   /wicked-mem:stats
+   /wicked-garden:mem:stats
    ```
 
    Should show:
@@ -56,9 +56,9 @@ Create memories with different characteristics to observe lifecycle behavior.
 
 2. **Access a memory multiple times** (to test access_boost)
    ```
-   /wicked-mem:recall "payment race condition"
-   /wicked-mem:recall "duplicate charges"
-   /wicked-mem:recall --tags payment,critical
+   /wicked-garden:mem:recall "payment race condition"
+   /wicked-garden:mem:recall "duplicate charges"
+   /wicked-garden:mem:recall --tags payment,critical
    ```
 
 3. **Check access tracking**
@@ -80,7 +80,7 @@ Create memories with different characteristics to observe lifecycle behavior.
 
 5. **Run cleanup/archival**
    ```
-   /wicked-mem:stats
+   /wicked-garden:mem:stats
    ```
 
    Or explicitly trigger the memory-archivist (if available):
@@ -92,17 +92,17 @@ Create memories with different characteristics to observe lifecycle behavior.
 
    Soft delete (archive):
    ```
-   /wicked-mem:forget mem_[id-of-readme-memory]
+   /wicked-garden:mem:forget mem_[id-of-readme-memory]
    ```
 
    Verify status changed to archived:
    ```
-   /wicked-mem:recall --tags docs,maintenance
+   /wicked-garden:mem:recall --tags docs,maintenance
    ```
 
    Hard delete:
    ```
-   /wicked-mem:forget mem_[id] --hard
+   /wicked-garden:mem:forget mem_[id] --hard
    ```
 
    Verify permanently deleted (should not appear anywhere).
@@ -126,8 +126,8 @@ Create memories with different characteristics to observe lifecycle behavior.
 - Frequently accessed memories stay active longer
 
 **Manual control:**
-- /wicked-mem:forget archives the memory
-- /wicked-mem:forget --hard permanently deletes
+- /wicked-garden:mem:forget archives the memory
+- /wicked-garden:mem:forget --hard permanently deletes
 - Archived memories don't appear in standard recall
 
 ## Success Criteria
@@ -137,10 +137,10 @@ Create memories with different characteristics to observe lifecycle behavior.
 - [ ] Importance multiplier affects effective TTL (high=2x, low=0.5x)
 - [ ] Access count boosts TTL (formula: 1 + access_count * 0.1)
 - [ ] Expired memories transition to archived status
-- [ ] /wicked-mem:forget sets status to archived
-- [ ] /wicked-mem:forget --hard deletes file
-- [ ] /wicked-mem:stats shows counts by status (active, archived, decayed)
-- [ ] Archived memories don't appear in standard /wicked-mem:recall
+- [ ] /wicked-garden:mem:forget sets status to archived
+- [ ] /wicked-garden:mem:forget --hard deletes file
+- [ ] /wicked-garden:mem:stats shows counts by status (active, archived, decayed)
+- [ ] Archived memories don't appear in standard /wicked-garden:mem:recall
 - [ ] High-importance memories stay active longer than low-importance
 
 ## Value Demonstrated

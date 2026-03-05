@@ -38,14 +38,14 @@ No explicit setup needed - this tests the natural flow of completing work and ex
      - Respond with "Success" (if nothing worth storing)
 
 4. **Accept the memory storage offer**
-   - If offered, say "yes" or use the suggested /wicked-mem:store command
+   - If offered, say "yes" or use the suggested /wicked-garden:mem:store command
    - The agent should store with appropriate type and tags
 
 5. **Verify the stored memory**
    ```
-   /wicked-mem:stats
-   /wicked-mem:recall --type decision
-   /wicked-mem:recall --type episodic
+   /wicked-garden:mem:stats
+   /wicked-garden:mem:recall --type decision
+   /wicked-garden:mem:recall --type episodic
    ```
 
 ## Expected Outcome
@@ -68,7 +68,7 @@ No explicit setup needed - this tests the natural flow of completing work and ex
 - [ ] Agent offers memory storage for useful patterns
 - [ ] Agent does NOT offer storage for routine tasks (e.g., "show me the file")
 - [ ] Suggested memory includes: content, type, and relevant tags
-- [ ] Stored memory appears in /wicked-mem:stats
+- [ ] Stored memory appears in /wicked-garden:mem:stats
 - [ ] Memory is retrievable and well-formatted
 
 ## Value Demonstrated

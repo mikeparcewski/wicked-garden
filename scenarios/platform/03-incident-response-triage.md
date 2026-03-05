@@ -97,7 +97,7 @@ EOF
 ### 1. Initiate Incident Triage
 
 ```bash
-/wicked-platform:incident "500 errors spiking on checkout API, customers unable to complete purchases"
+/wicked-garden:platform:incident "500 errors spiking on checkout API, customers unable to complete purchases"
 ```
 
 **Expected**:
@@ -168,7 +168,7 @@ The incident responder should identify:
 ### 5. Get Rollback Recommendation
 
 ```bash
-/wicked-platform:incident --rollback-decision
+/wicked-garden:platform:incident --rollback-decision
 ```
 
 **Expected**:

@@ -71,7 +71,7 @@ echo "Setup complete. Project report context created."
 Generate a report with the default three perspectives:
 
 ```
-Task tool: subagent_type="wicked-delivery:stakeholder-reporter"
+Task tool: subagent_type="wicked-garden:delivery:stakeholder-reporter"
 prompt="Generate a delivery report for Sprint 47 from sprint-export.csv. Include context from team-context.md."
 ```
 
@@ -104,7 +104,7 @@ Report with three perspectives:
 Generate a full report with extended perspectives:
 
 ```
-Task tool: subagent_type="wicked-delivery:stakeholder-reporter"
+Task tool: subagent_type="wicked-garden:delivery:stakeholder-reporter"
 prompt="Generate a comprehensive delivery report with all perspectives (--all). Include QE, Architecture, and DevSecOps views."
 ```
 
@@ -137,7 +137,7 @@ Report adds three more perspectives:
 Request specific persona perspectives:
 
 ```
-Task tool: subagent_type="wicked-delivery:stakeholder-reporter"
+Task tool: subagent_type="wicked-garden:delivery:stakeholder-reporter"
 prompt="Give me just the QE Lead and Security perspectives for this sprint. Focus on risk."
 ```
 
@@ -152,7 +152,7 @@ prompt="Give me just the QE Lead and Security perspectives for this sprint. Focu
 Create executive-level summary:
 
 ```
-Task tool: subagent_type="wicked-delivery:stakeholder-reporter"
+Task tool: subagent_type="wicked-garden:delivery:stakeholder-reporter"
 prompt="Generate a one-page executive summary for the steering committee. They care about: will we hit our goals? What are the risks?"
 ```
 
@@ -193,7 +193,7 @@ prompt="Generate a one-page executive summary for the steering committee. They c
 If historical data available (via wicked-mem):
 
 ```
-Task tool: subagent_type="wicked-delivery:stakeholder-reporter"
+Task tool: subagent_type="wicked-garden:delivery:stakeholder-reporter"
 prompt="How does this sprint compare to Sprint 46? Are we improving or regressing?"
 ```
 

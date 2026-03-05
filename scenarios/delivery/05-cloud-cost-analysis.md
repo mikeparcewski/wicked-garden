@@ -63,7 +63,7 @@ echo "Setup complete."
 Run the report command against the platform sprint to see what surfaces across personas:
 
 ```
-/wicked-delivery:report /tmp/wicked-delivery-cost/platform-sprint.csv
+/wicked-garden:delivery:report /tmp/wicked-delivery-cost/platform-sprint.csv
 ```
 
 **Expected Output**:
@@ -87,7 +87,7 @@ Run the report command against the platform sprint to see what surfaces across p
 Invoke the risk-monitor agent with the full cost picture:
 
 ```
-Task tool: subagent_type="wicked-delivery:risk-monitor"
+Task tool: subagent_type="wicked-garden:delivery:risk-monitor"
 prompt="Analyze delivery risks for the platform team. Cost context is in /tmp/wicked-delivery-cost/cost-context.md. Key risks: monthly spend is 15% over budget, P0 task for budget alerts is blocked waiting on Finance, staging costs spiked 208% in one month with no root cause identified, $6,100/month in untagged resources is growing 35% quarter-over-quarter."
 ```
 
@@ -115,7 +115,7 @@ prompt="Analyze delivery risks for the platform team. Cost context is in /tmp/wi
 If wicked-kanban is installed, the risk-monitor agent will update task descriptions with risk assessment findings. Verify the P0 task (304) gets the risk assessment appended:
 
 ```
-/wicked-kanban:board-status
+/wicked-garden:kanban:board-status
 ```
 
 **Expected**: Task 304 description updated with risk assessment section showing P0 priority and escalation trigger.
@@ -125,7 +125,7 @@ If wicked-kanban is installed, the risk-monitor agent will update task descripti
 Ask the risk-monitor to produce a formatted escalation report:
 
 ```
-Task tool: subagent_type="wicked-delivery:risk-monitor"
+Task tool: subagent_type="wicked-garden:delivery:risk-monitor"
 prompt="Generate a risk escalation report I can send to engineering leadership about our cloud cost situation. Focus on the P0 blocked budget alerts task and the staging cost spike."
 ```
 
@@ -175,7 +175,7 @@ Platform team cloud costs are 15% over budget with no automated visibility — b
 
 ## Success Criteria
 
-- [ ] `/wicked-delivery:report` surfaces infra task aging and P0 block across persona reports
+- [ ] `/wicked-garden:delivery:report` surfaces infra task aging and P0 block across persona reports
 - [ ] Risk-monitor agent generates risk matrix with at least 3 cost-related risks
 - [ ] P0 risk (blocked budget alerts) identified with HIGH likelihood + HIGH impact
 - [ ] Escalation trigger fired for P0 unmitigated past threshold

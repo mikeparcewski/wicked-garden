@@ -211,7 +211,7 @@ git commit -m "Initial commit with security controls"
 ### 1. Run Comprehensive Compliance Check
 
 ```bash
-/wicked-platform:compliance soc2
+/wicked-garden:platform:compliance soc2
 ```
 
 **Expected**:
@@ -223,7 +223,7 @@ git commit -m "Initial commit with security controls"
 ### 2. Audit Specific Control
 
 ```bash
-/wicked-platform:audit soc2 CC6.1
+/wicked-garden:platform:audit soc2 CC6.1
 ```
 
 **Expected** for CC6.1 (Logical Access Controls):
@@ -263,7 +263,7 @@ const user = await User.findById(payload.sub);
 ### 3. Collect Evidence for Multiple Controls
 
 ```bash
-/wicked-platform:audit soc2 --controls CC6.1,CC6.7,CC7.2
+/wicked-garden:platform:audit soc2 --controls CC6.1,CC6.7,CC7.2
 ```
 
 **Expected**:
@@ -307,7 +307,7 @@ Gap: No CI/CD pipeline configuration found.
 ### 5. Export Audit Package
 
 ```bash
-/wicked-platform:audit soc2 --export
+/wicked-garden:platform:audit soc2 --export
 ```
 
 **Expected**:

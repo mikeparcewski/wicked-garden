@@ -244,7 +244,7 @@ Track token usage across phases to verify SADD reduces context:
 
 This mirrors how real teams work - the implementation engineer doesn't need to attend every brainstorming session, they just need the requirements doc. The code reviewer doesn't need the full design debate, just the outcome and the code.
 
-By isolating context, wicked-crew:
+By isolating context, wicked-garden:crew:
 1. **Reduces tokens**: Each phase stays under 25k instead of growing to 100k+
 2. **Improves focus**: Agents aren't distracted by irrelevant discussion history
 3. **Prevents poisoning**: Confused explorations don't bias later decisions

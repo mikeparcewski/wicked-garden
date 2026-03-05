@@ -9,7 +9,7 @@ estimated_minutes: 6
 
 # Sprint Health Check
 
-This scenario validates that wicked-delivery can assess sprint health from project management data exports. The `/wicked-delivery:report` command produces multi-persona analysis covering velocity, blockers, and risk — giving engineering managers and tech leads a complete delivery picture without manual aggregation.
+This scenario validates that wicked-delivery can assess sprint health from project management data exports. The `/wicked-garden:delivery:report` command produces multi-persona analysis covering velocity, blockers, and risk — giving engineering managers and tech leads a complete delivery picture without manual aggregation.
 
 ## Setup
 
@@ -44,7 +44,7 @@ echo "Sprint 47 export created at /tmp/wicked-delivery-sprint/sprint-47.csv"
 Generate a health report for the sprint:
 
 ```
-/wicked-delivery:report /tmp/wicked-delivery-sprint/sprint-47.csv
+/wicked-garden:delivery:report /tmp/wicked-delivery-sprint/sprint-47.csv
 ```
 
 **Expected Output** — Delivery Lead perspective should surface:
@@ -69,7 +69,7 @@ Generate a health report for the sprint:
 Run the risk-monitor agent for delivery risk analysis:
 
 ```
-Task tool: subagent_type="wicked-delivery:risk-monitor"
+Task tool: subagent_type="wicked-garden:delivery:risk-monitor"
 prompt="Analyze delivery risks for Sprint 47 - Payment Refactor. The sprint has 8 tasks: 3 done, 2 in-progress, 1 blocked (P0: accounting integration waiting on Finance team credentials), 2 in backlog. Sprint ends in 2 days."
 ```
 
@@ -85,7 +85,7 @@ prompt="Analyze delivery risks for Sprint 47 - Payment Refactor. The sprint has 
 Save the report for sharing with a team lead:
 
 ```
-/wicked-delivery:report /tmp/wicked-delivery-sprint/sprint-47.csv --output /tmp/wicked-delivery-sprint/reports/
+/wicked-garden:delivery:report /tmp/wicked-delivery-sprint/sprint-47.csv --output /tmp/wicked-delivery-sprint/reports/
 ```
 
 **Expected Output**:
@@ -99,7 +99,7 @@ Save the report for sharing with a team lead:
 For steering committee or skip-level reporting, get all perspectives:
 
 ```
-/wicked-delivery:report /tmp/wicked-delivery-sprint/sprint-47.csv --all
+/wicked-garden:delivery:report /tmp/wicked-delivery-sprint/sprint-47.csv --all
 ```
 
 **Additional perspectives**:
@@ -118,7 +118,7 @@ For steering committee or skip-level reporting, get all perspectives:
 
 ## Success Criteria
 
-- [ ] `/wicked-delivery:report` processes sprint-47.csv without errors
+- [ ] `/wicked-garden:delivery:report` processes sprint-47.csv without errors
 - [ ] Delivery Lead report identifies P0 blocked task by name
 - [ ] Completion rate (37%) correctly derived from task status counts
 - [ ] Engineering Lead report flags capacity risk from in-progress tasks near sprint end
@@ -138,7 +138,7 @@ Engineering managers spend significant time compiling sprint metrics manually �
 3. **Stakeholder-ready output** — Professional markdown reports ready to drop into a Slack thread or steering committee doc
 4. **Risk-monitor integration** — The risk-monitor agent adds escalation guidance and dependency chain analysis on top of the report data
 
-The combination of `/wicked-delivery:report` for data-driven analysis and the `risk-monitor` agent for escalation logic turns reactive firefighting ("why is this late?") into proactive delivery management.
+The combination of `/wicked-garden:delivery:report` for data-driven analysis and the `risk-monitor` agent for escalation logic turns reactive firefighting ("why is this late?") into proactive delivery management.
 
 ## Integration Notes
 

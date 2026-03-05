@@ -148,7 +148,7 @@ EOF
 ### 1. Request Implementation Plan
 
 ```bash
-/wicked-engineering:plan Add SMS notifications using Twilio, with user preference support and fallback to email
+/wicked-garden:engineering:plan Add SMS notifications using Twilio, with user preference support and fallback to email
 ```
 
 **Expected**: The plan command should:

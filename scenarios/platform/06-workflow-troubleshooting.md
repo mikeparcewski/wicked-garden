@@ -112,7 +112,7 @@ git commit -m "Initial commit with CI workflow"
 Simulate having a failed workflow and troubleshoot it:
 
 ```bash
-/wicked-platform:actions troubleshoot
+/wicked-garden:platform:actions troubleshoot
 ```
 
 **Expected**:
@@ -172,7 +172,7 @@ cat > workflow-failure.log << 'EOF'
 2024-01-15T14:31:40Z Error: Process completed with exit code 1.
 EOF
 
-/wicked-platform:actions troubleshoot --logs workflow-failure.log
+/wicked-garden:platform:actions troubleshoot --logs workflow-failure.log
 ```
 
 **Expected**:
@@ -220,7 +220,7 @@ env:
 ### 4. Get Optimized Workflow
 
 ```bash
-/wicked-platform:actions optimize .github/workflows/ci.yml
+/wicked-garden:platform:actions optimize .github/workflows/ci.yml
 ```
 
 **Expected**:

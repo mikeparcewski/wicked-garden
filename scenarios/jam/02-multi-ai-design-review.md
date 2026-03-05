@@ -62,7 +62,7 @@ EOF
 
    In Claude Code conversation:
    ```
-   /wicked-kanban:new-task "Design Review: Payment Integration" --priority P0
+   /wicked-garden:kanban:new-task "Design Review: Payment Integration" --priority P0
    ```
 
    Expected: Task created with unique ID (e.g., PROJ-001).
@@ -158,7 +158,7 @@ EOF
 
    ```bash
    # View the kanban task details
-   /wicked-kanban:view-task $TASK_ID
+   /wicked-garden:kanban:view-task $TASK_ID
    ```
 
    Expected: Task shows multiple comments with AI perspectives.

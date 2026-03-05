@@ -132,7 +132,7 @@ No additional plugins required. This scenario tests wicked-smaht's built-in cros
 
 ## Value Demonstrated
 
-Session context survives session boundaries without requiring wicked-mem:
+Session context survives session boundaries without requiring wicked-garden:mem:
 1. **Zero configuration** — Persistence happens automatically on session end
 2. **Local storage only** — No external plugin dependency for cross-session recall
 3. **Recency-ranked** — Newest sessions surface first in the startup context

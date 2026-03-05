@@ -52,14 +52,14 @@ EOF
 
 1. **Store Initial Context in wicked-mem**
    ```bash
-   /wicked-mem:store --type decision --tags "database,migration,time-series" "$(cat initial-context.md)"
+   /wicked-garden:mem:store --type decision --tags "database,migration,time-series" "$(cat initial-context.md)"
    ```
 
    Expected: Confirmation that context is stored
 
 2. **Run Brainstorm That Should Recall Context**
    ```bash
-   /wicked-jam:brainstorm "time-series database migration from PostgreSQL"
+   /wicked-garden:jam:brainstorm "time-series database migration from PostgreSQL"
    ```
 
    Expected:
@@ -82,7 +82,7 @@ EOF
 
 5. **Verify Storage Offer**
 
-   Check that after synthesis, wicked-jam:
+   Check that after synthesis, wicked-garden:jam:
    - Offers to store insights in wicked-mem
    - Provides option to accept or decline
    - Suggests appropriate tags (database, migration, etc.)
@@ -95,7 +95,7 @@ EOF
 
 7. **Recall Stored Insights**
    ```bash
-   /wicked-mem:recall "database migration"
+   /wicked-garden:mem:recall "database migration"
    ```
 
    Expected:
@@ -105,7 +105,7 @@ EOF
 
 8. **Run Second Session on Related Topic**
    ```bash
-   /wicked-jam:brainstorm "data consistency during database migration"
+   /wicked-garden:jam:brainstorm "data consistency during database migration"
    ```
 
    Expected:
@@ -142,7 +142,7 @@ EOF
 - [ ] Session offers to store insights after synthesis
 - [ ] Storage prompt includes suggested tags
 - [ ] Accepting storage saves insights to wicked-mem
-- [ ] Stored insights can be recalled with /wicked-mem:recall
+- [ ] Stored insights can be recalled with /wicked-garden:mem:recall
 - [ ] Second session on related topic recalls previous insights
 - [ ] Second session builds on (not repeats) prior discussion
 - [ ] Documentation acknowledges graceful degradation without wicked-mem
@@ -160,14 +160,14 @@ The graceful degradation ensures wicked-jam works standalone while offering enha
 This scenario validates the integration pattern:
 
 ```
-wicked-jam:brainstorm
+wicked-garden:jam:brainstorm
   |
-  ├─> wicked-mem:recall (if available)
+  ├─> wicked-garden:mem:recall (if available)
   |     └─> inject context into facilitator
   |
   ├─> facilitator runs session
   |
-  └─> wicked-mem:store (if available & user approves)
+  └─> wicked-garden:mem:store (if available & user approves)
         └─> persist insights with tags
 ```
 

@@ -17,12 +17,12 @@ Simulate having solved a tricky bug previously.
 
 1. **Store an episodic memory from a past debug session**
    ```
-   /wicked-mem:store "Fixed 'Connection refused on port 5432' error in Docker. Root cause: The postgres container and app container weren't on the same network - they were on different default bridge networks created at different times. Symptoms: (1) psql from host worked, (2) psql from app container failed, (3) docker logs showed postgres was healthy. Diagnostic: 'docker network inspect bridge' and 'docker ps --format \"{{.Names}}\t{{.Networks}}\"' showed the network mismatch. Fix: Added explicit network in docker-compose.yml and recreated containers. Key learning: Always use explicit networks in docker-compose, never rely on default bridge. Prevention: Add network check to CI startup script." --type episodic --tags debugging,docker,postgres,networking
+   /wicked-garden:mem:store "Fixed 'Connection refused on port 5432' error in Docker. Root cause: The postgres container and app container weren't on the same network - they were on different default bridge networks created at different times. Symptoms: (1) psql from host worked, (2) psql from app container failed, (3) docker logs showed postgres was healthy. Diagnostic: 'docker network inspect bridge' and 'docker ps --format \"{{.Names}}\t{{.Networks}}\"' showed the network mismatch. Fix: Added explicit network in docker-compose.yml and recreated containers. Key learning: Always use explicit networks in docker-compose, never rely on default bridge. Prevention: Add network check to CI startup script." --type episodic --tags debugging,docker,postgres,networking
    ```
 
 2. **Store a related procedural memory**
    ```
-   /wicked-mem:store "Docker connection debugging checklist: (1) Verify containers are running: docker ps, (2) Check logs: docker logs <container>, (3) Test from host: can you connect from outside Docker?, (4) Check networks: docker ps --format \"{{.Names}}\t{{.Networks}}\", (5) Verify same network: containers must share a network to communicate, (6) Test DNS: docker exec <app> ping <db-service-name>, (7) Check ports: docker port <container>. Most connection issues are network isolation or DNS." --type procedural --tags docker,debugging,checklist
+   /wicked-garden:mem:store "Docker connection debugging checklist: (1) Verify containers are running: docker ps, (2) Check logs: docker logs <container>, (3) Test from host: can you connect from outside Docker?, (4) Check networks: docker ps --format \"{{.Names}}\t{{.Networks}}\", (5) Verify same network: containers must share a network to communicate, (6) Test DNS: docker exec <app> ping <db-service-name>, (7) Check ports: docker port <container>. Most connection issues are network isolation or DNS." --type procedural --tags docker,debugging,checklist
    ```
 
 ## Steps
@@ -37,9 +37,9 @@ Simulate having solved a tricky bug previously.
 
 3. **Check if agent recalls the pattern**
    ```
-   /wicked-mem:recall "connection refused postgres"
-   /wicked-mem:recall "docker network"
-   /wicked-mem:recall --tags debugging,docker
+   /wicked-garden:mem:recall "connection refused postgres"
+   /wicked-garden:mem:recall "docker network"
+   /wicked-garden:mem:recall --tags debugging,docker
    ```
 
 4. **Verify agent suggests the known fix**
@@ -63,7 +63,7 @@ Simulate having solved a tricky bug previously.
 - [ ] Search by context ("docker network") finds the memory
 - [ ] Agent suggests the docker network check proactively (demonstrates learning)
 - [ ] Agent explains the diagnostic commands from the checklist
-- [ ] /wicked-mem:stats shows 2 memories (1 episodic, 1 procedural)
+- [ ] /wicked-garden:mem:stats shows 2 memories (1 episodic, 1 procedural)
 
 ## Value Demonstrated
 

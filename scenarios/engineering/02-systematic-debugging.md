@@ -141,7 +141,7 @@ EOF
 ### 1. Start Debug Session with Error Message
 
 ```bash
-/wicked-engineering:debug "TypeError: Cannot read properties of null (reading 'membership') in InventoryService"
+/wicked-garden:engineering:debug "TypeError: Cannot read properties of null (reading 'membership') in InventoryService"
 ```
 
 **Expected**: The debugger should:
@@ -170,7 +170,7 @@ The debugger agent should trace:
 ### 4. Investigate Second Error
 
 ```bash
-/wicked-engineering:debug "Negative stock detected for product"
+/wicked-garden:engineering:debug "Negative stock detected for product"
 ```
 
 **Expected**: The debugger should identify the race condition in `reserveStock`:
