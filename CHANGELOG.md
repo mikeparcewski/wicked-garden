@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.17.6] - 2026-03-04
+
+### Bug Fixes
+- fix: resolve search:index adapter issues (#229-#233) (9be0aa3)
+
+### Chores
+- release: wicked-garden v1.17.5 (3acae02)
+
 ## [1.17.5] - 2026-03-04
 
 ### Bug Fixes
