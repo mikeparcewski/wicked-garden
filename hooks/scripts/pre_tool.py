@@ -164,7 +164,13 @@ _AUTO_MEMORY_MARKER = ".claude/projects/"
 
 
 def _handle_write_guard(tool_input: dict) -> str:
-    """Block direct writes to MEMORY.md, auto-memory directory, and AGENTS.md."""
+    """Block direct writes to MEMORY.md, auto-memory directory, and AGENTS.md.
+
+    Also warns when an active crew project is in build or review phase and the
+    file path is not on the orchestrator allowlist. This enforces the
+    orchestrator-only principle (Issue #251): orchestrators should write only
+    to project state files, not directly produce implementation artifacts.
+    """
     file_path = tool_input.get("file_path", "")
 
     # Block writes to AGENTS.md — cross-tool read-only file
@@ -186,7 +192,70 @@ def _handle_write_guard(tool_input: dict) -> str:
             "Use /wicked-garden:mem:store to save decisions, patterns, and gotchas instead."
         )
 
+    # Orchestrator-only warning (Issue #251): warn when writing outside allowlist
+    # during build or review phases. Fail open — always allow, but emit systemMessage.
+    warning = _check_orchestrator_write(file_path)
+    if warning:
+        return _allow(system_message=warning)
+
     return _allow()
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator allowlist (Issue #251)
+# ---------------------------------------------------------------------------
+
+# Paths that the orchestrator is permitted to write directly.
+# .something-wicked/ contains project state, status.md files are orchestrator output.
+_ORCHESTRATOR_ALLOWLIST = [
+    ".something-wicked/",
+]
+
+_ORCHESTRATOR_ALLOWLIST_SUFFIXES = [
+    "status.md",
+]
+
+_ORCHESTRATOR_PHASES = {"build", "review"}
+
+
+def _is_allowlisted(file_path: str) -> bool:
+    """Return True if file_path is on the orchestrator write allowlist."""
+    for fragment in _ORCHESTRATOR_ALLOWLIST:
+        if fragment in file_path:
+            return True
+    for suffix in _ORCHESTRATOR_ALLOWLIST_SUFFIXES:
+        if file_path.endswith(suffix):
+            return True
+    return False
+
+
+def _check_orchestrator_write(file_path: str) -> str:
+    """Return a warning message if the write appears to be orchestrator inline work.
+
+    Only warns — never denies. Returns empty string if no warning needed.
+    """
+    if _is_allowlisted(file_path):
+        return ""
+
+    # Check if there is an active crew project in build or review phase
+    try:
+        data, project_name, _ = _find_active_crew_project()
+        if not project_name or not data:
+            return ""
+
+        current_phase = data.get("current_phase", "")
+        if current_phase.lower() not in _ORCHESTRATOR_PHASES:
+            return ""
+
+        return (
+            f"[wicked-garden] Orchestrator principle: The active crew project "
+            f"'{project_name}' is in '{current_phase}' phase. "
+            f"Orchestrators should not write implementation files directly. "
+            f"Delegate to implementer, researcher, or specialist subagents via Task(). "
+            f"Allowed direct writes: .something-wicked/ paths and status.md files."
+        )
+    except Exception:
+        return ""
 
 
 # ---------------------------------------------------------------------------

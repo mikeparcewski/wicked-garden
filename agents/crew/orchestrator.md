@@ -76,11 +76,26 @@ When using specialist plugins (/wicked-garden:engineering:review, /wicked-garden
 - Mark `in_progress` before calling the specialist
 - Mark `completed` after the specialist returns
 
-When performing inline fallback work (no specialist or built-in agent available):
-- Create a task for the inline work
-- Mark `in_progress` before starting
-- Do the work directly
-- Mark `completed` with outcome when finished
+When no specialist or built-in agent is available, dispatch to a fallback agent (facilitator, researcher, implementer, or reviewer) via Task(). NEVER perform analysis, implementation, or review work directly.
+
+```
+Task(
+  subagent_type="wicked-garden:crew:implementer",
+  prompt="Implement the following task according to design: {description}. Project: {project-name}."
+)
+```
+
+## Allowed Inline Operations
+
+The orchestrator MAY perform these operations directly without Task() dispatch:
+
+1. **Read project state**: `phase_manager.py {project} status --json`, `TaskList`, `TaskGet`, `Read` project files
+2. **Call scripts**: `phase_manager.py`, `specialist_discovery.py`, `smart_decisioning.py` — CLI invocations only
+3. **Task lifecycle**: `TaskCreate`, `TaskUpdate`, `TaskList` — orchestrator owns the lifecycle wrapper
+4. **Write status files**: Write to `phases/{phase}/status.md` and project state files under `.something-wicked/`
+5. **Report progress**: Output markdown summaries of phase results, next steps, integration mode
+
+All other work — analysis, implementation, review, code generation, architecture decisions — MUST go through a subagent Task() dispatch. Even "simple" analysis should be delegated so the orchestrator stays lean and stateless.
 
 ## Output Format
 

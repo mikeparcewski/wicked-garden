@@ -1,6 +1,6 @@
 ---
 name: acceptance-testing
-description: >
+description: |
   Evidence-gated acceptance testing with three-agent separation of concerns.
   Writer designs test plans, Executor collects artifacts, Reviewer evaluates independently.
   Eliminates false positives from self-grading.

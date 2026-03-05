@@ -37,13 +37,35 @@ For each changed file:
 - Is error handling present?
 - Are there security concerns?
 
-### 3. Check Tests
+### 3. Check Evidence Quality
+
+For each completed task, verify the task description includes required evidence:
+
+**Complexity 1-2 (low)**: Test results + code diff reference
+**Complexity 3-4 (medium)**: Above + verification step (command output or smoke test)
+**Complexity 5+ (high)**: Above + performance data + documented assumptions
+
+Expected evidence format:
+```markdown
+## Evidence
+- Test: {test name} — PASS/FAIL
+- File: {path} — created/modified
+- Verification: {command output}
+- Performance: {metric} (required for complexity >= 5)
+
+## Assumptions
+- {assumption and rationale}
+```
+
+If evidence is missing or incomplete, flag as a **Critical** finding. Task completion without evidence is unverifiable.
+
+### 4. Check Tests
 
 - Do tests exist for new code?
 - Do tests cover key paths?
 - Do all tests pass?
 
-### 4. Document Findings
+### 5. Document Findings
 
 Write to `phases/review/findings.md`:
 

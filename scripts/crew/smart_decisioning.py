@@ -259,6 +259,99 @@ NOVELTY_SIGNALS = [
 ]
 
 # ---------------------------------------------------------------------------
+# New dimension signals (Issue #254)
+# ---------------------------------------------------------------------------
+
+# Test complexity signals — test strategy scope, integration test setup
+TEST_COMPLEXITY_SIGNALS = [
+    ("end-to-end test*", 2, "end-to-end tests"),
+    ("e2e test*", 2, "e2e tests"),
+    ("integration test*", 2, "integration tests"),
+    ("test fixture*", 1, "test fixtures"),
+    ("test strateg*", 2, "test strategy"),
+    ("playwright", 2, "playwright tests"),
+    ("cypress", 2, "cypress tests"),
+    ("mock service*", 1, "mock services"),
+    ("contract test*", 2, "contract tests"),
+    ("test coverag*", 1, "test coverage"),
+    ("acceptance test*", 2, "acceptance tests"),
+    ("performance test*", 2, "performance tests"),
+    ("load test*", 2, "load tests"),
+    ("ci pipeline", 1, "CI pipeline"),
+    ("test suite*", 1, "test suite"),
+    ("unit test*", 1, "unit tests"),
+    ("test setup", 1, "test setup"),
+    ("test infrastr*", 2, "test infrastructure"),
+]
+
+# Documentation signals — API docs, user guides, ADR requirements
+DOCUMENTATION_SIGNALS = [
+    ("openapi", 2, "OpenAPI spec"),
+    ("swagger", 2, "Swagger spec"),
+    ("api doc*", 2, "API documentation"),
+    ("adr", 2, "architecture decision record"),
+    ("architecture decision", 2, "architecture decision record"),
+    ("decision record", 2, "decision record"),
+    ("user guide*", 2, "user guide"),
+    ("migration guide*", 2, "migration guide"),
+    ("changelog", 1, "changelog"),
+    ("readme", 1, "README"),
+    ("runbook", 2, "runbook"),
+    ("playbook", 2, "playbook"),
+    ("docstring*", 1, "docstrings"),
+    ("api reference*", 2, "API reference"),
+    ("technical doc*", 2, "technical documentation"),
+    ("annotate", 1, "annotation"),
+    ("document the", 1, "documentation required"),
+    ("publish doc*", 2, "publish documentation"),
+]
+
+# Coordination cost signals — cross-domain deps, specialist handoffs, reviews
+COORDINATION_SIGNALS = [
+    ("coordinate with", 2, "cross-team coordination"),
+    ("cross-team", 2, "cross-team work"),
+    ("cross team", 2, "cross-team work"),
+    ("specialist review", 2, "specialist review required"),
+    ("cross-domain", 2, "cross-domain dependency"),
+    ("handoff", 1, "specialist handoff"),
+    ("hand-off", 1, "specialist handoff"),
+    ("multiple team*", 2, "multi-team involvement"),
+    ("security review", 2, "security review required"),
+    ("legal review", 2, "legal review required"),
+    ("compliance review", 2, "compliance review required"),
+    ("sign-off", 1, "sign-off required"),
+    ("approval required", 2, "approval required"),
+    ("stakeholder review", 2, "stakeholder review"),
+    ("cross-functional", 2, "cross-functional work"),
+    ("review board", 2, "review board required"),
+    ("change request", 1, "change request process"),
+    ("change control", 2, "change control process"),
+]
+
+# Operational signals — deployment, migration, rollback operational needs
+OPERATIONAL_SIGNALS = [
+    ("deploy*", 1, "deployment"),
+    ("zero-downtime", 3, "zero-downtime deployment"),
+    ("blue-green", 2, "blue-green deployment"),
+    ("canary deploy*", 2, "canary deployment"),
+    ("rollback plan", 3, "rollback plan required"),
+    ("database migration", 3, "database migration"),
+    ("schema migration", 3, "schema migration"),
+    ("migration script*", 2, "migration scripts"),
+    ("deployment window", 2, "deployment window required"),
+    ("ops monitor*", 2, "operational monitoring"),
+    ("health check*", 1, "health checks"),
+    ("on-call", 2, "on-call notification"),
+    ("runbook", 2, "operational runbook"),
+    ("incident response", 3, "incident response plan"),
+    ("production deploy*", 2, "production deployment"),
+    ("feature flag*", 1, "feature flags for rollout"),
+    ("infra change*", 2, "infrastructure change"),
+    ("config change*", 1, "configuration change"),
+    ("environment variable*", 1, "environment configuration"),
+]
+
+# ---------------------------------------------------------------------------
 # Project Archetype Detection
 # ---------------------------------------------------------------------------
 # Archetypes represent the TYPE of project/app being changed.
@@ -453,6 +546,26 @@ _COMPILED_NOVELTY = [
     for kw, weight, label in NOVELTY_SIGNALS
 ]
 
+_COMPILED_TEST_COMPLEXITY = [
+    (re.compile(_make_pattern(kw), re.IGNORECASE), weight, label)
+    for kw, weight, label in TEST_COMPLEXITY_SIGNALS
+]
+
+_COMPILED_DOCUMENTATION = [
+    (re.compile(_make_pattern(kw), re.IGNORECASE), weight, label)
+    for kw, weight, label in DOCUMENTATION_SIGNALS
+]
+
+_COMPILED_COORDINATION = [
+    (re.compile(_make_pattern(kw), re.IGNORECASE), weight, label)
+    for kw, weight, label in COORDINATION_SIGNALS
+]
+
+_COMPILED_OPERATIONAL = [
+    (re.compile(_make_pattern(kw), re.IGNORECASE), weight, label)
+    for kw, weight, label in OPERATIONAL_SIGNALS
+]
+
 _COMPILED_ARCHETYPE_PATTERNS: Dict[str, List[re.Pattern]] = {}
 for _arch, _keywords in ARCHETYPE_KEYWORDS.items():
     _COMPILED_ARCHETYPE_PATTERNS[_arch] = [
@@ -473,10 +586,18 @@ class RiskDimensions:
     - impact: gate strictness (fast-pass vs full gate)
     - reversibility: rollback planning, gate type selection
     - novelty: specialist engagement, design phase inclusion
+    - test_complexity: test strategy scope, integration test setup needs
+    - documentation: API docs, user guides, ADR requirements
+    - coordination_cost: cross-domain deps, specialist handoffs, review requirements
+    - operational: deployment, migration, rollback operational needs
     """
     impact: int = 0
     reversibility: int = 0
     novelty: int = 0
+    test_complexity: int = 0
+    documentation: int = 0
+    coordination_cost: int = 0
+    operational: int = 0
     explanation: List[str] = field(default_factory=list)
 
 
@@ -903,6 +1024,78 @@ def assess_novelty(text: str, signals: List[str], is_ambiguous: bool) -> Tuple[i
     return (min(score, 3), reasons)
 
 
+def assess_test_complexity(text: str) -> Tuple[int, List[str]]:
+    """Compute test_complexity dimension from text (0-3).
+
+    Detects test strategy scope, integration test setup needs, CI requirements.
+    Returns (score 0-3, list of explanation strings).
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    for compiled, weight, label in _COMPILED_TEST_COMPLEXITY:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+
+    return (min(score, 3), reasons)
+
+
+def assess_documentation(text: str) -> Tuple[int, List[str]]:
+    """Compute documentation dimension from text (0-3).
+
+    Detects API docs, user guides, ADR, migration guide requirements.
+    Returns (score 0-3, list of explanation strings).
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    for compiled, weight, label in _COMPILED_DOCUMENTATION:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+
+    return (min(score, 3), reasons)
+
+
+def assess_coordination_cost(text: str) -> Tuple[int, List[str]]:
+    """Compute coordination_cost dimension from text (0-3).
+
+    Detects cross-domain deps, specialist handoffs, review requirements.
+    Returns (score 0-3, list of explanation strings).
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    for compiled, weight, label in _COMPILED_COORDINATION:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+
+    return (min(score, 3), reasons)
+
+
+def assess_operational(text: str) -> Tuple[int, List[str]]:
+    """Compute operational dimension from text (0-3).
+
+    Detects deployment, migration, rollback operational needs.
+    Returns (score 0-3, list of explanation strings).
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    for compiled, weight, label in _COMPILED_OPERATIONAL:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+
+    return (min(score, 3), reasons)
+
+
 def detect_archetype(text: str) -> Dict[str, float]:
     """Detect project archetype from text description.
 
@@ -932,7 +1125,11 @@ STAKEHOLDER_KEYWORDS = ["team", "manager", "lead", "stakeholder", "customer", "u
 
 def compute_composite(
     impact: int, reversibility: int, novelty: int, text: str,
-    component_overrides: Optional[Dict[str, int]] = None
+    component_overrides: Optional[Dict[str, int]] = None,
+    test_complexity: int = 0,
+    documentation: int = 0,
+    coordination_cost: int = 0,
+    operational: int = 0,
 ) -> Tuple[int, Dict[str, int]]:
     """Derive 0-7 composite from risk dimensions + text factors.
 
@@ -945,6 +1142,13 @@ def compute_composite(
       where rev=3 and rev=2 produced identical outcomes under the old formula.
     - scope (0-2): word count indicator
     - coordination (0-1): stakeholder mentions
+    - test_complexity (0-3): test strategy scope, integration test setup needs (Issue #254)
+    - documentation (0-3): API docs, user guides, ADR needs (Issue #254)
+    - coordination_cost (0-3): cross-domain deps, specialist handoffs (Issue #254)
+    - operational (0-3): deployment, migration, rollback needs (Issue #254)
+
+    New dimensions are weighted at 0.25 each so that even if all four saturate (3*4=12),
+    the total contribution is capped to preserve the 0-7 scale and backward compatibility.
     """
     # Multiplicative risk premium: rev*nov*0.22 → capped at 2
     # 3*3*0.22=1.98→2, 2*2*0.22=0.88→1, 3*0*0.22=0→0 (degeneracy fix)
@@ -954,14 +1158,27 @@ def compute_composite(
     word_count = len(text.split())
     scope = 2 if word_count > 100 else (1 if word_count > 50 else 0)
 
-    # Coordination: stakeholder mentions
+    # Coordination: stakeholder mentions (legacy 0-1 component, preserved)
     coordination = 1 if any(kw in text.lower() for kw in STAKEHOLDER_KEYWORDS) else 0
+
+    # New dimensions (Issue #254) — weighted at 0.25 each so combined contribution
+    # to composite is proportional but never dominates existing dimensions.
+    # Each new dimension contributes up to 0.75 points (3 * 0.25 = 0.75).
+    # Four dimensions combined max = 3.0 points before capping to 7.
+    test_complexity_contrib = round(test_complexity * 0.25)
+    documentation_contrib = round(documentation * 0.25)
+    coordination_cost_contrib = round(coordination_cost * 0.25)
+    operational_contrib = round(operational * 0.25)
 
     breakdown = {
         "impact": impact,
         "risk_premium": risk_premium,
         "scope": scope,
         "coordination": coordination,
+        "test_complexity": test_complexity,
+        "documentation": documentation,
+        "coordination_cost": coordination_cost,
+        "operational": operational,
     }
 
     # Apply per-component overrides (V2-4: editable complexity)
@@ -970,7 +1187,24 @@ def compute_composite(
             if key in breakdown:
                 breakdown[key] = value
 
-    total = min(sum(breakdown.values()), 7)
+    # Recompute contributions after potential overrides
+    _tc = breakdown["test_complexity"]
+    _dc = breakdown["documentation"]
+    _cc = breakdown["coordination_cost"]
+    _oc = breakdown["operational"]
+
+    base_total = (
+        breakdown["impact"]
+        + breakdown["risk_premium"]
+        + breakdown["scope"]
+        + breakdown["coordination"]
+        + round(_tc * 0.25)
+        + round(_dc * 0.25)
+        + round(_cc * 0.25)
+        + round(_oc * 0.25)
+    )
+
+    total = min(base_total, 7)
     return total, breakdown
 
 
@@ -1401,10 +1635,29 @@ def analyze_input(
     if nov_reasons:
         explanation.append(f"Novelty ({novelty}/3): {'; '.join(nov_reasons)}")
 
+    # New dimensions (Issue #254)
+    test_complexity, tc_reasons = assess_test_complexity(text)
+    documentation, doc_reasons = assess_documentation(text)
+    coordination_cost, coord_reasons = assess_coordination_cost(text)
+    operational, op_reasons = assess_operational(text)
+
+    if tc_reasons:
+        explanation.append(f"Test complexity ({test_complexity}/3): {'; '.join(tc_reasons[:2])}")
+    if doc_reasons:
+        explanation.append(f"Documentation ({documentation}/3): {'; '.join(doc_reasons[:2])}")
+    if coord_reasons:
+        explanation.append(f"Coordination cost ({coordination_cost}/3): {'; '.join(coord_reasons[:2])}")
+    if op_reasons:
+        explanation.append(f"Operational ({operational}/3): {'; '.join(op_reasons[:2])}")
+
     risk_dims = RiskDimensions(
         impact=impact,
         reversibility=reversibility,
         novelty=novelty,
+        test_complexity=test_complexity,
+        documentation=documentation,
+        coordination_cost=coordination_cost,
+        operational=operational,
         explanation=explanation,
     )
 
@@ -1412,6 +1665,10 @@ def analyze_input(
     complexity, breakdown = compute_composite(
         impact, reversibility, novelty, text,
         component_overrides=effective_overrides.component_overrides or None,
+        test_complexity=test_complexity,
+        documentation=documentation,
+        coordination_cost=coordination_cost,
+        operational=operational,
     )
 
     # Apply MAXIMUM minimum complexity floor from ALL detected archetypes
@@ -1483,6 +1740,11 @@ def analyze_input(
     _wri = compute_weighted_index(norm_score)
     _routing_lane = determine_routing_lane(norm_score)
     _norm_dims = {dim: getattr(norm_score, dim) for dim in DIMENSION_WEIGHTS}
+    # Add new dimensions (Issue #254) to normalized_dimensions output
+    _norm_dims["test_complexity"] = round(breakdown.get("test_complexity", 0) / 3.0, 4)
+    _norm_dims["documentation"] = round(breakdown.get("documentation", 0) / 3.0, 4)
+    _norm_dims["coordination_cost"] = round(breakdown.get("coordination_cost", 0) / 3.0, 4)
+    _norm_dims["operational"] = round(breakdown.get("operational", 0) / 3.0, 4)
 
     logger.debug(
         f"Normalized scoring: WRI={_wri:.4f}, lane={_routing_lane.value}, "
