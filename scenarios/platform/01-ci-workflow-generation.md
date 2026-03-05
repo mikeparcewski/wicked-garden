@@ -82,7 +82,7 @@ git init
 ### 1. Generate CI Workflow
 
 ```bash
-/wicked-platform:actions generate
+/wicked-garden:platform:actions generate
 ```
 
 **Expected**:
@@ -109,7 +109,7 @@ Verify the generated workflow includes:
 ### 3. Generate Deployment Workflow
 
 ```bash
-/wicked-platform:actions generate deploy
+/wicked-garden:platform:actions generate deploy
 ```
 
 **Expected**:
@@ -137,7 +137,7 @@ jobs:
       - run: npm test
 EOF
 
-/wicked-platform:actions optimize .github/workflows/ci.yml
+/wicked-garden:platform:actions optimize .github/workflows/ci.yml
 ```
 
 **Expected**:

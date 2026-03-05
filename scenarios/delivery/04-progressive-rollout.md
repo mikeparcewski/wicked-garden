@@ -261,7 +261,7 @@ For teams shipping to production multiple times per week, this discipline is the
 
 **With wicked-kanban**: Tracks rollout stages as tasks with progress
 **With wicked-mem**: Recalls past rollout learnings and patterns
-**With wicked-delivery:analyze**: Uses experiment results to inform rollout confidence
+**With wicked-garden:delivery:analyze**: Uses experiment results to inform rollout confidence
 **Standalone**: Works with provided context documents
 
 ## Cleanup

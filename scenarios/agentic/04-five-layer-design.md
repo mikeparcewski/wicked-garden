@@ -20,11 +20,11 @@ No project files needed. The design command creates a new architecture from scra
 ### 1. Interactive Design Session (No Problem Statement)
 
 ```bash
-/wicked-agentic:design
+/wicked-garden:agentic:design
 ```
 
 **Expected**:
-- `wicked-agentic:architect` agent spawned in design mode
+- `wicked-garden:agentic:architect` agent spawned in design mode
 - Asks 3-5 focused clarifying questions
 - Questions cover: problem space, functional requirements, non-functional requirements, constraints
 
@@ -85,7 +85,7 @@ graph TB
 After architecture design, the command should spawn the safety reviewer:
 
 ```
-Task: wicked-agentic:safety-reviewer
+Task: wicked-garden:agentic:safety-reviewer
 
 Context:
 - Proposed architecture: PR review assistant
@@ -114,7 +114,7 @@ Context:
 ### 4. Problem Statement Shortcut
 
 ```bash
-/wicked-agentic:design "Build a customer support bot that answers FAQs, creates Zendesk tickets, and escalates to humans when confidence is low"
+/wicked-garden:agentic:design "Build a customer support bot that answers FAQs, creates Zendesk tickets, and escalates to humans when confidence is low"
 ```
 
 **Expected**:
@@ -126,7 +126,7 @@ Context:
 ### 5. Save Design to File
 
 ```bash
-/wicked-agentic:design "Research assistant for academic papers" --output ~/test-wicked-agentic/design.md
+/wicked-garden:agentic:design "Research assistant for academic papers" --output ~/test-wicked-agentic/design.md
 ```
 
 **Expected**:

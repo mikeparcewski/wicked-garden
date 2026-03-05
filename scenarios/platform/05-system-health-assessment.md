@@ -135,7 +135,7 @@ git commit -m "Setup health monitoring environment"
 ### 1. Run System Health Check
 
 ```bash
-/wicked-platform:health
+/wicked-garden:platform:health
 ```
 
 **Expected**:
@@ -169,7 +169,7 @@ The health report should show:
 ### 3. Investigate Degraded Service
 
 ```bash
-/wicked-platform:health user-service --detailed
+/wicked-garden:platform:health user-service --detailed
 ```
 
 **Expected**:
@@ -209,7 +209,7 @@ Top error pattern:
 ### 4. Review SLO Burn Rate
 
 ```bash
-/wicked-platform:health --slo-budget
+/wicked-garden:platform:health --slo-budget
 ```
 
 **Expected**:
@@ -242,7 +242,7 @@ SLO burn rate analysis:
 ### 5. Get Capacity Recommendations
 
 ```bash
-/wicked-platform:health --capacity
+/wicked-garden:platform:health --capacity
 ```
 
 **Expected**:

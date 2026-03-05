@@ -150,7 +150,7 @@ rm -f "${TMPDIR:-/tmp}/wicked-scenario-prompt-inj-session"
 - User asks about security → Relevant memories from multiple categories injected
 
 **No manual recall needed:**
-- Agent has context without running /wicked-mem:recall
+- Agent has context without running /wicked-garden:mem:recall
 - Context is relevant to the question (not all memories dumped)
 - Injection happens transparently
 
@@ -169,7 +169,7 @@ rm -f "${TMPDIR:-/tmp}/wicked-scenario-prompt-inj-session"
 - [ ] Agent recognizes past problems (e.g., connection pool leak)
 - [ ] Cross-cutting questions pull from multiple memory categories
 - [ ] Irrelevant memories are NOT injected (deployment memories don't appear for auth questions)
-- [ ] No manual /wicked-mem:recall commands were needed
+- [ ] No manual /wicked-garden:mem:recall commands were needed
 - [ ] Agent's answers are more informed than without the memory system
 
 ## Value Demonstrated
@@ -200,5 +200,5 @@ If context isn't being injected:
 - Check `hooks/hooks.json` has UserPromptSubmit (relative to plugin root)
 - Verify prompt_submit.py script exists and is executable
 - Check Claude Code console for hook execution
-- Verify memories exist with /wicked-mem:stats
+- Verify memories exist with /wicked-garden:mem:stats
 - Check memory tags match query keywords (e.g., "auth" query should match "auth" tag)

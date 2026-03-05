@@ -96,7 +96,7 @@ EOF
 
 1. **Analyze Stakeholder Alignment**
    ```bash
-   /wicked-product:align requirements.md --stakeholders "product,engineering,operations,security"
+   /wicked-garden:product:align requirements.md --stakeholders "product,engineering,operations,security"
    ```
 
    **Expected**: Should identify:
@@ -142,7 +142,7 @@ EOF
 
 6. **Run Conflict Deep-Dive**
    ```bash
-   /wicked-product:align --conflict "scope vs timeline"
+   /wicked-garden:product:align --conflict "scope vs timeline"
    ```
 
    **Expected**: Focused analysis on the specific tradeoff with options and recommendations.

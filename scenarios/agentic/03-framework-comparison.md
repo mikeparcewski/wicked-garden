@@ -20,11 +20,11 @@ No project files needed. The frameworks command operates as a research and advis
 ### 1. Direct Framework Comparison
 
 ```bash
-/wicked-agentic:frameworks --compare langchain,crewai,autogen
+/wicked-garden:agentic:frameworks --compare langchain,crewai,autogen
 ```
 
 **Expected**:
-- `wicked-agentic:framework-researcher` agent spawned in comparison mode
+- `wicked-garden:agentic:framework-researcher` agent spawned in comparison mode
 - WebSearch used for latest 2026 information on each framework
 - Comparison table produced covering key dimensions
 - Recommendation section with "best for each use case" guidance
@@ -43,7 +43,7 @@ No project files needed. The frameworks command operates as a research and advis
 ### 2. Language and Use Case Filtering
 
 ```bash
-/wicked-agentic:frameworks --language typescript --use-case customer-support
+/wicked-garden:agentic:frameworks --language typescript --use-case customer-support
 ```
 
 **Expected**:
@@ -60,7 +60,7 @@ No project files needed. The frameworks command operates as a research and advis
 ### 3. Interactive Selection Wizard
 
 ```bash
-/wicked-agentic:frameworks
+/wicked-garden:agentic:frameworks
 ```
 
 **Expected**:
@@ -116,13 +116,13 @@ I recommend LangGraph because:
 After getting a recommendation, user should be able to chain to design:
 
 ```bash
-User: /wicked-agentic:frameworks --language python --use-case data-pipeline
+User: /wicked-garden:agentic:frameworks --language python --use-case data-pipeline
 Claude: [Recommends LangGraph]
         Would you like me to design an architecture using LangGraph?
-        Run: /wicked-agentic:design "data pipeline using LangGraph"
+        Run: /wicked-garden:agentic:design "data pipeline using LangGraph"
 ```
 
-**Expected**: The framework recommendation includes a clear next step pointing to `/wicked-agentic:design`.
+**Expected**: The framework recommendation includes a clear next step pointing to `/wicked-garden:agentic:design`.
 
 ## Expected Outcome
 
@@ -168,7 +168,7 @@ I recommend [Framework] because:
 - [ ] Wizard asks all 5 questions in sequence
 - [ ] Wizard recommendation includes quick start code
 - [ ] Code examples compile/run as shown
-- [ ] Each mode ends with `/wicked-agentic:design` as suggested next step
+- [ ] Each mode ends with `/wicked-garden:agentic:design` as suggested next step
 - [ ] Comparison table covers: language, pattern focus, learning curve, production readiness
 
 ## Value Demonstrated

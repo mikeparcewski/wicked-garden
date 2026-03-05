@@ -81,15 +81,15 @@ EOF
 ### 1. Run Full Architecture Review
 
 ```bash
-/wicked-agentic:review ~/test-wicked-agentic/support-bot
+/wicked-garden:agentic:review ~/test-wicked-agentic/support-bot
 ```
 
 **Expected**:
 - Framework detection runs and identifies LangChain (confidence >= 0.8)
 - Agent topology analysis maps 3 agents (orchestrator, classifier, responder)
-- Architecture assessment spawns `wicked-agentic:architect` agent
-- Safety review spawns `wicked-agentic:safety-reviewer` agent
-- Performance analysis spawns `wicked-agentic:performance-analyst` agent
+- Architecture assessment spawns `wicked-garden:agentic:architect` agent
+- Safety review spawns `wicked-garden:agentic:safety-reviewer` agent
+- Performance analysis spawns `wicked-garden:agentic:performance-analyst` agent
 - Pattern scorer runs against topology
 - Unified report produced
 
@@ -131,7 +131,7 @@ The safety section should flag:
 ### 5. Quick Review Mode
 
 ```bash
-/wicked-agentic:review ~/test-wicked-agentic/support-bot --quick
+/wicked-garden:agentic:review ~/test-wicked-agentic/support-bot --quick
 ```
 
 **Expected**:
@@ -143,7 +143,7 @@ The safety section should flag:
 ### 6. Save Review to File
 
 ```bash
-/wicked-agentic:review ~/test-wicked-agentic/support-bot --output ~/test-wicked-agentic/review-report.md
+/wicked-garden:agentic:review ~/test-wicked-agentic/support-bot --output ~/test-wicked-agentic/review-report.md
 ```
 
 **Expected**:

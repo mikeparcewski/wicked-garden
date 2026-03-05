@@ -48,7 +48,7 @@ EOF
 
 1. **Get Raw Perspectives Without Synthesis**
    ```bash
-   /wicked-jam:perspectives "AI-powered natural language search for project management tool"
+   /wicked-garden:jam:perspectives "AI-powered natural language search for project management tool"
    ```
 
    Expected: 4-6 personas each provide their position, key concern, and what would change their mind. No synthesis or recommendation provided.
@@ -70,7 +70,7 @@ EOF
 
 4. **Run Full Brainstorm for Deeper Analysis**
    ```bash
-   /wicked-jam:brainstorm "AI-powered search feature: worth 12 engineer-weeks?"
+   /wicked-garden:jam:brainstorm "AI-powered search feature: worth 12 engineer-weeks?"
    ```
 
    Expected: Full session with rounds and synthesis that weighs tradeoffs

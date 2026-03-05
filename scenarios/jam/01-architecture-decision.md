@@ -43,7 +43,7 @@ EOF
 
 1. **Run Full Brainstorm**
    ```bash
-   /wicked-jam:brainstorm "caching strategy for social media API handling 10k req/min with user profile bottleneck"
+   /wicked-garden:jam:brainstorm "caching strategy for social media API handling 10k req/min with user profile bottleneck"
    ```
 
    Expected: Session launches with facilitator agent, generates 4-6 relevant personas (likely: Performance Engineer, DevOps, Cost Optimizer, Database Expert, etc.)
@@ -73,7 +73,7 @@ EOF
 
 5. **Test Quick Alternative**
    ```bash
-   /wicked-jam:jam "should we use Redis or Memcached for session cache?"
+   /wicked-garden:jam:jam "should we use Redis or Memcached for session cache?"
    ```
 
    Expected: Faster output with 4 personas, single round, brief synthesis

@@ -47,18 +47,18 @@ Simulate a realistic multi-day development workflow.
 
    Either accept the suggestion or explicitly store:
    ```
-   /wicked-mem:store "File upload 'Request Entity Too Large' error in production. Root cause: nginx has 1MB default client_max_body_size limit. Fix: Add 'client_max_body_size 10M;' to nginx.conf in http or server block. Don't forget to reload nginx: 'sudo systemctl reload nginx'. Also needed: (1) Express/multer limit config, (2) Application-level validation to reject >10MB. Key learning: nginx limits are separate from application limits - configure both." --type episodic --tags nginx,file-upload,production,debugging
+   /wicked-garden:mem:store "File upload 'Request Entity Too Large' error in production. Root cause: nginx has 1MB default client_max_body_size limit. Fix: Add 'client_max_body_size 10M;' to nginx.conf in http or server block. Don't forget to reload nginx: 'sudo systemctl reload nginx'. Also needed: (1) Express/multer limit config, (2) Application-level validation to reject >10MB. Key learning: nginx limits are separate from application limits - configure both." --type episodic --tags nginx,file-upload,production,debugging
    ```
 
 8. **Also store the pattern**
    ```
-   /wicked-mem:store "File upload implementation checklist: (1) Backend: multer or formidable for parsing, (2) Storage: S3/GCS for production or local for dev, (3) Validation: file type, size, virus scan if public, (4) Limits: nginx/Apache AND application level, (5) Error handling: clear messages for limit exceeded, (6) Security: sanitize filenames, check MIME types, store outside webroot. Common issues: nginx 1MB default, CORS for direct S3 upload." --type procedural --tags file-upload,backend,checklist,security
+   /wicked-garden:mem:store "File upload implementation checklist: (1) Backend: multer or formidable for parsing, (2) Storage: S3/GCS for production or local for dev, (3) Validation: file type, size, virus scan if public, (4) Limits: nginx/Apache AND application level, (5) Error handling: clear messages for limit exceeded, (6) Security: sanitize filenames, check MIME types, store outside webroot. Common issues: nginx 1MB default, CORS for direct S3 upload." --type procedural --tags file-upload,backend,checklist,security
    ```
 
 9. **Verify storage**
    ```
-   /wicked-mem:stats
-   /wicked-mem:recall --tags file-upload
+   /wicked-garden:mem:stats
+   /wicked-garden:mem:recall --tags file-upload
    ```
 
 ### Day 2: New Session, Similar Problem
@@ -76,8 +76,8 @@ Simulate a realistic multi-day development workflow.
 
 13. **Manual recall if needed**
     ```
-    /wicked-mem:recall "Request Entity Too Large"
-    /wicked-mem:recall --tags file-upload,production
+    /wicked-garden:mem:recall "Request Entity Too Large"
+    /wicked-garden:mem:recall --tags file-upload,production
     ```
 
 14. **Verify agent applies the learning**
@@ -109,7 +109,7 @@ Simulate a realistic multi-day development workflow.
 
     Add to the memory:
     ```
-    /wicked-mem:store "Update: AWS ALB also has max request size. Default varies by region but generally 1MB for requests. Need to check ALB target group settings. For large uploads, consider: (1) Direct S3 upload with presigned URLs, (2) Chunked uploads, (3) ALB request size limits in target group." --type episodic --tags nginx,file-upload,aws,alb
+    /wicked-garden:mem:store "Update: AWS ALB also has max request size. Default varies by region but generally 1MB for requests. Need to check ALB target group settings. For large uploads, consider: (1) Direct S3 upload with presigned URLs, (2) Chunked uploads, (3) ALB request size limits in target group." --type episodic --tags nginx,file-upload,aws,alb
     ```
 
 ## Expected Outcome
@@ -135,7 +135,7 @@ Simulate a realistic multi-day development workflow.
 
 - [ ] Day 1: Stop hook offers to store the learning after solving the problem
 - [ ] Day 1: Episodic and procedural memories are stored with relevant tags
-- [ ] Day 1: /wicked-mem:stats shows the new memories
+- [ ] Day 1: /wicked-garden:mem:stats shows the new memories
 - [ ] Day 2: Similar problem triggers memory recall (automatic or manual)
 - [ ] Day 2: Agent references past solution early in the debugging process
 - [ ] Day 2: Time to solution is significantly reduced
@@ -148,12 +148,12 @@ Simulate a realistic multi-day development workflow.
 
 This scenario proves the complete value proposition:
 
-**Before wicked-mem:**
+**Before wicked-garden:mem:**
 - Day 1: Spend 2 hours debugging nginx limits
 - Day 2: Forget the details, spend 1.5 hours debugging again
 - Day 3: Realize there was a similar problem before, can't find notes
 
-**After wicked-mem:**
+**After wicked-garden:mem:**
 - Day 1: Spend 2 hours debugging, system captures the learning automatically
 - Day 2: Agent recalls the solution, 15 minutes to apply fix
 - Day 3: Knowledge base grows, new variations enhance existing knowledge

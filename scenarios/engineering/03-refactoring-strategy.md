@@ -79,7 +79,7 @@ EOF
 
 1. **Run Brainstorm with Custom Personas**
    ```bash
-   /wicked-jam:brainstorm "refactoring strategy for legacy payment processor" --personas "Security,Tester,Maintainer,Architect,Risk-Manager" --rounds 3
+   /wicked-garden:jam:brainstorm "refactoring strategy for legacy payment processor" --personas "Security,Tester,Maintainer,Architect,Risk-Manager" --rounds 3
    ```
 
    Expected: Session with specified personas runs 3 discussion rounds
@@ -116,7 +116,7 @@ EOF
 
 6. **Test Quick Gut-Check**
    ```bash
-   /wicked-jam:jam "should we rewrite the payment processor or refactor incrementally?"
+   /wicked-garden:jam:jam "should we rewrite the payment processor or refactor incrementally?"
    ```
 
    Expected: Quick take with 4 personas, brief recommendation

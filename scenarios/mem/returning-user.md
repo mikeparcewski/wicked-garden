@@ -23,17 +23,17 @@ Create a realistic project context with stored decisions and preferences:
 
 2. Store a recent architectural decision:
    ```
-   /wicked-mem:store "We chose TypeScript over JavaScript for the payment API. Reasons: (1) Stripe SDK has excellent TypeScript types that catch integration errors at compile time, (2) Financial data handling benefits from strict null checks, (3) Team already uses TS in the frontend so no new tooling needed. Trade-off: slightly slower iteration for prototypes." --type decision --tags tech-stack,typescript,payments
+   /wicked-garden:mem:store "We chose TypeScript over JavaScript for the payment API. Reasons: (1) Stripe SDK has excellent TypeScript types that catch integration errors at compile time, (2) Financial data handling benefits from strict null checks, (3) Team already uses TS in the frontend so no new tooling needed. Trade-off: slightly slower iteration for prototypes." --type decision --tags tech-stack,typescript,payments
    ```
 
 3. Store a code style preference:
    ```
-   /wicked-mem:store "User prefers early returns over nested if/else blocks for readability. Use guard clauses at function start, then handle the happy path without indentation." --type preference --tags code-style,readability
+   /wicked-garden:mem:store "User prefers early returns over nested if/else blocks for readability. Use guard clauses at function start, then handle the happy path without indentation." --type preference --tags code-style,readability
    ```
 
 4. Store an episodic memory from recent work:
    ```
-   /wicked-mem:store "Stripe webhook signature verification was failing intermittently. Root cause: body-parser middleware was consuming the raw body before signature verification. Fix: use express.raw() for webhook endpoint, express.json() for others. Key learning: webhook verification requires the raw request body." --type episodic --tags stripe,webhooks,debugging
+   /wicked-garden:mem:store "Stripe webhook signature verification was failing intermittently. Root cause: body-parser middleware was consuming the raw body before signature verification. Fix: use express.raw() for webhook endpoint, express.json() for others. Key learning: webhook verification requires the raw request body." --type episodic --tags stripe,webhooks,debugging
    ```
 
 ## Steps
@@ -53,9 +53,9 @@ Create a realistic project context with stored decisions and preferences:
 
 4. **Test explicit recall**
    ```
-   /wicked-mem:recall "TypeScript"
-   /wicked-mem:recall --type preference
-   /wicked-mem:recall --tags stripe
+   /wicked-garden:mem:recall "TypeScript"
+   /wicked-garden:mem:recall --type preference
+   /wicked-garden:mem:recall --tags stripe
    ```
 
 ## Expected Outcome
@@ -68,12 +68,12 @@ Create a realistic project context with stored decisions and preferences:
 
 ## Success Criteria
 
-- [ ] Decision memory is stored and retrievable via /wicked-mem:recall
+- [ ] Decision memory is stored and retrievable via /wicked-garden:mem:recall
 - [ ] Preference memory is stored and retrievable
 - [ ] Episodic memory is stored with proper tags
 - [ ] Agent demonstrates awareness of TypeScript without being told (SessionStart hook working)
 - [ ] Agent follows the early return preference in generated code
-- [ ] /wicked-mem:stats shows 3 memories (1 decision, 1 preference, 1 episodic)
+- [ ] /wicked-garden:mem:stats shows 3 memories (1 decision, 1 preference, 1 episodic)
 
 ## Value Demonstrated
 

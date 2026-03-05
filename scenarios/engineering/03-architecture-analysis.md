@@ -184,7 +184,7 @@ EOF
 ### 1. Analyze System Architecture
 
 ```bash
-/wicked-engineering:arch --scope system
+/wicked-garden:engineering:arch --scope system
 ```
 
 **Expected**: System-level analysis should identify:
@@ -196,7 +196,7 @@ EOF
 ### 2. Analyze Order Service Module
 
 ```bash
-/wicked-engineering:arch services/order --scope module
+/wicked-garden:engineering:arch services/order --scope module
 ```
 
 **Expected**: Module analysis should identify:
@@ -209,7 +209,7 @@ EOF
 For systems with complex data relationships, spawn the data architect:
 
 ```bash
-/wicked-engineering:arch --scope system
+/wicked-garden:engineering:arch --scope system
 ```
 
 Then request data-specific analysis of the shared models.

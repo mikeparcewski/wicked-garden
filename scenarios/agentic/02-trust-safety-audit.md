@@ -90,7 +90,7 @@ EOF
 ### 1. Run Basic Safety Audit
 
 ```bash
-/wicked-agentic:audit ~/test-wicked-agentic/research-agent
+/wicked-garden:agentic:audit ~/test-wicked-agentic/research-agent
 ```
 
 **Expected**:
@@ -140,7 +140,7 @@ Human-in-the-loop section should show:
 ### 4. Run GDPR Compliance Audit
 
 ```bash
-/wicked-agentic:audit ~/test-wicked-agentic/research-agent --standard GDPR
+/wicked-garden:agentic:audit ~/test-wicked-agentic/research-agent --standard GDPR
 ```
 
 **Expected**:
@@ -152,7 +152,7 @@ Human-in-the-loop section should show:
 ### 5. Save Audit to File
 
 ```bash
-/wicked-agentic:audit ~/test-wicked-agentic/research-agent --output ~/test-wicked-agentic/safety-audit.md
+/wicked-garden:agentic:audit ~/test-wicked-agentic/research-agent --output ~/test-wicked-agentic/safety-audit.md
 ```
 
 **Expected**:

@@ -94,7 +94,7 @@ EOF
 
 1. **Aggregate Feedback**
    ```bash
-   /wicked-product:listen feedback/
+   /wicked-garden:product:listen feedback/
    ```
 
    **Expected**: Should scan all feedback sources and report:
@@ -105,7 +105,7 @@ EOF
 
 2. **Analyze Themes and Sentiment**
    ```bash
-   /wicked-product:analyze --theme "performance"
+   /wicked-garden:product:analyze --theme "performance"
    ```
 
    **Expected**:
@@ -116,7 +116,7 @@ EOF
 
 3. **Generate Recommendations**
    ```bash
-   /wicked-product:synthesize --priority high
+   /wicked-garden:product:synthesize --priority high
    ```
 
    **Expected prioritized recommendations**:

@@ -16,7 +16,7 @@ Test that important decisions and their rationale persist and can answer "why di
 Store a realistic architectural decision with full context:
 
 ```
-/wicked-mem:store "Chose PostgreSQL over MongoDB for the payment system. Reasons: (1) ACID compliance is non-negotiable for financial transactions - we can't have partial payments or duplicate charges, (2) Complex reporting queries need JOINs across customers, subscriptions, and invoices - document DB would require denormalization and eventual consistency, (3) Team has 3 engineers with deep Postgres experience vs 1 who's used MongoDB casually. Trade-offs accepted: (a) Less flexibility for schema changes - migrations required, (b) Harder to scale horizontally - but payment volume won't hit that scale for 2+ years, (c) JSON columns slower than native BSON - but we're only storing metadata there. Considered alternatives: MySQL (rejected - weaker JSON support), CockroachDB (rejected - overkill for current scale, expensive), DynamoDB (rejected - vendor lock-in and team expertise gap)." --type decision --tags database,architecture,payments,postgresql
+/wicked-garden:mem:store "Chose PostgreSQL over MongoDB for the payment system. Reasons: (1) ACID compliance is non-negotiable for financial transactions - we can't have partial payments or duplicate charges, (2) Complex reporting queries need JOINs across customers, subscriptions, and invoices - document DB would require denormalization and eventual consistency, (3) Team has 3 engineers with deep Postgres experience vs 1 who's used MongoDB casually. Trade-offs accepted: (a) Less flexibility for schema changes - migrations required, (b) Harder to scale horizontally - but payment volume won't hit that scale for 2+ years, (c) JSON columns slower than native BSON - but we're only storing metadata there. Considered alternatives: MySQL (rejected - weaker JSON support), CockroachDB (rejected - overkill for current scale, expensive), DynamoDB (rejected - vendor lock-in and team expertise gap)." --type decision --tags database,architecture,payments,postgresql
 ```
 
 ## Steps
@@ -30,14 +30,14 @@ Store a realistic architectural decision with full context:
 
 3. **Test explicit recall**
    ```
-   /wicked-mem:recall "PostgreSQL MongoDB"
-   /wicked-mem:recall --type decision --tags database
+   /wicked-garden:mem:recall "PostgreSQL MongoDB"
+   /wicked-garden:mem:recall --type decision --tags database
    ```
 
 4. **Test related queries**
    ```
-   /wicked-mem:recall "ACID transactions"
-   /wicked-mem:recall --tags architecture
+   /wicked-garden:mem:recall "ACID transactions"
+   /wicked-garden:mem:recall --tags architecture
    ```
 
 ## Expected Outcome
@@ -54,7 +54,7 @@ Store a realistic architectural decision with full context:
 - [ ] Trade-offs and alternatives are documented
 - [ ] Tags make it discoverable via multiple paths (database, architecture, payments)
 - [ ] Agent can answer "why did we..." questions naturally without manual /recall
-- [ ] Memory appears in /wicked-mem:stats as type "decision"
+- [ ] Memory appears in /wicked-garden:mem:stats as type "decision"
 - [ ] Search by technical terms (ACID, JOIN) finds the memory
 
 ## Value Demonstrated

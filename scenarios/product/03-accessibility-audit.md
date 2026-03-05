@@ -148,7 +148,7 @@ EOF
 
 1. **Run Accessibility Audit**
    ```bash
-   /wicked-product:ux-review src/components --focus a11y
+   /wicked-garden:product:ux-review src/components --focus a11y
    ```
 
    **Expected**: The a11y-expert should identify:

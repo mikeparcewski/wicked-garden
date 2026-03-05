@@ -146,7 +146,7 @@ git add -A
 ### 1. Review Uncommitted Changes
 
 ```bash
-/wicked-engineering:review
+/wicked-garden:engineering:review
 ```
 
 **Expected**: Without specifying a path, the review should detect uncommitted changes and focus on `src/services/orderService.ts`.
@@ -161,7 +161,7 @@ The review should note that `orderService.ts` deviates from patterns in the exis
 ### 3. Request Security-Focused Analysis
 
 ```bash
-/wicked-engineering:review src/services/orderService.ts --focus security
+/wicked-garden:engineering:review src/services/orderService.ts --focus security
 ```
 
 **Expected**: Security review should flag:
@@ -172,7 +172,7 @@ The review should note that `orderService.ts` deviates from patterns in the exis
 ### 4. Request Performance Analysis
 
 ```bash
-/wicked-engineering:review src/services/orderService.ts --focus performance
+/wicked-garden:engineering:review src/services/orderService.ts --focus performance
 ```
 
 **Expected**: Performance review should identify:

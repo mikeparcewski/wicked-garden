@@ -46,7 +46,7 @@ EOF
 
 1. **Run Requirements Elicitation**
    ```bash
-   /wicked-product:elicit brief.md
+   /wicked-garden:product:elicit brief.md
    ```
 
    **Expected**: The requirements-analyst agent should:

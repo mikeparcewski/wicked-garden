@@ -95,7 +95,7 @@ EOF
 ### 1. Review Requirements
 
 ```bash
-/wicked-qe:qe docs/requirements.md --focus requirements
+/wicked-garden:qe:qe docs/requirements.md --focus requirements
 ```
 
 **Expected**: Requirements review should identify:
@@ -107,7 +107,7 @@ EOF
 ### 2. Review Design
 
 ```bash
-/wicked-qe:qe docs/design.md --focus arch
+/wicked-garden:qe:qe docs/design.md --focus arch
 ```
 
 **Expected**: Architecture review should identify:
@@ -119,7 +119,7 @@ EOF
 ### 3. Full QE Review
 
 ```bash
-/wicked-qe:qe docs/ --focus all
+/wicked-garden:qe:qe docs/ --focus all
 ```
 
 **Expected**: Comprehensive review across all focus areas.

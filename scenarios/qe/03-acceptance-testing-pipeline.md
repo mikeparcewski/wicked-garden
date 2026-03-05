@@ -116,7 +116,7 @@ SCENARIO
 ### 1. Generate Test Plan (Write Phase)
 
 ```bash
-/wicked-qe:acceptance scenario-calc.md --phase write
+/wicked-garden:qe:acceptance scenario-calc.md --phase write
 ```
 
 **Expected**: Test plan is generated with:
@@ -128,7 +128,7 @@ SCENARIO
 ### 2. Execute Test Plan (Execute Phase)
 
 ```bash
-/wicked-qe:acceptance scenario-calc.md --phase execute --plan <test-plan-from-step-1>
+/wicked-garden:qe:acceptance scenario-calc.md --phase execute --plan <test-plan-from-step-1>
 ```
 
 **Expected**: Evidence report with:
@@ -139,7 +139,7 @@ SCENARIO
 ### 3. Review Evidence (Review Phase)
 
 ```bash
-/wicked-qe:acceptance scenario-calc.md --phase review --plan <test-plan> --evidence <evidence-report>
+/wicked-garden:qe:acceptance scenario-calc.md --phase review --plan <test-plan> --evidence <evidence-report>
 ```
 
 **Expected**: Reviewer produces verdict with:
@@ -153,7 +153,7 @@ SCENARIO
 ### 4. Run Full Pipeline
 
 ```bash
-/wicked-qe:acceptance scenario-calc.md
+/wicked-garden:qe:acceptance scenario-calc.md
 ```
 
 **Expected**: Full Write → Execute → Review pipeline runs end-to-end, producing:

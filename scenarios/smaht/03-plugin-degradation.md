@@ -102,7 +102,7 @@ Available Integrations:
 ```
 
 **Expected**:
-- Dispatches to `/wicked-jam:brainstorm "retry strategies with exponential backoff"`
+- Dispatches to `/wicked-garden:jam:brainstorm "retry strategies with exponential backoff"`
 - Facilitator synthesizes jam insights into structured outcome
 - Mentions in output: "Using wicked-jam for brainstorming"
 

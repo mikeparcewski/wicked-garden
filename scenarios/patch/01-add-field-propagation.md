@@ -78,7 +78,7 @@ echo "Test project created at /tmp/wicked-patch-test/user-service"
 First, build the symbol graph so wicked-patch can understand your code structure:
 
 ```bash
-/wicked-search:index /tmp/wicked-patch-test/user-service
+/wicked-garden:search:index /tmp/wicked-patch-test/user-service
 ```
 
 ### 2. Preview the change plan
@@ -86,7 +86,7 @@ First, build the symbol graph so wicked-patch can understand your code structure
 See what would be affected before making changes:
 
 ```bash
-/wicked-patch:plan "src/main/java/com/example/User.java::User" --change add_field
+/wicked-garden:patch:plan "src/main/java/com/example/User.java::User" --change add_field
 ```
 
 **Expected output**: A PROPAGATION PLAN showing:
@@ -99,7 +99,7 @@ See what would be affected before making changes:
 Add the email field and generate patches for all languages:
 
 ```bash
-/wicked-patch:add-field "src/main/java/com/example/User.java::User" --name email --type String --required -o /tmp/wicked-patch-test/user-service/.patches/patches.json --verbose
+/wicked-garden:patch:add-field "src/main/java/com/example/User.java::User" --name email --type String --required -o /tmp/wicked-patch-test/user-service/.patches/patches.json --verbose
 ```
 
 **Expected output**: A GENERATED PATCHES block showing patches grouped by file, including:
@@ -123,7 +123,7 @@ cat /tmp/wicked-patch-test/user-service/.patches/manifest.json
 Apply the generated patches:
 
 ```bash
-/wicked-patch:apply /tmp/wicked-patch-test/user-service/.patches/patches.json --skip-git --force
+/wicked-garden:patch:apply /tmp/wicked-patch-test/user-service/.patches/patches.json --skip-git --force
 ```
 
 When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.

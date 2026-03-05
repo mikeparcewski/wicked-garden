@@ -78,7 +78,7 @@ npm install express --save
 ```
 
 **With wicked-jam available**:
-- Dispatches to `/wicked-jam:brainstorm "OAuth2 integration approaches for Node.js API"`
+- Dispatches to `/wicked-garden:jam:brainstorm "OAuth2 integration approaches for Node.js API"`
 - Facilitator synthesizes into structured outcome
 
 **Without wicked-jam (standalone)**:
@@ -121,7 +121,7 @@ phases/clarify/acceptance-criteria.md containing:
 ```
 
 **With wicked-search available**:
-- Dispatches to `/wicked-search:research "OAuth2 implementation patterns passport.js"`
+- Dispatches to `/wicked-garden:search:research "OAuth2 implementation patterns passport.js"`
 - Finds existing auth patterns in codebase
 
 **Without wicked-search (standalone)**:
@@ -154,7 +154,7 @@ phases/design/architecture.md containing:
 ```
 
 **With wicked-qe available**:
-- Dispatches to `/wicked-qe:qe` for test strategy
+- Dispatches to `/wicked-garden:qe:qe` for test strategy
 - Reviews design artifacts from QE perspective
 
 **Without wicked-qe (standalone)**:
@@ -221,7 +221,7 @@ phases/test-strategy/test-strategy.md containing:
 ```
 
 **With wicked-qe available**:
-- Dispatches to `/wicked-qe:acceptance` for test execution
+- Dispatches to `/wicked-garden:qe:acceptance` for test execution
 - Runs test scenarios from test-strategy phase
 
 **Without wicked-qe (standalone)**:
@@ -251,7 +251,7 @@ phases/test/test-results.md containing:
 ```
 
 **With wicked-engineering available**:
-- Dispatches to `/wicked-engineering:review` with multiple perspectives
+- Dispatches to `/wicked-garden:engineering:review` with multiple perspectives
 - Gets feedback from security, engineering, and QE perspectives
 
 **Without wicked-engineering (standalone)**:
