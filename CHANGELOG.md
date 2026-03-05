@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.17.10] - 2026-03-05
+
+### Bug Fixes
+- fix: resolve issues #241-#248, add QE test type taxonomy (b1dc057)
+- fix: resolve issues #240-#248, add gate reviewer policy, release v1.17.9 (828ea04)
+
 ## [1.17.9] - 2026-03-04
 
 ### Bug Fixes
