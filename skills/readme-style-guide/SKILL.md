@@ -1,6 +1,10 @@
 ---
 name: readme-style-guide
-description: Canonical README template and validation rules for Wicked Garden marketplace plugins. Use when writing, reviewing, or validating plugin READMEs.
+description: |
+  Canonical README template and validation rules for Wicked Garden marketplace plugins.
+
+  Use when: "write a README", "plugin README template", "README structure",
+  "marketplace README", "README style guide", "validate README"
 ---
 
 # README Style Guide

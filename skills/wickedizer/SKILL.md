@@ -1,7 +1,7 @@
 ---
 name: wickedizer
 description: |
-  Use this skill when writing, rewriting, or humanizing content. Removes AI tells while preserving meaning. Aligns output to team voice: direct, practical, action-oriented.
+  This skill should be used when writing, rewriting, or humanizing content. Removes AI tells while preserving meaning. Aligns output to team voice: direct, practical, action-oriented.
 
   Use when:
   - Writing or rewriting prose, technical docs, PRDs, slides
