@@ -15,7 +15,20 @@ Intelligent onboarding that builds understanding of a codebase using parallel wo
 
 ## Instructions
 
-### 1. Check for Prior Onboarding
+### 1. MANDATORY FIRST ACTION: Start Background Index
+
+> **NON-NEGOTIABLE**: Unless `--skip-index` was explicitly passed, you MUST run this command BEFORE any other action. Do not skip this step. Do not defer it. Run it now.
+
+```
+Bash(command="cd '${CLAUDE_PLUGIN_ROOT}' && uv run python scripts/search/unified_search.py index '{path}' --project '{project_name}'",
+     run_in_background=true)
+```
+
+Store the task ID — you will need it in Phase 3 to validate the index.
+
+If `--skip-index` was passed, skip this step and note: "Indexing skipped — Phase 3 validation will be limited."
+
+### 2. Check for Prior Onboarding
 
 Recall previous onboarding sessions for this path:
 
@@ -27,24 +40,11 @@ If `--resume` and prior memories exist, show what was already discovered and ski
 
 If prior onboarding found, ask: "Previous onboarding found for this codebase. Resume from where you left off, or start fresh?"
 
-### 2. Phase 1 — Parallel Discovery (Index + Explore)
+### 3. Phase 1 — Parallel Discovery (Scout + Explore)
 
-Run indexing and exploration concurrently. The goal: build understanding while the index builds.
+The background index is already running. Now build understanding while it builds.
 
-#### 2.1 Start Background Index
-
-Unless `--skip-index`, start indexing in the background.
-
-Run indexing via the search indexer:
-
-```
-Bash(command="cd '${CLAUDE_PLUGIN_ROOT}' && uv run python scripts/search/unified_search.py index '{path}' --project '{project_name}'",
-     run_in_background=true)
-```
-
-Store the task ID — we'll check on it in Phase 3.
-
-#### 2.2 Quick Scout (Immediate)
+#### 3.1 Quick Scout (Immediate)
 
 While indexing runs, do a fast reconnaissance:
 
@@ -54,7 +54,7 @@ While indexing runs, do a fast reconnaissance:
 
 This gives immediate results without waiting for the index.
 
-#### 2.3 Parallel Exploration
+#### 3.2 Parallel Exploration
 
 Launch 3 exploration agents concurrently:
 
@@ -94,11 +94,11 @@ Task(subagent_type="Explore",
      Return structured findings with file paths.")
 ```
 
-### 3. Phase 2 — Synthesize & Store Discoveries
+### 4. Phase 2 — Synthesize & Store Discoveries
 
 After all exploration agents complete:
 
-#### 3.1 Synthesize Findings
+#### 4.1 Synthesize Findings
 
 Combine results from all 3 agents into a structured onboarding profile:
 
@@ -139,7 +139,7 @@ Combine results from all 3 agents into a structured onboarding profile:
 2. ...
 ```
 
-#### 3.2 Store Discoveries as Memories
+#### 4.2 Store Discoveries as Memories
 
 Save key discoveries to wicked-mem for future sessions:
 
@@ -151,15 +151,17 @@ Save key discoveries to wicked-mem for future sessions:
 /wicked-garden:mem:store "Onboarding: {project-name} key flows - {flow summaries}" --type procedural --tags onboarding,{project-name},flows
 ```
 
-### 4. Phase 3 — Validate Against Index
+### 5. Phase 3 — Validate Against Index
+
+> **GATE CHECK**: Before proceeding, verify that Step 1 (background indexing) was started. If `--skip-index` was NOT passed and you did not start the indexing task, you MUST start it now before continuing. Do not skip this check.
 
 Once the background index completes:
 
-#### 4.1 Check Index Status
+#### 5.1 Check Index Status
 
 Read the background task output. If still running, report progress and continue to the report (validation can happen later).
 
-#### 4.2 Deep Linking (Lineage + Service Map)
+#### 5.2 Deep Linking (Lineage + Service Map)
 
 If the index is ready, derive cross-layer relationships that raw indexing alone doesn't produce:
 
@@ -175,7 +177,7 @@ This detects services, layers, and their dependencies. Then derive lineage for k
 
 Run this for 2-3 key symbols from the exploration to populate the lineage graph.
 
-#### 4.3 Validate Navigability
+#### 5.3 Validate Navigability
 
 Run validation checks against the fully-linked index:
 
@@ -208,7 +210,7 @@ If validation reveals gaps (symbols not indexed, flows not traceable), store as 
 /wicked-garden:mem:store "Onboarding gap: {project-name} - {gap description}. Files not indexed or symbols missing." --type episodic --tags onboarding,{project-name},gap
 ```
 
-### 5. Generate Onboarding Report
+### 6. Generate Onboarding Report
 
 Produce the final report combining all phases:
 
@@ -252,7 +254,7 @@ Based on your onboarding discoveries:
 {count} memories stored for future sessions. Next time you work in this codebase, context will be automatically recalled.
 ```
 
-### 6. Offer Deeper Exploration
+### 7. Offer Deeper Exploration
 
 After the report, offer to go deeper:
 
