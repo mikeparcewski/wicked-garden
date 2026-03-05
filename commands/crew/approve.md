@@ -115,7 +115,30 @@ If sign-off is `conditional`, display conditions and ask user to confirm before 
 
 **Override:** User can set `task_lifecycle.user_overrides.skip_signoff = true` to bypass (not recommended).
 
-#### 3.1.5 Race Condition Prevention
+#### 3.1.5 Evidence Validation (Issue #253)
+
+**For phases build, test, and review**: validate that completed tasks include required evidence.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/evidence.py" validate --phase {phase} --complexity {complexity_score}
+```
+
+For each completed task in the phase, call `validate_evidence(task.description, complexity_score)`:
+- If any task returns `valid: false`: report missing evidence fields per task
+- **Complexity >= 3**: BLOCK approval if evidence is missing (hard gate)
+- **Complexity < 3**: WARN but allow approval (soft nudge)
+
+```markdown
+### Evidence Validation
+{for each task with missing evidence:}
+⚠️ Task "{subject}": missing {missing_fields}
+{if complexity >= 3: "✗ BLOCKED — evidence required at this complexity level"}
+{if complexity < 3: "⚠️ Warning — evidence recommended but not required"}
+```
+
+**Override:** User can set `task_lifecycle.user_overrides.skip_evidence_validation = true` to bypass.
+
+#### 3.1.6 Race Condition Prevention
 
 Use atomic file operations for approval:
 
