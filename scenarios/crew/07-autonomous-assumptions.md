@@ -46,14 +46,25 @@ Expected:
 
 ### 3. Verify assumptions are tracked
 
+Assumptions are stored in `project.json` by the just-finish orchestrator. Read them directly from the project file (assumptions bypass the status summary):
+
 ```bash
-/wicked-garden:crew:status
+python3 -c "
+import json, os
+proj_dir = os.path.expanduser('~/.something-wicked/wicked-garden/local/wicked-crew/projects/improve-the-search-results-page')
+with open(os.path.join(proj_dir, 'project.json')) as f:
+    d = json.load(f)
+assumptions = d.get('assumptions', [])
+print(f'{len(assumptions)} assumption(s) tracked')
+for a in assumptions:
+    print(f'  - [{a[\"phase\"]}] {a[\"assumption\"]}')
+"
 ```
 
 Expected:
-1. Status output includes an assumptions section or assumption count
+1. At least 2-3 assumptions logged from the clarify phase
 2. Each assumption has `phase`, `assumption`, and `reason` fields
-3. At least 2-3 assumptions from the clarify phase
+3. Output lists the assumptions with their phase context
 
 ### 4. Verify completion includes assumptions appendix
 
@@ -106,7 +117,7 @@ Expected:
 - [ ] Assumptions are reasonable given the vague description
 
 ### Assumption Tracking
-- [ ] Status output reports assumptions as they are made
+- [ ] project.json contains assumptions array populated during execution
 - [ ] Each assumption has phase, assumption, and reason fields
 - [ ] Final output includes "Assumptions Made" appendix
 

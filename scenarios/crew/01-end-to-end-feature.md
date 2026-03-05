@@ -114,7 +114,7 @@ phases/clarify/complexity.md containing:
 ```
 
 **Expected**:
-- Phase marked "completed" in `project.md`
+- Phase marked "completed" in StorageManager (`project.json`) — `project.md` is static documentation, not updated by the workflow
 - Current phase advances to "design"
 - Status summary shows clarify deliverables
 

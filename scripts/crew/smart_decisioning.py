@@ -1349,20 +1349,18 @@ def analyze_input(
 
     # File impact scoring — if file_hints provided, elevate impact if higher than text-derived score
     if file_hints:
-        # Compute weight for each file, take top-3 average, cap at MAX_FILE_IMPACT
-        file_weights = sorted(
-            [
-                max(
-                    (w for pat, w in _COMPILED_FILE_PATTERNS if pat.search(fp)),
-                    default=0.0
-                )
-                for fp in file_hints
-            ],
-            reverse=True
-        )[:3]
+        # Compute weight for each file; use the MAX weight so TIER 1 files always dominate.
+        # Averaging was discarding TIER 1 signal when mixed with low-weight or unmatched files.
+        file_weights = [
+            max(
+                (w for pat, w in _COMPILED_FILE_PATTERNS if pat.search(fp)),
+                default=0.0
+            )
+            for fp in file_hints
+        ]
         if file_weights:
             file_impact_score = min(
-                sum(file_weights) / max(len(file_weights), 1),
+                max(file_weights),
                 MAX_FILE_IMPACT
             )
             if file_impact_score > impact:

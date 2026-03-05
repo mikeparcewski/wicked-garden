@@ -21,22 +21,30 @@ Extract parameters:
 
 Run framework detection:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" --path "$TARGET_PATH"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/detect_framework.py" --path "$TARGET_PATH"
 ```
 
 Expected output:
 ```json
 {
-  "primary_framework": "langchain",
-  "confidence": 0.95,
-  "evidence": ["langchain imports", "LCEL chains"],
-  "all_frameworks": [
-    {"name": "langchain", "confidence": 0.95},
-    {"name": "openai", "confidence": 0.30}
+  "frameworks_detected": [
+    {
+      "name": "langchain",
+      "confidence": 0.95,
+      "evidence_count": 12,
+      "primary": true
+    },
+    {
+      "name": "openai",
+      "confidence": 0.30,
+      "evidence_count": 3,
+      "primary": false
+    }
   ],
-  "stats": {
-    "total_files": 45,
-    "agent_files": 12
+  "primary_framework": "langchain",
+  "scan_stats": {
+    "files_scanned": 45,
+    "duration_ms": 120
   }
 }
 ```
@@ -47,7 +55,7 @@ If `--framework` specified, skip detection and use provided value.
 
 Map agent interactions and dependencies:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" --path "$TARGET_PATH" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" --path "$TARGET_PATH" \
   --framework "$DETECTED_FRAMEWORK"
 ```
 
@@ -123,7 +131,7 @@ Run pattern analysis on agent topology:
 AGENTS_FILE=$(mktemp)
 echo "$AGENTS_JSON" > "$AGENTS_FILE"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/pattern_scorer.py" \
   --agents "$AGENTS_FILE" \
   --framework "$DETECTED_FRAMEWORK"
 ```
@@ -162,10 +170,14 @@ Generate final structured report:
 FINDINGS_FILE=$(mktemp)
 echo "$FINDINGS_JSON" > "$FINDINGS_FILE"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/issue_taxonomy.py" \
+# Save framework detection JSON to temp file
+FRAMEWORK_FILE=$(mktemp)
+echo "$FRAMEWORK_JSON" > "$FRAMEWORK_FILE"
+
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/issue_taxonomy.py" \
   --findings "$FINDINGS_FILE" \
   --agents "$AGENTS_FILE" \
-  --framework "$DETECTED_FRAMEWORK" \
+  --framework "$FRAMEWORK_FILE" \
   --format markdown
 ```
 
