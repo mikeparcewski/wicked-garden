@@ -21,11 +21,25 @@ Input schema (from Claude Code):
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 # Add shared scripts directory to path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+
+
+# ---------------------------------------------------------------------------
+# Ops logger wrapper — fail-silent, never crashes the hook
+# ---------------------------------------------------------------------------
+
+def _log(domain, level, event, ok=True, ms=None, detail=None):
+    """Ops logger — fail-silent, never crashes the hook."""
+    try:
+        from _logger import log
+        log(domain, level, event, ok=ok, ms=ms, detail=detail)
+    except Exception:
+        pass
 
 # Keywords that suggest a deliverable-producing task
 _DELIVERABLE_PATTERNS = (
@@ -72,6 +86,8 @@ def _infer_mem_type(subject: str) -> str:
 
 
 def main():
+    _t0 = time.monotonic()
+
     # Read task data from stdin
     try:
         raw = sys.stdin.read()
@@ -82,6 +98,8 @@ def main():
     try:
         subject = input_data.get("subject", "")
         task_id = input_data.get("task_id", "")
+
+        _log("task", "debug", "hook.start")
 
         # Load session state, increment counters, and read escalation level
         escalations = 0
@@ -128,6 +146,7 @@ def main():
         if system_message:
             output["systemMessage"] = system_message
 
+        _log("task", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(json.dumps(output))
 
     except Exception as e:

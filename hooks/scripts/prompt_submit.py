@@ -28,6 +28,19 @@ sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
 
 # ---------------------------------------------------------------------------
+# Ops logger wrapper — fail-silent, never crashes the hook
+# ---------------------------------------------------------------------------
+
+def _log(domain, level, event, ok=True, ms=None, detail=None):
+    """Ops logger — fail-silent, never crashes the hook."""
+    try:
+        from _logger import log
+        log(domain, level, event, ok=ok, ms=ms, detail=detail)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # HOT path: tokens that indicate a continuation, not a new task
 # ---------------------------------------------------------------------------
 
@@ -728,6 +741,9 @@ def _check_setup_gate(prompt: str) -> str | None:
 
 
 def main():
+    _t0 = time.monotonic()
+    _log("smaht", "debug", "hook.start")
+
     try:
         raw = sys.stdin.read()
         input_data = json.loads(raw) if raw.strip() else {}
@@ -798,6 +814,13 @@ def main():
                 state.update(context_hash=current_hash)
             except Exception:
                 pass
+
+        # Log routing decision (verbose — per-prompt, not normal level)
+        _routed_intents = locals().get("intents") if path != "hot" else None
+        _log("smaht", "verbose", "prompt.routed",
+             detail={"path": path, "turn": turn_count,
+                     "word_count": len(prompt.split()),
+                     "intents": _routed_intents})
 
         # --- Change 2: Pressure-scaled budget ---
         # Query context pressure level and apply corresponding budget multiplier
@@ -911,6 +934,7 @@ def main():
             },
             "continue": True,
         }
+        _log("smaht", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(json.dumps(output))
 
     except Exception as e:

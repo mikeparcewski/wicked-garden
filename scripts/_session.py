@@ -178,6 +178,12 @@ class SessionState:
     # One-per-session gate for jam suggestion (reset each session).
     jam_hint_shown: bool = False
 
+    # Operational log verbosity level for this session.
+    # "" means "not set" — the logger defaults to "normal".
+    # Valid values: "normal", "verbose", "debug"
+    # Written by /wicked-garden:observability:debug; read by _logger._resolve_level().
+    log_level: str = ""
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

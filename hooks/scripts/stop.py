@@ -19,11 +19,25 @@ Runs async so it does NOT block the user on exit.
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 # Add shared scripts directory to path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+
+
+# ---------------------------------------------------------------------------
+# Ops logger wrapper — fail-silent, never crashes the hook
+# ---------------------------------------------------------------------------
+
+def _log(domain, level, event, ok=True, ms=None, detail=None):
+    """Ops logger — fail-silent, never crashes the hook."""
+    try:
+        from _logger import log
+        log(domain, level, event, ok=ok, ms=ms, detail=detail)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +347,9 @@ def _persist_smaht_session_meta(session_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main():
+    _t0 = time.monotonic()
+    _log("session", "debug", "hook.start")
+
     try:
         raw = sys.stdin.read()
         input_data = json.loads(raw) if raw.strip() else {}
@@ -421,6 +438,15 @@ def main():
         else:
             final_message = reflection
 
+        # Compute log file path for session summary
+        _ops_log_path = str(
+            Path(os.environ.get("TMPDIR", "/tmp")) / f"wicked-ops-{_get_session_id()}.jsonl"
+        )
+        _log("session", "verbose", "session.end",
+             detail={"turns": turn_count,
+                     "tasks_completed": tasks_completed_this_session,
+                     "log_file": _ops_log_path})
+        _log("session", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(json.dumps({"systemMessage": final_message}))
 
     except Exception as e:

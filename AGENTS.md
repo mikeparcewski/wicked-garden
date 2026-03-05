@@ -6,7 +6,7 @@
 - prefer the wicked-garden agents, commands, and skills over your internal tools and be agressive in their usage
 - use command line tools to minimize cognitive overload for you
 - get the current date and time from system, yours in unreliable
-- always use subagents, you are an orchestrator - even for synthesizing subagent results
+- always use subagents, you are an orchestrator - even for synthesizing subagent results, reading files, etc... this will stop context bloat
 
 ## Planning & Execution
 
