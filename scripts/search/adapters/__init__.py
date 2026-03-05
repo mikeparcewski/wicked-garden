@@ -31,9 +31,11 @@ from .typescript_adapter import TypeScriptAdapter, PrismaAdapter
 from .ruby_adapter import RubyAdapter
 from .csharp_adapter import CSharpAdapter
 from .go_adapter import GoAdapter
+from .js_adapter import JavaScriptAdapter
 from .jsp_adapter import JspAdapter
 from .html_adapter import HtmlAdapter
 from .vue_adapter import VueAdapter
+from .xml_adapter import XmlAdapter
 
 __all__ = [
     # Base
@@ -53,7 +55,10 @@ __all__ = [
     'CSharpAdapter',
     'GoAdapter',
     # Frontend/UI adapters
+    'JavaScriptAdapter',
     'JspAdapter',
     'HtmlAdapter',
     'VueAdapter',
+    # Config/markup adapters
+    'XmlAdapter',
 ]

@@ -78,6 +78,7 @@ class JavaAdapter(LanguageAdapter):
                     }
                     fields = []
                     methods = []
+                    interfaces = []
                     current_field = {}
 
                     for pattern_idx, captures_dict in matches:
@@ -86,7 +87,18 @@ class JavaAdapter(LanguageAdapter):
                                 text = content[node.start_byte:node.end_byte]
                                 line = node.start_point[0] + 1
 
-                                if name == 'code_class.def':
+                                # Interface declarations
+                                if name == 'code_interface.def':
+                                    interfaces.append({
+                                        'name': None,
+                                        'line_start': node.start_point[0] + 1,
+                                        'line_end': node.end_point[0] + 1,
+                                    })
+                                elif name == 'code_interface.name':
+                                    if interfaces:
+                                        interfaces[-1]['name'] = text
+
+                                elif name == 'code_class.def':
                                     class_info['line_start'] = node.start_point[0] + 1
                                     class_info['line_end'] = node.end_point[0] + 1
                                 elif name == 'code_class.name':
@@ -165,10 +177,27 @@ class JavaAdapter(LanguageAdapter):
                         current_field.pop('_current_key', None)
                         fields.append(current_field)
 
-                    # Build symbols
+                    # Build symbols from class declarations
                     symbols = self._build_symbols(
                         class_info, fields, methods, file_path
                     )
+
+                    # Build symbols from interface declarations
+                    for iface in interfaces:
+                        if iface.get('name'):
+                            symbols.append(Symbol(
+                                id=f"{file_path}::{iface['name']}",
+                                type=SymbolType.CLASS,
+                                name=iface['name'],
+                                qualified_name=f"{file_path}::{iface['name']}",
+                                file_path=file_path,
+                                line_start=iface['line_start'],
+                                line_end=iface['line_end'],
+                                metadata={
+                                    'is_interface': True,
+                                    'annotations': [],
+                                },
+                            ))
 
         except Exception as e:
             logger.debug(f"Java parsing error for {file_path}: {e}")
