@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.19.0] - 2026-03-05
+
+### Features
+- feat: add presentation skill — full-featured deck creation in pptx and html formats with style learning, design registry, and four creation modes
+
+### Refactoring
+- refactor: rename ppt-maker skill to presentation, align with library conventions
+- refactor: rename references/ to refs/ in presentation skill directory
+- refactor: convert all CLI command syntax to natural language invocations
+- refactor: update 8 storage namespaces from ppt-maker:* to presentation:*
+- refactor: remove client-specific example data from presentation skill docs
+
+### Chores
+- release: wicked-garden v1.18.0 (9b6d4db)
+
 ## [1.18.0] - 2026-03-05
 
 ### Features
