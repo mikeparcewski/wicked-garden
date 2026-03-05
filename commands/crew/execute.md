@@ -383,7 +383,7 @@ For each phase, follow this pattern:
 |-------|---------------|----------------|
 | clarify | `wicked-garden:crew:facilitator` | "Guide outcome clarification for: {description}" |
 | design | `wicked-garden:crew:researcher` | "Research existing patterns and design approaches for: {outcome}" |
-| test-strategy | (inline) | Create test strategy from outcome.md success criteria |
+| test-strategy | `wicked-garden:qe:test-strategist` | "Generate test strategy from outcome criteria: {outcome summary}. Project: {project-name}." |
 | build | `wicked-garden:crew:implementer` | "Implement according to design: {design summary}" |
 | test | `wicked-garden:crew:reviewer` | "Execute tests and verify against test strategy: {test-strategy summary}" |
 | review | `wicked-garden:crew:reviewer` | "Review implementation against outcome: {outcome summary}" |

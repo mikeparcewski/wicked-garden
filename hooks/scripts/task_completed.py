@@ -142,6 +142,16 @@ def main():
                     f"store it with /wicked-garden:mem:store (type={mem_type})."
                 )
 
+        # Evidence nudge for crew tasks (Issue #253).
+        # Remind agents to include structured evidence in TaskUpdate descriptions.
+        if compliance_required and subject and _is_deliverable_task(subject):
+            evidence_nudge = (
+                " [Evidence] Ensure your TaskUpdate description includes structured evidence: "
+                "test results (PASS/FAIL), files modified/created, and verification steps. "
+                "Phase approval validates evidence at complexity >= 3."
+            )
+            system_message = (system_message or "") + evidence_nudge
+
         output: dict = {"ok": True}
         if system_message:
             output["systemMessage"] = system_message

@@ -91,7 +91,7 @@
       "specialists": ["wicked-qe"],
       "fallback_agent": "reviewer",
       "is_skippable": true,
-      "depends_on": ["build"],
+      "depends_on": ["build", "test-strategy"],
       "confidence_threshold": 0.75,
       "gate_type": "execution",
       "checkpoint": false,
