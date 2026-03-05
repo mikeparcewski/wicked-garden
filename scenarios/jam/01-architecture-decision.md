@@ -73,7 +73,7 @@ EOF
 
 5. **Test Quick Alternative**
    ```bash
-   /wicked-garden:jam:jam "should we use Redis or Memcached for session cache?"
+   /wicked-garden:jam:quick "should we use Redis or Memcached for session cache?"
    ```
 
    Expected: Faster output with 4 personas, single round, brief synthesis
@@ -94,7 +94,7 @@ EOF
 - [ ] Synthesis includes confidence levels on insights
 - [ ] Action items are specific and prioritized
 - [ ] Open questions acknowledge unknowns honestly
-- [ ] `/jam` command produces faster, briefer output
+- [ ] `/wicked-garden:jam:quick` command produces faster, briefer output
 - [ ] Output puts synthesis before discussion details
 
 ## Value Demonstrated

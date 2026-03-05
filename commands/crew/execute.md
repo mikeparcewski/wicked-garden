@@ -547,36 +547,58 @@ If `gate_required` is `true` (all phases except ideate):
 
 ### 8. Phase Sign-Off
 
-**EVERY phase MUST have sign-off before advancing.** Use this priority chain — try each level in order and use the first available:
+**EVERY phase MUST have sign-off before advancing.** Reviewer selection is determined by the **Gate Reviewer Policy** (see `skills/qe/qe-strategy/SKILL.md`) which routes based on gate type and complexity score.
 
-#### Sign-Off Priority Chain
+#### Gate Reviewer Policy (Quick Reference)
 
-| Priority | Reviewer | How | When to Use |
-|----------|----------|-----|-------------|
-| 1 (best) | **Third-party CLI** | Codex, Gemini, or OpenCode | Always preferred — independent AI review |
-| 2 | **Specialist plugin** | wicked-garden:engineering:review, wicked-garden:qe:gate, etc. | If no CLI available |
-| 3 | **Generic crew agent** | `Task(subagent_type="wicked-garden:crew:reviewer", ...)` | Last resort automated |
-| 4 | **Human** | Show deliverables, ask for approval | Always offer if human is in the loop |
+| Gate Type | Complexity 0-2 | Complexity 3-5 | Complexity 6-7 |
+|-----------|----------------|----------------|----------------|
+| generic (ideate) | Fast-pass | Single specialist subagent | Single specialist subagent |
+| value (clarify) | `qe-orchestrator` | `qe-orchestrator` + `value-orchestrator` | `qe-orchestrator` + council |
+| strategy (design, test-strategy) | Single specialist subagent | Specialist + `senior-engineer` | Council (multi-model) |
+| execution (build, test, review) | `crew:reviewer` subagent | Signal-matched specialist subagent | Council + human sign-off |
 
-#### Third-Party CLI Sign-Off (Priority 1)
+**Escalation triggers** (override the table above — escalate to council even at low complexity):
+- Security or compliance signals detected
+- Gate returns CONDITIONAL (council validates conditions)
+- Previous gate in same project was REJECTED
+
+**Review phase is never fast-passed** — always at least a specialist subagent.
+
+#### Sign-Off Fallback Chain
+
+When the policy-selected reviewer is unavailable, fall back in order:
+
+| Priority | Reviewer | How |
+|----------|----------|-----|
+| 1 (best) | **Council** (`/wicked-garden:jam:council`) | Multi-model evaluation — required at high complexity |
+| 2 | **Third-party CLI** | Codex, Gemini, or OpenCode — independent single-model review |
+| 3 | **Specialist subagent** | Signal-matched specialist via `Task()` dispatch |
+| 4 | **Generic crew agent** | `Task(subagent_type="wicked-garden:crew:reviewer", ...)` |
+| 5 | **Human** | Show deliverables, ask for approval |
+
+#### Council Sign-Off (Priority 1)
+
+Use when the Gate Reviewer Policy calls for council (complexity >= 6 execution, >= 5 strategy, or escalation trigger hit):
+
+```
+Skill(skill="wicked-garden:jam:council",
+      args="Review {phase} phase deliverables for {project-name}. Evaluate: correctness, risk, completeness. Options: A) Approve B) Conditional C) Reject")
+```
+
+#### Third-Party CLI Sign-Off (Priority 2)
 
 Copy phase artifacts to `/tmp/` and invoke a CLI reviewer:
 
-**Codex** (preferred):
 ```bash
-# Copy deliverables to tmp for sandbox access
+# Codex (preferred)
 cp -r phases/{phase}/ /tmp/crew-signoff/
-# Pipe review prompt
 cat /tmp/crew-signoff/REVIEW_PROMPT.md | codex exec "Review these phase deliverables..."
-```
 
-**Gemini** (fallback):
-```
+# Gemini (fallback)
 /wicked-garden:gemini-cli "Review the {phase} phase deliverables for project {name}..."
-```
 
-**OpenCode** (fallback):
-```
+# OpenCode (fallback)
 /wicked-garden:opencode-cli "Review the {phase} phase deliverables for project {name}..."
 ```
 
@@ -591,11 +613,9 @@ TaskUpdate(taskId="{id}", status="completed",
            description="{original}\n\n## Outcome\n{reviewer}: {findings summary}")
 ```
 
-#### Specialist Sign-Off (Priority 2)
+#### Specialist Sign-Off (Priority 3)
 
 **CRITICAL: Always check specialist discovery before falling back to generic.**
-
-If no third-party CLI is available, use installed specialists dynamically:
 
 1. **Discover available specialists**:
    ```bash
@@ -604,18 +624,17 @@ If no third-party CLI is available, use installed specialists dynamically:
 
 2. **Filter to reviewers**: Select specialists whose `enhances` list includes the current phase or `"*"`
 
-3. **Cross-reference signals**: Prioritize specialists that match `signals_detected` from project.json (e.g., security signals → wicked-garden:platform:security-engineer)
+3. **Cross-reference signals**: Prioritize specialists that match `signals_detected` from project.json
 
-4. **Dispatch ALL matching specialists in parallel** (not just first match):
+4. **Dispatch matching specialists in parallel**:
    ```
-   # Example: build phase with security signals
    Task(subagent_type="wicked-garden:engineering:senior-engineer",
         prompt="Review {phase} phase deliverables for {project-name}. {deliverables}")
    Task(subagent_type="wicked-garden:platform:security-engineer",
         prompt="Security review of {phase} deliverables. Signals: {signals}")
    ```
 
-5. **Aggregate results**: Combine findings from all specialist reviews. If ANY specialist returns REJECT, the overall result is REJECT.
+5. **Aggregate results**: If ANY specialist returns REJECT, overall result is REJECT.
 
 **Phase-to-specialist dispatch reference** (use discovery as source of truth):
 
@@ -628,7 +647,7 @@ If no third-party CLI is available, use installed specialists dynamically:
 | test | `wicked-garden:qe:test-automation-engineer` | — |
 | review | `wicked-garden:engineering:senior-engineer` + `wicked-garden:qe:code-analyzer` | `wicked-garden:platform:security-engineer` (if security signals) |
 
-#### Generic Sign-Off (Priority 3)
+#### Generic Sign-Off (Priority 4)
 
 If no specialist is installed for the current phase, fall back to generic:
 ```
@@ -639,15 +658,15 @@ Task(subagent_type="wicked-garden:crew:reviewer",
      Verify deliverables meet criteria and flag any gaps.")
 ```
 
-#### Human Sign-Off (Priority 4)
+#### Human Sign-Off (Priority 5)
 
-If human is still in the loop (not in just-finish mode), always present deliverables for human review after automated sign-off:
+Required at complexity >= 6 execution gates. Optional but offered for complexity 3-5 when not in just-finish mode.
 
 ```markdown
 ## Phase Sign-Off: {phase}
 
 ### Automated Review
-- **Reviewer**: {codex|gemini|specialist|generic}
+- **Reviewer**: {council|codex|gemini|specialist|generic}
 - **Result**: {APPROVE|CONDITIONAL|REJECT}
 - **Findings**: {summary}
 

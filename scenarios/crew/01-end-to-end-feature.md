@@ -101,6 +101,10 @@ phases/clarify/acceptance-criteria.md containing:
   4. User profiles merge correctly
 - In Scope: Google + GitHub, token generation
 - Out of Scope: Facebook, LinkedIn, user migration
+
+phases/clarify/complexity.md containing:
+- Complexity score and signals detected
+- Phase plan derived from complexity analysis
 ```
 
 ### 3. Approve Clarify
@@ -294,7 +298,7 @@ phases/review/review-findings.md containing:
 - [ ] Project created with unique slug-based directory name
 - [ ] All six phases execute in correct order (clarify, design, test-strategy, build, test, review)
 - [ ] Approval required between each phase (cannot skip)
-- [ ] Clarify phase produces `objective.md` and `acceptance-criteria.md`
+- [ ] Clarify phase produces `objective.md`, `acceptance-criteria.md`, and `complexity.md`
 - [ ] Design phase references actual codebase patterns
 - [ ] Test strategy phase creates `test-strategy.md` with specific scenarios
 - [ ] Build phase implements according to design and test strategy

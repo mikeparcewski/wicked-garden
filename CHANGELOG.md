@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.9] - 2026-03-04
+
+### Bug Fixes
+- fix: update old wicked-{domain}: refs to wicked-garden:{domain}: in scenarios (e9bdb0b)
+- fix: improve skill description trigger phrases and formatting (#236, #237, #238) (3de0ffc)
+- fix: front-load mandatory indexing in smaht:onboard command (#234) (57b1765)
+
+### Chores
+- release: wicked-garden v1.17.8 (2ce7900)
+- release: wicked-garden v1.17.7 (c06a29a)
+
 ## [1.17.6] - 2026-03-04
 
 ### Bug Fixes

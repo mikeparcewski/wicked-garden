@@ -177,23 +177,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
 - Multiple devs touching UI
 
 **Detailed guides in refs/:**
-- [review-criteria-visual.md](refs/review-criteria-visual.md) - Visual consistency checklist
-- [review-criteria-components.md](refs/review-criteria-components.md) - Components and responsive design
-- [review-criteria-accessibility.md](refs/review-criteria-accessibility.md) - Polish, accessibility, scoring, review process
-- [scoring-guide.md](refs/scoring-guide.md) - How to score consistency
-- Common Issues:
-  - [Color Issues](refs/common-issues-color-issues.md)
-  - [Component Issues](refs/common-issues-component-issues.md)
-  - [Animation Issues](refs/common-issues-animation-issues.md)
-- [report-template.md](refs/report-template.md) - Comprehensive report format
-- Design Systems:
-  - [design-systems-tokens.md](refs/design-systems-tokens.md) - Token foundations
-  - [design-systems-components.md](refs/design-systems-components.md) - Component library
-  - [design-systems-governance.md](refs/design-systems-governance.md) - Governance and versioning
-- Quick Wins:
-  - [quick-wins-top-10.md](refs/quick-wins-top-10.md) - Top 10 improvements
-  - [quick-wins-workflow.md](refs/quick-wins-workflow.md) - Workflow and planning
-- Responsive Design:
-  - [Mobile-First](refs/responsive-guide-mobile-first-philosophy.md)
-  - [Typography](refs/responsive-guide-responsive-typography.md)
-  - [Tables & Forms](refs/responsive-guide-responsive-tables.md)
+- [review-criteria-visual.md](refs/review-criteria-visual.md) - Visual consistency
+- [review-criteria-components.md](refs/review-criteria-components.md) - Components and responsive
+- [review-criteria-accessibility.md](refs/review-criteria-accessibility.md) - Accessibility and scoring
+- [scoring-guide.md](refs/scoring-guide.md) - Scoring methodology
+- Common issues: [color](refs/common-issues-color-issues.md), [component](refs/common-issues-component-issues.md), [animation](refs/common-issues-animation-issues.md)
+- [report-template.md](refs/report-template.md) - Report format
+- Design systems: [tokens](refs/design-systems-tokens.md), [components](refs/design-systems-components.md), [governance](refs/design-systems-governance.md)
+- Quick wins: [top 10](refs/quick-wins-top-10.md), [workflow](refs/quick-wins-workflow.md)
+- Responsive: [mobile-first](refs/responsive-guide-mobile-first-philosophy.md), [typography](refs/responsive-guide-responsive-typography.md), [tables](refs/responsive-guide-responsive-tables.md)

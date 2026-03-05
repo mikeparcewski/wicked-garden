@@ -106,11 +106,10 @@ if signoff.get("result") == "rejected":
     BLOCK_APPROVAL("Sign-off was REJECTED. Address findings and re-execute.")
 ```
 
-**Sign-off priority chain** (from execute.md):
-1. Third-party CLI (Codex, Gemini, OpenCode) — independent AI review
-2. Specialist plugin — domain-specific review
-3. Generic crew reviewer — basic validation
-4. Human — always offered if in the loop
+**Sign-off routing** follows the **Gate Reviewer Policy** (see `skills/qe/qe-strategy/SKILL.md`):
+- Routes by gate type × complexity score (not a flat priority chain)
+- Council required at complexity >= 6 execution, >= 5 strategy, or on escalation triggers
+- Fallback chain: Council → Third-party CLI → Specialist → Generic → Human
 
 If sign-off is `conditional`, display conditions and ask user to confirm before proceeding.
 
@@ -291,7 +290,7 @@ To customize, edit project.json:
 4. **Sign-Off Recorded**
    - Phase has sign-off in status.md (reviewer, result, findings)
    - Must be `approved` or `conditional` (not `rejected`)
-   - Priority chain: third-party CLI > specialist > generic > human
+   - Reviewer routed per Gate Reviewer Policy (gate type × complexity)
    - Override: `skip_signoff: true`
 
 5. **Race Condition Prevention**

@@ -1663,6 +1663,9 @@ class UnifiedSearchIndex:
 
         # Track stats per adapter
         stats = {"symbols": 0, "errors": 0, "files_by_adapter": {}}
+        # Accumulate fallback warnings to print a summary instead of one line per file (#240)
+        # Each entry: (filename, reason, symbol_count)
+        _fallback_warnings: list = []
 
         print(f"Building Symbol Graph for {len(code_files)} files...", file=sys.stderr)
 
@@ -1673,6 +1676,7 @@ class UnifiedSearchIndex:
                 symbols = []
 
                 # Use adapter registry for all parsing
+                adapter = None
                 if HAS_ADAPTERS and AdapterRegistry:
                     adapter = AdapterRegistry.get_adapter(file_path, self.code_parser)
                     if adapter:
@@ -1688,8 +1692,9 @@ class UnifiedSearchIndex:
                     # Skip file nodes, only use symbol nodes
                     sym_nodes = [n for n in jsonl_nodes if n.node_type not in (NodeType.FILE,)]
                     if sym_nodes:
-                        print(f"  Warning: adapter returned 0 symbols for {path.name}, "
-                              f"using JSONL fallback ({len(sym_nodes)} symbols)", file=sys.stderr)
+                        # Distinguish: adapter ran and returned 0 vs no adapter registered
+                        reason = "adapter returned 0 symbols" if adapter else "no adapter for file type"
+                        _fallback_warnings.append((path.name, reason, len(sym_nodes)))
                         _type_map = {
                             'function': SymbolType.FUNCTION,
                             'method': SymbolType.METHOD,
@@ -1729,6 +1734,21 @@ class UnifiedSearchIndex:
             except Exception as e:
                 print(f"Warning: Failed to parse {path}: {e}", file=sys.stderr)
                 stats["errors"] += 1
+
+        # Print fallback warning summary (#240: summarize instead of one line per file)
+        if _fallback_warnings:
+            total_fallback_symbols = sum(c for _, _, c in _fallback_warnings)
+            # Group by reason
+            by_reason: Dict[str, int] = {}
+            for _, reason, count in _fallback_warnings:
+                by_reason[reason] = by_reason.get(reason, 0) + 1
+            reason_parts = [f"{n} files ({r})" for r, n in sorted(by_reason.items())]
+            print(
+                f"  Warning: {len(_fallback_warnings)} files used JSONL fallback "
+                f"({total_fallback_symbols} symbols) [{', '.join(reason_parts)}]. "
+                f"Run with --verbose for per-file details.",
+                file=sys.stderr,
+            )
 
         # Build parsing stats summary
         parsed_parts = []

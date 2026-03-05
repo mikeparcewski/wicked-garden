@@ -181,20 +181,22 @@ grep "Gate Override" "${PROJECT_DIR}/phases/design/status.md" 2>/dev/null && ech
 ### 6. Phase with gate_required=false approves without gate check
 
 ```bash
-# Advance project back to clarify phase (gate_required=false)
+# Advance project back to ideate phase (gate_required=false)
 python3 -c "
 import json, pathlib
 p = pathlib.Path('${PROJECT_DIR}/project.json')
 d = json.loads(p.read_text())
-d['current_phase'] = 'clarify'
-d['phases']['clarify'] = 'in_progress'
+d['current_phase'] = 'ideate'
+d['phases']['ideate'] = 'in_progress'
 p.write_text(json.dumps(d, indent=2))
 "
 
-# No gate-result.json present for clarify
-rm -f "${PROJECT_DIR}/phases/clarify/gate-result.json"
+mkdir -p "${PROJECT_DIR}/phases/ideate"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" clarify 2>&1
+# No gate-result.json present for ideate
+rm -f "${PROJECT_DIR}/phases/ideate/gate-result.json"
+
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" ideate 2>&1
 echo "Exit: $?"
 ```
 
@@ -226,7 +228,7 @@ mechanism (writing gate-result.json) makes these tests fast and infrastructure-f
 - [ ] --override-gate with --reason bypasses REJECT and phase advances
 - [ ] Gate override written to status.md with reason and timestamp
 - [ ] --override-gate bypasses gate-not-run state with audit trail
-- [ ] gate_required=false phases approve without any gate check
+- [ ] gate_required=false phases (e.g. ideate) approve without any gate check
 - [ ] Malformed gate-result.json treated as gate-not-run (blocking)
 
 ## Value Demonstrated

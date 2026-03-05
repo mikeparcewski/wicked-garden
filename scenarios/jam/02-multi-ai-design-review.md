@@ -157,8 +157,8 @@ EOF
 9. **Verify task contains all perspectives**
 
    ```bash
-   # View the kanban task details
-   /wicked-garden:kanban:view-task $TASK_ID
+   # View the kanban board to confirm task is updated
+   /wicked-garden:kanban:board-status
    ```
 
    Expected: Task shows multiple comments with AI perspectives.

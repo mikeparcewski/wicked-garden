@@ -40,6 +40,18 @@
   body: (interface_body) @code_interface.body
 ) @code_interface.def
 
+; Enum declarations: enum Status { ACTIVE, INACTIVE }
+(enum_declaration
+  name: (identifier) @code_class.name
+  body: (enum_body) @code_class.body
+) @code_class.def
+
+; Annotation type declarations: @interface MyAnnotation { ... }
+(annotation_type_declaration
+  name: (identifier) @code_class.name
+  body: (annotation_type_body) @code_class.body
+) @code_class.def
+
 ; ============================================================================
 ; Method declarations with annotations
 ; ============================================================================

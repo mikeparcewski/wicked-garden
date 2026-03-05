@@ -87,6 +87,52 @@ Use: `/wicked-garden:qe:acceptance <scenario>`
 /wicked-garden:qe:acceptance scenario.md                  # 2. Full Write → Execute → Review pipeline
 ```
 
+## Change Type → Test Evidence Matrix
+
+Match the change type to know the minimum required tests and the evidence gate that defines "done".
+
+| Change Type | Example | Required Tests | Evidence Gate |
+|---|---|---|---|
+| Scenario text fix | Wrong command name in `.md` | Scenario passes | `/wg-test scenarios/{domain}/{scenario}` exits 0 |
+| Scoring constant | Weight/threshold change | Unit + scenario | Targeted test confirms new value; all related scenarios pass |
+| Short-circuit logic | Guard clause addition | Unit + behavioral | Mock verifies 0 calls to bypassed path; non-short-circuit paths unaffected |
+| Schema/format update | Output format change | Integration + scenario | Downstream consumers parse new format; scenario assertions match |
+| Parser/adapter fix | Missing AST pattern | Unit + regression | New pattern produces >0 symbols for affected files; existing files unaffected |
+| Strategy/docs enhancement | New guidance section | Structural validation | File under line cap; references valid commands/paths |
+
+### Evidence Gate Rules
+
+1. Every change MUST have at least one automated verification.
+2. "Done" means the evidence gate passes — not just "code written".
+3. Autonomous agents must log which evidence gate was satisfied before marking a task complete.
+4. If no automated test exists for the change, create one before marking done.
+
+## Gate Reviewer Policy
+
+Each gate type requires specific reviewers. Complexity determines escalation depth.
+
+| Gate Type | Phase(s) | Complexity 0-2 | Complexity 3-5 | Complexity 6-7 |
+|-----------|----------|----------------|----------------|----------------|
+| generic | ideate | Fast-pass (no reviewer) | Single specialist subagent | Single specialist subagent |
+| value | clarify | `qe-orchestrator` | `qe-orchestrator` + `value-orchestrator` | `qe-orchestrator` + council |
+| strategy | design, test-strategy | Single specialist subagent | Specialist + `senior-engineer` | Council (multi-model) |
+| execution | build, test, review | `crew:reviewer` subagent | Specialist subagent matching signals | Council + human sign-off |
+
+### Reviewer Selection Rules
+
+1. **Single specialist subagent** — route to the specialist whose `enhances` list includes the current phase. Use `specialist_discovery.py` output. One `Task()` dispatch, synchronous.
+2. **Council** — use `/wicked-garden:jam:council` for genuinely independent multi-model evaluation. Required when complexity >= 6 at any execution gate, or >= 5 at strategy gates.
+3. **Human sign-off** — required for complexity >= 6 execution gates (build, test, review). Optional but offered for complexity 3-5 when not in just-finish mode.
+4. **Fast-pass** — complexity <= 1 with no security/compliance signals. Generic `crew:reviewer` only. Still record gate result.
+5. **Review phase is never fast-passed** — always runs at least a specialist subagent, regardless of complexity.
+
+### Escalation Triggers
+
+Even at low complexity, escalate to council when:
+- Security or compliance signals are detected
+- Gate returns CONDITIONAL (council validates whether conditions are acceptable)
+- Previous gate in the same project was REJECTED (council provides independent perspective on rework)
+
 ## Agents
 
 | Agent | Purpose |
