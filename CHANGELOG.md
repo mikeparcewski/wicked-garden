@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.19.1] - 2026-03-05
+
+### Features
+- feat: add presentation skill with full deck creation capabilities (6f832ce)
+
+### Refactoring
+- refactor: polish presentation skill per reviewer recommendations (ee1ea70)
+
 ## [1.19.0] - 2026-03-05
 
 ### Features
