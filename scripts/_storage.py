@@ -559,8 +559,10 @@ class StorageManager:
     def _should_use_cp(self) -> bool:
         """Return True if the current mode and session state allow CP access.
 
-        Both local and remote modes use CP when available, with local fallback.
+        Local mode bypasses CP entirely; remote mode uses CP when available.
         """
+        if self._mode == "local":
+            return False
         try:
             state = SessionState.load()
             return state.cp_available and not state.fallback_mode

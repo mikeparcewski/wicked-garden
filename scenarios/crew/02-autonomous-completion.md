@@ -157,11 +157,11 @@ Then:
 ```
 
 **Expected guardrail behavior**:
-- Proceeds through clarify, design, QE phases autonomously
+- Proceeds through clarify, design, test-strategy phases autonomously
 - **STOPS** at build phase when reaching deployment steps
-- Displays message: "Deployment action detected - requires explicit approval"
+- Displays message: `[GUARDRAIL] Deployment action detected — requires explicit approval`
 - Shows what it plans to do: `python setup.py sdist upload`
-- Waits for user approval with `/wicked-garden:crew:approve build --force`
+- Waits for user approval with `/wicked-garden:crew:approve build --override-guardrail`
 - Does NOT proceed automatically
 
 ### 4. Test File Deletion Guardrail

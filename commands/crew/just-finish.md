@@ -158,11 +158,12 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
 2. **Auto-engage specialists** based on phase and signals (use dynamic routing from execute.md — signal analysis + specialist.json `enhances` declarations)
 3. Execute phase work via specialists or built-in fallbacks
 4. **Run mandatory quality gate** (see Section 5.5 below)
-5. **Get sign-off** using the priority chain (see execute.md section 8):
-   - Priority 1: Third-party CLI (Codex, Gemini, OpenCode)
-   - Priority 2: Specialist plugin
-   - Priority 3: Generic crew reviewer
-   - Priority 4: Human (skip in just-finish unless rejected/conditional)
+5. **Get sign-off** using the **Gate Reviewer Policy** (see `skills/qe/qe-strategy/SKILL.md` and execute.md section 8):
+   - Route reviewer by gate type × complexity score (not a flat priority chain)
+   - Council required at complexity >= 6 execution gates, >= 5 strategy gates
+   - Escalate to council on security/compliance signals, CONDITIONAL gates, or prior REJECT
+   - Human sign-off required at complexity >= 6 execution gates (even in just-finish)
+   - Fallback chain: Council → Third-party CLI → Specialist → Generic → Human
 6. Auto-approve if deliverables meet criteria AND sign-off is `approved`
 7. **Run checkpoint re-analysis** if phase has `checkpoint: true` (Section 4.5)
 8. Advance to next phase using phase_manager:
@@ -171,7 +172,7 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
    ```
 9. Continue until done or guardrail hit
 
-**Sign-off in just-finish mode**: Always attempt third-party CLI sign-off first. If sign-off returns `rejected`, STOP and report to user. If `conditional`, proceed but log the conditions. Human review is skipped in just-finish mode unless automated sign-off rejects.
+**Sign-off in just-finish mode**: Route reviewer per Gate Reviewer Policy (gate type × complexity). Council is used when policy requires it (high complexity or escalation triggers). If sign-off returns `rejected`, STOP and report to user. If `conditional`, escalate to council if not already used, otherwise proceed and log conditions. Human review is skipped in just-finish mode EXCEPT at complexity >= 6 execution gates (build, test, review) where human approval is mandatory.
 
 ### 5.5 Mandatory Quality Gate
 

@@ -216,11 +216,11 @@ PYEOF
 
 ---
 
-### TC-4: Bootstrap briefing contains "Storage: local-only" line
+### TC-4: Bootstrap briefing contains "mode=local"
 
 **Given**: A valid `local-only` config
 **When**: The bootstrap `main()` is invoked via subprocess (to reproduce the real hook path)
-**Then**: The JSON output's `additionalContext` contains the string `"Storage: local-only"`
+**Then**: The JSON output's `additionalContext` contains the string `"mode=local"`
   and `cp_available=False` is written to the session state file
 
 ```bash
@@ -250,15 +250,12 @@ assert result.returncode == 0, f"bootstrap exited {result.returncode}\nstderr: {
 output = json.loads(result.stdout)
 ctx = output.get("hookSpecificOutput", {}).get("additionalContext", "")
 
-assert "local" in ctx, (
-    f"'local' not found in briefing.\nContext: {ctx[:400]}"
-)
-assert "Storage:" in ctx, (
-    f"'Storage:' not found in briefing.\nContext: {ctx[:400]}"
+assert "mode=local" in ctx, (
+    f"'mode=local' not found in briefing.\nContext: {ctx[:400]}"
 )
 
-print("TC-4 PASS: Bootstrap briefing contains Storage: local")
-print(f"  Relevant line: {[l for l in ctx.splitlines() if 'local' in l or 'Storage:' in l]}")
+print("TC-4 PASS: Bootstrap briefing contains mode=local")
+print(f"  Relevant line: {[l for l in ctx.splitlines() if 'mode=local' in l]}")
 PYEOF
 ```
 
@@ -530,7 +527,7 @@ All nine test cases pass with `PASS` in their output and exit code 0.
 | TC-1 | SqliteStore CRUD + FTS5 | Record survives create/get/update/delete cycle; FTS search hits |
 | TC-2 | StorageManager never calls CP | `ControlPlaneClient.request` call log is empty after 5 CRUD ops |
 | TC-3 | Session state after bootstrap | `cp_available=False`, `fallback_mode=False`, Storage note present |
-| TC-4 | Briefing contains "Storage: local-only" | Subprocess bootstrap produces correct `additionalContext` |
+| TC-4 | Briefing contains "mode=local" | Subprocess bootstrap produces correct `additionalContext` |
 | TC-5 | Migration JSON → SQLite on first boot | Planted JSON record appears in DB after migration run |
 | TC-6 | Migration is idempotent | Second run: `inserted=0`, `skipped>=1` |
 | TC-7 | WAL concurrent writes | Two threads write concurrently, both records retrievable, no OperationalError |
@@ -542,7 +539,7 @@ All nine test cases pass with `PASS` in their output and exit code 0.
 - [ ] TC-1: SqliteStore CRUD roundtrip and FTS5 search pass
 - [ ] TC-2: No HTTP calls to ControlPlaneClient in local-only mode
 - [ ] TC-3: Session state has `cp_available=False` and `fallback_mode=False` after local-only bootstrap
-- [ ] TC-4: Bootstrap briefing includes `Storage: local` line
+- [ ] TC-4: Bootstrap briefing includes `mode=local` in additionalContext
 - [ ] TC-5: JSON migration inserts planted record into SQLite
 - [ ] TC-6: Re-running migration skips already-present records (INSERT OR IGNORE)
 - [ ] TC-7: Concurrent WAL writes complete without `sqlite3.OperationalError`

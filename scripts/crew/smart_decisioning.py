@@ -158,17 +158,17 @@ MAX_FALLBACK_DEPTH = 1
 # File Role Patterns (5-tier taxonomy for impact scoring)
 # ---------------------------------------------------------------------------
 FILE_ROLE_PATTERNS = [
-    # --- TIER 1: Behavior-defining (weight 2.0) ---
-    (r'\b(?:commands?|handlers?|controllers?|routes?|middleware|interceptors?)/\S+', 2.0),
-    (r'\b(?:hooks?|triggers?|listeners?|subscribers?)/\S+', 2.0),
-    (r'\.github/workflows/', 2.0),
-    (r'\bgitlab-ci', 2.0),
-    (r'\bJenkinsfile\b', 2.0),
-    (r'\.(?:tf|hcl)\b', 2.0),
-    (r'\b(?:Dockerfile|docker-compose)\b', 2.0),
-    (r'\bhooks\.json\b', 2.0),
-    (r'\b(?:routes|pipeline|workflow|dispatch)\.(?:json|ya?ml)\b', 2.0),
-    (r'\bMakefile\b', 2.0),
+    # --- TIER 1: Behavior-defining (weight 3.0) ---
+    (r'\b(?:commands?|handlers?|controllers?|routes?|middleware|interceptors?)/\S+', 3.0),
+    (r'\b(?:hooks?|triggers?|listeners?|subscribers?)/\S+', 3.0),
+    (r'\.github/workflows/', 3.0),
+    (r'\bgitlab-ci', 3.0),
+    (r'\bJenkinsfile\b', 3.0),
+    (r'\.(?:tf|hcl)\b', 3.0),
+    (r'\b(?:Dockerfile|docker-compose)\b', 3.0),
+    (r'\bhooks\.json\b', 3.0),
+    (r'\b(?:routes|pipeline|workflow|dispatch)\.(?:json|ya?ml)\b', 3.0),
+    (r'\bMakefile\b', 3.0),
 
     # --- TIER 2: Source code (weight 1.5) ---
     (r'\b(?:src|lib|app|pkg|internal|core)/\S+', 1.5),

@@ -98,11 +98,10 @@ EOF
 The framework detection section should show:
 
 ```
-## Framework Detection
-
-**Primary**: LangChain (confidence: 85%+)
-**Secondary**: OpenAI (confidence: 30%+)
+**Framework**: langchain
 ```
+
+And within the detailed findings, the top detected framework should be `langchain` with confidence >= 0.8 (80%+). OpenAI imports may also appear in evidence entries but `langchain` is the primary.
 
 ### 3. Verify Agent Topology
 

@@ -102,7 +102,7 @@ The design agent should:
 
 ```bash
 /wicked-garden:crew:approve design
-/wicked-garden:crew:approve qe
+/wicked-garden:crew:approve test-strategy
 /wicked-garden:crew:execute  # build phase
 ```
 

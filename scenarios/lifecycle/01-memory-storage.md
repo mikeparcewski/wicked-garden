@@ -95,7 +95,7 @@ done
 
 **Expected**: Each subject line ends with `OK`
 
-### 6. Hook is silent when memory_compliance_required=False
+### 6. Hook emits soft nudge when memory_compliance_required=False
 
 ```bash
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
@@ -105,16 +105,21 @@ EOF
 output=$(echo '{"subject": "build: standalone work", "task_id": "t9", "status": "completed"}' \
   | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py")
 
-echo "${output}" | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage'); print('SILENT' if not msg else 'NOT_SILENT')"
+echo "${output}" | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('SOFT_NUDGE' if msg and '[ESCALATION]' not in msg and '/wicked-garden:mem:store' in msg else 'NO_NUDGE')"
 ```
 
-**Expected**: `SILENT`
+**Expected**: `SOFT_NUDGE`
+
+> When `memory_compliance_required=false` (no active crew project), the hook still emits
+> a lightweight, non-escalating suggestion to store memory. It does NOT enforce compliance
+> but gently reminds the model to capture useful context.
 
 ## Expected Outcome
 
 Each directive is specific, actionable, and includes the exact command name with a type hint.
-Escalation pressure increases automatically after repeated non-compliance. The hook never fires
-outside an active crew project.
+Escalation pressure increases automatically after repeated non-compliance. The hook emits a
+soft nudge outside an active crew project (when memory_compliance_required=false) but does
+not enforce compliance.
 
 ## Success Criteria
 
@@ -123,7 +128,7 @@ outside an active crew project.
 - [ ] Phase/design task directive contains "type=episodic"
 - [ ] After memory_compliance_escalations >= 3, directive starts with "[ESCALATION]"
 - [ ] Extended keywords (test, review, document, configure, analyze) trigger directive
-- [ ] Hook is silent when memory_compliance_required=False
+- [ ] Hook emits soft nudge (no escalation prefix) when memory_compliance_required=False
 - [ ] Hook outputs valid JSON on every invocation
 
 ## Value Demonstrated
