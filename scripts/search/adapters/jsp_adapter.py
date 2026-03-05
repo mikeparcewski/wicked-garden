@@ -37,7 +37,7 @@ class JspAdapter(LanguageAdapter):
     """Parse JSP files for EL expressions and form bindings."""
 
     name = "jsp"
-    extensions = {'.jsp', '.jspx', '.jspf'}
+    extensions = {'.jsp', '.jspx', '.jspf', '.inc'}
 
     def __init__(self, code_parser=None):
         super().__init__(code_parser)

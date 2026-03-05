@@ -105,6 +105,15 @@ DEFAULT_IGNORES = [
     "*.tgz",
     "*.rar",
     "*.7z",
+    # Image/media assets (not code)
+    "*.svg",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.gif",
+    "*.ico",
+    "*.bmp",
+    "*.webp",
     # Media files (usually don't need indexing)
     "*.mp3",
     "*.mp4",
@@ -114,6 +123,15 @@ DEFAULT_IGNORES = [
     "*.flv",
     "*.wav",
     "*.flac",
+    # Font files
+    "*.woff",
+    "*.woff2",
+    "*.ttf",
+    "*.eot",
+    "*.otf",
+    # Minified/vendor JavaScript
+    "*.min.js",
+    "*.min.css",
     # Large binary files
     "*.exe",
     "*.dmg",
