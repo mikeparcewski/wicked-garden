@@ -21,12 +21,26 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 # Add shared scripts directory to path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+
+
+# ---------------------------------------------------------------------------
+# Ops logger wrapper — fail-silent, never crashes the hook
+# ---------------------------------------------------------------------------
+
+def _log(domain, level, event, ok=True, ms=None, detail=None):
+    """Ops logger — fail-silent, never crashes the hook."""
+    try:
+        from _logger import log
+        log(domain, level, event, ok=ok, ms=ms, detail=detail)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -677,6 +691,8 @@ def _check_cp_errors() -> str | None:
 # ---------------------------------------------------------------------------
 
 def main():
+    _t0 = time.monotonic()
+
     try:
         raw = sys.stdin.read()
         payload = json.loads(raw) if raw.strip() else {}
@@ -688,6 +704,8 @@ def main():
         tool_name = payload.get("tool_name", "")
         tool_input = payload.get("tool_input", {}) or {}
         has_error = "tool_error" in payload or "tool_use_error" in payload
+
+        _log("posttool", "debug", "hook.start", detail={"tool": tool_name})
 
         # Write observability trace (low-priority, always runs)
         _write_trace(payload)
@@ -738,6 +756,7 @@ def main():
             existing = result.get("systemMessage", "")
             result["systemMessage"] = f"{existing}\n\n{cp_msg}" if existing else cp_msg
 
+        _log("posttool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(json.dumps(result))
 
     except Exception as e:

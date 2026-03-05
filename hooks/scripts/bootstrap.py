@@ -35,6 +35,19 @@ sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
 
 # ---------------------------------------------------------------------------
+# Ops logger wrapper — fail-silent, never crashes the hook
+# ---------------------------------------------------------------------------
+
+def _log(domain, level, event, ok=True, ms=None, detail=None):
+    """Ops logger — fail-silent, never crashes the hook."""
+    try:
+        from _logger import log
+        log(domain, level, event, ok=ok, ms=ms, detail=detail)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Shared module imports — each wrapped so missing modules degrade gracefully
 # ---------------------------------------------------------------------------
 
@@ -502,6 +515,9 @@ def _detect_dangerous_mode():
 # ---------------------------------------------------------------------------
 
 def main():
+    _t0 = time.monotonic()
+    _log("bootstrap", "debug", "hook.start")
+
     try:
         sys.stdin.read()  # consume hook payload (not needed for SessionStart)
     except Exception:
@@ -647,6 +663,12 @@ def main():
                     setup_complete=True,
                 )
 
+        # Log CP connection outcome
+        _log("bootstrap", "normal", "cp.connected",
+             ok=cp_available,
+             detail={"mode": mode, "version": cp_version} if cp_available
+                    else {"mode": mode})
+
         # 3. Load dynamic agents
         agents_loaded = _load_agents(cp_available)
         if state is not None:
@@ -696,6 +718,9 @@ def main():
 
         # 8. Check onboarding status (search index + memories)
         has_index, has_memories, onboarding_directive = _check_onboarding_status()
+        _log("bootstrap", "normal", "onboarding.status",
+             ok=(has_memories and has_index),
+             detail={"has_memories": has_memories, "has_index": has_index})
 
         # 8b. Detect dangerous mode (AskUserQuestion broken)
         dangerous_mode = _detect_dangerous_mode()
@@ -800,6 +825,7 @@ def main():
         if state is not None:
             _save_session_state(state)
 
+        _log("bootstrap", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(json.dumps({
             "hookSpecificOutput": {
                 "hookEventName": "SessionStart",

@@ -15,6 +15,7 @@ Always fails open — any unhandled exception returns {"continue": true}.
 import json
 import os
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +23,19 @@ from pathlib import Path
 # Add shared scripts directory to path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+
+
+# ---------------------------------------------------------------------------
+# Ops logger wrapper — fail-silent, never crashes the hook
+# ---------------------------------------------------------------------------
+
+def _log(domain, level, event, ok=True, ms=None, detail=None):
+    """Ops logger — fail-silent, never crashes the hook."""
+    try:
+        from _logger import log
+        log(domain, level, event, ok=ok, ms=ms, detail=detail)
+    except Exception:
+        pass
 
 
 def _save_working_memory_snapshot(context: str, project: str, session_id: str) -> None:
@@ -50,11 +64,17 @@ def _save_working_memory_snapshot(context: str, project: str, session_id: str) -
 
 
 def main():
+    _t0 = time.monotonic()
+    _log("context", "debug", "hook.start")
+
     try:
         raw = sys.stdin.read()
         input_data = json.loads(raw) if raw.strip() else {}
     except Exception:
         input_data = {}
+
+    # Normal-level log fires regardless of log level (AC-07)
+    _log("context", "normal", "pre_compact")
 
     context = input_data.get("context", "")
     session_id = os.environ.get("CLAUDE_SESSION_ID") or f"sess_{uuid.uuid4().hex[:8]}"
@@ -72,6 +92,7 @@ def main():
     except Exception:
         pass  # fail open
 
+    _log("context", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
     print(json.dumps({
         "continue": True,
         "systemMessage": (

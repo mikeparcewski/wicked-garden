@@ -32,6 +32,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _storage import StorageManager
 
 
+# ---------------------------------------------------------------------------
+# Ops logger wrapper — fail-silent, never crashes the caller
+# ---------------------------------------------------------------------------
+
+def _log(domain, level, event, ok=True, ms=None, detail=None):
+    """Ops logger — fail-silent, never crashes the caller."""
+    try:
+        from _logger import log
+        log(domain, level, event, ok=ok, ms=ms, detail=detail)
+    except Exception:
+        pass
+
+
 class MemoryType(Enum):
     """Types of memories."""
     EPISODIC = "episodic"       # What happened
@@ -261,6 +274,9 @@ class MemoryStore:
         )
 
         self._sm.create("memories", self._memory_to_dict(memory))
+        _log("mem", "verbose", "memory.stored",
+             ok=True,
+             detail={"title": memory.title[:60], "type": memory.type, "project": memory.project})
         return memory
 
     def recall(
@@ -309,7 +325,10 @@ class MemoryStore:
         for memory in memories[:limit]:
             self._update_access(memory)
 
-        return memories[:limit]
+        result_slice = memories[:limit]
+        _log("mem", "verbose", "memory.recalled",
+             detail={"query": query, "count": len(result_slice), "project": self.project})
+        return result_slice
 
     def search(self, pattern: str, path: Optional[str] = None,
                all_projects: bool = False) -> List[Memory]:

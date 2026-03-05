@@ -15,11 +15,25 @@ Always fails open — any unhandled exception returns permissionDecision: "allow
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 # Add shared scripts directory to path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+
+
+# ---------------------------------------------------------------------------
+# Ops logger wrapper — fail-silent, never crashes the hook
+# ---------------------------------------------------------------------------
+
+def _log(domain, level, event, ok=True, ms=None, detail=None):
+    """Ops logger — fail-silent, never crashes the hook."""
+    try:
+        from _logger import log
+        log(domain, level, event, ok=ok, ms=ms, detail=detail)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +194,8 @@ def _handle_write_guard(tool_input: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def main():
+    _t0 = time.monotonic()
+
     try:
         raw = sys.stdin.read()
         input_data = json.loads(raw) if raw.strip() else {}
@@ -191,19 +207,28 @@ def main():
         tool_name = input_data.get("tool_name", "")
         tool_input = input_data.get("tool_input", {}) or {}
 
+        _log("pretool", "debug", "hook.start", detail={"tool": tool_name})
+
         if tool_name == "TaskCreate":
-            print(_handle_task_create(tool_input))
+            result = _handle_task_create(tool_input)
+            _log("pretool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
+            print(result)
             return
 
         if tool_name == "EnterPlanMode":
-            print(_handle_enter_plan_mode(tool_input))
+            result = _handle_enter_plan_mode(tool_input)
+            _log("pretool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
+            print(result)
             return
 
         if tool_name in ("Write", "Edit"):
-            print(_handle_write_guard(tool_input))
+            result = _handle_write_guard(tool_input)
+            _log("pretool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
+            print(result)
             return
 
         # All other tools — allow
+        _log("pretool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(_allow())
 
     except Exception as e:
