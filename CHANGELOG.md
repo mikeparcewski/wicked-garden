@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.25.0] - 2026-03-06
+
+### Features
+- feat: close issues #260, #262 — observability expansion + CLI consolidation (252bd28)
+
 ## [1.24.0] - 2026-03-06
 
 ### Features
