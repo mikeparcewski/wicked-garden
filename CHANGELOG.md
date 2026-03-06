@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.31.0] - 2026-03-06
+
+### Features
+- feat: expand QE across the full lifecycle (closes #277, closes #278, closes #279) (237f597)
+
+### Bug Fixes
+- fix: quality check fixes — invalid agent color, non-standard trigger phrases (5ad3748)
+
+### Documentation
+- docs: update README for v1.30 — CP elimination, design domain, expanded QE (8f6feaf)
+
+### Chores
+- release: wicked-garden v1.30.0 (f96b818)
+
 ## [1.30.0] - 2026-03-06
 
 ### Features
