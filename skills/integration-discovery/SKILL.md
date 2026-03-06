@@ -2,11 +2,13 @@
 name: integration-discovery
 description: |
   Capability router that decides which tools, skills, and agents to use for a task.
+  Discovers CLI tools in PATH alongside MCP servers, skills, and agents.
   Reduces cognitive load on the main agent by making tool selection decisions.
 
   Use when: planning work for unfamiliar domains, evaluating task scope before execution,
-  discovering what integrations or MCP servers could help, building task execution strategies,
-  or when unsure which tools, skills, or agents to use for current work.
+  discovering what integrations or MCP servers could help, CLI detection, which tools are
+  installed, available CLIs, building task execution strategies, or when unsure which tools,
+  skills, or agents to use for current work.
 ---
 
 # Capability Router
@@ -69,6 +71,7 @@ Check these sources (see refs/discovery-sources.md for details):
 | Source | How to Check | What You Get |
 |--------|--------------|--------------|
 | **MCP Servers** | `ListMcpResourcesTool` | External integrations |
+| **CLI Tools** | `command -v {tool}` | Installed binaries in PATH |
 | **Skills** | Check Skill tool description | Methodology/expertise |
 | **Agents** | Check Task tool agent list | Specialized workers |
 | **Built-in Tools** | Known set | File ops, search, web |
@@ -159,3 +162,4 @@ Always return structured recommendations:
 - [Discovery Sources](refs/discovery-sources.md) - Where to look and how
 - [Task Patterns](refs/task-patterns.md) - Common task-to-capability mappings
 - [MCP Capabilities](refs/capabilities.md) - MCP server categories and patterns
+- [CLI Detection](refs/cli-detection.md) - CLI tool detection patterns and decision policy

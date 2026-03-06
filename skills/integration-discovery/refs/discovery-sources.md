@@ -5,15 +5,15 @@ Where to look for capabilities and how to check each source.
 ## Source Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Capability Sources                        │
-├─────────────────┬─────────────────┬─────────────────────────┤
-│  MCP Servers    │  Skills         │  Agents                 │
-│  (external)     │  (methodology)  │  (specialized workers)  │
-├─────────────────┼─────────────────┼─────────────────────────┤
-│  ListMcpRes...  │  Skill tool     │  Task tool              │
-│  Tool           │  description    │  agent list             │
-└─────────────────┴─────────────────┴─────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         Capability Sources                                │
+├─────────────────┬──────────────┬─────────────────┬────────────────────── ┤
+│  MCP Servers    │  CLI Tools   │  Skills         │  Agents               │
+│  (external)     │  (PATH)      │  (methodology)  │  (specialized workers)│
+├─────────────────┼──────────────┼─────────────────┼───────────────────────┤
+│  ListMcpRes...  │ command -v   │  Skill tool     │  Task tool            │
+│  Tool           │ {tool}       │  description    │  agent list           │
+└─────────────────┴──────────────┴─────────────────┴───────────────────────┘
 ```
 
 ## MCP Servers
@@ -46,6 +46,51 @@ Matched to needs:
 - Code docs → context7
 - Analytics → NOT AVAILABLE
 ```
+
+## PATH / CLI Tools
+
+**What they provide**: Installed binaries for browser automation, cloud platforms, databases, CI/CD, package management, and AI models.
+
+**How to discover**:
+```bash
+command -v {tool}   # returns exit 0 if found, non-zero if not
+```
+
+**Key insight**: CLI tools are environment-specific. Don't assume availability — always check with `command -v`.
+
+**Detection categories**:
+
+| Category | Key Tools |
+|----------|-----------|
+| AI CLIs | claude, codex, gemini, opencode, pi |
+| Browser | playwright, puppeteer, cypress |
+| Cloud | aws, gcloud, az, heroku, vercel, fly |
+| Observability | datadog-agent, newrelic, dynatrace |
+| Data | duckdb, psql, mysql, mongosh, redis-cli |
+| CI/CD | gh, glab, circleci |
+| Package managers | uv, bun, npm, pip, cargo, go |
+
+### CLI Discovery Pattern
+
+```markdown
+## CLI Discovery
+
+Task requires browser automation.
+
+Detection (priority order):
+- playwright: FOUND (/usr/local/bin/playwright)
+- puppeteer: not checked (playwright found first)
+- cypress: not checked
+
+Recommendation: Use playwright.
+Stake level: medium — informing user of choice.
+```
+
+**Decision policy**: Low stakes → auto-decide silently. Medium stakes → auto-decide and inform. High stakes → always ask user. See [cli-detection.md](cli-detection.md) for full policy.
+
+**Preference storage**: After first selection, store in wicked-mem under `cli-preference:{category}`.
+
+---
 
 ## Skills
 
@@ -140,17 +185,23 @@ Task: [description]
 - [ ] Match servers to task needs
 - [ ] Note what's missing
 
-### 2. Skills
+### 2. CLI Tools
+- [ ] Check wicked-mem for stored cli-preference:{category}
+- [ ] If no preference, run `command -v` on priority-ordered tool list
+- [ ] Apply auto-decide vs ask policy based on stake level
+- [ ] Store selection in wicked-mem after first decision
+
+### 3. Skills
 - [ ] Identify relevant skill families
 - [ ] Check if installed/available
 - [ ] Note methodology gaps
 
-### 3. Agents
+### 4. Agents
 - [ ] Identify specialized agents needed
 - [ ] Check availability
 - [ ] Plan orchestration
 
-### 4. Built-in Tools
+### 5. Built-in Tools
 - [ ] Confirm required tools (usually all available)
 ```
 

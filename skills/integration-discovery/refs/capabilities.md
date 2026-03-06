@@ -212,6 +212,32 @@ Detailed patterns for discovering integrations by capability category.
 
 ---
 
+## CLI Detection
+
+**Purpose**: Discover installed CLI tools in the system PATH
+
+**Detection method**: `command -v {tool}` (POSIX-portable, works on macOS, Linux, WSL)
+
+**CLI categories**:
+- AI CLIs: claude, codex, gemini, opencode, pi
+- Browser: playwright, puppeteer, cypress, chrome-devtools-protocol
+- Cloud: aws, gcloud, az, heroku, vercel, fly
+- Observability: datadog-agent, newrelic, dynatrace
+- Data: duckdb, psql, mysql, mongosh, redis-cli
+- CI/CD: gh, glab, circleci
+- Package managers: npm, pip, cargo, go, uv, bun
+
+**Decision policy**:
+- Low stakes (e.g., package manager): auto-decide silently
+- Medium stakes (e.g., browser tool): auto-decide, inform user
+- High stakes (e.g., cloud provider): always ask user
+
+**Fallback**: Recommend installation of the preferred tool for the category
+
+See [cli-detection.md](cli-detection.md) for full detection patterns and decision policy.
+
+---
+
 ## Discovery Implementation
 
 ```python
