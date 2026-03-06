@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-137 commands. 82 specialist agents. 77 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
+139 commands. 82 specialist agents. 78 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -107,7 +107,7 @@ Nine domains, each bringing specialist expertise that crew routes to automatical
 |--------|-------------|--------------|
 | **scenarios** | E2E testing via markdown scenarios. Human-readable specs that orchestrate curl, Playwright, k6, Trivy, Semgrep, pa11y — no framework lock-in. | `scenarios:run`, `scenarios:list` |
 | **patch** | Cross-language change propagation. Add a field to a Java entity, auto-patch the SQL migration, DAO, JSP, API, and UI. | `patch:add-field`, `patch:apply`, `patch:rename` |
-| **observability** | Three-layer observability: runtime hook tracing, contract assertions, and structural health probes. | `observability:health`, `observability:traces` |
+| **observability** | Three-layer plugin observability (hook tracing, contract assertions, health probes) plus engineer toolchain discovery for APM, logging, metrics, and cloud monitoring CLIs. | `observability:health`, `observability:traces`, `observability:toolchain` |
 
 ## Use Any Domain Standalone
 

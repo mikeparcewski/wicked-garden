@@ -1,11 +1,14 @@
 ---
 name: observability
 description: |
-  Plugin observability: health probes, contract assertions, and hook execution tracing.
-  Monitor plugin ecosystem integrity, catch silent failures, and validate script outputs.
+  Plugin observability and engineer toolchain discovery. Health probes, contract assertions,
+  and hook execution tracing for the plugin ecosystem. Also discovers and queries APM, logging,
+  metrics, and cloud monitoring CLIs available in the engineer's environment.
 
   Use when: "check plugin health", "are hooks working", "silent failures",
-  "trace hook execution", "validate contracts", "plugin diagnostics"
+  "trace hook execution", "validate contracts", "plugin diagnostics",
+  "check logs", "query metrics", "view traces", "system monitoring",
+  "datadog", "newrelic", "prometheus", "grafana", "splunk", "cloudwatch"
 ---
 
 # Observability Skill
@@ -92,6 +95,34 @@ Schemas live in `schemas/{plugin}/{script}.json`.
 ### "Script returns wrong data"
 1. `/wicked-garden:observability:assert --plugin {name}` — check contract compliance
 2. Review violation details for schema mismatches
+
+## Engineer Toolchain Discovery
+
+Discover and interact with monitoring CLIs available in the current environment.
+
+```bash
+# Discover what monitoring tools are installed
+/wicked-garden:observability:toolchain
+
+# Query logs with detected CLI
+/wicked-garden:observability:toolchain --query "error last 1h"
+
+# Detect by category
+/wicked-garden:observability:toolchain --category apm
+```
+
+### CLI Categories
+
+| Category | Tools Detected |
+|----------|---------------|
+| **APM** | `datadog-agent`, `newrelic-cli`, `dt` (Dynatrace) |
+| **Logging** | `splunk`, `elk` / `elasticsearch`, `kibana` |
+| **Metrics** | `promtool` (Prometheus), `grafana-cli` |
+| **Cloud** | `aws cloudwatch`, `gcloud monitoring`, `az monitor` |
+
+Detection uses `command -v` — no external dependencies.
+
+→ See [refs/toolchain-discovery.md](refs/toolchain-discovery.md) for detection patterns and per-tool usage examples.
 
 ## Integration
 
