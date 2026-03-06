@@ -1,13 +1,13 @@
 ---
 name: workflow
 description: |
-  Core wicked-crew v3 workflow with capability-based orchestration.
-  Smart decisioning analyzes input to determine specialists needed.
-  Built-in fallbacks when specialists unavailable.
+  Core wicked-crew v3 workflow engine with capability-based orchestration and phase progression.
+  Drives projects through crew phases: clarify → design → test-strategy → build → test → review.
+  Smart decisioning analyzes signals to determine which specialists to engage per phase.
 
-  Use when the user mentions "start a project", "clarify outcome", "design phase",
-  "QE gate", "shift-left testing", "just finish", "approve phase", or needs structured
-  software delivery workflow guidance.
+  Use when: "crew phases", "phase plan", "workflow execution", "start a project",
+  "clarify outcome", "design phase", "build phase", "approve phase", "crew workflow",
+  "phase progression", "QE gate", "shift-left testing", or structured delivery guidance.
 ---
 
 # Workflow Skill (v3)

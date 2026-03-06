@@ -1,11 +1,13 @@
 ---
 name: context-assembly
 description: |
-  Intelligent context gathering from wicked-garden sources.
-  Assembles relevant context from mem, jam, kanban, search, and crew before responding.
+  Fires automatically on every user prompt via UserPromptSubmit hook — no manual invocation needed.
+  Always-on context assembly: gathers relevant context from mem, jam, kanban, search, and crew
+  before each response using a tiered hot/fast/slow path strategy (<100ms to ~525ms).
 
   Use when: "context briefing", "gather background", "what do we know about",
-  "resume where we left off", "catch me up", "what happened before"
+  "resume where we left off", "catch me up", "what happened before",
+  "how does smaht work", "context assembly", "prompt enrichment", "auto context"
 ---
 
 # Context Assembly
