@@ -739,7 +739,7 @@ def _record_gate_override(
     status_file = project_dir / "phases" / phase / "status.md"
     timestamp = get_utc_timestamp()
     override_block = (
-        f"\n## Gate Override\n\n"
+        f"\n## Gate Overrides\n\n"
         f"- **Date**: {timestamp}\n"
         f"- **Approver**: {approver}\n"
         f"- **Reason**: {reason or '(none provided)'}\n"
@@ -791,11 +791,18 @@ def approve_phase(
     gate_required = phase_config.get("gate_required", False)
 
     if gate_required:
+        gate_override_allowed = phase_config.get("gate_override_allowed", True)
         project_dir = get_project_dir(state.name)
         gate_run = _check_gate_run(project_dir, phase)
 
         if not gate_run:
-            if override_gate:
+            if override_gate and not gate_override_allowed:
+                raise ValueError(
+                    f"Gate override not allowed for phase '{phase}'. "
+                    f"Run /wicked-garden:crew:gate before approving — "
+                    f"QE must evaluate this phase."
+                )
+            elif override_gate:
                 # Record the override in status.md for audit trail
                 _record_gate_override(project_dir, phase, override_reason, approver)
                 warnings.append(
@@ -813,7 +820,12 @@ def approve_phase(
             # Gate was run — check if it passed or failed
             gate_result = _load_gate_result(project_dir, phase)
             if gate_result and gate_result.get("result") == "REJECT":
-                if override_gate:
+                if override_gate and not gate_override_allowed:
+                    raise ValueError(
+                        f"Gate override not allowed for phase '{phase}'. "
+                        f"Resolve REJECT findings — QE must evaluate this phase."
+                    )
+                elif override_gate:
                     _record_gate_override(project_dir, phase, override_reason, approver)
                     warnings.append(f"Gate REJECT overridden. Reason: {override_reason or '(none provided)'}")
                 else:
@@ -1093,6 +1105,17 @@ def main():
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
 
     args = parser.parse_args()
+
+    # Enforce --reason when --override-gate is passed (check before project lookup)
+    if getattr(args, "override_gate", False) and args.action == "approve":
+        if not (args.reason and args.reason.strip()):
+            print(
+                "Error: --override-gate requires --reason. "
+                "Provide a meaningful explanation, e.g.: "
+                "--reason 'Gate ran externally via codex; result: APPROVE'",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     state = load_project_state(args.project)
     if not state and args.action not in ("status", "create"):

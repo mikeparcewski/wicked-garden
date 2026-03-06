@@ -107,6 +107,13 @@ SIGNAL_KEYWORDS = {
         "content", "landing page", "blog post", "user guide", "editorial",
         "tone", "voice", "narrative", "announcement", "release note*",
     ],
+    "text-as-code": [
+        "command", "skill", "agent", "prompt", "instruction",
+        "SKILL.md", "frontmatter", "slash command", "hook script",
+        "persona", "specialist", "phase gate", "crew routing",
+        "signal detection", "phase selection",
+        "plugin instruction*", "behavior-defining",
+    ],
     "reversibility": [
         "migrat*", "schema", "breaking change", "deprecat*", "backward incompatible",
         "drop table", "drop column", "remove api", "rename api",
@@ -138,6 +145,7 @@ SIGNAL_TO_SPECIALISTS = {
     "ux": {"wicked-product"},
     "strategy": {"wicked-product"},
     "content": {"wicked-jam", "wicked-product"},
+    "text-as-code": {"wicked-qe", "wicked-engineering"},
     "reversibility": {"wicked-platform", "wicked-delivery"},
     "novelty": {"wicked-jam", "wicked-engineering"},
 }
@@ -175,11 +183,13 @@ FILE_ROLE_PATTERNS = [
     (r'\bhooks\.json\b', 3.0),
     (r'\b(?:routes|pipeline|workflow|dispatch)\.(?:json|ya?ml)\b', 3.0),
     (r'\bMakefile\b', 3.0),
+    # --- TIER 1 additions for text-as-code ---
+    (r'\bagents?/\S+', 3.0),           # promoted from Tier 2: agent prompts are behavioral programs
+    (r'\bhooks?/scripts?/\S+', 3.0),   # hook script implementations
 
     # --- TIER 2: Source code (weight 1.5) ---
     (r'\b(?:src|lib|app|pkg|internal|core)/\S+', 1.5),
     (r'\bscripts?/\S+', 1.5),
-    (r'\bagents?/\S+', 1.5),
     (r'\bskills?/\S+\.md\b', 1.5),
     (r'\bSKILL\.md\b', 1.5),
 
@@ -502,6 +512,13 @@ ARCHETYPE_ADJUSTMENTS = {
         "inject_signals": {"performance": 0.3},
         "min_complexity": 2,
         "description": "Real-time: latency, concurrency, and state synchronization matter",
+    },
+    "text-as-code": {
+        "impact_bonus": 2,
+        "inject_signals": {"architecture": 0.3, "text-as-code": 0.7},
+        "min_complexity": 3,
+        "description": "Text-as-code: commands/agents/skills/hooks are behavioral programs — "
+                       "instruction changes affect crew routing, gate enforcement, and QE coverage",
     },
 }
 
