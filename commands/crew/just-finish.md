@@ -166,10 +166,21 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
    - Fallback chain: Council → Third-party CLI → Specialist → Generic → Human
 6. Auto-approve if deliverables meet criteria AND sign-off is `approved`
 7. **Run checkpoint re-analysis** if phase has `checkpoint: true` (Section 4.5)
-8. Advance to next phase using phase_manager:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} approve --phase {phase}
-   ```
+8. **Gate then approve** — before calling `phase_manager approve`, verify gate completion:
+   - If `gate_required` is `true` for this phase AND no `gate-result.json` exists in
+     `phases/{phase}/` yet: go back to step 4 (run the gate now — do NOT skip it).
+   - If gate ran and returned **APPROVE** or **CONDITIONAL**: call approve without
+     `--override-gate`:
+     ```bash
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} approve --phase {phase}
+     ```
+   - If gate ran and returned **REJECT**: STOP. Do not call approve. Report to user.
+   - `--override-gate` is reserved for exceptional circumstances only (e.g., gate ran
+     externally, CI result already available). If used, `--reason` is REQUIRED:
+     ```bash
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} approve \
+       --phase {phase} --override-gate --reason "Gate ran via CI; result APPROVE, job #1234"
+     ```
 9. Continue until done or guardrail hit
 
 **Sign-off in just-finish mode**: Route reviewer per Gate Reviewer Policy (gate type × complexity). Council is used when policy requires it (high complexity or escalation triggers). If sign-off returns `rejected`, STOP and report to user. If `conditional`, escalate to council if not already used, otherwise proceed and log conditions. Human review is skipped in just-finish mode EXCEPT at complexity >= 6 execution gates (build, test, review) where human approval is mandatory.
@@ -177,6 +188,12 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
 ### 5.5 Mandatory Quality Gate
 
 **Same as execute.md Section 7.5 — run after deliverables are complete, before sign-off.**
+
+> **CAUTION**: Fast-pass (complexity <= 1, no security signals) uses a generic reviewer
+> instead of the full QE gate orchestrator — but it STILL records a `gate:` block in
+> `phases/{phase}/status.md`. This satisfies `_check_gate_run()` in phase_manager.
+> Do NOT call `phase_manager approve --override-gate` as a substitute for fast-pass.
+> Use the fast-pass path in Section 5.5 step 1.
 
 Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` for the current phase's `gate_required` and `gate_type`.
 
