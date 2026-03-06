@@ -2,7 +2,7 @@
 description: Orchestrate multi-AI CLI collaboration — discover, review, council, and persist
 ---
 
-# /wicked-garden:ai-collaboration:collaborate
+# /wicked-garden:multi-model:collaborate
 
 Discover AI CLIs in the current environment and run multi-model collaboration workflows:
 reviews, council sessions, and preference-driven orchestration.
@@ -10,7 +10,7 @@ reviews, council sessions, and preference-driven orchestration.
 ## Usage
 
 ```
-/wicked-garden:ai-collaboration:collaborate [--discover] [--review FILE] [--council "QUESTION"] [--prompt "PROMPT"]
+/wicked-garden:multi-model:collaborate [--discover] [--review FILE] [--council "QUESTION"] [--prompt "PROMPT"]
 ```
 
 ## Arguments
