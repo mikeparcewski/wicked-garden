@@ -4,6 +4,7 @@ description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
   This skill should be used when the user wants to brainstorm, explore ideas,
   get feedback on concepts, or run a focus group discussion.
+  Sessions are tracked in kanban (process) and stored in wicked-mem (outcome).
 
   Use when: "brainstorm this", "explore ideas", "get different perspectives",
   "focus group", "what do you think about", "pros and cons"
@@ -121,9 +122,41 @@ if has_plugin("wicked-mem") and user_approves:
     store(insights, type="decision", tags=[topic])
 ```
 
+### With wicked-kanban
+
+Sessions are tracked in kanban for process visibility:
+
+```
+# On session start
+/wicked-garden:kanban:new-task "Jam: {topic}" --metadata '{"type":"jam-session","personas":[...],"status":"brainstorming"}'
+
+# After each persona round
+/wicked-garden:kanban:comment {task_id} "{persona_name}: {key_insight}"
+
+# After synthesis
+/wicked-garden:kanban:comment {task_id} "Synthesis: {summary}"
+
+# On decision
+/wicked-garden:kanban:comment {task_id} "Decision: {decision_record}"
+```
+
+Wrap all kanban calls in graceful degradation — if kanban unavailable, skip silently.
+Kanban tracks process; wicked-mem stores outcomes. Both can coexist.
+
 ### With wicked-crew
 
-Called during clarify phase to explore project approaches.
+Called during clarify, design, and build phases. See "Crew Engagement" section below.
+
+## Crew Engagement
+
+| Phase | Mode | When |
+|-------|------|------|
+| Clarify | Quick jam (4 personas, 1 round) | Approach options, framing decisions |
+| Design | Full brainstorm (4-6 personas, 2-3 rounds) | Architecture decisions, complex tradeoffs |
+| Build checkpoint | Quick jam | Course corrections when unexpected complexity arises |
+
+Jam auto-engages when: ambiguity detected, complexity >= 4, architecture signals present,
+or content/documentation-heavy scope.
 
 ## Output Structure
 

@@ -102,6 +102,11 @@ SIGNAL_KEYWORDS = {
         "roi", "business value", "investment", "competitive", "market",
         "strategic", "value proposition", "differentiation", "business case"
     ],
+    "content": [
+        "readme", "documentation", "docs", "rewrite", "messaging", "copy",
+        "content", "landing page", "blog post", "user guide", "editorial",
+        "tone", "voice", "narrative", "announcement", "release note*",
+    ],
     "reversibility": [
         "migrat*", "schema", "breaking change", "deprecat*", "backward incompatible",
         "drop table", "drop column", "remove api", "rename api",
@@ -132,6 +137,7 @@ SIGNAL_TO_SPECIALISTS = {
     "architecture": {"wicked-agentic", "wicked-engineering"},
     "ux": {"wicked-product"},
     "strategy": {"wicked-product"},
+    "content": {"wicked-jam", "wicked-product"},
     "reversibility": {"wicked-platform", "wicked-delivery"},
     "novelty": {"wicked-jam", "wicked-engineering"},
 }
@@ -1324,6 +1330,18 @@ def select_specialists(
     if complexity >= 3 and "wicked-qe" not in routing:
         routing["wicked-qe"] = RoutingInfo(
             tier="RECOMMENDED", reason=f"complexity:{complexity}>=3", signals=[])
+    if complexity >= 4 and "wicked-jam" not in routing:
+        routing["wicked-jam"] = RoutingInfo(
+            tier="RECOMMENDED", reason=f"complexity:{complexity}>=4", signals=[])
+
+    # 2b. Architecture signal escalates jam to REQUIRED
+    if "architecture" in signal_confidences and signal_confidences["architecture"] >= 0.1:
+        if "wicked-jam" not in routing:
+            routing["wicked-jam"] = RoutingInfo(
+                tier="REQUIRED", reason="architecture signal detected", signals=["architecture"])
+        elif routing["wicked-jam"].tier != "REQUIRED":
+            routing["wicked-jam"].tier = "REQUIRED"
+            routing["wicked-jam"].reason = "architecture signal detected"
 
     # 3. Ambiguity detection
     if ambiguous and "wicked-jam" not in routing:
