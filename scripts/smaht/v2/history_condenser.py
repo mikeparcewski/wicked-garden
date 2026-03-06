@@ -7,7 +7,7 @@ Progressive compression of conversation history:
 - + Turn window (last 3-5 turns)
 - = 50-100x compression
 
-Storage (via get_local_path from _storage):
+Storage (via get_local_path from _domain_store):
 {local_path}/wicked-smaht/sessions/{session_id}/
 ├── summary.json       # Session summary (persistent)
 ├── turns.jsonl        # Recent turns (rolling buffer)
@@ -34,7 +34,7 @@ _SCRIPTS_ROOT = Path(__file__).resolve().parents[2]
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from _storage import get_local_path
+from _domain_store import get_local_path
 
 # Also add the v2 directory for sibling imports (fact_extractor, lane_tracker, memory_promoter)
 _V2_DIR = Path(__file__).resolve().parent

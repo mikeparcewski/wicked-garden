@@ -85,11 +85,11 @@ def _validate_entry(entry: dict, session_id: str) -> dict:
 
 
 def _get_sm():
-    """Lazy StorageManager init — deferred to call time, not import time."""
+    """Lazy DomainStore init — deferred to call time, not import time."""
     global _sm
     if _sm is None:
-        from _storage import StorageManager
-        _sm = StorageManager("wicked-jam")
+        from _domain_store import DomainStore
+        _sm = DomainStore("wicked-jam")
     return _sm
 
 

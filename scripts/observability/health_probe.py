@@ -13,7 +13,7 @@ Exit codes:
   1  degraded — warnings only
   2  unhealthy — one or more errors
 
-Output is persisted via StorageManager("wicked-observability").
+Output is persisted via DomainStore("wicked-observability").
 """
 
 from __future__ import annotations
@@ -26,11 +26,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Resolve _storage from the parent scripts/ directory
+# Resolve _domain_store from the parent scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore
 
-_sm = StorageManager("wicked-observability")
+_sm = DomainStore("wicked-observability")
 
 # ---------------------------------------------------------------------------
 # Constants

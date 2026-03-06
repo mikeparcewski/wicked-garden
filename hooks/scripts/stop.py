@@ -6,11 +6,11 @@ Consolidates: crew stop, kanban stop, mem stop, smaht session_end.
 
 Flow:
 1. Session outcome check (mismatch report from auto_issue_reporter state)
-2. Memory flush reminder (directive for Claude to store learnings)
+2. Automatic memory promotion from smaht session
 3. Run memory decay maintenance
-4. Async heartbeat to control plane agents service
-5. Session end event to control plane SSE endpoint
-6. Persist final SessionState
+4. Persist smaht history condenser session metadata
+5. Persist final SessionState
+6. Emit memory flush reminder directive
 
 Always fails open — any unhandled exception returns {"systemMessage": ...}.
 Runs async so it does NOT block the user on exit.
@@ -98,36 +98,6 @@ def _check_session_outcome() -> list:
     return messages
 
 
-# ---------------------------------------------------------------------------
-# Step 1b: CP error summary
-# ---------------------------------------------------------------------------
-
-def _analyze_cp_errors() -> list:
-    """Return summary messages if CP errors occurred this session."""
-    try:
-        from _session import SessionState
-        state = SessionState.load()
-        errors = state.cp_errors or []
-        if not errors:
-            return []
-
-        # Count unique domain/source combos
-        sources = set()
-        for err in errors:
-            parts = err.get("url", "").split("/data/")[-1].split("/") if "/data/" in err.get("url", "") else []
-            if len(parts) >= 2:
-                sources.add(f"{parts[0]}/{parts[1]}")
-
-        if sources:
-            return [
-                f"[CP Errors] {len(errors)} CP error(s) across {len(sources)} source(s) this session. "
-                f"Sources: {', '.join(sorted(sources))}. "
-                "Run the session analyzer to file issues: "
-                "python3 .claude/skills/cp-session-analyzer/scripts/analyze_session.py <transcript_path> --auto-file"
-            ]
-        return []
-    except Exception:
-        return []
 
 
 # ---------------------------------------------------------------------------
@@ -198,58 +168,6 @@ def _run_memory_decay() -> list:
     return messages
 
 
-# ---------------------------------------------------------------------------
-# Step 4: Heartbeat to control plane
-# ---------------------------------------------------------------------------
-
-def _send_heartbeat(session_id: str, turn_count: int) -> None:
-    """POST heartbeat to control plane agents service (non-blocking, best-effort)."""
-    try:
-        from _control_plane import ControlPlaneClient
-        from _session import SessionState
-
-        state = SessionState.load()
-        if not state.cp_available:
-            return
-
-        client = ControlPlaneClient(hook_mode=True)
-        client.request(
-            "wicked-agents",
-            "agents",
-            "heartbeat",
-            payload={"session_id": session_id, "turn_count": turn_count},
-        )
-    except Exception as e:
-        print(f"[wicked-garden] heartbeat error: {e}", file=sys.stderr)
-
-
-# ---------------------------------------------------------------------------
-# Step 5: Session end event
-# ---------------------------------------------------------------------------
-
-def _send_session_end_event(session_id: str) -> None:
-    """POST session end event to control plane events endpoint (best-effort)."""
-    try:
-        from _control_plane import ControlPlaneClient
-        from _session import SessionState
-
-        state = SessionState.load()
-        if not state.cp_available:
-            return
-
-        client = ControlPlaneClient(hook_mode=True)
-        client.request(
-            "wicked-garden",
-            "events",
-            "create",
-            payload={
-                "event": "session:ended",
-                "session_id": session_id,
-                "turn_count": _get_turn_count(),
-            },
-        )
-    except Exception as e:
-        print(f"[wicked-garden] session-end event error: {e}", file=sys.stderr)
 
 
 def _get_turn_count() -> int:
@@ -276,53 +194,6 @@ def _persist_session_state() -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
-# Step 5b: Flush trace JSONL to control plane
-# ---------------------------------------------------------------------------
-
-def _flush_traces(session_id: str) -> None:
-    """Batch-flush any JSONL trace entries to the control plane via bulk-create.
-
-    Reads the session-scoped JSONL file written by post_tool.py's _write_trace()
-    fallback path. On success, deletes the file. On failure, leaves it for the
-    next session or manual cleanup.
-    """
-    try:
-        from _control_plane import ControlPlaneClient
-        from _session import SessionState
-
-        state = SessionState.load()
-        if not state.cp_available:
-            return
-
-        tmpdir = os.environ.get("TMPDIR", "/tmp")
-        trace_file = Path(tmpdir) / f"wicked-trace-{session_id}.jsonl"
-        if not trace_file.exists():
-            return
-
-        entries = []
-        for line in trace_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entries.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-
-        if not entries:
-            trace_file.unlink(missing_ok=True)
-            return
-
-        client = ControlPlaneClient(hook_mode=False)  # command timeout for batch
-        result = client.request(
-            "observability", "traces", "bulk-create",
-            payload={"traces": entries},
-        )
-        if result is not None:
-            trace_file.unlink(missing_ok=True)
-    except Exception as e:
-        print(f"[wicked-garden] trace flush error: {e}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -363,28 +234,16 @@ def main():
         # 1. Session outcome check
         outcome_messages = _check_session_outcome()
 
-        # 1b. CP error summary
-        cp_messages = _analyze_cp_errors()
-
         # 2b. Automatic memory promotion (fail open — never blocks session end)
         promotion_messages = _run_memory_promotion(session_id)
 
         # 3. Memory decay
         decay_messages = _run_memory_decay()
 
-        # 4. Heartbeat (best-effort)
-        _send_heartbeat(session_id, turn_count)
-
-        # 5. Session end event (best-effort)
-        _send_session_end_event(session_id)
-
-        # 5b. Flush trace JSONL to CP (best-effort)
-        _flush_traces(session_id)
-
         # Smaht history condenser persistence
         _persist_smaht_session_meta(session_id)
 
-        # 6. Persist session state
+        # 4. Persist session state
         _persist_session_state()
 
         # Read session state for task completion count (fail open)
@@ -430,9 +289,9 @@ def main():
                 "Do NOT skip silently."
             )
 
-        # Combine all pre-reflection messages (outcome + CP errors + promotion notices)
+        # Combine all pre-reflection messages (outcome + promotion notices)
         # Note: decay_messages already included via decay_prefix in reflection
-        prepend_messages = outcome_messages + cp_messages + promotion_messages
+        prepend_messages = outcome_messages + promotion_messages
         if prepend_messages:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         else:

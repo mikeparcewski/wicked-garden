@@ -406,7 +406,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _default_state_path() -> str:
-    """Resolve default state path via resolve_path.py, falling back to StorageManager convention."""
+    """Resolve default state path via resolve_path.py, falling back to DomainStore convention."""
     try:
         import subprocess as _sp
         plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", str(Path(__file__).resolve().parents[2]))
@@ -418,10 +418,13 @@ def _default_state_path() -> str:
             return str(Path(result.stdout.strip()) / "watcher-state.json")
     except Exception:
         pass
-    # Fallback — StorageManager resolves dynamically but we need a path
-    from _storage import StorageManager
-    sm = StorageManager("wicked-search")
-    return str(Path(sm._local_root) / "watcher-state.json")
+    # Fallback — use DomainStore path resolution
+    import sys as _sys
+    _scripts = str(Path(__file__).resolve().parents[1])
+    if _scripts not in _sys.path:
+        _sys.path.insert(0, _scripts)
+    from _domain_store import get_local_path
+    return str(get_local_path("wicked-search") / "watcher-state.json")
 
 
 def _resolve_dirs(dirs: Optional[List[str]]) -> List[str]:

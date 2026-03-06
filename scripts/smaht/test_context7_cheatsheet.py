@@ -27,11 +27,11 @@ _SMAHT_DIR = _SCRIPTS_ROOT / "smaht"
 sys.path.insert(0, str(_SCRIPTS_ROOT))
 sys.path.insert(0, str(_SMAHT_DIR))
 
-# We need _storage available before importing adapters (used at module level
+# We need _domain_store available before importing adapters (used at module level
 # via get_local_path in context7_adapter).  Provide a minimal fake.
 
 def _install_storage_stub():
-    fake = types.ModuleType("_storage")
+    fake = types.ModuleType("_domain_store")
     import tempfile
     tmp = Path(tempfile.mkdtemp())
 
@@ -41,17 +41,12 @@ def _install_storage_stub():
         return p
 
     fake.get_local_path = get_local_path
-    fake.StorageManager = MagicMock()
-    sys.modules["_storage"] = fake
+    fake.DomainStore = MagicMock()
+    sys.modules["_domain_store"] = fake
     return fake
 
 
 _install_storage_stub()
-
-# Also stub _control_plane, _schema_adapters, _session which _storage imports
-for _mod_name in ("_control_plane", "_schema_adapters", "_session"):
-    if _mod_name not in sys.modules:
-        sys.modules[_mod_name] = types.ModuleType(_mod_name)
 
 # Import the adapters package. The adapters directory has __init__.py so it is
 # a proper package.  We register it under the name "adapters" and exec __init__

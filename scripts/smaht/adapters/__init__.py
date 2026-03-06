@@ -73,11 +73,11 @@ class ContextItem:
         return len(text) // 4  # Rough estimate
 
 
-from . import cp_adapter
+from . import domain_adapter
 from . import context7_adapter
 
 __all__ = [
     'ContextItem',
-    'cp_adapter',
+    'domain_adapter',
     'context7_adapter',
 ]

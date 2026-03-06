@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _storage import get_local_path
+from _domain_store import get_local_path
 
 if len(sys.argv) < 2:
     print("Usage: resolve_path.py <domain> [subpath...]", file=sys.stderr)

@@ -12,7 +12,7 @@ Fact types:
   - problem_solved: Issues resolved ("fixed X", "resolved Y")
   - context: Background information ("the system uses X", "currently Y")
 
-Storage (via get_local_path from _storage):
+Storage (via get_local_path from _domain_store):
 {local_path}/wicked-smaht/sessions/{session_id}/facts.jsonl
 """
 

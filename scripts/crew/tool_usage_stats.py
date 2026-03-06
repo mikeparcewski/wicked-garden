@@ -7,9 +7,9 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore
 
-_sm = StorageManager("wicked-crew")
+_sm = DomainStore("wicked-crew")
 
 def load_usage(days: int = 7) -> list:
     """Load usage records from the last N days via StorageManager."""

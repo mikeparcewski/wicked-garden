@@ -23,12 +23,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore
 
 # Lazy-loaded module-level library instance
 _library_instance = None
 
-_sm = StorageManager("wicked-crew")
+_sm = DomainStore("wicked-crew")
 DEFAULT_SIGNALS_PATH = Path(__file__).parent / "data" / "default_signals.jsonl"
 
 

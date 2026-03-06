@@ -9,7 +9,7 @@ Lanes allow context-switching between tasks without losing
 the state of paused work. Priority decay moves stale lanes
 to dormant status, and reactivation brings them back.
 
-Storage (via get_local_path from _storage):
+Storage (via get_local_path from _domain_store):
 {local_path}/wicked-smaht/sessions/{session_id}/lanes.jsonl
 """
 

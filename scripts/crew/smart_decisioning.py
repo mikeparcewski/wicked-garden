@@ -25,9 +25,9 @@ from typing import Dict, List, Set, Tuple, Optional
 from dataclasses import dataclass, asdict, field
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore
 
-_sm = StorageManager("wicked-crew")
+_sm = DomainStore("wicked-crew")
 
 # Configure logging
 logging.basicConfig(
@@ -1529,12 +1529,18 @@ def analyze_input(
     context: Optional[ContextualVariables] = None,
     archetype_hints: Optional[Dict] = None,
     file_hints: Optional[List[str]] = None,
+    dimension_hints: Optional[Dict[str, int]] = None,
 ) -> SignalAnalysis:
     """
     Main entry point: Analyze user input and return signal analysis.
 
     ORDERING: detect_signals runs BEFORE assess_novelty because novelty
     uses the signal count for cross-domain scoring.
+
+    dimension_hints: Optional dict of dimension score floors from agent
+    semantic analysis. Keys: impact, reversibility, novelty, test_complexity,
+    documentation, coordination_cost, operational. Values 0-3.
+    Keyword scores are floored to hint values (take max).
     """
     logger.info(f"Analyzing input ({len(text)} chars)")
 
@@ -1591,13 +1597,23 @@ def analyze_input(
                 confidence = max(0.0, min(float(confidence) if isinstance(confidence, (int, float)) else 0.7, 1.0))
             archetypes[arch_name] = confidence
             # Register custom adjustments in local copy (not global)
-            if arch_name not in effective_adjustments:
-                effective_adjustments[arch_name] = {
-                    "impact_bonus": min(int(hint_data.get("impact_bonus", 1)), 3),
-                    "inject_signals": hint_data.get("inject_signals", {}),
-                    "min_complexity": min(int(hint_data.get("min_complexity", 2)), 7),
-                    "description": hint_data.get("description", f"Dynamic: {arch_name}"),
-                }
+            # Merge with built-in defaults — hints override built-ins for
+            # impact_bonus and min_complexity (take max), inject_signals (merge)
+            hint_adj = {
+                "impact_bonus": min(int(hint_data.get("impact_bonus", 1)), 3),
+                "inject_signals": hint_data.get("inject_signals", {}),
+                "min_complexity": min(int(hint_data.get("min_complexity", 2)), 7),
+                "description": hint_data.get("description", f"Dynamic: {arch_name}"),
+            }
+            if arch_name in effective_adjustments:
+                existing = effective_adjustments[arch_name]
+                existing["impact_bonus"] = max(existing.get("impact_bonus", 0), hint_adj["impact_bonus"])
+                existing["min_complexity"] = max(existing.get("min_complexity", 0), hint_adj["min_complexity"])
+                existing["inject_signals"] = {**existing.get("inject_signals", {}), **hint_adj["inject_signals"]}
+                if hint_adj["description"] != f"Dynamic: {arch_name}":
+                    existing["description"] = hint_adj["description"]
+            else:
+                effective_adjustments[arch_name] = hint_adj
             archetype_adj_applied[f"hint:{arch_name}"] = confidence
 
     # Keyword-based detection (fallback, always runs to augment hints)
@@ -1635,13 +1651,23 @@ def analyze_input(
             for fp in file_hints
         ]
         if file_weights:
+            # Use max single-file weight as base, then add breadth bonus
+            # for high file counts (10+ files = +0.5, 15+ = +1.0)
+            max_weight = max(file_weights)
+            weighted_count = sum(1 for w in file_weights if w > 0)
+            breadth_bonus = 0.0
+            if weighted_count >= 15:
+                breadth_bonus = 1.0
+            elif weighted_count >= 10:
+                breadth_bonus = 0.5
             file_impact_score = min(
-                max(file_weights),
+                max_weight + breadth_bonus,
                 MAX_FILE_IMPACT
             )
             if file_impact_score > impact:
                 impact_reasons.append(
-                    f"file impact from hints (score={file_impact_score:.1f})"
+                    f"file impact from hints (score={file_impact_score:.1f}, "
+                    f"{weighted_count} files matched)"
                 )
                 impact = min(round(file_impact_score), 3)
 
@@ -1668,6 +1694,49 @@ def analyze_input(
                 archetype_adj_applied["impact_bonus"] = max_bonus
                 archetype_adj_applied["impact_bonus_from"] = max_bonus_arch
 
+    # New dimensions (Issue #254)
+    test_complexity, tc_reasons = assess_test_complexity(text)
+    documentation, doc_reasons = assess_documentation(text)
+    coordination_cost, coord_reasons = assess_coordination_cost(text)
+    operational, op_reasons = assess_operational(text)
+
+    # Apply dimension hints as floors (agent semantic scoring)
+    # Each keyword-derived score is floored to the agent-provided hint.
+    _DIMENSION_KEYS = {
+        "impact": ("impact", impact_reasons),
+        "reversibility": ("reversibility", rev_reasons),
+        "novelty": ("novelty", nov_reasons),
+        "test_complexity": ("test_complexity", tc_reasons),
+        "documentation": ("documentation", doc_reasons),
+        "coordination_cost": ("coordination_cost", coord_reasons),
+        "operational": ("operational", op_reasons),
+    }
+    if dimension_hints:
+        _locals = {
+            "impact": impact, "reversibility": reversibility, "novelty": novelty,
+            "test_complexity": test_complexity, "documentation": documentation,
+            "coordination_cost": coordination_cost, "operational": operational,
+        }
+        for dim_key, (var_name, reasons_list) in _DIMENSION_KEYS.items():
+            hint_val = dimension_hints.get(dim_key)
+            if hint_val is not None:
+                hint_val = max(0, min(int(hint_val), 3))
+                current = _locals[var_name]
+                if hint_val > current:
+                    reasons_list.append(f"+{hint_val - current} agent semantic hint (floor={hint_val})")
+                    _locals[var_name] = hint_val
+        impact = _locals["impact"]
+        reversibility = _locals["reversibility"]
+        novelty = _locals["novelty"]
+        test_complexity = _locals["test_complexity"]
+        documentation = _locals["documentation"]
+        coordination_cost = _locals["coordination_cost"]
+        operational = _locals["operational"]
+        archetype_adj_applied["dimension_hints_applied"] = {
+            k: v for k, v in dimension_hints.items()
+            if k in _DIMENSION_KEYS and v is not None
+        }
+
     # Build explanation
     explanation = []
     if impact_reasons:
@@ -1676,13 +1745,6 @@ def analyze_input(
         explanation.append(f"Reversibility ({reversibility}/3): {'; '.join(rev_reasons)}")
     if nov_reasons:
         explanation.append(f"Novelty ({novelty}/3): {'; '.join(nov_reasons)}")
-
-    # New dimensions (Issue #254)
-    test_complexity, tc_reasons = assess_test_complexity(text)
-    documentation, doc_reasons = assess_documentation(text)
-    coordination_cost, coord_reasons = assess_coordination_cost(text)
-    operational, op_reasons = assess_operational(text)
-
     if tc_reasons:
         explanation.append(f"Test complexity ({test_complexity}/3): {'; '.join(tc_reasons[:2])}")
     if doc_reasons:
@@ -1852,6 +1914,15 @@ def main():
         help="Comma-separated list of affected file paths for impact scoring. "
              "Scored against FILE_ROLE_PATTERNS to produce file impact bonus."
     )
+    parser.add_argument(
+        "--dimension-hints",
+        type=str,
+        default=None,
+        help="JSON dict of dimension score floors from agent semantic analysis. "
+             "Format: {\"reversibility\": 2, \"novelty\": 1, \"coordination_cost\": 2, ...}. "
+             "Valid keys: impact, reversibility, novelty, test_complexity, documentation, "
+             "coordination_cost, operational. Values 0-3. Keyword scores are floored to hints."
+    )
 
     args = parser.parse_args()
 
@@ -1882,8 +1953,17 @@ def main():
     if args.files:
         file_hints = [f.strip() for f in args.files.split(",") if f.strip()]
 
+    # Parse dimension hints from agent semantic analysis
+    dim_hints = None
+    if args.dimension_hints:
+        try:
+            dim_hints = json.loads(args.dimension_hints)
+        except json.JSONDecodeError:
+            logger.warning(f"Invalid dimension hints JSON, ignoring: {args.dimension_hints}")
+
     analysis = analyze_input(text, args.plugin_dir, overrides=overrides, context=context,
-                             archetype_hints=hints, file_hints=file_hints)
+                             archetype_hints=hints, file_hints=file_hints,
+                             dimension_hints=dim_hints)
 
     if args.json:
         # Convert RoutingInfo objects to dicts for JSON serialization

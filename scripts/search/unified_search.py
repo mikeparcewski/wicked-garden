@@ -2028,8 +2028,8 @@ class UnifiedSearchIndex:
 def _load_external_results(query: str, limit: int = 10, domain_filter: Optional[str] = None) -> List[Dict[str, Any]]:
     """Load and score results from the external JSONL index.
 
-    Reads ~/.something-wicked/wicked-search/external/index.jsonl (or the
-    StorageManager equivalent).  Each entry is a GraphNode-compatible dict
+    Reads ~/.something-wicked/wicked-garden/local/wicked-search/external/index.jsonl.
+    Each entry is a GraphNode-compatible dict
     written by ExternalIndexer.index_content().
 
     Scoring is a simple case-insensitive term-frequency approach — good enough

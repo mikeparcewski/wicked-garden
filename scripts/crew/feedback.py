@@ -26,9 +26,9 @@ from pathlib import Path
 from typing import Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore
 
-_sm = StorageManager("wicked-crew")
+_sm = DomainStore("wicked-crew")
 
 # Import SIGNAL_TO_SPECIALISTS for validation ground truth
 # This is the only allowed import from smart_decisioning (no circular dep)

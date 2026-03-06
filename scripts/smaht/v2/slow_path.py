@@ -50,7 +50,7 @@ class SlowPathAssembler:
         """Load available adapters individually for graceful degradation."""
         adapters = {}
         adapter_modules = {
-            "cp": "cp_adapter",
+            "domain": "domain_adapter",
             "mem": "mem_adapter",
             "context7": "context7_adapter",
             "tools": "startah_adapter",

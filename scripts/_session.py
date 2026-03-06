@@ -19,7 +19,7 @@ Usage (hook scripts):
     state.save()
 
     # Or update multiple fields at once:
-    state.update(cp_available=True, cp_version="1.2.3")
+    state.update(setup_complete=True)
 """
 
 import json
@@ -75,36 +75,20 @@ class SessionState:
     causes a hook to crash.
 
     Fields:
-        cp_available:   True when the control plane health check passed at
-                        session start.
-        cp_version:     Reported control plane version string, or "".
         setup_complete: True when config.json has setup_complete == true.
-        fallback_mode:  True when CP was unreachable and we are using local
-                        file fallback for this session.
         active_project: Dict summary of the active crew project, or None.
         kanban_board:   Dict summary of the current kanban board, or None.
-        agents_loaded:  Number of agents loaded (disk + CP overlay) at bootstrap.
+        agents_loaded:  Number of agents loaded at bootstrap.
         turn_count:     Number of user prompts in this session (incremented by
                         prompt_submit.py on each UserPromptSubmit hook).
     """
 
-    cp_available: bool = False
-    cp_version: str = ""
     setup_complete: bool = False
-    fallback_mode: bool = False
     active_project: dict | None = None
     kanban_board: dict | None = None
     agents_loaded: int = 0
     turn_count: int = 0
     session_ended: bool = False
-    cp_last_checked_at: float = 0.0
-
-    # CP UUID for the active crew project. None when no active project
-    # or when CP was unavailable at session start.
-    cp_project_id: str | None = None
-
-    # Set by bootstrap when CP appears empty while local data exists (schema reset signal).
-    cp_schema_reset_detected: bool = False
 
     # Kanban sync: maps Claude TaskCreate subjects → kanban task IDs.
     # Session-scoped (task IDs are ephemeral).
@@ -135,9 +119,6 @@ class SessionState:
 
     # Queued issue records (pending_issues + mismatches)
     pending_issues: list | None = None
-
-    # CP errors recorded by _control_plane.py for hook surfacing
-    cp_errors: list | None = None
 
     # Subagent dispatch log (post_tool.py Task handler)
     subagent_dispatches: list | None = None
@@ -183,6 +164,11 @@ class SessionState:
     # Valid values: "normal", "verbose", "debug"
     # Written by /wicked-garden:observability:debug; read by _logger._resolve_level().
     log_level: str = ""
+
+    # Cached integration-discovery results for this session.
+    # Maps domain name to selected tool name ("linear", "jira", "notion") or "local".
+    # None means discovery has not run yet this session.
+    integration_tools: dict | None = None
 
     # ------------------------------------------------------------------
     # Persistence
@@ -261,23 +247,6 @@ class SessionState:
     def to_dict(self) -> dict:
         """Return a plain dict representation (JSON-safe)."""
         return asdict(self)
-
-    def is_online(self) -> bool:
-        """Convenience: True when CP is available and not in fallback mode."""
-        return self.cp_available and not self.fallback_mode
-
-    def mark_online(self, version: str) -> None:
-        """Mark the session as having a live CP connection and save."""
-        self.update(cp_available=True, cp_version=version, fallback_mode=False)
-
-    def mark_offline(self, reason: str = "") -> None:
-        """Mark the session as operating in offline fallback mode and save."""
-        if reason:
-            print(
-                f"[wicked-garden] Offline mode: {reason}",
-                file=sys.stderr,
-            )
-        self.update(cp_available=False, fallback_mode=True)
 
     def increment_turn(self) -> int:
         """Increment turn_count, persist, and return the new value."""

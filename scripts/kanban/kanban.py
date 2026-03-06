@@ -22,9 +22,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, List, Dict
 
-# Resolve _storage from the parent scripts/ directory
+# Resolve _domain_store from the parent scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore as StorageManager
 
 
 BOARD_SCHEMAS: dict = {

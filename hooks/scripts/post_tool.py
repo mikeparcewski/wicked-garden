@@ -14,6 +14,8 @@ Dispatches by tool_name from hook payload:
   Bash                                 → activity tracking
   PostToolUseFailure (any tool_name)   → failure counting + auto issue detection
 
+Traces are written to a session-scoped JSONL file in $TMPDIR (local only).
+
 Always fails open — any unhandled exception returns {"continue": true}.
 """
 
@@ -105,10 +107,10 @@ def _save_kanban_sync_state(sync_data: dict) -> None:
 
 
 def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
-    """Sync TaskCreate/TaskUpdate/TodoWrite to kanban via StorageManager."""
+    """Sync TaskCreate/TaskUpdate/TodoWrite to kanban via DomainStore."""
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-kanban")
+        from _domain_store import DomainStore
+        sm = DomainStore("wicked-kanban", hook_mode=True)
         state = _load_kanban_sync_state()
 
         # Ensure project exists
@@ -603,12 +605,7 @@ def _handle_task_update_mismatch(tool_input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def _write_trace(payload: dict) -> None:
-    """Write a trace entry to the control plane, falling back to a session-scoped JSONL file.
-
-    CP-first: POST to observability/traces/create via ControlPlaneClient.
-    On failure (CP down, timeout, etc.): append to a JSONL file in $TMPDIR.
-    The JSONL fallback is batch-flushed to CP at session end by stop.py.
-    """
+    """Write a trace entry to a session-scoped JSONL file in $TMPDIR."""
     if os.environ.get("WICKED_TRACE_ACTIVE"):
         return
     try:
@@ -625,65 +622,14 @@ def _write_trace(payload: dict) -> None:
             "event": event,
         }
 
-        # Try CP first (hook_mode for short timeout)
-        written = False
-        try:
-            from _control_plane import ControlPlaneClient
-            from _session import SessionState
-            state = SessionState.load()
-            if state.cp_available:
-                client = ControlPlaneClient(hook_mode=True)
-                result = client.request(
-                    "observability", "traces", "create", payload=entry,
-                )
-                written = result is not None
-        except Exception:
-            pass
-
-        # Fallback: append to JSONL for batch flush at session end
-        if not written:
-            tmpdir = os.environ.get("TMPDIR", "/tmp")
-            trace_file = Path(tmpdir) / f"wicked-trace-{session_id}.jsonl"
-            with open(trace_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
+        tmpdir = os.environ.get("TMPDIR", "/tmp")
+        trace_file = Path(tmpdir) / f"wicked-trace-{session_id}.jsonl"
+        with open(trace_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
     except Exception:
         pass
     finally:
         os.environ.pop("WICKED_TRACE_ACTIVE", None)
-
-
-# ---------------------------------------------------------------------------
-# CP error surfacing (checks SessionState for errors recorded by _control_plane.py)
-# ---------------------------------------------------------------------------
-
-def _check_cp_errors() -> str | None:
-    """Check for new CP errors and return a systemMessage if any."""
-    try:
-        from _session import SessionState
-        state = SessionState.load()
-        errors = state.cp_errors or []
-        if not errors:
-            return None
-
-        # Consume errors (clear after reading)
-        state.update(cp_errors=[])
-
-        # Group by domain/source (extract from URL)
-        grouped = {}
-        for err in errors:
-            parts = err["url"].split("/data/")[-1].split("/") if "/data/" in err["url"] else []
-            key = f"{parts[0]}/{parts[1]}" if len(parts) >= 2 else err["url"]
-            grouped.setdefault(key, []).append(err)
-
-        lines = [f"[CP Error] {len(errors)} control plane error(s) detected:"]
-        for key, errs in grouped.items():
-            codes = set(e["code"] for e in errs)
-            lines.append(f"  - {key}: HTTP {'/'.join(str(c) for c in sorted(codes))} ({len(errs)}x)")
-        lines.append("Read .claude/skills/cp-error-detector/SKILL.md for diagnosis steps.")
-
-        return "\n".join(lines)
-    except Exception:
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -749,12 +695,6 @@ def main():
         # All other tools — pass through
         else:
             result = {"continue": True}
-
-        # --- CP error surfacing (runs after every handler) ---
-        cp_msg = _check_cp_errors()
-        if cp_msg:
-            existing = result.get("systemMessage", "")
-            result["systemMessage"] = f"{existing}\n\n{cp_msg}" if existing else cp_msg
 
         _log("posttool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(json.dumps(result))

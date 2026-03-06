@@ -68,14 +68,14 @@ def main() -> int:
     # Inject scenario slug so lookups work without the caller needing to know it
     registry_data["scenario_slug"] = args.scenario_slug
 
-    # Add scripts/ directory to path so _storage can be imported
+    # Add scripts/ directory to path so _domain_store can be imported
     scripts_root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(scripts_root))
 
     try:
-        from _storage import StorageManager
+        from _domain_store import DomainStore
 
-        sm = StorageManager("wicked-qe")
+        sm = DomainStore("wicked-qe")
 
         # Check for an existing record for this slug so we don't create duplicates
         all_registries = sm.list("registries", scenario_slug=args.scenario_slug)

@@ -29,11 +29,11 @@ import json
 import sys
 from pathlib import Path
 
-# Resolve _storage from the parent scripts/ directory
+# Resolve _domain_store from the parent scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore
 
-_sm = StorageManager("wicked-jam")
+_sm = DomainStore("wicked-jam")
 
 
 def list_sessions(query: str = None, limit: int = 10, project: str = None) -> dict:

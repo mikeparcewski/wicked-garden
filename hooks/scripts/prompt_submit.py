@@ -281,7 +281,7 @@ def _query_session_state(session_id: str) -> str:
 # ---------------------------------------------------------------------------
 # Each hook invocation is a fresh process — module-level variables don't persist.
 # We use a tmp file keyed by session_id so that cache entries survive across
-# back-to-back hook calls within the same session without re-querying StorageManager.
+# back-to-back hook calls within the same session without re-querying DomainStore.
 # Cache keys are (adapter_name, state_hash) — if state changes, the hash changes
 # and the old entry is simply not found (stale entries are benign dead weight).
 
@@ -312,12 +312,12 @@ def _query_memory(project: str, prompt: str, session_id: str = "", state_hash: s
         if cache_key in cache:
             return cache[cache_key]
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-mem")
+        from _domain_store import DomainStore
+        ds = DomainStore("wicked-mem", hook_mode=True)
         # Use a short keyword from the prompt as the recall query
         words = [w for w in prompt.split() if len(w) > 4][:5]
         query = " ".join(words) or prompt[:50]
-        results = sm.list("memories", query=query, limit=3) or []
+        results = ds.list("memories", query=query, limit=3) or []
         if not results:
             result = ""
         else:
@@ -346,9 +346,9 @@ def _query_crew(project: str, session_id: str = "", state_hash: str = "") -> str
             return cache[cache_key]
     try:
         workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-        from _storage import StorageManager
-        sm = StorageManager("wicked-crew")
-        projects = sm.list("projects") or []
+        from _domain_store import DomainStore
+        ds = DomainStore("wicked-crew", hook_mode=True)
+        projects = ds.list("projects") or []
         result = ""
         # Filter to active projects in this workspace
         for p in sorted(projects, key=lambda x: x.get("updated_at", ""), reverse=True):
@@ -373,9 +373,9 @@ def _query_crew(project: str, session_id: str = "", state_hash: str = "") -> str
 def _query_kanban(project: str) -> str:
     """Return in-progress task names from kanban."""
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-kanban")
-        tasks = sm.list("tasks", status="in_progress", limit=5) or []
+        from _domain_store import DomainStore
+        ds = DomainStore("wicked-kanban", hook_mode=True)
+        tasks = ds.list("tasks", status="in_progress", limit=5) or []
         if not tasks:
             return ""
         names = [t.get("name", "") for t in tasks if t.get("name")]
@@ -394,8 +394,8 @@ def _query_search_index(prompt: str) -> str:
         if not symbols:
             return ""
         try:
-            from _storage import get_local_file
-            db_path = get_local_file("wicked-search", "unified_search.db")
+            from _domain_store import get_local_path
+            db_path = get_local_path("wicked-search", "unified_search.db")
         except Exception:
             return ""
         if not db_path.exists():
@@ -470,57 +470,6 @@ def _capture_session_goal(prompt: str, turn_count: int, project: str, session_id
         )
     except Exception:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Reconnect probe — checks for CP availability when in offline/fallback mode
-# ---------------------------------------------------------------------------
-
-_reconnect_notification = ""  # set by _maybe_attempt_reconnect, read by main()
-
-
-def _maybe_attempt_reconnect(state) -> None:
-    """Probe CP health when in fallback mode, rate-limited by config interval.
-
-    On successful reconnect: flips session state online, drains the offline
-    queue, and sets a notification message for the user.
-    """
-    global _reconnect_notification
-
-    if state is None or not state.fallback_mode:
-        return
-
-    now = time.time()
-    interval = 60  # default
-    try:
-        from _control_plane import load_config
-        cfg = load_config()
-        interval = cfg.get("health_check_interval_seconds", 60)
-    except Exception:
-        pass
-
-    last = getattr(state, "cp_last_checked_at", 0.0) or 0.0
-    if now - last < interval:
-        return
-
-    # Stamp before attempt to avoid racing with concurrent hooks
-    state.update(cp_last_checked_at=now)
-
-    try:
-        from _control_plane import ControlPlaneClient
-        ok, version = ControlPlaneClient(hook_mode=True).check_health()
-        if ok:
-            state.mark_online(version)
-            from _storage import drain_offline_queue
-            replayed, failed = drain_offline_queue(hook_mode=True)
-            parts = [f"Control plane reconnected (v{version})."]
-            if replayed:
-                parts.append(f"Replayed {replayed} queued writes.")
-            if failed:
-                parts.append(f"{failed} failed entries in _queue_failed.jsonl.")
-            _reconnect_notification = " ".join(parts)
-    except Exception:
-        pass  # fail open — stay in fallback mode
 
 
 # ---------------------------------------------------------------------------
@@ -769,9 +718,6 @@ def main():
     except Exception:
         state = None
 
-    # Reconnect probe — check for CP when in fallback/offline mode
-    _maybe_attempt_reconnect(state)
-
     turn_count = _increment_turn(state)
 
     # Session goal capture on turns 1-2
@@ -853,7 +799,7 @@ def main():
         except Exception:
             pass  # fail open
 
-        if not briefing and not onboarding_directive and not _reconnect_notification:
+        if not briefing and not onboarding_directive:
             print(json.dumps({"continue": True}))
             return
 
@@ -869,10 +815,6 @@ def main():
         if briefing:
             sanitized = briefing.replace("</system-reminder>", "")
             all_parts.append(sanitized)
-
-        if _reconnect_notification:
-            reconnect_safe = _reconnect_notification.replace("</system-reminder>", "")
-            all_parts.append(f"[Reconnect] {reconnect_safe}")
 
         if onboarding_directive:
             onboarding_safe = onboarding_directive.replace("</system-reminder>", "")

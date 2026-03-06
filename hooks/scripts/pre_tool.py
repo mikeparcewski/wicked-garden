@@ -74,13 +74,13 @@ def _find_active_crew_project():
 
     Scoped to the current workspace (CLAUDE_PROJECT_NAME or cwd basename).
     Only returns projects whose ``workspace`` field matches.
-    Uses StorageManager exclusively — SM handles CP-first with local fallback.
+    Uses DomainStore exclusively — operates local-only in hook mode.
     """
     workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-crew", hook_mode=True)
-        projects = sm.list("projects") or []
+        from _domain_store import DomainStore
+        ds = DomainStore("wicked-crew", hook_mode=True)
+        projects = ds.list("projects") or []
         for p in sorted(projects, key=lambda x: x.get("updated_at", x.get("created_at", "")), reverse=True):
             if p.get("archived"):
                 continue
