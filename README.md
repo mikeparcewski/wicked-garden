@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-132 commands. 79 specialist agents. 72 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
+137 commands. 82 specialist agents. 77 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -87,7 +87,7 @@ Everything is organized by domain — each domain brings its own commands, agent
 
 ### Specialist Disciplines
 
-Eight domains, each bringing specialist expertise that crew routes to automatically:
+Nine domains, each bringing specialist expertise that crew routes to automatically:
 
 | Discipline | Domain | Key Capabilities |
 |-----------|--------|-----------------|
@@ -98,6 +98,7 @@ Eight domains, each bringing specialist expertise that crew routes to automatica
 | **Data** | data | Data engineer, ML engineer, analytics architect. DuckDB-powered SQL on 10GB+ CSV/Excel — plain English to results, zero setup. |
 | **Delivery** | delivery | Delivery manager, cost analyst, rollout coordinator. Sprint health, A/B test design with statistical rigor, progressive rollout plans. |
 | **Agentic** | agentic | Architecture reviewer, safety auditor, framework researcher. Detects 12+ agent frameworks, scores topologies, generates remediation roadmaps. |
+| **Design** | design | Visual reviewer, UX analyst, mockup generator. Screenshot-based UI review, wireframe generation, accessibility audits, design system compliance. |
 | **Brainstorming** | jam | Focus group facilitator with dynamic persona assembly. Brings diverse perspectives to ambiguous problems during clarify/design phases. |
 
 ### Infrastructure & Tools
