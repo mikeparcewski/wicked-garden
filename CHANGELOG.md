@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.27.0] - 2026-03-06
+
+### Features
+- feat: kanban scoped boards for domain workflows (#269) (dce2f4a)
+
 ## [1.26.0] - 2026-03-06
 
 ### Features
