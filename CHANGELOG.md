@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.29.0] - 2026-03-06
+
+### Features
+- feat: expand QE across the full lifecycle — idea to operating (#271)
+  - New agent: requirements-quality-analyst (clarify phase quality gate)
+  - New agent: testability-reviewer (design phase testability review)
+  - New agent: continuous-quality-monitor (build phase quality signals)
+  - New agent: production-quality-engineer (post-deploy quality monitoring)
+  - specialist.json: QE now enhances clarify and design phases, 3 new personas (86 total agents)
+  - smart_decisioning.py: new "quality" signal category with 20 keywords
+  - phases.json: wicked-qe added to clarify and design phase specialists
+  - New acceptance test scenario: scenarios/qe/qe-lifecycle-expansion.md
+
 ## [1.28.0] - 2026-03-06
 
 ### Bug Fixes

@@ -52,9 +52,12 @@
         {"name": "TDD Coach", "focus": "Red-green-refactor guidance, test-first development practices", "agent": "agents/qe/tdd-coach.md"},
         {"name": "Acceptance Test Writer", "focus": "Transform scenarios into evidence-gated test plans with concrete assertions", "agent": "agents/qe/acceptance-test-writer.md"},
         {"name": "Acceptance Test Executor", "focus": "Execute test plans step-by-step, collect evidence artifacts without judgment", "agent": "agents/qe/acceptance-test-executor.md"},
-        {"name": "Acceptance Test Reviewer", "focus": "Evaluate evidence against assertions independently, render verdicts with cause attribution", "agent": "agents/qe/acceptance-test-reviewer.md"}
+        {"name": "Acceptance Test Reviewer", "focus": "Evaluate evidence against assertions independently, render verdicts with cause attribution", "agent": "agents/qe/acceptance-test-reviewer.md"},
+        {"name": "Requirements Quality Analyst", "focus": "Requirements testability, acceptance criteria quality, edge case coverage, scope clarity", "agent": "agents/qe/requirements-quality-analyst.md"},
+        {"name": "Testability Reviewer", "focus": "Component isolation, dependency injection, boundary clarity, mockability assessment", "agent": "agents/qe/testability-reviewer.md"},
+        {"name": "Production Quality Engineer", "focus": "SLO targets, error budgets, performance regression detection, rollback criteria, canary analysis", "agent": "agents/qe/production-quality-engineer.md"}
       ],
-      "enhances": ["qe", "build", "review", "*"]
+      "enhances": ["clarify", "design", "qe", "build", "review", "*"]
     },
     {
       "name": "data",
