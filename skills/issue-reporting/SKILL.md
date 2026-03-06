@@ -63,19 +63,23 @@ Each issue type has a structured template requiring:
 - `gh` CLI installed and authenticated (`gh auth login`)
 - Current directory is a GitHub repository
 
-Without `gh`, issues are saved to `{storage_root}/unfiled-issues/` for later filing.
+Without `gh`, the manual filing fallback uses a three-step sequence (see below).
 
-## Unfiled Issues
+## Fallback When `gh` Unavailable
 
-When `gh` is unavailable, issues are queued locally:
+When `gh` CLI is not installed or no repo is detected, manual filing follows this order:
 
-```bash
-# View unfiled issues
-ls {storage_root}/unfiled-issues/
+1. **Print to screen**: Full issue displayed as formatted markdown (title, body, labels) — immediately visible for copy-paste
+2. **Generate GitHub URL**: Pre-filled `issues/new` URL with `urllib.parse.quote()`-encoded title, body, and labels — open in browser to file directly
+3. **Ask to save locally**: User chooses whether to cache the issue for later filing
 
-# File them later
-/wicked-garden:report-issue --list-unfiled
 ```
+https://github.com/{owner}/{repo}/issues/new?title={encoded}&body={encoded}&labels={encoded}
+```
+
+If user agrees to save: issue is queued in `{storage_root}/unfiled-issues/` for later filing via `--list-unfiled`.
+
+Note: Hook auto-filing paths (PostToolUseFailure, Stop hook) bypass this flow and silently cache to the unfiled queue without prompting.
 
 ## References
 

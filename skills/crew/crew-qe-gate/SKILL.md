@@ -1,12 +1,13 @@
 ---
 name: crew-qe-gate
 description: |
-  Crew-integrated quality gates for phase transitions.
-  Runs QE checks at crew checkpoints (clarify, design, build) to validate
-  readiness before advancing. Works within wicked-crew workflow context.
+  Crew-integrated quality gates for phase transitions: value gate, strategy gate, execution gate.
+  Runs gate analysis at crew checkpoints (post-clarify, post-design, post-build) to validate
+  readiness before advancing. Quality checkpoint within the wicked-crew workflow.
 
-  Use when: "crew quality gate", "phase gate check", "ready to advance",
-  "should we build this", "does it work", "crew QE checkpoint"
+  Use when: "quality gate", "value gate", "strategy gate", "execution gate",
+  "gate analysis", "quality checkpoint", "phase gate", "crew quality gate",
+  "ready to advance", "should we build this", "does it work", "crew QE checkpoint"
 ---
 
 # Crew QE Gate Skill

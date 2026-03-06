@@ -85,10 +85,27 @@ On confirmation:
   - Report the issue URL to the user
   - Clean up temp file
 - If `gh` unavailable or no repo:
-  - Display the formatted issue as markdown for manual copy
-  - Resolve path: `UNFILED=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden unfiled-issues)`
-  - Save to `${UNFILED}/{timestamp}.json`
-  - Tell user: "Issue saved to unfiled queue. Install and authenticate `gh` CLI, then run `/wicked-garden:report-issue --list-unfiled` to file."
+  1. **Print to screen**: Display the full issue as formatted markdown:
+     ```markdown
+     ## Issue: {title}
+     **Label**: {label}
+     **Repo**: {repo or "unknown"}
+
+     {body}
+     ```
+  2. **Generate GitHub URL**: Build a pre-filled issue creation URL using Python:
+     ```python
+     import urllib.parse
+     title_enc = urllib.parse.quote(title)
+     body_enc = urllib.parse.quote(body)
+     label_enc = urllib.parse.quote(label)
+     url = f"https://github.com/{owner}/{repo}/issues/new?title={title_enc}&body={body_enc}&labels={label_enc}"
+     print(url)
+     ```
+     Display the URL to the user with instructions: "Open this URL to file the issue directly in your browser."
+  3. **Ask to save locally**: Ask the user: "Save this issue locally for later filing with `/wicked-garden:report-issue --list-unfiled`? (yes/no)"
+     - If yes: Resolve path `UNFILED=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden unfiled-issues)` and save to `${UNFILED}/{timestamp}.json`
+     - If no: Skip caching. Done.
 
 ### 5. List Unfiled Issues (--list-unfiled)
 
