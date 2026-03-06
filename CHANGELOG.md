@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.26.0] - 2026-03-06
+
+### Features
+- feat: enforce gate execution (#274) and add text-as-code signals (#275) (4839b2d)
+
 ## [1.25.0] - 2026-03-06
 
 ### Features

@@ -1,6 +1,6 @@
 {
   "name": "wicked-garden",
-  "version": "1.25.0",
+  "version": "1.26.0",
   "description": "AI-Native SDLC \u2014 the complete software development lifecycle as a single Claude Code plugin. Code intelligence, delivery metrics, persistent memory, workflow orchestration, brainstorming, and 48 specialist personas. Fully standalone with local SQLite storage. Control-plane team sync is available but experimental.",
   "author": {
     "name": "Mike Parcewski"
