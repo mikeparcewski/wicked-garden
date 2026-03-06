@@ -3,7 +3,7 @@ name: graph-export
 description: |
   This skill should be used by plugin authors who need to access wicked-search
   graph data for symbol dependencies, file references, definitions, or call chains.
-  Triggered by queries about "graph data", "symbol dependencies", "cross-plugin search",
+  Use when: "graph data", "symbol dependencies", "cross-plugin search",
   "file references", "call chain", "blast radius from cache", or "cached graph".
 
   Enables other plugins to query the code graph without direct wicked-search coupling,

@@ -3,7 +3,7 @@ name: patch
 description: |
   Language-agnostic code generation and change propagation. Use this skill when
   adding fields to entities, renaming symbols across files, or propagating changes
-  that affect multiple files. Triggered by: "add field", "rename everywhere",
+  that affect multiple files. Use when: "add field", "rename everywhere",
   "propagate change", "generate migration", "update all references".
 
   This is the CODE MUTATION counterpart to wicked-search (which is read-only).
