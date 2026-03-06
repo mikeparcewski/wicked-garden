@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.24.0] - 2026-03-06
+
+### Features
+- feat: close issues #266, #272 — create design domain with 5 skills (69aa39f)
+
 ## [1.23.0] - 2026-03-05
 
 ### Features
