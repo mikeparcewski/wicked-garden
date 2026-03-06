@@ -4,13 +4,12 @@ Local memory adapter for wicked-smaht slow path.
 Queries wicked-mem local storage directly via MemoryStore, surfacing
 decision, preference, and procedural memories regardless of CP availability.
 
-This adapter exists alongside cp_adapter: cp_adapter handles memories when
-the control plane is online (with richer search); this adapter handles the
-local fallback so stored memories are always surfaced in the slow path.
+This adapter exists alongside domain_adapter: domain_adapter handles kanban,
+crew, and jam data; this adapter handles memories so stored memories are
+always surfaced in the slow path via the local MemoryStore.
 
-Deduplication: items already returned by cp_adapter (same title) will score
-lower here due to cp_adapter's higher relevance weights, so the budget
-enforcer will naturally prefer one over the other.
+Deduplication: items sharing the same title across adapters will be
+naturally de-prioritized by the budget enforcer based on relevance scores.
 """
 
 import sys

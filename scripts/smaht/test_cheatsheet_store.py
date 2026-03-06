@@ -5,7 +5,7 @@ Covers:
 - store with invalid JSON -> error, exit 1
 - get non-existent library -> {"found": false}
 - list with search filter
-- store returns success:false when StorageManager.create returns None
+- store returns success:false when DomainStore.create returns None
 """
 
 import json
@@ -26,11 +26,11 @@ sys.path.insert(0, str(_SMAHT_DIR))
 sys.path.insert(0, str(_SMAHT_DIR.parent))  # scripts/
 
 # We import the module under test. Because it constructs a module-level
-# StorageManager at import time, we need to patch _storage before importing.
+# DomainStore at import time, we need to patch _domain_store before importing.
 
 
 def _make_storage_mock(records=None):
-    """Return a MagicMock that behaves like StorageManager."""
+    """Return a MagicMock that behaves like DomainStore."""
     sm = MagicMock()
     _store = list(records or [])
 
@@ -51,11 +51,11 @@ def _make_storage_mock(records=None):
 # ---------------------------------------------------------------------------
 
 def _load_module(sm_mock):
-    """Import (or reload) cheatsheet_store with the given StorageManager mock."""
-    # Provide a fake _storage module so cheatsheet_store can import from it
-    fake_storage = types.ModuleType("_storage")
-    fake_storage.StorageManager = MagicMock(return_value=sm_mock)
-    sys.modules["_storage"] = fake_storage
+    """Import (or reload) cheatsheet_store with the given DomainStore mock."""
+    # Provide a fake _domain_store module so cheatsheet_store can import from it
+    fake_storage = types.ModuleType("_domain_store")
+    fake_storage.DomainStore = MagicMock(return_value=sm_mock)
+    sys.modules["_domain_store"] = fake_storage
 
     import importlib
     import cheatsheet_store
@@ -118,7 +118,7 @@ class TestCmdStore:
     def test_store_returns_success_false_when_create_returns_none(self, capsys):
         sm, _ = _make_storage_mock()
         sm.create.side_effect = None  # reset side_effect
-        sm.create.return_value = None  # simulate offline queue
+        sm.create.return_value = None  # simulate store failure
 
         mod = _load_module(sm)
 
@@ -131,7 +131,7 @@ class TestCmdStore:
 
         out = json.loads(capsys.readouterr().out)
         assert out["success"] is False
-        assert "None" in out["error"] or "offline" in out["error"].lower()
+        assert "None" in out["error"] or "DomainStore" in out["error"]
 
 
 class TestCmdList:

@@ -8,16 +8,12 @@ search session_start, smaht session_start.
 Flow:
 1. Read config from ~/.something-wicked/wicked-garden/config.json
 2. If missing or setup_complete=false: emit setup instructions, return
-3. Mode-branched initialization:
-   - local: health check → auto-start if down → poll → open browser
-   - remote: health check → report status
-4. Load dynamic agents
-5. Drain offline write queue if CP available
-6. Load active crew project + kanban summary
-7. Run memory decay
-8. Check onboarding status → imperative directive if needed
-9. Assemble session briefing
-10. Return {"continue": true, "systemMessage": "<briefing>"}
+3. Load dynamic agents
+4. Load active crew project + kanban summary
+5. Run memory decay
+6. Check onboarding status → imperative directive if needed
+7. Assemble session briefing
+8. Return {"continue": true, "systemMessage": "<briefing>"}
 
 Always fails open — any unhandled exception returns {"continue": true}.
 """
@@ -66,37 +62,12 @@ def _save_session_state(state):
         pass
 
 
-def _check_health(config):
-    """Return (ok, version) from control plane health check. Timeout: 2s."""
-    try:
-        from _control_plane import ControlPlaneClient
-        client = ControlPlaneClient(hook_mode=True)
-        return client.check_health()
-    except Exception:
-        return False, ""
-
-
-def _drain_queue():
-    """Replay offline write queue against the control plane."""
-    try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-garden")
-        sm.drain_queue()
-    except Exception as e:
-        print(f"[wicked-garden] queue drain error: {e}", file=sys.stderr)
-
-
-def _load_agents(cp_available):
-    """Load dynamic agents (CP overlay + disk defaults). Returns agent count."""
+def _load_agents():
+    """Load dynamic agents from disk. Returns agent count."""
     try:
         from _agents import AgentLoader
         loader = AgentLoader()
         loader.load_disk_agents(_PLUGIN_ROOT / "agents")
-        if cp_available:
-            from _storage import StorageManager
-            sm = StorageManager("wicked-agents")
-            cp_agents = sm.list("agents") or []
-            loader.overlay_cp_agents(cp_agents)
         agents = loader.all()
         return len(agents)
     except Exception as e:
@@ -111,13 +82,13 @@ def _find_active_crew_project(workspace: str = ""):
     Only returns projects whose ``workspace`` field matches the current folder.
     Projects without a workspace field (legacy) are never auto-selected.
 
-    Uses StorageManager for consistent data access. Falls back to filesystem
-    scan if StorageManager fails (legacy compat for one release).
+    Uses DomainStore for consistent data access. Falls back to filesystem
+    scan if DomainStore fails (legacy compat for one release).
     """
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-crew", hook_mode=True)
-        projects = sm.list("projects") or []
+        from _domain_store import DomainStore
+        ds = DomainStore("wicked-crew", hook_mode=True)
+        projects = ds.list("projects") or []
         # Sort by updated_at descending, return first non-archived, non-complete
         # that matches the current workspace
         for p in sorted(projects, key=lambda x: x.get("updated_at", ""), reverse=True):
@@ -167,9 +138,9 @@ def _find_active_crew_project_legacy(workspace: str = ""):
 def _load_kanban_summary():
     """Return a short kanban board summary string."""
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-kanban")
-        tasks = sm.list("tasks", status="in_progress") or []
+        from _domain_store import DomainStore
+        ds = DomainStore("wicked-kanban", hook_mode=True)
+        tasks = ds.list("tasks", status="in_progress") or []
         if not tasks:
             return None
         count = len(tasks)
@@ -364,7 +335,7 @@ def _check_onboarding_status():
     return has_index, has_memories, directive
 
 
-def _validate_and_repair_kanban_link(project_data, project_name, cp_available):
+def _validate_and_repair_kanban_link(project_data, project_name):
     """Validate that the crew project's kanban initiative still exists.
 
     Returns (valid, resolved_id).
@@ -374,9 +345,9 @@ def _validate_and_repair_kanban_link(project_data, project_name, cp_available):
         return False, None
 
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-kanban")
-        initiatives = sm.list("initiatives") or []
+        from _domain_store import DomainStore
+        ds = DomainStore("wicked-kanban", hook_mode=True)
+        initiatives = ds.list("initiatives") or []
         for init in initiatives:
             if init.get("name") == initiative_name:
                 resolved_id = init["id"]
@@ -391,11 +362,11 @@ def _validate_and_repair_kanban_link(project_data, project_name, cp_available):
 
 
 def _repair_project_initiative(project_name, initiative_id):
-    """Update project.json with the correct initiative_id via StorageManager."""
+    """Update project.json with the correct initiative_id via DomainStore."""
     try:
-        from _storage import StorageManager
-        sm = StorageManager("wicked-crew", hook_mode=True)
-        sm.update("projects", project_name, {"kanban_initiative_id": initiative_id})
+        from _domain_store import DomainStore
+        ds = DomainStore("wicked-crew", hook_mode=True)
+        ds.update("projects", project_name, {"kanban_initiative_id": initiative_id})
     except Exception:
         pass
 
@@ -409,158 +380,6 @@ def _read_config():
         return json.loads(config_path.read_text())
     except (json.JSONDecodeError, OSError):
         return None
-
-
-def _update_config_viewer_path(config, cp_path):
-    """Persist the resolved CP path back to config so future sessions use it."""
-    config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
-    try:
-        # Use ~ prefix for portability
-        home = str(Path.home())
-        path_str = str(cp_path)
-        if path_str.startswith(home):
-            path_str = "~" + path_str[len(home):]
-        config["viewer_path"] = path_str
-        config_path.write_text(json.dumps(config, indent=2) + "\n")
-    except (OSError, TypeError):
-        pass
-
-
-# ---------------------------------------------------------------------------
-# Auto-start helpers (local mode)
-# ---------------------------------------------------------------------------
-
-_CP_REPO = "https://github.com/mikeparcewski/wicked-control-plane.git"
-_CP_CACHE_DIR = Path.home() / ".claude" / "plugins" / "cache" / "wicked-control-plane"
-
-
-def _get_cp_path(config):
-    """Resolve control plane source path.
-
-    Priority: config viewer_path → plugin cache dir.
-    """
-    raw = config.get("viewer_path")
-    if raw:
-        p = Path(raw).expanduser()
-        if p.exists():
-            return p
-    return _CP_CACHE_DIR
-
-
-def _ensure_cp_source():
-    """Clone wicked-control-plane into plugin cache if not present.
-
-    Returns (path, cloned) — path to the CP source and whether we just cloned it.
-    Timeout: 10s for git clone (shallow).
-    """
-    if _CP_CACHE_DIR.exists() and (_CP_CACHE_DIR / "package.json").exists():
-        return _CP_CACHE_DIR, False
-
-    print(f"[wicked-garden] cloning wicked-control-plane to {_CP_CACHE_DIR}...",
-          file=sys.stderr)
-    try:
-        _CP_CACHE_DIR.parent.mkdir(parents=True, exist_ok=True)
-        result = subprocess.run(
-            ["git", "clone", "--depth", "1", _CP_REPO, str(_CP_CACHE_DIR)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode != 0:
-            print(f"[wicked-garden] git clone failed: {result.stderr[:200]}",
-                  file=sys.stderr)
-            return None, False
-        return _CP_CACHE_DIR, True
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
-        print(f"[wicked-garden] git clone failed: {exc}", file=sys.stderr)
-        return None, False
-
-
-def _ensure_cp_deps(cp_path):
-    """Install node_modules if missing. Returns True on success."""
-    if (cp_path / "node_modules").exists():
-        return True
-
-    print("[wicked-garden] installing control plane dependencies...", file=sys.stderr)
-    try:
-        result = subprocess.run(
-            ["pnpm", "install"],
-            cwd=str(cp_path),
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        if result.returncode != 0:
-            print(f"[wicked-garden] pnpm install failed: {result.stderr[:200]}",
-                  file=sys.stderr)
-            return False
-        return True
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
-        print(f"[wicked-garden] pnpm install failed: {exc}", file=sys.stderr)
-        return False
-
-
-
-
-def _autostart_cp(cp_path):
-    """Launch PORT=18889 pnpm run dev as a detached process.
-
-    Returns True if Popen succeeded, False otherwise.
-    Does NOT wait for the server to be ready — caller polls separately.
-    """
-    if not cp_path or not cp_path.exists():
-        print(f"[wicked-garden] CP path {cp_path} not found, cannot auto-start",
-              file=sys.stderr)
-        return False
-
-    # Log to a file for diagnostics instead of /dev/null
-    log_path = cp_path / ".claude-autostart.log"
-    try:
-        log_file = open(str(log_path), "w")
-    except OSError:
-        log_file = subprocess.DEVNULL
-
-    try:
-        subprocess.Popen(
-            ["pnpm", "run", "dev:backend"],
-            cwd=str(cp_path),
-            env={**os.environ, "PORT": "18889"},
-            start_new_session=True,
-            stdout=log_file if log_file != subprocess.DEVNULL else subprocess.DEVNULL,
-            stderr=log_file if log_file != subprocess.DEVNULL else subprocess.DEVNULL,
-        )
-        return True
-    except (FileNotFoundError, OSError) as exc:
-        print(f"[wicked-garden] auto-start failed: {exc}", file=sys.stderr)
-        return False
-    finally:
-        if log_file != subprocess.DEVNULL:
-            try:
-                log_file.close()
-            except Exception:
-                pass
-
-
-def _poll_health_with_timeout(endpoint, budget_seconds):
-    """Poll CP health at endpoint until ok or budget exhausted.
-
-    Polls every 0.5s. Returns (ok, version).
-    """
-    import urllib.request
-    import urllib.error
-    url = f"{endpoint.rstrip('/')}/health"
-    deadline = time.monotonic() + budget_seconds
-    while time.monotonic() < deadline:
-        try:
-            with urllib.request.urlopen(url, timeout=1) as resp:
-                data = json.loads(resp.read().decode())
-                if data.get("status") in ("ok", "healthy"):
-                    return True, data.get("version", "")
-        except Exception:
-            pass
-        time.sleep(0.5)
-    return False, ""
-
 
 
 # ---------------------------------------------------------------------------
@@ -650,189 +469,48 @@ def main():
         flag = Path.home() / ".something-wicked" / "wicked-crew" / ".task_suggest_shown"
         flag.unlink(missing_ok=True)
 
-        # Determine mode (default: local)
-        # Normalize legacy mode names
-        _legacy_map = {"local-install": "local", "local-only": "local", "offline": "local"}
-        mode = config.get("mode") or "local"
-        mode = _legacy_map.get(mode, mode)
-        if mode not in ("local", "remote"):
-            mode = "local"
-
-        # 2. Mode-branched initialization
-        # All modes fall through to the shared briefing assembly — no early returns.
-        cp_available = False
-        cp_version = ""
+        # 2. Load session state
         state = _load_session_state()
-        mode_notes = []       # mode-specific briefing notes
-        autostart_elapsed = 0.0
+        if state is not None:
+            state.update(
+                setup_complete=True,
+            )
 
-        if mode == "remote":
-            # Remote mode: CP required, report status
-            endpoint = config.get("endpoint")
-            if endpoint:
-                cp_available, cp_version = _check_health(config)
-            if not cp_available:
-                if state is not None:
-                    state.update(
-                        cp_available=False,
-                        fallback_mode=True,
-                        setup_complete=True,
-                    )
-                mode_notes.append(
-                    f"[Warning] Remote control plane at {endpoint or '(not configured)'} "
-                    "is unreachable. Operating in local fallback."
-                    "Run /wicked-garden:setup to reconfigure."
-                )
-            else:
-                if state is not None:
-                    state.update(
-                        cp_available=True,
-                        cp_version=cp_version,
-                        fallback_mode=False,
-                        setup_complete=True,
-                    )
-
-        else:
-            # local mode (default): auto-start CP if not running
-            endpoint = config.get("endpoint") or "http://localhost:18889"
-            cp_available, cp_version = _check_health(config)
-
-            if not cp_available:
-                # Ensure CP source exists (clone if needed)
-                cp_path = _get_cp_path(config)
-                if not cp_path.exists() or not (cp_path / "package.json").exists():
-                    cp_path, cloned = _ensure_cp_source()
-                    if cloned:
-                        mode_notes.append(
-                            f"[Setup] Cloned wicked-control-plane to {cp_path}"
-                        )
-
-                # Ensure dependencies installed
-                if cp_path and cp_path.exists():
-                    deps_ok = _ensure_cp_deps(cp_path)
-                else:
-                    deps_ok = False
-
-                # Attempt auto-start
-                if deps_ok:
-                    started = _autostart_cp(cp_path)
-                else:
-                    started = False
-
-                if started:
-                    t0 = time.monotonic()
-                    cp_available, cp_version = _poll_health_with_timeout(
-                        endpoint, budget_seconds=10.0
-                    )
-                    autostart_elapsed = time.monotonic() - t0
-
-                    if cp_available:
-                        # Save the resolved path back to config for next session
-                        if cp_path and str(cp_path) != config.get("viewer_path"):
-                            _update_config_viewer_path(config, cp_path)
-                        mode_notes.append(
-                            f"[Auto-start] Control plane started (v{cp_version})."
-                        )
-                    else:
-                        mode_notes.append(
-                            "[Warning] Auto-start initiated but control plane did not respond "
-                            f"within {autostart_elapsed:.0f}s. Operating in local fallback."
-                            "The server may still be starting — run "
-                            "`curl -s http://localhost:18889/health` to check, "
-                            "or run `/wicked-garden:setup` to reconfigure."
-                        )
-                else:
-                    mode_notes.append(
-                        f"[Action Required] Control plane at {endpoint} not running and auto-start "
-                        "failed. Run `/wicked-garden:setup` to reconfigure."
-                    )
-            # Write session state
-            if state is not None:
-                state.update(
-                    cp_available=cp_available,
-                    cp_version=cp_version,
-                    fallback_mode=not cp_available,
-                    setup_complete=True,
-                )
-
-        # Log CP connection outcome
-        _log("bootstrap", "normal", "cp.connected",
-             ok=cp_available,
-             detail={"mode": mode, "version": cp_version} if cp_available
-                    else {"mode": mode})
+        _log("bootstrap", "normal", "storage.local", ok=True)
 
         # 3. Load dynamic agents
-        agents_loaded = _load_agents(cp_available)
+        agents_loaded = _load_agents()
         if state is not None:
             state.update(agents_loaded=agents_loaded)
 
-        # 4. Drain offline write queue (only when CP is available)
-        if cp_available:
-            _drain_queue()
-
-        # 4b. Detect CP schema reset: CP available but empty while local data exists
-        #     Check crew/projects, mem/memories, and kanban/tasks for broader coverage
-        cp_schema_reset_detected = False
-        if cp_available and state is not None:
-            try:
-                from _storage import StorageManager, get_local_path
-                _reset_checks = [
-                    ("wicked-crew", "projects"),
-                    ("wicked-mem", "memories"),
-                    ("wicked-kanban", "tasks"),
-                ]
-                for _domain, _source in _reset_checks:
-                    try:
-                        _sm_check = StorageManager(_domain, hook_mode=True)
-                        _cp_records = _sm_check.list(_source) or []
-                        if len(_cp_records) == 0:
-                            _local_dir = get_local_path(_domain, _source)
-                            if _local_dir.exists() and any(
-                                f for f in _local_dir.iterdir()
-                                if f.suffix == ".json" and not f.name.startswith("_")
-                            ):
-                                cp_schema_reset_detected = True
-                                break
-                    except Exception:
-                        continue
-                if cp_schema_reset_detected:
-                    state.update(cp_schema_reset_detected=True)
-            except Exception:
-                pass
-
-        # 5 & 6. Load last crew project for this workspace and kanban board summary
+        # 4 & 5. Load last crew project for this workspace and kanban board summary
         workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
         project_data, project_name = _find_active_crew_project(workspace)
         kanban_summary = _load_kanban_summary()
 
-        # 7. Run memory decay
+        # 6. Run memory decay
         decay_summary = _run_memory_decay()
 
-        # 7b. Check search index staleness and auto-reindex if needed
+        # 6b. Check search index staleness and auto-reindex if needed
         search_staleness_note = _check_search_staleness()
+        mode_notes = []
         if search_staleness_note:
             mode_notes.append(f"[Search] {search_staleness_note}")
 
-        # 8. Check onboarding status (search index + memories)
+        # 7. Check onboarding status (search index + memories)
         has_index, has_memories, onboarding_directive = _check_onboarding_status()
         _log("bootstrap", "normal", "onboarding.status",
              ok=(has_memories and has_index),
              detail={"has_memories": has_memories, "has_index": has_index})
 
-        # 8b. Detect dangerous mode (AskUserQuestion broken)
+        # 7b. Detect dangerous mode (AskUserQuestion broken)
         dangerous_mode = _detect_dangerous_mode()
         if state is not None:
             state.update(dangerous_mode=dangerous_mode)
 
-        # 9. Assemble session briefing
+        # 8. Assemble session briefing
         # --- Status block (user-facing) ---
         project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-        endpoint = config.get("endpoint") or "(none)"
-
-        if cp_available:
-            cp_status = f"Connected (v{cp_version})" if cp_version else "Connected"
-        else:
-            cp_status = "Disconnected (local fallback)"
 
         onboarding_parts = []
         if has_index:
@@ -844,12 +522,9 @@ def main():
         else:
             onboarding_status = "Not started"
 
-        _storage_line = f"  Connection:  {mode} | {endpoint} | {cp_status}"
-
         status_lines = [
             f"wicked-garden | {project}",
-            _storage_line,
-            f"  Config:      mode={mode} endpoint={endpoint}",
+            "  Storage:     local",
             f"  Onboarding:  {onboarding_status}",
         ]
 
@@ -862,8 +537,6 @@ def main():
 
             # Store as reference info only — NOT as active_project
             if state is not None:
-                cp_project_id = project_data.get("cp_project_id") or ""
-                state.update(cp_project_id=cp_project_id)
                 # active_project_id: only set when project is in a non-complete, non-skipped phase
                 active_phase = project_data.get("current_phase", "")
                 is_active = active_phase not in ("", "complete", "done", "archived")
@@ -876,7 +549,7 @@ def main():
                 state.update(memory_compliance_required=True)
 
             # Validate kanban link (side effect: repairs if needed)
-            _validate_and_repair_kanban_link(project_data, project_name, cp_available)
+            _validate_and_repair_kanban_link(project_data, project_name)
 
         if kanban_summary:
             status_lines.append(f"  Kanban:      {kanban_summary}")
@@ -889,12 +562,6 @@ def main():
 
         if decay_summary:
             briefing_parts.append(f"[Memory] {decay_summary}")
-
-        if cp_schema_reset_detected:
-            briefing_parts.append(
-                "CP appears empty — local data intact. "
-                "Run /wicked-garden:setup --sync-to-cp to restore."
-            )
 
         # --- Internal instructions for Claude ---
         briefing_parts.append(_MEMORY_INSTRUCTIONS)
@@ -911,14 +578,14 @@ def main():
         if onboarding_directive:
             briefing_parts.append(onboarding_directive)
 
-        # 10. Set onboarding gate flag for prompt_submit enforcement
+        # 9. Set onboarding gate flag for prompt_submit enforcement
         if state is not None:
             state.update(
                 needs_onboarding=bool(onboarding_directive),
                 onboarding_complete=(has_memories and has_index),
             )
 
-        # 11. Persist final session state
+        # 10. Persist final session state
         if state is not None:
             _save_session_state(state)
 

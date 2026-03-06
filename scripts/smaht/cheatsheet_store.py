@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cheatsheet store — CLI wrapper for StorageManager cheatsheet operations.
+"""Cheatsheet store — CLI wrapper for DomainStore cheatsheet operations.
 
 Usage:
     python3 cheatsheet_store.py store --library react --data '{"key_apis": [...], ...}'
@@ -15,9 +15,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore
 
-_sm = StorageManager("wicked-smaht")
+_sm = DomainStore("wicked-smaht")
 
 
 def cmd_store(args):
@@ -36,7 +36,7 @@ def cmd_store(args):
 
     result = _sm.create("cheatsheets", data)
     if result is None:
-        print(json.dumps({"id": data["id"], "success": False, "error": "StorageManager returned None (offline queue)"}))
+        print(json.dumps({"id": data["id"], "success": False, "error": "DomainStore returned None"}))
     else:
         print(json.dumps({"id": data["id"], "success": True}))
 
@@ -69,7 +69,7 @@ def cmd_get(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Cheatsheet store — CRUD operations via StorageManager"
+        description="Cheatsheet store — CRUD operations via DomainStore"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

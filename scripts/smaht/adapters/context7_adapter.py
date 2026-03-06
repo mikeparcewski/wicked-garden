@@ -19,7 +19,7 @@ from . import ContextItem, _SCRIPTS_ROOT
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from _storage import get_local_path
+from _domain_store import get_local_path
 
 # Path to the cheatsheet store CLI — resolved relative to this file so no
 # hardcoded absolute paths leak into the distributed plugin.

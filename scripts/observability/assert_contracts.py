@@ -11,7 +11,7 @@ Failure classes:
   malformed — output failed schema validation
   pass      — output validated successfully
 
-Results are persisted via StorageManager("wicked-observability").
+Results are persisted via DomainStore("wicked-observability").
 
 Usage:
     python3 assert_contracts.py
@@ -27,9 +27,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Resolve _storage from the parent scripts/ directory
+# Resolve _domain_store from the parent scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager
+from _domain_store import DomainStore
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ SCHEMAS_DIR = PLUGIN_ROOT / "schemas"
 PLUGINS_ROOT = PLUGIN_ROOT.parent  # …/plugins/
 TIMEOUT_SECONDS = 10
 
-_sm = StorageManager("wicked-observability")
+_sm = DomainStore("wicked-observability")
 
 
 # ── Minimal JSON Schema validator ────────────────────────────────────────────

@@ -564,7 +564,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _default_config_path() -> str:
-    """Resolve default config path via resolve_path.py, falling back to StorageManager convention."""
+    """Resolve default config path via resolve_path.py, falling back to DomainStore convention."""
     try:
         import subprocess as _sp
         plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", str(Path(__file__).resolve().parents[2]))
@@ -576,9 +576,13 @@ def _default_config_path() -> str:
             return str(Path(result.stdout.strip()) / "external-sources.json")
     except Exception:
         pass
-    from _storage import StorageManager
-    sm = StorageManager("wicked-search")
-    return str(Path(sm._local_root) / "external-sources.json")
+    # Fallback — use DomainStore path resolution
+    import sys as _sys
+    _scripts = str(Path(__file__).resolve().parents[1])
+    if _scripts not in _sys.path:
+        _sys.path.insert(0, _scripts)
+    from _domain_store import get_local_path
+    return str(get_local_path("wicked-search") / "external-sources.json")
 
 
 def _make_registry(args: argparse.Namespace) -> ExternalSourceRegistry:

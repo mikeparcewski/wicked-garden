@@ -15,9 +15,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager, get_local_path
+from _domain_store import DomainStore, get_local_path
 
-_sm = StorageManager("wicked-crew")
+_sm = DomainStore("wicked-crew")
 
 
 def list_projects(active_only: bool = False, workspace: str = "") -> dict:

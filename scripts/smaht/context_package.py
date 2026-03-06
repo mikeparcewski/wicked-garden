@@ -40,7 +40,7 @@ _SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
-from _storage import StorageManager
+from _domain_store import DomainStore
 
 # Add smaht sub-paths for adapter/v2 imports
 _smaht_dir = Path(__file__).resolve().parent
@@ -129,10 +129,10 @@ def build_ecosystem_orientation(installed_plugins: list = None) -> dict:
 
 
 async def gather_memories(task: str, limit: int = 3) -> list:
-    """Query wicked-mem for task-relevant memories via CP adapter."""
+    """Query wicked-mem for task-relevant memories via domain adapter."""
     try:
-        from adapters import cp_adapter
-        items = await cp_adapter.query(task)
+        from adapters import domain_adapter
+        items = await domain_adapter.query(task)
         results = []
         for item in items:
             if getattr(item, "source", "") != "mem":
@@ -150,10 +150,10 @@ async def gather_memories(task: str, limit: int = 3) -> list:
 
 
 async def gather_code_context(task: str, files: list = None, limit: int = 5) -> list:
-    """Query wicked-search for relevant code symbols via CP adapter."""
+    """Query wicked-search for relevant code symbols via domain adapter."""
     try:
-        from adapters import cp_adapter
-        items = await cp_adapter.query(task)
+        from adapters import domain_adapter
+        items = await domain_adapter.query(task)
         results = []
         for item in items:
             if getattr(item, "source", "") != "search":
@@ -210,11 +210,11 @@ async def build_package(task: str, project: str = None, files: list = None,
     file_scope = files or session.get("file_scope", [])
     current_task = session.get("current_task", "")
 
-    # Get project state if available (CP-first via StorageManager)
+    # Get project state if available (via DomainStore)
     project_state = {}
     if project:
         try:
-            sm = StorageManager("wicked-crew")
+            sm = DomainStore("wicked-crew")
             data = sm.get("projects", project)
             if data:
                 project_state = {

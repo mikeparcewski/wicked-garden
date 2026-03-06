@@ -28,11 +28,11 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 
 # ---------------------------------------------------------------------------
-# Minimal stub for StorageManager so jam.py imports cleanly without a real DB
+# Minimal stub for DomainStore so jam.py imports cleanly without a real store
 # ---------------------------------------------------------------------------
 
 class _StubStorageManager:
-    """In-memory StorageManager stand-in."""
+    """In-memory DomainStore stand-in."""
 
     def __init__(self, *args, **kwargs):
         self._data: dict[str, dict] = {}
@@ -54,16 +54,16 @@ class _StubStorageManager:
 
 @pytest.fixture(autouse=True)
 def stub_storage(monkeypatch):
-    """Replace StorageManager globally before jam.py module is loaded."""
+    """Replace DomainStore globally before jam.py module is loaded."""
     stub_module = MagicMock()
-    stub_module.StorageManager = _StubStorageManager
-    monkeypatch.setitem(sys.modules, "_storage", stub_module)
+    stub_module.DomainStore = _StubStorageManager
+    monkeypatch.setitem(sys.modules, "_domain_store", stub_module)
     yield stub_module
 
 
 @pytest.fixture
 def jam():
-    """Import jam module fresh (with stubbed _storage)."""
+    """Import jam module fresh (with stubbed _domain_store)."""
     # Remove cached module so the fixture-level stub takes effect
     if "jam" in sys.modules:
         del sys.modules["jam"]

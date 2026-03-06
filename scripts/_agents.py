@@ -2,23 +2,15 @@
 """
 _agents.py — Dynamic agent loader.
 
-Merges two sources of agent definitions:
-    1. Disk agents: agents/{domain}/*.md files shipped with the plugin.
-       Always available regardless of connectivity.
-    2. Control plane agents: JSON records from GET /api/v1/data/wicked-agents/list.
-       Overlay and extend disk agents; CP wins on any field conflict.
-
-Merge strategy (CP wins):
-    - system_prompt, capabilities, traits from CP replace disk values.
-    - metadata is deep-merged; CP keys win on conflict.
-    - Net-new CP agents (not on disk) are added to the merged set.
+Loads agent definitions from disk:
+    - Disk agents: agents/{domain}/*.md files shipped with the plugin.
+      Always available.
 
 Usage:
     from _agents import AgentLoader
 
     loader = AgentLoader(agents_dir=Path("agents/"))
     loader.load_disk_agents(agents_dir)
-    loader.overlay_cp_agents(cp_agents_list)
     profile = loader.get("senior-engineer")
 """
 
@@ -70,12 +62,11 @@ class AgentProfile:
 
 
 class AgentLoader:
-    """Load, merge, and retrieve agent profiles.
+    """Load and retrieve agent profiles from disk.
 
     Lifecycle (called once in bootstrap.py):
         loader = AgentLoader()
-        loader.load_disk_agents(agents_dir)     # always succeeds
-        loader.overlay_cp_agents(cp_agents)     # may be [] if offline
+        loader.load_disk_agents(agents_dir)
         profile = loader.get("senior-engineer")
     """
 
@@ -110,71 +101,6 @@ class AgentLoader:
                 continue
             self._agents[profile.name] = profile
 
-        return dict(self._agents)
-
-    def overlay_cp_agents(self, cp_agents: list[dict]) -> None:
-        """Merge control plane agent records over the current disk agents.
-
-        CP records win on all named fields. metadata is deep-merged.
-
-        Args:
-            cp_agents: List of agent dicts from the control plane API.
-                       May be empty (offline / no CP agents defined).
-        """
-        for cp_rec in cp_agents:
-            name = cp_rec.get("name")
-            if not name:
-                continue
-
-            if name in self._agents:
-                # Overlay: CP fields win, metadata is deep-merged
-                existing = self._agents[name]
-                existing.system_prompt = cp_rec.get("system_prompt") or existing.system_prompt
-                existing.capabilities = cp_rec.get("capabilities") or existing.capabilities
-                existing.traits = cp_rec.get("traits") or existing.traits
-                # Deep merge metadata
-                merged_meta = dict(existing.metadata)
-                merged_meta.update(cp_rec.get("metadata") or {})
-                merged_meta["source"] = "control-plane"
-                existing.metadata = merged_meta
-                existing.domain = cp_rec.get("domain") or existing.domain
-            else:
-                # Net-new agent from CP
-                self._agents[name] = AgentProfile(
-                    name=name,
-                    domain=cp_rec.get("domain", ""),
-                    system_prompt=cp_rec.get("system_prompt", ""),
-                    capabilities=cp_rec.get("capabilities") or [],
-                    traits=cp_rec.get("traits") or [],
-                    metadata={
-                        **(cp_rec.get("metadata") or {}),
-                        "source": "control-plane",
-                    },
-                )
-
-    # ------------------------------------------------------------------
-    # Convenience merge factory
-    # ------------------------------------------------------------------
-
-    def merge(
-        self,
-        disk: dict[str, AgentProfile],
-        cp: list[dict],
-    ) -> dict[str, AgentProfile]:
-        """Convenience method: load disk agents dict + overlay CP, return merged.
-
-        Intended for callers that pre-compute disk_agents and cp_agents
-        independently and want a single merge call.
-
-        Args:
-            disk: Previously loaded disk agents (from load_disk_agents).
-            cp:   CP agent list (may be empty).
-
-        Returns:
-            Merged dict. Internal state is also updated.
-        """
-        self._agents = dict(disk)
-        self.overlay_cp_agents(cp)
         return dict(self._agents)
 
     # ------------------------------------------------------------------
@@ -220,48 +146,6 @@ class AgentLoader:
                 metadata=rec.get("metadata") or {},
             )
         return loader
-
-
-# ---------------------------------------------------------------------------
-# CP fetch helper (used by bootstrap.py)
-# ---------------------------------------------------------------------------
-
-
-def fetch_cp_agents(domain: str = "wicked-agents", source: str = "agents") -> list[dict]:
-    """Fetch agent records from the control plane.
-
-    Returns an empty list if the CP is unavailable or returns no records.
-    Designed to be called once per session in bootstrap.py.
-
-    Args:
-        domain: CP domain to query (default: "wicked-agents").
-        source: Resource source within the domain (default: "agents").
-
-    Returns:
-        List of raw agent record dicts from the CP, or [] on any failure.
-    """
-    try:
-        from _control_plane import get_client
-        from _session import SessionState
-
-        state = SessionState.load()
-        if not state.cp_available or state.fallback_mode:
-            return []
-
-        cp = get_client(hook_mode=False)
-        result = cp.request(domain, source, "list")
-        if result is None:
-            return []
-
-        data = result.get("data", [])
-        return data if isinstance(data, list) else []
-
-    except Exception as exc:
-        print(
-            f"[wicked-garden] Failed to fetch CP agents: {exc}",
-            file=sys.stderr,
-        )
-        return []
 
 
 # ---------------------------------------------------------------------------

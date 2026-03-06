@@ -19,10 +19,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from _storage import StorageManager
+from _domain_store import DomainStore
 from kanban.kanban import KanbanStore, _resolve_board_type
 
-_sm = StorageManager("wicked-kanban")
+_sm = DomainStore("wicked-kanban")
 
 
 def get_store() -> KanbanStore:

@@ -25,14 +25,14 @@ from router import IntentType, PromptAnalysis
 
 
 # Adapter selection rules by intent
-# "cp" is the unified Control Plane adapter — replaces mem/search/kanban/jam/crew
+# "domain" is the DomainStore adapter — queries kanban/crew/jam directly
 ADAPTER_RULES = {
-    IntentType.DEBUGGING: ["cp", "delegation"],
-    IntentType.IMPLEMENTATION: ["cp", "context7", "tools", "delegation"],
-    IntentType.PLANNING: ["cp", "delegation"],
-    IntentType.RESEARCH: ["cp", "context7", "tools", "delegation"],
-    IntentType.REVIEW: ["cp", "delegation"],
-    IntentType.GENERAL: ["cp", "delegation"],
+    IntentType.DEBUGGING: ["domain", "delegation"],
+    IntentType.IMPLEMENTATION: ["domain", "context7", "tools", "delegation"],
+    IntentType.PLANNING: ["domain", "delegation"],
+    IntentType.RESEARCH: ["domain", "context7", "tools", "delegation"],
+    IntentType.REVIEW: ["domain", "delegation"],
+    IntentType.GENERAL: ["domain", "delegation"],
 }
 
 
@@ -55,7 +55,7 @@ class FastPathAssembler:
         """Load available adapters individually for graceful degradation."""
         adapters = {}
         adapter_modules = {
-            "cp": "cp_adapter",
+            "domain": "domain_adapter",
             "context7": "context7_adapter",
             "tools": "startah_adapter",
             "delegation": "delegation_adapter",

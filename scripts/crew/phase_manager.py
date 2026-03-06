@@ -19,11 +19,11 @@ from datetime import datetime, timezone, date
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field, asdict
 
-# Resolve _storage and _paths from the parent scripts/ directory
+# Resolve _domain_store and _paths from the parent scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _storage import StorageManager, get_local_path
+from _domain_store import DomainStore, get_local_path
 
-_sm = StorageManager("wicked-crew")
+_sm = DomainStore("wicked-crew")
 
 # Configure logging
 logging.basicConfig(
@@ -239,91 +239,6 @@ def _run_checkpoint_reanalysis(state: 'ProjectState', phase: str) -> Tuple[List[
 
     logger.info(f"[checkpoint] Phase '{phase}' is a checkpoint — running phase plan re-validation")
     return validate_phase_plan(state)
-
-
-def _ensure_cp_project(state: 'ProjectState', description: str = "") -> str | None:
-    """Create or find the CP Projects entity for this crew project.
-
-    Returns the CP-assigned UUID on success, or None if CP is unavailable
-    or the operation fails.  Never raises — all errors are swallowed so
-    the plugin works in local fallback mode.
-
-    Args:
-        state: The current ProjectState (uses state.name as the key).
-        description: Human-readable project description for the CP record.
-
-    Returns:
-        CP project UUID string, or None.
-    """
-    try:
-        from _control_plane import get_client
-        from _session import SessionState
-        session = SessionState.load()
-        if not session.cp_available:
-            return None
-
-        cp = get_client()
-
-        # Check if the project already exists in CP by name
-        result = cp.request("crew", "projects", "list", params={"name": state.name})
-        if result and isinstance(result.get("data"), list):
-            for record in result["data"]:
-                if record.get("name") == state.name:
-                    return record.get("id")
-
-        # Not found — create it
-        payload = {
-            "name": state.name,
-            "status": "active",
-            "current_phase": state.current_phase,
-            "complexity_score": state.complexity_score,
-        }
-        if description:
-            payload["description"] = description
-
-        create_result = cp.request("crew", "projects", "create", payload=payload)
-        if create_result:
-            data = create_result.get("data")
-            if isinstance(data, dict):
-                return data.get("id")
-    except Exception:
-        pass
-
-    return None
-
-
-def _update_cp_project_status(state: 'ProjectState', status: str) -> None:
-    """Update the CP Projects entity status. Fire-and-forget.
-
-    Silently returns if CP is unavailable or the project has no CP UUID.
-    CP ProjectStatus only allows "active" and "archived" — any other status
-    is mapped to "active" to avoid sending invalid values.
-
-    Args:
-        state: The current ProjectState (uses state.cp_project_id).
-        status: Status string. Only "archived" maps to "archived"; all others
-                map to "active" (CP does not support phase-level statuses).
-    """
-    # CP ProjectStatus contract: only "active" or "archived"
-    cp_status = "archived" if status == "archived" else "active"
-    try:
-        if not state.cp_project_id:
-            return
-
-        from _control_plane import get_client
-        from _session import SessionState
-        session = SessionState.load()
-        if not session.cp_available:
-            return
-
-        cp = get_client()
-        cp.request(
-            "crew", "projects", "update",
-            id=state.cp_project_id,
-            payload={"status": cp_status},
-        )
-    except Exception:
-        pass  # Fire-and-forget — never block on CP failure
 
 
 class PhaseStatus:
@@ -567,11 +482,6 @@ def save_project_state(state: ProjectState) -> None:
     else:
         _sm.create("projects", data)
     logger.debug(f"Project state saved for {state.name}")
-
-    # Sync CP project status after local write succeeds (AC #153)
-    if state.cp_project_id:
-        archived = state.extras.get("archived", False)
-        _update_cp_project_status(state, "archived" if archived else "active")
 
 
 def can_transition(
@@ -972,23 +882,8 @@ def create_project(
     # Start clarify phase
     state = start_phase(state, "clarify")
 
-    # Persist via StorageManager (CP-first, local fallback)
+    # Persist via DomainStore (local JSON)
     save_project_state(state)
-
-    # Capture CP-assigned UUID if available (CP-first path assigns UUID on create)
-    try:
-        saved = _sm.get("projects", name)
-        if saved and saved.get("cp_project_id"):
-            state.cp_project_id = saved["cp_project_id"]
-    except Exception:
-        pass  # UUID unavailable offline — state.cp_project_id remains None
-
-    # Ensure a CP Projects entity exists (creates if missing, returns UUID)
-    if not state.cp_project_id:
-        cp_uuid = _ensure_cp_project(state, description)
-        if cp_uuid:
-            state.cp_project_id = cp_uuid
-            save_project_state(state)
 
     # Create local directory structure for deliverables
     project_dir = get_project_dir(name)

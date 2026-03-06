@@ -129,24 +129,48 @@ Parse the JSON response to get `project_dir` for later use.
 
 6. **Store archetype hints** via phase_manager update as `archetype_hints` for reuse at checkpoints (do NOT write project.json directly — use the update command in step 5.5).
 
-### 5.5 Analyze Input with Smart Decisioning
+### 5.4 Agent Dimension Scoring
 
-Run smart decisioning with archetype hints and file impact scoring.
+Dispatch an agent to semantically score risk dimensions that keyword matching misses. The agent understands context that regex cannot — e.g., "eliminate the control plane" implies high reversibility risk even though it doesn't contain the word "migration".
 
-**If `FILE_HINTS_CSV` is non-empty** (populated by the exploration subagent in step 5):
+```
+Task(
+  subagent_type="Explore",
+  prompt="Score the risk dimensions (0-3 each) for this project description. Consider the affected files and archetype context provided.
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
-  --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
-  --files "${FILE_HINTS_CSV}" \
-  "{description}"
+PROJECT: {description}
+
+AFFECTED FILES: {FILE_HINTS_CSV}
+
+ARCHETYPE: {primary archetype and description}
+
+Score each dimension 0-3:
+- impact: How much production behavior changes? Consider that in AI-native projects, prompts, commands, skills, and agent definitions (.md files in commands/, skills/, agents/) are behavioral programs — changing them is as impactful as changing source code. Also consider breadth: how many files/domains are touched?
+- reversibility: How hard to undo? Removing core abstractions, changing data formats, breaking interfaces = high. Additive changes, feature flags = low.
+- novelty: How new/unfamiliar is this pattern? First-time architectural patterns, greenfield approaches = high. Routine bug fixes, well-trodden patterns = low.
+- test_complexity: How complex is the test strategy? Cross-domain integration testing, new test infrastructure needed = high. Unit tests for isolated changes = low.
+- coordination_cost: How much cross-domain/cross-team coordination? Changes touching many domains that must stay consistent = high. Single-domain changes = low.
+- operational: Deployment/migration/rollback complexity? Data migrations, breaking changes requiring coordination = high. Drop-in replacements = low.
+- documentation: How much documentation needs updating? API changes, architecture decisions, migration guides = high. Internal refactors = low.
+
+Return ONLY a JSON object like: {\"impact\": 3, \"reversibility\": 2, \"novelty\": 1, \"test_complexity\": 2, \"coordination_cost\": 2, \"operational\": 1, \"documentation\": 1}
+No explanation, just the JSON."
+)
 ```
 
-**If `FILE_HINTS_CSV` is empty** (exploration timed out or was skipped):
+Parse the agent's response as JSON. If it fails to parse or the agent errors, set `DIMENSION_HINTS_JSON` to empty and proceed without dimension hints — this is an enhancement, not a blocker.
+
+Capture the valid JSON as `DIMENSION_HINTS_JSON`.
+
+### 5.5 Analyze Input with Smart Decisioning
+
+Run smart decisioning with archetype hints, file impact scoring, and agent dimension hints.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
   --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
+  ${FILE_HINTS_CSV:+--files "${FILE_HINTS_CSV}"} \
+  ${DIMENSION_HINTS_JSON:+--dimension-hints '${DIMENSION_HINTS_JSON}'} \
   "{description}"
 ```
 
