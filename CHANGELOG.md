@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.32.0] - 2026-03-06
+
+### Features
+- feat: refactor context assembly — delegate prompt_submit to smaht v2 orchestrator (84806c3)
+
 ## [1.31.0] - 2026-03-06
 
 ### Features
