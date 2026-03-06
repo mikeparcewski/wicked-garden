@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.23.0] - 2026-03-05
+
+### Features
+- feat: close issues #261, #270 — jam workflow integration (e598d6e)
+- feat: update wg-release with quality gate, update wg-issue with ralph-loop (56baaf3)
+- feat: bundle marketplace plugins in project settings (776abfd)
+- feat: close issues #259, #264 — CLI discovery and integration improvements (7f11882)
+- feat: close issues #265, #267, #268 — UX polish and discoverability (175b910)
+
+### Chores
+- release: wicked-garden v1.22.0 (e6b4547)
+
 ## [1.22.0] - 2026-03-05
 
 ### Features
