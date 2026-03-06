@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.22.0] - 2026-03-05
+
+### Features
+- feat: flatten single-skill directories, update README counts, add freshness check (3973dfa)
+
+### Chores
+- release: wicked-garden v1.21.0 (09c8332)
+
 ## [1.21.0] - 2026-03-05
 
 ### Features
