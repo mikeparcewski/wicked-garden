@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-125 commands. 79 specialist agents. 71 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
+132 commands. 79 specialist agents. 72 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -82,7 +82,7 @@ Everything is organized by domain — each domain brings its own commands, agent
 | **smaht** | Context assembly brain. Intercepts every prompt, detects intent, injects relevant context from all domains. You never call it — it just makes everything smarter. | `smaht:debug`, `smaht:onboard` |
 | **mem** | Cross-session memory with typed categories and auto-decay. Decisions, patterns, and preferences persist across sessions and surface when relevant. | `mem:store`, `mem:recall`, `mem:review` |
 | **search** | Structural code intelligence across 73 languages. Symbol graphs, data lineage tracing, blast radius analysis, architecture detection from infra files. Not grep — understanding. | `search:code`, `search:lineage`, `search:blast-radius` |
-| **jam** | AI brainstorming with dynamic focus groups. 4-6 personas debate your question from technical, user, business, and process angles in 60 seconds. | `jam:jam`, `jam:brainstorm`, `jam:council` |
+| **jam** | AI brainstorming with dynamic focus groups. 4-6 personas debate your question from technical, user, business, and process angles in 60 seconds. | `jam:brainstorm`, `jam:quick`, `jam:council` |
 | **kanban** | Persistent task board that survives sessions. Auto-syncs with Claude's task tools via hooks — you use TaskCreate, kanban captures it. | `kanban:board-status`, `kanban:new-task` |
 
 ### Specialist Disciplines
@@ -240,8 +240,8 @@ wicked-garden/
 │   └── *.md                 # root-level commands (setup, help, report-issue)
 ├── agents/{domain}/         # 79 specialist subagents by domain
 ├── skills/
-│   ├── {domain}/            # domain-scoped skills
-│   └── {name}/              # root-level skills (CLI tools, patterns)
+│   ├── {domain}/SKILL.md    # single-skill domains (flat)
+│   └── {domain}/{skill}/    # multi-skill domains (nested)
 ├── hooks/
 │   ├── hooks.json           # 7 lifecycle hooks
 │   └── scripts/             # 6 Python hook scripts (stdlib-only)

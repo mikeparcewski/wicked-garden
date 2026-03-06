@@ -158,6 +158,35 @@ if grep -E '\{(path|verb|source)\}' "$readme" | grep -v '<!--' > /dev/null 2>&1;
 fi
 ```
 
+### 7h. README Freshness (Component Counts)
+
+Check that README header counts match actual component counts:
+
+```bash
+readme="./README.md"
+
+# Extract counts from README tagline
+readme_commands=$(grep -oE '[0-9]+ commands' "$readme" | head -1 | grep -oE '[0-9]+')
+readme_agents=$(grep -oE '[0-9]+ specialist agents' "$readme" | head -1 | grep -oE '[0-9]+')
+readme_skills=$(grep -oE '[0-9]+ skills' "$readme" | head -1 | grep -oE '[0-9]+')
+
+# Count actual components
+actual_commands=$(find commands -name '*.md' -not -name '_*' 2>/dev/null | wc -l | tr -d ' ')
+actual_agents=$(find agents -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+actual_skills=$(find skills -name 'SKILL.md' 2>/dev/null | wc -l | tr -d ' ')
+
+# Compare
+if [[ "$readme_commands" != "$actual_commands" ]]; then
+  echo "WARNING: README says $readme_commands commands, actual is $actual_commands"
+fi
+if [[ "$readme_agents" != "$actual_agents" ]]; then
+  echo "WARNING: README says $readme_agents agents, actual is $actual_agents"
+fi
+if [[ "$readme_skills" != "$actual_skills" ]]; then
+  echo "WARNING: README says $readme_skills skills, actual is $actual_skills"
+fi
+```
+
 ### Quick Check Output
 
 ```markdown
@@ -173,6 +202,7 @@ fi
 | Specialist schema | ✓/✗/- |
 | Capability compliance | ✓/✗ |
 | README style guide | ✓/✗ |
+| README freshness | ✓/✗ |
 
 **Result**: PASS / FAIL
 
