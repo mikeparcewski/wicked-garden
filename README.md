@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-139 commands. 86 specialist agents. 78 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs.
+139 commands. 86 specialist agents. 78 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -83,7 +83,7 @@ Everything is organized by domain — each domain brings its own commands, agent
 | **mem** | Cross-session memory with typed categories and auto-decay. Decisions, patterns, and preferences persist across sessions and surface when relevant. | `mem:store`, `mem:recall`, `mem:review` |
 | **search** | Structural code intelligence across 73 languages. Symbol graphs, data lineage tracing, blast radius analysis, architecture detection from infra files. Not grep — understanding. | `search:code`, `search:lineage`, `search:blast-radius` |
 | **jam** | AI brainstorming with dynamic focus groups. 4-6 personas debate your question from technical, user, business, and process angles in 60 seconds. | `jam:brainstorm`, `jam:quick`, `jam:council` |
-| **kanban** | Persistent task board that survives sessions. Auto-syncs with Claude's task tools via hooks — you use TaskCreate, kanban captures it. | `kanban:board-status`, `kanban:new-task` |
+| **kanban** | Persistent task board that survives sessions. Auto-syncs with Claude's task tools via hooks. Scoped boards per domain (crew, jam, issues). | `kanban:board-status`, `kanban:new-task`, `kanban:initiative` |
 
 ### Specialist Disciplines
 
@@ -94,7 +94,7 @@ Nine domains, each bringing specialist expertise that crew routes to automatical
 | **Engineering** | engineering | Senior engineer, solution architect, debugger, frontend/backend specialists. Multi-pass code review in one command. |
 | **Product** | product | Product manager, UX designer, requirements analyst, customer advocate. Full voice-of-customer pipeline: listen, analyze, synthesize. |
 | **Platform** | platform | SRE, security engineer, compliance officer, incident responder. OWASP scanning, SOC2/HIPAA/GDPR checks, GitHub Actions generation. |
-| **Quality** | qe | Test strategist, automation engineer, risk assessor. Shift-left: generates test scenarios from requirements before code exists. |
+| **Quality** | qe | Test strategist, automation engineer, risk assessor, TDD coach, acceptance test pipeline (write → execute → review). Shift-left across the full lifecycle. |
 | **Data** | data | Data engineer, ML engineer, analytics architect. DuckDB-powered SQL on 10GB+ CSV/Excel — plain English to results, zero setup. |
 | **Delivery** | delivery | Delivery manager, cost analyst, rollout coordinator. Sprint health, A/B test design with statistical rigor, progressive rollout plans. |
 | **Agentic** | agentic | Architecture reviewer, safety auditor, framework researcher. Detects 12+ agent frameworks, scores topologies, generates remediation roadmaps. |
@@ -124,21 +124,31 @@ Every domain works independently. The ecosystem is additive, not required.
 /wicked-garden:agentic:review ./my-agent-project       # review your AI agent architecture
 ```
 
-## Control Plane
+## Storage & Integration Discovery
 
-Wicked Garden uses the **wicked-control-plane** as its persistence backend — a Fastify + SQLite service that provides team-shared storage for memories, kanban boards, crew projects, and more.
+Every domain owns its own data. No sidecar process, no external server required.
 
-```bash
-# First run triggers interactive setup
-# Choose: local (localhost:18889), remote (your server), or offline (local JSON files)
+**How it works**: Each domain writes to local JSON files at `~/.something-wicked/wicked-garden/local/{domain}/`. When a domain needs external tools (e.g., kanban looking for Jira, Linear, or Rally), it uses **integration-discovery** to find them automatically.
+
+**Resolution order** when multiple tools are found:
+1. Check local settings (`config.json` preferences)
+2. Check memory (stored decisions from past sessions)
+3. Ask the user once, remember the choice
+
+**If no external tools are found** — or no auth is configured — data stays local. This is the default experience and it just works.
+
 ```
-
-**Three modes**:
-- **Local**: Run the control plane on your machine. All data in SQLite, instant.
-- **Remote**: Point to a team-hosted control plane. Shared state across developers.
-- **Offline**: Pure local JSON files. No server needed. Queued writes replay when you reconnect.
-
-The plugin auto-detects connectivity and falls back gracefully. Offline writes are queued in `_queue.jsonl` and replayed on the next healthy connection.
+  Domain Command
+       │
+       ▼
+  ┌─────────────────────────┐
+  │  Integration Discovery   │     Resolution:
+  │                          │     1. config.json → "use linear"
+  │  Find matching tools ────┼──►  2. memory → "chose jira last time"
+  │  Resolve which to use    │     3. ask user → store choice
+  │  Fall back to local JSON │     4. no tools? → local JSON ✓
+  └─────────────────────────┘
+```
 
 ## How Signal Routing Works
 
@@ -172,7 +182,7 @@ At checkpoints (clarify, design, build), the system re-analyzes and enforces pha
 1. **Signal over ceremony** — The work tells the system what it needs. You don't configure pipelines.
 2. **Perspectives over ego** — 8 specialist disciplines catch what one voice misses.
 3. **Memory over amnesia** — Decisions persist. Context builds over time. Session 47 knows what session 1 decided.
-4. **Graceful degradation** — Missing the control plane? Local fallback. Missing a specialist? Fallback agents cover the gap.
+4. **Graceful degradation** — No external tools? Local JSON. Missing a specialist? Fallback agents cover the gap.
 5. **Prompts over code** — Logic lives in markdown and config, not Python engines. Extensible by anyone who can write instructions.
 
 ## Quick Start
@@ -181,13 +191,14 @@ At checkpoints (clarify, design, build), the system re-analyzes and enforces pha
 # Install the plugin
 claude plugins add mikeparcewski/wicked-garden
 
-# First session runs interactive setup for control plane connection
-# Then start using any domain immediately:
+# Start using any domain immediately — no setup required:
 
 /wicked-garden:crew:start "Add user authentication"   # full workflow
 /wicked-garden:engineering:review                       # code review
 /wicked-garden:search:code "handleAuth"                 # find symbols
 /wicked-garden:jam:quick "Redis vs Postgres?"           # brainstorm
+/wicked-garden:design:mockup "settings page"            # wireframe generation
+/wicked-garden:qe:acceptance                            # evidence-gated testing
 ```
 
 ## Commands
@@ -219,13 +230,13 @@ See `/wicked-garden:help` for the full command list.
 
 | Integration | With It | Without It |
 |------------|---------|------------|
-| **Control Plane** | Team-shared persistence, cross-session memories, kanban boards | Local JSON files, single-developer mode |
-| **wicked-control-plane** | Real-time data sync, offline write queue with replay | Standalone with local storage fallback |
+| **External MCP tools** | kanban syncs to Jira/Linear, mem stores to Notion, etc. | Local JSON files — same API, same behavior |
 | **GitHub CLI (`gh`)** | Auto-file issues, PR creation, release management | Manual issue/PR creation |
 | **Tree-sitter** | 73-language structural code search, symbol graphs, lineage | Grep-based text search fallback |
 | **DuckDB** | SQL analytics on 10GB+ CSV/Excel files | Basic file reading only |
+| **External LLM CLIs** | Multi-model council reviews (Codex, Gemini, OpenCode) | Claude-only review with specialist subagents |
 
-The plugin works fully standalone. Each integration adds capability but nothing breaks without it.
+The plugin works fully standalone. Each integration adds capability but nothing breaks without it. Integration discovery finds tools automatically — you don't configure anything.
 
 ## Plugin Structure
 
@@ -233,19 +244,19 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 wicked-garden/
 ├── .claude-plugin/
 │   ├── plugin.json          # name, version, description
-│   ├── specialist.json      # 8 specialist roles, 48 personas
+│   ├── specialist.json      # 8 specialist roles, 51 personas
 │   ├── marketplace.json     # marketplace registration
 │   └── phases.json          # 7-phase catalog with gates and checkpoints
 ├── commands/
 │   ├── {domain}/            # domain-scoped slash commands
 │   └── *.md                 # root-level commands (setup, help, report-issue)
-├── agents/{domain}/         # 79 specialist subagents by domain
+├── agents/{domain}/         # 86 specialist subagents by domain
 ├── skills/
 │   ├── {domain}/SKILL.md    # single-skill domains (flat)
 │   └── {domain}/{skill}/    # multi-skill domains (nested)
 ├── hooks/
-│   ├── hooks.json           # 7 lifecycle hooks
-│   └── scripts/             # 6 Python hook scripts (stdlib-only)
+│   ├── hooks.json           # 8 lifecycle hooks
+│   └── scripts/             # 7 Python hook scripts (stdlib-only)
 ├── scripts/{domain}/        # domain APIs and utilities
 └── scenarios/{domain}/      # acceptance test scenarios
 ```
