@@ -27,6 +27,48 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _storage import StorageManager
 
 
+BOARD_SCHEMAS: dict = {
+    "crew": [
+        {"id": "todo",        "name": "Backlog",      "order": 0, "is_complete": False},
+        {"id": "in_progress", "name": "In Progress",  "order": 1, "is_complete": False},
+        {"id": "review",      "name": "Review",       "order": 2, "is_complete": False},
+        {"id": "done",        "name": "Done",          "order": 3, "is_complete": True},
+    ],
+    "jam": [
+        {"id": "jam:brainstorming",         "name": "Brainstorming",          "order": 0, "is_complete": False},
+        {"id": "jam:perspectives_gathered", "name": "Perspectives Gathered",  "order": 1, "is_complete": False},
+        {"id": "jam:synthesized",           "name": "Synthesized",            "order": 2, "is_complete": False},
+        {"id": "jam:decision_made",         "name": "Decision Made",          "order": 3, "is_complete": True},
+    ],
+    "collaboration": [
+        {"id": "collab:setup",       "name": "Setup",      "order": 0, "is_complete": False},
+        {"id": "collab:in_progress", "name": "In Progress","order": 1, "is_complete": False},
+        {"id": "collab:review",      "name": "Review",     "order": 2, "is_complete": False},
+        {"id": "collab:complete",    "name": "Complete",   "order": 3, "is_complete": True},
+    ],
+    "issues": [
+        {"id": "todo",        "name": "Triage",       "order": 0, "is_complete": False},
+        {"id": "in_progress", "name": "In Progress",  "order": 1, "is_complete": False},
+        {"id": "done",        "name": "Done",          "order": 2, "is_complete": True},
+    ],
+}
+
+# Terminal swimlane IDs that trigger wicked-mem writes
+MEM_TRIGGERS: dict = {
+    "jam:decision_made": {"mem_type": "decision", "source": "kanban:jam"},
+    "collab:complete":   {"mem_type": "finding",  "source": "kanban:collaboration"},
+}
+
+
+def _resolve_board_type(initiative: dict) -> str:
+    """Return board_type, inferring default for legacy records."""
+    if bt := initiative.get("board_type"):
+        return bt
+    if initiative.get("name") == "Issues":
+        return "issues"
+    return "crew"
+
+
 def generate_id() -> str:
     """Generate a short unique ID."""
     return str(uuid.uuid4())[:8]
@@ -371,6 +413,10 @@ class KanbanStore:
                                     old_swimlane, new_swimlane,
                                     old_initiative, new_initiative)
 
+        # Trigger wicked-mem write at terminal columns (jam:decision_made, collab:complete)
+        if new_swimlane != old_swimlane and new_swimlane in MEM_TRIGGERS:
+            self._trigger_mem_write(project_id, task, MEM_TRIGGERS[new_swimlane])
+
         self._log_activity(project_id, "task_updated", task_id=task_id,
                            updates=list(updates.keys()))
         return task
@@ -527,17 +573,33 @@ class KanbanStore:
         """Get a single initiative."""
         return self._sm.get("initiatives", f"{project_id}:{initiative_id}")
 
+    def _provision_swimlanes(self, project_id: str, board_type: str):
+        """Append board-type swimlanes that don't already exist (additive, idempotent)."""
+        existing = {s["id"] for s in self.get_swimlanes(project_id)}
+        schema = BOARD_SCHEMAS.get(board_type, BOARD_SCHEMAS["crew"])
+        for lane in schema:
+            if lane["id"] not in existing:
+                self.create_swimlane(
+                    project_id,
+                    lane["name"],
+                    id=lane["id"],
+                    order=lane["order"],
+                    is_complete=lane["is_complete"],
+                )
+
     def create_initiative(self, project_id: str, name: str, **kwargs) -> Optional[Dict]:
         """Create a new initiative."""
         if not self.get_project(project_id):
             return None
 
+        board_type = kwargs.get("board_type", "crew")
         initiative_id = generate_id()
         initiative = {
             "id": f"{project_id}:{initiative_id}",
             "initiative_id": initiative_id,
             "project_id": project_id,
             "name": name,
+            "board_type": board_type,
             "goal": kwargs.get("goal"),
             "status": kwargs.get("status", "planning"),
             "start_date": kwargs.get("start_date"),
@@ -547,6 +609,7 @@ class KanbanStore:
         }
 
         self._sm.create("initiatives", initiative)
+        self._provision_swimlanes(project_id, board_type)
         self._log_activity(project_id, "initiative_created",
                            initiative_id=initiative_id, initiative_name=name)
         return initiative
@@ -558,7 +621,7 @@ class KanbanStore:
         if not initiative:
             return None
 
-        allowed = {'name', 'goal', 'status', 'start_date', 'end_date'}
+        allowed = {'name', 'goal', 'status', 'start_date', 'end_date', 'board_type'}
         diff = {}
         for key, value in updates.items():
             if key in allowed:
@@ -569,6 +632,44 @@ class KanbanStore:
         initiative["updated_at"] = diff["updated_at"]
         self._sm.update("initiatives", f"{project_id}:{initiative_id}", diff)
         return initiative
+
+    def _trigger_mem_write(self, project_id: str, task: dict, trigger: dict):
+        """Write a memory record when a task reaches a terminal column. Fails silently."""
+        import subprocess
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+        if not plugin_root:
+            return
+
+        artifacts = task.get("artifacts", [])
+        artifact_content = " | ".join(
+            str(a.get("content", "")) for a in artifacts if a.get("content")
+        )
+
+        content_parts = [task.get("name", "")]
+        if task.get("description"):
+            content_parts.append(task["description"])
+        if artifact_content:
+            content_parts.append(artifact_content)
+        content = "\n".join(content_parts)
+
+        payload = {
+            "type": trigger["mem_type"],
+            "content": content,
+            "source": trigger["source"],
+            "task_id": task.get("task_id"),
+            "initiative_id": task.get("initiative_id"),
+        }
+
+        try:
+            subprocess.run(
+                ["python3", f"{plugin_root}/scripts/mem/store.py"],
+                input=json.dumps(payload),
+                text=True,
+                timeout=5,
+                capture_output=True,
+            )
+        except Exception:
+            pass  # Mem write failure must never break task updates
 
     def delete_initiative(self, project_id: str, initiative_id: str) -> bool:
         """Delete an initiative."""
@@ -826,6 +927,7 @@ def main():
     # list-initiatives
     list_init = subparsers.add_parser('list-initiatives', help='List initiatives')
     list_init.add_argument('project_id', help='Project ID')
+    list_init.add_argument('--board-type', help='Filter by board type (crew, jam, collaboration, issues)')
 
     # create-initiative
     create_init = subparsers.add_parser('create-initiative', help='Create initiative')
@@ -835,6 +937,12 @@ def main():
     create_init.add_argument('--status', default='planning', help='Status')
     create_init.add_argument('--start', help='Start date (YYYY-MM-DD)')
     create_init.add_argument('--end', help='End date (YYYY-MM-DD)')
+    create_init.add_argument(
+        '--board-type', '-b',
+        default='crew',
+        choices=['crew', 'jam', 'collaboration', 'issues'],
+        help='Board type (default: crew)'
+    )
 
     # update-initiative
     update_init = subparsers.add_parser('update-initiative', help='Update initiative')
@@ -969,13 +1077,17 @@ def main():
         result = store.get_activity(args.project_id, args.date, args.limit)
 
     elif args.command == 'list-initiatives':
-        result = store.list_initiatives(args.project_id)
+        initiatives = store.list_initiatives(args.project_id)
+        if getattr(args, 'board_type', None):
+            initiatives = [i for i in initiatives if _resolve_board_type(i) == args.board_type]
+        result = initiatives
 
     elif args.command == 'create-initiative':
         result = store.create_initiative(
             args.project_id, args.name,
             goal=args.goal, status=args.status,
-            start_date=args.start, end_date=args.end
+            start_date=args.start, end_date=args.end,
+            board_type=getattr(args, 'board_type', 'crew') or 'crew'
         )
         if not result:
             print("Failed to create initiative", file=sys.stderr)

@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from _storage import StorageManager
-from kanban.kanban import KanbanStore
+from kanban.kanban import KanbanStore, _resolve_board_type
 
 _sm = StorageManager("wicked-kanban")
 
@@ -65,7 +65,7 @@ def cmd_lookup(name: str) -> dict:
     return {"found": False}
 
 
-def cmd_create(name: str) -> dict:
+def cmd_create(name: str, board_type: str = "crew") -> dict:
     """Create a crew initiative. Returns the initiative ID."""
     store = get_store()
     project_id = get_project_id(store)
@@ -96,7 +96,8 @@ def cmd_create(name: str) -> dict:
     initiative = store.create_initiative(
         project_id,
         name=name,
-        goal=f"Crew project: {name}"
+        goal=f"Crew project: {name}",
+        board_type=board_type,
     )
     if not initiative:
         return {"error": "failed_to_create_initiative"}
@@ -126,7 +127,8 @@ def cmd_ensure_issues() -> dict:
     initiative = store.create_initiative(
         project_id,
         name="Issues",
-        goal="General fixes, bugs, and non-project tasks"
+        goal="General fixes, bugs, and non-project tasks",
+        board_type="issues",
     )
     if initiative:
         return {"status": "created", "initiative_id": initiative["id"]}
@@ -134,27 +136,40 @@ def cmd_ensure_issues() -> dict:
 
 
 def main():
-    if len(sys.argv) < 2:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Kanban initiative helper")
+    subparsers = parser.add_subparsers(dest="command")
+
+    lookup_p = subparsers.add_parser("lookup")
+    lookup_p.add_argument("name", help="Initiative name to look up")
+
+    create_p = subparsers.add_parser("create")
+    create_p.add_argument("name", help="Initiative name")
+    create_p.add_argument(
+        "--board-type", "-b",
+        default="crew",
+        choices=["crew", "jam", "collaboration", "issues"],
+        help="Board type (default: crew)"
+    )
+
+    subparsers.add_parser("ensure-issues")
+
+    args = parser.parse_args()
+
+    if not args.command:
         print(json.dumps({"error": "usage: kanban_initiative.py <lookup|create|ensure-issues> [name]"}))
         sys.exit(1)
 
-    command = sys.argv[1]
-
     try:
-        if command == "lookup":
-            if len(sys.argv) < 3:
-                print(json.dumps({"error": "lookup requires a name argument"}))
-                sys.exit(1)
-            result = cmd_lookup(sys.argv[2])
-        elif command == "create":
-            if len(sys.argv) < 3:
-                print(json.dumps({"error": "create requires a name argument"}))
-                sys.exit(1)
-            result = cmd_create(sys.argv[2])
-        elif command == "ensure-issues":
+        if args.command == "lookup":
+            result = cmd_lookup(args.name)
+        elif args.command == "create":
+            result = cmd_create(args.name, board_type=args.board_type)
+        elif args.command == "ensure-issues":
             result = cmd_ensure_issues()
         else:
-            result = {"error": f"unknown command: {command}"}
+            result = {"error": f"unknown command: {args.command}"}
             print(json.dumps(result))
             sys.exit(1)
 
