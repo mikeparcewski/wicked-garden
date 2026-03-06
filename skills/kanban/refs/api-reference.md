@@ -175,6 +175,62 @@ echo '{"text": "Comment text"}' | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" 
 
 Comment fields: `id`, `text`, `author`, `created_at`. Accepts both `text` and `body` as input (normalizes to `text`).
 
+## Initiative Commands
+
+### list-initiatives
+
+List all initiatives in a project.
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-initiatives PROJECT_ID [--board-type TYPE]
+```
+
+**Arguments:**
+- `project_id` (required): Project ID
+- `--board-type`: Filter results to a specific board type (`crew`, `jam`, `collaboration`, `issues`)
+
+**Example:**
+```bash
+# All initiatives
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-initiatives abc12345
+
+# Only jam board initiatives
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-initiatives abc12345 --board-type jam
+```
+
+### create-initiative
+
+Create a new initiative with a scoped board type.
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-initiative PROJECT_ID "Name" [--board-type TYPE] [--goal "Goal"] [--status STATUS]
+```
+
+**Arguments:**
+- `project_id` (required): Project ID
+- `name` (required): Initiative name
+- `--board-type`, `-b`: Board type — `crew` (default), `jam`, `collaboration`, `issues`
+- `--goal`: Initiative goal description
+- `--status`: Initial status (default: `planning`)
+- `--start`: Start date (YYYY-MM-DD)
+- `--end`: End date (YYYY-MM-DD)
+
+Creating an initiative automatically provisions any board-type-specific swimlanes that don't already exist.
+
+**Example:**
+```bash
+# Default crew board
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-initiative abc12345 "Sprint 4"
+
+# Jam board for a brainstorm session
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-initiative abc12345 "API Design" --board-type jam
+
+# Collaboration board
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-initiative abc12345 "Partner Review" --board-type collaboration
+```
+
+For column schemas per board type, see `refs/scoped-boards.md`.
+
 ## Search
 
 Search tasks across projects.

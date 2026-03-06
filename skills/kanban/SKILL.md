@@ -86,6 +86,30 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py search "search query"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py search "search query" --project PROJECT_ID
 ```
 
+## Scoped Boards
+
+Four board types with purpose-built column schemas:
+
+| Board Type | Terminal Column | Best For |
+|------------|----------------|----------|
+| `crew` (default) | `done` (Done) | Software development, crew phases |
+| `jam` | `jam:decision_made` (Decision Made) | Brainstorming, design decisions |
+| `collaboration` | `collab:complete` (Complete) | Cross-team workflows |
+| `issues` | `done` (Done) | Bug tracking, general issues |
+
+Create a typed initiative with `--board-type`:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-initiative PROJECT_ID "API Design" --board-type jam
+# or: /wicked-garden:kanban:initiative create "API Design" --board-type jam
+```
+
+Filter board-status: `/wicked-garden:kanban:board-status --board-type jam`
+
+Reaching a terminal column on jam or collaboration boards auto-writes a wicked-mem record (`decision` or `finding`). Crew and issues boards do not trigger mem writes.
+
+See `refs/scoped-boards.md` for full column schemas, provisioning rules, and CLI examples.
+
 ## When to Use Script vs TodoWrite
 
 ### Prefer Kanban Script For
@@ -99,9 +123,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py search "search query" --p
 
 TodoWrite calls are automatically synced to a "Claude Tasks" project on the kanban board via the PostToolUse hook. Tasks are organized into **session-based sprints** for better organization.
 
-**Session Naming:** Use `/wicked-garden:kanban:name-session "Feature Name"` to give the current session a descriptive name. This creates sprints like "Session: Feature Name - a1b2c3d4" instead of generic date-based names.
-
-**Sprint Organization:** Each Claude Code session gets its own sprint, so you can filter the board by session to see what was worked on.
+Use `/wicked-garden:kanban:name-session "Feature Name"` to name the session sprint. Each session gets its own sprint for easy filtering.
 
 ## Web UI
 
@@ -164,24 +186,14 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TA
 | Link commit | `add-commit PROJECT_ID TASK_ID HASH` |
 | Add artifact | `add-artifact PROJECT_ID TASK_ID "Name" --type file` |
 | Project comment | `add-project-comment PROJECT_ID "Text"` |
-| Project artifact | `add-project-artifact PROJECT_ID "Name" --url URL` |
 | Search | `search "query"` |
-| List sprints | `list-sprints PROJECT_ID` |
-| Create sprint | `create-sprint PROJECT_ID "Name" --start DATE` |
-| Update sprint | `update-sprint PROJECT_ID SPRINT_ID --status active` |
-| Delete sprint | `delete-sprint PROJECT_ID SPRINT_ID` |
-
-## Data Storage
-
-Tasks are stored as JSON files in `{SM_LOCAL_ROOT}/wicked-kanban/projects/`. Each project has its own file containing swimlanes, tasks, sprints, and metadata.
+| Create initiative | `create-initiative PROJECT_ID "Name" --board-type jam` |
+| List initiatives | `list-initiatives PROJECT_ID --board-type jam` |
 
 ## Additional Resources
 
-### Reference Files
-
-For detailed patterns and workflows:
-
-- **`refs/api-reference.md`** - Core script commands (projects, tasks, search)
-- **`refs/api-advanced.md`** - Advanced features (sprints, artifacts, data model)
-- **`refs/workflow-patterns.md`** - Common workflow examples (feature dev, bug fix, session resume)
-- **`refs/advanced-patterns.md`** - Sprint planning, dependency graphs, project docs, priority filtering
+- **`refs/api-reference.md`** — Core script commands (projects, tasks, initiatives, search)
+- **`refs/api-advanced.md`** — Advanced features (sprints, artifacts, data model)
+- **`refs/scoped-boards.md`** — Full column schemas, provisioning, wicked-mem triggers
+- **`refs/workflow-patterns.md`** — Common workflow examples (feature dev, bug fix, session resume)
+- **`refs/advanced-patterns.md`** — Sprint planning, dependency graphs, priority filtering
