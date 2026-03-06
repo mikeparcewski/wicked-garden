@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.30.0] - 2026-03-06
+
+### Features
+- feat: eliminate control plane — skill-owned data with integration-discovery routing (closes #273) (78410fb)
+- feat: expand QE across the full lifecycle (closes #271) (773f78b)
+
+### Chores
+- release: wicked-garden v1.29.0 (d0427ff)
+
 ## [1.29.0] - 2026-03-06
 
 ### Features
