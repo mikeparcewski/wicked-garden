@@ -1,8 +1,8 @@
 ---
-name: ai-collaboration
+name: multi-model
 description: |
-  Multi-AI collaboration: discover authenticated model providers and orchestrate
-  multi-model council sessions, cross-model reviews, and diverse perspective gathering.
+  Multi-model AI collaboration: discover authenticated providers and orchestrate
+  council sessions, cross-model reviews, and diverse perspective gathering.
   Uses the collaboration API to spawn real agent sessions with different models per persona.
   Preferences stored in wicked-mem. Conversations tracked in wicked-kanban.
 
@@ -12,10 +12,10 @@ description: |
   - Council sessions with multiple AI models
   - Second opinion from a different AI
   - Multi-model code review or architecture critique
-  - "ai collaboration", "multi-model", "cross-ai", "council"
+  - "multi-model", "council", "cross-ai", "diverse perspectives", "second opinion"
 ---
 
-# AI Collaboration Skill
+# Multi-Model Collaboration Skill
 
 Orchestrate multi-model AI collaboration using the collaboration API.
 Each council member gets a different model provider for genuine perspective diversity.
@@ -160,3 +160,16 @@ Dissent: none." type=decision tags=auth,multi-model-review
 If the `/collaborations/:id/run` endpoint fails (e.g. no agents registered,
 bridge unavailable), the council gracefully falls back to single-model
 prompt-based jam using the current pi session.
+
+## References
+
+**Orchestration:**
+- [Orchestration Patterns](refs/orchestration.md) — API architecture, model rotation, agent spawning
+- [Context Management](refs/context.md) — Session state, cross-AI handoffs, context windows
+
+**CLI Providers:**
+- [Codex](refs/codex.md) | [Gemini](refs/gemini.md) | [OpenCode](refs/opencode.md) | [Pi](refs/pi.md)
+
+**Quality:**
+- [Auditability](refs/auditability.md) — Audit trails, compliance, decision tracking
+- [Examples](refs/examples.md) — ADR templates, synthesis patterns, review templates
