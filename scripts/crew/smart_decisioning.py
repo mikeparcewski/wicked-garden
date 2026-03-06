@@ -125,6 +125,12 @@ SIGNAL_KEYWORDS = {
         "greenfield", "from scratch", "never done", "unfamiliar",
         "research", "spike", "experiment*", "evaluat*",
     ],
+    "quality": [
+        "quality", "testing", "coverage", "reliability", "qe", "test strategy",
+        "acceptance criteria", "testability", "tdd", "regression", "lint",
+        "static analysis", "slo", "error rate", "error budget", "canary",
+        "rollback", "performance regression", "quality gate", "shift-left",
+    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -148,6 +154,7 @@ SIGNAL_TO_SPECIALISTS = {
     "text-as-code": {"wicked-qe", "wicked-engineering"},
     "reversibility": {"wicked-platform", "wicked-delivery"},
     "novelty": {"wicked-jam", "wicked-engineering"},
+    "quality": {"wicked-qe"},
 }
 
 # Built-in fallback agents for unavailable specialists
