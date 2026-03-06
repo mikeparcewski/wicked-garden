@@ -1,107 +1,147 @@
 ---
 name: ai-collaboration
 description: |
-  Multi-AI CLI collaboration: discover and orchestrate codex, gemini, opencode, pi, and claude
-  CLIs for multi-model analysis, council sessions, and cross-AI review workflows.
+  Multi-AI collaboration: discover authenticated model providers and orchestrate
+  multi-model council sessions, cross-model reviews, and diverse perspective gathering.
+  Uses the collaboration API to spawn real agent sessions with different models per persona.
   Preferences stored in wicked-mem. Conversations tracked in wicked-kanban.
 
   Use when:
-  - "codex", "gemini", "opencode", "pi cli", "claude cli"
   - Running multi-model analysis or design review
   - Getting diverse AI perspectives on a decision
   - Council sessions with multiple AI models
   - Second opinion from a different AI
   - Multi-model code review or architecture critique
-  - "ai collaboration", "multi-model", "cross-ai"
+  - "ai collaboration", "multi-model", "cross-ai", "council"
 ---
 
 # AI Collaboration Skill
 
-Discover and orchestrate AI CLIs for multi-model collaboration. Get diverse perspectives,
-run council sessions, and persist decisions with full attribution.
+Orchestrate multi-model AI collaboration using the collaboration API.
+Each council member gets a different model provider for genuine perspective diversity.
+
+## How It Works
+
+The collaboration system **does NOT shell out to CLIs**. Instead:
+
+1. **Model Discovery** — `AuthStorage.create()` checks which providers have valid API keys
+   (Anthropic, Google/Gemini, OpenAI/Codex, etc.)
+2. **Model Rotation** — `CollaborationService.resolveModelAssignments()` round-robins
+   authenticated models across personas so each council member uses a different model
+3. **Agent Spawning** — Each persona gets a real `AgentRuntime` session via `AgentBridge.spawn()`
+   with its assigned model spec (e.g. `anthropic:claude-opus-4-6`, `google-gemini-cli:gemini-2.5-pro`)
+4. **Perspective Collection** — Outputs are captured from each session and persisted as
+   `perspectives` on the collaboration record
+5. **Synthesis** — The current pi session synthesizes all perspectives with full model attribution
 
 ## Quick Start
 
 ```bash
-# Discover installed AI CLIs
-/wicked-garden:ai-collaboration:collaborate --discover
+# Council mode — spawns agents with different models per persona
+/jam:council "Should we use JWT or sessions for auth?"
 
-# Multi-model review of a file
-/wicked-garden:ai-collaboration:collaborate --review design.md
+# Quick jam — single model, 4 personas, fast
+/jam:quick "How should we improve the visual design?"
 
-# Council session on a decision
-/wicked-garden:ai-collaboration:collaborate --council "Should we use JWT or sessions?"
+# Full brainstorm — single model, 4-6 personas, 2-3 rounds
+/jam:brainstorm "Architecture for the notification system"
 ```
 
-## CLI Discovery
+## Model Assignment
 
-Use `command -v` to detect installed AI CLIs — no external dependencies:
+### Automatic (Default)
 
-```bash
-# Detect all AI CLIs
-command -v codex    &>/dev/null && echo "codex: $(command -v codex)"
-command -v gemini   &>/dev/null && echo "gemini: $(command -v gemini)"
-command -v opencode &>/dev/null && echo "opencode: $(command -v opencode)"
-command -v pi       &>/dev/null && echo "pi: $(command -v pi)"
-command -v claude   &>/dev/null && echo "claude: $(command -v claude)"
+When no explicit model map is provided, the system:
+
+1. Discovers all authenticated providers via `AuthStorage`
+2. Deduplicates by provider family (e.g. `openai-codex` and `openai` count as one)
+3. Round-robins assignments across personas
+
+Example with 3 authenticated providers and 5 personas:
+```
+architect       → anthropic:claude-opus-4-6
+security-eng    → google-gemini-cli:gemini-2.5-pro
+product-manager → openai-codex:gpt-5.3-codex
+ux-designer     → anthropic:claude-opus-4-6    (wraps around)
+staff-engineer  → google-gemini-cli:gemini-2.5-pro
 ```
 
-## CLI Reference
+### Explicit (via config.model_map)
 
-| CLI | Install | Strength | Key Command |
-|-----|---------|----------|-------------|
-| `codex` | `brew install codex` | Code generation, refactoring | `codex exec "..."` |
-| `gemini` | `npm i -g @google/gemini-cli` | Long context, broad analysis | `cat file \| gemini "..."` |
-| `opencode` | `brew install opencode` | Multi-provider, TUI, GitHub PRs | `opencode run "..." -f file` |
-| `pi` | `brew install pi-mono` | Empathetic reasoning, UX tone | `pi exec "..."` |
-| `claude` | `npm i -g @anthropic/claude-cli` | In-conversation (current session) | (inline) |
+Pass a `model_map` in the collaboration config to override specific roles:
 
-→ See [refs/codex.md](refs/codex.md) — Codex CLI patterns
-→ See [refs/gemini.md](refs/gemini.md) — Gemini CLI patterns
-→ See [refs/opencode.md](refs/opencode.md) — OpenCode CLI patterns
-→ See [refs/pi.md](refs/pi.md) — Pi CLI patterns
-→ See [refs/orchestration.md](refs/orchestration.md) — Multi-model orchestration
-
-## Multi-Model Workflow
-
-### 1. Gather Perspectives
-
-Run the same focused prompt across detected CLIs:
-
-```bash
-PROMPT="Review this auth design for security and scalability"
-CONTEXT_FILE="docs/auth-design.md"
-
-cat "$CONTEXT_FILE" | gemini "$PROMPT"
-cat "$CONTEXT_FILE" | codex exec "$PROMPT"
-opencode run "$PROMPT" -f "$CONTEXT_FILE" -m openai/gpt-4o
-cat "$CONTEXT_FILE" | pi exec "$PROMPT"
+```json
+{
+  "config": {
+    "personas": ["architect", "security-engineer", "ux-designer"],
+    "model_map": {
+      "architect": "anthropic:claude-opus-4-6",
+      "security-engineer": "google-gemini-cli:gemini-2.5-pro",
+      "ux-designer": "openai:gpt-5.2"
+    }
+  }
+}
 ```
 
-### 2. Track in Kanban
+Unmapped roles auto-rotate through remaining authenticated models.
 
-Create a task so all AI perspectives are visible to the team:
+## Architecture
 
-```bash
-/wicked-garden:kanban:new-task "Multi-model review: Auth design" --priority P1
-# Add each response as a comment with attribution
+```
+┌─────────────────────────────────────────────────────┐
+│  wg-jam.ts Extension (pi session)                    │
+│  - /jam:council creates collaboration                │
+│  - POST /collaborations/:id/run triggers multi-model │
+│  - Receives perspectives, asks pi to synthesize      │
+├─────────────────────────────────────────────────────┤
+│  CollaborationService.runSession()                   │
+│  - resolveModelAssignments() → picks models          │
+│  - AgentService.spawn() per persona with model spec  │
+│  - Polls for outputs, persists perspectives          │
+├─────────────────────────────────────────────────────┤
+│  AgentBridge.spawn()                                 │
+│  - Creates AgentRuntime with model:                  │
+│    getModel(provider, modelId) → PiAgent             │
+│  - Each runtime has its own auth + provider          │
+├─────────────────────────────────────────────────────┤
+│  Model Providers (via @mariozechner/pi-ai)           │
+│  - anthropic:claude-opus-4-6                         │
+│  - google-gemini-cli:gemini-2.5-pro                  │
+│  - openai-codex:gpt-5.3-codex                        │
+│  - openai:gpt-5.2                                    │
+└─────────────────────────────────────────────────────┘
 ```
 
-### 3. Synthesize
+## Synthesis Framework
+
+After gathering perspectives from different models, synthesize using:
 
 | Signal | Meaning | Action |
 |--------|---------|--------|
-| Consensus (2+ agree) | High confidence | Address immediately |
-| Unique insight | One AI caught it | Evaluate carefully |
-| Disagreement | Genuine tradeoff | Human decides |
+| **Consensus** (2+ models agree) | High confidence issue | Address immediately |
+| **Unique insight** | One model caught it | Evaluate carefully |
+| **Disagreement** | Genuine tradeoff | Human decides |
+| **Silence** | No model flagged it | Lower priority |
 
-### 4. Persist Decision
+## Persistence
+
+### Automatic (via wg-jam extension)
+
+Council results are automatically persisted:
+- Collaboration record with all perspectives + model attribution
+- Events emitted: `collaboration:created`, `collaboration:perspective:added`,
+  `collaboration:run:completed`
+- Each perspective's metadata includes `model` and `session_id`
+
+### Manual (via wicked-mem)
+
+Store decisions with full attribution:
 
 ```bash
-/wicked-garden:mem:store "Auth: JWT with 15min/7day expiry.
+/memory_write content="Auth: JWT with 15min/7day expiry.
 Consensus: Claude, Gemini, Codex (idempotency critical).
-Unique: Pi flagged UX confusion on session expiry messaging." \
-  --type decision --tags auth,multi-model-review
+Unique: Gemini flagged session store scaling concern.
+Dissent: none." type=decision tags=auth,multi-model-review
 ```
 
 ## When to Use Multi-Model
@@ -111,44 +151,12 @@ Unique: Pi flagged UX confusion on session expiry messaging." \
 | Architecture decisions | Yes — high impact, catch blind spots |
 | Security review | Yes — different models flag different risks |
 | Important PRs | Yes — diverse review perspectives |
+| Visual/UX design | Yes — different aesthetic sensibilities |
 | Quick bug fix | No — overhead not worth it |
 | Routine code | No — single AI sufficient |
 
-## Preference Storage
+## Fallback Behavior
 
-Store preferred CLI configuration in wicked-mem for reuse:
-
-```bash
-/wicked-garden:mem:store "AI CLI preferences: gemini for long docs, codex for code review,
-pi for UX/tone evaluation, opencode for multi-provider comparison." \
-  --type procedural --tags ai-collaboration,preferences
-```
-
-Recall preferences:
-
-```bash
-/wicked-garden:mem:recall "ai cli preferences"
-```
-
-## Output Format
-
-```markdown
-## Multi-Model Review: [Topic]
-Models: Claude (inline), Gemini, Codex, OpenCode, Pi
-
-### Consensus (flagged by 2+)
-- Issue 1
-- Issue 2
-
-### Unique Insights
-- **Gemini**: [long-context catch]
-- **Pi**: [UX/human factor]
-- **Codex**: [architectural note]
-
-### Decision
-[What was decided and why]
-
-### Stored
-- wicked-mem [memory ID]
-- wicked-kanban [task ID]
-```
+If the `/collaborations/:id/run` endpoint fails (e.g. no agents registered,
+bridge unavailable), the council gracefully falls back to single-model
+prompt-based jam using the current pi session.
