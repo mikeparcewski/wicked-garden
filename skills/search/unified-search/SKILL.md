@@ -3,7 +3,7 @@ name: unified-search
 description: |
   This skill should be used when searching code, finding documentation,
   understanding code-doc relationships, or performing impact analysis.
-  Triggered by queries like "search code", "find function", "find class",
+  Use when: "search code", "find function", "find class",
   "where is defined", "search docs", "PDF content", "cross reference",
   "impact analysis", "blast radius", "what calls this", "find all references".
 

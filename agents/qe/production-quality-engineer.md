@@ -5,7 +5,7 @@ description: |
   performance regressions, and canary analysis. Defines rollback criteria.
   Use when: post-deploy, production monitoring, SLO, error rate, rollback criteria, canary, performance regression
 model: sonnet
-color: orange
+color: yellow
 ---
 
 # Production Quality Engineer

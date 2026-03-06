@@ -1,7 +1,7 @@
 ---
 name: presentation
-description: >
-  Presentation creation skill. Triggers on: "make a deck", "build a presentation", "I need slides
+description: |
+  Presentation creation skill. Use when: "make a deck", "build a presentation", "I need slides
   on X", "turn this into a presentation", "make a reveal.js deck", "learn my brand", "extract
   styles", "sync registry", "render as HTML." Four creation modes (brainstorm, create, fast path,
   overview), style learning from existing assets, shared design registry, and dual-format rendering
