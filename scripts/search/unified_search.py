@@ -2025,6 +2025,92 @@ class UnifiedSearchIndex:
 # CLI
 # =============================================================================
 
+def _load_external_results(query: str, limit: int = 10, domain_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Load and score results from the external JSONL index.
+
+    Reads ~/.something-wicked/wicked-search/external/index.jsonl (or the
+    StorageManager equivalent).  Each entry is a GraphNode-compatible dict
+    written by ExternalIndexer.index_content().
+
+    Scoring is a simple case-insensitive term-frequency approach — good enough
+    for surface attribution and avoids importing the full search engine.
+
+    Args:
+        query: The search query string.
+        domain_filter: If 'code', skip entries whose content_type is 'document'.
+                       If 'doc', skip entries whose content_type is 'code'.
+                       None means return all.
+        limit: Maximum external results to return.
+
+    Returns:
+        List of result dicts compatible with format_results().
+    """
+    # Intentionally global (not project-scoped) — matches ExternalIndexer._get_external_index_path()
+    external_dir = Path.home() / ".something-wicked" / "wicked-search" / "external"
+    index_path = external_dir / "index.jsonl"
+
+    if not index_path.exists():
+        return []
+
+    query_terms = query.lower().split()
+    if not query_terms:
+        return []
+
+    scored: List[Tuple[float, Dict[str, Any]]] = []
+
+    try:
+        with open(index_path, "r", encoding="utf-8") as fh:
+            for raw_line in fh:
+                raw_line = raw_line.strip()
+                if not raw_line:
+                    continue
+                try:
+                    node = json.loads(raw_line)
+                except json.JSONDecodeError:
+                    continue
+
+                meta = node.get("metadata", {})
+                content_type = meta.get("content_type", "document")
+
+                # Apply domain filter
+                if domain_filter == "code" and content_type not in ("code",):
+                    continue
+                if domain_filter == "doc" and content_type not in ("document", "ticket"):
+                    continue
+
+                # Score: count term hits in name + content
+                searchable = " ".join([
+                    node.get("name", ""),
+                    node.get("content", ""),
+                ]).lower()
+
+                score = sum(searchable.count(term) for term in query_terms)
+                if score == 0:
+                    continue
+
+                source_name = meta.get("source_name", "external")
+                result = {
+                    "id": node.get("id", ""),
+                    "name": f"[external: {source_name}] {node.get('name', '')}",
+                    "type": node.get("type", "doc_page"),
+                    "domain": "doc",
+                    "file_path": node.get("file", ""),
+                    "line_start": node.get("line_start", 1),
+                    "score": float(score),
+                    "content": node.get("content", "")[:200],
+                    "source": "external",
+                    "source_name": source_name,
+                }
+                scored.append((score, result))
+
+    except OSError:
+        return []
+
+    # Return top results ordered by score descending
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [r for _, r in scored[:limit]]
+
+
 def format_results(results: List[Dict[str, Any]], title: str = "Results") -> str:
     """Format search results for display."""
     if not results:
@@ -2538,6 +2624,12 @@ async def main():
 
             # Apply limit after filtering
             results = results[:args.limit]
+
+            # Merge external index results (all content types)
+            external = _load_external_results(args.query, limit=max(5, args.limit // 2))
+            if external:
+                results = results + external
+
             print(format_results(results, "Search Results"))
 
         elif args.command == "code":
@@ -2551,10 +2643,22 @@ async def main():
 
             # Apply limit after filtering
             results = results[:args.limit]
+
+            # Merge external index results filtered to code content type
+            external = _load_external_results(args.query, limit=max(5, args.limit // 2), domain_filter="code")
+            if external:
+                results = results + external
+
             print(format_results(results, "Code Results"))
 
         elif args.command == "docs":
             results = engine.search_docs(args.query, limit=args.limit)
+
+            # Merge external index results filtered to document/ticket content types
+            external = _load_external_results(args.query, limit=max(5, args.limit // 2), domain_filter="doc")
+            if external:
+                results = results + external
+
             print(format_results(results, "Document Results"))
 
         elif args.command == "refs":

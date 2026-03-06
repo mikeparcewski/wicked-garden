@@ -18,6 +18,7 @@ Transcript entry schema:
         "persona_name": "Technical Architect",
         "persona_type": "technical",   # technical | user | business | process | council
         "raw_text": "...",
+        "thinking": "...",             # optional: pre-synthesis deliberation (alternatives, trade-offs)
         "timestamp": "...",
         "entry_type": "perspective"    # perspective | synthesis | council_response
     }
@@ -177,6 +178,9 @@ def _print_entry(entry: dict, index: int = None) -> None:
 
     print(f"\n{prefix}Round {round_num} — {persona}{ptype_label}{type_label}{ts_label}")
     print("-" * 60)
+    thinking = entry.get("thinking", "").strip()
+    if thinking:
+        print(f"[thinking]\n{thinking}\n")
     print(entry.get("raw_text", "").strip())
 
 
@@ -268,6 +272,9 @@ def main():
             sid = result.get("session_id", "")
             entries = result["entries"]
             print(f"Pre-synthesis perspectives — session: {sid}  ({len(entries)} entries)")
+            entries_with_thinking = [e for e in entries if e.get("thinking", "").strip()]
+            if entries and not entries_with_thinking:
+                print("No thinking data available for this session.")
             for i, entry in enumerate(entries, start=1):
                 _print_entry(entry, index=i)
 
