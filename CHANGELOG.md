@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.28.0] - 2026-03-06
+
+### Bug Fixes
+- fix: suppress CP warning noise at normal log levels (closes #276) (00ebf82)
+
 ## [1.27.0] - 2026-03-06
 
 ### Features
