@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.21.0] - 2026-03-05
+
+### Features
+- feat: close issues #252, #258 — worktree isolation, library knowledge base, smart naming (96dabd3)
+
 ## [1.20.0] - 2026-03-05
 
 ### Features
