@@ -164,6 +164,35 @@ class Orchestrator:
         """Record a turn in session history."""
         self.condenser.add_turn(user_msg, assistant_msg, tools_used, intent_type=intent_type)
 
+    def gather_context_sync(self, prompt: str) -> "ContextResult":
+        """Synchronous bridge for hook invocation.
+
+        Safe because Claude Code hook scripts run in fresh subprocesses — there is
+        no running asyncio event loop when the hook starts. Uses asyncio.run() as
+        the canonical stdlib-safe entry point.
+
+        Defensive: if a running loop is detected (e.g. future executor model),
+        falls back to run_coroutine_threadsafe rather than crashing.
+
+        See architecture.md — Async Bridge Design for full rationale.
+        """
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Unexpected running loop (future Claude Code executor variant).
+            # Delegate to the existing loop via a thread-safe future.
+            import concurrent.futures
+            future = asyncio.run_coroutine_threadsafe(
+                self.gather_context(prompt), loop
+            )
+            return future.result(timeout=10)
+
+        return asyncio.run(self.gather_context(prompt))
+
 
 def main():
     """CLI for orchestrator."""

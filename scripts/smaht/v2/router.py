@@ -59,6 +59,7 @@ INTENT_PATTERNS = {
         r"\b(documentation|docs|reference|guide)\b",
         r"(tell me about|show me|describe|defined|available)\b",
         r"^(what|where|how|which|why|who)\b",  # Questions starting with W-words
+        r"\b(recall|remember|look up|look for|locate|show|display)\b",  # Memory/recall verbs
     ],
     IntentType.IMPLEMENTATION: [
         r"\b(build|implement|create|add|write|make|code)\b",
@@ -101,6 +102,10 @@ CONTINUATION_PATTERNS = [
     r"^(do it|go ahead|go for it|sounds good|looks good|ship it|proceed|continue|carry on|next)\.?$",
     r"^(thanks|thank you|ty|thx)\.?$",
     r"^(that|this|it|the same)$",
+    # Multi-word continuation phrases — "ok, continue", "yes, proceed", "lgtm", etc.
+    r"^(ok|okay|yes|yeah|yep|sure|agreed)[,.]?\s+(continue|proceed|go ahead|do it|carry on)\.?$",
+    r"^(lgtm|done|confirmed?|approved?|looks? good|sounds? good)\.?$",
+    r"^(no|nope|nah|cancel|stop|abort|skip)\.?$",
 ]
 
 
@@ -336,10 +341,17 @@ class Router:
         )
 
     def _use_fast_path(self, analysis: PromptAnalysis) -> bool:
-        """Check if fast path is appropriate."""
+        """Check if fast path is appropriate.
+
+        Confidence threshold is 0.5 (matching the escalation lower-bound) so that
+        a single clear intent signal (e.g. "find", "recall") produces FAST routing.
+        The pre-refactor hook used any matched intent keyword as sufficient — the
+        v2 threshold mirrors that: one pattern match gives score=0.3 → confidence=0.51
+        which clears this threshold.
+        """
         return (
             analysis.word_count < 100 and
-            analysis.confidence > 0.7 and
+            analysis.confidence > 0.5 and
             analysis.entity_count <= 5 and
             not analysis.is_novel
         )

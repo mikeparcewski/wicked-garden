@@ -1,260 +1,200 @@
 # Multi-Model Orchestration Patterns
 
-Patterns for coordinating multiple AI CLIs: gathering perspectives, managing context,
-synthesizing results, and building audit trails.
+Patterns for coordinating multiple AI models via the collaboration API.
+No CLI shelling required — models are spawned as real agent sessions
+with different providers assigned per persona.
 
 ## The Orchestration Loop
 
 ```
-1. Establish context (kanban task as shared memory)
-2. Gather perspectives (same prompt, multiple CLIs)
-3. Synthesize (consensus → unique → disagreements)
-4. Persist decision (wicked-mem + kanban attribution)
+1. Create collaboration (POST /scopes/:id/collaborations)
+2. Run session (POST /collaborations/:id/run)
+   → Backend discovers authenticated models
+   → Assigns different model per persona (round-robin)
+   → Spawns AgentRuntime sessions in parallel
+   → Collects outputs as perspectives
+3. Synthesize (current session reviews all perspectives)
+4. Persist decision (wicked-mem + collaboration record)
 ```
 
-## Context Management
+## How Model Assignment Works
 
-### Kanban as Shared Memory
+### Discovery
 
-Use a wicked-kanban task so all AI perspectives are visible to the team:
+```typescript
+// CollaborationService calls discoverAuthenticatedModels()
+// which uses AuthStorage.create() to check provider credentials:
 
-```bash
-# Create the shared context task
-/wicked-garden:kanban:new-task "Design review: Auth system" --priority P1
+const MODEL_POOL = [
+  { provider: 'anthropic',         modelId: 'claude-opus-4-6' },
+  { provider: 'google-gemini-cli', modelId: 'gemini-2.5-pro' },
+  { provider: 'openai-codex',      modelId: 'gpt-5.3-codex' },
+  { provider: 'openai',            modelId: 'gpt-5.2' },
+  { provider: 'google',            modelId: 'gemini-2.5-pro' },
+];
 
-# Build context document all AIs reference
-CONTEXT=$(cat docs/auth-design.md)
-
-# Each AI query includes prior feedback
-PRIOR=$(# fetch prior AI comments from kanban)
-echo "${CONTEXT}
-
-Prior AI feedback:
-${PRIOR}
-
-Your task: Build on the prior feedback. What's missing?" | gemini
+// Only models with valid API keys are included.
+// Provider families are deduplicated (openai-codex + openai = 1 slot).
 ```
 
-### Context Layers
+### Round-Robin Assignment
 
 ```
-┌────────────────────────────────────────┐
-│  Shared Context (wicked-kanban)        │  ← All AIs reference
-├────────────────────────────────────────┤
-│  Per-AI Session State                  │  ← CLI-specific memory
-├────────────────────────────────────────┤
-│  Prompt Context (files, snippets)      │  ← What you send each time
-└────────────────────────────────────────┘
+5 personas, 3 authenticated providers:
+
+architect       → anthropic:claude-opus-4-6      [index 0]
+security-eng    → google-gemini-cli:gemini-2.5-pro [index 1]
+product-manager → openai-codex:gpt-5.3-codex     [index 2]
+ux-designer     → anthropic:claude-opus-4-6       [index 0, wraps]
+staff-engineer  → google-gemini-cli:gemini-2.5-pro [index 1, wraps]
+```
+
+### Explicit Override
+
+Pass `config.model_map` when creating a collaboration:
+
+```json
+{
+  "type": "jam:council",
+  "topic": "Auth architecture review",
+  "config": {
+    "personas": ["architect", "security-engineer", "ux-designer"],
+    "model_map": {
+      "architect": "anthropic:claude-opus-4-6",
+      "security-engineer": "google-gemini-cli:gemini-2.5-pro"
+    }
+  }
+}
+```
+
+Unmapped roles get auto-assigned via round-robin.
+
+## Context Layers
+
+```
+┌────────────────────────────────────────────┐
+│  Collaboration Record (perspectives[])      │  ← All model outputs stored
+├────────────────────────────────────────────┤
+│  Per-Session Runtime State                  │  ← Each AgentRuntime has own model
+├────────────────────────────────────────────┤
+│  Prompt Context (collaboration.prompt)      │  ← Shared prompt to all personas
+└────────────────────────────────────────────┘
 ```
 
 ## Gathering Perspectives
 
-### Parallel Collection Script
+### Via Collaboration API (Recommended)
 
 ```bash
-#!/bin/bash
-# multi-review.sh - Gather perspectives from multiple AI CLIs
-CONTEXT_FILE=$1
-PROMPT=$2
+# 1. Create collaboration
+curl -X POST http://localhost:18889/api/v1/scopes/$SCOPE_ID/collaborations \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "jam:council",
+    "topic": "Should we use JWT or sessions?",
+    "prompt": "Review auth design for security, scalability, and UX",
+    "config": { "personas": ["architect", "security-engineer", "ux-designer"] }
+  }'
 
-echo "=== Claude's Perspective ==="
-echo "(Inline in current conversation)"
-echo
+# 2. Run multi-model session (spawns agents with different models)
+curl -X POST http://localhost:18889/api/v1/collaborations/$COLLAB_ID/run
 
-echo "=== Gemini's Perspective ==="
-cat "$CONTEXT_FILE" | gemini "$PROMPT" 2>/dev/null || echo "gemini not available"
-echo
-
-echo "=== Codex's Perspective ==="
-cat "$CONTEXT_FILE" | codex exec "$PROMPT" 2>/dev/null || echo "codex not available"
-echo
-
-echo "=== OpenCode (GPT-4o) Perspective ==="
-opencode run "$PROMPT" -f "$CONTEXT_FILE" -m openai/gpt-4o 2>/dev/null || echo "opencode not available"
-echo
-
-echo "=== Pi's Perspective (human factors) ==="
-cat "$CONTEXT_FILE" | pi exec "$PROMPT" 2>/dev/null || echo "pi not available"
+# 3. Check perspectives
+curl http://localhost:18889/api/v1/collaborations/$COLLAB_ID
+# → perspectives[] with model attribution in metadata
 ```
+
+### Via /jam:council Command
 
 ```bash
-chmod +x multi-review.sh
-./multi-review.sh docs/design.md "Review for security, scalability, and user impact"
-```
-
-### Python Orchestrator
-
-```python
-#!/usr/bin/env python3
-"""Orchestrate multi-model reviews."""
-
-import subprocess
-import sys
-from pathlib import Path
-
-def query_model(name: str, cmd: list[str], stdin: str | None = None) -> str | None:
-    try:
-        proc = subprocess.run(
-            cmd, input=stdin, capture_output=True, text=True, timeout=120
-        )
-        return proc.stdout.strip() if proc.returncode == 0 else None
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-
-def main(context_file: str, prompt: str):
-    context = Path(context_file).read_text()
-
-    models = {
-        "Gemini": (["gemini", prompt], context),
-        "Codex":  (["codex", "exec", prompt], context),
-        "OpenCode": (["opencode", "run", prompt, "-f", context_file, "-m", "openai/gpt-4o"], None),
-        "Pi": (["pi", "exec", prompt], context),
-    }
-
-    for name, (cmd, stdin) in models.items():
-        print(f"\n## {name}\n")
-        result = query_model(name, cmd, stdin)
-        print(result if result else f"({name} not available)")
-
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python orchestrate.py <context-file> <prompt>")
-        sys.exit(1)
-    main(sys.argv[1], sys.argv[2])
-```
-
-## Handoff Patterns
-
-### Independent Review (Best Practice)
-
-Get unbiased opinions before sharing other perspectives:
-
-```bash
-# Get independent reviews
-cat design.md | codex exec "Review for security issues" > codex_review.md
-cat design.md | gemini "Review for security issues" > gemini_review.md
-
-# Then share for comparison
-echo "Codex found: $(cat codex_review.md)
-
-Given this, what did Codex miss or get wrong?" | gemini
-```
-
-### Adversarial Handoff
-
-Explicitly ask for critique of another model's recommendation:
-
-```bash
-echo "Codex recommended using JWT with 15min expiry.
-Argue against this. What are the downsides?" | gemini
-```
-
-### Neutral Handoff
-
-Avoid anchoring bias when you want a fresh perspective:
-
-```bash
-echo "Review this design for security concerns.
-
-Note: Another AI has already reviewed this. After your independent review,
-I'll share their feedback for comparison." | codex exec
+# From pi CLI — handles everything automatically
+/jam:council "Should we use JWT or sessions for auth?"
 ```
 
 ## Synthesis Framework
 
-After gathering perspectives, synthesize using this framework:
+After gathering perspectives, synthesize using:
 
 | Signal | Meaning | Action |
 |--------|---------|--------|
-| **Consensus** (2+ agree) | High confidence issue | Address immediately |
-| **Unique insight** | One AI caught it | Evaluate carefully |
+| **Consensus** (2+ models agree) | High confidence issue | Address immediately |
+| **Unique insight** (1 model) | Worth evaluating | Don't dismiss |
 | **Disagreement** | Genuine tradeoff | Human decides |
-| **Silence** | No AI flagged it | Lower priority |
+| **Silence** | No model flagged it | Lower priority |
 
-### Output Template
+### Synthesis Output Template
 
 ```markdown
-## Multi-Model Review: [Topic]
+## Multi-Model Council: [Topic]
 
-**Models**: Claude (inline), Gemini, Codex, OpenCode, Pi
-**Context**: [What was reviewed]
+**Models**: Claude Opus, Gemini Pro, Codex
+**Personas**: architect, security-engineer, ux-designer
 
 ### Consensus (High Confidence)
-- Issue 1: flagged by Claude, Gemini, Codex
-- Issue 2: flagged by all
+- Issue 1: flagged by Claude, Gemini
+- Issue 2: flagged by all 3
 
 ### Unique Insights
 - **Gemini**: [long-context catch others missed]
-- **Pi**: [user experience concern]
-- **Codex**: [architectural note]
+- **Claude**: [architectural nuance]
+- **Codex**: [implementation detail]
 
 ### Disagreements
-- [Topic]: Gemini says X, Codex says Y → human decides
+- [Topic]: Gemini says X, Claude says Y → human decides
 
-### Decision
-[What was decided and why]
+### Recommended Actions
+1. [Highest priority]
+2. [Second priority]
+
+### Open Questions
+- [What remains unresolved]
 ```
 
 ## Session Management
 
-### When to Start Fresh vs. Continue
+Each persona's agent session is tracked in the sessions table with:
+- `model` — the assigned model spec
+- `scope_id` — same scope as the collaboration
+- `metadata.collaboration_id` — links back to the collaboration record
 
-| Signal | Action |
-|--------|--------|
-| New topic | Fresh context |
-| Building on prior | Continue session |
-| Context polluted | Summarize and restart |
-| Unbiased view needed | Fresh, neutral handoff |
-
-### Per-CLI Session Commands
-
-```bash
-# Gemini
-gemini -r                           # Resume last session
-gemini -i "Starting fresh on X"     # New with initial prompt
-
-# Codex
-codex resume --last                 # Resume
-codex fork --last "Alternative: ..." # Fork to explore variant
-
-# OpenCode
-opencode run -c "Follow-up..."      # Continue last session
-opencode run -s SESSION_ID "..."    # Continue specific session
-```
+Sessions are fire-and-forget: the collaboration service polls for output
+until timeout (`COLLAB_RUN_TURN_TIMEOUT_MS`, default 12s).
 
 ## Persistence
 
-### Store Decisions with Full Attribution
+### Automatic
+
+Every `/collaborations/:id/run` call:
+- Creates session records with model attribution
+- Emits events: `agent:session:spawning`, `agent:session:started`,
+  `collaboration:perspective:added`, `collaboration:run:completed`
+- Stores `model` in each perspective's metadata
+
+### Decision Records
 
 ```bash
-/wicked-garden:mem:store "Payment API: Use Stripe with async webhooks.
-Consensus: Claude, Gemini, Codex (idempotency critical).
-Unique: Pi flagged UX confusion on webhook delay messaging.
-Dissent: none.
-Kanban: TASK-123" \
-  --type decision \
-  --tags payments,architecture,multi-model-review
-
-# Store unique insights separately
-/wicked-garden:mem:store "Insight: Pi caught that our webhook delay message
-caused user anxiety (retried purchases). Added 'processing' state indicator." \
-  --type episodic \
-  --tags ux,pi-insight,payments
+/memory_write content="Auth: JWT with 15min/7day expiry.
+Council: Claude (architect), Gemini (security), Codex (ux).
+Consensus: idempotency critical, session store risky at scale.
+Unique: Gemini flagged Redis cluster cost." \
+  type=decision tags=auth,council
 ```
 
-## Anti-Patterns to Avoid
+## Anti-Patterns
 
-```bash
-# BAD: Too much context
-echo "$ENTIRE_CODEBASE $ALL_PRIOR_DISCUSSIONS" | gemini "Review login"
+```
+# BAD: Shelling out to CLI tools
+cat file.md | gemini "Review this"  # slow, fragile, no persistence
 
-# GOOD: Focused context
-echo "$LOGIN_FUNCTION $AUTH_REQUIREMENTS" | gemini "Review login for security"
+# GOOD: Use collaboration API
+POST /collaborations/:id/run        # fast, model-diverse, persisted
 
-# BAD: Anchoring second AI before independent review
-echo "Claude said X. What do you think?" | codex
+# BAD: Same model for all personas
+config: { default_model: "anthropic:claude-opus-4-6" }  # no diversity
 
-# GOOD: Independent first, compare after
-cat design.md | codex exec "Review" > codex.md
-# Then: "Codex found: $(cat codex.md). What did Codex miss?" | gemini
+# GOOD: Let the system auto-rotate
+config: { personas: [...] }  # backend picks different model per role
+
+# BAD: Manual synthesis by reading CLI output
+# GOOD: Structured synthesis from perspectives[] with model attribution
 ```
