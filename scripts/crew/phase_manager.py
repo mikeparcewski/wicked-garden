@@ -781,13 +781,9 @@ def approve_phase(
             next_phase = phase_order[current_idx + 1]
             # Advance current_phase so callers and saved state reflect the new phase
             state.current_phase = next_phase
-            # Update CP project status when entering review (next phase is review)
-            if next_phase == "review":
-                _update_cp_project_status(state, "in_review")
             return (state, next_phase)
 
     # No next phase — project is complete
-    _update_cp_project_status(state, "completed")
     return (state, None)
 
 

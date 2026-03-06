@@ -11,7 +11,6 @@ The single entry point for getting started with wicked-garden. Always runs inter
 ## Arguments
 
 - `--reconfigure`: Force connection reconfiguration even if already set up
-- `--sync-to-cp`: Sync local wicked-garden data to the control plane. Pushes crew projects and memories that exist locally but not in CP. Useful after working offline or after connecting to a new CP instance.
 
 ## Question Mode
 
@@ -220,7 +219,7 @@ After writing config, update session state for mid-session mode switches:
     sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
     from _session import SessionState
     state = SessionState.load()
-    state.update(cp_available=True, fallback_mode=False, setup_complete=True)
+    state.update(setup_complete=True, setup_confirmed=True)
     print('Session state updated for local mode.')
     "
     ```
@@ -239,7 +238,7 @@ After writing config, update session state for mid-session mode switches:
    sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
    from _session import SessionState
    state = SessionState.load()
-   state.update(cp_available=True, fallback_mode=False, setup_complete=True)
+   state.update(setup_complete=True, setup_confirmed=True)
    print('Session state updated for remote mode.')
    "
    ```
@@ -262,6 +261,89 @@ Status: {Connected | Local fallback}
 ### 4. Run Onboarding
 
 Execute based on the onboarding answer from Step 2.
+
+#### 4.0 Environment Scan (Full and Quick paths only)
+
+Before running onboarding, scan the project environment. Skip this step if the user chose "Skip".
+
+**Detect project type** (languages and frameworks):
+
+```bash
+python3 -c "
+import json
+from pathlib import Path
+cwd = Path.cwd()
+markers = {
+    'Python': ['pyproject.toml', 'setup.py', 'requirements.txt', 'Pipfile'],
+    'Node/TypeScript': ['package.json', 'tsconfig.json'],
+    'Go': ['go.mod'],
+    'Rust': ['Cargo.toml'],
+    'Java/Kotlin': ['pom.xml', 'build.gradle', 'build.gradle.kts'],
+    'Ruby': ['Gemfile'],
+    'PHP': ['composer.json'],
+    'Swift': ['Package.swift'],
+    'C/C++': ['CMakeLists.txt', 'Makefile'],
+}
+frameworks = {
+    'FastAPI': ['app/main.py', 'main.py'],
+    'Django': ['manage.py'],
+    'Flask': ['app.py'],
+    'Next.js': ['next.config.js', 'next.config.ts'],
+    'React': ['src/App.tsx', 'src/App.jsx'],
+    'Vue': ['vue.config.js'],
+    'Rails': ['config/routes.rb'],
+    'Claude Plugin': ['.claude-plugin/plugin.json'],
+}
+detected_langs = [l for l, fs in markers.items() if any((cwd / f).exists() for f in fs)]
+detected_fws = [fw for fw, fs in frameworks.items() if any((cwd / f).exists() for f in fs)]
+print(json.dumps({'languages': detected_langs, 'frameworks': detected_fws}))
+"
+```
+
+**Detect available integrations**:
+
+```bash
+python3 -c "
+import shutil, json
+tools = {
+    'gh': shutil.which('gh') is not None,
+    'tree-sitter': shutil.which('tree-sitter') is not None,
+    'duckdb': shutil.which('duckdb') is not None,
+    'ollama': shutil.which('ollama') is not None,
+    'docker': shutil.which('docker') is not None,
+    'kubectl': shutil.which('kubectl') is not None,
+}
+print(json.dumps(tools))
+"
+```
+
+Store the JSON output from both commands in variables: `DETECTED_LANGS`, `DETECTED_FWS`, `DETECTED_TOOLS`.
+
+**Domain preferences** — ask which issue tracker is used:
+
+**INTERACTIVE mode**: Use AskUserQuestion with header "Issue Tracking", options:
+- "GitHub Issues" = "Use gh cli for issue tracking"
+- "Linear" = "Use Linear API"
+- "Jira" = "Use Jira API"
+- "Local kanban only" = "Use wicked-kanban local board only (default)"
+
+**PLAIN_TEXT mode**: Write default "local" without asking (dangerous mode sessions should not block on preferences).
+
+Write the selection to config.json:
+
+```bash
+python3 -c "
+import json
+from pathlib import Path
+config_path = Path.home() / '.something-wicked' / 'wicked-garden' / 'config.json'
+config = json.loads(config_path.read_text()) if config_path.exists() else {}
+config['domain_prefs'] = {'delivery': '{selection}'}
+config_path.write_text(json.dumps(config, indent=2))
+print('Domain preferences saved.')
+"
+```
+
+Where `{selection}` is one of: `github`, `linear`, `jira`, `local`.
 
 #### 4.1 Full Onboarding
 
@@ -291,6 +373,14 @@ If the user specified custom directories, pass them as context to the onboarding
 
 This handles indexing, exploration, memory storage, and validation.
 
+After onboarding completes, store an enriched onboarding memory with detected context from Step 4.0:
+
+```
+Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.\" --type procedural --tags onboarding,project-context,{project}")
+```
+
+Where `{DETECTED_TOOLS_SUMMARY}` lists only the tools where the value is `true` (e.g., "gh, docker").
+
 #### 4.2 Quick Scout
 
 Ask which directories to scout (same question mode pattern as 4.1 — use AskUserQuestion or plain text depending on mode).
@@ -301,10 +391,10 @@ Run a fast scout:
 Skill(skill="wicked-garden:search:scout")
 ```
 
-Then store a basic onboarding memory:
+Then store an enriched onboarding memory with detected context from Step 4.0:
 
 ```
-Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} quick-scouted on {date}. Full onboarding not yet run.\" --type procedural --tags onboarding,{project}")
+Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.\" --type procedural --tags onboarding,project-context,{project}")
 ```
 
 #### 4.3 Skip
@@ -317,7 +407,10 @@ Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} skipped by 
 
 ### 5. Clear Onboarding Gate
 
-After onboarding (or skip), clear the enforcement gate so prompts are no longer blocked:
+After onboarding (or skip), clear the enforcement gate so prompts are no longer blocked.
+
+Set `{mode}` to `"full"`, `"quick"`, or `"skip"` based on the onboarding path taken.
+Set `{complete}` to `True` for full/quick, `False` for skip.
 
 ```bash
 python3 -c "
@@ -326,21 +419,30 @@ from pathlib import Path
 sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
 from _session import SessionState
 state = SessionState.load()
-state.update(needs_onboarding=False, setup_in_progress=False)
+state.update(
+    needs_onboarding=False,
+    setup_in_progress=False,
+    setup_confirmed=True,
+    onboarding_mode='{mode}',
+    onboarding_complete={complete},
+)
 print('Onboarding gate cleared.')
 "
 ```
 
 ### 6. Done
 
-Show a summary:
+Show a summary with all detected information:
 
 ```
 wicked-garden is ready!
 
-Connection: {mode} ({endpoint or "offline"})
-Onboarding: {Full | Quick scout | Skipped}
-Directories: {paths onboarded}
+Connection:   {mode} ({endpoint or "offline"})
+Onboarding:   {Full | Quick scout | Skipped}
+Directories:  {paths onboarded}
+Project type: {DETECTED_LANGS} / {DETECTED_FWS} (or "Not detected" if scan was skipped)
+Integrations: {list tools where detected=true, e.g. "gh, docker" or "None detected"}
+Preferences:  Delivery → {selected issue tracker}
 
 Quick start:
 - /wicked-garden:help — see all domains and commands
@@ -349,71 +451,9 @@ Quick start:
 - /wicked-garden:search:search "query" — search code and docs
 ```
 
-### sync-to-cp Flow
-
-When `--sync-to-cp` is passed:
-
-1. **Confirm with user before syncing**:
-
-**INTERACTIVE mode**: Use AskUserQuestion with header "Sync", question "This will push local wicked-garden data to the control plane. Existing CP records will not be overwritten. Proceed?", options: "Yes, sync now (Recommended)" = "Push local records to CP. Safe — uses dedup, won't overwrite.", "Cancel" = "Abort sync. No changes will be made."
-
-**PLAIN_TEXT mode**: Ask in plain text:
-
-```
---sync-to-cp will push local wicked-garden data to the control plane.
-Existing CP records will NOT be overwritten (dedup is enforced).
-
-   a) Yes, sync now (recommended)
-   b) Cancel
-```
-
-Then STOP and wait for the user's reply.
-
-If the user cancels, say "Sync cancelled. No changes were made." and stop.
-
-2. **Check CP availability and sync all domains** (in dependency order):
-
-```bash
-python3 -c "
-import sys, os, json
-from pathlib import Path
-sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
-from _session import SessionState
-state = SessionState.load()
-if not state.cp_available:
-    print('CP_UNAVAILABLE')
-    sys.exit(0)
-from _storage import sync_all_to_cp
-results = sync_all_to_cp()
-print(json.dumps(results, indent=2))
-"
-```
-
-This syncs all domains in dependency order:
-1. `wicked-crew/projects` (first, to establish CP UUIDs)
-2. `wicked-mem/memories`
-3. `wicked-kanban/initiatives`
-4. `wicked-kanban/tasks`
-5. `wicked-jam/sessions`
-
-3. **Report results** to the user per domain:
-   - If `CP_UNAVAILABLE`: "The control plane is not reachable. Connect to CP first with `/wicked-garden:setup`."
-   - If results contain an `error` key: display the error note.
-   - Otherwise: display the sync counts per domain, e.g.:
-     ```
-     Sync results:
-       wicked-crew/projects:     2 synced, 1 skipped, 0 failed
-       wicked-mem/memories:      5 synced, 3 skipped, 0 failed
-       wicked-kanban/initiatives: 1 synced, 0 skipped, 0 failed
-       wicked-kanban/tasks:      4 synced, 2 skipped, 0 failed
-       wicked-jam/sessions:      0 synced, 0 skipped, 0 failed
-     ```
-
-4. **If any records failed**, advise: "Check stderr for details. Failed records remain in local storage and will sync automatically when CP is next available."
-
 ## Graceful Degradation
 
-- If CP setup fails, local JSON fallback handles storage automatically
+- If connection setup fails, local JSON fallback handles storage automatically
 - If onboarding indexing fails, fall back to quick scout
 - If memory store fails, still complete (just won't suppress future directives)
 - Never block the user from working — all failures offer alternatives
