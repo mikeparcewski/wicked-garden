@@ -474,6 +474,7 @@ def main():
         if state is not None:
             state.update(
                 setup_complete=True,
+                setup_confirmed=True,
             )
 
         _log("bootstrap", "normal", "storage.local", ok=True)

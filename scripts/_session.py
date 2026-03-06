@@ -170,6 +170,15 @@ class SessionState:
     # None means discovery has not run yet this session.
     integration_tools: dict | None = None
 
+    # Fast-path sentinel: set by bootstrap.py when config.json setup_complete=True.
+    # Allows prompt_submit.py guard to skip config.json file read on every turn.
+    # Once True for a session, it never goes back to False.
+    setup_confirmed: bool = False
+
+    # Onboarding mode selected during this session's wizard run.
+    # Written by setup.md Step 5. Values: None | "full" | "quick" | "skip"
+    onboarding_mode: str | None = None
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

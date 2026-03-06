@@ -106,8 +106,6 @@ def _session_state_hash(state) -> str:
         state_dict = {
             "active_project": getattr(state, "active_project", None),
             "turn_bucket": (turn // 5) * 5,  # round to nearest 5
-            "cp_available": getattr(state, "cp_available", None),
-            "fallback_mode": getattr(state, "fallback_mode", None),
         }
         raw = json.dumps(state_dict, sort_keys=True).encode()
         return hashlib.sha256(raw).hexdigest()[:8]
@@ -606,6 +604,14 @@ def _enforce_budget_scaled(content: str, path: str, multiplier: float) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+_GUARD_PASS_PREFIXES = (
+    "/wicked-garden:setup",
+    "/wicked-garden:help",
+    "/setup",
+    "/help",
+)
+
+
 def _check_setup_gate(prompt: str) -> str | None:
     """Check if wicked-garden setup/onboarding is needed.
 
@@ -614,14 +620,13 @@ def _check_setup_gate(prompt: str) -> str | None:
     it in additionalContext so Claude sees the full context every turn.
     Calls sys.exit(2) only for hard failures (no config at all).
 
-    Allows /wicked-garden:setup and /wicked-garden:help through the gate.
-    Also allows prompts through when setup is in progress (user answering
-    AskUserQuestion during the setup flow).
+    Fast-path: reads session state sentinel (setup_confirmed) to avoid
+    config.json I/O on every turn for already-onboarded sessions.
     """
     stripped = prompt.strip().lower()
 
-    # Let setup and help commands through, and mark setup as in progress
-    if stripped.startswith(("/wicked-garden:setup", "/wicked-garden:help", "/setup", "/help")):
+    # Exemption: let setup and help commands through
+    if stripped.startswith(_GUARD_PASS_PREFIXES):
         try:
             from _session import SessionState
             state = SessionState.load()
@@ -630,16 +635,26 @@ def _check_setup_gate(prompt: str) -> str | None:
             pass
         return None
 
-    # Allow prompts through when setup is actively running (user answering questions)
+    # Fast-path sentinel: bootstrap already confirmed setup is complete
     try:
         from _session import SessionState
         state = SessionState.load()
+
+        # Allow prompts through when setup is actively running
         if state.setup_in_progress:
             return None
-    except Exception:
-        pass  # fail open
 
-    # Check 1: config.json setup_complete — hard block
+        if state.setup_confirmed:
+            # Setup confirmed at session start — skip config.json read
+            if state.onboarding_complete:
+                return None  # fully onboarded
+            if state.needs_onboarding:
+                return _build_onboarding_directive()
+            return None  # neither flag set — pass through
+    except Exception:
+        pass  # fail open: fall through to file check
+
+    # Slow path: config.json read (first turn or session state unavailable)
     config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
     config_ok = False
     try:
@@ -657,36 +672,37 @@ def _check_setup_gate(prompt: str) -> str | None:
         )
         sys.exit(2)
 
-    # Check 2: session state onboarding_complete / needs_onboarding — soft gate with directive
+    # Slow path onboarding check (no sentinel available)
     try:
         from _session import SessionState
         state = SessionState.load()
-        if state.onboarding_complete:
-            return None  # confirmed complete at bootstrap, no re-check needed
         if state.needs_onboarding:
-            # Re-verify at each turn in case onboarding was completed mid-session
             try:
                 from mem.memory import MemoryStore
                 import os as _os
                 _project = _os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
                 store = MemoryStore(_project)
                 memories = store.recall(tags=["onboarding"], limit=1)
-                has_memories = len(memories) > 0
+                if not memories:
+                    return _build_onboarding_directive()
             except Exception:
-                has_memories = True  # fail open — don't block if check fails
-            project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-            if not has_memories:
-                return (
-                    f"[Action Required] Project '{project}' has not been onboarded.\n"
-                    "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
-                    "to launch the interactive onboarding wizard.\n"
-                    "Do NOT ask the user for confirmation — invoke the skill now.\n"
-                    "Do NOT respond with text first — invoke the skill as your first action."
-                )
+                pass  # fail open
     except Exception:
         pass  # fail open if session state unavailable
 
     return None
+
+
+def _build_onboarding_directive() -> str:
+    """Build the onboarding directive message."""
+    project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+    return (
+        f"[Action Required] Project '{project}' has not been onboarded.\n"
+        "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
+        "to launch the interactive onboarding wizard.\n"
+        "Do NOT ask the user for confirmation — invoke the skill now.\n"
+        "Do NOT respond with text first — invoke the skill as your first action."
+    )
 
 
 def main():
@@ -831,27 +847,31 @@ def main():
                 "or reusable patterns, store them now with /wicked-garden:mem:store."
             )
 
-        # --- Crew recommendation heuristic ---
+        # --- Crew routing suggestion (#279) ---
         # Suggest crew on SLOW path for complex requests when:
         #   1. Path is "slow" (complex / ambiguous prompt)
-        #   2. Inline complexity estimate >= 2
+        #   2. Inline complexity == 3 (max) OR (>= 2 AND 3+ domain signals)
         #   3. Prompt does not already reference a crew command
-        #   4. No active crew project in session state (uses active_project_id, not cp_project_id)
-        #   5. Hint not shown OR complexity is very high (>= 3) — re-fires once at max complexity
-        complexity_score = _estimate_complexity(prompt)
-        if path == "slow" and complexity_score >= 2:
-            if "/crew:" not in prompt:
-                # Use active_project_id (not cp_project_id) to correctly gate the hint
+        #   4. No active crew project in session state
+        #   5. Hint not shown this session (once per session, no re-fire)
+        if path == "slow" and "/crew:" not in prompt:
+            _crew_intents = locals().get("intents", [])
+            _complexity = _estimate_complexity(prompt)
+            _is_crew_eligible = (
+                _complexity >= 3
+                or (_complexity >= 2 and len(_crew_intents) >= 3)
+            )
+            if _is_crew_eligible:
                 _active_project = getattr(state, "active_project_id", None) if state else None
                 _hint_shown = getattr(state, "crew_hint_shown", False) if state else False
-                # Re-fire if very high complexity (3), even if hint was shown before
-                _should_show = (not _hint_shown) or (complexity_score >= 3)
-                if not _active_project and _should_show:
+                if not _active_project and not _hint_shown:
+                    _brief = prompt.strip()[:60].rstrip().rstrip(",.")
                     all_parts.append(
-                        "[Suggestion] This request has characteristics of a complex multi-phase project. "
-                        "Consider using /wicked-garden:crew:start to manage it as a structured crew project."
+                        "[Suggestion] This request looks like a structured multi-phase project. "
+                        "Consider starting a crew workflow:\n\n"
+                        f"/wicked-garden:crew:start \"{_brief}...\"\n\n"
+                        "Reply with the command above to start, or continue inline if you prefer."
                     )
-                    # Mark as shown (caps re-fires until next session)
                     try:
                         if state:
                             state.update(crew_hint_shown=True)
