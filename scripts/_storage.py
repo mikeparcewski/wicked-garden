@@ -292,13 +292,7 @@ class StorageManager:
                         record["id"] = str(uuid.uuid4())
                     self._local_write(source, record["id"], record)
                     return record
-            # CP write failed — fall through to local
-            import sys
-            print(
-                f"[StorageManager] CP write failed for {self._domain}/{source}, "
-                f"persisting locally",
-                file=sys.stderr,
-            )
+            # CP write failed — fall through to local (debug-only log)
 
         # CP failure: generate local UUID.
         if "id" not in record:

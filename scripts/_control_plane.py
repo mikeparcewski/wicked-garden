@@ -75,6 +75,16 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _is_debug() -> bool:
+    """Return True when log_level is 'debug' or 'verbose'."""
+    try:
+        from _session import SessionState
+        level = SessionState.load().log_level
+        return level in ("debug", "verbose")
+    except Exception:
+        return False
+
+
 def _record_cp_error(url: str, method: str, code: int, reason: str) -> None:
     """Best-effort: append CP error to SessionState for hook surfacing."""
     try:
@@ -397,11 +407,12 @@ class ControlPlaneClient:
 
         except urllib.error.HTTPError as exc:
             # 4xx/5xx — no retry, log (without auth header) and return None
-            print(
-                f"[wicked-garden] Control plane HTTP {exc.code} for "
-                f"{method} {url}: {exc.reason}",
-                file=sys.stderr,
-            )
+            if _is_debug():
+                print(
+                    f"[wicked-garden] Control plane HTTP {exc.code} for "
+                    f"{method} {url}: {exc.reason}",
+                    file=sys.stderr,
+                )
             _record_cp_error(url, method, exc.code, exc.reason)
             return None
 
@@ -411,17 +422,19 @@ class ControlPlaneClient:
                 time.sleep(0.5)
                 return self._do_request(url, method, payload, _retry=False)
 
-            print(
-                f"[wicked-garden] Control plane unreachable: {exc}",
-                file=sys.stderr,
-            )
+            if _is_debug():
+                print(
+                    f"[wicked-garden] Control plane unreachable: {exc}",
+                    file=sys.stderr,
+                )
             return None
 
-        except json.JSONDecodeError as exc:
-            print(
-                f"[wicked-garden] Control plane returned invalid JSON: {exc}",
-                file=sys.stderr,
-            )
+        except json.JSONDecodeError:
+            if _is_debug():
+                print(
+                    "[wicked-garden] Control plane returned invalid JSON",
+                    file=sys.stderr,
+                )
             return None
 
 
