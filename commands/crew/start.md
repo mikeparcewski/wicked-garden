@@ -19,11 +19,30 @@ Extract the project description from arguments. If no description provided, ask 
 
 ### 2. Generate Project Name
 
-Convert description to kebab-case slug:
-- Lowercase
-- Replace spaces with hyphens
-- Remove special characters
-- Max 64 characters
+Use a three-stage theme-aware slug algorithm:
+
+**Stage 1: Detect theme prefix** — scan the description (case-insensitive) for the first matching signal group:
+
+| Signal Keywords | Theme Prefix |
+|-----------------|--------------|
+| "issue", "gh-", "github issue", `#\d+` | `issue` |
+| "bug", "fix", "broken", "regression", "crash" | `fix` |
+| "refactor", "cleanup", "clean up", "reorganize" | `refactor` |
+| "docs", "documentation", "readme", "changelog" | `docs` |
+| "feature", "feat", "add", "implement", "new", "introduce" | `feat` |
+| (no match) | (no prefix — fall through to Stage 3 fallback) |
+
+**Stage 2: Extract key concepts** — from the description, remove the matched theme keywords and stop words ("the", "a", "an", "for", "to", "of", "in", "and", "with"), then take the first 3–4 remaining meaningful nouns or phrases and kebab-case each one.
+
+**Stage 3: Assemble** — join as `{theme-prefix}-{concept1}-{concept2}-{concept3}`. Truncate at 64 characters on a word boundary (never split mid-word). If no theme prefix was matched in Stage 1, fall back to the plain kebab-case behavior: lowercase the full description, replace spaces with hyphens, strip special characters, truncate at 64 characters.
+
+**Examples**:
+
+| Description | Generated Name |
+|-------------|----------------|
+| "Resolve GitHub issues #252, #258, and smart naming" | `issue-resolve-252-258-smart-naming` |
+| "Fix broken auth token refresh on mobile" | `fix-auth-token-refresh-mobile` |
+| "Add parallel worktree build support to crew" | `feat-parallel-worktree-build-crew` |
 
 ### 3. Check for Existing Project
 
