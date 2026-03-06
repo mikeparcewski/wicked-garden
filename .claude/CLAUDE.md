@@ -52,9 +52,11 @@ wicked-garden/
 ├── commands/{domain}/       # Slash commands (*.md with YAML frontmatter)
 ├── agents/{domain}/         # Subagents (*.md with YAML frontmatter)
 ├── skills/{domain}/         # Progressive-disclosure expertise modules
-│   └── my-skill/
-│       ├── SKILL.md         # ≤200 lines entry point (non-negotiable)
-│       └── refs/            # 200-300 line detailed docs (loaded on demand)
+│   ├── SKILL.md             # ≤200 lines entry point (single-skill domains)
+│   ├── {skill-name}/        # Subdirectory per skill (multi-skill domains)
+│   │   ├── SKILL.md
+│   │   └── refs/            # 200-300 line detailed docs (loaded on demand)
+│   └── refs/                # refs/ at domain level for single-skill domains
 ├── hooks/
 │   ├── hooks.json           # Event bindings (7 lifecycle hooks)
 │   └── scripts/             # 6 Python hook scripts (stdlib-only)
