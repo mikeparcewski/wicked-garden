@@ -11,5 +11,12 @@ Delegate to the facilitator agent:
 
 ```
 Task(subagent_type="wicked-garden:jam:facilitator",
-     prompt="Run a quick jam session on: {topic}. Use 4 personas, 1 round, brief synthesis. Still gather evidence if available (but keep it fast — 2 sources max). Store a lightweight decision record after synthesis.")
+     prompt="Run a quick jam session on: {topic}. Use 4 personas, 1 round, brief synthesis. Still gather evidence if available (but keep it fast — 2 sources max). Store a lightweight decision record after synthesis.
+
+Kanban tracking (skip silently if kanban unavailable):
+1. Session start: /wicked-garden:kanban:new-task 'Jam: {topic}' --metadata '{\"type\":\"jam-session\",\"status\":\"brainstorming\"}'
+2. After synthesis: /wicked-garden:kanban:comment {task_id} 'Synthesis: {summary}'
+3. On decision: /wicked-garden:kanban:comment {task_id} 'Decision: {decision_record}'
+
+kanban = process, wicked-mem = outcome.")
 ```

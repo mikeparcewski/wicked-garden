@@ -98,7 +98,7 @@
         {"name": "Business Archetypes", "focus": "Why it matters - product management, skepticism, evangelism, cost", "dynamic": true},
         {"name": "Process Archetypes", "focus": "How it ships - maintenance, testing, documentation, release", "dynamic": true}
       ],
-      "enhances": ["clarify", "design"]
+      "enhances": ["clarify", "design", "build"]
     },
     {
       "name": "agentic",
