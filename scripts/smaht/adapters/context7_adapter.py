@@ -8,6 +8,7 @@ Provides graceful degradation when Context7 is unavailable.
 import asyncio
 import hashlib
 import json
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +20,10 @@ if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
 from _storage import get_local_path
+
+# Path to the cheatsheet store CLI — resolved relative to this file so no
+# hardcoded absolute paths leak into the distributed plugin.
+_CHEATSHEET_STORE = Path(__file__).resolve().parents[1] / "cheatsheet_store.py"
 
 
 # Cache configuration
@@ -183,6 +188,78 @@ class Context7Cache:
 _cache = Context7Cache()
 
 
+def _lookup_cheatsheet(lib_name: str) -> Optional[ContextItem]:
+    """Check local cheatsheet store for a cached library cheatsheet.
+
+    Invokes cheatsheet_store.py get via subprocess so the hot path does not
+    import StorageManager directly (keeps this adapter import-clean).
+
+    Returns a ContextItem with relevance=0.85 when found, None otherwise.
+    """
+    try:
+        result = subprocess.run(
+            [sys.executable, str(_CHEATSHEET_STORE), "get", "--library", lib_name],
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+        )
+        if result.returncode != 0:
+            return None
+
+        data = json.loads(result.stdout)
+        if not data or data.get("found") is False:
+            return None
+
+        library = data.get("library", lib_name)
+        version = data.get("version_hint", "")
+        title = f"{library} cheatsheet" + (f" ({version})" if version else "")
+
+        key_apis = data.get("key_apis", [])
+        patterns = data.get("common_patterns", [])
+        gotchas = data.get("gotchas", [])
+
+        # Build a compact summary from the structured data
+        api_names = ", ".join(a.get("name", "") for a in key_apis[:5] if a.get("name"))
+        pattern_names = ", ".join(p.get("name", "") for p in patterns[:3] if p.get("name"))
+        summary_parts = []
+        if api_names:
+            summary_parts.append(f"Key APIs: {api_names}")
+        if pattern_names:
+            summary_parts.append(f"Patterns: {pattern_names}")
+        summary = ". ".join(summary_parts) if summary_parts else f"Cached docs for {library}."
+
+        # Build an excerpt from gotchas and first API example
+        excerpt_parts = []
+        if key_apis:
+            first = key_apis[0]
+            if first.get("example"):
+                excerpt_parts.append(f"Example — {first.get('name', '')}: {first['example']}")
+        if gotchas:
+            excerpt_parts.append("Gotchas: " + "; ".join(gotchas[:2]))
+        excerpt = "\n".join(excerpt_parts)
+
+        return ContextItem(
+            id=f"cheatsheet:{library}",
+            source="cheatsheet",
+            title=title,
+            summary=summary,
+            excerpt=excerpt,
+            relevance=0.85,
+            age_days=0.0,
+            metadata={
+                "library": library,
+                "version_hint": version,
+                "api_count": len(key_apis),
+                "pattern_count": len(patterns),
+                "source_url": data.get("source_url"),
+                "timestamp": data.get("timestamp"),
+            },
+        )
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception) as e:
+        print(f"Warning: Cheatsheet lookup failed for {lib_name}: {e}", file=sys.stderr)
+        return None
+
+
 async def query(prompt: str, project: str = None) -> List[ContextItem]:
     """
     Query Context7 for relevant library documentation.
@@ -191,9 +268,10 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
 
     Strategy:
     1. Extract library names from prompt
-    2. Resolve library IDs via Context7 (cached)
-    3. Query documentation (cached)
-    4. Transform to ContextItems
+    2. Check local cheatsheet store (hot tier — no MCP call needed)
+    3. Resolve library IDs via Context7 (cached) for misses
+    4. Query documentation (cached)
+    5. Transform to ContextItems
 
     Args:
         prompt: User's query/prompt
@@ -212,6 +290,12 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     # For each library, try to get docs
     for lib_name in library_names[:3]:  # Limit to 3 libraries
         try:
+            # Hot tier: check local cheatsheet store first (no MCP round-trip)
+            cheatsheet_item = await asyncio.to_thread(_lookup_cheatsheet, lib_name)
+            if cheatsheet_item is not None:
+                items.append(cheatsheet_item)
+                continue
+
             # Try to get from cache first
             cached = _cache.get(lib_name, prompt)
             if cached is not None:
@@ -311,8 +395,6 @@ async def _resolve_library_id(library_name: str, query: str) -> Optional[str]:
     Returns:
         Library ID (e.g., "/vercel/next.js") or None
     """
-    import subprocess
-
     try:
         # Call Claude Code to invoke MCP tool via subprocess
         # In production, this would use the MCP client directly

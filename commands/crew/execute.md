@@ -475,8 +475,36 @@ For each batch that has `"parallel": true` AND contains >= 2 tasks:
 
 2. Dispatch implementer subagents in parallel (one Task() call per task, all in the same message):
    ```
-   Task(subagent_type="wicked-garden:crew:implementer", prompt="... --worktree {path}")
-   Task(subagent_type="wicked-garden:crew:implementer", prompt="... --worktree {path}")
+   Task(
+     subagent_type="wicked-garden:crew:implementer",
+     prompt="""
+     WORKTREE: You are working in an isolated git worktree at {worktree_path}.
+     All file reads and writes MUST occur within this path — do NOT touch the
+     main repository directory at {repo_root}. Your changes will be merged back
+     after this subagent completes. Do not run git commands that operate on the
+     main worktree (e.g., git checkout, git reset on the parent). Treat
+     {worktree_path} as your repository root for all tool calls.
+
+     Task: {task description}
+     Project: {project-name}
+     Design: {relevant design excerpt}
+     """
+   )
+   Task(
+     subagent_type="wicked-garden:crew:implementer",
+     prompt="""
+     WORKTREE: You are working in an isolated git worktree at {worktree_path}.
+     All file reads and writes MUST occur within this path — do NOT touch the
+     main repository directory at {repo_root}. Your changes will be merged back
+     after this subagent completes. Do not run git commands that operate on the
+     main worktree (e.g., git checkout, git reset on the parent). Treat
+     {worktree_path} as your repository root for all tool calls.
+
+     Task: {task description}
+     Project: {project-name}
+     Design: {relevant design excerpt}
+     """
+   )
    ```
 
 3. After all parallel subagents complete, merge each worktree back **SEQUENTIALLY** (one at a time, never in parallel — concurrent merges can corrupt the repository):
