@@ -115,12 +115,15 @@ Each entry in the JSON array must match this schema:
   "persona_name": "Technical Architect",
   "persona_type": "technical",
   "raw_text": "...",
+  "thinking": "...",
   "timestamp": "{ISO timestamp}",
   "entry_type": "perspective"
 }
 ```
 
 `persona_type` is one of: `technical`, `user`, `business`, `process`.
+
+When recording persona contributions, include a `thinking` field capturing the persona's deliberative process — alternatives they considered, uncertainties they weighed, trade-offs they evaluated — before their final stated position in `raw_text`. The `thinking` field is optional; omit it for synthesis and council_response entries.
 
 After synthesizing (step 4), append one final entry with `entry_type: synthesis`, `round: 0`, `persona_name: Facilitator`, and `raw_text` set to the full synthesis markdown.
 

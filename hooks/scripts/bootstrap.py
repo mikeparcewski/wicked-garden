@@ -196,6 +196,98 @@ def _run_memory_decay():
         return None
 
 
+def _check_search_staleness():
+    """Detect stale search index via watcher.py and trigger an incremental reindex.
+
+    Runs `watcher.py check --reindex --json` via subprocess against the directories
+    that are already indexed in the SQLite DB (falling back to cwd).
+
+    Returns a briefing note string, or None to skip (no index, not stale, or error).
+    Fails open — any exception returns None so the session always continues.
+    """
+    try:
+        import sqlite3
+
+        db_path = Path.home() / ".something-wicked" / "wicked-search" / "unified_search.db"
+        if not db_path.exists():
+            return None  # No index yet — nothing to check
+
+        # --- Discover indexed directories from the DB ---
+        indexed_dirs = []
+        try:
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=2)
+            try:
+                tables = [
+                    row[0] for row in
+                    conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+                ]
+                _FILE_COLS = {"file", "path", "file_path", "filepath"}
+                seen_roots = set()
+                for table in tables:
+                    cols = [
+                        row[1] for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall()
+                    ]
+                    for col in cols:
+                        if col in _FILE_COLS:
+                            rows = conn.execute(
+                                f'SELECT DISTINCT "{col}" FROM "{table}" LIMIT 500'
+                            ).fetchall()
+                            for (fpath,) in rows:
+                                if fpath:
+                                    p = Path(fpath)
+                                    # Walk up to find a plausible root (first existing ancestor)
+                                    candidate = p if p.is_dir() else p.parent
+                                    if str(candidate) not in seen_roots and candidate.exists():
+                                        seen_roots.add(str(candidate))
+                # Collapse to top-level roots (remove subdirs already covered by a parent)
+                sorted_roots = sorted(seen_roots)
+                for root in sorted_roots:
+                    if not any(root.startswith(other + os.sep) for other in sorted_roots if other != root):
+                        indexed_dirs.append(root)
+            finally:
+                conn.close()
+        except Exception:
+            pass  # DB read failed — fall back to cwd
+
+        if not indexed_dirs:
+            indexed_dirs = [str(Path.cwd())]
+
+        # --- Invoke watcher.py check --reindex --json ---
+        watcher_script = str(_PLUGIN_ROOT / "scripts" / "search" / "watcher.py")
+        cmd = [
+            "uv", "run", "python", watcher_script,
+            "check", "--reindex", "--json",
+            "--dirs", *indexed_dirs,
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(_PLUGIN_ROOT),
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        data = json.loads(result.stdout)
+        if not data.get("stale"):
+            return None  # Up to date — nothing to report
+
+        changed_count = data.get("changed_count", 0)
+        reindex_ok = data.get("reindex_ok")  # May be absent if reindex wasn't triggered
+
+        if reindex_ok is True:
+            return f"Search index auto-updated ({changed_count} file(s) changed)"
+        elif reindex_ok is False:
+            return f"Search index may be stale — {changed_count} file(s) changed but reindex failed"
+        else:
+            # Stale but reindex wasn't run (shouldn't happen with --reindex flag, but be safe)
+            return f"Search index may be stale — {changed_count} file(s) changed"
+
+    except Exception:
+        return None  # Always fail-open
+
+
 def _check_onboarding_status():
     """Check if the current project has been onboarded (search index + memories).
 
@@ -715,6 +807,11 @@ def main():
 
         # 7. Run memory decay
         decay_summary = _run_memory_decay()
+
+        # 7b. Check search index staleness and auto-reindex if needed
+        search_staleness_note = _check_search_staleness()
+        if search_staleness_note:
+            mode_notes.append(f"[Search] {search_staleness_note}")
 
         # 8. Check onboarding status (search index + memories)
         has_index, has_memories, onboarding_directive = _check_onboarding_status()

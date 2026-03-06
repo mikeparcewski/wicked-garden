@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.20.0] - 2026-03-05
+
+### Features
+- feat: add search directory watcher hook integration — auto-detect stale indexes at session start (#249)
+- feat: add HTTP source type for external plugin indexing with auth-scoped fetch (#250)
+- feat: add jam transcript thinking field — expose per-persona deliberation via CLI (#256)
+
+### Tests
+- test: 52 new tests across watcher integration, external HTTP indexing, and jam thinking field
+
 ## [1.19.2] - 2026-03-05
 
 ### Bug Fixes

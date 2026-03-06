@@ -70,13 +70,13 @@ class ExternalSourceConfig:
     """Unique identifier, e.g. 'confluence-engineering'."""
 
     plugin: str
-    """MCP plugin name, e.g. 'mcp-confluence'."""
+    """MCP plugin name, e.g. 'mcp-confluence'.  Ignored for http sources."""
 
     fetch_command: str
-    """MCP tool command to invoke, e.g. 'get_space_pages'."""
+    """MCP tool command to invoke, e.g. 'get_space_pages'.  Ignored for http sources."""
 
     fetch_args: Dict = field(default_factory=dict)
-    """Arguments passed to the fetch command."""
+    """Arguments passed to the fetch command.  Ignored for http sources."""
 
     content_type: str = "document"
     """Content type: 'document', 'code', or 'ticket'."""
@@ -89,6 +89,16 @@ class ExternalSourceConfig:
 
     last_fetched: Optional[str] = None
     """ISO-8601 timestamp of last successful fetch."""
+
+    source_type: str = "mcp"
+    """Source type: 'mcp' (agent-orchestrated) or 'http' (direct HTTP fetch)."""
+
+    auth_env_var: Optional[str] = None
+    """Name of the environment variable that holds the Bearer token.
+    Only the variable *name* is stored here — the value is read at fetch time."""
+
+    fetch_url_template: Optional[str] = None
+    """URL to fetch for 'http' source types."""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -104,6 +114,9 @@ class ExternalSourceConfig:
             refresh_interval_minutes=data.get("refresh_interval_minutes", 60),
             enabled=data.get("enabled", True),
             last_fetched=data.get("last_fetched"),
+            source_type=data.get("source_type", "mcp"),
+            auth_env_var=data.get("auth_env_var"),
+            fetch_url_template=data.get("fetch_url_template"),
         )
 
     def is_stale(self) -> bool:
@@ -249,6 +262,40 @@ class ExternalIndexer:
         external_dir = index_dir / "external"
         external_dir.mkdir(parents=True, exist_ok=True)
         return external_dir / "index.jsonl"
+
+    def _fetch_http(self, source: ExternalSourceConfig) -> Optional[str]:
+        """Fetch content via HTTP GET.
+
+        The Bearer token is read from os.environ inside this call only —
+        the value is never assigned to a module-level variable or logged.
+
+        Args:
+            source: ExternalSourceConfig with source_type == 'http'.
+
+        Returns:
+            Response body as a string, or None on error / missing URL.
+        """
+        import urllib.request
+
+        url = source.fetch_url_template
+        if not url:
+            _log("warning", "external_indexer.http_fetch.no_url", ok=False,
+                 detail={"source": source.name})
+            return None
+
+        req = urllib.request.Request(url)
+        if source.auth_env_var:
+            token = os.environ.get(source.auth_env_var)  # scoped here, never logged
+            if token:
+                req.add_header("Authorization", f"Bearer {token}")
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.read().decode("utf-8", errors="replace")
+        except Exception as e:
+            _log("warning", "external_indexer.http_fetch.failed", ok=False,
+                 detail={"source": source.name, "error": str(e)})
+            return None
 
     def fetch_content(self, source: ExternalSourceConfig) -> Optional[str]:
         """Fetch content from an external source via MCP tool invocation pattern.
@@ -403,9 +450,34 @@ class ExternalIndexer:
         stale_sources = []
         for source in sources:
             is_stale = force or source.is_stale()
-            if is_stale:
+            if not is_stale:
+                continue
+
+            if source.source_type == "http":
+                # HTTP sources are fetched directly here — no agent layer needed.
+                entry: dict = {
+                    "name": source.name,
+                    "source_type": "http",
+                    "fetch_url_template": source.fetch_url_template,
+                    "last_fetched": source.last_fetched,
+                    "stale": True,
+                }
+                if not dry_run:
+                    content = self._fetch_http(source)
+                    if content is not None:
+                        doc_id = source.fetch_url_template or source.name
+                        nodes = self.index_content(source, content, doc_id)
+                        entry["indexed"] = True
+                        entry["nodes_indexed"] = nodes
+                    else:
+                        entry["indexed"] = False
+                        entry["error"] = "http_fetch returned None"
+                stale_sources.append(entry)
+            else:
+                # MCP sources require the agent layer — report them for agent orchestration.
                 stale_sources.append({
                     "name": source.name,
+                    "source_type": "mcp",
                     "plugin": source.plugin,
                     "fetch_command": source.fetch_command,
                     "fetch_args": source.fetch_args,
@@ -445,10 +517,19 @@ def _parse_args() -> argparse.Namespace:
     # -- add --
     add_p = sub.add_parser("add", help="Add a new external source")
     add_p.add_argument("--name", required=True, metavar="NAME")
-    add_p.add_argument("--plugin", required=True, metavar="PLUGIN")
-    add_p.add_argument("--command", required=True, dest="fetch_command", metavar="CMD")
+    add_p.add_argument("--source-type", dest="source_type", default="mcp",
+                       choices=["mcp", "http"],
+                       help="Source type: mcp (agent-orchestrated) or http (default: mcp)")
+    add_p.add_argument("--plugin", default="", metavar="PLUGIN",
+                       help="MCP plugin name (required for mcp source type)")
+    add_p.add_argument("--command", dest="fetch_command", default="", metavar="CMD",
+                       help="MCP tool command (required for mcp source type)")
     add_p.add_argument("--args", dest="fetch_args", default="{}", metavar="JSON",
                        help="JSON object of fetch arguments (default: {})")
+    add_p.add_argument("--fetch-url", dest="fetch_url_template", default=None, metavar="URL",
+                       help="URL to fetch (required for http source type)")
+    add_p.add_argument("--auth-env-var", dest="auth_env_var", default=None, metavar="ENV_VAR",
+                       help="Name of env var holding Bearer token (http source type)")
     add_p.add_argument("--content-type", default="document", metavar="TYPE",
                        help="Content type: document, code, ticket (default: document)")
     add_p.add_argument("--refresh-interval", type=int, default=60, metavar="MINUTES",
@@ -527,8 +608,14 @@ def cmd_list(args: argparse.Namespace) -> int:
                 status = "enabled" if s.enabled else "disabled"
                 fetched = s.last_fetched or "never"
                 print(f"  {s.name}")
-                print(f"    plugin:   {s.plugin}")
-                print(f"    command:  {s.fetch_command}")
+                print(f"    source_type: {s.source_type}")
+                if s.source_type == "http":
+                    print(f"    url:      {s.fetch_url_template or '(not set)'}")
+                    if s.auth_env_var:
+                        print(f"    auth_env: {s.auth_env_var}")
+                else:
+                    print(f"    plugin:   {s.plugin}")
+                    print(f"    command:  {s.fetch_command}")
                 print(f"    type:     {s.content_type}")
                 print(f"    refresh:  every {s.refresh_interval_minutes}m")
                 print(f"    status:   {status}")
@@ -543,6 +630,21 @@ def cmd_add(args: argparse.Namespace) -> int:
         print(f"Error: --args must be valid JSON: {e}", file=sys.stderr)
         return 1
 
+    source_type = args.source_type
+
+    # Validate required fields per source type
+    if source_type == "mcp":
+        if not args.plugin:
+            print("Error: --plugin is required for mcp source type", file=sys.stderr)
+            return 1
+        if not args.fetch_command:
+            print("Error: --command is required for mcp source type", file=sys.stderr)
+            return 1
+    elif source_type == "http":
+        if not args.fetch_url_template:
+            print("Error: --fetch-url is required for http source type", file=sys.stderr)
+            return 1
+
     config = ExternalSourceConfig(
         name=args.name,
         plugin=args.plugin,
@@ -550,16 +652,19 @@ def cmd_add(args: argparse.Namespace) -> int:
         fetch_args=fetch_args,
         content_type=args.content_type,
         refresh_interval_minutes=args.refresh_interval,
+        source_type=source_type,
+        auth_env_var=args.auth_env_var,
+        fetch_url_template=args.fetch_url_template,
     )
 
     registry = _make_registry(args)
     registry.add_source(config)
 
-    result = {"ok": True, "name": args.name, "action": "added"}
+    result = {"ok": True, "name": args.name, "action": "added", "source_type": source_type}
     if args.json_output:
         print(json.dumps(result, indent=2))
     else:
-        print(f"Added external source: {args.name}")
+        print(f"Added external source: {args.name} (type: {source_type})")
     return 0
 
 
@@ -603,12 +708,21 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         else:
             action = "Would refresh" if args.dry_run else "Needs refresh"
             print(f"{action} {len(stale)} source(s):")
+            mcp_stale = []
             for s in stale:
                 fetched = s["last_fetched"] or "never"
-                print(f"  {s['name']} (last fetched: {fetched})")
-            if not args.dry_run:
+                stype = s.get("source_type", "mcp")
+                if stype == "http":
+                    indexed_flag = ""
+                    if "indexed" in s:
+                        indexed_flag = " [indexed]" if s["indexed"] else " [fetch failed]"
+                    print(f"  {s['name']} (http, last fetched: {fetched}){indexed_flag}")
+                else:
+                    mcp_stale.append(s)
+                    print(f"  {s['name']} (mcp, last fetched: {fetched})")
+            if mcp_stale and not args.dry_run:
                 print("\nNote: Use the /wicked-garden:search:sources command to")
-                print("have the agent orchestrate actual content fetching.")
+                print("have the agent orchestrate actual MCP content fetching.")
     return 0
 
 
