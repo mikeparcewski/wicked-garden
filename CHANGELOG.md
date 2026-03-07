@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.35.1] - 2026-03-07
+
+### Bug Fixes
+- fix: setup gate bypassed by stale session state across sessions (4c51226)
+
 ## [1.35.0] - 2026-03-07
 
 ### Features
