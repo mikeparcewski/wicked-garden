@@ -112,9 +112,47 @@ done
 **Allowed**: wicked-* references, capability names, example output data
 **Flagged**: Discovery instructions naming specific external tools
 
-### 7. README Style Guide
+### 7. Implementation Rationalization
 
-Validate README against the canonical style guide (see `skills/readme-style-guide/`):
+Skills, commands, and agents must reference implementation artifacts that actually exist.
+Scan for known eliminated patterns (stale after CP removal in v1.30.0):
+
+```bash
+# Eliminated patterns — these no longer exist in the codebase
+STALE_PATTERNS="StorageManager|ControlPlaneClient|_control_plane|_storage\.py|AgentBridge|CollaborationService|AgentRuntime|AuthStorage"
+
+STALE_COUNT=0
+for doc in $(find ./skills ./commands ./agents -name "*.md" 2>/dev/null); do
+  # Skip generic API examples in engineering/architecture skills
+  rel=$(echo "$doc" | sed 's|^\./||')
+  case "$rel" in
+    skills/engineering/*|skills/observability/refs/toolchain*) continue ;;
+  esac
+  matches=$(grep -cE "$STALE_PATTERNS" "$doc" 2>/dev/null || echo 0)
+  if [[ "$matches" -gt 0 ]]; then
+    echo "WARNING: $rel has $matches stale implementation references"
+    STALE_COUNT=$((STALE_COUNT + matches))
+  fi
+done
+
+if [[ "$STALE_COUNT" -gt 0 ]]; then
+  echo "WARNING: $STALE_COUNT total stale references found — docs reference eliminated infrastructure"
+  echo "  Eliminated: StorageManager, ControlPlaneClient, _storage.py, _control_plane.py"
+  echo "  Current:    DomainStore (_domain_store.py), SqliteStore (_sqlite_store.py)"
+fi
+```
+
+**Why this matters**: Skills that reference non-existent classes/modules mislead both Claude and users.
+The current storage layer is `DomainStore` (local JSON + integration-discovery) and `SqliteStore` (direct SQLite).
+Any reference to `StorageManager`, `_storage.py`, `ControlPlaneClient`, or `_control_plane.py` is stale.
+
+**Allowed**: References to DomainStore, SqliteStore, _domain_store.py, _sqlite_store.py, _session.py, _agents.py.
+**Flagged**: StorageManager, ControlPlaneClient, _control_plane, _storage.py, AgentBridge, CollaborationService, AuthStorage.
+
+### 8. README Style Guide
+
+Validate README against the canonical style guide (see `skills/readme-style-guide/`).
+Note: sub-checks below use legacy 7x numbering for backward compatibility:
 
 ```bash
 readme="./README.md"
@@ -201,6 +239,7 @@ fi
 | Agent frontmatter | ✓/✗ |
 | Specialist schema | ✓/✗/- |
 | Capability compliance | ✓/✗ |
+| Implementation rationalization | ✓/✗ |
 | README style guide | ✓/✗ |
 | README freshness | ✓/✗ |
 
@@ -234,30 +273,20 @@ subagent_type: plugin-dev:skill-reviewer
 prompt: "Review the skills in . for quality and best practices."
 ```
 
-### 9b. CP Integration Smoke Test (if CP available)
+### 9b. Storage Layer Smoke Test
 
-If the control plane is running (`SessionState.cp_available` is true), test a sample of endpoints:
+Verify the storage layer (DomainStore + SqliteStore) is functional:
 
 ```bash
-# Use _infer_method to determine correct HTTP method per verb
 python3 -c "
-from _control_plane import ControlPlaneClient
-cp = ControlPlaneClient()
-manifest = cp.manifest()
-if manifest:
-    domains = manifest.get('data', manifest).get('domains', {})
-    for domain, sources in list(domains.items())[:3]:
-        for source, verbs in sources.items():
-            for verb in verbs[:1]:
-                # Use list/get verbs only (GET-safe) for smoke test
-                if verb in ('list', 'get', 'stats'):
-                    result = cp.request(domain, source, verb, params={'limit': '1'})
-                    status = 'OK' if result is not None else 'FAIL'
-                    print(f'  {domain}/{source}/{verb}: {status}')
-"
+import sys
+sys.path.insert(0, 'scripts')
+from _domain_store import DomainStore
+ds = DomainStore('wicked-mem')
+items = ds.list('memories', limit=1)
+print(f'DomainStore: OK ({len(items) if items else 0} memories)')
+" 2>&1 || echo "WARNING: DomainStore smoke test failed"
 ```
-
-**Important**: Only smoke-test GET-safe verbs (list, get, stats). Do NOT send mutating requests to write verbs (create, update, delete) — they modify data. Other GET verbs (search, traverse) are excluded from the allowlist to keep the smoke test minimal and fast.
 
 ### 10. Graceful Degradation
 

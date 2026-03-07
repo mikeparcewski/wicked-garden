@@ -69,7 +69,7 @@ If the user chooses **Switch**:
 
 ### 4. Create Project
 
-Create the project via phase_manager (persists via StorageManager — CP-first, local fallback):
+Create the project via phase_manager (persists via DomainStore — local JSON):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} create \
@@ -77,7 +77,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} create \
   --json
 ```
 
-This creates the StorageManager record, initializes the clarify phase, and sets up local deliverable templates (project.md, outcome.md, phases/clarify/status.md) in one operation.
+This creates the DomainStore record, initializes the clarify phase, and sets up local deliverable templates (project.md, outcome.md, phases/clarify/status.md) in one operation.
 
 Parse the JSON response to get `project_dir` for later use.
 
@@ -187,7 +187,7 @@ This returns:
 ```
 Scripts never call other plugins directly — Claude's tool system is the universal API.
 
-Store analysis via phase_manager update (persists via StorageManager):
+Store analysis via phase_manager update (persists via DomainStore):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \

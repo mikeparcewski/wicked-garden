@@ -1,97 +1,76 @@
-# CP Proxy Reference
+# Script Runner Reference
 
-Standard procedure for executing wicked-search queries via the control plane.
+Standard procedure for executing wicked-search queries via the search scripts.
 
-## CP Proxy Pattern
+## Search Script Pattern
 
-All search commands use the CP proxy script to query the knowledge domain:
+All search commands use the search scripts directly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge {source} {verb} [id] [--param value ...]
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py {verb} [--param value ...]
 ```
 
 ### Examples
 
 ```bash
 # Search symbols
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "authenticate"
-
-# Search code only
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "UserService" --type code
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py search --q "authenticate"
 
 # Traverse from a symbol
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph traverse "MyClass" --direction both --depth 2
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py traverse "MyClass" --direction both --depth 2
 
 # Get hotspots
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph hotspots --limit 20
-
-# Get categories
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols categories
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py hotspots --limit 20
 
 # Get stats
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph stats
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py stats
 
 # Impact analysis
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph impact "USERS.EMAIL" --depth 10
-
-# Lineage search
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge lineage search "User.email" --direction downstream
-
-# Ingest symbols
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols ingest < symbols.json
-
-# Ingest refs
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge refs ingest < refs.json
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py impact "USERS.EMAIL" --depth 10
 ```
 
-## Knowledge Domain Endpoints
+## Available Verbs
 
-| Source | Verb | Method | Purpose |
-|--------|------|--------|---------|
-| `graph` | `stats` | GET | Index statistics |
-| `graph` | `search` | GET | Text search across symbols |
-| `graph` | `list` | GET | List symbols with filters |
-| `graph` | `get` | GET | Get single symbol by ID |
-| `graph` | `traverse` | GET | BFS traversal from a symbol |
-| `graph` | `hotspots` | GET | Ranked symbols by connectivity |
-| `graph` | `impact` | GET | Upstream impact analysis |
-| `symbols` | `list` | GET | List symbol catalog |
-| `symbols` | `categories` | GET | Type/layer/directory breakdown |
-| `symbols` | `ingest` | POST | Ingest new symbols |
-| `lineage` | `search` | GET | Data flow path search |
-| `code` | `content` | GET | Retrieve source code |
-| `projects` | `list` | GET | List indexed projects |
-| `refs` | `ingest` | POST | Ingest cross-references |
-
-## Response Format
-
-All CP responses use the envelope: `{"data": ..., "meta": {...}}`
-
-- List operations return `data` as an array
-- Single-item operations return `data` as an object
-- `meta` contains pagination info, timestamps, etc.
+| Verb | Purpose |
+|------|---------|
+| `stats` | Index statistics |
+| `search` | Text search across symbols (FTS5 + BM25) |
+| `list` | List symbols with filters |
+| `get` | Get single symbol by ID |
+| `traverse` | BFS traversal from a symbol |
+| `hotspots` | Ranked symbols by connectivity |
+| `impact` | Upstream impact analysis |
+| `categories` | Type/layer/directory breakdown |
 
 ## Common Parameters
 
 | Parameter | Description | Used By |
 |-----------|-------------|---------|
-| `--q` | Search query text | graph search |
-| `--type` | Symbol type filter (code, document, CLASS, FUNCTION) | graph search, symbols list |
-| `--direction` | Traversal direction (both, in, out) | graph traverse, lineage search |
-| `--depth` | Traversal depth (1-10) | graph traverse, graph impact, lineage search |
-| `--limit` | Max results | graph hotspots, graph list |
-| `--layer` | Architectural layer filter | graph hotspots |
+| `--q` | Search query text | search |
+| `--type` | Symbol type filter (code, document, CLASS, FUNCTION) | search, list |
+| `--direction` | Traversal direction (both, in, out) | traverse, impact |
+| `--depth` | Traversal depth (1-10) | traverse, impact |
+| `--limit` | Max results | hotspots, list |
+| `--layer` | Architectural layer filter | hotspots |
 | `--project` | Project name for isolation | all verbs |
-| `--edge_type` | Edge type filter (implements, calls, imports) | graph search |
+| `--edge_type` | Edge type filter (implements, calls, imports) | search |
+
+## Response Format
+
+Results are returned as JSON:
+
+- List operations return a JSON array
+- Single-item operations return a JSON object
+- Errors print to stderr and exit with code 1
 
 ## Error Handling
 
-- CP unavailable: `{"error": "Control plane unreachable", "code": "CP_UNAVAILABLE"}` on stderr
-- Request failed: `{"error": "...", "code": "CP_ERROR"}` on stderr
-- Exit code 1 on any error
+- Script not found: Check `CLAUDE_PLUGIN_ROOT` is set correctly
+- Empty results: Verify indexing was done (`/wicked-garden:search:stats`)
+- Import errors: Run `cd "${CLAUDE_PLUGIN_ROOT}" && uv sync` to install dependencies
 
 ## Troubleshooting
 
-- **CP unavailable**: Check that the control plane is running (`curl http://localhost:18889/health`)
+- **Script error**: Check that the search scripts are accessible and the index is built
 - **Empty results**: Verify indexing was done (`/wicked-garden:search:stats`)
 - **Wrong project**: Use `--project` to target the correct codebase

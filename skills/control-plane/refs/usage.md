@@ -1,104 +1,91 @@
-# CP Usage Patterns
+# DomainStore Usage Patterns
 
-## StorageManager (Preferred)
+## DomainStore (Standard API)
 
-All domain scripts should use StorageManager. It handles mode routing, fallback, and offline queueing automatically.
+All domain scripts use DomainStore. It handles local JSON persistence and optional integration-discovery routing.
 
 ```python
-from _storage import StorageManager
+from _domain_store import DomainStore
 
-sm = StorageManager("memory")  # or "wicked-mem" — both work
+ds = DomainStore("wicked-mem")
 
 # Read
-items = sm.list("memories", project="my-project")  # list with filters
-item  = sm.get("memories", "abc123")                # single record by ID
+items = ds.list("memories", project="my-project")  # list with filters
+item  = ds.get("memories", "abc123")                # single record by ID
 
 # Write
-new = sm.create("memories", {"title": "...", "content": "..."})
-sm.update("memories", "abc123", {"title": "new title"})
-sm.delete("memories", "abc123")
+new = ds.create("memories", {"title": "...", "content": "..."})
+ds.update("memories", "abc123", {"title": "new title"})
+ds.delete("memories", "abc123")
 ```
 
-### What StorageManager does for you
+### What DomainStore does for you
 
-1. **CP available**: Sends request to CP, returns response
-2. **CP unavailable**: Reads/writes local JSON files under `{SM_LOCAL_ROOT}/{domain}/{source}/{id}.json`
-3. **Writes when offline**: Saves locally AND enqueues for replay in `_queue.jsonl`
-4. **Queue drain**: On next CP connection, replays queued writes with dedup (business key matching for creates, last-write-wins for updates)
+1. **Local JSON**: Reads/writes JSON files under `~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json`
+2. **Integration routing**: Checks for configured MCP tools (Linear, Jira, Notion, Miro) via `_integration_resolver.py`
+3. **Fallback**: If external tool fails, falls back to local JSON
+4. **ID generation**: Auto-generates UUIDs for new records
 
 ### Domain names
 
-StorageManager accepts either plugin names or CP domain names:
+DomainStore accepts plugin-style names:
 
-| Plugin Name | CP Domain |
-|-------------|-----------|
-| `wicked-mem` | `memory` |
-| `wicked-kanban` | `kanban` |
-| `wicked-crew` | `crew` |
-| `wicked-jam` | `jam` |
-| `wicked-delivery` | `delivery` |
+| DomainStore Name | Used By |
+|-----------------|---------|
+| `wicked-mem` | Memory scripts |
+| `wicked-kanban` | Kanban scripts |
+| `wicked-crew` | Crew scripts |
+| `wicked-jam` | Jam scripts |
+| `wicked-qe` | QE registry |
+| `wicked-observability` | Traces, health probes |
+| `wicked-smaht` | Cheatsheets, cache |
 
-## Direct Client (For Discovery and Queries)
+## Hook Mode
 
-Use `ControlPlaneClient` only for manifest, health checks, and SQL queries — not for CRUD (use StorageManager instead).
-
-```python
-from _control_plane import get_client
-
-cp = get_client()
-
-# Discovery
-manifest = cp.manifest()                                      # full API catalog
-detail   = cp.manifest_detail("memory", "memories", "create") # endpoint schema
-
-# Health
-ok, version = cp.check_health()
-
-# Cross-domain query
-result = cp.query("SELECT COUNT(*) as n FROM memories WHERE importance >= 7")
-```
-
-## Hook Scripts
-
-Hooks run under a 15s timeout. Use `hook_mode=True` for tighter budgets and no retries:
+Hooks run under tight time budgets. Use `hook_mode=True` to skip integration-discovery:
 
 ```python
-from _control_plane import get_client
-
-cp = get_client(hook_mode=True)  # 2s connect, 2s request, no retry
-ok, version = cp.check_health()
+ds = DomainStore("wicked-mem", hook_mode=True)  # local-only, no external calls
 ```
 
-| Context | Connect Timeout | Request Timeout | Retry |
-|---------|----------------|-----------------|-------|
-| Hooks | 2s | 2s | No |
-| Commands | 3s (configurable) | 10s (configurable) | 1 retry after 500ms |
+| Context | Integration Discovery | External Tools |
+|---------|----------------------|----------------|
+| Commands | Yes | Yes (if configured) |
+| Hook scripts | No (hook_mode=True) | No |
 
-## Responses
+## SqliteStore (Search + FTS)
 
-All CP responses use an envelope:
+For full-text search across domains:
 
-```json
-{
-  "data": { ... },
-  "meta": { "total": 1, "source": "control-plane", "timestamp": "..." }
-}
+```python
+from _sqlite_store import SqliteStore
+
+store = SqliteStore("/path/to/wicked-garden.db")
+results = store.search("deployment", domain="wicked-mem", limit=10)
+store.close()
 ```
 
-- `data` is an array for `list`/`search`, an object for `get`/`create`/`update`
-- StorageManager unwraps this automatically — you get the data directly
-- `meta.source` tells you whether the response came from `"control-plane"` or `"local"`
+SqliteStore uses FTS5 + BM25 ranking. Records can be migrated from local JSON via `_migrate_local.py`.
+
+## Path Resolution
+
+For ephemeral files (caches, temp state) that don't need CRUD:
+
+```python
+from _domain_store import get_local_path
+cache_dir = get_local_path("wicked-smaht", "cache", "context7")
+```
 
 ## Error Handling
 
-All errors return `None`. Callers should treat `None` as "use fallback" or "empty result":
+All errors return `None` or `[]`. Callers should treat `None` as "use fallback" or "empty result":
 
 ```python
-result = sm.list("memories", project="x")
+result = ds.list("memories", project="x")
 # result is always a list — [] on any error
 
-item = sm.get("memories", "abc123")
+item = ds.get("memories", "abc123")
 # item is dict or None
 ```
 
-No exceptions are raised. Errors are logged to stderr with `[wicked-garden]` prefix.
+No exceptions are raised. Errors are logged to stderr.

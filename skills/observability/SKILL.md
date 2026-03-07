@@ -128,4 +128,4 @@ Detection uses `command -v` — no external dependencies.
 
 - **wicked-smaht**: Context assembly uses trace data to detect degraded adapters
 - **wicked-crew**: Health probes run during execution gates
-- **Control Plane**: Traces stored via CP when available, local file fallback
+- **DomainStore**: Traces stored via DomainStore (local JSON), with SqliteStore for search

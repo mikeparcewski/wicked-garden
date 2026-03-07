@@ -66,7 +66,7 @@ TaskGet(taskId="{id}")
 /wicked-garden:mem:store --type episodic --tags "{project}" "Encountered {issue}, resolved by {solution}"
 ```
 
-**Fallback**: Project files stored locally via StorageManager under the wicked-crew domain
+**Fallback**: Project files stored locally via DomainStore under the wicked-crew domain
 
 ### Memory Types for Projects
 

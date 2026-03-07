@@ -7,7 +7,7 @@ description: |
   "file references", "call chain", "blast radius from cache", or "cached graph".
 
   Enables other plugins to query the code graph without direct wicked-search coupling,
-  using StorageManager for efficient data sharing.
+  using DomainStore for efficient data sharing.
 ---
 
 # Graph Export Skill

@@ -78,7 +78,7 @@ Use active voice in "What It Unlocks" to imply directionality (who calls whom).
 | Lifecycle | Core value requires multiple invocations to see |
 | When to Use What | 3+ commands with overlapping scope |
 | How It Works | Internal mechanism is part of the value proposition |
-| Data API | Plugin exposes data via the Control Plane |
+| Data API | Plugin exposes data via DomainStore or external integrations |
 | Agents & Skills | Merge tables if combined rows ≤5; split if either has 5+ |
 
 ## Tone

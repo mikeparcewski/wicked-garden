@@ -13,7 +13,7 @@ description: |
 
 # Unified Search Skill
 
-Search across code AND documents via the knowledge graph in the control plane.
+Search across code AND documents via the unified knowledge graph.
 
 ## Quick Start
 
@@ -76,10 +76,10 @@ Use `/wicked-garden:search:search` for:
 
 ## Architecture
 
-All search commands query the **knowledge graph** via the control plane proxy:
+All search commands query the **knowledge graph** via search scripts:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge {source} {verb} [--param value ...]
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py {verb} [--param value ...]
 ```
 
 ### Knowledge Domain Sources

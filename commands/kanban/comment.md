@@ -25,7 +25,7 @@ Add a comment to an existing task on the kanban board.
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-comment "${PROJECT_ID}" "${TASK_ID}" "${COMMENT_CONTENT}"
    ```
 
-   If the control plane is available, the StorageManager inside kanban.py will automatically sync to CP.
+   Data is persisted via DomainStore (local JSON files).
 
 3. If the command succeeds, confirm the comment was added. If it fails, report the error.
 

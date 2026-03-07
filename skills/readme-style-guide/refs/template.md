@@ -92,10 +92,10 @@ claude plugins add something-wicked/wicked-{name}
 |-------|---------|
 | `/wicked-garden:{domain}-{skill}` | {What it provides} |
 
-<!-- CONDITIONAL: Required if plugin exposes data via the Control Plane. -->
+<!-- CONDITIONAL: Required if plugin exposes structured data via DomainStore. -->
 ## Data API
 
-Exposes data via the Control Plane (CP):
+Exposes data via DomainStore:
 
 | Source | Verbs | Description |
 |--------|-------|-------------|

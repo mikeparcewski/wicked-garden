@@ -16,7 +16,7 @@ Load current project state via phase_manager:
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} status --json
 ```
 
-This returns current phase, phase_plan, signals, complexity, and phase statuses via StorageManager.
+This returns current phase, phase_plan, signals, complexity, and phase statuses via DomainStore.
 
 ### 2. Task Lifecycle Recovery
 

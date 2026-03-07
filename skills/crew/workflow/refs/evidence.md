@@ -51,4 +51,4 @@ Agents can explicitly record evidence via:
 
 Use `/wicked-garden:crew:evidence` to view evidence collected for the
 current project or a specific task. Evidence is stored alongside the
-crew project data and persists via StorageManager.
+crew project data and persists via DomainStore.

@@ -1,10 +1,10 @@
 ---
 name: multi-model
 description: |
-  Multi-model AI collaboration: discover authenticated providers and orchestrate
+  Multi-model AI collaboration: discover installed LLM CLIs and orchestrate
   council sessions, cross-model reviews, and diverse perspective gathering.
-  Uses the collaboration API to spawn real agent sessions with different models per persona.
-  Preferences stored in wicked-mem. Conversations tracked in wicked-kanban.
+  Detects codex, gemini, opencode, and pi CLIs at runtime via PATH discovery.
+  Decisions stored in wicked-mem. Transcripts persisted via jam scripts.
 
   Use when:
   - Running multi-model analysis or design review
@@ -17,27 +17,23 @@ description: |
 
 # Multi-Model Collaboration Skill
 
-Orchestrate multi-model AI collaboration using the collaboration API.
-Each council member gets a different model provider for genuine perspective diversity.
+Orchestrate multi-model AI collaboration using external LLM CLIs.
+Each council member is a different model provider for genuine perspective diversity.
 
 ## How It Works
 
-The collaboration system **does NOT shell out to CLIs**. Instead:
+The multi-model system uses **external LLM CLIs** discovered at runtime:
 
-1. **Model Discovery** — `AuthStorage.create()` checks which providers have valid API keys
-   (Anthropic, Google/Gemini, OpenAI/Codex, etc.)
-2. **Model Rotation** — `CollaborationService.resolveModelAssignments()` round-robins
-   authenticated models across personas so each council member uses a different model
-3. **Agent Spawning** — Each persona gets a real `AgentRuntime` session via `AgentBridge.spawn()`
-   with its assigned model spec (e.g. `anthropic:claude-opus-4-6`, `google-gemini-cli:gemini-2.5-pro`)
-4. **Perspective Collection** — Outputs are captured from each session and persisted as
-   `perspectives` on the collaboration record
-5. **Synthesis** — The current pi session synthesizes all perspectives with full model attribution
+1. **CLI Discovery** — `which codex gemini opencode pi` detects installed CLIs
+2. **Quorum Check** — Council requires 2+ external CLIs; 0 = refuse, 1 = warn
+3. **Question Scaffold** — All models answer the same fixed 4-question set
+4. **Parallel Dispatch** — Each CLI receives the scaffold via stdin pipe, runs independently
+5. **Synthesis** — Claude synthesizes all perspectives with model attribution
 
 ## Quick Start
 
 ```bash
-# Council mode — spawns agents with different models per persona
+# Council mode — dispatches to external CLIs in parallel
 /jam:council "Should we use JWT or sessions for auth?"
 
 # Quick jam — single model, 4 personas, fast
@@ -47,68 +43,41 @@ The collaboration system **does NOT shell out to CLIs**. Instead:
 /jam:brainstorm "Architecture for the notification system"
 ```
 
-## Model Assignment
+## Supported CLIs
 
-### Automatic (Default)
+| CLI | Install | Model |
+|-----|---------|-------|
+| `codex` | `brew install codex` | OpenAI Codex |
+| `gemini` | `npm i -g @google/gemini-cli` | Google Gemini |
+| `opencode` | `brew install opencode` | Configurable |
+| `pi` | `brew install pi-mono` | Pi AI |
 
-When no explicit model map is provided, the system:
-
-1. Discovers all authenticated providers via `AuthStorage`
-2. Deduplicates by provider family (e.g. `openai-codex` and `openai` count as one)
-3. Round-robins assignments across personas
-
-Example with 3 authenticated providers and 5 personas:
-```
-architect       → anthropic:claude-opus-4-6
-security-eng    → google-gemini-cli:gemini-2.5-pro
-product-manager → openai-codex:gpt-5.3-codex
-ux-designer     → anthropic:claude-opus-4-6    (wraps around)
-staff-engineer  → google-gemini-cli:gemini-2.5-pro
-```
-
-### Explicit (via config.model_map)
-
-Pass a `model_map` in the collaboration config to override specific roles:
-
-```json
-{
-  "config": {
-    "personas": ["architect", "security-engineer", "ux-designer"],
-    "model_map": {
-      "architect": "anthropic:claude-opus-4-6",
-      "security-engineer": "google-gemini-cli:gemini-2.5-pro",
-      "ux-designer": "openai:gpt-5.2"
-    }
-  }
-}
-```
-
-Unmapped roles auto-rotate through remaining authenticated models.
+Claude always participates as a council member alongside the external CLIs.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  wg-jam.ts Extension (pi session)                    │
-│  - /jam:council creates collaboration                │
-│  - POST /collaborations/:id/run triggers multi-model │
-│  - Receives perspectives, asks pi to synthesize      │
+│  /jam:council Command                                │
+│  - Parses topic, options, criteria                   │
+│  - Dispatches to council agent                       │
 ├─────────────────────────────────────────────────────┤
-│  CollaborationService.runSession()                   │
-│  - resolveModelAssignments() → picks models          │
-│  - AgentService.spawn() per persona with model spec  │
-│  - Polls for outputs, persists perspectives          │
+│  Council Agent (agents/jam/council.md)               │
+│  - Detects CLIs via `which`                          │
+│  - Builds question scaffold (4 fixed questions)      │
+│  - Pipes scaffold to each CLI in parallel            │
+│  - Claude answers the same scaffold independently    │
 ├─────────────────────────────────────────────────────┤
-│  AgentBridge.spawn()                                 │
-│  - Creates AgentRuntime with model:                  │
-│    getModel(provider, modelId) → PiAgent             │
-│  - Each runtime has its own auth + provider          │
+│  External CLI Dispatch                               │
+│  - cat scaffold.md | codex exec "..."                │
+│  - cat scaffold.md | gemini "..."                    │
+│  - cat scaffold.md | opencode run "..."              │
+│  - cat scaffold.md | pi exec "..."                   │
 ├─────────────────────────────────────────────────────┤
-│  Model Providers (via @mariozechner/pi-ai)           │
-│  - anthropic:claude-opus-4-6                         │
-│  - google-gemini-cli:gemini-2.5-pro                  │
-│  - openai-codex:gpt-5.3-codex                        │
-│  - openai:gpt-5.2                                    │
+│  Synthesis (3-stage)                                 │
+│  - Stage 1: Raw responses per model                  │
+│  - Stage 2: Synthesis matrix + risk convergence      │
+│  - Stage 3: Verdict (consensus or fault lines)       │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -125,23 +94,22 @@ After gathering perspectives from different models, synthesize using:
 
 ## Persistence
 
-### Automatic (via wg-jam extension)
+### Automatic (via save_transcript.py)
 
-Council results are automatically persisted:
-- Collaboration record with all perspectives + model attribution
-- Events emitted: `collaboration:created`, `collaboration:perspective:added`,
-  `collaboration:run:completed`
-- Each perspective's metadata includes `model` and `session_id`
+Council responses are persisted as transcript entries:
+- Each model's response stored with `persona_type: council`
+- Synthesis appended as `entry_type: synthesis`
+- Retrievable via `/jam:transcript` and `/jam:thinking`
 
 ### Manual (via wicked-mem)
 
 Store decisions with full attribution:
 
 ```bash
-/memory_write content="Auth: JWT with 15min/7day expiry.
+/wicked-garden:mem:store "Auth: JWT with 15min/7day expiry.
 Consensus: Claude, Gemini, Codex (idempotency critical).
 Unique: Gemini flagged session store scaling concern.
-Dissent: none." type=decision tags=auth,multi-model-review
+Dissent: none." --type decision --tags auth,multi-model-review
 ```
 
 ## When to Use Multi-Model
@@ -157,14 +125,14 @@ Dissent: none." type=decision tags=auth,multi-model-review
 
 ## Fallback Behavior
 
-If the `/collaborations/:id/run` endpoint fails (e.g. no agents registered,
-bridge unavailable), the council gracefully falls back to single-model
-prompt-based jam using the current pi session.
+If no external CLIs are detected, council refuses and suggests
+`/jam:brainstorm` (single-model, multi-persona) as an alternative.
+With only 1 CLI, it runs as "brainstorm with external guest" with a warning.
 
 ## References
 
 **Orchestration:**
-- [Orchestration Patterns](refs/orchestration.md) — API architecture, model rotation, agent spawning
+- [Orchestration Patterns](refs/orchestration.md) — CLI dispatch, parallel execution, synthesis
 - [Context Management](refs/context.md) — Session state, cross-AI handoffs, context windows
 
 **CLI Providers:**
