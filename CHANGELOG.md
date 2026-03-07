@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.39.0] - 2026-03-07
+
+### Features
+- feat: full testing pyramid for QE — 6-layer test execution (unit, integration, visual, security, scenario, regression) with parallel dispatch and test requirement matrix (639ece1)
+- feat: _run.py smart script wrapper — auto-help on argparse errors, rolled out to all 60 command files
+- feat: change_type_detector.py — classify files as UI/API/both/unknown for deterministic QE routing
+- feat: test_task_factory.py — auto-create evidence-gated test tasks with dependency wiring
+- feat: validate_test_evidence() — artifact validation for UI screenshots and API payloads
+- feat: QE nudges now suggest full testing pyramid based on change type (not just acceptance tests)
+
+### Tests
+- 82 new tests across test_change_type_detector.py, test_test_task_factory.py, test_evidence_validation.py
+
 ## [1.38.0] - 2026-03-07
 
 ### Features
