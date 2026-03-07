@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.38.0] - 2026-03-07
+
+### Features
+- feat: project-scoped storage — isolate state per working directory (029f3f2)
+
+### Chores
+- release: wicked-garden v1.37.0 (6823090)
+
 ## [1.37.0] - 2026-03-07
 
 ### Features
