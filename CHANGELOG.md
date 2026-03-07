@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.40.0] - 2026-03-07
+
+### Features
+- feat: rename resolve skill to deliberate — name now matches behavior (reflection/deliberation, not fixing) (#288)
+- feat: auto-route low-complexity changes (score <= 2) to just-finish mode (#289)
+- feat: enhance issue-reporting with research, duplicate detection, and SMART criteria enforcement (#287)
+
+### Improvements
+- refactor: consolidate standalone CLI skills (codex-cli, gemini-cli, opencode-cli, pi-mono-cli) into multi-model (#285)
+- docs: comprehensive README update — accurate component counts (142/86/75), new features documented (#286)
+
+### Stats
+- 142 commands, 86 agents, 75 skills, 51 specialist personas
+- Net reduction: ~1000 lines removed via skill consolidation
+
 ## [1.39.0] - 2026-03-07
 
 ### Features

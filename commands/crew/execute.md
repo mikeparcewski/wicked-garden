@@ -368,33 +368,33 @@ TaskUpdate(taskId="{id}", status="completed")
 - `wicked-garden:delivery:report`: Thin CLI wrapper, no heavy analysis
 - `wicked-garden:crew:gate`: Already uses correct Task dispatch internally (gate.md is gold standard)
 
-#### Step 0: Issue Resolution Analysis (Clarify Phase)
+#### Step 0: Issue Deliberation Analysis (Clarify Phase)
 
 REQUIRED for clarify phase when the project involves issues, bugs, or feature requests.
 Run before engaging specialists or producing deliverables.
 
 For each issue in scope:
 ```
-Skill(skill="wicked-garden:resolve", args="{issue description or GH# for each issue}")
+Skill(skill="wicked-garden:deliberate", args="{issue description or GH# for each issue}")
 ```
 
-If processing multiple issues, run in batch mode or dispatch parallel resolve calls.
-Store each resolution brief in `{project_dir}/phases/clarify/resolutions/{issue-id}.md`.
+If processing multiple issues, run in batch mode or dispatch parallel deliberate calls.
+Store each deliberation brief in `{project_dir}/phases/clarify/deliberations/{issue-id}.md`.
 
-Resolution briefs inform the clarify deliverables:
-- `objective.md` should reflect any scope changes recommended by the resolver
+Deliberation briefs inform the clarify deliverables:
+- `objective.md` should reflect any scope changes recommended by the deliberator
 - `acceptance-criteria.md` should incorporate tech debt opportunities identified
-- `complexity.md` should account for any redesign work the resolver recommends
+- `complexity.md` should account for any redesign work the deliberator recommends
 
-If the resolver recommends **Close** or **Defer** for any issue, surface it to the user before proceeding — even in just-finish mode. Removing scope is a decision that deserves visibility.
+If the deliberator recommends **Close** or **Defer** for any issue, surface it to the user before proceeding — even in just-finish mode. Removing scope is a decision that deserves visibility.
 
-#### Design Phase: Conditional Resolve
+#### Design Phase: Conditional Deliberate
 
 If new issues surface during design (scope expansion, tech debt found, new bugs uncovered):
 ```
-Skill(skill="wicked-garden:resolve", args="{new issue description}")
+Skill(skill="wicked-garden:deliberate", args="{new issue description}")
 ```
-Run resolve on any new items before including them in the architecture document.
+Run deliberate on any new items before including them in the architecture document.
 
 #### Phase Execution Pattern
 
@@ -915,10 +915,10 @@ cp -r phases/{phase}/ /tmp/crew-signoff/
 cat /tmp/crew-signoff/REVIEW_PROMPT.md | codex exec "Review these phase deliverables..."
 
 # Gemini (fallback)
-/wicked-garden:gemini-cli "Review the {phase} phase deliverables for project {name}..."
+cat /tmp/crew-signoff/REVIEW_PROMPT.md | gemini "Review the {phase} phase deliverables for project {name}..."
 
 # OpenCode (fallback)
-/wicked-garden:opencode-cli "Review the {phase} phase deliverables for project {name}..."
+opencode run "Review the {phase} phase deliverables for project {name}..." -f /tmp/crew-signoff/REVIEW_PROMPT.md
 ```
 
 Create a task for the sign-off:

@@ -11,9 +11,9 @@ description: "Critically analyze any work request before implementation — chal
 argument-hint: "<description or GH#number> [--deep] [--batch]"
 ---
 
-# /wicked-garden:resolve
+# /wicked-garden:deliberate
 
-Analyze any work request through the five-lens resolve framework before jumping to implementation. Works for bugs, features, content, design, architecture — anything.
+Analyze any work request through the five-lens deliberate framework before jumping to implementation. Works for bugs, features, content, design, architecture — anything.
 
 ## Arguments
 
@@ -54,7 +54,7 @@ Skill(skill="wicked-garden:mem:recall", args="\"{key terms}\" --limit 5")
 
 ### 3. Detect Context and Load Lens
 
-Determine what kind of work this is (code, content, design, architecture, or mixed) and load the appropriate domain lens from the resolve skill refs:
+Determine what kind of work this is (code, content, design, architecture, or mixed) and load the appropriate domain lens from the deliberate skill refs:
 
 - Code changes → `refs/code-lens.md`
 - Content/docs → `refs/content-lens.md`
@@ -106,7 +106,7 @@ Apply each lens:
 - Can we solve with configuration instead of implementation?
 - Is there a simpler approach that covers 90% of cases?
 
-Return a structured Resolution Brief with:
+Return a structured Deliberation Brief with:
 - Assessment (validity, root cause, blast radius)
 - Opportunities (cleanup, generalization, rethink)
 - Recommendation (fix/redesign/generalize/defer/close + rationale)
@@ -115,12 +115,12 @@ Return a structured Resolution Brief with:
 )
 ```
 
-### 5. Present Resolution Brief
+### 5. Present Deliberation Brief
 
 Format the agent's findings:
 
 ```markdown
-## Resolution Brief: {title}
+## Deliberation Brief: {title}
 
 ### Assessment
 **Validity**: {Real problem / Symptom / Not a problem / Wrong framing}
@@ -141,12 +141,12 @@ Format the agent's findings:
 {specific direction for whoever does the work}
 ```
 
-### 6. Store Resolution
+### 6. Store Deliberation
 
 Store as a memory for future reference:
 
 ```
-Skill(skill="wicked-garden:mem:store", args="\"Resolution: {title} — {strategy}: {one-line rationale}\" --type decision --tags resolution,{project}")
+Skill(skill="wicked-garden:mem:store", args="\"Deliberation: {title} — {strategy}: {one-line rationale}\" --type decision --tags deliberation,{project}")
 ```
 
 ### 7. Crew Integration
@@ -155,7 +155,7 @@ If a crew project is active, update the project with resolution findings:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} update \
-  --data '{"resolutions": [{"issue": "{title}", "strategy": "{strategy}", "scope_change": "{change}"}]}' \
+  --data '{"deliberations": [{"issue": "{title}", "strategy": "{strategy}", "scope_change": "{change}"}]}' \
   --json
 ```
 
@@ -166,14 +166,14 @@ When `--batch` is used with multiple issue numbers:
 1. Fetch all issues in parallel
 2. Run the five-lens analysis on each
 3. Cross-reference: do any issues share root causes?
-4. Present a consolidated resolution table with individual briefs
+4. Present a consolidated deliberation table with individual briefs
 
 ## Examples
 
 ```bash
-/wicked-garden:resolve "Auth tokens expire too early on mobile"
-/wicked-garden:resolve #281
-/wicked-garden:resolve --batch "280,281"
-/wicked-garden:resolve --deep "Navigation feels confusing on the settings page"
-/wicked-garden:resolve "README is outdated and contradicts the API docs"
+/wicked-garden:deliberate "Auth tokens expire too early on mobile"
+/wicked-garden:deliberate #281
+/wicked-garden:deliberate --batch "280,281"
+/wicked-garden:deliberate --deep "Navigation feels confusing on the settings page"
+/wicked-garden:deliberate "README is outdated and contradicts the API docs"
 ```

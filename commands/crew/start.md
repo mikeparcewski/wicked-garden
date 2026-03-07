@@ -16,6 +16,7 @@ Extract the project description from arguments. If no description provided, ask 
 **Flags**:
 - `--force` — Skip the pre-flight complexity gate entirely. Use when you know crew is the right tool.
 - `--quick` — Use a lightweight phase plan: build + review only. Skips clarify, design, test-strategy, and test phases. Useful for well-understood, low-risk changes.
+- `--no-auto-finish` — Disable automatic just-finish execution for low-complexity changes (routing_lane "auto" or "fast"). Without this flag, complexity <= 2 automatically applies the quick phase plan and chains into just-finish mode.
 
 ### 2. Generate Project Name
 
@@ -211,7 +212,17 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {n
 
 **If `--quick` flag was passed**: skip the rest of this step, proceed directly to Step 6, and override the phase plan in Step 7 (see below).
 
-**If `routing_lane == "auto"` AND `--force` was NOT passed**:
+**If (`routing_lane == "auto"` OR `routing_lane == "fast"`) AND `--no-auto-finish` was NOT passed AND `--force` was NOT passed**:
+
+This request has low complexity (score <= 2). Automatically apply the quick phase plan and chain into just-finish execution — no user prompt required.
+
+Set an internal flag `AUTO_FINISH=true` to be used in Step 9.
+
+The `--quick` phase plan will be applied in Step 7 (build + review only).
+
+Then proceed to Step 6 normally. Do NOT ask the user for confirmation.
+
+**If `routing_lane == "auto"` AND `--no-auto-finish` WAS passed AND `--force` was NOT passed**:
 
 This request has low complexity (score 0-1 out of 7). Crew may be heavier than needed. Present a choice to the user.
 
@@ -251,7 +262,7 @@ Do NOT proceed until the user replies with their selection.
 - **Option 2 (Switch to kanban)**: Invoke `Skill(skill="wicked-garden:kanban:task", args="create {description}")` and exit. Do not continue the crew setup.
 - **Option 3 (Cancel)**: Inform the user the operation was cancelled and exit.
 
-**If `routing_lane == "fast"` AND `--quick` was NOT passed AND `--force` was NOT passed**:
+**If `routing_lane == "fast"` AND `--no-auto-finish` WAS passed AND `--quick` was NOT passed AND `--force` was NOT passed**:
 
 Suggest `--quick` as a lighter option, but do not block:
 
@@ -279,7 +290,7 @@ This returns available specialist plugins and their roles:
 
 ### 7. Select Phase Plan
 
-**If `--quick` flag was passed**: Skip all phase selection logic below. Use a static phase plan of `["build", "review"]` only:
+**If `--quick` flag was passed OR `AUTO_FINISH` is true**: Skip all phase selection logic below. Use a static phase plan of `["build", "review"]` only:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
@@ -370,13 +381,14 @@ This ensures crew project tasks appear grouped under their project initiative on
 
 Show:
 - Project created
-- Current phase (clarify)
+- Current phase (clarify, or build when `AUTO_FINISH` is true)
 - **Signal analysis** (what complexity was detected)
 - **Recommended specialists** (which plugins will help)
 - **Available specialists** (what's actually installed)
-- Next step: run `/wicked-garden:crew:execute` to begin clarifying
+- **Auto-finish notice** (when `AUTO_FINISH` is true)
+- Next step: run `/wicked-garden:crew:execute` to begin clarifying (omit when `AUTO_FINISH` is true — just-finish runs automatically)
 
-Example output:
+Example output (standard):
 ```markdown
 ## Project Created: {name}
 
@@ -402,3 +414,35 @@ Example output:
 ### Next Step
 Run `/wicked-garden:crew:execute` to begin the clarify phase.
 ```
+
+Example output (auto-finish — complexity <= 2):
+```markdown
+## Project Created: {name}
+
+**Current Phase**: build
+
+### Signal Analysis
+- **Complexity**: Low ({complexity_score}/7)
+- **Signals**: {signals}
+
+### Specialist Recommendations
+| Specialist | Role | Status |
+|------------|------|--------|
+| wicked-qe | quality | ✅ Available |
+
+### Task Lifecycle
+- Staleness detection: 30 minutes
+- Recovery mode: automatic
+- Override mechanism: available via phase_manager update
+
+**Auto-finish**: Complexity <= 2 detected. Running in just-finish mode with quick phase plan (build + review).
+To disable: pass `--no-auto-finish` to crew:start.
+```
+
+**If `AUTO_FINISH` is true**: after displaying the report above, immediately invoke:
+
+```
+Skill(skill="wicked-garden:crew:just-finish")
+```
+
+Do not prompt the user to run any command — just-finish executes automatically.
