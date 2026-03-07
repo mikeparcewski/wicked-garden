@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.37.0] - 2026-03-07
+
+### Features
+- feat: fix GH#284, GH#283, GH#282, add resolve integration and phase_manager advance (d15e3ee)
+
+### Chores
+- release: wicked-garden v1.36.0 (bb2f433)
+
 ## [1.36.0] - 2026-03-07
 
 ### Features
