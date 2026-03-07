@@ -469,12 +469,16 @@ def main():
         flag = Path.home() / ".something-wicked" / "wicked-crew" / ".task_suggest_shown"
         flag.unlink(missing_ok=True)
 
-        # 2. Load session state
+        # 2. Load session state — if stale from a previous session, start fresh.
         state = _load_session_state()
+        if state is not None and state.session_ended:
+            state.delete()
+            state = _load_session_state()  # fresh defaults
         if state is not None:
             state.update(
                 setup_complete=True,
-                setup_confirmed=True,
+                turn_count=0,
+                session_ended=False,
             )
 
         _log("bootstrap", "normal", "storage.local", ok=True)
@@ -579,14 +583,7 @@ def main():
         if onboarding_directive:
             briefing_parts.append(onboarding_directive)
 
-        # 9. Set onboarding gate flag for prompt_submit enforcement
-        if state is not None:
-            state.update(
-                needs_onboarding=bool(onboarding_directive),
-                onboarding_complete=(has_memories and has_index),
-            )
-
-        # 10. Persist final session state
+        # 9. Persist final session state
         if state is not None:
             _save_session_state(state)
 
