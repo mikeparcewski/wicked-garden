@@ -247,8 +247,31 @@ def load_specialist(specialist_json: Path) -> Optional[Specialist]:
 
 
 def _get_cache_key(search_paths: List[Path]) -> str:
-    """Generate cache key from search paths."""
-    return ":".join(str(p) for p in sorted(search_paths))
+    """Generate cache key from search paths and plugin root."""
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    return plugin_root + ":" + ":".join(str(p) for p in sorted(search_paths))
+
+
+def _load_self_specialists() -> Dict[str, 'Specialist']:
+    """Load specialists from CLAUDE_PLUGIN_ROOT/.claude-plugin/specialist.json directly.
+
+    This is the primary self-discovery mechanism. It is always checked regardless
+    of what get_default_search_paths() returns, because the installed plugin root
+    may not be reachable via directory scanning (non-standard install paths).
+    """
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if not plugin_root:
+        return {}
+    specialist_json = Path(plugin_root) / ".claude-plugin" / "specialist.json"
+    if not specialist_json.exists():
+        logger.debug(f"Self-discovery: no specialist.json at {specialist_json}")
+        return {}
+    result = {}
+    for spec in load_specialist_file(specialist_json):
+        result[spec.name] = spec
+        logger.debug(f"Self-discovered specialist: {spec.name} ({spec.role})")
+    logger.info(f"Self-discovery: loaded {len(result)} built-in specialist(s)")
+    return result
 
 
 def discover_specialists(
@@ -279,6 +302,10 @@ def discover_specialists(
     logger.info(f"Discovering specialists in {len(search_paths)} search paths")
     start_time = time.time()
     specialists = {}
+
+    # Self-discovery: always load built-in specialists from CLAUDE_PLUGIN_ROOT
+    # This is the primary source — non-standard installs rely on this exclusively.
+    specialists.update(_load_self_specialists())
 
     for search_path in search_paths:
         if not search_path.exists():
@@ -329,25 +356,42 @@ def clear_cache() -> None:
 
 
 def get_default_search_paths() -> List[Path]:
-    """Get default paths to search for plugins."""
+    """Get default paths to search for plugins.
+
+    Priority:
+    1. Self-discovery: always check CLAUDE_PLUGIN_ROOT directly first.
+       This handles non-standard install paths and the common case where
+       the running plugin IS the only wicked-* plugin.
+    2. Standard cache directory (standard installs).
+    3. CLAUDE_PLUGIN_ROOT.parents[2]: the cache root for non-standard installs
+       where the structure is .../plugins/cache/wicked-garden/<plugin>/<version>/.
+       Only added if wicked-* subdirectories actually exist there.
+    4. WICKED_DEV_PLUGINS_PATH: explicit override for development.
+    """
     paths = []
     home = Path.home()
 
-    # Plugin cache directory
+    # 1. Self-discovery path: CLAUDE_PLUGIN_ROOT itself (not its parent)
+    # The _load_self_specialists() call in discover_specialists() handles this case directly.
+    # We record the plugin root so callers can avoid double-scanning.
+    plugin_root_env = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root_env:
+        plugin_root = Path(plugin_root_env)
+        # For directory scanning, the parent containing wicked-* dirs is needed.
+        # Try parents[2] (cache/<plugin-name>/<version> → cache/)
+        candidate = plugin_root.parents[2] if len(plugin_root.parts) > 3 else plugin_root.parent
+        if candidate.exists() and any(
+            d.is_dir() and d.name.startswith("wicked-")
+            for d in candidate.iterdir()
+        ):
+            paths.append(candidate)
+
+    # 2. Standard cache directory
     cache_dir = home / ".claude" / "plugins" / "cache" / "wicked-garden"
     if cache_dir.exists():
         paths.append(cache_dir)
 
-    # Local development directory
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if plugin_root:
-        # Go up from specific plugin to plugins directory
-        plugins_dir = Path(plugin_root).parent
-        if plugins_dir.exists():
-            paths.append(plugins_dir)
-
-    # Development mode: use explicit path from environment variable
-    # Set WICKED_DEV_PLUGINS_PATH to your local checkout for development
+    # 3. Development override
     dev_path = os.environ.get("WICKED_DEV_PLUGINS_PATH")
     if dev_path:
         dev_dir = Path(dev_path)
