@@ -63,13 +63,50 @@ else
 fi
 ```
 
-This determines which questions to ask in Step 2.
+This determines which questions to ask in Step 3.
 
-### 2. Ask the User (batched questions)
+### 2. Install Prerequisites
+
+Use the prereq-doctor to check and install dependencies. This is required for search indexing and context assembly.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-all
+```
+
+**Evaluate the result:**
+
+Parse the JSON output. For each tool in `core` and `optional`:
+
+- If `status` is `"available"`: Tool is ready. Show a checkmark.
+- If `status` is `"missing"`: **Ask the user** if you can install it:
+  - Show: "{name} is not installed. Install with: `{install_cmd}`?"
+  - **INTERACTIVE mode**: Use AskUserQuestion with header "{name}", options: "Install now" = "Run: {install_cmd}", "Skip" = "Continue without {name}".
+  - **PLAIN_TEXT mode**: Ask in plain text and STOP.
+  - If user approves: Run the `install_cmd` via Bash. If the tool has `post_install`, run that too. Then re-check with `prereq_doctor.py check {tool}` to verify.
+  - If user declines: Warn that features depending on this tool will be unavailable. Continue.
+
+After all core tools are installed, if `uv` is available, sync Python dependencies:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check uv
+```
+
+If uv is available, sync deps:
+
+```bash
+# Use the path from the check result
+{uv_path} sync --quiet
+```
+
+If `uv sync` fails, warn that search indexing will be unavailable but setup can continue.
+
+**Note**: The PostToolUseFailure hook also detects missing tools at runtime. If a tool is skipped here, the hook will catch the failure later and suggest installing via the prereq-doctor skill. So it's safe to skip.
+
+### 3. Ask the User (batched questions)
 
 Ask questions upfront. The method depends on question mode detected above.
 
-#### 2a. If config exists (setup_complete: true)
+#### 3a. If config exists (setup_complete: true)
 
 **Questions to ask:**
 
@@ -92,19 +129,19 @@ Then STOP and wait for the user's reply.
 
 **After receiving answer**: Verify selection is clear. Echo back: "You selected **[answer]**." If ambiguous, ask the user to clarify.
 
-- Skip to Step 4 (onboarding) using answer.
+- Skip to Step 5 (onboarding) using answer.
 
-#### 2b. If NO config
+#### 3b. If NO config
 
 **Questions to ask:**
 
-- **Q1 — Onboarding**: Same as 2a.
+- **Q1 — Onboarding**: Same as 3a.
 
 Storage is always local (DomainStore writes local JSON files). No connection setup needed.
 
-**After receiving answer**: Skip to Step 3 (write config), then Step 4 with onboarding answer.
+**After receiving answer**: Skip to Step 4 (write config), then Step 5 with onboarding answer.
 
-### 3. Write Config (if needed)
+### 4. Write Config (if needed)
 
 If no config exists, write the default local config:
 
@@ -138,11 +175,11 @@ Mode: Local (DomainStore — local JSON files)
 Status: Ready
 ```
 
-### 4. Run Onboarding
+### 5. Run Onboarding
 
-Execute based on the onboarding answer from Step 2.
+Execute based on the onboarding answer from Step 3.
 
-#### 4.0 Environment Scan (Full and Quick paths only)
+#### 5.0 Environment Scan (Full and Quick paths only)
 
 Before running onboarding, scan the project environment. Skip this step if the user chose "Skip".
 
@@ -180,24 +217,15 @@ print(json.dumps({'languages': detected_langs, 'frameworks': detected_fws}))
 "
 ```
 
-**Detect available integrations**:
+**Detect available integrations** (reuses prereq-doctor from Step 2):
 
 ```bash
-python3 -c "
-import shutil, json
-tools = {
-    'gh': shutil.which('gh') is not None,
-    'tree-sitter': shutil.which('tree-sitter') is not None,
-    'duckdb': shutil.which('duckdb') is not None,
-    'ollama': shutil.which('ollama') is not None,
-    'docker': shutil.which('docker') is not None,
-    'kubectl': shutil.which('kubectl') is not None,
-}
-print(json.dumps(tools))
-"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-all
 ```
 
-Store the JSON output from both commands in variables: `DETECTED_LANGS`, `DETECTED_FWS`, `DETECTED_TOOLS`.
+Parse the JSON result. Build `DETECTED_TOOLS` from the combined `core` + `optional` results — include tool name where `status` is `"available"`.
+
+Store the language/framework output as `DETECTED_LANGS` and `DETECTED_FWS`.
 
 **Domain preferences** — ask which issue tracker is used:
 
@@ -205,11 +233,34 @@ Store the JSON output from both commands in variables: `DETECTED_LANGS`, `DETECT
 - "GitHub Issues" = "Use gh cli for issue tracking"
 - "Linear" = "Use Linear API"
 - "Jira" = "Use Jira API"
+- "Azure DevOps" = "Use Azure DevOps work items"
+- "Rally" = "Use Rally (Broadcom) for agile project management"
 - "Local kanban only" = "Use wicked-kanban local board only (default)"
+
+Note: AskUserQuestion supports max 4 options. Present the first 4 most common choices (GitHub Issues, Jira, Azure DevOps, Local kanban only) and let the user select "Other" for Linear or Rally.
 
 **PLAIN_TEXT mode**: Write default "local" without asking (dangerous mode sessions should not block on preferences).
 
-Write the selection to config.json:
+**Validate the selected tool is reachable** (skip for "local"):
+
+Use the prereq-doctor to check MCP + CLI availability:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check "{selection}"
+```
+
+**Evaluate the result:**
+
+- If `status` is `"available"` and `via` is `"mcp"`: Show "**{name}** connected via MCP server `{mcp_server}`." and continue.
+- If `status` is `"available"` and `via` is `"cli"`: Show "**{cli}** CLI found at {cli_path}." and continue.
+- If `status` is `"missing"`: Ask the user if you can install it:
+  - Show: "**{name}** is not installed. Install with: `{install_cmd}`?"
+  - **INTERACTIVE mode**: Use AskUserQuestion with header "{name}", options: "Install now (Recommended)" = "Run: {install_cmd}", "Skip" = "Use local kanban instead".
+  - **PLAIN_TEXT mode**: Ask in plain text and STOP.
+  - If user approves: Run `{install_cmd}` via Bash. If the result has `post_install`, run that too. Then re-check with `prereq_doctor.py check {selection}` to verify.
+  - If user declines: Override selection to `local` and continue.
+
+**Write the selection to config.json:**
 
 ```bash
 python3 -c "
@@ -223,9 +274,9 @@ print('Domain preferences saved.')
 "
 ```
 
-Where `{selection}` is one of: `github`, `linear`, `jira`, `local`.
+Where `{selection}` is one of: `github`, `linear`, `jira`, `ado`, `rally`, `local`.
 
-#### 4.1 Full Onboarding
+#### 5.1 Full Onboarding
 
 First, ask which directories to onboard:
 
@@ -253,7 +304,7 @@ If the user specified custom directories, pass them as context to the onboarding
 
 This handles indexing, exploration, memory storage, and validation.
 
-After onboarding completes, store an enriched onboarding memory with detected context from Step 4.0:
+After onboarding completes, store an enriched onboarding memory with detected context from Step 5.0:
 
 ```
 Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.\" --type procedural --tags onboarding,project-context,{project}")
@@ -261,9 +312,9 @@ Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} fully onboa
 
 Where `{DETECTED_TOOLS_SUMMARY}` lists only the tools where the value is `true` (e.g., "gh, docker").
 
-#### 4.2 Quick Scout
+#### 5.2 Quick Scout
 
-Ask which directories to scout (same question mode pattern as 4.1 — use AskUserQuestion or plain text depending on mode).
+Ask which directories to scout (same question mode pattern as 5.1 — use AskUserQuestion or plain text depending on mode).
 
 Run a fast scout:
 
@@ -271,13 +322,13 @@ Run a fast scout:
 Skill(skill="wicked-garden:search:scout")
 ```
 
-Then store an enriched onboarding memory with detected context from Step 4.0:
+Then store an enriched onboarding memory with detected context from Step 5.0:
 
 ```
 Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.\" --type procedural --tags onboarding,project-context,{project}")
 ```
 
-#### 4.3 Skip
+#### 5.3 Skip
 
 Store a skip memory so the bootstrap directive doesn't fire again:
 
@@ -285,7 +336,7 @@ Store a skip memory so the bootstrap directive doesn't fire again:
 Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} skipped by user on {date}. Run /wicked-garden:setup to onboard later.\" --type procedural --tags onboarding,{project}")
 ```
 
-### 5. Clear Onboarding Gate
+### 6. Clear Onboarding Gate
 
 After onboarding (or skip), clear the enforcement gate so prompts are no longer blocked.
 
@@ -310,7 +361,7 @@ print('Onboarding gate cleared.')
 "
 ```
 
-### 6. Done
+### 7. Done
 
 Show a summary with all detected information:
 

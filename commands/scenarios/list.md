@@ -61,14 +61,19 @@ If `--category` is specified, filter to only matching scenarios.
 - **Not Ready**: {count} scenarios (required tools missing)
 
 ### Missing Tools
+
+For each missing tool, get install info from prereq-doctor:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check {tool}
+```
+
 | Tool | Install | Used By |
 |------|---------|---------|
-| hurl | `brew install hurl` | api-health-check |
-| pa11y | `npm i -g pa11y` | a11y-wcag-check |
+| {tool} | `{install_cmd from prereq-doctor}` | {scenario names} |
 
 ### Quick Install
-To install all missing tools at once:
+To install all missing tools, run `/wicked-garden:scenarios:setup` or install individually:
 ```bash
-{brew install commands joined with " && "} && {npm install commands joined with " && "}
+{install_cmd values from prereq-doctor results, joined with " && "}
 ```
 ```

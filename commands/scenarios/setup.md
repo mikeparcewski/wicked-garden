@@ -16,12 +16,19 @@ Install required CLI tools for running E2E test scenarios.
 
 ### 1. Discover Tool Status
 
-Run CLI discovery to check all tools:
+Use the prereq-doctor to check scenario tools by category:
+
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-category testing
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-category security
 ```
 
-Parse the JSON output. Separate tools into **available** and **missing**.
+Also check scenario-specific tools not in the prereq-doctor registry (playwright, agent-browser, curl) via the legacy discovery script:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" curl playwright agent-browser
+```
+
+Merge results. Separate tools into **available** and **missing**.
 
 If all tools are available, report success and exit:
 
@@ -33,18 +40,18 @@ All scenario tools are installed. You're ready to run any scenario.
 
 If `--category` is specified, filter to only tools used by that category. Category-to-tool mapping:
 
-| Category | Tools |
-|----------|-------|
-| api | curl, hurl |
-| browser | playwright, agent-browser |
-| perf | hey, k6 |
-| infra | trivy |
-| security | semgrep |
-| a11y | pa11y |
+| Category | Prereq-Doctor Tools | Legacy Tools |
+|----------|-------------------|--------------|
+| api | hurl | curl |
+| browser | — | playwright, agent-browser |
+| perf | hey, k6 | — |
+| infra | trivy | — |
+| security | semgrep | — |
+| a11y | pa11y | — |
 
 ### 3. Show Missing Tools
 
-Display a status table:
+Display a status table from the merged results:
 
 ```markdown
 ## Tool Status
@@ -56,16 +63,7 @@ Display a status table:
 | ... | ... | ... | ... |
 ```
 
-### 4. Get Install Commands
-
-Run the install suggestion mode:
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" --install
-```
-
-This returns grouped install commands by package manager (brew, npm, pip).
-
-### 5. Offer Installation
+### 4. Offer Installation
 
 Use AskUserQuestion to let the user choose:
 
@@ -76,7 +74,7 @@ Use AskUserQuestion to let the user choose:
 - **Show commands only** — Print install commands without running them
 - **Skip** — Do nothing
 
-### 6. Execute Installation
+### 5. Execute Installation
 
 If the user chooses to install, run the install commands via Bash in order:
 
@@ -87,11 +85,12 @@ If the user chooses to install, run the install commands via Bash in order:
 
 After each group, report success/failure.
 
-### 7. Verify Installation
+### 6. Verify Installation
 
-Re-run discovery to confirm:
+Re-run prereq-doctor to confirm:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" --summary
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-category testing
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-category security
 ```
 
 Display final status:

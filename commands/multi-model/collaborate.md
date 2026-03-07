@@ -25,24 +25,22 @@ reviews, council sessions, and preference-driven orchestration.
 
 ### Step 1: Discover Available CLIs
 
-Always start by detecting which AI CLIs are installed:
+Always start by detecting which AI CLIs are installed via prereq-doctor:
 
 ```bash
-AVAILABLE=()
-command -v codex    &>/dev/null && AVAILABLE+=("codex")
-command -v gemini   &>/dev/null && AVAILABLE+=("gemini")
-command -v opencode &>/dev/null && AVAILABLE+=("opencode")
-command -v pi       &>/dev/null && AVAILABLE+=("pi")
-command -v claude   &>/dev/null && AVAILABLE+=("claude")
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-category ai
+```
+
+Parse the JSON result. Build `AVAILABLE` list from tools where `status` is `"available"`.
+
+Also check for `claude` (not in prereq-doctor — it's the current runtime):
+```bash
+command -v claude &>/dev/null && echo "claude available"
 ```
 
 If `--discover` flag only: report discovered CLIs, their paths, and quick-start commands. Done.
 
-If no CLIs are detected: inform the user and suggest installation:
-- `codex`: `brew install codex`
-- `gemini`: `npm install -g @google/gemini-cli`
-- `opencode`: `brew install opencode`
-- `pi`: `brew install pi-mono`
+If no CLIs are detected: inform the user and offer to install. For each missing tool, show the `install_cmd` from the prereq-doctor result and ask permission before installing (same pattern as `/wicked-garden:setup` Step 2).
 
 ### Step 2: Recall Preferences (if any)
 

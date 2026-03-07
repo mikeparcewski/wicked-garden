@@ -62,7 +62,8 @@ _LOCAL_ROOT = Path.home() / ".something-wicked" / "wicked-garden" / "local"
 DOMAIN_MCP_PATTERNS: dict[str, list[str]] = {
     "wicked-kanban": [
         "jira", "linear", "asana", "github", "gitlab",
-        "trello", "monday", "clickup", "project", "issue",
+        "trello", "monday", "clickup", "rally", "ado",
+        "azure-devops", "project", "issue",
     ],
     "wicked-mem": [
         "notion", "confluence", "obsidian", "memory",
@@ -72,7 +73,7 @@ DOMAIN_MCP_PATTERNS: dict[str, list[str]] = {
         "miro", "figjam", "mural", "whiteboard",
         "figma", "brainstorm",
     ],
-    "wicked-crew": ["jira", "linear", "github", "project"],
+    "wicked-crew": ["jira", "linear", "github", "rally", "ado", "azure-devops", "project"],
     "wicked-search": ["elasticsearch", "algolia", "typesense", "search"],
     # wicked-smaht, wicked-qe, wicked-patch: local-only (no MCP patterns)
 }
