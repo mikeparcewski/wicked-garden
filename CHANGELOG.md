@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.34.0] - 2026-03-07
+
+### Features
+- feat: centralized prereq-doctor for tool detection, install, and error diagnosis (fb76f87)
+
 ## [1.33.0] - 2026-03-06
 
 ### Bug Fixes
