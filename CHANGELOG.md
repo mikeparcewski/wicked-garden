@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.35.2] - 2026-03-07
+
+### Bug Fixes
+- fix: close setup gate bypass from stale session state across sessions (270a827)
+- fix: harden setup gate and skip optional tools during setup (acf22f0)
+
+### Chores
+- release: wicked-garden v1.35.1 (286a1fa)
+
 ## [1.35.1] - 2026-03-07
 
 ### Bug Fixes
