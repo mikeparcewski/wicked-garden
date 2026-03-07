@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.35.0] - 2026-03-07
+
+### Features
+- feat: add /wicked-garden:reset command for selective state reset (3a17dee)
+
+### Bug Fixes
+- fix: eliminate stale cp.py, SM_LOCAL_ROOT, and has_plugin references in skills (02366dc)
+
+### Documentation
+- docs: fix README counts and add reset command reference (35c9c32)
+
+### Chores
+- release: wicked-garden v1.34.0 (4a9679a)
+
 ## [1.34.0] - 2026-03-07
 
 ### Features
