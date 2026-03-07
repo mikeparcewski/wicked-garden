@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.36.0] - 2026-03-07
+
+### Features
+- feat: add resolve skill and fix GH#280, GH#281, GH#283 (bb605a7)
+
+### Chores
+- chore: update README component counts (141 commands, 79 skills) (2e91a60)
+- release: wicked-garden v1.35.2 (d7c18fc)
+
 ## [1.35.2] - 2026-03-07
 
 ### Bug Fixes
