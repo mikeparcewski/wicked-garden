@@ -85,7 +85,7 @@ Target 5-10 key APIs and 3-5 common patterns. Focus on the 20% that covers 80% o
 Persist via the cheatsheet store script:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/cheatsheet_store.py" store \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/smaht/cheatsheet_store.py store \
   --library "{library}" \
   {--version-hint "{version}"} \
   --data '{synthesized_json}'

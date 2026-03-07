@@ -20,12 +20,12 @@ Archive a project to remove it from active listings. Archived projects are hidde
 
    If `--unarchive` flag is present:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" crew projects unarchive "${PROJECT_NAME}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py crew projects unarchive "${PROJECT_NAME}"
    ```
 
    Otherwise archive the project:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" crew projects archive "${PROJECT_NAME}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py crew projects archive "${PROJECT_NAME}"
    ```
 
    Check the result. If the command succeeds (exit code 0 and valid JSON response), skip to step 4.
@@ -36,14 +36,14 @@ Archive a project to remove it from active listings. Archived projects are hidde
 
    For **archive**:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${PROJECT_NAME}" update \
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py "${PROJECT_NAME}" update \
      --data '{"archived": true, "archived_at": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' \
      --json
    ```
 
    For **unarchive**:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${PROJECT_NAME}" update \
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py "${PROJECT_NAME}" update \
      --data '{"archived": false, "archived_at": null}' \
      --json
    ```

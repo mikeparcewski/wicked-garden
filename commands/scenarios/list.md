@@ -34,7 +34,7 @@ Read YAML frontmatter from each file to extract:
 
 Run CLI discovery for all tools referenced across scenarios:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/scenarios/cli_discovery.py
 ```
 
 ### 4. Apply Category Filter
@@ -64,7 +64,7 @@ If `--category` is specified, filter to only matching scenarios.
 
 For each missing tool, get install info from prereq-doctor:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check {tool}
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check {tool}
 ```
 
 | Tool | Install | Used By |

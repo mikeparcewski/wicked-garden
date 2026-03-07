@@ -23,7 +23,7 @@ Show all library cheatsheets stored in the local knowledge base. Each cheatsheet
 ### 2. Query the Cheatsheet Store
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/cheatsheet_store.py" list {--search "{query}"}
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/smaht/cheatsheet_store.py list {--search "{query}"}
 ```
 
 ### 3. Format and Display

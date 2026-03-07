@@ -31,19 +31,19 @@ print('Status: OK')
 cd "${CLAUDE_PLUGIN_ROOT}"
 
 # List projects
-uv run python scripts/kanban/kanban.py list-projects
+uv run python scripts/_run.py scripts/kanban/kanban.py list-projects
 
 # List tasks
-uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID
+uv run python scripts/_run.py scripts/kanban/kanban.py list-tasks PROJECT_ID
 
 # Search
-uv run python scripts/kanban/kanban.py search "query"
+uv run python scripts/_run.py scripts/kanban/kanban.py search "query"
 ```
 
 ## Data Location
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-kanban
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-kanban
 ```
 
 ## Notes

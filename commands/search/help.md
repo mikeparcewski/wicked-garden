@@ -52,12 +52,12 @@ Search commands use a **local-first** architecture:
 
 1. **Primary**: Local unified index via `unified_search.py` (always available, SQLite-backed)
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py {command} [args]
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py {command} [args]
    ```
 
 2. **Enhancement**: Control plane knowledge graph via `cp.py` (optional, adds team-shared data)
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge {source} {verb} [args]
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge {source} {verb} [args]
    ```
 
 All search commands work without the control plane. When CP is available, results are merged for richer coverage.

@@ -62,13 +62,13 @@ Check each required/optional tool via prereq-doctor (preferred) with legacy fall
 ```bash
 # Check each tool — prereq-doctor handles MCP detection, CLI lookup, and install hints
 for tool in {space-separated tool names from required + optional}; do
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check "$tool"
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check "$tool"
 done
 ```
 
 If a tool is not in the prereq-doctor registry, fall back to legacy discovery:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" {unrecognized tools}
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/scenarios/cli_discovery.py {unrecognized tools}
 ```
 
 Parse the JSON output. For each tool:

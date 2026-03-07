@@ -15,24 +15,24 @@ Find all references to/from a code symbol, including documentation cross-referen
 
 1. Check that an index exists for the current project:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
    ```
    If the output shows 0 symbols or the index is not found, stop and inform the user:
    > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
 
 2. Run the refs lookup via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py refs "<symbol>" --path "${PWD}"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py refs "<symbol>" --path "${PWD}"
    ```
 
 3. If the control plane is available, also query the graph for additional relationships:
    a. Resolve symbol to UUID:
       ```bash
-      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph search --q "<symbol>" --limit 5
+      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph search --q "<symbol>" --limit 5
       ```
    b. Traverse from UUID:
       ```bash
-      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge graph traverse "<uuid>" --direction both --depth 1
+      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph traverse "<uuid>" --direction both --depth 1
       ```
    Merge CP results with local results.
 

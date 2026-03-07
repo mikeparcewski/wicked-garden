@@ -11,19 +11,19 @@ Show how indexed symbols break down by type, architectural layer, and directory 
 
 1. Check that an index exists for the current project:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
    ```
    If the output shows 0 symbols or the index is not found, stop and inform the user:
    > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
 
 2. Run the categories query via the local unified index (primary):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py categories --path "${PWD}"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py categories --path "${PWD}"
    ```
 
    If the control plane is available, also query for enrichment:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" knowledge symbols categories ${project:+--project "${project}"}
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge symbols categories ${project:+--project "${project}"}
    ```
    This step is optional — the local index is fully functional without CP.
 

@@ -219,6 +219,106 @@ Reviewer:      <agent or human who evaluated the evidence>
 
 ---
 
+## Testing Pyramid Execution Layers
+
+The test phase executes tests in pyramid order — lower layers run first and inform higher layers.
+Each layer maps to specific agents and tools. Independent layers can run in parallel.
+
+### Layer Definitions
+
+| Layer | Test Types | Agent | Tools | Parallel Group |
+|---|---|---|---|---|
+| 1 — Unit | unit/logic | `test-automation-engineer` | `/wicked-garden:qe:automate` | A |
+| 2 — Integration | integration/contract | `test-automation-engineer` | curl/httpie, schema validators | B |
+| 3 — Visual | visual/interaction | `acceptance-test-executor` | `/wicked-garden:design:screenshot`, `/wicked-garden:design:a11y` | B |
+| 4 — Security | security | `security-engineer` | `/wicked-garden:platform:security` | B |
+| 5 — Scenario/E2E | scenario/workflow | `acceptance-test-executor` | `/wicked-garden:qe:scenarios`, `/wicked-garden:qe:acceptance` | C |
+| 6 — Regression | regression | inline (run test suite) | pytest/jest/go test/etc. | A |
+
+### Parallel Dispatch Rules
+
+- **Group A** (Layer 1 + 6): Run in parallel — unit tests and regression are independent.
+- **Group B** (Layers 2 + 3 + 4): Run in parallel — different scopes and concerns.
+- **Group C** (Layer 5): Run AFTER Groups A and B complete — E2E assumes lower layers pass.
+
+### Layer → Change Type Mapping
+
+Which layers are required for each aggregate change type:
+
+| Aggregate Change Type | Required Layers |
+|---|---|
+| ui | 1 (unit), 3 (visual), 5 (scenario), 6 (regression) |
+| api | 1 (unit), 2 (integration), 4 (security), 5 (scenario), 6 (regression) |
+| both | 1 (unit), 2 (integration), 3 (visual), 4 (security), 5 (scenario), 6 (regression) |
+| unknown | 1 (unit), 6 (regression) — minimum baseline |
+
+Layers not listed for a change type should be marked N-A (with justification) in the test matrix.
+
+### Layer Execution Details
+
+**Layer 1 — Unit tests**:
+1. Read implementation files and identify testable units (functions, methods, classes).
+2. Generate unit tests: `/wicked-garden:qe:automate --framework {detected framework}`.
+3. Run tests and collect pass/fail results.
+4. Store results in `phases/test/unit-results.md`.
+
+**Layer 2 — Integration / Contract tests**:
+1. Identify API boundaries: endpoints, service interfaces, data contracts.
+2. Validate request/response schemas against OpenAPI/JSON Schema definitions.
+3. Test error responses (4xx, 5xx) match documented contract.
+4. Capture request/response payloads as evidence artifacts (type: `api_request`, `api_response`).
+5. Run `validate_test_evidence(artifacts, 'api')` for each api test task.
+6. Store results in `phases/test/integration-results.md`.
+
+**Layer 3 — Visual / Functional tests**:
+1. Take screenshots of each changed UI element → `phases/test/evidence/{name}-screenshot.png`.
+2. Verify interactive flows complete without errors (form submit, navigation, state transitions).
+3. Run accessibility check: `/wicked-garden:design:a11y` on changed components.
+4. Attach screenshot evidence via kanban add-artifact (type: `image`).
+5. Run `validate_test_evidence(artifacts, 'ui')` for each ui test task.
+6. Store results in `phases/test/visual-results.md`.
+
+**Layer 4 — Security tests**:
+1. Test unauthenticated requests return 401/403.
+2. Test authorization: user A cannot access user B's resources.
+3. Test input validation: malformed/adversarial input is rejected.
+4. Review for OWASP top 10 patterns (injection, XSS, SSRF).
+5. Store results in `phases/test/security-results.md`.
+
+**Layer 5 — Scenario / E2E tests**:
+1. Generate user journey scenarios: `/wicked-garden:qe:scenarios {project description}`.
+2. Execute each scenario end-to-end.
+3. Collect all required evidence per test task description.
+4. Run `validate_test_evidence()` before marking each test task complete.
+5. Store results in `phases/test/scenario-results.md`.
+
+**Layer 6 — Regression tests**:
+1. Run the project's full existing test suite (pytest, jest, go test, cargo test, etc.).
+2. Verify no tests were silently removed or weakened.
+3. Check coverage delta does not decrease from baseline.
+4. Store results in `phases/test/regression-results.md`.
+
+### Output: Test Requirement Matrix
+
+After all layers complete, aggregate into `phases/test/test-matrix.md`:
+
+```
+## Test Requirement Matrix
+
+| Test Type | Required | Evidence Artifact | Verdict |
+|---|---|---|---|
+| Unit | yes | phases/test/unit-results.md | PASS/FAIL |
+| Integration | yes/N-A | phases/test/integration-results.md | PASS/FAIL/N-A |
+| Visual | yes/N-A | phases/test/visual-results.md | PASS/FAIL/N-A |
+| Security | yes/N-A | phases/test/security-results.md | PASS/FAIL/N-A |
+| Scenario | yes | phases/test/scenario-results.md | PASS/FAIL |
+| Regression | yes | phases/test/regression-results.md | PASS/FAIL |
+```
+
+All applicable types must be PASS for the test phase gate to clear.
+
+---
+
 ## Integration with Crew
 
 The QE strategy phase uses this taxonomy to build a **test requirement matrix** for the project.
@@ -237,25 +337,8 @@ The QE strategy phase uses this taxonomy to build a **test requirement matrix** 
    - `scenario`, `visual`, `copy/accuracy` → test phase gate
    - `security`, `performance` → test phase gate (or dedicated phase if signals are strong)
    - `regression` → test phase gate (full suite)
-5. **Gate reviewer routing** — Strategy gates at complexity 3+ route to a specialist subagent.
+5. **Test phase execution** — The test phase dispatches agents per the **Testing Pyramid Execution
+   Layers** section above. Crew's `execute.md` references this taxonomy for layer definitions,
+   agent routing, and parallel dispatch rules.
+6. **Gate reviewer routing** — Strategy gates at complexity 3+ route to a specialist subagent.
    Complexity 6-7 or any security signal escalates to council.
-
-### Output Format
-
-The test-strategist agent produces a matrix block in the phase artifact:
-
-```
-## Test Requirement Matrix
-
-| Test Type | Required | Evidence Artifact | Phase Gate | Verdict |
-|---|---|---|---|---|
-| Scenario | yes | `/wg-test scenarios/...` exits 0 | test | pending |
-| Unit | yes | `pytest tests/unit/` passes | build | pending |
-| Integration | yes | contract suite passes | build | pending |
-| Security | yes | SAST + auth boundary tests | test | pending |
-| Regression | yes | full suite passes | test | pending |
-| Visual | N-A | UI not changed | — | N-A |
-```
-
-Subsequent phases update the `Verdict` column as evidence is collected. The gate reviewer
-evaluates the complete matrix before clearing each phase gate.

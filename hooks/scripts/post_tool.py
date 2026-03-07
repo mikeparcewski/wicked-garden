@@ -323,7 +323,11 @@ def _mark_file_stale(file_path: str) -> None:
 
 
 def _track_qe_change(file_path: str):
-    """Track changed file via SessionState. Return nudge message if threshold crossed."""
+    """Track changed file via SessionState. Return nudge message if threshold crossed.
+
+    When no active crew project exists, classifies accumulated file changes as
+    UI/API/both and suggests specific QE tools (AC-6: one-off work coverage).
+    """
     try:
         from _session import SessionState
         state = SessionState.load()
@@ -332,16 +336,103 @@ def _track_qe_change(file_path: str):
         unique_count = len(stale)
 
         if unique_count >= _QE_CHANGE_THRESHOLD and not state.qe_nudged:
-            short_paths = [Path(f).name for f in sorted(stale)]
             state.update(qe_nudged=True)
-            return (
-                f"[QE] {unique_count} files changed this session "
-                f"({', '.join(short_paths[:5])}). "
-                "Consider running tests or verifying imports before continuing."
-            )
+
+            # Check if a crew project is active — if so, crew handles QE via execute.md
+            has_crew = bool(getattr(state, "crew_project", None))
+            if has_crew:
+                return (
+                    f"[QE] {unique_count} files changed this session. "
+                    "Crew project active — QE testing will run during the test phase."
+                )
+
+            # No crew project: classify files and suggest specific QE tools
+            # Full testing pyramid: unit → integration → functional → E2E
+            # See: skills/qe/qe-strategy/refs/test-type-taxonomy.md
+            change_type = _classify_changed_files(stale)
+
+            if change_type == "ui":
+                return (
+                    f"[QE] {unique_count} UI files changed this session. "
+                    "Recommended testing (per test-type-taxonomy):\n"
+                    "- **Unit**: `/wicked-garden:qe:automate` — generate unit tests for changed components\n"
+                    "- **Visual**: `/wicked-garden:design:screenshot` — capture UI state + visual diff\n"
+                    "- **Scenario**: `/wicked-garden:qe:scenarios` — generate user journey test scenarios\n"
+                    "- **Regression**: run existing test suite to verify no breakage\n"
+                    "- **Acceptance**: `/wicked-garden:qe:acceptance` — evidence-gated acceptance tests"
+                )
+            elif change_type == "api":
+                return (
+                    f"[QE] {unique_count} API files changed this session. "
+                    "Recommended testing (per test-type-taxonomy):\n"
+                    "- **Unit**: `/wicked-garden:qe:automate` — generate unit tests for changed logic\n"
+                    "- **Integration**: test API contracts — request/response schema validation\n"
+                    "- **Security**: `/wicked-garden:platform:security` — auth boundaries + input validation\n"
+                    "- **Scenario**: `/wicked-garden:qe:scenarios` — generate endpoint test scenarios\n"
+                    "- **Regression**: run existing test suite to verify no breakage\n"
+                    "- **Acceptance**: `/wicked-garden:qe:acceptance` — evidence-gated acceptance tests"
+                )
+            elif change_type == "both":
+                return (
+                    f"[QE] {unique_count} files changed (UI + API) this session. "
+                    "Recommended testing (per test-type-taxonomy):\n"
+                    "- **Unit**: `/wicked-garden:qe:automate` — generate unit tests for changed code\n"
+                    "- **Integration**: test API contracts + component integration\n"
+                    "- **Visual**: `/wicked-garden:design:screenshot` — capture UI state + visual diff\n"
+                    "- **Security**: `/wicked-garden:platform:security` — auth + input validation\n"
+                    "- **Scenario**: `/wicked-garden:qe:scenarios` — generate E2E user journey scenarios\n"
+                    "- **Regression**: run existing test suite to verify no breakage\n"
+                    "- **Acceptance**: `/wicked-garden:qe:acceptance` — evidence-gated acceptance tests"
+                )
+            else:
+                short_paths = [Path(f).name for f in sorted(stale)]
+                return (
+                    f"[QE] {unique_count} files changed this session "
+                    f"({', '.join(short_paths[:5])}). "
+                    "Recommended testing:\n"
+                    "- **Unit**: `/wicked-garden:qe:automate` — generate unit tests\n"
+                    "- **Regression**: run existing test suite\n"
+                    "- **Scenario**: `/wicked-garden:qe:scenarios` — generate test scenarios"
+                )
         return None
     except Exception:
         return None
+
+
+def _classify_changed_files(file_paths: list) -> str:
+    """Classify accumulated changed files using change_type_detector logic.
+
+    Returns: "ui", "api", "both", or "unknown".
+    Imports classify_file from scripts/crew/change_type_detector.py (stdlib-only).
+    Falls back to "unknown" on any import or classification error.
+    """
+    try:
+        scripts_crew = _PLUGIN_ROOT / "scripts" / "crew"
+        if str(scripts_crew) not in sys.path:
+            sys.path.insert(0, str(scripts_crew))
+        from change_type_detector import classify_file
+
+        ui_count = 0
+        api_count = 0
+        for fp in file_paths:
+            classification, _ = classify_file(fp)
+            if classification == "ui":
+                ui_count += 1
+            elif classification == "api":
+                api_count += 1
+            elif classification == "ambiguous":
+                ui_count += 1
+                api_count += 1
+
+        if ui_count and api_count:
+            return "both"
+        if ui_count:
+            return "ui"
+        if api_count:
+            return "api"
+        return "unknown"
+    except Exception:
+        return "unknown"
 
 
 def _check_scenario_staleness(file_path: str):
