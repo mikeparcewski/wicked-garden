@@ -412,8 +412,8 @@ class GoGenerator(BaseGenerator):
                 import_end = i
                 break
             elif line.strip().startswith("import ") and "(" not in line:
-                # Single import - need to convert to block
-                pass
+                # TODO(stub): implement single import-to-block conversion for Go files
+                pass  # intentional: single import case returns None, caller handles
 
         if import_start >= 0 and import_end >= 0:
             # Insert into existing import block

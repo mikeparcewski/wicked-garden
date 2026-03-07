@@ -234,7 +234,7 @@ class BaseGenerator(ABC):
         Returns:
             List of patches to apply
         """
-        pass
+        raise NotImplementedError("Subclasses must implement generate() to produce language-specific patches")
 
     def supports_file(self, file_path: str) -> bool:
         """Check if this generator handles the given file type."""

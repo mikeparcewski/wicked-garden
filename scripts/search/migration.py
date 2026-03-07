@@ -863,7 +863,7 @@ def import_graph_db(conn: sqlite3.Connection, graph_db_path: Path) -> Tuple[int,
                     domains_list = json.loads(domains_val) if isinstance(domains_val, str) else domains_val
                     original_domain = domains_list[0] if isinstance(domains_list, list) and domains_list else None
                 except (json.JSONDecodeError, TypeError):
-                    pass
+                    pass  # fail open: domain parse failure uses default
 
         domain = 'code'  # All graph symbols are code
 
@@ -1670,7 +1670,7 @@ def _ensure_schema_additions(conn: sqlite3.Connection):
         """)
         conn.commit()
     except sqlite3.OperationalError:
-        pass
+        pass  # intentional: column may already exist
 
 
 def main():

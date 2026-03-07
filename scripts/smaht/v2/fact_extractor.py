@@ -140,7 +140,7 @@ class FactExtractor:
                         data = json.loads(line)
                         facts.append(Fact(**data))
             except Exception:
-                pass
+                pass  # fail open: corrupted fact entry skipped
         return facts
 
     def save(self):

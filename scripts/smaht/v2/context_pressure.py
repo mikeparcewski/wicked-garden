@@ -81,7 +81,7 @@ class PressureTracker:
             try:
                 os.unlink(tmp)
             except OSError:
-                pass
+                pass  # fail open: cleanup failure non-fatal
 
     def add_content(self, byte_count: int):
         """Add content bytes to cumulative pressure."""
@@ -150,4 +150,4 @@ class PressureTracker:
         try:
             self._path.unlink(missing_ok=True)
         except Exception:
-            pass
+            pass  # fail open: reset failure non-fatal

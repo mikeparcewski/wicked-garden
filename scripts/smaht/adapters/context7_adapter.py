@@ -378,7 +378,7 @@ async def _query_context7(library_name: str, query: str, timeout: float = 5.0) -
         raise
     except ImportError:
         # MCP tools not available - graceful degradation
-        pass
+        pass  # fail open: MCP tools optional
     except Exception as e:
         # Log but don't fail
         print(f"Context7 query error: {e}", file=sys.stderr)

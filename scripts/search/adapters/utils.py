@@ -88,7 +88,7 @@ def safe_text(content: str, node, default: str = "") -> str:
         if 0 <= start < end <= len(content):
             return content[start:end]
     except (AttributeError, TypeError):
-        pass
+        pass  # fail open: returns default value
     return default
 
 

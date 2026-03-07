@@ -97,9 +97,14 @@ COMPOUND_PATTERNS = [
 
 # Continuation patterns — signals that the user is continuing the current topic
 # These should use the hot path (session state only, no adapter queries)
+#
+# Keep in sync with _HOT_CONTINUATIONS in hooks/scripts/prompt_submit.py.
+# _HOT_CONTINUATIONS is an exact-token frozenset; these regex patterns must cover
+# all tokens in that set. The parity test in tests/hooks/test_prompt_submit_refactor.py
+# (TestContinuationPatternParity) enforces this guarantee automatically.
 CONTINUATION_PATTERNS = [
     r"^(yes|yeah|yep|yup|ok|okay|sure|fine|good|great|perfect|right|correct|exactly|agreed|approved?)\.?$",
-    r"^(do it|go ahead|go for it|sounds good|looks good|ship it|proceed|continue|carry on|next)\.?$",
+    r"^(do it|go|go ahead|go for it|sounds good|looks good|ship it|proceed|continue|carry on|next)\.?$",
     r"^(thanks|thank you|ty|thx)\.?$",
     r"^(that|this|it|the same)$",
     # Multi-word continuation phrases — "ok, continue", "yes, proceed", "lgtm", etc.

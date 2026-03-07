@@ -627,7 +627,7 @@ def _check_gate_run(project_dir: Path, phase: str) -> bool:
             if "gate_status:" in content or "gate:" in content:
                 return True
         except OSError:
-            pass
+            pass  # fail open: gate read failure returns False
     return False
 
 
@@ -658,7 +658,7 @@ def _record_gate_override(
         existing = status_file.read_text() if status_file.exists() else ""
         status_file.write_text(existing + override_block)
     except OSError:
-        pass
+        pass  # fail open: write failure is non-fatal
 
 
 def _load_session_dispatches() -> List[Dict[str, Any]]:
@@ -1025,7 +1025,7 @@ def main():
                 print("Use 'python3 scripts/cp.py crew projects unarchive {name}' to unarchive first.")
                 return
         except (json.JSONDecodeError, OSError):
-            pass
+            pass  # fail open: invalid project state skipped
 
     if args.action == "status":
         if not state:

@@ -42,7 +42,7 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
         from _logger import log
         log(domain, level, event, ok=ok, ms=ms, detail=detail)
     except Exception:
-        pass
+        pass  # fail open: logger unavailable
 
 
 class MemoryType(Enum):

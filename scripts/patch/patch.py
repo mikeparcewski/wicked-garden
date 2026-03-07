@@ -103,7 +103,7 @@ def get_default_db_path() -> Path:
                 if db_path and data.get("exists", False):
                     return Path(db_path)
         except Exception:
-            pass
+            pass  # fail open: falls back to default path
 
     # Fallback: default path via _paths (unified root with legacy fallback)
     default_path = get_local_file("wicked-search", "unified_search.db")
@@ -139,7 +139,7 @@ def _resolve_symbol_id(symbol_id: str, db_path: Path) -> str:
         if row:
             return row["id"]
     except Exception:
-        pass
+        pass  # fail open: symbol not found
 
     return symbol_id
 

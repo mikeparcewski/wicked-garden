@@ -306,7 +306,7 @@ def main():
             with open(args.agents) as f:
                 agents_data = json.load(f).get("agents", [])
         except (OSError, json.JSONDecodeError):
-            pass
+            pass  # fail open: agents data unavailable
 
     framework_data = None
     if args.framework:
@@ -314,7 +314,7 @@ def main():
             with open(args.framework) as f:
                 framework_data = json.load(f)
         except (OSError, json.JSONDecodeError):
-            pass
+            pass  # fail open: framework data unavailable
 
     taxonomy = categorize(
         findings=findings_data.get("findings", []),

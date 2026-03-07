@@ -118,7 +118,7 @@ class SignalLibrary:
                 )
                 self._entries.append({**entry, "source": source, "id": entry_id})
         except Exception:
-            pass
+            pass  # fail open: malformed entry skipped
 
     def detect(self, text: str, top_k: int = 5) -> Dict[str, float]:
         """Query semantic similarity per signal category.

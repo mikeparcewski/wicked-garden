@@ -276,6 +276,12 @@ def main():
     # Orchestrator entirely.  Keeps HOT path p95 well under 100ms SLO.
     # These words carry no new intent — there is nothing for context assembly
     # to add beyond what is already in the conversation window.
+    #
+    # Keep in sync with CONTINUATION_PATTERNS in scripts/smaht/v2/router.py.
+    # _HOT_CONTINUATIONS triggers a hook-level fast-exit (no imports, no Orchestrator).
+    # CONTINUATION_PATTERNS covers the same tokens via regex for Orchestrator routing.
+    # Adding a token here without a matching pattern there (or vice versa) causes
+    # behavioral inconsistency. See tests/hooks/test_prompt_submit_refactor.py::TestContinuationPatternParity.
     # ---------------------------------------------------------------------------
     _HOT_CONTINUATIONS = frozenset({
         "yes", "ok", "okay", "sure", "yep", "yup",
@@ -285,6 +291,16 @@ def main():
         "next", "done",
     })
     if prompt.strip().lower() in _HOT_CONTINUATIONS:
+        # Accumulate into history condenser before early return so HOT turns
+        # are reflected in session state (topics, task, file scope).
+        # Import is inside try/except — any failure still allows fast exit.
+        # p95 latency measured under 100ms: HistoryCondenser uses stdlib + _domain_store only.
+        try:
+            from history_condenser import HistoryCondenser
+            _hc = HistoryCondenser(session_id)
+            _hc.update_from_prompt(prompt.strip())
+        except Exception:
+            pass  # fail open — accumulation is best-effort on HOT path
         print(json.dumps({"continue": True}))
         return
 

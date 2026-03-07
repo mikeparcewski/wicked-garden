@@ -84,7 +84,7 @@ def parse_frontmatter(filepath: Path) -> dict:
                 try:
                     result["timeout"] = int(val)
                 except ValueError:
-                    pass
+                    pass  # intentional: invalid timeout ignored
 
     # Parse tools block (required/optional arrays)
     # Supports both inline [curl, hurl] and list (- curl) syntax
@@ -192,7 +192,7 @@ def discover_scenarios(
                             for t in required
                         )
             except (subprocess.TimeoutExpired, json.JSONDecodeError):
-                pass
+                pass  # fail open: tool check failed, skip
 
     return result
 

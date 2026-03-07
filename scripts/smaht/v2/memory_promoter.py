@@ -80,7 +80,7 @@ class MemoryPromoter:
                 data = json.loads(self.promoted_path.read_text())
                 return set(data.get("promoted_ids", []))
             except Exception:
-                pass
+                pass  # fail open: treat as empty promoted set
         return set()
 
     def _save_promoted(self):

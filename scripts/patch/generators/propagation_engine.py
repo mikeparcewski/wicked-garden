@@ -415,7 +415,7 @@ class PropagationEngine:
                 for row in cursor.fetchall():
                     _add_result(row[0], tbl_query[2], tbl_query[1])
             except sqlite3.OperationalError:
-                pass
+                pass  # intentional: table may not exist in older index versions
 
         # 4. symbol_imports table
         for tbl_query in [
@@ -427,7 +427,7 @@ class PropagationEngine:
                 for row in cursor.fetchall():
                     _add_result(row[0], tbl_query[2], tbl_query[1])
             except sqlite3.OperationalError:
-                pass
+                pass  # intentional: table may not exist in older index versions
 
         # 5. symbol_bases table (inheritance)
         for tbl_query in [
@@ -439,7 +439,7 @@ class PropagationEngine:
                 for row in cursor.fetchall():
                     _add_result(row[0], tbl_query[2], tbl_query[1])
             except sqlite3.OperationalError:
-                pass
+                pass  # intentional: table may not exist in older index versions
 
         # 6. symbol_dependents table (reverse dependencies)
         for tbl_query in [
@@ -451,7 +451,7 @@ class PropagationEngine:
                 for row in cursor.fetchall():
                     _add_result(row[0], tbl_query[2], tbl_query[1])
             except sqlite3.OperationalError:
-                pass
+                pass  # intentional: table may not exist in older index versions
 
         # 7. derived_refs table (computed/inferred references)
         for tbl_query in [
@@ -463,7 +463,7 @@ class PropagationEngine:
                 for row in cursor.fetchall():
                     _add_result(row[tbl_query[2]], row["ref_type"], tbl_query[1], row["confidence"] or "medium")
             except sqlite3.OperationalError:
-                pass
+                pass  # intentional: table may not exist in older index versions
 
         # 8. Cross-language and name-based reference discovery.
         # Always runs (not just as fallback) to find:

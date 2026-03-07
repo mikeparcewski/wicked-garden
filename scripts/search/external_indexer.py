@@ -51,7 +51,7 @@ except ImportError:
     HAS_LOGGER = False
 
     def _ops_log(domain, level, event, ok=True, ms=None, detail=None):  # type: ignore
-        pass
+        pass  # intentional: ops logger unavailable — no-op fallback
 
 
 def _log(level: str, event: str, ok: bool = True, ms: float | None = None, detail: dict | None = None) -> None:
@@ -192,7 +192,7 @@ class ExternalSourceRegistry:
                 try:
                     tmp_path.unlink()
                 except OSError:
-                    pass
+                    pass  # fail open: cleanup failure non-fatal
             raise
 
     def _ensure_loaded(self) -> None:
@@ -575,7 +575,7 @@ def _default_config_path() -> str:
         if result.returncode == 0 and result.stdout.strip():
             return str(Path(result.stdout.strip()) / "external-sources.json")
     except Exception:
-        pass
+        pass  # fail open: falls back to DomainStore path
     # Fallback — use DomainStore path resolution
     import sys as _sys
     _scripts = str(Path(__file__).resolve().parents[1])

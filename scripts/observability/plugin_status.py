@@ -44,7 +44,7 @@ def gather_status() -> dict:
         try:
             plugin_meta = json.loads(plugin_json_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            pass
+            pass  # fail open: plugin.json unreadable
 
     commands_dir = PLUGIN_ROOT / "commands"
     agents_dir = PLUGIN_ROOT / "agents"

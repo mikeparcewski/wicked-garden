@@ -55,7 +55,7 @@ except ImportError:
     HAS_LOGGER = False
 
     def _ops_log(domain, level, event, ok=True, ms=None, detail=None):  # type: ignore
-        pass
+        pass  # intentional: ops logger unavailable — no-op fallback
 
 
 def _log(level: str, event: str, ok: bool = True, ms: float | None = None, detail: dict | None = None) -> None:
@@ -215,7 +215,7 @@ class DirectoryWatcher:
                 try:
                     tmp_path.unlink()
                 except OSError:
-                    pass
+                    pass  # fail open: cleanup failure non-fatal
 
     def load_state(self, path: str) -> MtimeCache:
         """Load mtime cache from a JSON file.
@@ -351,7 +351,7 @@ class DirectoryWatcher:
                         }
                     except OSError:
                         # File disappeared between scan and stat — skip it
-                        pass
+                        pass  # intentional: file disappeared between scan and stat
 
         return result
 
@@ -417,7 +417,7 @@ def _default_state_path() -> str:
         if result.returncode == 0 and result.stdout.strip():
             return str(Path(result.stdout.strip()) / "watcher-state.json")
     except Exception:
-        pass
+        pass  # fail open: falls back to DomainStore path
     # Fallback — use DomainStore path resolution
     import sys as _sys
     _scripts = str(Path(__file__).resolve().parents[1])
