@@ -48,7 +48,11 @@ from typing import Any
 # Paths (shared with _storage.py — same local JSON location)
 # ---------------------------------------------------------------------------
 
-_LOCAL_ROOT = Path.home() / ".something-wicked" / "wicked-garden" / "local"
+try:
+    from _paths import get_project_root
+    _LOCAL_ROOT = get_project_root()
+except ImportError:
+    _LOCAL_ROOT = Path.home() / ".something-wicked" / "wicked-garden" / "local"
 
 # ---------------------------------------------------------------------------
 # Domain MCP Pattern Registry

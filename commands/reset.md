@@ -1,7 +1,7 @@
 ---
 allowed-tools: ["Bash", "Read", "AskUserQuestion"]
 description: "Reset wicked-garden to a clean state — choose which data to clear"
-argument-hint: "[--all] [--only domain1,domain2] [--keep domain] [--force]"
+argument-hint: "[--all] [--only domain1,domain2] [--keep domain] [--force] [--list-projects] [--all-projects]"
 ---
 
 # /wicked-garden:reset
@@ -14,6 +14,12 @@ Selectively clear wicked-garden local state. Shows what exists and lets the user
 - `--only {domains}`: Comma-separated list of specific domains to clear
 - `--keep {domains}`: Comma-separated domains to preserve when using `--all`
 - `--force`: Skip confirmation prompt
+- `--list-projects`: List all projects with stored state (each working directory is a separate project)
+- `--all-projects`: Operate on all projects, not just the current one
+
+## Project Scope
+
+State is project-scoped — each working directory gets its own isolated storage. The reset command operates on the current project by default. Use `--list-projects` to see all projects, and `--all-projects` to clear data across all of them.
 
 ## Question Mode
 
@@ -42,7 +48,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/reset.py" --json
 
 Parse the JSON output. Extract the domains where `exists` is `true`.
 
-If no domains have state, tell the user: "Nothing to reset — wicked-garden has no local state." and stop.
+The JSON output includes `project` (current project slug) and `project_root` (storage path).
+
+If no domains have state, tell the user: "Nothing to reset — wicked-garden has no local state for project {project}." and stop.
+
+**If `--list-projects` was passed**: Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/reset.py" --list-projects --json` instead and display the project list. Stop after showing.
+
+**If `--all-projects` was passed**: Add `--all-projects` to the reset command in Step 4.
 
 ### 2. Show State and Ask What to Clear
 
@@ -53,7 +65,7 @@ If no domains have state, tell the user: "Nothing to reset — wicked-garden has
 Show a numbered list of domains that have state, plus an "All" option:
 
 ```
-## Current wicked-garden state
+## Current wicked-garden state (project: {project_slug})
 
 Found {n} domain(s) with local data:
 
