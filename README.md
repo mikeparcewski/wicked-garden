@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-139 commands. 86 specialist agents. 78 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
+140 commands. 86 specialist agents. 78 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -87,7 +87,7 @@ Everything is organized by domain — each domain brings its own commands, agent
 
 ### Specialist Disciplines
 
-Nine domains, each bringing specialist expertise that crew routes to automatically:
+Eight specialist roles plus design, each bringing expertise that crew routes to automatically:
 
 | Discipline | Domain | Key Capabilities |
 |-----------|--------|-----------------|
@@ -180,7 +180,7 @@ At checkpoints (clarify, design, build), the system re-analyzes and enforces pha
 ## Principles
 
 1. **Signal over ceremony** — The work tells the system what it needs. You don't configure pipelines.
-2. **Perspectives over ego** — 8 specialist disciplines catch what one voice misses.
+2. **Perspectives over ego** — 9 specialist domains catch what one voice misses.
 3. **Memory over amnesia** — Decisions persist. Context builds over time. Session 47 knows what session 1 decided.
 4. **Graceful degradation** — No external tools? Local JSON. Missing a specialist? Fallback agents cover the gap.
 5. **Prompts over code** — Logic lives in markdown and config, not Python engines. Extensible by anyone who can write instructions.
@@ -223,6 +223,7 @@ All commands use colon namespacing: `/wicked-garden:{domain}:{command}`
 | mem | `mem:store` / `mem:recall` | Cross-session memory persistence |
 | kanban | `kanban:board-status` | View persistent task board |
 | delivery | `delivery:report` | Multi-perspective delivery reports |
+| (root) | `reset` | Selectively clear local state for a fresh start |
 
 See `/wicked-garden:help` for the full command list.
 
@@ -244,12 +245,12 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 wicked-garden/
 ├── .claude-plugin/
 │   ├── plugin.json          # name, version, description
-│   ├── specialist.json      # 8 specialist roles, 51 personas
+│   ├── specialist.json      # 8 specialist roles
 │   ├── marketplace.json     # marketplace registration
 │   └── phases.json          # 7-phase catalog with gates and checkpoints
 ├── commands/
 │   ├── {domain}/            # domain-scoped slash commands
-│   └── *.md                 # root-level commands (setup, help, report-issue)
+│   └── *.md                 # root-level commands (setup, reset, help, report-issue)
 ├── agents/{domain}/         # 86 specialist subagents by domain
 ├── skills/
 │   ├── {domain}/SKILL.md    # single-skill domains (flat)
