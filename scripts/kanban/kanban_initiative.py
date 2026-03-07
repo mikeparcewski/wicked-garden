@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from _domain_store import DomainStore
-from kanban.kanban import KanbanStore, _resolve_board_type
+from kanban import KanbanStore, _resolve_board_type
 
 _sm = DomainStore("wicked-kanban")
 

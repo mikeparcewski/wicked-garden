@@ -284,7 +284,7 @@ def _store_preference(domain: str, tool: str) -> None:
             source="auto",
         )
     except ImportError:
-        pass
+        pass  # fail open: mem store optional
     except Exception:
         # Mem store may be unavailable — always fail gracefully
-        pass
+        pass  # fail open: graceful degradation

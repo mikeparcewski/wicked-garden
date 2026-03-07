@@ -181,7 +181,7 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
                     dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
                     age_days = (now - dt).days
                 except Exception:
-                    pass
+                    pass  # fail open: age_days defaults to 0
 
             items.append(ContextItem(
                 id=record.get("id", record.get("name", "")),

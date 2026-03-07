@@ -642,7 +642,7 @@ class AccuracyValidator:
                         if ignore_handler.should_ignore(f):
                             continue
                     except Exception:
-                        pass
+                        pass  # fail open: ignore check failure includes file
 
                 if f.is_file():
                     candidate_files.append(f)

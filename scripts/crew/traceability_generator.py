@@ -124,7 +124,7 @@ def _load_task_list_from_env() -> List[Dict]:
         try:
             return json.loads(raw)
         except Exception:
-            pass
+            pass  # fail open: returns []
     return []
 
 

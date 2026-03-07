@@ -42,14 +42,14 @@ def detect_type(values: List[Any]) -> str:
         [int(v) for v in non_null[:100]]
         return "integer"
     except (ValueError, TypeError):
-        pass
+        pass  # intentional: type probe — try next type
 
     # Try decimal
     try:
         [float(v) for v in non_null[:100]]
         return "decimal"
     except (ValueError, TypeError):
-        pass
+        pass  # intentional: type probe — try next type
 
     # Try boolean
     bool_values = {'true', 'false', '1', '0', 'yes', 'no', 't', 'f'}
@@ -76,7 +76,7 @@ def calculate_stats(values: List[Any], data_type: str) -> Dict[str, Any]:
             try:
                 numeric_values.append(float(v))
             except (ValueError, TypeError):
-                pass
+                pass  # fail open: non-numeric value skipped
 
     if not numeric_values:
         return {}

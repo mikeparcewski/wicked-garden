@@ -37,7 +37,6 @@ class SafetyCheckResult:
 
 class SafetyError(Exception):
     """Raised when a safety check fails."""
-    pass
 
 
 class GitSafetyChecker:

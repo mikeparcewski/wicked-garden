@@ -341,7 +341,7 @@ class IgnoreHandler:
                         if spec.match_file(str(rel_to_gitignore)):
                             return True
                     except ValueError:
-                        pass
+                        pass  # fail open: unresolvable path skipped
                 # Stop at project root (which may be above root_path)
                 if current_dir == project_root_resolved:
                     break

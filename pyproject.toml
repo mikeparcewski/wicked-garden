@@ -30,4 +30,9 @@ build-backend = "hatchling.build"
 packages = ["scripts"]
 
 [tool.uv]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
 # uv resolves from repo root so all `cd $PLUGIN_ROOT && uv run python ...` invocations work

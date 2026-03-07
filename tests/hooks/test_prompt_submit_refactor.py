@@ -556,5 +556,114 @@ class TestHookIntegration(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
 
 
+# =============================================================================
+# AC-280: Continuation pattern parity between _HOT_CONTINUATIONS and CONTINUATION_PATTERNS
+# =============================================================================
+
+def _load_router_module():
+    """Load router.py module directly from _V2_DIR."""
+    import importlib.util
+    _orig_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    os.environ["CLAUDE_PLUGIN_ROOT"] = str(_REPO_ROOT)
+    try:
+        spec = importlib.util.spec_from_file_location("router_unit", _V2_DIR / "router.py")
+        router_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(router_mod)
+    finally:
+        if _orig_root is not None:
+            os.environ["CLAUDE_PLUGIN_ROOT"] = _orig_root
+        else:
+            os.environ.pop("CLAUDE_PLUGIN_ROOT", None)
+    return router_mod
+
+
+class TestContinuationPatternParity(unittest.TestCase):
+    """AC-280-3: Every token in _HOT_CONTINUATIONS must match at least one CONTINUATION_PATTERNS pattern."""
+
+    @classmethod
+    def setUpClass(cls):
+        import re as _re
+        # Load prompt_submit.py to extract _HOT_CONTINUATIONS
+        hook = _load_hook_module()
+        # _HOT_CONTINUATIONS is defined inside main() — extract by running a minimal parse
+        # Read source and evaluate the frozenset definition
+        src = _HOOK_PY.read_text(encoding="utf-8")
+        cls.hook_src = src
+
+        # Extract _HOT_CONTINUATIONS via importlib (defined inside main(), so we parse source)
+        # Use regex to extract the frozenset contents
+        match = _re.search(
+            r'_HOT_CONTINUATIONS\s*=\s*frozenset\(\{([^}]+)\}\)',
+            src,
+            _re.DOTALL
+        )
+        if not match:
+            raise AssertionError("Could not find _HOT_CONTINUATIONS definition in prompt_submit.py")
+        tokens_raw = match.group(1)
+        # Parse the quoted string tokens
+        cls.hot_continuations = frozenset(
+            t.strip().strip('"\'')
+            for t in _re.findall(r'["\']([^"\']+)["\']', tokens_raw)
+        )
+
+        # Load CONTINUATION_PATTERNS from router.py
+        router_mod = _load_router_module()
+        cls.continuation_patterns = router_mod.CONTINUATION_PATTERNS
+        cls.re = _re
+
+    def test_every_hot_continuation_token_matched_by_router_pattern(self):
+        """AC-280-3: Every token in _HOT_CONTINUATIONS is matched by at least one CONTINUATION_PATTERNS regex."""
+        unmatched = []
+        for token in sorted(self.hot_continuations):
+            matched = any(
+                self.re.match(pattern, token, self.re.IGNORECASE)
+                for pattern in self.continuation_patterns
+            )
+            if not matched:
+                unmatched.append(token)
+        self.assertEqual(
+            unmatched, [],
+            f"Tokens in _HOT_CONTINUATIONS not matched by any CONTINUATION_PATTERNS: {unmatched}\n"
+            f"Add these tokens to a pattern in scripts/smaht/v2/router.py"
+        )
+
+    def test_prompt_submit_references_continuation_patterns(self):
+        """AC-280-1: prompt_submit.py source must reference CONTINUATION_PATTERNS within 10 lines of _HOT_CONTINUATIONS."""
+        src = self.hook_src
+        lines = src.splitlines()
+        # Find the line with _HOT_CONTINUATIONS definition
+        hot_line = next(
+            (i for i, line in enumerate(lines) if "_HOT_CONTINUATIONS" in line and "frozenset" in line),
+            None
+        )
+        self.assertIsNotNone(hot_line, "_HOT_CONTINUATIONS definition not found in prompt_submit.py")
+        # Check that CONTINUATION_PATTERNS appears within 10 lines before or after
+        window = lines[max(0, hot_line - 10):hot_line + 15]
+        window_text = "\n".join(window)
+        self.assertIn(
+            "CONTINUATION_PATTERNS", window_text,
+            "AC-280-1: 'CONTINUATION_PATTERNS' must appear within 10 lines of _HOT_CONTINUATIONS in prompt_submit.py"
+        )
+
+    def test_router_references_hot_continuations(self):
+        """AC-280-2: router.py source must reference _HOT_CONTINUATIONS within 10 lines of CONTINUATION_PATTERNS."""
+        router_path = _V2_DIR / "router.py"
+        src = router_path.read_text(encoding="utf-8")
+        lines = src.splitlines()
+        # Find the line with CONTINUATION_PATTERNS definition
+        pattern_line = next(
+            (i for i, line in enumerate(lines) if "CONTINUATION_PATTERNS" in line and "=" in line and "[" in line),
+            None
+        )
+        self.assertIsNotNone(pattern_line, "CONTINUATION_PATTERNS definition not found in router.py")
+        # Check that _HOT_CONTINUATIONS appears within 10 lines before the definition
+        window = lines[max(0, pattern_line - 10):pattern_line + 5]
+        window_text = "\n".join(window)
+        self.assertIn(
+            "_HOT_CONTINUATIONS", window_text,
+            "AC-280-2: '_HOT_CONTINUATIONS' must appear within 10 lines of CONTINUATION_PATTERNS in router.py"
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

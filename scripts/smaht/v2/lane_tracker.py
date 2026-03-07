@@ -86,7 +86,7 @@ class LaneTracker:
                         data = json.loads(line)
                         lanes.append(Lane(**data))
             except Exception:
-                pass
+                pass  # fail open: corrupted lane entry skipped
         return lanes
 
     def save(self):

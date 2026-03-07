@@ -389,8 +389,8 @@ class ServiceDetector:
 
     def _process_code_pattern(self, file_path: str, metadata: Dict) -> None:
         """Process a code pattern found in metadata."""
-        # Implementation for processing patterns from symbol metadata
-        pass
+        # TODO(stub): implement pattern processing from symbol metadata
+        pass  # intentional: caller handles None return gracefully
 
     def _add_service(self, service: ServiceNode) -> None:
         """Add or merge a service."""

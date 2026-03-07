@@ -164,7 +164,7 @@ class DocumentExtractor:
 
     def __init__(self):
         # Kreuzberg is optional for text formats
-        pass
+        pass  # intentional: Kreuzberg is optional; no initialization required
 
     async def extract(self, path: Path) -> Tuple[str, List[Dict[str, Any]]]:
         """
@@ -559,7 +559,7 @@ class CodeParser:
                 elif child.type == 'attribute':
                     bases.append(content_bytes[child.start_byte:child.end_byte].decode('utf-8'))
         except Exception:
-            pass
+            pass  # fail open: base class extraction returns empty list
         return bases
 
     def _extract_import_names(self, node, content_bytes: bytes) -> List[str]:
@@ -574,7 +574,7 @@ class CodeParser:
                 for name in re.findall(r'(\w+)(?:\s+as\s+\w+)?', imported):
                     names.append(name)
         except Exception:
-            pass
+            pass  # fail open: import name extraction returns empty list
         return names
 
     def _find_container_key(self, node) -> tuple:
@@ -1201,7 +1201,7 @@ class UnifiedSearchIndex:
                 content, symbols = self.code_parser.parse(path)
             except Exception:
                 # Parser failed - continue with just the file node
-                pass
+                pass  # fail open: file node added without symbols
 
         # Always add a file node (even if no symbols extracted)
         file_node = JsonlGraphNode(
@@ -1469,7 +1469,7 @@ class UnifiedSearchIndex:
                     file_type="code",
                 )
             except Exception:
-                pass
+                pass  # fail open: metadata write failure non-fatal
 
         # Write metadata
         with open(meta_path, 'w') as f:
@@ -1536,7 +1536,7 @@ class UnifiedSearchIndex:
                     return line.lstrip('/').strip()
 
         except Exception:
-            pass
+            pass  # fail open: doc comment extraction returns None
 
         return None
 

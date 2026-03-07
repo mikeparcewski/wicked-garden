@@ -292,7 +292,7 @@ class JspParser:
                     break
                 parent = parent.getparent()
         except Exception:
-            pass
+            pass  # fail open: parent resolution returns None
         return None
 
     def _infer_label_from_name(self, name: str) -> Optional[str]:

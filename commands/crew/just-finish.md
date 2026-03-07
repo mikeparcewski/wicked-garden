@@ -150,6 +150,22 @@ When a checkpoint phase completes:
 
 **Skip if**: project.json has `"phase_plan_mode": "static"`.
 
+### 4.6 Issue Resolution Pre-Step
+
+**Same as execute.md — run before clarify or design phase execution.**
+
+Before accepting requirements at face value, run the issue resolver on each issue:
+
+```
+Skill(skill="wicked-garden:resolve", args="{issue description or GH#}")
+```
+
+In just-finish mode, make autonomous decisions based on the resolution briefs EXCEPT:
+- If the resolver recommends **Close** or **Defer** — flag to user (removing scope needs visibility)
+- If the resolver recommends **Redesign** with scope expansion > 2x — flag to user
+
+Otherwise, incorporate tech debt opportunities and scope changes into deliverables automatically.
+
 ### 5. Execute Remaining Work
 
 Read project.json `phase_plan` for the ordered list of phases. For each remaining phase:

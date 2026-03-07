@@ -96,7 +96,7 @@ def get_project(name: str) -> dict:
                 if paragraphs:
                     data["outcome_summary"] = paragraphs[0].strip()[:300]
         except OSError:
-            pass
+            pass  # fail open: outcome file unavailable
 
     return {"project": data}
 

@@ -143,12 +143,10 @@ class CallChainResult:
 
 class CacheStaleError(Exception):
     """Raised when cache is stale or missing."""
-    pass
 
 
 class VersionMismatchError(Exception):
     """Raised when cache version is incompatible."""
-    pass
 
 
 # ============================================================================

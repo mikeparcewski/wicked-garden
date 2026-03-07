@@ -47,7 +47,7 @@ class LanguageAdapter(ABC):
         Returns:
             List of Symbol objects extracted from the file
         """
-        pass
+        raise NotImplementedError("Subclasses must implement parse()")
 
     def supports_file(self, file_path: str) -> bool:
         """Check if this adapter handles the given file type."""

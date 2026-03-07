@@ -116,7 +116,7 @@ async def query(prompt: str) -> List[ContextItem]:
             dt = datetime.fromisoformat(memory.created.replace("Z", "+00:00"))
             age_days = (datetime.now(timezone.utc) - dt).days
         except Exception:
-            pass
+            pass  # fail open: age_days defaults to 0
 
         items.append(ContextItem(
             id=memory.id,

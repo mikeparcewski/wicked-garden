@@ -87,7 +87,7 @@ def main():
         try:
             days = int(sys.argv[1])
         except ValueError:
-            pass
+            pass  # intentional: use default days value
 
     print_stats(days)
 

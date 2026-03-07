@@ -236,7 +236,7 @@ class ScoutAgent:
                         if len(found) >= 50:  # Limit sample
                             return found
                 except Exception:
-                    pass
+                    pass  # fail open: FTS query failure skips result
 
         return found
 
@@ -518,9 +518,9 @@ def extract_symbols(project_root: Path, db_path: str):
                                 )
                                 count += 1
                             except sqlite3.Error:
-                                pass
+                                pass  # fail open: duplicate/invalid row skipped
             except Exception:
-                pass
+                pass  # fail open: graceful degradation on quality repair
 
     conn.commit()
     conn.close()

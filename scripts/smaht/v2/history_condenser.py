@@ -151,7 +151,7 @@ class HistoryCondenser:
                 filtered = {k: v for k, v in data.items() if k in known}
                 return SessionSummary(**filtered)
             except Exception:
-                pass
+                pass  # fail open: corrupted summary returns empty
         return SessionSummary()
 
     def _load_turns(self):
@@ -165,7 +165,7 @@ class HistoryCondenser:
                         data = json.loads(line)
                         self.turn_buffer.append(Turn(**data))
             except Exception:
-                pass
+                pass  # fail open: corrupted turns file starts empty
 
     def _atomic_write(self, path: Path, content: str):
         """Write file atomically using temp file + rename."""

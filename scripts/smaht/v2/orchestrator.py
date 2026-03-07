@@ -157,7 +157,7 @@ class Orchestrator:
             if metrics_path.exists():
                 return json.loads(metrics_path.read_text())
         except Exception:
-            pass
+            pass  # fail open: metrics unavailable, return defaults
         return {"items_pre_loaded": 0, "queries_made": 0, "estimated_turns_saved": 0}
 
     def add_turn(self, user_msg: str, assistant_msg: str, tools_used: list[str] = None, intent_type: str = ""):

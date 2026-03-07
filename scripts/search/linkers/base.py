@@ -50,7 +50,7 @@ class BaseLinker(ABC):
         Returns:
             Number of references created
         """
-        pass
+        raise NotImplementedError("Subclasses must implement link_all()")
 
     def _add_reference(self, ref: Reference) -> bool:
         """

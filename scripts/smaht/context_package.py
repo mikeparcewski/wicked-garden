@@ -223,7 +223,7 @@ async def build_package(task: str, project: str = None, files: list = None,
                     "signals": data.get("signals_detected", []),
                 }
         except Exception:
-            pass
+            pass  # fail open: crew data optional
 
     package = {
         "task": task,
