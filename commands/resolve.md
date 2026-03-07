@@ -154,7 +154,7 @@ Skill(skill="wicked-garden:mem:store", args="\"Resolution: {title} — {strategy
 If a crew project is active, update the project with resolution findings:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} update \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} update \
   --data '{"resolutions": [{"issue": "{title}", "strategy": "{strategy}", "scope_change": "{change}"}]}' \
   --json
 ```

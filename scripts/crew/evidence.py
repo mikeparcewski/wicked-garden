@@ -297,5 +297,104 @@ def main():
                 print(f"  - {w}")
 
 
+# ---------------------------------------------------------------------------
+# Test evidence validation — QE crew integration
+# ---------------------------------------------------------------------------
+# Validates that a test task's artifact list satisfies evidence requirements
+# for its change type (ui, api, or both/integration).
+#
+# Evidence taxonomy (canonical source: skills/qe/qe-strategy/refs/test-type-taxonomy.md):
+#   UI:  requires at least one "image" artifact (screenshot)
+#   API: requires one "api_request" AND one "api_response" artifact
+#   Both (integration): requires all of the above
+#
+# Usage (import):
+#   from evidence import validate_test_evidence
+#   result = validate_test_evidence(task.artifacts, "ui")
+#   # result = {valid: bool, missing: list[str], present: list[str]}
+#
+# Usage (CLI — extension of main() below):
+#   python3 evidence.py --validate-test --artifacts '[{"type":"image","path":"..."}]' --test-type ui
+
+# Artifact type matching — maps evidence requirement names to accepted artifact types
+# NOTE: Keep in sync with EVIDENCE_TAXONOMY in scripts/crew/test_task_factory.py
+_TEST_EVIDENCE_REQUIREMENTS: Dict[str, Dict] = {
+    "ui": {
+        "screenshot": {
+            "label": "screenshot",
+            "accepted_types": {"image", "screenshot"},
+        },
+    },
+    "api": {
+        "request_payload": {
+            "label": "request_payload",
+            "accepted_types": {"api_request", "request"},
+        },
+        "response_payload": {
+            "label": "response_payload",
+            "accepted_types": {"api_response", "response"},
+        },
+    },
+}
+
+
+def validate_test_evidence(task_artifacts: list, test_type: str) -> Dict:
+    """Validate that a test task has required evidence for its test_type.
+
+    Checks artifact types against the canonical evidence taxonomy. Optional
+    artifacts (visual_diff, response_timing) do not affect validity.
+
+    Args:
+        task_artifacts: list of artifact dicts from kanban task record.
+            Each artifact dict has at minimum: {"type": str, "name": str}
+            and optionally "path" and/or "content" fields.
+        test_type: "ui", "api", or "both" (integration requires all)
+
+    Returns:
+        dict with keys:
+            valid (bool): True if all required artifacts are present
+            missing (list[str]): Human-readable labels for missing required artifacts
+            present (list[str]): Human-readable labels for satisfied requirements
+    """
+    if test_type not in ("ui", "api", "both"):
+        return {
+            "valid": False,
+            "missing": [f"Unknown test_type '{test_type}' — expected 'ui', 'api', or 'both'"],
+            "present": [],
+        }
+
+    # Build the set of requirements based on test_type
+    requirements: Dict[str, Dict] = {}
+    if test_type in ("ui", "both"):
+        requirements.update(_TEST_EVIDENCE_REQUIREMENTS["ui"])
+    if test_type in ("api", "both"):
+        requirements.update(_TEST_EVIDENCE_REQUIREMENTS["api"])
+
+    # Collect all artifact types present in the task
+    artifact_types: List[str] = []
+    for artifact in task_artifacts:
+        artifact_type = artifact.get("type", "").lower().strip()
+        if artifact_type:
+            artifact_types.append(artifact_type)
+
+    # Check each requirement
+    missing: List[str] = []
+    present: List[str] = []
+
+    for req_name, req_spec in requirements.items():
+        accepted = req_spec["accepted_types"]
+        satisfied = any(atype in accepted for atype in artifact_types)
+        if satisfied:
+            present.append(req_spec["label"])
+        else:
+            missing.append(req_spec["label"])
+
+    return {
+        "valid": len(missing) == 0,
+        "missing": missing,
+        "present": present,
+    }
+
+
 if __name__ == "__main__":
     main()

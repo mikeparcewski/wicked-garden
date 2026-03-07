@@ -19,8 +19,14 @@ Intelligent onboarding that builds understanding of a codebase using parallel wo
 
 > **NON-NEGOTIABLE**: Unless `--skip-index` was explicitly passed, you MUST run this command BEFORE any other action. Do not skip this step. Do not defer it. Run it now.
 
+First, check the CLI usage:
 ```
-Bash(command="cd '${CLAUDE_PLUGIN_ROOT}' && PATH=\"/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH\" uv run python scripts/search/unified_search.py index '{path}' --project '{project_name}'",
+Bash(command="cd '${CLAUDE_PLUGIN_ROOT}' && PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\" uv run python scripts/_run.py --usage scripts/search/unified_search.py index")
+```
+
+Then invoke the `index` subcommand with the target `path` and `--project` set to the project name. Run in background:
+```
+Bash(command="cd '${CLAUDE_PLUGIN_ROOT}' && PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\" uv run python scripts/_run.py scripts/search/unified_search.py index '{path}' --project '{project_name}'",
      run_in_background=true)
 ```
 

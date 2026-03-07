@@ -43,7 +43,7 @@ print('PLAIN_TEXT' if state.dangerous_mode else 'INTERACTIVE')
 Run a dry-run scan to see what exists:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/reset.py" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/reset.py --json
 ```
 
 Parse the JSON output. Extract the domains where `exists` is `true`.
@@ -52,7 +52,7 @@ The JSON output includes `project` (current project slug) and `project_root` (st
 
 If no domains have state, tell the user: "Nothing to reset — wicked-garden has no local state for project {project}." and stop.
 
-**If `--list-projects` was passed**: Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/reset.py" --list-projects --json` instead and display the project list. Stop after showing.
+**If `--list-projects` was passed**: Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/reset.py --list-projects --json` instead and display the project list. Stop after showing.
 
 **If `--all-projects` was passed**: Add `--all-projects` to the reset command in Step 4.
 
@@ -115,13 +115,13 @@ STOP and wait. If the user cancels, say "Reset cancelled." and stop.
 Build the `--only` list from the user's selection:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/reset.py" --confirm --only {selected_domains_space_separated} --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/reset.py --confirm --only {selected_domains_space_separated} --json
 ```
 
 Or if `--all` with `--keep`:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/reset.py" --confirm --all --keep {kept_domains_space_separated} --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/reset.py --confirm --all --keep {kept_domains_space_separated} --json
 ```
 
 ### 5. Report Results

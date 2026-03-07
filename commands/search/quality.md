@@ -23,7 +23,7 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
 
 1. First, check current index quality via the local unified index:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py stats --path "${PWD}"
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
    ```
 
 2. Run validation to establish baseline:
@@ -42,7 +42,7 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
 
    **Execute phase**: Re-index with the discovered patterns:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/unified_search.py index "<project_path>" --force
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py index "<project_path>" --force
    ```
 
    **Validate phase**: Re-run `/wicked-garden:search:validate` to check improvement.

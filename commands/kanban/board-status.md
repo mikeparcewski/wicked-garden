@@ -12,7 +12,7 @@ Display current kanban board state. Supports scoped views by board type.
 ### 1. Resolve Active Project
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-projects
+cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/_run.py scripts/kanban/kanban.py list-projects
 ```
 
 Use the active project (first non-archived, or repo-matched). Note the PROJECT_ID.
@@ -20,7 +20,7 @@ Use the active project (first non-archived, or repo-matched). Note the PROJECT_I
 ### 2. Fetch Initiatives
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-initiatives PROJECT_ID
+cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/_run.py scripts/kanban/kanban.py list-initiatives PROJECT_ID
 ```
 
 If `--board-type` was provided, filter the list to initiatives where `board_type` matches (or infer: missing `board_type` on legacy records defaults to `"crew"`, name `"Issues"` defaults to `"issues"`).
@@ -48,13 +48,13 @@ For each initiative (or each board-type group), determine its column schema. Use
 Fetch task counts per swimlane:
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID --swimlane SWIMLANE_ID --initiative INITIATIVE_ID
+cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/_run.py scripts/kanban/kanban.py list-tasks PROJECT_ID --swimlane SWIMLANE_ID --initiative INITIATIVE_ID
 ```
 
 ### 4. Check Recent Activity
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/kanban/kanban.py activity PROJECT_ID --limit 10
+cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/_run.py scripts/kanban/kanban.py activity PROJECT_ID --limit 10
 ```
 
 ### 5. Render Output

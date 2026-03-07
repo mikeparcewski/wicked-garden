@@ -31,28 +31,28 @@ wicked-kanban automatically captures all task activity:
 cd ${CLAUDE_PLUGIN_ROOT}
 
 # List projects
-uv run python scripts/kanban/kanban.py list-projects
+uv run python scripts/_run.py scripts/kanban/kanban.py list-projects
 
 # List tasks
-uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID --swimlane todo
+uv run python scripts/_run.py scripts/kanban/kanban.py list-tasks PROJECT_ID --swimlane todo
 
 # Create task
-uv run python scripts/kanban/kanban.py create-task PROJECT_ID "Task name" --priority P1
+uv run python scripts/_run.py scripts/kanban/kanban.py create-task PROJECT_ID "Task name" --priority P1
 
 # Update task
-uv run python scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane in_progress
+uv run python scripts/_run.py scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane in_progress
 
 # Add comment
-uv run python scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID "Comment text"
+uv run python scripts/_run.py scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID "Comment text"
 
 # Link commit
-uv run python scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID abc1234
+uv run python scripts/_run.py scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID abc1234
 
 # View activity
-uv run python scripts/kanban/kanban.py activity PROJECT_ID --limit 20
+uv run python scripts/_run.py scripts/kanban/kanban.py activity PROJECT_ID --limit 20
 
 # Search
-uv run python scripts/kanban/kanban.py search "query"
+uv run python scripts/_run.py scripts/kanban/kanban.py search "query"
 ```
 
 ## Data Structure
@@ -72,7 +72,7 @@ uv run python scripts/kanban/kanban.py search "query"
 
 Data paths are resolved dynamically by DomainStore. To find the local root:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-kanban
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-kanban
 ```
 
 ## Configuration
@@ -86,7 +86,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-kanban
 Kanban data is stored as local JSON files via DomainStore.
 
 To access kanban data:
-1. Use the kanban CLI: `uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID`
+1. Use the kanban CLI: `uv run python scripts/_run.py scripts/kanban/kanban.py list-tasks PROJECT_ID`
 2. Or the board command: `/wicked-garden:kanban:board-status`
 3. Integration-discovery can route to Linear/Jira MCP when configured
 

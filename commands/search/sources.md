@@ -22,7 +22,7 @@ Supports any MCP-compatible tool (Confluence, Jira, Notion, etc.).
 Show all configured external sources:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/external_indexer.py list --json
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/external_indexer.py list --json
 ```
 
 Format the output as a table with columns: Name, Plugin, Command, Content Type, Refresh Interval, Last Fetched, Status.
@@ -43,7 +43,7 @@ Interactively gather source details, then register:
 
 2. Register the source:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/external_indexer.py add \
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/external_indexer.py add \
      --name "<name>" \
      --plugin "<plugin>" \
      --command "<fetch_command>" \
@@ -62,7 +62,7 @@ Interactively gather source details, then register:
 Remove the named source from the registry:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/external_indexer.py remove \
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/external_indexer.py remove \
   --name "<name>" \
   --json
 ```
@@ -77,7 +77,7 @@ Check which sources are stale and fetch+index their content:
 
 1. Identify stale sources:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/external_indexer.py refresh \
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/external_indexer.py refresh \
      --dry-run \
      ${force:+--force} \
      --json
@@ -92,21 +92,21 @@ Check which sources are stale and fetch+index their content:
 3. Index the fetched content with source attribution. For short content use `--content`; for large documents use `--content-file` or `--content-stdin` to avoid shell argument length limits:
    ```bash
    # Short content (inline)
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/external_indexer.py index-content \
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/external_indexer.py index-content \
      --name "<source_name>" \
      --content "<fetched_content>" \
      --doc-id "<unique_doc_id>" \
      --json
 
    # Large content (from file)
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/external_indexer.py index-content \
+   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/external_indexer.py index-content \
      --name "<source_name>" \
      --content-file "/path/to/content.txt" \
      --doc-id "<unique_doc_id>" \
      --json
 
    # Large content (piped via stdin)
-   cat /path/to/content.txt | cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/external_indexer.py index-content \
+   cat /path/to/content.txt | cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/external_indexer.py index-content \
      --name "<source_name>" \
      --content-stdin \
      --doc-id "<unique_doc_id>" \

@@ -70,7 +70,7 @@ This determines which questions to ask in Step 3.
 Use the prereq-doctor to check and install dependencies. This is required for search indexing and context assembly.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-all
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-all
 ```
 
 **Evaluate the result:**
@@ -91,7 +91,7 @@ Parse the JSON output. Only `core` tools are required during setup:
 After all core tools are checked, if `uv` is available, sync Python dependencies:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check uv
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check uv
 ```
 
 If uv is available, sync deps:
@@ -223,7 +223,7 @@ print(json.dumps({'languages': detected_langs, 'frameworks': detected_fws}))
 **Detect available integrations** (reuses prereq-doctor from Step 2):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-all
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-all
 ```
 
 Parse the JSON result. Build `DETECTED_TOOLS` from the combined `core` + `optional` results — include tool name where `status` is `"available"`.
@@ -249,7 +249,7 @@ Note: AskUserQuestion supports max 4 options. Present the first 4 most common ch
 Use the prereq-doctor to check MCP + CLI availability:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check "{selection}"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check "{selection}"
 ```
 
 **Evaluate the result:**

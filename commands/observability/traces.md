@@ -22,7 +22,7 @@ Instructions:
   ```
 - For stats:
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/observability/assert_contracts.py" --stats
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/observability/assert_contracts.py --stats
   ```
 - Display: table of recent traces with session_id, tool, event, ts
 - If DomainStore returns empty, check for JSONL fallback in `$TMPDIR/wicked-trace-{session_id}.jsonl`

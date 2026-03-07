@@ -28,7 +28,7 @@ Build structured context packages for subagent dispatches. Assembles task-scoped
 ### Execute
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/context_package.py build \
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/smaht/context_package.py build \
   --task "{task description}" \
   {--project "{project-name}"} \
   {--dispatch} {--prompt}

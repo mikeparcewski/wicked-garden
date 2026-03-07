@@ -22,7 +22,7 @@ Add a comment to an existing task on the kanban board.
 
 2. Add the comment to the task via the local kanban store (primary):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-comment "${PROJECT_ID}" "${TASK_ID}" "${COMMENT_CONTENT}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/kanban/kanban.py add-comment "${PROJECT_ID}" "${TASK_ID}" "${COMMENT_CONTENT}"
    ```
 
    Data is persisted via DomainStore (local JSON files).

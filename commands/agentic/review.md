@@ -21,7 +21,7 @@ Extract parameters:
 
 Run framework detection:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/detect_framework.py" --path "$TARGET_PATH"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/agentic/detect_framework.py --path "$TARGET_PATH"
 ```
 
 Expected output:
@@ -55,7 +55,7 @@ If `--framework` specified, skip detection and use provided value.
 
 Map agent interactions and dependencies:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" --path "$TARGET_PATH" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/agentic/analyze_agents.py --path "$TARGET_PATH" \
   --framework "$DETECTED_FRAMEWORK"
 ```
 
@@ -131,7 +131,7 @@ Run pattern analysis on agent topology:
 AGENTS_FILE=$(mktemp)
 echo "$AGENTS_JSON" > "$AGENTS_FILE"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/pattern_scorer.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/agentic/pattern_scorer.py \
   --agents "$AGENTS_FILE" \
   --framework "$DETECTED_FRAMEWORK"
 ```
@@ -174,7 +174,7 @@ echo "$FINDINGS_JSON" > "$FINDINGS_FILE"
 FRAMEWORK_FILE=$(mktemp)
 echo "$FRAMEWORK_JSON" > "$FRAMEWORK_FILE"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/issue_taxonomy.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/agentic/issue_taxonomy.py \
   --findings "$FINDINGS_FILE" \
   --agents "$AGENTS_FILE" \
   --framework "$FRAMEWORK_FILE" \

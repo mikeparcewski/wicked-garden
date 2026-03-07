@@ -47,7 +47,7 @@ Use a three-stage theme-aware slug algorithm:
 ### 3. Check for Existing Project
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" find-active --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
 Parse the JSON result. If an active project exists, ask user to choose one of four options:
@@ -60,7 +60,7 @@ Parse the JSON result. If an active project exists, ask user to choose one of fo
 If the user chooses **Switch**:
 1. Set `paused: true` on the existing project via phase_manager so it no longer appears as active:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {existing-project} update \
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {existing-project} update \
      --data '{"paused": true}' \
      --json
    ```
@@ -72,7 +72,7 @@ If the user chooses **Switch**:
 Create the project via phase_manager (persists via DomainStore — local JSON):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} create \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} create \
   --description "{description}" \
   --json
 ```
@@ -167,7 +167,7 @@ Capture the valid JSON as `DIMENSION_HINTS_JSON`.
 Run smart decisioning with archetype hints, file impact scoring, and agent dimension hints.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json \
   --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
   ${FILE_HINTS_CSV:+--files "${FILE_HINTS_CSV}"} \
   ${DIMENSION_HINTS_JSON:+--dimension-hints '${DIMENSION_HINTS_JSON}'} \
@@ -190,7 +190,7 @@ Scripts never call other plugins directly — Claude's tool system is the univer
 Store analysis via phase_manager update (persists via DomainStore):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
   --data '{"signals_detected": ["security", "data"], "complexity_score": 4, "specialists_recommended": ["wicked-qe", "wicked-product"], "archetype_hints": {}}' \
   --json
 ```
@@ -202,7 +202,7 @@ After smart decisioning completes, read the `routing_lane` field from the JSON o
 **Store `preflight_lane` in project state** regardless of which branch is taken:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
   --data '{"preflight_lane": "{routing_lane}"}' \
   --json
 ```
@@ -267,7 +267,7 @@ Then proceed to Step 6 normally.
 Run specialist discovery:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/specialist_discovery.py" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/specialist_discovery.py --json
 ```
 
 This returns available specialist plugins and their roles:
@@ -282,7 +282,7 @@ This returns available specialist plugins and their roles:
 **If `--quick` flag was passed**: Skip all phase selection logic below. Use a static phase plan of `["build", "review"]` only:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
   --data '{"phase_plan": ["build", "review"], "phase_plan_mode": "static"}' \
   --json
 ```
@@ -307,7 +307,7 @@ Order the selected phases by their `depends_on` relationships.
 Store the ordered phase list and planning mode via phase_manager:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
   --data '{"phase_plan": ["clarify", "test-strategy", "build", "test", "review"], "phase_plan_mode": "dynamic"}' \
   --json
 ```
@@ -321,7 +321,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
 Initialize task tracking metadata via phase_manager:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
   --data '{"task_lifecycle": {"staleness_threshold_minutes": 30, "recovery_mode": "auto", "user_overrides": {}}}' \
   --json
 ```
@@ -353,7 +353,7 @@ Every crew project should be tracked as a kanban initiative. This provides visib
 
 4. **Store both name and UUID** via phase_manager:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {name} update \
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
      --data '{"kanban_initiative": "{project-name}", "kanban_initiative_id": "{uuid-from-kanban}"}' \
      --json
    ```

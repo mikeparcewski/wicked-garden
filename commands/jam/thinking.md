@@ -12,7 +12,7 @@ Unlike `transcript` (which includes synthesis and council responses), `thinking`
 Without `--session-id`, shows the most recent session's pre-synthesis perspectives.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" thinking $ARGUMENTS
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/jam/jam.py thinking $ARGUMENTS
 ```
 
 After running the script, present the output. Add a brief framing note: compare the perspective count to what the synthesis captured — if the synthesis listed 3 insights but there were 12 distinct perspectives, that compression ratio signals significant information loss worth examining.

@@ -32,13 +32,13 @@ Manage kanban initiatives — lookup, create, or ensure defaults exist.
 Run the appropriate subcommand:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/kanban/kanban_initiative.py {subcommand} {name}
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/kanban/kanban_initiative.py {subcommand} {name}
 ```
 
 For typed boards:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/kanban/kanban_initiative.py create "Sprint Retro" --board-type jam
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/kanban/kanban_initiative.py create "Sprint Retro" --board-type jam
 ```
 
 ### Output Format

@@ -22,7 +22,7 @@ Read `project.json` to understand:
 
 Run specialist discovery:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/specialist_discovery.py" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/specialist_discovery.py --json
 ```
 
 Match available specialists to project signals for auto-engagement.
@@ -54,7 +54,7 @@ The orchestrator loop for each phase:
 
 1. **Load project state** via phase_manager:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} status --json
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
    ```
 
 2. **Dispatch the phase** as a fresh subagent via `Task()`. The subagent bootstraps its own context from persistent state rather than inheriting the orchestrator's conversation history. Include bootstrap instructions in the Task prompt so the subagent knows how to self-orient.
@@ -139,7 +139,7 @@ When a checkpoint phase completes:
 1. Gather phase artifacts from `phases/{phase}/`
 2. Re-run signal analysis:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/smart_decisioning.py" --json "{summary of deliverables}"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json "{summary of deliverables}"
    ```
 3. Compare new signals against project.json `signals_detected`
 4. If new signals found:
@@ -188,13 +188,13 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
    - If gate ran and returned **APPROVE** or **CONDITIONAL**: call approve without
      `--override-gate`:
      ```bash
-     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} approve --phase {phase}
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve --phase {phase}
      ```
    - If gate ran and returned **REJECT**: STOP. Do not call approve. Report to user.
    - `--override-gate` is reserved for exceptional circumstances only (e.g., gate ran
      externally, CI result already available). If used, `--reason` is REQUIRED:
      ```bash
-     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} approve \
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve \
        --phase {phase} --override-gate --reason "Gate ran via CI; result APPROVE, job #1234"
      ```
 9. Continue until done or guardrail hit
@@ -234,7 +234,7 @@ If `gate_required` is `true`:
 
 If skipping a skippable phase, always use phase_manager which documents the skip:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" {project} skip --phase {phase} --reason "{specific reason}" --approved-by "just-finish"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} skip --phase {phase} --reason "{specific reason}" --approved-by "just-finish"
 ```
 
 **Testing default**: test-strategy and test phases should be INCLUDED for all projects with complexity >= 2. Only skip if complexity <= 1 AND the user explicitly requests it OR the fast-pass criteria are met. When in doubt, include testing — it's cheaper to run a lightweight test plan than to ship untested code.

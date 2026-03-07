@@ -87,25 +87,14 @@ Use: `/wicked-garden:qe:acceptance <scenario>`
 /wicked-garden:qe:acceptance scenario.md                  # 2. Full Write → Execute → Review pipeline
 ```
 
-## Change Type → Test Evidence Matrix
-
-Match the change type to know the minimum required tests and the evidence gate that defines "done".
-
-| Change Type | Example | Required Tests | Evidence Gate |
-|---|---|---|---|
-| Scenario text fix | Wrong command name in `.md` | Scenario passes | `/wg-test scenarios/{domain}/{scenario}` exits 0 |
-| Scoring constant | Weight/threshold change | Unit + scenario | Targeted test confirms new value; all related scenarios pass |
-| Short-circuit logic | Guard clause addition | Unit + behavioral | Mock verifies 0 calls to bypassed path; non-short-circuit paths unaffected |
-| Schema/format update | Output format change | Integration + scenario | Downstream consumers parse new format; scenario assertions match |
-| Parser/adapter fix | Missing AST pattern | Unit + regression | New pattern produces >0 symbols for affected files; existing files unaffected |
-| Strategy/docs enhancement | New guidance section | Structural validation | File under line cap; references valid commands/paths |
-
-### Evidence Gate Rules
+## Evidence Gate Rules
 
 1. Every change MUST have at least one automated verification.
 2. "Done" means the evidence gate passes — not just "code written".
 3. Autonomous agents must log which evidence gate was satisfied before marking a task complete.
 4. If no automated test exists for the change, create one before marking done.
+
+See [`refs/test-type-taxonomy.md`](refs/test-type-taxonomy.md) for the full change-type selection matrix.
 
 ## Gate Reviewer Policy
 
@@ -166,11 +155,36 @@ Configuration via project.json:
 
 Without wicked-scenarios installed, all QE functionality works identically.
 
+## Testing Pyramid (Crew Integration)
+
+When a crew project reaches the test phase, QE executes the **full testing pyramid** — not just acceptance tests. The pyramid has 6 layers dispatched in parallel groups:
+
+| Layer | Test Types | When Required |
+|---|---|---|
+| 1 — Unit | unit/logic | Always |
+| 2 — Integration | contract/API | API or both changes |
+| 3 — Visual | UI/interaction/a11y | UI or both changes |
+| 4 — Security | auth/input validation | API or both changes |
+| 5 — Scenario/E2E | user journeys | All non-trivial changes |
+| 6 — Regression | existing suite | Always |
+
+**Evidence required by change type:**
+
+| Change Type | Required Evidence | Optional | Collected By |
+|---|---|---|---|
+| UI | `screenshot` (image artifact) | `visual_diff` | acceptance-test-executor |
+| API | `request_payload` + `response_payload` | `response_timing` | test-automation-engineer |
+| UI + API | All of the above | All optional | both agents |
+
+Use `validate_test_evidence(artifacts, test_type)` from `scripts/crew/evidence.py` before marking a test task complete.
+
+See [`refs/test-type-taxonomy.md`](refs/test-type-taxonomy.md) for full layer definitions, agent routing, parallel dispatch rules, and execution details.
+
 ## References
 
 | Document | Contents |
 |---|---|
-| [`refs/test-type-taxonomy.md`](refs/test-type-taxonomy.md) | 10 test types with evidence requirements, change-type selection matrix, evidence gate verdict format, and crew integration pattern |
+| [`refs/test-type-taxonomy.md`](refs/test-type-taxonomy.md) | 10 test types, testing pyramid execution layers, change-type selection matrix, evidence gate verdict format, and crew integration pattern |
 
 ## Integration
 
