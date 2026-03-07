@@ -522,12 +522,69 @@ _MISMATCH_SIGNALS = [
     "failed", "not working", "broken", "error", "couldn't", "unable", "blocked"
 ]
 
+# Patterns that indicate a missing CLI or Python module
+_MISSING_TOOL_RE = [
+    re.compile(r"command not found:\s*(\S+)"),
+    re.compile(r"not found:\s*(\S+)"),
+]
+_MISSING_MODULE_RE = [
+    re.compile(r"ModuleNotFoundError: No module named ['\"](\S+?)['\"]"),
+    re.compile(r"ImportError: No module named ['\"](\S+?)['\"]"),
+]
+
+
+def _detect_missing_tool(error_text: str) -> str | None:
+    """Check if error indicates a missing tool/module. Returns a prereq-doctor hint or None."""
+    if not error_text:
+        return None
+    try:
+        plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", ".")).resolve()
+        doctor = plugin_root / "scripts" / "platform" / "prereq_doctor.py"
+        if not doctor.exists():
+            return None
+
+        import subprocess as _sp
+        proc = _sp.run(
+            [sys.executable, str(doctor), "diagnose", error_text],
+            capture_output=True, text=True, timeout=5,
+        )
+        if proc.returncode != 0:
+            return None
+        diag = json.loads(proc.stdout)
+        if diag.get("error_type") == "unknown":
+            return None
+
+        # Build a concise hint for the model
+        if diag.get("fix") == "uv_sync":
+            return (
+                f"[Prereq Doctor] Missing Python module '{diag.get('module')}'. "
+                f"Fix: run `uv sync` from the plugin root. "
+                f"Or use: Skill(skill=\"wicked-garden:platform:prereq-doctor\", args=\"check uv\")"
+            )
+        if diag.get("status") == "missing":
+            install_cmd = diag.get("install_cmd", "")
+            return (
+                f"[Prereq Doctor] CLI '{diag.get('cli', diag.get('tool'))}' not installed. "
+                f"Install with: `{install_cmd}` — "
+                f"Ask the user before installing. "
+                f"Or use: Skill(skill=\"wicked-garden:platform:prereq-doctor\", args=\"check {diag.get('tool')}\")"
+            )
+        return None
+    except Exception:
+        return None
+
 
 def _handle_failure(payload: dict) -> dict:
-    """PostToolUseFailure: count failures via SessionState, queue issue at threshold."""
+    """PostToolUseFailure: detect missing tools, count failures, queue issue at threshold."""
     tool_name = payload.get("tool_name", "unknown")
     tool_error = payload.get("tool_error", "") or payload.get("tool_use_error", "")
 
+    # --- Missing tool detection (fires immediately, no threshold) ---
+    prereq_hint = _detect_missing_tool(str(tool_error))
+    if prereq_hint:
+        return {"continue": True, "systemMessage": prereq_hint}
+
+    # --- General failure counting (existing behavior) ---
     try:
         threshold = int(os.environ.get("WICKED_ISSUE_THRESHOLD", str(_FAILURE_THRESHOLD_DEFAULT)))
     except (ValueError, TypeError):

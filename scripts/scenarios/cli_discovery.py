@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 """Check availability of CLI tools for wicked-scenarios.
 
+NOTE: For tools in the prereq-doctor registry (hurl, k6, hey, trivy, semgrep, pa11y),
+prefer using prereq_doctor.py directly:
+    python3 scripts/platform/prereq_doctor.py check-category testing
+    python3 scripts/platform/prereq_doctor.py check-category security
+
+This script handles scenario-specific tools NOT in the prereq-doctor registry
+(curl, playwright, agent-browser) and provides backward-compatible grouped
+install command output.
+
 Usage:
     python3 cli_discovery.py              # Check all MVP tools
     python3 cli_discovery.py curl hurl    # Check specific tools
@@ -8,9 +17,12 @@ Usage:
     python3 cli_discovery.py --install    # Show grouped install commands for missing tools
 """
 import json
+import os
 import platform
 import shutil
+import subprocess
 import sys
+from pathlib import Path
 
 MVP_TOOLS = {
     "curl": {
@@ -104,12 +116,49 @@ def _best_install(tool_name, pkg_manager=None):
     return None
 
 
+def _try_prereq_doctor(tool: str) -> dict | None:
+    """Try to check a tool via prereq-doctor. Returns result dict or None."""
+    try:
+        plugin_root = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", ".")).resolve()
+        doctor = plugin_root / "scripts" / "platform" / "prereq_doctor.py"
+        if not doctor.exists():
+            return None
+        proc = subprocess.run(
+            [sys.executable, str(doctor), "check", tool],
+            capture_output=True, text=True, timeout=5,
+        )
+        if proc.returncode != 0:
+            return None
+        data = json.loads(proc.stdout)
+        if data.get("status") == "unknown":
+            return None
+        return {
+            "available": data.get("status") == "available",
+            "path": data.get("cli_path"),
+            "install": data.get("install_cmd", "see docs"),
+            "category": data.get("category", "unknown"),
+            "via": data.get("via"),
+        }
+    except Exception:
+        return None
+
+
 def check_tools(tools=None):
-    """Check availability of specified tools (or all MVP tools)."""
+    """Check availability of specified tools (or all MVP tools).
+
+    Delegates to prereq-doctor for tools it knows about, falls back to
+    the local MVP_TOOLS registry for scenario-specific tools.
+    """
     results = {}
     check = tools or list(MVP_TOOLS.keys())
     pm = _detect_platform()
     for tool in check:
+        # Try prereq-doctor first (has MCP detection, extra paths, etc.)
+        doctor_result = _try_prereq_doctor(tool)
+        if doctor_result is not None:
+            results[tool] = doctor_result
+            continue
+        # Fall back to local check
         path = shutil.which(tool)
         install_cmd = _best_install(tool, pm)
         info = MVP_TOOLS.get(tool, {})

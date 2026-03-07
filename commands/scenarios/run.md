@@ -57,14 +57,23 @@ Read the scenario markdown file. Extract YAML frontmatter:
 
 ### 2. CLI Discovery
 
-Run the discovery script:
+Check each required/optional tool via prereq-doctor (preferred) with legacy fallback:
+
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" {space-separated tool names from required + optional}
+# Check each tool — prereq-doctor handles MCP detection, CLI lookup, and install hints
+for tool in {space-separated tool names from required + optional}; do
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check "$tool"
+done
+```
+
+If a tool is not in the prereq-doctor registry, fall back to legacy discovery:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scenarios/cli_discovery.py" {unrecognized tools}
 ```
 
 Parse the JSON output. For each tool:
-- **Available**: Ready to use
-- **Not available**: Mark all steps using this tool as SKIPPED.
+- **Available** (`status: "available"`): Ready to use. Note `via` field (mcp/cli).
+- **Not available** (`status: "missing"`): Mark all steps using this tool as SKIPPED. Capture `install_cmd` for the Pre-Flight Check.
 
 Never hard-fail on missing tools. Always degrade to PARTIAL.
 
