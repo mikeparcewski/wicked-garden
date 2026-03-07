@@ -91,7 +91,7 @@ See [refs/journey-mapping.md](refs/journey-mapping.md) for stage analysis.
 
 ## Synthesis Process
 
-1. Load theme and sentiment analysis from `{SM_LOCAL_ROOT}/wicked-product/voice/analysis/`
+1. Load theme and sentiment analysis from the product voice analysis directory (resolved via `resolve_path.py wicked-product`)
 2. Sort themes by priority score, filter by threshold
 3. Generate recommendations: theme → action, score by impact/effort
 4. Map to customer journey stages, identify friction points

@@ -65,11 +65,12 @@ See [refs/algorithms.md](refs/algorithms.md) for detailed scoring.
 
 1. **Load Feedback Data**:
    ```bash
+   LOCAL_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product)
    # Count total items
-   find {SM_LOCAL_ROOT}/wicked-product/voice/feedback/ -name "*.md" | wc -l
+   find "${LOCAL_ROOT}/voice/feedback/" -name "*.md" | wc -l
 
    # Load recent feedback
-   find {SM_LOCAL_ROOT}/wicked-product/voice/feedback/ -name "*.md" -mtime -30
+   find "${LOCAL_ROOT}/voice/feedback/" -name "*.md" -mtime -30
    ```
 
 2. **Extract Themes**:
@@ -142,15 +143,14 @@ if event.type == "product:requirements:started":
 ### With wicked-kanban (Link to Tasks)
 
 ```python
-# Tag themes with related task IDs
-if has_plugin("wicked-kanban"):
-    tasks = search_tasks(theme.keywords)
-    theme.related_tasks = tasks
+# Tag themes with related task IDs via kanban domain API
+tasks = search_tasks(theme.keywords)
+theme.related_tasks = tasks
 ```
 
 ## Storage
 
-Analysis results stored at: `{SM_LOCAL_ROOT}/wicked-product/voice/analysis/{theme}/{date}.md`
+Analysis results stored at: `{local_root}/wicked-product/voice/analysis/{theme}/{date}.md` (resolve via `resolve_path.py wicked-product`)
 
 ## Rules
 

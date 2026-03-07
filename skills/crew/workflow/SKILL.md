@@ -98,10 +98,10 @@ Crew discovers specialists via `specialist.json` in each plugin.
 Projects can be archived when complete or paused:
 
 ```bash
-python3 scripts/cp.py crew projects archive <name>      # Sets archived=true
-python3 scripts/cp.py crew projects unarchive <name>    # Reactivates
-python3 scripts/cp.py crew projects list                 # Excludes archived by default
-python3 scripts/cp.py crew projects list --include_archived true
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" archive <name>      # Sets archived=true
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" unarchive <name>    # Reactivates
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" list                 # Excludes archived by default
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" list --include-archived
 ```
 
 Phase operations are blocked on archived projects.

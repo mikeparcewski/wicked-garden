@@ -1,10 +1,6 @@
 ---
 name: prereq-doctor
-domain: platform
-description: "Diagnose missing tools and dependencies, offer to install them"
-use-when: "missing tool, command not found, ModuleNotFoundError, install dependency, prereq check"
-tier: 2
-tags: [prerequisites, install, dependencies, tools, cli]
+description: "Diagnose missing tools and dependencies, offer to install them. Use when: command not found, ModuleNotFoundError, missing tool, install dependency, prereq check, setup validation."
 ---
 
 # Prereq Doctor

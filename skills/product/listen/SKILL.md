@@ -96,7 +96,8 @@ The skill automatically discovers available feedback capabilities:
 
 4. **Store for Analysis**
    ```
-   {SM_LOCAL_ROOT}/wicked-product/voice/feedback/{source}/{date}/{id}.md
+   # Resolved via: python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product
+   {local_root}/wicked-product/voice/feedback/{source}/{date}/{id}.md
    ```
 
 ## Unified Feedback Format
@@ -161,10 +162,9 @@ See [channels.md](refs/channels.md) for detailed capability integration patterns
 
 ### With wicked-mem
 ```python
-# Recall past customer insights
-if has_plugin("wicked-mem"):
-    memories = recall(f"customer feedback about {topic}")
-    # Provide historical context
+# Recall past customer insights via /wicked-garden:mem:recall
+memories = recall(f"customer feedback about {topic}")
+# Provide historical context
 ```
 
 ### With wicked-crew
@@ -177,7 +177,7 @@ if event == "product:requirements:started":
 
 ## Storage
 
-Feedback stored at: `{SM_LOCAL_ROOT}/wicked-product/voice/feedback/{source}/{YYYY-MM}/{id}.md`
+Feedback stored at: `{local_root}/wicked-product/voice/feedback/{source}/{YYYY-MM}/{id}.md` (resolve via `resolve_path.py wicked-product`)
 
 ## Error Handling
 
