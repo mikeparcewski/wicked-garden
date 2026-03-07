@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-141 commands. 86 specialist agents. 79 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
+142 commands. 86 specialist agents. 75 skills. 8 specialist disciplines. 51 specialist personas. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -59,7 +59,7 @@ Every project description gets analyzed for **signals** — security, performanc
 
 ```
 "Add a tooltip to the settings page"
-  → complexity 1 → clarify + build + review → 3 minutes
+  → complexity 1 → auto-finish: quick plan applied, no prompts needed
 
 "Add OAuth2 with PKCE to mobile and web clients"
   → complexity 6 → all phases, 5 specialists → thorough delivery
@@ -67,6 +67,8 @@ Every project description gets analyzed for **signals** — security, performanc
 "Migrate 2M rows from Mongo to Postgres with zero downtime"
   → complexity 7 → full pipeline + data specialist + platform SRE
 ```
+
+Low-complexity work (score 0-2) auto-applies the quick phase plan and chains directly into just-finish mode — no user prompt required. Pass `--no-auto-finish` to override.
 
 Signals are re-evaluated at checkpoints. If the design phase reveals unexpected complexity, new phases get injected mid-flight. The plan adapts.
 
@@ -109,6 +111,16 @@ Eight specialist roles plus design, each bringing expertise that crew routes to 
 | **patch** | Cross-language change propagation. Add a field to a Java entity, auto-patch the SQL migration, DAO, JSP, API, and UI. | `patch:add-field`, `patch:apply`, `patch:rename` |
 | **observability** | Three-layer plugin observability (hook tracing, contract assertions, health probes) plus engineer toolchain discovery for APM, logging, metrics, and cloud monitoring CLIs. | `observability:health`, `observability:traces`, `observability:toolchain` |
 
+### Cross-Cutting Capabilities
+
+Skills that apply across all domains — no specialist affiliation, just sharper thinking:
+
+| Skill | What It Does |
+|-------|-------------|
+| **deliberate** | Five-lens critical thinking framework. Challenges the premise, finds the root cause, spots adjacent opportunities, and validates whether the stated ask is the right ask — before any implementation begins. Auto-integrated into crew clarify and design phases. |
+| **multi-model** | Multi-LLM council reviews using external CLI tools (Codex, Gemini, OpenCode). Runs independent analysis in parallel and synthesizes perspectives. Falls back to Claude-only specialist subagents when external CLIs are unavailable. |
+| **issue-reporting** | Automated GitHub issue detection and filing. Hooks monitor tool failures and task mismatches throughout your session. Manual filing runs duplicate detection, codebase research, memory recall, SMART validation, and an advisory quality gate before opening any issue. |
+
 ## Use Any Domain Standalone
 
 Every domain works independently. The ecosystem is additive, not required.
@@ -128,14 +140,20 @@ Every domain works independently. The ecosystem is additive, not required.
 
 Every domain owns its own data. No sidecar process, no external server required.
 
-**How it works**: Each domain writes to local JSON files at `~/.something-wicked/wicked-garden/local/{domain}/`. When a domain needs external tools (e.g., kanban looking for Jira, Linear, or Rally), it uses **integration-discovery** to find them automatically.
+**How it works**: Each domain writes to local JSON files scoped to your current project. Storage is isolated per working directory — two projects with the same name don't share state. When a domain needs external tools (e.g., kanban looking for Jira, Linear, or Rally), it uses **integration-discovery** to find them automatically.
+
+```
+~/.something-wicked/wicked-garden/projects/{project-slug}/{domain}/
+```
+
+Global configuration (shared across all projects) lives at `~/.something-wicked/wicked-garden/config.json`.
 
 **Resolution order** when multiple tools are found:
 1. Check local settings (`config.json` preferences)
 2. Check memory (stored decisions from past sessions)
 3. Ask the user once, remember the choice
 
-**If no external tools are found** — or no auth is configured — data stays local. This is the default experience and it just works.
+**If no external tools are found** — or no auth is configured — data stays local and project-scoped. This is the default experience and it just works.
 
 ```
   Domain Command
@@ -245,18 +263,18 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 wicked-garden/
 ├── .claude-plugin/
 │   ├── plugin.json          # name, version, description
-│   ├── specialist.json      # 8 specialist roles
+│   ├── specialist.json      # 8 specialist roles, 51 personas
 │   ├── marketplace.json     # marketplace registration
 │   └── phases.json          # 7-phase catalog with gates and checkpoints
 ├── commands/
 │   ├── {domain}/            # domain-scoped slash commands
 │   └── *.md                 # root-level commands (setup, reset, help, report-issue)
-├── agents/{domain}/         # 86 specialist subagents by domain
+├── agents/{domain}/         # 86 specialist subagents across 9 domains
 ├── skills/
 │   ├── {domain}/SKILL.md    # single-skill domains (flat)
 │   └── {domain}/{skill}/    # multi-skill domains (nested)
 ├── hooks/
-│   ├── hooks.json           # 8 lifecycle hooks
+│   ├── hooks.json           # 8 lifecycle hook bindings
 │   └── scripts/             # 7 Python hook scripts (stdlib-only)
 ├── scripts/{domain}/        # domain APIs and utilities
 └── scenarios/{domain}/      # acceptance test scenarios

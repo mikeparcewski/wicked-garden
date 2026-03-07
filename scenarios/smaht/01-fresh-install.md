@@ -153,7 +153,7 @@ echo "PASS: specialist.json valid with multiple specialists"
 - [ ] SessionStart hook fires without errors (no failure notification in Claude Code)
 - [ ] Hook completes within 2 seconds (no timeout)
 - [ ] No setup message, nag, or prompt displayed on session start
-- [ ] Root-level skills discoverable via `/wicked-garden:help`: agent-browser, multi-model, codex-cli, gemini-cli, integration-discovery, issue-reporting, opencode-cli, runtime-exec, wickedizer
+- [ ] Root-level skills discoverable via `/wicked-garden:help`: agent-browser, multi-model, integration-discovery, issue-reporting, runtime-exec, wickedizer
 - [ ] Skills load correctly when queried (frontmatter and content accessible)
 - [ ] Hooks fire silently on session start with no error notifications
 

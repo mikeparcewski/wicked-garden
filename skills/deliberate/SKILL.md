@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:resolve
+name: wicked-garden:deliberate
 description: >
   Critical thinking framework applied before doing work. Challenges assumptions,
   reframes problems, identifies hidden opportunities, and validates whether the stated
@@ -17,7 +17,7 @@ tags:
 tier: 2
 ---
 
-# Resolve
+# Deliberate
 
 A structured way of thinking about work **before doing it**. Applied to any request —
 bugs, features, enhancements, content, design, infrastructure — to ensure we're solving
@@ -28,7 +28,7 @@ the right problem the right way.
 - Before accepting any work request at face value
 - During crew **clarify** and **design** phases (auto-integrated)
 - When triaging issues, tickets, or ad-hoc asks
-- Any time the gut response is "just do it" — pause and resolve first
+- Any time the gut response is "just do it" — pause and deliberate first
 
 ## The Five Lenses
 
@@ -81,10 +81,10 @@ Before committing to the obvious solution, explore alternatives.
 - Is there a simpler approach that covers 90% of cases?
 - What are we trading off with each option?
 
-## Output: Resolution Brief
+## Output: Deliberation Brief
 
 ```markdown
-## Resolution Brief: {title}
+## Deliberation Brief: {title}
 
 ### Assessment
 **Validity**: Real problem / Symptom / Not a problem / Wrong framing
@@ -126,5 +126,5 @@ The five lenses are universal. The refs provide depth for specific contexts:
 ## Integration
 
 - **Crew workflow**: Auto-invoked during clarify and design phases
-- **Standalone**: `/wicked-garden:resolve {description or GH#}`
+- **Standalone**: `/wicked-garden:deliberate {description or GH#}`
 - **Batch**: Process multiple issues together to find shared root causes
