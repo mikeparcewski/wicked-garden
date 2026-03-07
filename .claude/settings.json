@@ -14,14 +14,6 @@
       }
     ]
   },
-  "extraKnownMarketplaces": {
-    "wicked-garden": {
-      "source": {
-        "source": "directory",
-        "path": "./"
-      }
-    }
-  },
   "enabledPlugins": {
     "wicked-garden@wicked-garden": true,
     "commit-commands@claude-plugins-official": true,
@@ -34,5 +26,14 @@
     "claude-code-setup@claude-plugins-official": true,
     "agent-sdk-dev@claude-plugins-official": true,
     "figma@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "wicked-garden": {
+      "source": {
+        "source": "directory",
+        "path": "./"
+      },
+      "autoUpdate": true
+    }
   }
 }
