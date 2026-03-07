@@ -178,15 +178,13 @@ _GUARD_PASS_PREFIXES = (
 
 
 def _check_setup_gate(prompt: str) -> str | None:
-    """Check if wicked-garden setup/onboarding is needed.
+    """Check if wicked-garden setup is needed.
 
-    Returns None if no action needed.
-    Returns a directive string if onboarding is required — caller includes
-    it in additionalContext so Claude sees the full context every turn.
-    Calls sys.exit(2) only for hard failures (no config at all).
+    Returns None if setup is complete (config.json exists with setup_complete=true).
+    Calls sys.exit(2) if config is missing or incomplete — this hard-blocks
+    the prompt and feeds the error message back to the model.
 
-    Fast-path: reads session state sentinel (setup_confirmed) to avoid
-    config.json I/O on every turn for already-onboarded sessions.
+    Always checks config.json on disk — no session state caching.
     """
     stripped = prompt.strip().lower()
 
@@ -200,26 +198,16 @@ def _check_setup_gate(prompt: str) -> str | None:
             pass
         return None
 
-    # Fast-path sentinel: bootstrap already confirmed setup is complete
+    # Allow prompts through when setup is actively running
     try:
         from _session import SessionState
         state = SessionState.load()
-
-        # Allow prompts through when setup is actively running
         if state.setup_in_progress:
             return None
-
-        if state.setup_confirmed:
-            # Setup confirmed at session start — skip config.json read
-            if state.onboarding_complete:
-                return None  # fully onboarded
-            if state.needs_onboarding:
-                return _build_onboarding_directive()
-            return None  # neither flag set — pass through
     except Exception:
-        pass  # fail open: fall through to file check
+        pass
 
-    # Slow path: config.json read (first turn or session state unavailable)
+    # Check config.json on disk — the single source of truth for setup status.
     config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
     config_ok = False
     try:
@@ -237,37 +225,8 @@ def _check_setup_gate(prompt: str) -> str | None:
         )
         sys.exit(2)
 
-    # Slow path onboarding check (no sentinel available)
-    try:
-        from _session import SessionState
-        state = SessionState.load()
-        if state.needs_onboarding:
-            try:
-                from mem.memory import MemoryStore
-                import os as _os
-                _project = _os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-                store = MemoryStore(_project)
-                memories = store.recall(tags=["onboarding"], limit=1)
-                if not memories:
-                    return _build_onboarding_directive()
-            except Exception:
-                pass  # fail open
-    except Exception:
-        pass  # fail open if session state unavailable
-
     return None
 
-
-def _build_onboarding_directive() -> str:
-    """Build the onboarding directive message."""
-    project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-    return (
-        f"[Action Required] Project '{project}' has not been onboarded.\n"
-        "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
-        "to launch the interactive onboarding wizard.\n"
-        "Do NOT ask the user for confirmation — invoke the skill now.\n"
-        "Do NOT respond with text first — invoke the skill as your first action."
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -310,8 +269,8 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
-    # Setup gate — hard-block if no config, soft-gate with directive if needs onboarding
-    onboarding_directive = _check_setup_gate(prompt)
+    # Setup gate — hard-block (sys.exit(2)) if no config
+    _check_setup_gate(prompt)
 
     try:
         from _session import SessionState
@@ -351,7 +310,7 @@ def main():
         except Exception:
             pass  # fail open
 
-        if not briefing and not onboarding_directive:
+        if not briefing:
             print(json.dumps({"continue": True}))
             return
 
@@ -365,10 +324,6 @@ def main():
         if briefing:
             sanitized = briefing.replace("</system-reminder>", "")
             all_parts.append(sanitized)
-
-        if onboarding_directive:
-            onboarding_safe = onboarding_directive.replace("</system-reminder>", "")
-            all_parts.append(onboarding_safe)
 
         # Periodic memory storage nudge (every 10 turns)
         _STORAGE_NUDGE_INTERVAL = 10
@@ -404,7 +359,7 @@ def main():
                         pass
 
         # Jam suggestion: on FAST or SLOW path when ambiguity signals present
-        if path in ("fast", "slow") and not onboarding_directive:
+        if path in ("fast", "slow"):
             jam_hint = _suggest_jam(prompt, state)
             if jam_hint:
                 all_parts.append(jam_hint)
