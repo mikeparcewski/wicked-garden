@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.33.0] - 2026-03-06
+
+### Bug Fixes
+- fix: eliminate stale CP references across 29 files, add rationalization checker (7767cb7)
+
+### Refactoring
+- refactor: rename ai-collaboration → multi-model, retire ai-conversation (2f6a407)
+
+### Chores
+- release: wicked-garden v1.32.0 (333bec7)
+
 ## [1.32.0] - 2026-03-06
 
 ### Features
