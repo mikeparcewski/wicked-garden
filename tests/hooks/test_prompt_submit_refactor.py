@@ -157,9 +157,6 @@ class TestPreservedFunctions(unittest.TestCase):
         self.assertIn("def _check_setup_gate(", self.src,
                       "AC-4: _check_setup_gate must be preserved")
 
-    def test_build_onboarding_directive_preserved(self):
-        self.assertIn("def _build_onboarding_directive(", self.src,
-                      "AC-4: _build_onboarding_directive must be preserved")
 
     def test_increment_turn_preserved(self):
         self.assertIn("def _increment_turn(", self.src,

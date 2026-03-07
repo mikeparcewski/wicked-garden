@@ -981,7 +981,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -998,7 +998,7 @@ def main():
     args = parser.parse_args()
 
     # Enforce --reason when --override-gate is passed (check before project lookup)
-    if getattr(args, "override_gate", False) and args.action == "approve":
+    if getattr(args, "override_gate", False) and args.action in ("approve", "advance"):
         if not (args.reason and args.reason.strip()):
             print(
                 "Error: --override-gate requires --reason. "
@@ -1208,6 +1208,53 @@ def main():
                 print(f"Cannot advance to {target}:")
                 for reason in reasons:
                     print(f"  - {reason}")
+
+    elif args.action == "advance":
+        # Approve current phase, then start the next phase in one step.
+        phase = args.phase or state.current_phase
+        approved_phase = resolve_phase(phase)
+        try:
+            state, next_phase = approve_phase(
+                state,
+                approved_phase,
+                approver=args.approved_by or "user",
+                override_gate=args.override_gate,
+                override_reason=args.reason or "",
+            )
+        except ValueError as e:
+            if args.json:
+                print(json.dumps({"ok": False, "approved_phase": approved_phase, "error": str(e)}))
+            else:
+                print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        if next_phase is None:
+            save_project_state(state)
+            if args.json:
+                print(json.dumps({
+                    "ok": True,
+                    "approved_phase": approved_phase,
+                    "next_phase": None,
+                    "message": "Project complete — no next phase",
+                }))
+            else:
+                print(f"Approved phase: {approved_phase}")
+                print("Project complete!")
+            return
+
+        state = start_phase(state, next_phase)
+        save_project_state(state)
+
+        if args.json:
+            print(json.dumps({
+                "ok": True,
+                "approved_phase": approved_phase,
+                "next_phase": next_phase,
+                "current_phase": state.current_phase,
+            }))
+        else:
+            print(f"Approved phase: {approved_phase}")
+            print(f"Started phase: {next_phase}")
 
 
 if __name__ == "__main__":

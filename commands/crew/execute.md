@@ -368,24 +368,33 @@ TaskUpdate(taskId="{id}", status="completed")
 - `wicked-garden:delivery:report`: Thin CLI wrapper, no heavy analysis
 - `wicked-garden:crew:gate`: Already uses correct Task dispatch internally (gate.md is gold standard)
 
-#### Issue Resolution Pre-Step (Clarify and Design Phases)
+#### Step 0: Issue Resolution Analysis (Clarify Phase)
 
-**Before executing the clarify or design phase**, run the issue resolver to critically analyze each issue through five lenses (problem validity, root cause, tech debt opportunity, design rethink, alternative approaches).
+REQUIRED for clarify phase when the project involves issues, bugs, or feature requests.
+Run before engaging specialists or producing deliverables.
 
-This prevents jumping to implementation without questioning assumptions. The resolver may recommend expanding scope (tech debt cleanup), contracting scope (problem isn't real), or changing strategy (redesign instead of fix).
-
+For each issue in scope:
 ```
 Skill(skill="wicked-garden:resolve", args="{issue description or GH# for each issue}")
 ```
 
-If processing multiple issues, run in batch mode or dispatch parallel resolve calls. Store each resolution brief in `phases/clarify/resolutions/` and reference them in the acceptance criteria.
+If processing multiple issues, run in batch mode or dispatch parallel resolve calls.
+Store each resolution brief in `{project_dir}/phases/clarify/resolutions/{issue-id}.md`.
 
-**Integration with phase work**: The resolution briefs inform the clarify deliverables:
+Resolution briefs inform the clarify deliverables:
 - `objective.md` should reflect any scope changes recommended by the resolver
 - `acceptance-criteria.md` should incorporate tech debt opportunities identified
 - `complexity.md` should account for any redesign work the resolver recommends
 
-If the resolver recommends **Close** or **Defer** for any issue, flag it to the user even in just-finish mode — removing scope is a decision that deserves visibility.
+If the resolver recommends **Close** or **Defer** for any issue, surface it to the user before proceeding — even in just-finish mode. Removing scope is a decision that deserves visibility.
+
+#### Design Phase: Conditional Resolve
+
+If new issues surface during design (scope expansion, tech debt found, new bugs uncovered):
+```
+Skill(skill="wicked-garden:resolve", args="{new issue description}")
+```
+Run resolve on any new items before including them in the architecture document.
 
 #### Phase Execution Pattern
 

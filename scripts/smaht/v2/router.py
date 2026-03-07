@@ -95,13 +95,14 @@ COMPOUND_PATTERNS = [
     r"(\d+\.\s+.+\n\s*\d+\.)",  # Numbered list
 ]
 
-# Continuation patterns — signals that the user is continuing the current topic
-# These should use the hot path (session state only, no adapter queries)
+# Continuation patterns — signals that the user is continuing the current topic.
+# These must cover every token in _HOT_CONTINUATIONS (hooks/scripts/prompt_submit.py).
 #
 # Keep in sync with _HOT_CONTINUATIONS in hooks/scripts/prompt_submit.py.
-# _HOT_CONTINUATIONS is an exact-token frozenset; these regex patterns must cover
-# all tokens in that set. The parity test in tests/hooks/test_prompt_submit_refactor.py
-# (TestContinuationPatternParity) enforces this guarantee automatically.
+# _HOT_CONTINUATIONS is an exact-token frozenset for hook-level fast-exit.
+# These regex patterns cover the same tokens for Orchestrator-level routing.
+# Parity is enforced by TestContinuationPatternParity in
+# tests/hooks/test_prompt_submit_refactor.py.
 CONTINUATION_PATTERNS = [
     r"^(yes|yeah|yep|yup|ok|okay|sure|fine|good|great|perfect|right|correct|exactly|agreed|approved?)\.?$",
     r"^(do it|go|go ahead|go for it|sounds good|looks good|ship it|proceed|continue|carry on|next)\.?$",

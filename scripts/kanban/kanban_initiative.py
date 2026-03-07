@@ -15,12 +15,11 @@ import os
 import sys
 from pathlib import Path
 
-# Add scripts root to path for shared modules, then kanban dir for local imports
+# Add scripts root to path for shared modules
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).parent))
 
 from _domain_store import DomainStore
-from kanban import KanbanStore, _resolve_board_type
+from kanban.kanban import KanbanStore, _resolve_board_type
 
 _sm = DomainStore("wicked-kanban")
 

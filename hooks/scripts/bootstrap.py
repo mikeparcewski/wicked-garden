@@ -269,7 +269,7 @@ def _check_onboarding_status():
     cwd = str(Path.cwd())
 
     has_index = True   # default: assume done (fail open)
-    has_memories = True  # default: assume done (fail open)
+    has_memories = False  # default: assume not onboarded (fail-closed for new projects)
 
     # Check search index (local SQLite database)
     try:
@@ -315,7 +315,8 @@ def _check_onboarding_status():
         memories = store.recall(tags=["onboarding"], limit=1)
         has_memories = len(memories) > 0
     except Exception:
-        pass  # Fail open
+        has_memories = True  # fail open on exception — assume onboarded to avoid false triggers
+        print("[wicked-garden] onboarding check: MemoryStore error, assuming onboarded", file=sys.stderr)
 
     directive = None
     if not has_memories:
