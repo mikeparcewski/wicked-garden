@@ -1,200 +1,186 @@
 # Multi-Model Orchestration Patterns
 
-Patterns for coordinating multiple AI models via the collaboration API.
-No CLI shelling required — models are spawned as real agent sessions
-with different providers assigned per persona.
+Patterns for coordinating multiple AI models via external CLI dispatch.
+Each model responds independently to a fixed question scaffold, then Claude synthesizes.
 
 ## The Orchestration Loop
 
 ```
-1. Create collaboration (POST /scopes/:id/collaborations)
-2. Run session (POST /collaborations/:id/run)
-   → Backend discovers authenticated models
-   → Assigns different model per persona (round-robin)
-   → Spawns AgentRuntime sessions in parallel
-   → Collects outputs as perspectives
-3. Synthesize (current session reviews all perspectives)
-4. Persist decision (wicked-mem + collaboration record)
+1. Detect CLIs (which codex gemini opencode pi)
+2. Quorum check (need 2+ for true council)
+3. Build question scaffold (4 fixed questions)
+4. Dispatch scaffold to each CLI in parallel (stdin pipe)
+5. Claude answers the same scaffold independently
+6. Synthesize all responses (3-stage output)
+7. Persist transcript + decision record
 ```
 
-## How Model Assignment Works
-
-### Discovery
-
-```typescript
-// CollaborationService calls discoverAuthenticatedModels()
-// which uses AuthStorage.create() to check provider credentials:
-
-const MODEL_POOL = [
-  { provider: 'anthropic',         modelId: 'claude-opus-4-6' },
-  { provider: 'google-gemini-cli', modelId: 'gemini-2.5-pro' },
-  { provider: 'openai-codex',      modelId: 'gpt-5.3-codex' },
-  { provider: 'openai',            modelId: 'gpt-5.2' },
-  { provider: 'google',            modelId: 'gemini-2.5-pro' },
-];
-
-// Only models with valid API keys are included.
-// Provider families are deduplicated (openai-codex + openai = 1 slot).
-```
-
-### Round-Robin Assignment
-
-```
-5 personas, 3 authenticated providers:
-
-architect       → anthropic:claude-opus-4-6      [index 0]
-security-eng    → google-gemini-cli:gemini-2.5-pro [index 1]
-product-manager → openai-codex:gpt-5.3-codex     [index 2]
-ux-designer     → anthropic:claude-opus-4-6       [index 0, wraps]
-staff-engineer  → google-gemini-cli:gemini-2.5-pro [index 1, wraps]
-```
-
-### Explicit Override
-
-Pass `config.model_map` when creating a collaboration:
-
-```json
-{
-  "type": "jam:council",
-  "topic": "Auth architecture review",
-  "config": {
-    "personas": ["architect", "security-engineer", "ux-designer"],
-    "model_map": {
-      "architect": "anthropic:claude-opus-4-6",
-      "security-engineer": "google-gemini-cli:gemini-2.5-pro"
-    }
-  }
-}
-```
-
-Unmapped roles get auto-assigned via round-robin.
-
-## Context Layers
-
-```
-┌────────────────────────────────────────────┐
-│  Collaboration Record (perspectives[])      │  ← All model outputs stored
-├────────────────────────────────────────────┤
-│  Per-Session Runtime State                  │  ← Each AgentRuntime has own model
-├────────────────────────────────────────────┤
-│  Prompt Context (collaboration.prompt)      │  ← Shared prompt to all personas
-└────────────────────────────────────────────┘
-```
-
-## Gathering Perspectives
-
-### Via Collaboration API (Recommended)
+## CLI Detection
 
 ```bash
-# 1. Create collaboration
-curl -X POST http://localhost:18889/api/v1/scopes/$SCOPE_ID/collaborations \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "type": "jam:council",
-    "topic": "Should we use JWT or sessions?",
-    "prompt": "Review auth design for security, scalability, and UX",
-    "config": { "personas": ["architect", "security-engineer", "ux-designer"] }
-  }'
-
-# 2. Run multi-model session (spawns agents with different models)
-curl -X POST http://localhost:18889/api/v1/collaborations/$COLLAB_ID/run
-
-# 3. Check perspectives
-curl http://localhost:18889/api/v1/collaborations/$COLLAB_ID
-# → perspectives[] with model attribution in metadata
+# Council agent detects available CLIs at runtime
+which codex 2>/dev/null && echo "codex:available" || echo "codex:missing"
+which gemini 2>/dev/null && echo "gemini:available" || echo "gemini:missing"
+which opencode 2>/dev/null && echo "opencode:available" || echo "opencode:missing"
+which pi 2>/dev/null && echo "pi:available" || echo "pi:missing"
 ```
 
-### Via /jam:council Command
+### Quorum Rules
+
+| Available External CLIs | Behavior |
+|------------------------|----------|
+| 0 | Refuse council. Suggest `/jam:brainstorm` instead. |
+| 1 | Run as "brainstorm with external guest" — warn not a true council. |
+| 2+ | Full council mode. |
+
+## Question Scaffold
+
+Every external model answers the **same fixed question set** for comparability:
+
+```
+Topic: {topic}
+Options under evaluation: {options}
+Evaluation criteria: {criteria}
+
+Answer these 4 questions:
+
+1. RECOMMENDATION: Which option do you recommend and why?
+2. TOP RISK: What is the single biggest risk in your recommendation?
+3. WHAT WOULD CHANGE YOUR MIND: What evidence would reverse your recommendation?
+4. DISQUALIFIER: Is any option fundamentally unviable? If so, which and why?
+```
+
+## Parallel Dispatch
+
+**Non-negotiable**: Each model responds independently. No model sees another's output.
 
 ```bash
-# From pi CLI — handles everything automatically
-/jam:council "Should we use JWT or sessions for auth?"
+# Write scaffold to temp file (avoids shell quoting issues)
+SCAFFOLD_FILE="${TMPDIR:-/tmp}/council-scaffold-$$.md"
+cat > "$SCAFFOLD_FILE" <<'SCAFFOLD_EOF'
+{question_scaffold_content}
+SCAFFOLD_EOF
+
+# Dispatch in parallel (all run simultaneously via multiple Bash calls)
+cat "$SCAFFOLD_FILE" | codex exec "Evaluate the options. Answer the 4 questions."
+cat "$SCAFFOLD_FILE" | gemini "Evaluate the options. Answer the 4 questions."
+cat "$SCAFFOLD_FILE" | opencode run "Evaluate the options. Answer the 4 questions."
+cat "$SCAFFOLD_FILE" | pi exec "Evaluate the options. Answer the 4 questions."
 ```
+
+Claude also answers the scaffold independently before reading external responses.
 
 ## Synthesis Framework
 
-After gathering perspectives, synthesize using:
+### Three-Stage Output
 
-| Signal | Meaning | Action |
-|--------|---------|--------|
-| **Consensus** (2+ models agree) | High confidence issue | Address immediately |
-| **Unique insight** (1 model) | Worth evaluating | Don't dismiss |
-| **Disagreement** | Genuine tradeoff | Human decides |
-| **Silence** | No model flagged it | Lower priority |
-
-### Synthesis Output Template
+**Stage 1: Independent Responses** — Raw answers per model, clearly separated.
 
 ```markdown
-## Multi-Model Council: [Topic]
+## Council Evaluation: {topic}
 
-**Models**: Claude Opus, Gemini Pro, Codex
-**Personas**: architect, security-engineer, ux-designer
+*Each model responded independently. No model saw another's output.*
 
-### Consensus (High Confidence)
-- Issue 1: flagged by Claude, Gemini
-- Issue 2: flagged by all 3
+### Claude
+{Claude's 4 answers}
 
-### Unique Insights
-- **Gemini**: [long-context catch others missed]
-- **Claude**: [architectural nuance]
-- **Codex**: [implementation detail]
+### Codex
+{Codex's 4 answers}
 
-### Disagreements
-- [Topic]: Gemini says X, Claude says Y → human decides
-
-### Recommended Actions
-1. [Highest priority]
-2. [Second priority]
-
-### Open Questions
-- [What remains unresolved]
+### Gemini
+{Gemini's 4 answers}
 ```
 
-## Session Management
+**Stage 2: Synthesis Matrix** — Structured comparison.
 
-Each persona's agent session is tracked in the sessions table with:
-- `model` — the assigned model spec
-- `scope_id` — same scope as the collaboration
-- `metadata.collaboration_id` — links back to the collaboration record
+```markdown
+| Model | Recommendation | Top Risk | Disqualifier |
+|-------|---------------|----------|-------------|
+| Claude | {option} | {risk} | {disqualifier or None} |
+| Codex | {option} | {risk} | {disqualifier or None} |
+| Gemini | {option} | {risk} | {disqualifier or None} |
 
-Sessions are fire-and-forget: the collaboration service polls for output
-until timeout (`COLLAB_RUN_TURN_TIMEOUT_MS`, default 12s).
+### Risk Convergence
+**High signal** (3+ models cite): {risks in 3+ responses}
+**Notable** (1-2 models cite): {risks from 1-2 responses}
+```
 
-## Persistence
+**Stage 3: Verdict** — Consensus or fault lines.
 
-### Automatic
+```markdown
+## Verdict
+**Council recommends {Option X}** ({count}-{dissent}).
+Primary risk: {most-cited risk}.
+```
 
-Every `/collaborations/:id/run` call:
-- Creates session records with model attribution
-- Emits events: `agent:session:spawning`, `agent:session:started`,
-  `collaboration:perspective:added`, `collaboration:run:completed`
-- Stores `model` in each perspective's metadata
+Or if no consensus:
+```markdown
+## Verdict
+**No consensus.** Fault lines: {Option A} vs {Option B}.
+Key disagreement: {fundamental question models disagree on}.
+```
 
-### Decision Records
+## Transcript Persistence
+
+Council responses are persisted via `save_transcript.py`:
 
 ```bash
-/memory_write content="Auth: JWT with 15min/7day expiry.
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
+  --session-id "{session_id}" \
+  --entries '{json_array_of_entries}'
+```
+
+Each model response becomes one entry:
+```json
+{
+  "session_id": "{session_id}",
+  "round": 1,
+  "persona_name": "Gemini",
+  "persona_type": "council",
+  "raw_text": "{full response}",
+  "timestamp": "{ISO timestamp}",
+  "entry_type": "council_response"
+}
+```
+
+Synthesis is appended as `entry_type: synthesis`, `persona_name: Council`.
+
+### Decision Records (via wicked-mem)
+
+```bash
+/wicked-garden:mem:store "Auth: JWT with 15min/7day expiry.
 Council: Claude (architect), Gemini (security), Codex (ux).
 Consensus: idempotency critical, session store risky at scale.
 Unique: Gemini flagged Redis cluster cost." \
-  type=decision tags=auth,council
+  --type decision --tags auth,council
 ```
 
 ## Anti-Patterns
 
 ```
-# BAD: Shelling out to CLI tools
-cat file.md | gemini "Review this"  # slow, fragile, no persistence
+# BAD: No quorum check
+Run council with 0 external CLIs  # just Claude talking to itself
 
-# GOOD: Use collaboration API
-POST /collaborations/:id/run        # fast, model-diverse, persisted
+# GOOD: Check quorum first
+which codex gemini opencode pi    # need 2+ for real council
 
-# BAD: Same model for all personas
-config: { default_model: "anthropic:claude-opus-4-6" }  # no diversity
+# BAD: Sequential dispatch (one model could influence the next)
+response1=$(codex exec "$q"); echo "$response1" | gemini "$q"
 
-# GOOD: Let the system auto-rotate
-config: { personas: [...] }  # backend picks different model per role
+# GOOD: Parallel dispatch (all independent)
+codex exec "$q" &  gemini "$q" &  # simultaneous, isolated
 
-# BAD: Manual synthesis by reading CLI output
-# GOOD: Structured synthesis from perspectives[] with model attribution
+# BAD: Confidence scores in synthesis
+"Gemini is 85% confident..."  # LLMs produce uncalibrated numbers
+
+# GOOD: Risk convergence
+"3/3 models flagged this risk"  # count-based signal
 ```
+
+## Important Rules
+
+1. **No confidence scores** — Use risk convergence (count-based) instead
+2. **No rounds** — Single structured pass; rounds break isolation
+3. **No editorial gloss on Stage 1** — Present raw answers without interpretation
+4. **Parallel only** — Never run CLIs sequentially
+5. **Claude participates** — Always a council member, same scaffold

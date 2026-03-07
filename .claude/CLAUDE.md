@@ -94,23 +94,22 @@ All domains live in one plugin — direct Python imports replace the old subproc
 
 ```python
 # Direct import (domains share scripts/ directory)
-from _storage import StorageManager
-from _control_plane import ControlPlaneClient
+from _domain_store import DomainStore
 from _session import SessionState
 ```
 
 Smaht adapters query domain scripts directly via `_SCRIPTS_ROOT` path resolution.
 
-### Control Plane
+### Storage Layer
 
-The **wicked-control-plane** (Fastify + SQLite) provides team-shared persistence:
+Local-first persistence via `DomainStore` and `SqliteStore`:
 
-- **StorageManager** (`scripts/_storage.py`): CP primary → local JSON fallback → offline write queue
-- **ControlPlaneClient** (`scripts/_control_plane.py`): HTTP client for CP REST API
+- **DomainStore** (`scripts/_domain_store.py`): Local JSON files + integration-discovery routing to MCP tools
+- **SqliteStore** (`scripts/_sqlite_store.py`): FTS5 + BM25 for full-text search
 - **SessionState** (`scripts/_session.py`): Per-session state shared between hooks
-- **AgentLoader** (`scripts/_agents.py`): Two-source merge (disk + CP overlay)
+- **AgentLoader** (`scripts/_agents.py`): Two-source merge (disk agents + specialist.json)
 
-Three modes: local (localhost:18889), remote (team server), offline (local JSON files).
+Storage paths: `~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json`
 
 ### Context Assembly (smaht domain)
 
@@ -190,11 +189,11 @@ Matchers specify tool names: `"*"` for all, or specific like `"TaskCreate"`, `"W
 
 ### Storage
 
-Plugin state is managed by StorageManager (`scripts/_storage.py`) — CP-first with local fallback automatically. Local paths are resolved dynamically; never hardcode `~/.something-wicked/` paths in consumer code. Use `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>` in commands. Offline writes are queued in `_queue.jsonl` and replayed on reconnect.
+Plugin state is managed by DomainStore (`scripts/_domain_store.py`) — local JSON files with optional integration-discovery routing to external MCP tools. Local paths are resolved dynamically; never hardcode `~/.something-wicked/` paths in consumer code. Use `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>` in commands.
 
 ### Graceful Degradation
 
-The plugin works without the control plane. All hooks fail-open. StorageManager falls back to local JSON files automatically.
+The plugin works standalone with no external dependencies. All hooks fail-open. DomainStore always has local JSON as fallback. Integration-discovery routing is optional.
 
 ### Task Lifecycle in Crew
 

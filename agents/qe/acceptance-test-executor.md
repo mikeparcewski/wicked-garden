@@ -260,7 +260,7 @@ Registry JSON schema:
 
 Write the registry to `${REGISTRY_PATH}` using the Write tool. If the write fails (permissions error), log the failure to execution notes and continue — the reviewer will detect the missing registry and return INCONCLUSIVE.
 
-After writing the registry file, persist a backup to StorageManager so it can be recovered cross-session if the file is lost:
+After writing the registry file, persist a backup to DomainStore so it can be recovered cross-session if the file is lost:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/registry_store.py" \

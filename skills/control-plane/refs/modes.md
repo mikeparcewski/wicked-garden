@@ -1,76 +1,67 @@
-# Connection Modes
+# Storage Modes
 
-Two modes, configured via `/wicked-garden:setup` and stored in `{storage_root}/config.json`.
+## Local-First (Default)
 
-## local (Default)
+All storage is local JSON files. No server required.
 
-CP runs on your machine at `localhost:18889`. The SessionStart hook auto-starts it from the `wicked-control-plane` source. When CP is unavailable, all operations fall back to local JSON files.
-
-```json
-{
-  "mode": "local",
-  "setup_complete": true
-}
+```
+~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json
 ```
 
-**Startup sequence** (bootstrap.py, 15s budget):
-1. Check if CP is already healthy at configured endpoint
-2. If not running, start `cd {viewer_path} && PORT=18889 pnpm run dev:backend` as detached process
-3. Poll `/health` every 0.5s for up to 10s
-4. If healthy: drain offline queue, mark session online, open browser to dashboard
-5. If timeout: mark session as fallback mode (local JSON files)
+This is the only mode since v1.30.0. The control plane server was eliminated.
 
-**Data flow**: CP primary → local JSON fallback on miss → queued writes replayed on reconnect.
+## Integration Discovery (Optional Enhancement)
 
-## remote
-
-CP on a shared team server. Requires endpoint URL and optional auth token.
-
-```json
-{
-  "endpoint": "https://team.example.com",
-  "auth_token": "your-token",
-  "mode": "remote"
-}
-```
-
-**Startup sequence**:
-1. Health check against configured endpoint (3s timeout)
-2. If healthy: drain offline queue, mark session online
-3. If unreachable: mark session as fallback mode
-
-**Auth**: Bearer token sent in `Authorization` header. Never logged or echoed in error output.
-
-**Data flow**: Same as local — CP primary, local JSON fallback, queue replay.
-
-## Mode Doesn't Change the API
-
-Scripts using `StorageManager` work identically in both modes. The routing is transparent:
+DomainStore can route CRUD to external tools when configured:
 
 ```python
-sm = StorageManager("memory")
-sm.list("memories")  # same call regardless of mode
+ds = DomainStore("wicked-kanban")
+# If Linear MCP is configured and authenticated → routes to Linear
+# Otherwise → local JSON (always works)
 ```
 
-The only difference is where data lives and how fast it responds.
+### Supported Integrations
+
+Resolved via `_integration_resolver.py` + MCP adapter stubs in `scripts/_adapters/`:
+
+| Integration | Adapter | Status |
+|------------|---------|--------|
+| Linear | `linear_adapter.py` | Stub (returns None → local fallback) |
+| Jira | `jira_adapter.py` | Stub |
+| Notion | `notion_adapter.py` | Stub |
+| Miro | `miro_adapter.py` | Stub |
+
+Adapters return `None` for all operations, causing DomainStore to fall back to local JSON.
+When a real MCP tool is available and preferred, the adapter delegates to it.
+
+### Preference Storage
+
+Integration preferences are stored in wicked-mem:
+```bash
+/wicked-garden:mem:store "Use Linear for kanban tasks" --type preference --tags integration
+```
+
+`_integration_resolver.py` checks these preferences during DomainStore initialization.
+
+## SqliteStore Mode
+
+For domains that need full-text search (wicked-search, wicked-mem recall):
+
+```python
+from _sqlite_store import SqliteStore
+store = SqliteStore("~/.something-wicked/wicked-garden/wicked-garden.db")
+```
+
+Records can be migrated from local JSON → SQLite via `_migrate_local.py`.
 
 ## Session State
 
-Mode decisions are tracked in session state (`_session.py`) so hooks don't re-check on every invocation:
+Session-level state is tracked in `_session.py`:
 
 | Field | Meaning |
 |-------|---------|
-| `cp_available` | Health check passed at session start |
-| `cp_version` | Reported CP version string |
-| `fallback_mode` | CP was unreachable, using local files |
-| `setup_complete` | config.json has `setup_complete: true` |
+| `setup_complete` | Onboarding wizard has run |
+| `storage_mode` | Always `"local"` since v1.30.0 |
+| `dangerous_mode` | AskUserQuestion auto-completes (see CLAUDE.md) |
 
-Use `SessionState.load().is_online()` to check if CP is available in the current session.
-
-## Reconnection
-
-If the session starts in fallback mode, `prompt_submit.py` re-checks CP health periodically (default: every 60s, configurable via `health_check_interval_seconds`). On successful reconnect:
-
-1. Queue is drained (offline writes replayed to CP)
-2. Session state updated to `cp_available: true, fallback_mode: false`
-3. Subsequent StorageManager calls go to CP
+Use `SessionState.load()` to read session state in hook scripts.

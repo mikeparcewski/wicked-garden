@@ -53,8 +53,8 @@ These are informational — flagged but not blocking:
 - Check: line number of Workflows heading < line number of Commands heading
 
 ### C3: Data API Section
-- RECOMMEND if plugin exposes data via the Control Plane (CP)
-- Check: domain is listed in CP manifest (`python3 scripts/cp.py manifest`)
+- RECOMMEND if plugin exposes structured data via DomainStore or external integrations
+- Check: domain has a DomainStore instance in its scripts (e.g. `DomainStore("wicked-{domain}")`)
 
 ### C4: Output Examples
 - RECOMMEND at least one output example (code block showing expected output, not just input commands)

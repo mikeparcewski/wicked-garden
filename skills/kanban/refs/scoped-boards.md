@@ -205,5 +205,5 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-initiatives PROJECT_
 
 - Swimlane ID namespacing (`jam:*`, `collab:*`) prevents index collisions when multiple board types coexist in one project
 - `crew` and `issues` share plain IDs (`todo`, `in_progress`, `done`) for full backward compatibility with existing tasks and hooks
-- `board_type` is stored directly on the initiative record — no separate StorageManager source is required
+- `board_type` is stored directly on the initiative record — no separate DomainStore source is required
 - `update_initiative` allows `board_type` as an updatable field for post-creation correction

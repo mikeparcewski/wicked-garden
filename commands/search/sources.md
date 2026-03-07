@@ -136,7 +136,7 @@ Check which sources are stale and fetch+index their content:
 
 ## Notes
 
-- Source configs and indexed content are managed by StorageManager — paths are resolved dynamically via `resolve_path.py search`
+- Source configs and indexed content are managed by DomainStore — paths are resolved dynamically via `resolve_path.py search`
 - External content appears in `/wicked-garden:search:search` results alongside local code/docs
 - Results from external sources are tagged with `source_name` and `source_plugin` in metadata
 - The `refresh` command requires the relevant MCP plugins to be active in the session

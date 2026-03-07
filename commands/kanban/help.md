@@ -70,7 +70,7 @@ uv run python scripts/kanban/kanban.py search "query"
         └── activity/        # Daily logs (JSONL)
 ```
 
-Data paths are resolved dynamically by StorageManager. To find the local root:
+Data paths are resolved dynamically by DomainStore. To find the local root:
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-kanban
 ```
@@ -79,16 +79,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-kanban
 
 | Setting | Default | Environment Variable |
 |---------|---------|---------------------|
-| Data Dir | Resolved by StorageManager | `WICKED_KANBAN_DATA_DIR` |
+| Data Dir | Resolved by DomainStore | `WICKED_KANBAN_DATA_DIR` |
 
-## Rendering
+## Data Access
 
-The board is rendered via the **Control Plane** (CP) data API.
+Kanban data is stored as local JSON files via DomainStore.
 
 To access kanban data:
-1. Ensure the CP is running at `http://localhost:18889`
-2. Query via: `python3 scripts/cp.py kanban tasks list`
-3. Or directly: `curl http://localhost:18889/api/v1/data/kanban/tasks/list`
+1. Use the kanban CLI: `uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID`
+2. Or the board command: `/wicked-garden:kanban:board-status`
+3. Integration-discovery can route to Linear/Jira MCP when configured
 
 ### Available Components
 

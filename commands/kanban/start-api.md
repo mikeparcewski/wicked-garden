@@ -1,51 +1,53 @@
 ---
-description: Check the Control Plane status for dashboard integration
+description: Check kanban data status and storage health
 ---
 
 # /wicked-garden:kanban:start-api
 
-The kanban data API is served by the **wicked-control-plane** (CP) at `http://localhost:18889`. In `local` mode, the CP is auto-started on session start. When CP is unavailable, data falls back to local JSON files.
+Kanban data is stored locally via DomainStore. No external server required.
 
 ## Instructions
 
-Check that the CP is running:
+Check that kanban data is accessible:
 
 ```bash
-curl -s http://localhost:18889/health
+python3 -c "
+import sys, os
+from pathlib import Path
+sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+from _domain_store import DomainStore
+ds = DomainStore('wicked-kanban')
+projects = ds.list('projects')
+tasks = ds.list('tasks')
+print(f'Projects: {len(projects) if projects else 0}')
+print(f'Tasks: {len(tasks) if tasks else 0}')
+print('Status: OK')
+"
 ```
 
-If not running, start it:
+## Kanban CLI Access
 
 ```bash
-cd ~/.claude/plugins/cache/wicked-control-plane && PORT=18889 pnpm run dev:backend &
+cd "${CLAUDE_PLUGIN_ROOT}"
+
+# List projects
+uv run python scripts/kanban/kanban.py list-projects
+
+# List tasks
+uv run python scripts/kanban/kanban.py list-tasks PROJECT_ID
+
+# Search
+uv run python scripts/kanban/kanban.py search "query"
 ```
 
-## Kanban API Endpoints (via CP)
-
-All kanban data is available at `/api/v1/data/kanban/`:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/data/kanban/projects/list` | GET | List all projects |
-| `/api/v1/data/kanban/projects/get/:id` | GET | Get project details |
-| `/api/v1/data/kanban/tasks/list` | GET | List tasks (filter: ?project_id=) |
-| `/api/v1/data/kanban/tasks/get/:id` | GET | Get task details |
-| `/api/v1/data/kanban/tasks/search` | GET | Search tasks (?q=query) |
-| `/api/v1/data/kanban/tasks/stats` | GET | Task statistics |
-| `/api/v1/data/kanban/initiatives/list` | GET | List initiatives |
-| `/api/v1/data/kanban/comments/list/:taskId` | GET | List task comments |
-| `/api/v1/data/kanban/activity/list` | GET | Activity log |
-| `/api/v1/data/kanban/board/:projectId` | GET | Board state |
-
-## CLI Access
+## Data Location
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" kanban tasks list --project_id my-project
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/cp.py" kanban tasks search --q "bug"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-kanban
 ```
 
 ## Notes
 
-- The CP runs on port 18889 (configurable via config.json)
-- Dashboard clients connect to the CP directly
-- Use `python3 scripts/cp.py manifest` to see all available endpoints
+- Data stored as local JSON files via DomainStore
+- Integration-discovery can route to Linear/Jira MCP tools when configured
+- Use `/wicked-garden:kanban:board-status` for a visual board view

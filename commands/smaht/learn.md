@@ -113,4 +113,4 @@ To view all stored cheatsheets: /wicked-garden:smaht:libs
 |-----------|-----------|
 | Context7 MCP unavailable | Report error; suggest manually providing docs |
 | Library not found in Context7 | Inform user with suggested alternative spellings |
-| StorageManager offline | Cheatsheet still stored locally via fallback |
+| DomainStore offline | Cheatsheet still stored locally via fallback |
