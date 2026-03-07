@@ -198,12 +198,27 @@ def _check_setup_gate(prompt: str) -> str | None:
             pass
         return None
 
-    # Allow prompts through when setup is actively running
+    # Allow prompts through when setup is actively running — but verify
+    # that setup_in_progress isn't stale from a previous session by
+    # confirming config.json doesn't already have setup_complete=true.
     try:
         from _session import SessionState
         state = SessionState.load()
         if state.setup_in_progress:
-            return None
+            config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
+            config_done = False
+            try:
+                if config_path.exists():
+                    cfg = json.loads(config_path.read_text())
+                    config_done = cfg.get("setup_complete", False)
+            except (json.JSONDecodeError, OSError):
+                pass
+            if config_done:
+                # Config already complete — flag is stale, clear it
+                state.update(setup_in_progress=False)
+            else:
+                # Setup genuinely in progress — let the prompt through
+                return None
     except Exception:
         pass
 

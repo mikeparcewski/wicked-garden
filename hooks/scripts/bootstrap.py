@@ -451,6 +451,21 @@ def main():
         config = _read_config()
 
         if config is None or not config.get("setup_complete", False):
+            # Clear stale session state before early return.  Without this,
+            # setup_in_progress=True from a crashed/killed previous session
+            # survives and lets prompt_submit bypass the setup gate.
+            _stale = _load_session_state()
+            if _stale is not None:
+                if _stale.session_ended:
+                    _stale.delete()
+                    _stale = _load_session_state()
+                if _stale is not None:
+                    _stale.update(
+                        setup_in_progress=False,
+                        setup_complete=False,
+                        setup_confirmed=False,
+                    )
+
             print(json.dumps({
                 "hookSpecificOutput": {
                     "hookEventName": "SessionStart",
