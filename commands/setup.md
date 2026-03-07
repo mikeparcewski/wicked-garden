@@ -75,17 +75,20 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-all
 
 **Evaluate the result:**
 
-Parse the JSON output. For each tool in `core` and `optional`:
+Parse the JSON output. Only `core` tools are required during setup:
 
-- If `status` is `"available"`: Tool is ready. Show a checkmark.
-- If `status` is `"missing"`: **Ask the user** if you can install it:
-  - Show: "{name} is not installed. Install with: `{install_cmd}`?"
-  - **INTERACTIVE mode**: Use AskUserQuestion with header "{name}", options: "Install now" = "Run: {install_cmd}", "Skip" = "Continue without {name}".
-  - **PLAIN_TEXT mode**: Ask in plain text and STOP.
-  - If user approves: Run the `install_cmd` via Bash. If the tool has `post_install`, run that too. Then re-check with `prereq_doctor.py check {tool}` to verify.
-  - If user declines: Warn that features depending on this tool will be unavailable. Continue.
+- For each tool in `core`:
+  - If `status` is `"available"`: Tool is ready. Show a checkmark.
+  - If `status` is `"missing"`: **Ask the user** if you can install it:
+    - Show: "{name} is not installed. Install with: `{install_cmd}`?"
+    - **INTERACTIVE mode**: Use AskUserQuestion with header "{name}", options: "Install now" = "Run: {install_cmd}", "Skip" = "Continue without {name}".
+    - **PLAIN_TEXT mode**: Ask in plain text and STOP.
+    - If user approves: Run the `install_cmd` via Bash. If the tool has `post_install`, run that too. Then re-check with `prereq_doctor.py check {tool}` to verify.
+    - If user declines: Warn that features depending on this tool will be unavailable. Continue.
 
-After all core tools are installed, if `uv` is available, sync Python dependencies:
+- **Skip `optional` tools entirely** — do NOT ask about them during setup. They are checked on-demand at runtime by the PostToolUseFailure hook, which detects missing tools when they're actually needed and suggests installation at that point.
+
+After all core tools are checked, if `uv` is available, sync Python dependencies:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check uv

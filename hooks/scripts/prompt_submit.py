@@ -252,6 +252,10 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
+    # Setup gate — hard-block (sys.exit(2)) if no config.
+    # MUST run before HOT continuations so setup can never be bypassed.
+    _check_setup_gate(prompt)
+
     # ---------------------------------------------------------------------------
     # HOT fast-exit: known continuation tokens bypass all imports and the
     # Orchestrator entirely.  Keeps HOT path p95 well under 100ms SLO.
@@ -268,9 +272,6 @@ def main():
     if prompt.strip().lower() in _HOT_CONTINUATIONS:
         print(json.dumps({"continue": True}))
         return
-
-    # Setup gate — hard-block (sys.exit(2)) if no config
-    _check_setup_gate(prompt)
 
     try:
         from _session import SessionState
