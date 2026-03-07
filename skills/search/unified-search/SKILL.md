@@ -98,7 +98,7 @@ cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py {ver
 ### Traverse
 BFS traversal from a symbol, returning full node/edge objects:
 ```bash
-python3 scripts/cp.py knowledge graph traverse <symbol-id> --depth 2 --direction both
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py traverse <symbol-id> --depth 2 --direction both
 ```
 - `--depth`: 1-3 (default 1, max 3)
 - `--direction`: `both`, `in`, `out`
@@ -107,7 +107,7 @@ python3 scripts/cp.py knowledge graph traverse <symbol-id> --depth 2 --direction
 ### Hotspots
 Rank symbols by total connectivity (in-degree + out-degree):
 ```bash
-python3 scripts/cp.py knowledge graph hotspots --limit 10 --layer backend --type entity
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py hotspots --limit 10 --layer backend --type entity
 ```
 - Supports `--layer` and `--type` filters
 - Default limit: 20, sorted by total_count descending
@@ -115,8 +115,8 @@ python3 scripts/cp.py knowledge graph hotspots --limit 10 --layer backend --type
 ### Multi-Project
 All verbs support `--project` for multi-codebase isolation:
 ```bash
-python3 scripts/cp.py knowledge projects list                     # List indexed projects
-python3 scripts/cp.py knowledge graph hotspots --project my-app   # Query specific project
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py projects list
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py hotspots --project my-app
 ```
 
 ## Cross-Reference Detection

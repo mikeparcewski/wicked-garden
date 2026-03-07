@@ -111,15 +111,14 @@ Bad synthesis:
 
 At session start:
 ```python
-if has_plugin("wicked-mem"):
-    prior = recall(topic)
-    inject_context(prior)
+prior = mem_recall(topic)  # via /wicked-garden:mem:recall
+inject_context(prior)
 ```
 
 At session end:
 ```python
-if has_plugin("wicked-mem") and user_approves:
-    store(insights, type="decision", tags=[topic])
+if user_approves:
+    mem_store(insights, type="decision", tags=[topic])  # via /wicked-garden:mem:store
 ```
 
 ### With wicked-kanban

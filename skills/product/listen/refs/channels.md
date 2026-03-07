@@ -117,7 +117,7 @@ Discovers chat and messaging platform data.
 
 ```bash
 # Check for conversation exports or cached data
-find {SM_LOCAL_ROOT}/wicked-product/voice/feedback/conversations/ -name "*.md" -o -name "*.json"
+find $(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-product/voice/feedback/conversations/ -name "*.md" -o -name "*.json"
 
 # Check for messaging platform exports
 find ~/Downloads -name "*slack*.json" -o \
@@ -147,8 +147,8 @@ Manually saved customer feedback from various channels.
 
 ```bash
 # Check voice store for direct feedback
-ls {SM_LOCAL_ROOT}/wicked-product/voice/feedback/direct/
-ls {SM_LOCAL_ROOT}/wicked-product/voice/feedback/social/
+ls $(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-product/voice/feedback/direct/
+ls $(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-product/voice/feedback/social/
 ```
 
 **Note**: Direct feedback and social mentions are typically manually collected and saved to the voice store.
@@ -187,7 +187,7 @@ ls {SM_LOCAL_ROOT}/wicked-product/voice/feedback/social/
 
 4. **Check Voice Store**:
    ```bash
-   ls -la {SM_LOCAL_ROOT}/wicked-product/voice/feedback/
+   ls -la $(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-product/voice/feedback/
    ```
 
 5. **Report Availability**:
