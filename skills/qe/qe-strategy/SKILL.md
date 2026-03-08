@@ -157,26 +157,22 @@ Without wicked-scenarios installed, all QE functionality works identically.
 
 ## Testing Pyramid (Crew Integration)
 
-When a crew project reaches the test phase, QE executes the **full testing pyramid** — not just acceptance tests. The pyramid has 6 layers dispatched in parallel groups:
+When a crew project reaches the test phase, QE tests **like a product owner** — verifying real user flows before checking unit-level correctness. E2E = product-level testing, not running `pnpm test`.
 
-| Layer | Test Types | When Required |
-|---|---|---|
-| 1 — Unit | unit/logic | Always |
-| 2 — Integration | contract/API | API or both changes |
-| 3 — Visual | UI/interaction/a11y | UI or both changes |
-| 4 — Security | auth/input validation | API or both changes |
-| 5 — Scenario/E2E | user journeys | All non-trivial changes |
-| 6 — Regression | existing suite | Always |
+**Product-first dispatch order:**
 
-**Evidence required by change type:**
+| Priority | Group | Layer | Test Types | When Required |
+|---|---|---|---|---|
+| 1st | P | 5 — Scenario/E2E | Playwright/Cypress, live endpoint curl, acceptance scenarios | All non-trivial changes |
+| 1st | P | 3 — Visual | screenshots, interaction flows, a11y | UI or both changes |
+| 2nd | I | 2 — Integration | contract/API validation | API or both changes |
+| 2nd | I | 4 — Security | auth/input validation | API or both changes |
+| 3rd | R | 1 — Unit | run existing suite (do NOT generate new unit tests) | Always |
+| 3rd | R | 6 — Regression | run full existing suite | Always |
 
-| Change Type | Required Evidence | Optional | Collected By |
-|---|---|---|---|
-| UI | `screenshot` (image artifact) | `visual_diff` | acceptance-test-executor |
-| API | `request_payload` + `response_payload` | `response_timing` | test-automation-engineer |
-| UI + API | All of the above | All optional | both agents |
+**E2E tool priority**: Playwright/Cypress (if configured) > curl/fetch against live endpoints > `/wicked-garden:scenarios:run` > `/wicked-garden:qe:acceptance`.
 
-Use `validate_test_evidence(artifacts, test_type)` from `scripts/crew/evidence.py` before marking a test task complete.
+**Evidence package**: The test phase MUST compile `phases/test/evidence/report.md` with screenshots, execution traces, and spec comparison. The review phase evaluates this package. See [`refs/evidence-taxonomy.md`](refs/evidence-taxonomy.md).
 
 See [`refs/test-type-taxonomy.md`](refs/test-type-taxonomy.md) for full layer definitions, agent routing, parallel dispatch rules, and execution details.
 

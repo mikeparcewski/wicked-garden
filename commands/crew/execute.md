@@ -413,16 +413,55 @@ For each phase, follow this pattern:
 | design | `wicked-garden:crew:researcher` | "Research existing patterns and design approaches for: {outcome}" |
 | test-strategy | `wicked-garden:qe:test-strategist` | "Generate test strategy from outcome criteria: {outcome summary}. Project: {project-name}." |
 | build | `wicked-garden:crew:implementer` | "Implement according to design: {design summary}" |
-| test | `wicked-garden:crew:reviewer` | "Execute tests and verify against test strategy: {test-strategy summary}" |
-| review | `wicked-garden:crew:reviewer` | "Review implementation against outcome: {outcome summary}" |
+| test | `wicked-garden:crew:reviewer` | "Execute product-level tests (E2E first, then integration, then regression). Verify against test strategy: {test-strategy summary}. Compile evidence package to phases/test/evidence/report.md." |
+| review | `wicked-garden:crew:reviewer` | "Review implementation against outcome: {outcome summary}. MUST evaluate evidence package at phases/test/evidence/report.md — check screenshots, execution traces, and spec comparison. Missing evidence = gate failure." |
 
-#### Test Phase: Full Testing Pyramid (Issue QE-001)
+#### Test Phase: Product-Level Testing First (Issues QE-001, #291)
 
 **Run at the start of the test phase, before dispatching any QE agents.**
 
-The test phase executes the **full testing pyramid** — unit, integration, functional (visual/contract), and E2E (scenarios/acceptance). Layer definitions, agent routing, parallel dispatch rules, and evidence collection details are defined in the canonical source: **`skills/qe/qe-strategy/refs/test-type-taxonomy.md` → "Testing Pyramid Execution Layers"**.
+**CRITICAL: The test phase tests like a product owner, not a unit test runner.** The primary goal is verifying the product works end-to-end from a user's perspective. Unit test suites run as regression baseline only — they are NOT the primary verification.
 
-**Step 1: Load change-type data.**
+**Testing priority order** (highest to lowest):
+
+1. **E2E / Product-level tests** — Playwright, Cypress, or browser-based tests that verify real user flows
+2. **Live endpoint verification** — curl/fetch against running services to verify API contracts
+3. **Scenario validation** — `/wicked-garden:scenarios:run` or `/wicked-garden:qe:acceptance` for structured E2E
+4. **Integration tests** — contract/schema validation between services
+5. **Unit test suite** — run existing suite as regression baseline (do NOT write new unit tests in this phase)
+
+Layer definitions, agent routing, parallel dispatch rules, and evidence collection details are defined in the canonical source: **`skills/qe/qe-strategy/refs/test-type-taxonomy.md` → "Testing Pyramid Execution Layers"**.
+
+**Step 1: Detect available E2E infrastructure.**
+
+Before loading change-type data, detect what product-level testing tools are available:
+
+```bash
+# Check for Playwright
+ls playwright.config.* 2>/dev/null || ls e2e/ 2>/dev/null
+
+# Check for Cypress
+ls cypress.config.* 2>/dev/null || ls cypress/ 2>/dev/null
+
+# Check for running services (live endpoint testing)
+curl -sf http://localhost:3000/health 2>/dev/null || curl -sf http://localhost:8080/health 2>/dev/null
+
+# Check for wicked-scenarios
+ls scenarios/*.md 2>/dev/null
+```
+
+Record findings in `phases/test/test-infra.json`:
+```json
+{
+  "playwright": true|false,
+  "cypress": true|false,
+  "live_endpoints": ["http://localhost:3000"],
+  "scenarios_available": true|false,
+  "detected_at": "ISO 8601"
+}
+```
+
+**Step 2: Load change-type data.**
 
 Read `phases/build/change-type.json` to retrieve:
 - `tasks`: map of impl-task-id → `{change_type, test_task_ids, ...}`
@@ -433,17 +472,26 @@ If `phases/build/change-type.json` does not exist OR all tasks have `change_type
 - Fall back to generic dispatch (existing behavior).
 - Log: "No change-type detection file found — using generic QE dispatch."
 
-**Step 2: Select required layers.**
+**Step 3: Select and dispatch layers (product-first order).**
 
-Use the **Layer → Change Type Mapping** table from the taxonomy to determine which layers are required for the aggregate change type. If the test-strategy phase produced a test requirement matrix in `phases/test-strategy/`, use that matrix instead — it is more specific.
+Use the **Layer → Change Type Mapping** table from the taxonomy to determine which layers are required. Then dispatch in **product-first order**:
 
-**Step 3: Dispatch layers per the taxonomy.**
+**Group P (Product-level — run FIRST):**
+- Layer 5 (Scenario/E2E): If Playwright/Cypress detected → run E2E suite. If live endpoints detected → curl/fetch verification. If scenarios available → `/wicked-garden:qe:acceptance`. At least ONE of these must execute.
+- Layer 3 (Visual): If UI changes detected → screenshots + a11y checks.
 
-Read the **Layer Definitions** table and **Layer Execution Details** from the taxonomy. For each required layer:
+**Group I (Integration — run SECOND, parallel):**
+- Layer 2 (Integration/Contract): API contract validation.
+- Layer 4 (Security): Auth boundary + input validation.
 
+**Group R (Regression baseline — run LAST):**
+- Layer 1 (Unit): Run existing unit test suite. Do NOT generate new unit tests.
+- Layer 6 (Regression): Run full existing test suite.
+
+For each required layer:
 1. Dispatch a `Task()` to the specified agent with the layer's execution steps as the prompt.
-2. Include: project name, change type, test task IDs, changed files, and test strategy path.
-3. Follow the **Parallel Dispatch Rules** from the taxonomy (Groups A, B, C).
+2. Include: project name, change type, test task IDs, changed files, test strategy path, and test-infra.json findings.
+3. **Require evidence collection**: Every test task MUST produce artifacts in `phases/test/evidence/` (see Step 5).
 
 Agent fallbacks:
 - If `test-automation-engineer` is unavailable → include instructions in generic reviewer prompt.
@@ -454,7 +502,115 @@ Agent fallbacks:
 
 After all layers complete, write `phases/test/test-matrix.md` using the **Output: Test Requirement Matrix** format from the taxonomy. All applicable types must be PASS for the test phase gate to clear. Mark N-A (with justification) for layers not applicable to the change type.
 
+**Step 5: Compile evidence package.**
+
+After all test layers complete, compile `phases/test/evidence/report.md` for the review phase:
+
+```markdown
+# Test Evidence Package
+
+## Summary
+- **Project**: {project-name}
+- **Test date**: {ISO 8601}
+- **Change type**: {ui|api|both|unknown}
+- **Layers executed**: {list}
+- **Overall verdict**: {PASS|FAIL}
+
+## Product-Level Evidence
+
+### E2E Test Results
+{Playwright/Cypress output, or curl verification results, or scenario verdicts}
+- Screenshots: {list of screenshot paths in phases/test/evidence/}
+- Execution trace: {step-by-step log of what was tested and observed}
+
+### Spec Comparison
+| Acceptance Criterion | Test Method | Result | Evidence |
+|---|---|---|---|
+| {criterion from outcome.md} | {how tested} | PASS/FAIL | {artifact ref} |
+
+## Integration Evidence
+{Contract validation results, security scan results}
+
+## Regression Evidence
+{Unit test suite output, coverage delta}
+
+## Artifacts Index
+| Artifact | Type | Path |
+|---|---|---|
+| {name} | screenshot/log/payload/report | phases/test/evidence/{file} |
+```
+
+All screenshots, execution logs, and test outputs MUST be saved to `phases/test/evidence/`. The review phase depends on this directory for evidence evaluation.
+
 **Dispatch is deterministic**: same `change_type` value always produces the same layer selection and dispatch pattern.
+
+#### Review Phase: Evidence Package Evaluation (Issue #292)
+
+**Run at the start of the review phase, before dispatching any reviewers.**
+
+The review phase MUST evaluate the evidence package produced by the test phase. Pass/fail alone is insufficient — reviewers need visual proof, execution traces, and spec comparison to make informed sign-off decisions.
+
+**Step 1: Load evidence package.**
+
+Check for `phases/test/evidence/report.md`. If it exists, load it. If it does not exist:
+- Check if `phases/test/test-matrix.md` exists (test phase ran but no evidence package compiled).
+- If neither exists, flag as **evidence gap** — the test phase did not produce adequate evidence.
+- Log: "WARNING: No evidence package found. Review proceeds with reduced confidence."
+
+**Step 2: Evaluate evidence quality.**
+
+Score the evidence package on three dimensions:
+
+| Dimension | What to check | Score |
+|---|---|---|
+| **Visual proof** | Screenshots present for UI changes? Screen recordings for flows? | 0-2 |
+| **Execution trace** | Step-by-step log of what was tested? Timestamps? Duration? | 0-2 |
+| **Spec comparison** | Each acceptance criterion mapped to test result? | 0-2 |
+
+- Score 5-6: Full evidence — high confidence review
+- Score 3-4: Partial evidence — proceed but note gaps in review-findings.md
+- Score 0-2: Insufficient evidence — CONDITIONAL gate at minimum, recommend re-running test phase
+
+**Step 3: Include evidence in reviewer prompt.**
+
+When dispatching reviewers (specialist or generic), include the evidence package contents:
+
+```
+Task(subagent_type="{reviewer-agent}",
+     prompt="Review implementation for {project-name}.
+
+     ## Evidence Package
+     {contents of phases/test/evidence/report.md}
+
+     ## Acceptance Criteria
+     {from outcome.md / acceptance-criteria.md}
+
+     Evaluate:
+     1. Do screenshots/visual evidence match expected behavior?
+     2. Does the execution trace show all acceptance criteria were verified?
+     3. Are there gaps between spec and test coverage?
+     4. Evidence quality score: {score}/6
+
+     Return: APPROVE, CONDITIONAL, or REJECT with evidence-based reasoning.")
+```
+
+**Step 4: Record evidence evaluation in review findings.**
+
+Write evidence quality assessment to `phases/review/review-findings.md`:
+
+```markdown
+## Evidence Evaluation
+
+**Evidence quality score**: {score}/6
+**Visual proof**: {present|partial|missing}
+**Execution trace**: {present|partial|missing}
+**Spec comparison**: {present|partial|missing}
+
+### Evidence Gaps
+{List any missing evidence and impact on review confidence}
+```
+
+If using `/wicked-garden:scenarios:report` for structured evidence, include its output in the evidence evaluation.
 
 #### Build Phase: TDD Enforcement (Issue #255)
 

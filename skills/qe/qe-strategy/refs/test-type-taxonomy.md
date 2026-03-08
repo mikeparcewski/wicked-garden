@@ -235,11 +235,13 @@ Each layer maps to specific agents and tools. Independent layers can run in para
 | 5 — Scenario/E2E | scenario/workflow | `acceptance-test-executor` | `/wicked-garden:qe:scenarios`, `/wicked-garden:qe:acceptance` | C |
 | 6 — Regression | regression | inline (run test suite) | pytest/jest/go test/etc. | A |
 
-### Parallel Dispatch Rules
+### Parallel Dispatch Rules (Product-First Order)
 
-- **Group A** (Layer 1 + 6): Run in parallel — unit tests and regression are independent.
-- **Group B** (Layers 2 + 3 + 4): Run in parallel — different scopes and concerns.
-- **Group C** (Layer 5): Run AFTER Groups A and B complete — E2E assumes lower layers pass.
+**IMPORTANT**: E2E/product-level tests run FIRST, not last. The test phase tests like a product owner.
+
+- **Group P** (Layer 5 + 3): Run FIRST — product-level E2E and visual tests. These are the primary verification. Check for Playwright/Cypress first, then curl/fetch for live endpoints, then `/wicked-garden:qe:acceptance` for structured scenarios.
+- **Group I** (Layers 2 + 4): Run SECOND in parallel — integration and security are secondary verification.
+- **Group R** (Layer 1 + 6): Run LAST — unit tests and regression are baseline checks, not primary verification. Run existing suites only; do NOT generate new unit tests in the test phase.
 
 ### Layer → Change Type Mapping
 
@@ -285,12 +287,17 @@ Layers not listed for a change type should be marked N-A (with justification) in
 4. Review for OWASP top 10 patterns (injection, XSS, SSRF).
 5. Store results in `phases/test/security-results.md`.
 
-**Layer 5 — Scenario / E2E tests**:
-1. Generate user journey scenarios: `/wicked-garden:qe:scenarios {project description}`.
-2. Execute each scenario end-to-end.
+**Layer 5 — Scenario / E2E tests (PRIMARY VERIFICATION)**:
+1. **Detect E2E infrastructure**: Check for Playwright (`playwright.config.*`), Cypress (`cypress.config.*`), or live endpoints (`curl -sf localhost:*/health`).
+2. **Run product-level tests in priority order**:
+   - If Playwright/Cypress: run E2E suite, capture screenshots to `phases/test/evidence/screenshots/`.
+   - If live endpoints: curl/fetch verification of API contracts, save payloads to `phases/test/evidence/payloads/`.
+   - If scenarios available: `/wicked-garden:qe:acceptance` or `/wicked-garden:scenarios:run --json`.
+   - At least ONE of the above must execute.
 3. Collect all required evidence per test task description.
 4. Run `validate_test_evidence()` before marking each test task complete.
 5. Store results in `phases/test/scenario-results.md`.
+6. **Save execution trace**: Write step-by-step log with timestamps to `phases/test/evidence/traces/`.
 
 **Layer 6 — Regression tests**:
 1. Run the project's full existing test suite (pytest, jest, go test, cargo test, etc.).
