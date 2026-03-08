@@ -100,22 +100,116 @@ Decode with: `echo "${BASE64_DATA}" | base64 -d > output.png`
 
 ---
 
+## Provider: openai (OpenAI Image API)
+
+### Overview
+OpenAI's image generation and editing API. Uses `gpt-image-1` for generation and editing.
+
+### Authentication
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+### Capabilities
+| Feature | Supported | Notes |
+|---------|-----------|-------|
+| Text-to-image | Yes | `POST /v1/images/generations` (JSON) |
+| Image-to-image | Yes | `POST /v1/images/edits` (multipart) |
+| Inpainting | Yes | `POST /v1/images/edits` with mask (multipart) |
+| Upscaling | No | Not available via API |
+| Analysis | No | Read the image file directly instead |
+| Batch generation | Yes | `n` parameter (1-10) |
+
+### Models
+- `gpt-image-1` — Latest generation and editing model
+
+### Notes
+- Generation uses JSON API with `b64_json` response format
+- Edit and inpaint use multipart/form-data uploads
+- Supports `size`, `quality`, and `style` parameters for generation
+
+---
+
+## Provider: stability (Stability AI)
+
+### Overview
+Stability AI's Stable Diffusion 3.5 API for image generation and editing.
+
+### Authentication
+```bash
+export STABILITY_API_KEY="sk-..."
+```
+
+### Capabilities
+| Feature | Supported | Notes |
+|---------|-----------|-------|
+| Text-to-image | Yes | `POST /v2beta/stable-image/generate/sd3` |
+| Image-to-image | Yes | Same endpoint with `mode: image-to-image` |
+| Inpainting | Yes | `POST /v2beta/stable-image/edit/inpaint` |
+| Upscaling | Yes | Separate upscale endpoint available |
+| Analysis | No | Read the image file directly instead |
+| Negative prompts | Yes | `negative_prompt` field |
+
+### Models
+- `sd3.5-large` — Stable Diffusion 3.5 Large (default)
+
+### Notes
+- All requests use multipart/form-data
+- Image-to-image uses `strength` parameter (0.0-1.0) to control deviation
+- Returns base64-encoded image in JSON response
+
+---
+
+## Provider: replicate (Replicate API)
+
+### Overview
+Replicate's model hosting platform. Uses Flux models from Black Forest Labs for image generation and editing.
+
+### Authentication
+```bash
+export REPLICATE_API_TOKEN="r8_..."
+```
+
+### Capabilities
+| Feature | Supported | Notes |
+|---------|-----------|-------|
+| Text-to-image | Yes | Flux 1.1 Pro |
+| Image-to-image | Yes | Flux Fill Pro (data URI input) |
+| Inpainting | Yes | Flux Fill Pro with mask (data URI input) |
+| Upscaling | No | Use a separate upscale model |
+| Analysis | No | Read the image file directly instead |
+| Aspect ratio | Yes | `aspect_ratio` parameter |
+
+### Models
+- `black-forest-labs/flux-1.1-pro` — Generation (default)
+- `black-forest-labs/flux-fill-pro` — Editing and inpainting
+
+### Notes
+- Uses `Prefer: wait` header for synchronous predictions (no polling)
+- Images are passed as `data:image/png;base64,...` data URIs
+- Output is a URL that gets downloaded automatically
+- Pay-per-prediction pricing — uses existing Replicate subscription
+
+---
+
 ## Provider Selection Logic
 
 ```
-1. Check for cstudio binary (PATH or CSTUDIO_PATH)
-   → If found: use cstudio (best developer experience)
-2. Check for gcloud + GOOGLE_CLOUD_PROJECT
-   → If found: use vertex-curl (no extra binary needed)
-3. Neither available:
-   → Review sub-skill still works (reads image files directly)
-   → Create and alter sub-skills are unavailable
+Priority order (first available wins):
+1. cstudio — best developer experience (CLI binary)
+2. vertex-curl — no extra binary needed (gcloud + curl)
+3. openai — OPENAI_API_KEY set
+4. stability — STABILITY_API_KEY set
+5. replicate — REPLICATE_API_TOKEN set
+
+If none available:
+  → Review sub-skill still works (reads image files directly)
+  → Create and alter sub-skills are unavailable
 ```
 
 ## Adding New Providers
 
-To add a new provider, implement the provider interface in `scripts/provider.py`:
-1. Add a detection function (`detect_{provider}`)
-2. Add generation/edit/inpaint wrappers
-3. Register in the provider registry
-4. Update this reference document
+To add a new provider, implement the `BaseProvider` class in `scripts/provider.py`:
+1. Subclass `BaseProvider` with `detect()`, `generate()`, `edit()`, `inpaint()`
+2. Register in the `PROVIDERS` dict and `PRIORITY_ORDER` list
+3. Update this reference document

@@ -6,7 +6,7 @@ description: |
 
   Use when: "edit image", "modify image", "change image", "inpaint", "img2img"
 providers:
-  required: at least one of [cstudio, vertex-curl]
+  required: at least one of [cstudio, vertex-curl, openai, stability, replicate]
   detection: "python3 ${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py detect"
 ---
 
