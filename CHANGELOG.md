@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.43.0] - 2026-03-08
+
+### Features
+- feat: product-first test phase and evidence packages for review (#291, #292) (cec3cfe)
+
+### Chores
+- release: wicked-garden v1.42.1 (f6c7e5e)
+
 ## [1.42.1] - 2026-03-08
 
 ### Bug Fixes
