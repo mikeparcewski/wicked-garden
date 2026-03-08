@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.41.0] - 2026-03-08
+
+### Features
+- feat: add design specialist to discovery and ux/product signal routing (#290) (2e23d3d)
+
 ## [1.40.0] - 2026-03-07
 
 ### Features

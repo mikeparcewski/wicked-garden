@@ -1,0 +1,112 @@
+---
+name: create
+description: |
+  AI-powered image generation from text prompts using multiple providers.
+  Supports cstudio and Vertex AI Imagen (gcloud+curl) in v1.
+
+  Use when: "generate image", "create image", "text to image", "new visual"
+providers:
+  required: at least one of [cstudio, vertex-curl]
+  detection: "python3 ${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py detect"
+  setup: |
+    Set one of these:
+    - CSTUDIO_PATH or cstudio on PATH (Vertex AI Creative Studio CLI)
+    - GOOGLE_CLOUD_PROJECT + gcloud CLI (Vertex AI via curl)
+---
+
+# Image Creation
+
+AI-powered image generation from text prompts. Supports multiple providers through a unified abstraction layer.
+
+## When To Use This Skill
+
+- Generating new images from text descriptions
+- Creating visual assets for marketing, UI, presentations
+- Producing multiple variations of a concept
+- Building visual prototypes from written specifications
+
+## Supported Providers
+
+| Provider | Interface | Auth | Best For |
+|----------|-----------|------|----------|
+| **cstudio** | CLI binary | `GOOGLE_CLOUD_PROJECT` | Interactive use, rapid iteration |
+| **vertex-curl** | gcloud + curl | `gcloud auth` | CI/CD, scripted pipelines |
+
+### Provider Detection
+
+```bash
+# Check which providers are available
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" detect
+```
+
+The provider abstraction selects the best available provider automatically. A specific provider can be forced when needed.
+
+## Generation Workflow
+
+```
+1. UNDERSTAND — Clarify the visual intent and requirements
+2. CRAFT     — Build a high-quality prompt with style and constraints
+3. GENERATE  — Execute via the provider abstraction
+4. REVIEW    — Use the review sub-skill to validate output
+5. REFINE    — Iterate on prompt, parameters, or provider settings
+```
+
+### Step 1: Understand Requirements
+
+Before generating, gather:
+- **Subject**: What is the image of?
+- **Style**: Photorealistic, illustration, abstract, etc.
+- **Dimensions**: Aspect ratio (16:9, 1:1, 9:16, etc.)
+- **Context**: Where will this image be used?
+- **Constraints**: Brand colors, no text, specific mood
+
+### Step 2: Craft the Prompt
+
+Effective prompts follow this structure:
+
+```
+[Subject] + [Style/Medium] + [Lighting/Mood] + [Composition] + [Details]
+```
+
+Example: "A minimalist office workspace with a single monitor, soft natural side lighting, centered composition, matte finish, neutral color palette"
+
+For detailed prompt engineering techniques, see [refs/prompt_engineering.md](refs/prompt_engineering.md).
+
+### Step 3: Generate
+
+```bash
+# Basic generation
+cstudio generate image \
+  --prompt "Your crafted prompt" \
+  --aspect-ratio "16:9" \
+  --output ./output/v1.png
+
+# Generate multiple variations
+cstudio generate image \
+  --prompt "Your crafted prompt" \
+  --sample-count 4 \
+  --output ./output/
+```
+
+### Key Parameters
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| `--prompt` | Text description | "A gothic garden at dusk" |
+| `--aspect-ratio` | Output dimensions | "16:9", "1:1", "9:16" |
+| `--negative-prompt` | Elements to exclude | "text, watermarks, blur" |
+| `--sample-count` | Number of variations | 1-4 |
+| `--seed` | Reproducible results | Any integer |
+| `--guidance-scale` | Prompt adherence | Higher = more literal |
+| `--model` | Model selection | "imagen-3.0-generate-001" |
+
+## Detailed References
+
+- **Provider APIs and configuration**: [refs/provider_reference.md](refs/provider_reference.md)
+- **Prompt engineering techniques**: [refs/prompt_engineering.md](refs/prompt_engineering.md)
+
+## Integration With Other Sub-Skills
+
+- Use **review** after generation to validate quality and run gates
+- If modifications are needed, hand off to **alter** for targeted edits
+- Generation output feeds into the Analyze-Execute-Review-Refine loop
