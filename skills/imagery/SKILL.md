@@ -16,7 +16,7 @@ Manage the full lifecycle of visual assets through three specialized sub-skills.
 
 | Sub-Skill | Purpose | Provider Required |
 |-----------|---------|-------------------|
-| [**review**](review/SKILL.md) | Image analysis and quality review | None (Claude Read tool) |
+| [**review**](review/SKILL.md) | Image analysis and quality review | None (reads image files directly) |
 | [**create**](create/SKILL.md) | Text-to-image generation | cstudio or vertex-curl |
 | [**alter**](alter/SKILL.md) | Image modification (img2img, inpainting) | cstudio or vertex-curl |
 

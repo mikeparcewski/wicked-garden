@@ -14,11 +14,7 @@ This reference is for extracting structured technical and architectural details 
 
 ## Tooling
 
-Use Claude's native Read tool to analyze the image directly — no external CLI needed:
-```
-Read(file_path="./mockup.png")
-```
-Then apply the extraction workflow above to identify components, hierarchy, and layout.
+Read the image file directly — no external CLI needed. Then apply the extraction workflow above to identify components, hierarchy, and layout.
 
 ## Review Criteria
 - Is the component list exhaustive?

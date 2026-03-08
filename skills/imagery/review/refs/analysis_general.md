@@ -14,11 +14,7 @@ This reference provides a high-level, human-readable summary of what is happenin
 
 ## Tooling
 
-Use Claude's native Read tool to analyze the image directly — no external CLI needed:
-```
-Read(file_path="./asset.png")
-```
-Then apply the extraction workflow above to describe the image.
+Read the image file directly — no external CLI needed. Then apply the extraction workflow above to describe the image.
 
 ## Review Criteria
 - Is the summary accurate but concise?
