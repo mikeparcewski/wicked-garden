@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.42.0] - 2026-03-08
+
+### Features
+- feat: add OpenAI, Stability AI, and Replicate providers to imagery skill (d173440)
+- feat: add imagery skill domain with review/create/alter sub-skills (ae6793c)
+
+### Bug Fixes
+- fix: make imagery review skill tool-agnostic (480f094)
+
+### Chores
+- release: wicked-garden v1.41.0 (e635090)
+
 ## [1.41.0] - 2026-03-08
 
 ### Features
