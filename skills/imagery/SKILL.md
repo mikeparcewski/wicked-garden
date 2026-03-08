@@ -17,8 +17,8 @@ Manage the full lifecycle of visual assets through three specialized sub-skills.
 | Sub-Skill | Purpose | Provider Required |
 |-----------|---------|-------------------|
 | [**review**](review/SKILL.md) | Image analysis and quality review | None (reads image files directly) |
-| [**create**](create/SKILL.md) | Text-to-image generation | cstudio or vertex-curl |
-| [**alter**](alter/SKILL.md) | Image modification (img2img, inpainting) | cstudio or vertex-curl |
+| [**create**](create/SKILL.md) | Text-to-image generation | Any provider (see below) |
+| [**alter**](alter/SKILL.md) | Image modification (img2img, inpainting) | Any provider (see below) |
 
 ### When To Use Each
 
@@ -60,6 +60,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" detect
 |----------|---------------|
 | **cstudio** | Install CLI binary, set `GOOGLE_CLOUD_PROJECT` |
 | **vertex-curl** | `gcloud auth login`, set `GOOGLE_CLOUD_PROJECT` |
+| **openai** | Set `OPENAI_API_KEY` |
+| **stability** | Set `STABILITY_API_KEY` |
+| **replicate** | Set `REPLICATE_API_TOKEN` |
 
 ## Quick Start
 

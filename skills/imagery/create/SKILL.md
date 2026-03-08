@@ -2,16 +2,19 @@
 name: create
 description: |
   AI-powered image generation from text prompts using multiple providers.
-  Supports cstudio and Vertex AI Imagen (gcloud+curl) in v1.
+  Supports 5 providers: cstudio, vertex-curl, OpenAI, Stability AI, Replicate.
 
   Use when: "generate image", "create image", "text to image", "new visual"
 providers:
-  required: at least one of [cstudio, vertex-curl]
+  required: at least one of [cstudio, vertex-curl, openai, stability, replicate]
   detection: "python3 ${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py detect"
   setup: |
     Set one of these:
     - CSTUDIO_PATH or cstudio on PATH (Vertex AI Creative Studio CLI)
     - GOOGLE_CLOUD_PROJECT + gcloud CLI (Vertex AI via curl)
+    - OPENAI_API_KEY (OpenAI gpt-image-1)
+    - STABILITY_API_KEY (Stability AI SD 3.5)
+    - REPLICATE_API_TOKEN (Replicate Flux models)
 ---
 
 # Image Creation
@@ -31,6 +34,9 @@ AI-powered image generation from text prompts. Supports multiple providers throu
 |----------|-----------|------|----------|
 | **cstudio** | CLI binary | `GOOGLE_CLOUD_PROJECT` | Interactive use, rapid iteration |
 | **vertex-curl** | gcloud + curl | `gcloud auth` | CI/CD, scripted pipelines |
+| **openai** | REST API | `OPENAI_API_KEY` | Existing OpenAI subscription |
+| **stability** | REST API | `STABILITY_API_KEY` | Stable Diffusion 3.5 |
+| **replicate** | REST API | `REPLICATE_API_TOKEN` | Flux models, pay-per-use |
 
 ### Provider Detection
 
