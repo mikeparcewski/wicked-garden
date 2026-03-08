@@ -115,6 +115,18 @@
         {"name": "Pattern Advisor", "focus": "Best practices, anti-patterns, code quality, maintainability, pattern selection", "agent": "agents/agentic/pattern-advisor.md"}
       ],
       "enhances": ["design", "build", "review"]
+    },
+    {
+      "name": "design",
+      "role": "ux",
+      "description": "Visual design, UX analysis, and mockup generation for UI-bearing products. Reviews design system consistency, creates wireframes, and analyzes user flows.",
+      "personas": [
+        {"name": "Mockup Generator", "focus": "Wireframes, layout prototypes, component specs, design handoff"},
+        {"name": "Visual Reviewer", "focus": "Design system consistency, spacing, typography, color adherence"},
+        {"name": "UX Analyst", "focus": "UX flow analysis, journey mapping, interaction patterns, information architecture"}
+      ],
+      "enhances": ["design", "build", "review"],
+      "path": null
     }
   ]
 }

@@ -141,14 +141,14 @@ SIGNAL_KEYWORDS = {
 SIGNAL_TO_SPECIALISTS = {
     "security": {"wicked-platform", "wicked-qe"},
     "performance": {"wicked-engineering", "wicked-qe"},
-    "product": {"wicked-product"},
+    "product": {"wicked-product", "wicked-design"},
     "compliance": {"wicked-platform"},
     "ambiguity": {"wicked-jam"},
     "complexity": {"wicked-delivery", "wicked-engineering"},
     "data": {"wicked-data"},
     "infrastructure": {"wicked-platform"},
     "architecture": {"wicked-agentic", "wicked-engineering"},
-    "ux": {"wicked-product"},
+    "ux": {"wicked-product", "wicked-design"},
     "strategy": {"wicked-product"},
     "content": {"wicked-jam", "wicked-product"},
     "text-as-code": {"wicked-qe", "wicked-engineering"},
@@ -167,6 +167,7 @@ SPECIALIST_FALLBACKS = {
     "wicked-delivery": None,
     "wicked-data": "researcher",
     "wicked-agentic": "reviewer",
+    "wicked-design": "facilitator",
 }
 
 # Valid built-in agents that can serve as fallbacks
