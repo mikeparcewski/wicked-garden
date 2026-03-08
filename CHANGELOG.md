@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.42.1] - 2026-03-08
+
+### Bug Fixes
+- fix: remove dead code in OpenAI provider and use provider-agnostic examples (8649812)
+
+### Chores
+- chore: consolidate thin refs, clean frontmatter, fix script paths (bb056e4)
+- release: wicked-garden v1.42.0 (75d87c3)
+
 ## [1.42.0] - 2026-03-08
 
 ### Features
