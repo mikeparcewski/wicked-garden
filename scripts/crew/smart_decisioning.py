@@ -131,6 +131,14 @@ SIGNAL_KEYWORDS = {
         "static analysis", "slo", "error rate", "error budget", "canary",
         "rollback", "performance regression", "quality gate", "shift-left",
     ],
+    "imagery": [
+        "image", "visual", "illustration", "graphic", "photo",
+        "screenshot", "mockup", "render", "generate image",
+        "create image", "edit image", "modify image", "inpaint",
+        "logo", "icon", "banner", "hero image", "thumbnail",
+        "dall-e", "imagen", "stable diffusion", "flux",
+        "asset", "creative", "artwork",
+    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -155,6 +163,7 @@ SIGNAL_TO_SPECIALISTS = {
     "reversibility": {"wicked-platform", "wicked-delivery"},
     "novelty": {"wicked-jam", "wicked-engineering"},
     "quality": {"wicked-qe"},
+    "imagery": {"wicked-design"},
 }
 
 # Built-in fallback agents for unavailable specialists

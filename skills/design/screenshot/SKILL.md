@@ -150,3 +150,4 @@ Review the same page at multiple viewports:
 - **accessibility skill**: Color contrast visible in screenshots
 - **mockup skill**: Screenshots of implementations vs mockup specs
 - **wicked-browse**: Captures screenshots from live URLs
+- **imagery/review skill**: For AI-powered visual analysis of screenshots, see the `imagery/review` skill
