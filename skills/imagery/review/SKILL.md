@@ -6,9 +6,6 @@ description: |
 
   Use when: "review image", "analyze image", "visual review", "brand check",
   "accessibility review", "production readiness", "image quality"
-providers:
-  required: none
-  note: Reads image files directly — no external provider needed
 ---
 
 # Image Review & Analysis
@@ -29,10 +26,10 @@ Four analysis lenses, each with a dedicated reference:
 
 | Lens | Purpose | Reference |
 |------|---------|-----------|
-| **General** | Subject, scene, context summary | [refs/analysis_general.md](refs/analysis_general.md) |
-| **Technical** | Components, hierarchy, interactivity | [refs/analysis_technical.md](refs/analysis_technical.md) |
-| **Style** | Palette, mood, lighting, texture | [refs/analysis_style.md](refs/analysis_style.md) |
-| **Layout** | Focal points, composition, visual weight | [refs/analysis_layout.md](refs/analysis_layout.md) |
+| **General** | Subject, scene, context summary | [refs/analysis_lenses.md](refs/analysis_lenses.md) |
+| **Technical** | Components, hierarchy, interactivity | [refs/analysis_lenses.md](refs/analysis_lenses.md) |
+| **Style** | Palette, mood, lighting, texture | [refs/analysis_lenses.md](refs/analysis_lenses.md) |
+| **Layout** | Focal points, composition, visual weight | [refs/analysis_lenses.md](refs/analysis_lenses.md) |
 
 ### Quick Analysis
 
@@ -50,10 +47,10 @@ Four review gates ensure assets are "Business Ready" before delivery:
 
 | Gate | Purpose | Reference |
 |------|---------|-----------|
-| **Brand Compliance** | Logo, palette, typography, tone alignment | [refs/review_brand.md](refs/review_brand.md) |
-| **Accessibility** | Contrast ratios, color-blind safety, readability | [refs/review_accessibility.md](refs/review_accessibility.md) |
-| **Production Readiness** | Artifacts, resolution, format, cleanliness | [refs/review_production.md](refs/review_production.md) |
-| **Sensitivity** | Cultural appropriateness, inclusivity, bias | [refs/review_sensitivity.md](refs/review_sensitivity.md) |
+| **Brand Compliance** | Logo, palette, typography, tone alignment | [refs/quality_gates.md](refs/quality_gates.md) |
+| **Accessibility** | Contrast ratios, color-blind safety, readability | [refs/quality_gates.md](refs/quality_gates.md) |
+| **Production Readiness** | Artifacts, resolution, format, cleanliness | [refs/quality_gates.md](refs/quality_gates.md) |
+| **Sensitivity** | Cultural appropriateness, inclusivity, bias | [refs/quality_gates.md](refs/quality_gates.md) |
 
 ### Gate Selection
 

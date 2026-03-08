@@ -84,19 +84,12 @@ Review identifies issues → alter sub-skill applies changes → review validate
 ## Reference Map
 
 ### Review References
-- `review/refs/analysis_general.md` — General scene description
-- `review/refs/analysis_technical.md` — Technical/UI extraction
-- `review/refs/analysis_style.md` — Style, palette, mood
-- `review/refs/analysis_layout.md` — Composition and layout
-- `review/refs/review_brand.md` — Brand compliance gate
-- `review/refs/review_accessibility.md` — Accessibility gate
-- `review/refs/review_production.md` — Production readiness gate
-- `review/refs/review_sensitivity.md` — Cultural sensitivity gate
+- `review/refs/analysis_lenses.md` — Four analysis lenses (general, technical, style, layout)
+- `review/refs/quality_gates.md` — Four quality gates (brand, a11y, production, sensitivity)
 
 ### Create References
 - `create/refs/provider_reference.md` — Provider APIs and configuration
 - `create/refs/prompt_engineering.md` — Crafting effective prompts
 
 ### Alter References
-- `alter/refs/modifications.md` — Img2img and inpainting patterns
-- `alter/refs/cstudio_usage.md` — CLI command reference
+- `alter/refs/editing_reference.md` — Modification patterns, provider commands, refinement strategies
