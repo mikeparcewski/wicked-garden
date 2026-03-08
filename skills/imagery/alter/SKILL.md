@@ -5,9 +5,6 @@ description: |
   Requires a provider that supports editing operations.
 
   Use when: "edit image", "modify image", "change image", "inpaint", "img2img"
-providers:
-  required: at least one of [cstudio, vertex-curl, openai, stability, replicate]
-  detection: "python3 ${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py detect"
 ---
 
 # Image Alteration
@@ -96,8 +93,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" generate \
 
 ## Detailed References
 
-- **Modification patterns and techniques**: [refs/modifications.md](refs/modifications.md)
-- **cstudio CLI commands and options**: [refs/cstudio_usage.md](refs/cstudio_usage.md)
+- **Editing techniques, provider commands, and refinement strategies**: [refs/editing_reference.md](refs/editing_reference.md)
 
 ## Integration With Other Sub-Skills
 

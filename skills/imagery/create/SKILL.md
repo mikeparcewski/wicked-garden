@@ -5,15 +5,6 @@ description: |
   Supports 5 providers: cstudio, vertex-curl, OpenAI, Stability AI, Replicate.
 
   Use when: "generate image", "create image", "text to image", "new visual"
-providers:
-  required: at least one of [cstudio, vertex-curl, openai, stability, replicate]
-  detection: "python3 ${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py detect"
-  setup: |
-    Set one of these:
-    - CSTUDIO_PATH or cstudio on PATH (Vertex AI Creative Studio CLI)
-    - GOOGLE_CLOUD_PROJECT + gcloud CLI (Vertex AI via curl)
-    - OPENAI_API_KEY (OpenAI gpt-image-1)
-    - STABILITY_API_KEY (Stability AI SD 3.5)
     - REPLICATE_API_TOKEN (Replicate Flux models)
 ---
 
