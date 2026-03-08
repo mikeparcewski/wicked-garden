@@ -81,17 +81,16 @@ For detailed prompt engineering techniques, see [refs/prompt_engineering.md](ref
 ### Step 3: Generate
 
 ```bash
-# Basic generation
-cstudio generate image \
+# Basic generation (auto-detects best available provider)
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" generate \
   --prompt "Your crafted prompt" \
-  --aspect-ratio "16:9" \
   --output ./output/v1.png
 
-# Generate multiple variations
-cstudio generate image \
+# Use a specific provider
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" generate \
   --prompt "Your crafted prompt" \
-  --sample-count 4 \
-  --output ./output/
+  --provider openai \
+  --output ./output/v1.png
 ```
 
 ### Key Parameters

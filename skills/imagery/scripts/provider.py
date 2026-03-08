@@ -351,33 +351,9 @@ class OpenAIProvider(BaseProvider):
     def edit(self, image: str, prompt: str, output: str, **opts) -> dict:
         try:
             url = f"{self.API_BASE}/images/edits"
-            # OpenAI edits endpoint uses multipart/form-data
             boundary = "----WickedGardenBoundary"
-            body_parts = []
-            # model
-            body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n{self.EDIT_MODEL}')
-            # prompt
-            body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="prompt"\r\n\r\n{prompt}')
-            # response_format
-            body_parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\nb64_json')
-            # image file
             img_data = Path(image).read_bytes()
             img_name = Path(image).name
-            body_parts.append(
-                f'--{boundary}\r\nContent-Disposition: form-data; name="image"; filename="{img_name}"\r\n'
-                f'Content-Type: image/png\r\n\r\n'
-            )
-            # Build multipart body
-            parts = []
-            for p in body_parts[:-1]:
-                parts.append(p.encode())
-            # Last text part header + binary image
-            parts.append(body_parts[-1].encode())
-            parts.append(img_data)
-            parts.append(f'\r\n--{boundary}--\r\n'.encode())
-            full_body = b'\r\n'.join(parts[:len(body_parts) - 1]) + b'\r\n' + parts[-3] + parts[-2] + parts[-1]
-
-            # Simpler approach: use urllib with multipart
             import io
             buf = io.BytesIO()
             for part_text in [("model", self.EDIT_MODEL), ("prompt", prompt), ("response_format", "b64_json")]:
