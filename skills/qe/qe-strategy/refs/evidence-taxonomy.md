@@ -73,6 +73,42 @@ During quality gates (gate.md), reviewers evaluate evidence against complexity-l
 
 **Missing evidence is a gate failure signal.** A task marked completed without verifiable evidence cannot be approved at an execution gate.
 
+## Evidence Package for Review Phase
+
+The test phase compiles a consolidated evidence package at `phases/test/evidence/report.md` that the review phase evaluates. This bridges the gap between test pass/fail and informed sign-off.
+
+### Evidence Package Structure
+
+```
+phases/test/evidence/
+├── report.md              # Consolidated evidence report
+├── screenshots/           # UI state captures (PNG/JPG)
+│   ├── {feature}-before.png
+│   └── {feature}-after.png
+├── traces/                # Execution logs with timestamps
+│   └── {test-name}.log
+└── payloads/              # API request/response captures
+    └── {endpoint}.json
+```
+
+### Review Phase Evaluation
+
+Reviewers score evidence on three dimensions (0-2 each, max 6):
+
+| Dimension | Score 0 | Score 1 | Score 2 |
+|---|---|---|---|
+| **Visual proof** | No screenshots | Screenshots but incomplete | All UI changes have before/after |
+| **Execution trace** | No trace | Trace without timestamps | Full trace with timestamps + duration |
+| **Spec comparison** | No mapping | Partial criterion coverage | Every acceptance criterion mapped |
+
+- **Score 5-6**: High confidence — full evidence supports sign-off
+- **Score 3-4**: Partial evidence — proceed but document gaps in review-findings.md
+- **Score 0-2**: Insufficient — CONDITIONAL gate minimum, recommend re-running test phase
+
+### Integration with Scenarios Report
+
+When E2E tests are run via `/wicked-garden:scenarios:run`, use `/wicked-garden:scenarios:report` to generate structured evidence that feeds into the evidence package. The report command produces failure analysis, spec comparison, and artifact references that map directly to the evidence package format.
+
 ## Anti-Patterns
 
 - **Prose-only outcomes**: "I fixed the bug" — no file references, no test results. Not acceptable.
