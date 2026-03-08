@@ -95,7 +95,7 @@ Decode with: `echo "${BASE64_DATA}" | base64 -d > output.png`
 | Image-to-image | Yes | Include base image in request |
 | Inpainting | Yes | Include image + mask in request |
 | Upscaling | Limited | Separate endpoint if available |
-| Analysis | No | Use Claude Read tool instead |
+| Analysis | No | Read the image file directly instead |
 | Batch generation | Yes | `sampleCount` parameter |
 
 ---
@@ -108,7 +108,7 @@ Decode with: `echo "${BASE64_DATA}" | base64 -d > output.png`
 2. Check for gcloud + GOOGLE_CLOUD_PROJECT
    → If found: use vertex-curl (no extra binary needed)
 3. Neither available:
-   → Review sub-skill still works (uses Claude Read tool)
+   → Review sub-skill still works (reads image files directly)
    → Create and alter sub-skills are unavailable
 ```
 

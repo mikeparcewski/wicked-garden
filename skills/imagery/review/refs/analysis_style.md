@@ -14,11 +14,7 @@ This reference focuses on the "look and feel" of a visual asset, including its a
 
 ## Tooling
 
-Use Claude's native Read tool to analyze the image directly — no external CLI needed:
-```
-Read(file_path="./ref.png")
-```
-Then apply the extraction workflow above to describe mood, palette, and texture.
+Read the image file directly — no external CLI needed. Then apply the extraction workflow above to describe mood, palette, and texture.
 
 ## Review Criteria
 - Does the description capture the *feeling* of the asset?

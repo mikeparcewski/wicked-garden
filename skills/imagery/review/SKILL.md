@@ -2,18 +2,18 @@
 name: review
 description: |
   Multi-dimensional visual analysis and quality review of images.
-  Uses Claude's native Read tool — no external provider required.
+  No external provider required — reads image files directly.
 
   Use when: "review image", "analyze image", "visual review", "brand check",
   "accessibility review", "production readiness", "image quality"
 providers:
   required: none
-  note: Uses Claude's multimodal Read tool for image analysis
+  note: Reads image files directly — no external provider needed
 ---
 
 # Image Review & Analysis
 
-Visual analysis and quality review using Claude's native multimodal capabilities. No external provider or CLI tool required — just point the Read tool at an image file.
+Visual analysis and quality review of images. No external provider or CLI tool required — just read the image file directly.
 
 ## When To Use This Skill
 
@@ -39,7 +39,7 @@ Four analysis lenses, each with a dedicated reference:
 For most tasks, start with General analysis. Add Technical for UI mockups, Style for creative assets, or Layout for marketing materials.
 
 ```
-1. Read the image file with the Read tool
+1. Read the image file
 2. Apply the relevant analysis lens(es)
 3. Produce a structured report
 ```

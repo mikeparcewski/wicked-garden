@@ -14,11 +14,7 @@ This reference is for analyzing the arrangement of elements within a frame, focu
 
 ## Tooling
 
-Use Claude's native Read tool to analyze the image directly — no external CLI needed:
-```
-Read(file_path="./hero.png")
-```
-Then apply the extraction workflow above to identify focal points, composition, and balance.
+Read the image file directly — no external CLI needed. Then apply the extraction workflow above to identify focal points, composition, and balance.
 
 ## Review Criteria
 - Is the focal point correctly identified?
