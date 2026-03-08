@@ -142,12 +142,26 @@ def discover_schemas(plugin_filter: str | None = None) -> list[dict]:
         return []
 
     descriptors = []
+    # Read plugin name from plugin.json (single-plugin repo)
+    _plugin_json = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
+    _default_plugin = "wicked-garden"
+    if _plugin_json.exists():
+        try:
+            _default_plugin = json.loads(_plugin_json.read_text()).get("name", _default_plugin)
+        except Exception:
+            pass
+
     for schema_path in sorted(SCHEMAS_DIR.rglob("*.json")):
-        # Expected layout: schemas/{plugin}/{script-name}.json
         parts = schema_path.relative_to(SCHEMAS_DIR).parts
-        if len(parts) != 2:
+        if len(parts) == 2:
+            # Legacy layout: schemas/{plugin}/{script-name}.json
+            plugin_name, schema_file = parts
+        elif len(parts) == 1:
+            # Flat layout: schemas/{script-name}.json
+            plugin_name = _default_plugin
+            schema_file = parts[0]
+        else:
             continue
-        plugin_name, schema_file = parts
         script_name = schema_file[:-5]  # strip .json → e.g. "orchestrator"
 
         if plugin_filter and plugin_name != plugin_filter:
