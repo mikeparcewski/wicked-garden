@@ -28,7 +28,7 @@ AI-powered modification of existing images through two primary modes: image-to-i
 Changes the overall style or adds global elements while preserving core composition.
 
 ```bash
-cstudio edit image \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit \
   --image ./source.png \
   --prompt "Same scene but with a dramatic sunset sky" \
   --output ./v2.png
@@ -44,7 +44,7 @@ cstudio edit image \
 Precise edits to specific regions using a binary mask (white = edit area, black = preserve).
 
 ```bash
-cstudio inpaint image \
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" inpaint \
   --image ./source.png \
   --mask ./mask.png \
   --prompt "Replace with floating lanterns" \
@@ -87,7 +87,11 @@ When the output is close but not quite right:
 Use upscaling as the last step to bring a draft to production quality:
 
 ```bash
-cstudio upscale image --image ./final_draft.png --output ./final_hires.png
+# Upscaling (cstudio only — other providers may not support this)
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" generate \
+  --provider cstudio \
+  --prompt "upscale" \
+  --output ./final_hires.png
 ```
 
 ## Detailed References
