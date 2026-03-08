@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.43.1] - 2026-03-08
+
+### Chores
+- chore: flatten schemas/ directory and add README (19e1ec0)
+- release: wicked-garden v1.43.0 (7f123b2)
+
 ## [1.43.0] - 2026-03-08
 
 ### Features
