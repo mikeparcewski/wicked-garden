@@ -29,6 +29,10 @@ and renders to any requested format — content is generated once, rendered anyw
 | Output as HTML (reveal.js) | Request "html format" or "reveal.js" |
 | Output both formats | Request "both formats" |
 | Re-render existing spec to new format | Say "re-render [deck-name] as html" |
+| Audit deck quality | Say "audit [deck-name]" or "audit my deck" → [audit.md](refs/audit.md) |
+| Check CSS zones and layout contract | Say "check CSS" or "validate zones" → [css-contract.md](refs/css-contract.md) |
+| Check cross-deck consistency | Say "check consistency" or "compare [deck-a] and [deck-b]" → [consistency.md](refs/consistency.md) |
+| Lint content quality | Say "lint my deck" or "check content" → [content-lint.md](refs/content-lint.md) |
 | Set layout fidelity | Request "best fidelity", "draft fidelity", or "rough fidelity" |
 | Fidelity details | [fidelity.md](refs/fidelity.md) |
 | Manage style profiles | Say "list my profiles" or "manage profiles" → [profiles.md](refs/profiles.md) |
@@ -91,6 +95,12 @@ the shared design asset registry. Read [registry.md](refs/registry.md).
 Say "show version history for [deck]" to list all versions with metadata. Say "diff v1 and v2 for
 [deck]" to get a structural diff summary.
 
+### Audit
+
+Say "audit [deck-name]" or "audit my deck" for a full quality score across structure, content,
+CSS, consistency, and lint categories. Say "compare [deck-a] and [deck-b]" for cross-deck
+consistency analysis. Say "lint my deck" for content-only checks. Read [audit.md](refs/audit.md).
+
 ---
 
 ## Plugin Storage
@@ -152,3 +162,8 @@ Read these on demand — do not load all at once.
 | [images.md](refs/images.md) | Sourcing images for any slide |
 | [versioning.md](refs/versioning.md) | Any version-related operation |
 | [hints.md](refs/hints.md) | Extended hint logic and edge case handling |
+| [audit.md](refs/audit.md) | Running a quality audit or re-audit on a deck |
+| [css-contract.md](refs/css-contract.md) | CSS zone class definitions and visual QA contract |
+| [consistency.md](refs/consistency.md) | Cross-deck or within-deck consistency checks |
+| [content-lint.md](refs/content-lint.md) | Content quality lint rules and findings |
+| [edit-coordination.md](refs/edit-coordination.md) | Session lock and render guard coordination |
