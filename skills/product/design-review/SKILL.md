@@ -145,7 +145,7 @@ Fast improvements with high impact:
 5. Fix color contrast violations
 6. Add loading/empty state handling
 
-**Implementation guide**: See [Top 10 Quick Wins](refs/quick-wins-top-10.md) and [Workflow & Planning](refs/quick-wins-workflow.md)
+**Implementation guide**: See [Quick Wins 1-5](refs/quick-wins-1-5.md), [Quick Wins 6-10](refs/quick-wins-6-10.md), and [Workflow & Planning](refs/quick-wins-workflow.md)
 
 ## Integration
 
@@ -186,5 +186,5 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
 - [report-template-findings.md](refs/report-template-findings.md) - Report findings template
 - [report-template-actions.md](refs/report-template-actions.md) - Report actions and tracking
 - Design systems: [tokens](refs/design-systems-tokens.md), [components](refs/design-systems-components.md), [governance](refs/design-systems-governance.md)
-- Quick wins: [top 10](refs/quick-wins-top-10.md), [workflow](refs/quick-wins-workflow.md)
+- Quick wins: [1-5](refs/quick-wins-1-5.md), [6-10](refs/quick-wins-6-10.md), [workflow](refs/quick-wins-workflow.md)
 - Responsive: [mobile-first](refs/responsive-guide-mobile-first-philosophy.md), [typography](refs/responsive-guide-responsive-typography.md), [tables](refs/responsive-guide-responsive-tables.md)

@@ -65,7 +65,7 @@ Build dependency graph:
 
 ### 5. Identify Bottlenecks
 
-See refs/bottlenecks.md for detailed patterns.
+See refs/bottlenecks-detection.md and refs/bottlenecks-resolution.md for detailed patterns.
 
 Common bottleneck types:
 - **N+1 query patterns**: Many sequential DB calls
@@ -100,11 +100,11 @@ Provide trace analysis with:
 - Bottleneck analysis (latency, type, root cause)
 - Optimization opportunities (quick wins vs long-term)
 
-See refs/bottlenecks.md for detailed output templates.
+See refs/bottlenecks-detection.md and refs/bottlenecks-resolution.md for detailed output templates.
 
 ## Common Performance Patterns
 
-See refs/bottlenecks.md for detailed analysis of:
+See refs/bottlenecks-detection.md and refs/bottlenecks-resolution.md for detailed analysis of:
 
 ### N+1 Query Pattern
 Sequential database queries in a loop. Fix with batch queries or JOIN.
