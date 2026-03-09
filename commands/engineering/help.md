@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-engineering Help
+# engineering Help
 
 Senior engineering perspective — architecture analysis, code review, debugging, documentation, and implementation planning.
 
@@ -57,7 +57,7 @@ Senior engineering perspective — architecture analysis, code review, debugging
 ## Integration
 
 - **wicked-crew**: Specialist routing for engineering phases
-- **wicked-qe**: Test strategy and quality gates
+- **qe**: Test strategy and quality gates
 - **wicked-search**: Code symbol and blast radius analysis
-- **wicked-platform**: Security and infrastructure concerns
+- **platform**: Security and infrastructure concerns
 ```

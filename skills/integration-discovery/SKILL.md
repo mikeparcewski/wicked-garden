@@ -36,7 +36,7 @@ Before executing this task, let me check what capabilities could help.
 
 **Discovery**:
 - MCP: github (PR context), atlassian (link to Jira)
-- Skills: wicked-qe (test scenarios), wicked-platform (security checks)
+- Skills: qe (test scenarios), platform (security checks)
 - Agents: wicked-garden:platform:security-engineer
 
 **Recommendation**: Use security-engineer agent for review, github MCP for PR data.
@@ -116,12 +116,12 @@ Quick mappings for common tasks (see refs/task-patterns.md for full list):
 
 | Task Type | Likely Capabilities |
 |-----------|---------------------|
-| Code review | wicked-engineering agents, github MCP |
-| Security audit | wicked-platform agents, wicked-qe |
-| Architecture design | wicked-engineering agents, wicked-mem |
-| Bug investigation | wicked-engineering agents, error tracking MCP |
-| Feature planning | wicked-product agents, project management MCP |
-| Documentation | wicked-engineering agents, confluence MCP |
+| Code review | engineering agents, github MCP |
+| Security audit | platform agents, qe |
+| Architecture design | engineering agents, wicked-mem |
+| Bug investigation | engineering agents, error tracking MCP |
+| Feature planning | product agents, project management MCP |
+| Documentation | engineering agents, confluence MCP |
 
 ## Decision Principles
 

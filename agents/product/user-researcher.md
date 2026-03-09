@@ -222,7 +222,7 @@ So I can {outcome}.
 
 **Focus**: {What was researched}
 **Date**: {When}
-**Researcher**: User Researcher (wicked-product)
+**Researcher**: User Researcher (product)
 
 ### User Segments Identified
 {List of distinct user groups}

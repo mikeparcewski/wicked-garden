@@ -27,7 +27,7 @@ Before manual research, leverage available tools:
 
 - **Search**: Use wicked-search to find market research or customer data
 - **Memory**: Use wicked-mem to recall market insights and trends
-- **Jam**: Use wicked-jam to explore market perspectives from different angles
+- **Jam**: Use jam to explore market perspectives from different angles
 
 ## Analysis Process
 

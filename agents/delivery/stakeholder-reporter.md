@@ -21,7 +21,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Kanban**: Use wicked-kanban for current task data
 - **Memory**: Use wicked-mem for historical comparison
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk context
-- **Product**: Use wicked-product for feature context
+- **Product**: Use product for feature context
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

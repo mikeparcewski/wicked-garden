@@ -134,7 +134,7 @@ Service A calls B calls A (cycle). Risk of infinite loops and complex debugging.
 
 See refs/dependencies.md for detailed dependency analysis patterns.
 
-## Integration with wicked-engineering
+## Integration with engineering
 
 When bottlenecks identified, engage wicked-garden:engineering:backend with trace context, code locations, and optimization recommendations.
 

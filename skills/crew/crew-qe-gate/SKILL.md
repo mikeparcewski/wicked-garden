@@ -63,5 +63,5 @@ Analysis produces:
 Works with:
 - **wicked-crew**: Auto-suggested after phases
 - **wicked-kanban**: Stores evidence
-- **wicked-product**: Deep review delegation
+- **product**: Deep review delegation
 - **wicked-mem**: Cross-session learning

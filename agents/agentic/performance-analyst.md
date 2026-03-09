@@ -659,7 +659,7 @@ graph LR
 - Safety Reviewer on efficient guardrails
 ```
 
-## Integration with wicked-agentic Skills
+## Integration with agentic Skills
 
 - Use `/wicked-garden:agentic:context-engineering` for context optimization techniques
 - Use `/wicked-garden:agentic:agentic-patterns` for efficient orchestration patterns

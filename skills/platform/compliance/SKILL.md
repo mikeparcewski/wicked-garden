@@ -106,7 +106,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-comment \
 /wicked-garden:mem:recall "compliance {framework}"
 ```
 
-### With wicked-product
+### With product
 ```bash
 /wicked-garden:platform:security {target}
 ```

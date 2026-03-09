@@ -74,7 +74,7 @@ Cache stored via wicked-garden:mem
 
 ## Integration Examples
 
-### With wicked-data
+### With data
 ```python
 # Data analysis queries
 /wicked-garden:data:numbers input.csv --query "SELECT status, COUNT(*) FROM data GROUP BY status"
@@ -90,7 +90,7 @@ Use /something-wicked:utils:persona with type "{persona_type}".
 
 Before generating reports, verify:
 - [ ] Input file exists and is readable
-- [ ] wicked-data is available
+- [ ] data is available
 - [ ] Column mappings are confirmed (or auto-detected with high confidence)
 - [ ] Selected personas are valid identifiers
 
@@ -100,5 +100,5 @@ Before generating reports, verify:
 |-------|----------|
 | File not found | Report error with path |
 | Format detection fails | Ask user to confirm mappings |
-| wicked-data missing | Prompt to install dependency |
+| data missing | Prompt to install dependency |
 | Insufficient data for persona | Generate partial report with warnings |

@@ -77,7 +77,7 @@ Good requirements are:
 Works with:
 - **wicked-crew**: Auto-triggered during clarify phase
 - **wicked-kanban**: Stores requirements and acceptance criteria
-- **wicked-qe**: Acceptance criteria feed test scenarios
+- **qe**: Acceptance criteria feed test scenarios
 - **wicked-mem**: Cross-project requirements patterns
 
 ## Example Flow

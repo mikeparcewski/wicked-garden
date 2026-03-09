@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-agentic Help
+# agentic Help
 
 Design, review, and audit agentic AI systems — agent topologies, trust boundaries, framework selection, and safety validation.
 
@@ -53,8 +53,8 @@ Design, review, and audit agentic AI systems — agent topologies, trust boundar
 
 ## Integration
 
-- **wicked-engineering**: Architecture patterns and code review
-- **wicked-qe**: Test strategy for agent systems
-- **wicked-platform**: Security and compliance validation
+- **engineering**: Architecture patterns and code review
+- **qe**: Test strategy for agent systems
+- **platform**: Security and compliance validation
 - **wicked-crew**: Specialist routing for agentic architecture phases
 ```

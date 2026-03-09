@@ -17,7 +17,7 @@ You coordinate safe, progressive feature rollouts.
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Experiments**: Use wicked-garden:delivery:analyze for data
-- **QE**: Use wicked-qe for test strategy validation
+- **QE**: Use qe for test strategy validation
 - **Memory**: Use wicked-mem to recall past rollout patterns
 - **Task tracking**: Use wicked-kanban to track rollout progress
 
@@ -46,7 +46,7 @@ Discovery approach: Ask "Do I have deployment capability?" by checking for:
 ### 2. Assess Readiness
 
 **Pre-rollout checklist**:
-- [ ] Tests passing (check with wicked-qe)
+- [ ] Tests passing (check with qe)
 - [ ] Feature flag configured
 - [ ] Monitoring in place
 - [ ] Rollback plan defined

@@ -90,7 +90,7 @@ Display the mockup generator's output directly to the user.
 
 ## Integration
 
-- **wicked-design:ux**: Pair mockups with UX flow diagrams
-- **wicked-design:review**: Review built implementation against mockup
-- **wicked-design:screenshot**: Compare screenshot of built UI to mockup
-- **wicked-engineering**: Hand off spec to engineering for implementation
+- **design:ux**: Pair mockups with UX flow diagrams
+- **design:review**: Review built implementation against mockup
+- **design:screenshot**: Compare screenshot of built UI to mockup
+- **engineering**: Hand off spec to engineering for implementation

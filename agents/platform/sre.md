@@ -237,7 +237,7 @@ If error rate is 0.5% and SLO is 0.1%:
 
 ## Integration with Other Plugins
 
-### wicked-engineering (debugging)
+### engineering (debugging)
 When correlating issues with code:
 ```markdown
 Found error spike in user-service at 14:23 UTC.

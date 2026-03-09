@@ -37,7 +37,7 @@ Detailed patterns for discovering integrations by capability category.
 - Track feature usage
 - Generate reports
 
-**Fallback**: Use wicked-data for local data analysis
+**Fallback**: Use data for local data analysis
 
 ---
 
@@ -94,7 +94,7 @@ Detailed patterns for discovering integrations by capability category.
 - Query lineage
 - Generate reports
 
-**Fallback**: Use wicked-data for local file analysis
+**Fallback**: Use data for local file analysis
 
 ---
 
@@ -151,7 +151,7 @@ Detailed patterns for discovering integrations by capability category.
 - Deploy applications
 - Manage infrastructure
 
-**Fallback**: Use wicked-platform CLI skills
+**Fallback**: Use platform CLI skills
 
 ---
 
@@ -170,7 +170,7 @@ Detailed patterns for discovering integrations by capability category.
 - Check compliance
 - Generate SBOMs
 
-**Fallback**: Use wicked-platform local checks
+**Fallback**: Use platform local checks
 
 ---
 

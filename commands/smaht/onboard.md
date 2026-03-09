@@ -281,7 +281,7 @@ After the report, offer to go deeper:
 |--------|-----------|----------|
 | wicked-search | Index + validate | Scout-only mode (Glob/Grep) |
 | wicked-mem | Store/recall discoveries | No persistence between sessions |
-| wicked-delivery | Learning paths | Generic next steps |
+| delivery | Learning paths | Generic next steps |
 
 If wicked-search is unavailable, skip Phase 1 indexing and Phase 3 validation. Exploration still works via Glob/Grep.
 

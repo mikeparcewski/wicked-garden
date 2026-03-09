@@ -73,7 +73,7 @@ _DOMAIN_QUERIES = [
         ),
     },
     {
-        "domain_name": "wicked-jam",
+        "domain_name": "jam",
         "source": "sessions",
         "label": "jam",
         "project_key": "project",

@@ -30,12 +30,12 @@ find {target} -name "outcome.md" -o -name "requirements.md" 2>/dev/null
 
 ### 2. Requirements Analysis
 
-**With wicked-product** (preferred):
+**With product** (preferred):
 ```
 /wicked-garden:product:strategy {target}
 ```
 
-**Without wicked-product** (fallback):
+**Without product** (fallback):
 Assess directly:
 - Is the problem clearly stated?
 - Are success criteria measurable?

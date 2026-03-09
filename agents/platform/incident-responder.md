@@ -327,7 +327,7 @@ Build timeline from multiple sources:
 5. Identify causal relationships
 ```
 
-## Integration with wicked-engineering
+## Integration with engineering
 
 When root cause requires code analysis:
 

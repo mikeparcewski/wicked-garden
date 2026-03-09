@@ -166,9 +166,9 @@ Asks "Do I have analytics capability?" not "Do I have Amplitude?"
 ## Integration
 
 **With wicked-kanban**: Stores design as task comment
-**With wicked-qe**: QE provides test scenarios for instrumentation
+**With qe**: QE provides test scenarios for instrumentation
 **With wicked-mem**: Recalls past experiment patterns
-**With wicked-product**: Uses product context for hypothesis
+**With product**: Uses product context for hypothesis
 
 ## See Also
 

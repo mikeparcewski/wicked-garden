@@ -147,36 +147,36 @@ SIGNAL_KEYWORDS = {
 # This is a STABLE mapping that defines the wicked-crew specialist ecosystem.
 # Uses sets internally to prevent duplicate specialists per signal.
 SIGNAL_TO_SPECIALISTS = {
-    "security": {"wicked-platform", "wicked-qe"},
-    "performance": {"wicked-engineering", "wicked-qe"},
-    "product": {"wicked-product", "wicked-design"},
-    "compliance": {"wicked-platform"},
-    "ambiguity": {"wicked-jam"},
-    "complexity": {"wicked-delivery", "wicked-engineering"},
-    "data": {"wicked-data"},
-    "infrastructure": {"wicked-platform"},
-    "architecture": {"wicked-agentic", "wicked-engineering"},
-    "ux": {"wicked-product", "wicked-design"},
-    "strategy": {"wicked-product"},
-    "content": {"wicked-jam", "wicked-product"},
-    "text-as-code": {"wicked-qe", "wicked-engineering"},
-    "reversibility": {"wicked-platform", "wicked-delivery"},
-    "novelty": {"wicked-jam", "wicked-engineering"},
-    "quality": {"wicked-qe"},
-    "imagery": {"wicked-design"},
+    "security": {"platform", "qe"},
+    "performance": {"engineering", "qe"},
+    "product": {"product", "design"},
+    "compliance": {"platform"},
+    "ambiguity": {"jam"},
+    "complexity": {"delivery", "engineering"},
+    "data": {"data"},
+    "infrastructure": {"platform"},
+    "architecture": {"agentic", "engineering"},
+    "ux": {"product", "design"},
+    "strategy": {"product"},
+    "content": {"jam", "product"},
+    "text-as-code": {"qe", "engineering"},
+    "reversibility": {"platform", "delivery"},
+    "novelty": {"jam", "engineering"},
+    "quality": {"qe"},
+    "imagery": {"design"},
 }
 
 # Built-in fallback agents for unavailable specialists
 SPECIALIST_FALLBACKS = {
-    "wicked-jam": "facilitator",
-    "wicked-qe": "reviewer",
-    "wicked-product": "facilitator",
-    "wicked-engineering": "implementer",
-    "wicked-platform": "implementer",
-    "wicked-delivery": None,
-    "wicked-data": "researcher",
-    "wicked-agentic": "reviewer",
-    "wicked-design": "facilitator",
+    "jam": "facilitator",
+    "qe": "reviewer",
+    "product": "facilitator",
+    "engineering": "implementer",
+    "platform": "implementer",
+    "delivery": None,
+    "data": "researcher",
+    "agentic": "reviewer",
+    "design": "facilitator",
 }
 
 # Valid built-in agents that can serve as fallbacks
@@ -1271,45 +1271,23 @@ def is_ambiguous(text: str) -> bool:
 
 
 def get_available_specialists(plugin_dir: Optional[Path] = None) -> Set[str]:
-    """Check which specialist plugins are installed."""
-    available = set()
+    """Check which specialist plugins are installed.
 
-    search_paths = []
-
-    # Check plugin cache directory
-    home = Path.home()
-    cache_dir = home / ".claude" / "plugins" / "cache" / "wicked-garden"
-    if cache_dir.exists():
-        search_paths.append(cache_dir)
-
-    # Check local plugin directory if provided
-    if plugin_dir and plugin_dir.exists():
-        search_paths.append(plugin_dir)
-
-    # Check environment variable
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if plugin_root:
-        root_path = Path(plugin_root).parent.parent  # Go up from wicked-crew to plugins
-        if root_path.exists():
-            search_paths.append(root_path)
-
-    for search_path in search_paths:
-        for item in search_path.iterdir():
-            if item.is_dir() and item.name.startswith("wicked-"):
-                # Check if it has a specialist.json or plugin.json
-                plugin_json = item / ".claude-plugin" / "plugin.json"
-                if not plugin_json.exists():
-                    # Try versioned directory structure
-                    for version_dir in item.iterdir():
-                        if version_dir.is_dir():
-                            plugin_json = version_dir / ".claude-plugin" / "plugin.json"
-                            if plugin_json.exists():
-                                break
-
-                if plugin_json.exists():
-                    available.add(item.name)
-
-    return available
+    Delegates to specialist_discovery to get short names (e.g., 'engineering',
+    'platform') matching the keys used in SIGNAL_TO_SPECIALISTS.
+    """
+    try:
+        from specialist_discovery import discover_specialists
+        search_paths = None  # Use default search paths
+        if plugin_dir:
+            from specialist_discovery import get_default_search_paths
+            search_paths = get_default_search_paths()
+            search_paths.append(plugin_dir)
+        specialists = discover_specialists(search_paths)
+        return set(specialists.keys())
+    except ImportError:
+        logger.warning("specialist_discovery not available, falling back to empty set")
+        return set()
 
 
 def validate_fallback_references() -> List[str]:
@@ -1358,33 +1336,33 @@ def select_specialists(
                 routing[spec].signals.append(signal)
 
     # 2. Complexity-based additions
-    if complexity >= 5 and "wicked-delivery" not in routing:
-        routing["wicked-delivery"] = RoutingInfo(
+    if complexity >= 5 and "delivery" not in routing:
+        routing["delivery"] = RoutingInfo(
             tier="RECOMMENDED", reason=f"complexity:{complexity}>=5", signals=[])
-    if complexity >= 3 and "wicked-qe" not in routing:
-        routing["wicked-qe"] = RoutingInfo(
+    if complexity >= 3 and "qe" not in routing:
+        routing["qe"] = RoutingInfo(
             tier="RECOMMENDED", reason=f"complexity:{complexity}>=3", signals=[])
-    if complexity >= 4 and "wicked-jam" not in routing:
-        routing["wicked-jam"] = RoutingInfo(
+    if complexity >= 4 and "jam" not in routing:
+        routing["jam"] = RoutingInfo(
             tier="RECOMMENDED", reason=f"complexity:{complexity}>=4", signals=[])
 
     # 2b. Architecture signal escalates jam to REQUIRED
     if "architecture" in signal_confidences and signal_confidences["architecture"] >= 0.1:
-        if "wicked-jam" not in routing:
-            routing["wicked-jam"] = RoutingInfo(
+        if "jam" not in routing:
+            routing["jam"] = RoutingInfo(
                 tier="REQUIRED", reason="architecture signal detected", signals=["architecture"])
-        elif routing["wicked-jam"].tier != "REQUIRED":
-            routing["wicked-jam"].tier = "REQUIRED"
-            routing["wicked-jam"].reason = "architecture signal detected"
+        elif routing["jam"].tier != "REQUIRED":
+            routing["jam"].tier = "REQUIRED"
+            routing["jam"].reason = "architecture signal detected"
 
     # 3. Ambiguity detection
-    if ambiguous and "wicked-jam" not in routing:
-        routing["wicked-jam"] = RoutingInfo(
+    if ambiguous and "jam" not in routing:
+        routing["jam"] = RoutingInfo(
             tier="RECOMMENDED", reason="ambiguity detected", signals=["ambiguity"])
 
     # 4. Always include QE for non-trivial work
-    if (complexity >= 2 or len(signals) >= 2) and "wicked-qe" not in routing:
-        routing["wicked-qe"] = RoutingInfo(
+    if (complexity >= 2 or len(signals) >= 2) and "qe" not in routing:
+        routing["qe"] = RoutingInfo(
             tier="RECOMMENDED", reason="non-trivial work", signals=[])
 
     recommended = set(routing.keys())

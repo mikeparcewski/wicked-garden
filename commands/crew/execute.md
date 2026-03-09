@@ -308,18 +308,18 @@ This table mirrors specialist.json `enhances` declarations. Always use the disco
 
 | Specialist | Role | Enhances |
 |-----------|------|----------|
-| wicked-jam | ideation | clarify, design |
-| wicked-product | product | clarify, design, review |
-| wicked-engineering | engineering | design, build, review |
-| wicked-qe | quality-engineering | test-strategy, build, test, review, * |
-| wicked-platform | devsecops | build, review, * |
-| wicked-data | data-engineering | design, build, * |
-| wicked-agentic | agentic-architecture | design, build, review |
-| wicked-delivery | project-management | *, review |
+| jam | ideation | clarify, design |
+| product | product | clarify, design, review |
+| engineering | engineering | design, build, review |
+| qe | quality-engineering | test-strategy, build, test, review, * |
+| platform | devsecops | build, review, * |
+| data | data-engineering | design, build, * |
+| agentic | agentic-architecture | design, build, review |
+| delivery | project-management | *, review |
 
 **`*` semantics**: Means "available for consultation in any phase if signals recommend it." A specialist with `*` is only actively engaged when signal analysis recommends it OR the phase explicitly needs that role. Do NOT engage every `*` specialist in every phase.
 
-**Build phase note**: Build-phase specialists (engineering, data, agentic) provide architectural guidance and review during build, but the **implementer agent** does the actual implementation work. Engage build-phase specialists when signals indicate their domain (e.g., agentic signals → wicked-agentic for pattern guidance).
+**Build phase note**: Build-phase specialists (engineering, data, agentic) provide architectural guidance and review during build, but the **implementer agent** does the actual implementation work. Engage build-phase specialists when signals indicate their domain (e.g., agentic signals → agentic for pattern guidance).
 
 #### Specialist Dispatch
 
@@ -354,17 +354,17 @@ TaskUpdate(taskId="{id}", status="completed")
 
 | Specialist | Clarify | Design | Build | Review |
 |-----------|---------|--------|-------|--------|
-| wicked-jam | `/wicked-garden:jam:brainstorm` (interactive) | `/wicked-garden:jam:perspectives` (interactive) | - | - |
-| wicked-product | `Task(subagent_type="wicked-garden:product:requirements-analyst", ...)` | `Task(subagent_type="wicked-garden:product:business-strategist", ...)` | - | `Task(subagent_type="wicked-garden:product:ux-designer", ...)` |
-| wicked-engineering | - | `Task(subagent_type="wicked-garden:engineering:solution-architect", ...)` | `Task(subagent_type="wicked-garden:engineering:senior-engineer", ...)` | `Task(subagent_type="wicked-garden:engineering:senior-engineer", ...)` |
-| wicked-qe | - | - | `/wicked-garden:crew:gate` (quality gate) | `/wicked-garden:crew:gate` (quality gate) |
-| wicked-platform | - | - | `Task(subagent_type="wicked-garden:platform:security-engineer", ...)` | `Task(subagent_type="wicked-garden:platform:security-engineer", ...)` |
-| wicked-data | - | `Task(subagent_type="wicked-garden:data:data-analyst", ...)` | `Task(subagent_type="wicked-garden:data:data-engineer", ...)` | - |
-| wicked-agentic | - | `Task(subagent_type="wicked-garden:agentic:architect", ...)` | `Task(subagent_type="wicked-garden:agentic:pattern-advisor", ...)` | `Task(subagent_type="wicked-garden:agentic:safety-reviewer", ...)` |
-| wicked-delivery | `/wicked-garden:delivery:report` (thin CLI) | - | `/wicked-garden:delivery:report` (thin CLI) | `/wicked-garden:delivery:report` (thin CLI) |
+| jam | `/wicked-garden:jam:brainstorm` (interactive) | `/wicked-garden:jam:perspectives` (interactive) | - | - |
+| product | `Task(subagent_type="wicked-garden:product:requirements-analyst", ...)` | `Task(subagent_type="wicked-garden:product:business-strategist", ...)` | - | `Task(subagent_type="wicked-garden:product:ux-designer", ...)` |
+| engineering | - | `Task(subagent_type="wicked-garden:engineering:solution-architect", ...)` | `Task(subagent_type="wicked-garden:engineering:senior-engineer", ...)` | `Task(subagent_type="wicked-garden:engineering:senior-engineer", ...)` |
+| qe | - | - | `/wicked-garden:crew:gate` (quality gate) | `/wicked-garden:crew:gate` (quality gate) |
+| platform | - | - | `Task(subagent_type="wicked-garden:platform:security-engineer", ...)` | `Task(subagent_type="wicked-garden:platform:security-engineer", ...)` |
+| data | - | `Task(subagent_type="wicked-garden:data:data-analyst", ...)` | `Task(subagent_type="wicked-garden:data:data-engineer", ...)` | - |
+| agentic | - | `Task(subagent_type="wicked-garden:agentic:architect", ...)` | `Task(subagent_type="wicked-garden:agentic:pattern-advisor", ...)` | `Task(subagent_type="wicked-garden:agentic:safety-reviewer", ...)` |
+| delivery | `/wicked-garden:delivery:report` (thin CLI) | - | `/wicked-garden:delivery:report` (thin CLI) | `/wicked-garden:delivery:report` (thin CLI) |
 
 **What stays as slash commands**:
-- `wicked-jam`: Brainstorm/perspectives are interactive and need user back-and-forth
+- `jam`: Brainstorm/perspectives are interactive and need user back-and-forth
 - `wicked-garden:delivery:report`: Thin CLI wrapper, no heavy analysis
 - `wicked-garden:crew:gate`: Already uses correct Task dispatch internally (gate.md is gold standard)
 

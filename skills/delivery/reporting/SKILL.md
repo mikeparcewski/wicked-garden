@@ -39,7 +39,7 @@ A format-agnostic analyzer that generates comprehensive delivery reports from pr
 - **Format Agnostic**: Auto-detects and processes CSV, Excel exports
 - **Multi-Perspective**: Generates insights from 3 or 6 specialized personas
 - **Delivery-Focused**: Provides actionable reports for project stakeholders
-- **Data-Driven**: Leverages wicked-data for intelligent data processing
+- **Data-Driven**: Leverages data for intelligent data processing
 - **Effort Allocation**: Breaks down task effort by crew phase and signal dimension
 
 ## Personas
@@ -84,7 +84,7 @@ For detailed persona configuration, see [refs/personas.md](refs/personas.md).
 
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
-| wicked-data | Data sampling, SQL queries | Cannot process data |
+| data | Data sampling, SQL queries | Cannot process data |
 | wicked-mem | Cross-session insights | Session-only memory |
 
 For detailed integration patterns, caching strategy, and storage layout, see [refs/integration.md](refs/integration.md).

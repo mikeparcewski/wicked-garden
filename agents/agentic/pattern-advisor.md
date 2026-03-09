@@ -832,7 +832,7 @@ TaskUpdate(
 - Framework Researcher on framework-specific patterns
 ```
 
-## Integration with wicked-agentic Skills
+## Integration with agentic Skills
 
 - Use `/wicked-garden:agentic:agentic-patterns` for pattern catalog
 - Use `/wicked-garden:agentic:review-methodology` for systematic review approach

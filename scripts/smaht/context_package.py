@@ -53,28 +53,28 @@ if str(_smaht_dir / "v2") not in sys.path:
 # Maps installed plugins → their most useful skills/tools for subagents.
 # This is the static reference that replaces SubagentStart hook's pointer injection.
 PLUGIN_SKILL_MAP = {
-    "wicked-mem": [
-        "/wicked-mem:recall — retrieve past decisions, constraints, patterns",
-        "/wicked-mem:store — persist a decision or learning for future sessions",
+    "mem": [
+        "/wicked-garden:mem:recall — retrieve past decisions, constraints, patterns",
+        "/wicked-garden:mem:store — persist a decision or learning for future sessions",
     ],
-    "wicked-search": [
-        "/wicked-search:code — find code symbols (functions, classes, methods)",
-        "/wicked-search:refs — find where a symbol is referenced",
-        "/wicked-search:blast-radius — analyze what changing a symbol affects",
-        "/wicked-search:docs — search documents (PDF, markdown, Office)",
+    "search": [
+        "/wicked-garden:search:code — find code symbols (functions, classes, methods)",
+        "/wicked-garden:search:refs — find where a symbol is referenced",
+        "/wicked-garden:search:blast-radius — analyze what changing a symbol affects",
+        "/wicked-garden:search:docs — search documents (PDF, markdown, Office)",
     ],
-    "wicked-kanban": [
+    "kanban": [
         "TaskCreate/TaskUpdate/TaskList/TaskGet — native task tools (kanban syncs automatically)",
     ],
-    "wicked-qe": [
-        "/wicked-qe:scenarios — generate test scenarios with edge cases",
-        "/wicked-qe:qe-plan — generate comprehensive test plan",
+    "qe": [
+        "/wicked-garden:qe:scenarios — generate test scenarios with edge cases",
+        "/wicked-garden:qe:qe-plan — generate comprehensive test plan",
     ],
-    "wicked-engineering": [
-        "/wicked-engineering:review — code review with senior engineering perspective",
+    "engineering": [
+        "/wicked-garden:engineering:review — code review with senior engineering perspective",
     ],
-    "wicked-platform": [
-        "/wicked-platform:security — security review and vulnerability assessment",
+    "platform": [
+        "/wicked-garden:platform:security — security review and vulnerability assessment",
     ],
     "wicked-garden": [
         "context7 MCP tools — query up-to-date library documentation",
@@ -93,7 +93,7 @@ def discover_installed_plugins() -> list:
     # Check co-located domain directories
     for entry in _SCRIPTS_ROOT.iterdir():
         if entry.is_dir() and not entry.name.startswith("_") and not entry.name.startswith("."):
-            installed.append(f"wicked-{entry.name}")
+            installed.append(entry.name)
 
     return sorted(set(installed))
 

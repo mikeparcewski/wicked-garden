@@ -18,7 +18,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Search**: Use wicked-search for code discovery
 - **Memory**: Use wicked-mem to recall analysis patterns
-- **Review**: Use wicked-product for multi-perspective review
+- **Review**: Use product for multi-perspective review
 - **Task tracking**: Use wicked-kanban to update analysis evidence
 
 If a wicked-* tool is available, prefer it over manual approaches.

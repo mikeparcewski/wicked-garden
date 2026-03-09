@@ -26,7 +26,7 @@ Before manual research, leverage available tools:
 
 - **Search**: Use wicked-search to find competitive research or market docs
 - **Memory**: Use wicked-mem to recall past competitive analyses
-- **Jam**: Use wicked-jam to explore competitive perspectives
+- **Jam**: Use jam to explore competitive perspectives
 
 ## Analysis Process
 

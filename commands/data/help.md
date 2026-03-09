@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-data Help
+# data Help
 
 Data analysis and ontology recommendations for CSV, Excel, and structured datasets.
 

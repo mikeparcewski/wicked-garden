@@ -70,5 +70,5 @@ Persistent memory across sessions — store decisions, recall context, and manag
 
 - **wicked-smaht**: Auto-recalls relevant memories for every prompt
 - **wicked-crew**: Persists decisions and context across phases
-- **wicked-jam**: Stores brainstorming insights
+- **jam**: Stores brainstorming insights
 ```

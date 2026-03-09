@@ -73,7 +73,7 @@ E2E testing with markdown scenarios orchestrating lightweight CLI tools — curl
 
 ## Integration
 
-- **wicked-qe**: Test planning and acceptance criteria
-- **wicked-platform**: Security scenario execution
+- **qe**: Test planning and acceptance criteria
+- **platform**: Security scenario execution
 - **wicked-crew**: Specialist routing for test phases
 ```

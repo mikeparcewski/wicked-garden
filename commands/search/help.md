@@ -97,6 +97,6 @@ All search commands work without the control plane. When CP is available, result
 
 - **wicked-smaht**: Search adapter feeds context assembly via local index (CP optional)
 - **wicked-patch**: Symbol lookup for structural refactoring
-- **wicked-engineering**: Architecture and code analysis
+- **engineering**: Architecture and code analysis
 - **wicked-crew**: Context for all workflow phases
 ```

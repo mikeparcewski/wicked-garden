@@ -127,13 +127,13 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 |------|-----------------|---------|
 | Data exploration | Agent | wicked-garden:data:data-analyst |
 | Query execution | MCP | snowflake, bigquery, databricks |
-| Local file analysis | Skill | wicked-data |
+| Local file analysis | Skill | data |
 | Visualization guidance | Agent | wicked-garden:data:data-analyst |
 
 **Recommended flow**:
 1. Check for data warehouse MCP
 2. If available, use for queries
-3. If not, use wicked-data for local files
+3. If not, use data for local files
 4. Spawn data-analyst for interpretation
 
 ---

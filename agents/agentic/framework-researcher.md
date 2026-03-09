@@ -597,7 +597,7 @@ TaskUpdate(
 - [Source Title](URL)
 ```
 
-## Integration with wicked-agentic Skills
+## Integration with agentic Skills
 
 - Use `/wicked-garden:agentic:frameworks` for framework-specific guidance
 - Use `/wicked-garden:agentic:agentic-patterns` for cross-framework patterns

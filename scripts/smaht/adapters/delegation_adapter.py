@@ -12,19 +12,19 @@ from . import ContextItem
 
 # Domain-to-specialist mapping for delegation hints
 DOMAIN_HINTS = {
-    "security": ("wicked-platform", "security-engineer", "Security review"),
-    "architecture": ("wicked-engineering", "solution-architect", "Architecture analysis"),
-    "test": ("wicked-qe", "test-strategist", "Test strategy"),
-    "data": ("wicked-data", "data-analyst", "Data analysis"),
-    "brainstorm": ("wicked-jam", "facilitator", "Brainstorming session"),
-    "requirements": ("wicked-product", "requirements-analyst", "Requirements elicitation"),
-    "agent": ("wicked-agentic", "architect", "Agentic system review"),
-    "cost": ("wicked-delivery", "cost-optimizer", "Cost optimization"),
-    "review": ("wicked-engineering", "senior-engineer", "Code review"),
-    "debug": ("wicked-engineering", "debugger", "Debugging session"),
-    "performance": ("wicked-platform", "performance-engineer", "Performance analysis"),
-    "ux": ("wicked-product", "ux-researcher", "UX research"),
-    "compliance": ("wicked-platform", "compliance-auditor", "Compliance review"),
+    "security": ("wicked-garden:platform", "security-engineer", "Security review"),
+    "architecture": ("wicked-garden:engineering", "solution-architect", "Architecture analysis"),
+    "test": ("wicked-garden:qe", "test-strategist", "Test strategy"),
+    "data": ("wicked-garden:data", "data-analyst", "Data analysis"),
+    "brainstorm": ("wicked-garden:jam", "facilitator", "Brainstorming session"),
+    "requirements": ("wicked-garden:product", "requirements-analyst", "Requirements elicitation"),
+    "agent": ("wicked-garden:agentic", "architect", "Agentic system review"),
+    "cost": ("wicked-garden:delivery", "cost-optimizer", "Cost optimization"),
+    "review": ("wicked-garden:engineering", "senior-engineer", "Code review"),
+    "debug": ("wicked-garden:engineering", "debugger", "Debugging session"),
+    "performance": ("wicked-garden:platform", "performance-engineer", "Performance analysis"),
+    "ux": ("wicked-garden:product", "ux-researcher", "UX research"),
+    "compliance": ("wicked-garden:platform", "compliance-auditor", "Compliance review"),
 }
 
 # Keywords that suggest delegatable work

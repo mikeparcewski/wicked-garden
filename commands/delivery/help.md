@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-delivery Help
+# delivery Help
 
 Multi-perspective delivery reporting and metrics configuration for project tracking.
 
@@ -48,5 +48,5 @@ Multi-perspective delivery reporting and metrics configuration for project track
 
 - **wicked-crew**: Specialist routing for delivery phases
 - **wicked-kanban**: Project and task data as report input
-- **wicked-product**: Strategic alignment for delivery priorities
+- **product**: Strategic alignment for delivery priorities
 ```

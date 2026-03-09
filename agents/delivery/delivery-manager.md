@@ -20,7 +20,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk assessment
 - **Kanban**: Use wicked-kanban for task tracking
 - **Memory**: Use wicked-mem for historical sprint data
-- **Product**: Use wicked-product for requirements context
+- **Product**: Use product for requirements context
 
 If a wicked-* tool is available, prefer it over manual approaches.
 
