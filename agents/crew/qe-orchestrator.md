@@ -3,6 +3,24 @@ name: qe-orchestrator
 description: |
   Route to appropriate quality gate. Determines gate type from context,
   dispatches to gate-specific orchestrators, consolidates results.
+
+  <example>
+  Context: Project just finished the clarify phase.
+  user: "Run the quality gate — we just finalized our requirements."
+  assistant: "I'll route to the Value Gate to assess whether we should build this, evaluating problem clarity and scope."
+  <commentary>
+  Post-clarify context. Use qe-orchestrator to detect the appropriate gate type and dispatch accordingly.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Unsure which quality check is needed.
+  user: "We need a quality check on the search feature but I'm not sure which gate applies."
+  assistant: "I'll determine the current phase, select the right gate (Value, Strategy, or Execution), and run it."
+  <commentary>
+  Ambiguous quality request. Use qe-orchestrator to route to the correct gate based on project phase.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 ---

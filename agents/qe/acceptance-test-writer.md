@@ -5,6 +5,24 @@ description: |
   Transforms qualitative criteria into concrete artifact requirements with assertions.
   Every step demands evidence. Every assertion is independently verifiable.
   Use when: acceptance testing, test plan generation, scenario verification design
+
+  <example>
+  Context: New feature scenario needs a structured test plan.
+  user: "Write an acceptance test plan for the 'user can export data as CSV' scenario."
+  assistant: "I'll transform the scenario into evidence-gated steps with concrete artifact requirements and verifiable assertions."
+  <commentary>
+  Scenario needs a test plan. Use acceptance-test-writer to produce structured, evidence-gated verification.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Acceptance criteria are written but need to become executable tests.
+  user: "Turn these 5 acceptance criteria for the search feature into a test plan."
+  assistant: "I'll convert each criterion into test steps with evidence requirements so the executor and reviewer can work independently."
+  <commentary>
+  AC-to-test-plan conversion. Use acceptance-test-writer to make qualitative criteria independently verifiable.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 ---

@@ -3,6 +3,24 @@ name: value-orchestrator
 description: |
   Run Value Gate (post-clarify). Assesses whether we should build this.
   Evaluates problem clarity, scope, testability, and early risks.
+
+  <example>
+  Context: Product idea needs validation before committing resources.
+  user: "Should we build a custom analytics dashboard or use an off-the-shelf solution?"
+  assistant: "I'll evaluate problem clarity, scope feasibility, testability, and early risks to recommend whether to proceed."
+  <commentary>
+  Build-vs-buy decision. Use value-orchestrator to assess whether the proposed work is worth pursuing.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Requirements are drafted and need a value check.
+  user: "Run the value gate on our new onboarding flow requirements."
+  assistant: "I'll assess whether the problem is well-defined, scope is realistic, and success criteria are testable."
+  <commentary>
+  Post-clarify validation. Use value-orchestrator to catch scope issues before design begins.
+  </commentary>
+  </example>
 model: sonnet
 color: magenta
 ---

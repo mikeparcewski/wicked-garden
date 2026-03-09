@@ -192,4 +192,5 @@ Trigger phrases indicating you need this skill:
 
 - `refs/framework-profiles-1.md` - ADK, LangGraph, CrewAI detailed profiles
 - `refs/framework-profiles-2.md` - AutoGen, Pydantic AI, LlamaIndex profiles + comparison matrix
-- `refs/migration-patterns.md` - Common migration paths between frameworks
+- `refs/migration-patterns-paths.md` - Common migration paths between frameworks
+- `refs/migration-patterns-testing.md` - Migration testing, rollback, and effort estimates

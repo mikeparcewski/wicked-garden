@@ -524,6 +524,19 @@ def main():
              ok=(has_memories and has_index),
              detail={"has_memories": has_memories, "has_index": has_index})
 
+        # Persist onboarding gate flags so prompt_submit can enforce them
+        if state is not None:
+            if not has_memories:
+                state.update(
+                    needs_onboarding=True,
+                    onboarding_complete=False,
+                )
+            else:
+                state.update(
+                    needs_onboarding=False,
+                    onboarding_complete=True,
+                )
+
         # 7b. Detect dangerous mode (AskUserQuestion broken)
         dangerous_mode = _detect_dangerous_mode()
         if state is not None:

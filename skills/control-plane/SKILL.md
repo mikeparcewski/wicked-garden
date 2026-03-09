@@ -1,10 +1,11 @@
 ---
-name: storage
+name: control-plane
 description: |
   Storage layer guide — DomainStore (local JSON + integration-discovery) and SqliteStore (direct SQLite).
   wicked-garden uses local-first storage. No external server required.
-  Use when querying storage internals, debugging persistence issues,
-  understanding the DomainStore API, or configuring integration routing.
+
+  Use when: "storage internals", "DomainStore API", "persistence issue", "integration routing",
+  "local storage", "SqliteStore", "FTS5 search", "debugging persistence"
 ---
 
 # Storage Layer

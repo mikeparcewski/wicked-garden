@@ -4,6 +4,24 @@ description: |
   Risk tracking and escalation management. Identifies delivery risks,
   tracks mitigation progress, and manages dependency chains.
   Use when: delivery risks, escalation, dependency tracking
+
+  <example>
+  Context: Project has multiple dependencies that could cause delays.
+  user: "Identify delivery risks for the platform migration — we depend on 3 other teams."
+  assistant: "I'll map the dependency chains, assess each team's delivery risk, and recommend mitigation strategies for critical paths."
+  <commentary>
+  Cross-team dependency risk. Use risk-monitor to track and mitigate delivery risks.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Risk needs escalation to leadership.
+  user: "The third-party API we depend on is deprecating in 2 months. Flag this as a risk."
+  assistant: "I'll document the risk, assess impact and likelihood, define mitigation options, and prepare an escalation for leadership."
+  <commentary>
+  Risk escalation. Use risk-monitor for structured risk tracking and escalation management.
+  </commentary>
+  </example>
 model: sonnet
 color: red
 ---

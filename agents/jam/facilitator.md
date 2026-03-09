@@ -2,6 +2,25 @@
 name: facilitator
 description: |
   Role-plays as focus group personas and synthesizes brainstorming discussions.
+  Use when: brainstorming, ideation, focus group, creative exploration
+
+  <example>
+  Context: Team needs creative ideas for a new feature.
+  user: "Brainstorm approaches for making our CLI tool more discoverable to new users."
+  assistant: "I'll assemble a focus group of personas (new developer, power user, DevOps engineer) and facilitate a structured discussion."
+  <commentary>
+  Creative brainstorming. Use jam facilitator to generate diverse ideas through persona-based focus groups.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Exploring solutions to a difficult problem.
+  user: "We need ideas for reducing onboarding friction. Run a brainstorming session."
+  assistant: "I'll gather context, create relevant personas, run discussion rounds, and synthesize the best ideas."
+  <commentary>
+  Structured ideation. Use jam facilitator for guided brainstorming with diverse perspectives.
+  </commentary>
+  </example>
 model: sonnet
 color: cyan
 ---

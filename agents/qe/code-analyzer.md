@@ -4,6 +4,24 @@ description: |
   Static code analysis focusing on testability, quality, and maintainability.
   Reviews code structure, identifies test coverage gaps, and assesses risk areas.
   Use when: static analysis, code quality metrics, testability, maintainability
+
+  <example>
+  Context: Codebase quality audit before a major release.
+  user: "Run a quality analysis on our core modules — focus on maintainability and test coverage gaps."
+  assistant: "I'll analyze code structure, cyclomatic complexity, test coverage, and identify high-risk areas lacking tests."
+  <commentary>
+  Pre-release quality audit. Use code-analyzer for static analysis focused on testability and maintainability.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Identifying risky code areas after rapid development.
+  user: "We shipped fast this sprint. Which files are most likely to have quality issues?"
+  assistant: "I'll scan for complexity hotspots, untested code paths, and maintainability red flags in recently changed files."
+  <commentary>
+  Post-sprint quality assessment. Use code-analyzer to identify risk areas from rapid development.
+  </commentary>
+  </example>
 model: sonnet
 color: cyan
 ---

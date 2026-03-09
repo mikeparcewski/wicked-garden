@@ -5,6 +5,24 @@ description: |
   compliance, implements privacy by design, and protects sensitive data
   throughout its lifecycle.
   Use when: PII, PHI, data protection, privacy by design, GDPR
+
+  <example>
+  Context: New feature collects user data and needs privacy review.
+  user: "We're adding a user profile page that stores name, email, and location. Review for privacy compliance."
+  assistant: "I'll assess the data collection against GDPR requirements, check for proper consent mechanisms, and verify data minimization."
+  <commentary>
+  New data collection needs privacy review. Use privacy-expert to ensure GDPR compliance and privacy by design.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Scanning codebase for exposed sensitive data.
+  user: "Scan our logging and analytics code for any PII that shouldn't be captured."
+  assistant: "I'll search for PII patterns in logs, analytics events, and error reports to identify exposure risks."
+  <commentary>
+  PII detection scan. Use privacy-expert to find and remediate sensitive data exposure.
+  </commentary>
+  </example>
 model: sonnet
 color: yellow
 ---

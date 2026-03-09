@@ -4,6 +4,24 @@ description: |
   Audit accessibility compliance - WCAG guidelines, keyboard navigation,
   screen readers, semantic HTML, and inclusive design patterns.
   Use when: accessibility, WCAG, keyboard navigation, screen readers
+
+  <example>
+  Context: Product needs WCAG 2.1 AA compliance audit.
+  user: "Audit our web app for WCAG 2.1 AA compliance and list the violations."
+  assistant: "I'll check color contrast, keyboard navigation, ARIA usage, semantic HTML, and screen reader compatibility."
+  <commentary>
+  Accessibility compliance audit. Use a11y-expert for WCAG evaluation and remediation guidance.
+  </commentary>
+  </example>
+
+  <example>
+  Context: New component needs accessible implementation.
+  user: "We're building a custom date picker. How do we make it fully accessible?"
+  assistant: "I'll specify the ARIA roles, keyboard interaction patterns, focus management, and screen reader announcements needed."
+  <commentary>
+  Accessible component design. Use a11y-expert for inclusive design patterns and WCAG-compliant implementation.
+  </commentary>
+  </example>
 model: sonnet
 color: green
 ---

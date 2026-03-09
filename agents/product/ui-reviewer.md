@@ -4,6 +4,24 @@ description: |
   Review visual design consistency, component patterns, design system adherence,
   and UI polish. Focus on the visual layer and implementation quality.
   Use when: visual design, design system, UI consistency, component patterns
+
+  <example>
+  Context: New pages need visual consistency review.
+  user: "Review the settings page for design system consistency — spacing, colors, and component usage."
+  assistant: "I'll check adherence to the design system tokens, component patterns, spacing scale, and flag any inconsistencies."
+  <commentary>
+  Design system compliance review. Use ui-reviewer for visual consistency and implementation quality checks.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Component library has grown organically and needs cleanup.
+  user: "We have 5 different button variants in use. Audit the UI for component pattern consistency."
+  assistant: "I'll catalog the button variants, identify which follow the design system, and recommend consolidation."
+  <commentary>
+  Component pattern audit. Use ui-reviewer to identify and resolve visual inconsistencies.
+  </commentary>
+  </example>
 model: sonnet
 color: magenta
 ---

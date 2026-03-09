@@ -69,7 +69,7 @@ wicked-browse a11y-audit {url_or_file}
 - Are buttons/links clear?
 - Are form labels read?
 
-**Full screen reader guide**: See [refs/screen-reader-testing.md](refs/screen-reader-testing.md)
+**Full screen reader guide**: See [refs/screen-reader-testing-commands.md](refs/screen-reader-testing-commands.md) and [refs/screen-reader-testing-advanced.md](refs/screen-reader-testing-advanced.md)
 
 ### 4. Code Review
 ```bash
@@ -104,7 +104,7 @@ wicked-search "aria-" --type html          # ARIA usage
 <p style="color: #666; background: #fff;">Text</p>  /* 4.7:1 */
 ```
 
-**More examples**: See [refs/common-violations.md](refs/common-violations.md)
+**More examples**: See [refs/common-violations-html-css.md](refs/common-violations-html-css.md) and [refs/common-violations-interactive.md](refs/common-violations-interactive.md)
 
 ## Output Format
 
@@ -131,7 +131,7 @@ wicked-search "aria-" --type html          # ARIA usage
 1. {Priority fixes}
 ```
 
-**Full report template**: See [refs/audit-report.md](refs/audit-report.md)
+**Full report template**: See [refs/audit-report-findings.md](refs/audit-report-findings.md) and [refs/audit-report-results.md](refs/audit-report-results.md)
 
 ## Integration
 
@@ -172,12 +172,15 @@ Run `ListMcpResourcesTool` to discover available integrations. Fall back to loca
 **Detailed guides in refs/:**
 - [wcag-checklist.md](refs/wcag-checklist.md) - Complete WCAG checklists
 - [keyboard-testing.md](refs/keyboard-testing.md) - Keyboard navigation guide
-- [screen-reader-testing.md](refs/screen-reader-testing.md) - Screen reader testing
+- [screen-reader-testing-commands.md](refs/screen-reader-testing-commands.md) - Screen reader commands and setup
+- [screen-reader-testing-advanced.md](refs/screen-reader-testing-advanced.md) - Advanced screen reader tests and workflow
 - [aria-patterns-basics.md](refs/aria-patterns-basics.md) - ARIA basics and simple widgets
 - [aria-patterns-interactive.md](refs/aria-patterns-interactive.md) - Tabs, modals, dropdown menus
 - [aria-patterns-dynamic.md](refs/aria-patterns-dynamic.md) - Combobox, alerts, live regions, best practices
-- [common-violations.md](refs/common-violations.md) - Fix examples
-- [audit-report.md](refs/audit-report.md) - Full report template
+- [common-violations-html-css.md](refs/common-violations-html-css.md) - HTML and CSS violation fixes
+- [common-violations-interactive.md](refs/common-violations-interactive.md) - Interactive component violation fixes
+- [audit-report-findings.md](refs/audit-report-findings.md) - Audit findings template
+- [audit-report-results.md](refs/audit-report-results.md) - Audit results and recommendations
 
 ## When to Audit
 

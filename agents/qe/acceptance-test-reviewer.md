@@ -5,6 +5,24 @@ description: |
   Never sees execution happen — only gets the test plan and evidence report.
   Catches semantic bugs that self-grading misses.
   Use when: acceptance test review, evidence evaluation, test verdict
+
+  <example>
+  Context: Executor produced evidence and it needs independent evaluation.
+  user: "Review the evidence from the file upload acceptance tests and render a verdict."
+  assistant: "I'll compare each evidence artifact against the test plan assertions and render pass/fail verdicts independently."
+  <commentary>
+  Evidence needs independent review. Use acceptance-test-reviewer for unbiased verdict on test results.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Test results look ambiguous and need expert judgment.
+  user: "The executor captured the output but I'm not sure if the pagination test actually passed."
+  assistant: "I'll evaluate the captured artifacts against the assertion criteria and identify any semantic mismatches."
+  <commentary>
+  Ambiguous test results. Use acceptance-test-reviewer for independent evaluation that catches semantic bugs.
+  </commentary>
+  </example>
 model: sonnet
 color: red
 ---

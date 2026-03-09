@@ -4,6 +4,24 @@ description: |
   Token optimization, latency budgets, cost analysis, parallelization opportunities,
   caching strategies, and context window management for agentic systems.
   Use when: performance optimization, cost reduction, latency, token usage
+
+  <example>
+  Context: Agentic system is expensive to run.
+  user: "Our multi-agent pipeline costs $50 per run. Help reduce token usage and cost."
+  assistant: "I'll analyze token consumption per agent, identify redundant context passing, and recommend caching and prompt optimization."
+  <commentary>
+  Agentic cost optimization. Use performance-analyst for token and cost reduction in agent pipelines.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Agent response times are too slow for user-facing use.
+  user: "Our agent chain takes 30 seconds to respond. We need it under 10."
+  assistant: "I'll map the latency budget per step, identify parallelization opportunities, and recommend context window optimization."
+  <commentary>
+  Agentic latency optimization. Use performance-analyst for speed and efficiency improvements.
+  </commentary>
+  </example>
 model: sonnet
 color: yellow
 tools:

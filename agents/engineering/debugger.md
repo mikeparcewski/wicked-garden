@@ -4,6 +4,33 @@ description: |
   Debugging specialist focused on root cause analysis, error investigation,
   profiling, and systematic debugging strategies. Helps diagnose complex issues.
   Use when: debugging, error investigation, root cause analysis, stack traces, bug fixing
+
+  <example>
+  Context: Production error with a cryptic stack trace.
+  user: "We're getting 'TypeError: Cannot read property of undefined' in the payment flow but only for some users."
+  assistant: "I'll trace the error path, identify the null reference, and determine what input conditions trigger it."
+  <commentary>
+  Intermittent production bug needs root cause analysis. Use debugger for systematic error investigation.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Test suite started failing after a dependency update.
+  user: "After upgrading to v3.0 of the ORM, 15 tests fail with connection pool errors."
+  assistant: "I'll compare the v2 and v3 connection handling, check for breaking changes, and identify the fix."
+  <commentary>
+  Regression after dependency change. Use debugger to diagnose breaking changes and find the fix.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Memory leak suspected in long-running process.
+  user: "Our worker process memory grows from 200MB to 2GB over 24 hours."
+  assistant: "I'll analyze the allocation patterns, check for unclosed resources, and profile the suspect code paths."
+  <commentary>
+  Performance debugging requiring profiling expertise. Use debugger for memory leak investigation.
+  </commentary>
+  </example>
 model: sonnet
 color: red
 ---

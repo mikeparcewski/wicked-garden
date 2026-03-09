@@ -243,6 +243,50 @@ def _check_setup_gate(prompt: str) -> str | None:
     return None
 
 
+def _check_onboarding_gate(prompt: str) -> str | None:
+    """Check if the current project needs onboarding.
+
+    Returns an onboarding directive string to inject if onboarding is needed,
+    or None if onboarding is complete or cannot be determined.
+
+    Unlike the setup gate, this does NOT hard-block — it returns a directive
+    that gets injected into the system message so the model runs setup.
+    Uses session state set by bootstrap.py to avoid re-checking on every turn.
+    """
+    stripped = prompt.strip().lower()
+
+    # Exemption: setup/help commands handle their own onboarding flow
+    if stripped.startswith(_GUARD_PASS_PREFIXES):
+        return None
+
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+
+        # If setup is in progress, don't block with onboarding directive
+        if state.setup_in_progress:
+            return None
+
+        # If onboarding is already confirmed complete, nothing to do
+        if state.onboarding_complete:
+            return None
+
+        # If bootstrap flagged that onboarding is needed, enforce it
+        if state.needs_onboarding:
+            project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+            return (
+                f"[Action Required] Project '{project}' has not been onboarded.\n"
+                "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
+                "to launch the interactive onboarding wizard.\n"
+                "Do NOT ask the user for confirmation — invoke the skill now.\n"
+                "Do NOT respond with text first — invoke the skill as your first action."
+            )
+    except Exception:
+        pass  # Fail open — don't block on errors
+
+    return None
+
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -270,6 +314,11 @@ def main():
     # Setup gate — hard-block (sys.exit(2)) if no config.
     # MUST run before HOT continuations so setup can never be bypassed.
     _check_setup_gate(prompt)
+
+    # Onboarding gate — inject directive if project hasn't been onboarded.
+    # Checked after setup gate but before HOT path so continuations during
+    # an active setup wizard ("yes", "ok") still pass through quickly.
+    onboarding_directive = _check_onboarding_gate(prompt)
 
     # ---------------------------------------------------------------------------
     # HOT fast-exit: known continuation tokens bypass all imports and the
@@ -301,7 +350,19 @@ def main():
             _hc.update_from_prompt(prompt.strip())
         except Exception:
             pass  # fail open — accumulation is best-effort on HOT path
-        print(json.dumps({"continue": True}))
+
+        # Even on HOT path, inject onboarding directive if needed so the model
+        # cannot bypass the gate via continuation tokens.
+        if onboarding_directive:
+            print(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": onboarding_directive,
+                },
+                "continue": True,
+            }))
+        else:
+            print(json.dumps({"continue": True}))
         return
 
     try:
@@ -342,7 +403,7 @@ def main():
         except Exception:
             pass  # fail open
 
-        if not briefing:
+        if not briefing and not onboarding_directive:
             print(json.dumps({"continue": True}))
             return
 
@@ -352,6 +413,10 @@ def main():
             f"| turn={turn_count} -->"
         )
         all_parts = [header]
+
+        # Onboarding directive goes first for highest priority
+        if onboarding_directive:
+            all_parts.append(onboarding_directive)
 
         if briefing:
             sanitized = briefing.replace("</system-reminder>", "")

@@ -4,6 +4,33 @@ description: |
   Specialize in API documentation - OpenAPI specs, endpoint documentation, request/response
   examples, and error documentation. Create comprehensive, accurate API reference materials.
   Use when: API docs, OpenAPI specs, endpoint documentation, API reference
+
+  <example>
+  Context: Team is building a new REST API and needs docs for consumers.
+  user: "Generate OpenAPI spec and docs for our user management endpoints."
+  assistant: "I'll analyze the route handlers and produce a complete OpenAPI 3.0 spec with request/response examples."
+  <commentary>
+  The user needs comprehensive API documentation generated from code. Use api-documentarian to produce specs and reference docs.
+  </commentary>
+  </example>
+
+  <example>
+  Context: External partners are integrating with the API and reporting confusion.
+  user: "Our webhook endpoints have no documentation — partners keep sending malformed payloads."
+  assistant: "I'll document the webhook contracts including payload schemas, authentication headers, and error responses."
+  <commentary>
+  Missing API docs are causing integration failures. Use api-documentarian to create clear endpoint documentation with examples.
+  </commentary>
+  </example>
+
+  <example>
+  Context: API has grown organically and docs are out of date.
+  user: "Audit our API docs against the actual endpoints and flag any drift."
+  assistant: "I'll compare the existing OpenAPI spec against the route definitions and identify missing or changed endpoints."
+  <commentary>
+  API documentation has drifted from implementation. Use api-documentarian to reconcile docs with code.
+  </commentary>
+  </example>
 model: sonnet
 color: green
 ---

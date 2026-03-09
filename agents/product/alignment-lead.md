@@ -4,6 +4,24 @@ description: |
   Facilitate stakeholder alignment and consensus building. Identify concerns,
   mediate trade-offs, and ensure shared understanding across teams.
   Use when: stakeholder alignment, consensus building, trade-off discussions
+
+  <example>
+  Context: Engineering and product disagree on the technical approach.
+  user: "Engineering wants to rebuild the system, product wants incremental improvements. Help us align."
+  assistant: "I'll surface each side's concerns, map the trade-offs, and facilitate a shared decision framework."
+  <commentary>
+  Cross-team misalignment. Use alignment-lead to mediate trade-offs and build consensus.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Multiple teams need to agree on shared standards.
+  user: "Three teams use different API conventions. Help us align on a shared standard."
+  assistant: "I'll identify each team's concerns, find common ground, and facilitate agreement on a unified convention."
+  <commentary>
+  Standards alignment. Use alignment-lead to build consensus across teams with competing preferences.
+  </commentary>
+  </example>
 model: sonnet
 color: yellow
 ---

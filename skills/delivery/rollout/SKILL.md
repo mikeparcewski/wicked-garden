@@ -57,7 +57,7 @@ Risk = MAX(user, revenue, criticality) + reversibility_penalty
 | MEDIUM | Progressive | 1-2 weeks | 0% → 10% → 25% → 50% → 100% |
 | HIGH | Canary | 4-6 weeks | 0% → 1% → 5% → 10% → 25% → 50% → 100% |
 
-See [strategies.md](refs/strategies.md) for detailed guidance.
+See [strategies-core.md](refs/strategies-core.md) and [strategies-operations.md](refs/strategies-operations.md) for detailed guidance.
 
 ## Stage Definition
 
@@ -181,6 +181,6 @@ Gracefully degrades to manual procedures when capabilities unavailable.
 
 ## See Also
 
-- [strategies.md](refs/strategies.md) - Detailed rollout strategies
+- [strategies-core.md](refs/strategies-core.md) and [strategies-operations.md](refs/strategies-operations.md) - Detailed rollout strategies
 - `/wicked-garden:delivery:design` - Design experiments
 - `/wicked-garden:delivery:analyze` - Analyze results before rollout

@@ -4,6 +4,24 @@ description: |
   Design rigorous experiments with statistical analysis. Formulate hypotheses,
   select metrics, calculate sample sizes, and ensure experimental validity.
   Use when: A/B tests, experiments, hypothesis, sample size
+
+  <example>
+  Context: Team wants to validate a new feature with an A/B test.
+  user: "Design an A/B test for our new checkout flow to see if it improves conversion."
+  assistant: "I'll formulate the hypothesis, select primary/guardrail metrics, calculate sample size, and define the experiment timeline."
+  <commentary>
+  A/B test design. Use experiment-designer for statistically rigorous experiment planning.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Need to validate a pricing change.
+  user: "We want to test a 10% price increase on the pro plan. How should we structure the experiment?"
+  assistant: "I'll design the experiment with proper segmentation, control group, statistical power analysis, and rollback criteria."
+  <commentary>
+  Pricing experiment. Use experiment-designer for hypothesis formulation and experimental design.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 ---
