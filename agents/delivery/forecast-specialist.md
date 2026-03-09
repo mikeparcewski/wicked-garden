@@ -4,6 +4,24 @@ description: |
   Forecast costs, timelines, and resource needs based on historical data
   and current trends. Model scenarios and predict outcomes.
   Use when: cost forecast, timeline prediction, capacity planning, scenario modeling
+
+  <example>
+  Context: Planning next quarter's cloud budget.
+  user: "Forecast our cloud costs for Q3 based on current growth trends."
+  assistant: "I'll analyze historical cost trends, factor in planned changes, and model optimistic/expected/pessimistic scenarios."
+  <commentary>
+  Cost forecasting request. Use forecast-specialist for data-driven budget predictions.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Project timeline needs realistic estimation.
+  user: "Based on our velocity, when will the migration project realistically finish?"
+  assistant: "I'll analyze historical velocity, account for risk factors, and provide confidence-weighted completion dates."
+  <commentary>
+  Timeline prediction. Use forecast-specialist for evidence-based delivery forecasting.
+  </commentary>
+  </example>
 model: sonnet
 color: yellow
 ---

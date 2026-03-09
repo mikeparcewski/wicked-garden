@@ -5,6 +5,24 @@ description: |
   performance correlation, and proactive reliability improvement. Aggregates
   observability data from multiple sources for unified health view.
   Use when: reliability, system health, capacity planning, performance
+
+  <example>
+  Context: Service is approaching capacity limits.
+  user: "Our database is at 80% CPU during peak hours. How should we plan for 2x growth?"
+  assistant: "I'll analyze current load patterns, project capacity needs, and recommend scaling strategies with cost estimates."
+  <commentary>
+  Capacity planning request. Use sre for load analysis and scaling recommendations.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Need a unified view of system health across services.
+  user: "Give me a reliability assessment of our microservices — error rates, latency trends, and SLO status."
+  assistant: "I'll aggregate health metrics across services, identify degradation trends, and flag SLO risks."
+  <commentary>
+  System health assessment. Use sre for cross-service reliability analysis and SLO monitoring.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 ---

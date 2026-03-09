@@ -141,4 +141,5 @@ Avoid these combinations:
 ## References
 
 - `refs/pattern-catalog.md` - Detailed pattern descriptions with implementation examples
-- `refs/anti-patterns.md` - Deep dive on anti-patterns with refactoring strategies
+- `refs/anti-patterns-design.md` - Design anti-patterns (God Agent, Tight Coupling, Missing Guardrails, Deep Nesting, No Observability)
+- `refs/anti-patterns-operational.md` - Operational anti-patterns (Sequential Bottleneck, Context Bloat, Redundant Agents, Hardcoded Prompts, Missing Timeouts)

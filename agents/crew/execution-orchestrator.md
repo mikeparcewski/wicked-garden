@@ -3,6 +3,24 @@ name: execution-orchestrator
 description: |
   Run Execution Gate (post-build). Verifies implementation works,
   tests exist and pass, and risks are mitigated.
+
+  <example>
+  Context: Build phase is complete and the team needs to verify quality.
+  user: "Run the execution gate on the new payment integration."
+  assistant: "I'll verify the implementation works, tests pass, and identified risks from the strategy gate are mitigated."
+  <commentary>
+  Post-build quality gate. Use execution-orchestrator to answer "Does it work?" before delivery.
+  </commentary>
+  </example>
+
+  <example>
+  Context: CI is green but the team wants a deeper quality check.
+  user: "Tests pass but I'm not confident in the error handling. Run the execution gate."
+  assistant: "I'll review error handling coverage, compare against the strategy gate's risk list, and verify edge cases."
+  <commentary>
+  Deeper post-build validation beyond CI. Use execution-orchestrator for comprehensive quality verification.
+  </commentary>
+  </example>
 model: sonnet
 color: green
 ---

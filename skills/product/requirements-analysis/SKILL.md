@@ -128,4 +128,4 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" \
 
 ## Output Format
 
-See: `refs/requirements-output-format.md`
+See: `refs/requirements-output-format-template.md`, `refs/requirements-example-auth.md`, and `refs/requirements-example-export-integration.md`

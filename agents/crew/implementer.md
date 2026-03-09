@@ -2,6 +2,26 @@
 name: implementer
 description: |
   Execute implementation tasks with quality and safety.
+
+  Use this agent to build features according to approved designs and test strategies.
+
+  <example>
+  Context: Design phase is complete and implementation needs to begin.
+  user: "The design for the caching layer is approved. Start building it."
+  assistant: "I'll implement the caching layer following the design doc, tracking progress via TaskUpdate."
+  <commentary>
+  Approved design ready for implementation. Use implementer to execute the build phase with task tracking.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Bug fix with clear reproduction steps and accepted approach.
+  user: "Implement the fix for the race condition in the queue processor as described in the design."
+  assistant: "I'll apply the mutex fix, add the regression test, and verify existing tests still pass."
+  <commentary>
+  Well-defined fix ready for execution. Use implementer for safe, tracked implementation work.
+  </commentary>
+  </example>
 model: sonnet
 color: green
 ---

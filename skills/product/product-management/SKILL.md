@@ -119,4 +119,5 @@ Run `ListMcpResourcesTool` to discover available integrations. Use wicked-kanban
 
 - **SKILL.md** (this file): Overview and quick start
 - **refs/user-story-template.md**: Detailed story format
-- **refs/acceptance-criteria-guide.md**: Writing testable criteria
+- **refs/acceptance-criteria-guide-fundamentals.md**: Writing testable criteria
+- **refs/acceptance-criteria-guide-examples.md**: Domain-specific examples and integration

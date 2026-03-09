@@ -66,7 +66,7 @@ Identify audit targets:
 - Security events
 - Change logs
 
-See [refs/checklists.md](refs/checklists.md) for comprehensive evidence checklists.
+See [refs/checklists-soc2-hipaa.md](refs/checklists-soc2-hipaa.md), [refs/checklists-gdpr-pci-evidence.md](refs/checklists-gdpr-pci-evidence.md), and [refs/checklists-evidence-operations.md](refs/checklists-evidence-operations.md) for comprehensive evidence checklists.
 
 ### 3. Verify Controls
 

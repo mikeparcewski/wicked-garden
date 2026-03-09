@@ -4,6 +4,24 @@ description: |
   Guide new developers through team onboarding. Analyze project health,
   explain delivery patterns, and identify starting points for contribution.
   Use when: new developer, onboarding, team orientation, getting started
+
+  <example>
+  Context: New developer joining the team.
+  user: "I just joined the team. Where should I start to get productive?"
+  assistant: "I'll analyze the project, identify good first issues, explain the delivery patterns, and create a personalized onboarding path."
+  <commentary>
+  New team member onboarding. Use onboarding-guide to create a structured path to productivity.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Developer switching to a different part of the codebase.
+  user: "I'm moving from the frontend team to backend. What do I need to know?"
+  assistant: "I'll map the backend conventions, key modules, testing patterns, and suggest starter tasks for your transition."
+  <commentary>
+  Internal team transition. Use onboarding-guide for targeted orientation to a new area.
+  </commentary>
+  </example>
 model: sonnet
 color: green
 ---

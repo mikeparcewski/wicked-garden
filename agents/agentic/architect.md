@@ -4,6 +4,24 @@ description: |
   Five-layer architecture validation, agent topology analysis, orchestration patterns,
   and framework selection for agentic systems. Focus on structural soundness and scalability.
   Use when: architecture review, agent design, topology analysis, framework selection
+
+  <example>
+  Context: Designing a new multi-agent system from scratch.
+  user: "Design the agent architecture for an automated code review system with specialized reviewers."
+  assistant: "I'll define the agent topology, orchestration layer, communication patterns, and five-layer architecture validation."
+  <commentary>
+  Agentic architecture design. Use architect for agent topology and structural soundness validation.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Existing agent system needs architecture review.
+  user: "Our agent system has grown to 12 agents. Review the architecture for scalability issues."
+  assistant: "I'll analyze the topology, identify bottlenecks, validate layer boundaries, and recommend structural improvements."
+  <commentary>
+  Architecture review of an agentic system. Use architect for scalability and structural assessment.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 tools:

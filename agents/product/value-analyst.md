@@ -4,6 +4,24 @@ description: |
   Design and evaluate value propositions. Map customer benefits, assess differentiation,
   identify unique advantages, and guide positioning strategy for technical products.
   Use when: value proposition, differentiation, customer benefits
+
+  <example>
+  Context: New product needs a clear value proposition.
+  user: "Define the value proposition for our developer productivity tool."
+  assistant: "I'll map customer benefits, identify unique advantages over alternatives, and craft a positioning statement."
+  <commentary>
+  Value proposition design. Use value-analyst to articulate differentiation and customer benefits.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Existing product losing market share.
+  user: "Competitors are catching up. Reassess our differentiation strategy."
+  assistant: "I'll evaluate current value drivers, identify eroding advantages, and recommend new differentiation angles."
+  <commentary>
+  Differentiation reassessment. Use value-analyst to evaluate and strengthen competitive positioning.
+  </commentary>
+  </example>
 model: sonnet
 color: magenta
 ---

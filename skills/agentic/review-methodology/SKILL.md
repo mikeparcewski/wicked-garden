@@ -33,7 +33,7 @@ Systematic approach to reviewing agentic systems and codebases for issues, risks
 **Goal:** Understand each issue's impact and root cause
 
 **For Each Issue:**
-1. Classify type (see `refs/issue-taxonomy.md`)
+1. Classify type (see `refs/issue-taxonomy-reliability-safety.md` and `refs/issue-taxonomy-quality-testing.md`)
 2. Determine severity (Critical/High/Medium/Low)
 3. Assess impact (Reliability/Security/Cost/Performance)
 4. Identify root cause
@@ -130,7 +130,7 @@ See `refs/deliverable-templates.md` for complete templates.
 - Suboptimal variable names
 - Minor optimizations
 
-See `refs/issue-taxonomy.md` for complete classification guide.
+See `refs/issue-taxonomy-reliability-safety.md` and `refs/issue-taxonomy-quality-testing.md` for complete classification guide.
 
 ## Finding Documentation Template
 
@@ -186,5 +186,5 @@ Trigger phrases indicating you need this skill:
 
 ## References
 
-- `refs/issue-taxonomy.md` - Complete issue category reference and anti-pattern detection
+- `refs/issue-taxonomy-reliability-safety.md` and `refs/issue-taxonomy-quality-testing.md` - Complete issue category reference and anti-pattern detection
 - `refs/deliverable-templates.md` - Detailed report templates and review checklist

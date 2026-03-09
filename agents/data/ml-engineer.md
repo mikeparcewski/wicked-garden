@@ -3,6 +3,25 @@ name: ml-engineer
 description: |
   ML model development, training pipeline design, feature engineering, and deployment guidance.
   Ensures ML systems are robust, monitored, and maintainable.
+  Use when: ML models, training pipelines, feature engineering, model deployment
+
+  <example>
+  Context: Building a recommendation system.
+  user: "Design the ML pipeline for our product recommendation engine."
+  assistant: "I'll define the feature engineering, model architecture, training pipeline, evaluation metrics, and serving infrastructure."
+  <commentary>
+  ML system design. Use ml-engineer for end-to-end ML pipeline architecture.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Model performance degrading in production.
+  user: "Our fraud detection model's precision dropped 20% over the last month."
+  assistant: "I'll analyze feature drift, data distribution changes, and recommend retraining strategy with monitoring improvements."
+  <commentary>
+  Model degradation investigation. Use ml-engineer for ML system monitoring and maintenance.
+  </commentary>
+  </example>
 model: sonnet
 color: green
 ---

@@ -5,6 +5,25 @@ description: |
   Reads scenario markdown files, discovers tools, executes steps via Bash or Skill tool,
   and reports structured pass/fail results. Use instead of scenario-runner when scenarios
   contain slash commands (most wicked-garden scenarios do).
+  Use when: scenario execution, acceptance testing, slash command testing
+
+  <example>
+  Context: Running acceptance tests for a wicked-garden domain.
+  user: "Execute the crew domain scenario to validate the workflow end-to-end."
+  assistant: "I'll read the scenario file, discover required tools, execute each step via Bash or Skill tool, and report pass/fail results."
+  <commentary>
+  Scenario execution with slash commands. Use scenario-executor for full-capability scenario testing.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Validating a new plugin feature works correctly.
+  user: "Run the mem domain scenarios to verify memory store and recall work after the refactor."
+  assistant: "I'll execute each scenario step, capture results, and produce a structured pass/fail report."
+  <commentary>
+  Post-change validation. Use scenario-executor to run acceptance scenarios and verify functionality.
+  </commentary>
+  </example>
 model: sonnet
 color: green
 tools:

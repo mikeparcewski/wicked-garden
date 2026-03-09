@@ -4,6 +4,24 @@ description: |
   Analyze competitive landscape and market positioning. Conduct SWOT analysis, assess
   alternatives, evaluate competitive threats, and provide strategic positioning recommendations.
   Use when: SWOT analysis, competitive positioning, alternatives
+
+  <example>
+  Context: Entering a market with established competitors.
+  user: "Conduct a SWOT analysis for our CI/CD tool vs. GitHub Actions and CircleCI."
+  assistant: "I'll map strengths, weaknesses, opportunities, and threats against each competitor and recommend positioning."
+  <commentary>
+  Competitive SWOT analysis. Use competitive-analyst for structured competitive intelligence.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Customer choosing between your product and alternatives.
+  user: "A prospect is comparing us to three competitors. Build a competitive comparison."
+  assistant: "I'll evaluate each alternative on key buying criteria, identify our advantages, and highlight competitor weaknesses."
+  <commentary>
+  Competitive comparison. Use competitive-analyst for alternative evaluation and positioning recommendations.
+  </commentary>
+  </example>
 model: sonnet
 color: red
 ---

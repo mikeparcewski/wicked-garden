@@ -4,6 +4,24 @@ description: |
   Strategic product thinking: roadmap planning, prioritization, trade-offs,
   and business value alignment. Balances customer needs with delivery capacity.
   Use when: roadmap, prioritization, product strategy, feature decisions
+
+  <example>
+  Context: Quarterly planning with too many feature requests.
+  user: "We have 20 feature requests and capacity for 5. Help prioritize."
+  assistant: "I'll score each feature on business value, customer impact, and effort, then recommend the highest-value subset."
+  <commentary>
+  Feature prioritization. Use product-manager for structured prioritization and trade-off analysis.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Defining MVP scope for a new product.
+  user: "We're building a project management tool. What should be in the MVP?"
+  assistant: "I'll identify the core jobs-to-be-done, define the minimum feature set, and draw clear scope boundaries."
+  <commentary>
+  MVP scoping. Use product-manager for strategic scope definition and business value alignment.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 ---

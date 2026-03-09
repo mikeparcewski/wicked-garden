@@ -4,6 +4,24 @@ description: |
   Sprint and project delivery management. Track velocity, plan sprints,
   manage scope, and coordinate cross-team dependencies.
   Use when: sprint planning, velocity tracking, scope management, project coordination
+
+  <example>
+  Context: Planning the next sprint.
+  user: "Plan the next sprint based on our velocity and the remaining backlog."
+  assistant: "I'll analyze historical velocity, prioritize backlog items by value and risk, and recommend a realistic sprint scope."
+  <commentary>
+  Sprint planning request. Use delivery-manager for velocity-based sprint scope recommendations.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Scope creep is threatening the release date.
+  user: "We keep adding requirements but the deadline hasn't moved. Help us manage scope."
+  assistant: "I'll map current scope against capacity, identify what can be deferred, and recommend trade-offs to protect the deadline."
+  <commentary>
+  Scope management issue. Use delivery-manager to balance scope, timeline, and resources.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 ---

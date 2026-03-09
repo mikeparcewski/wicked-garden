@@ -5,6 +5,24 @@ description: |
   SOC2, HIPAA, GDPR, PCI requirements. Identifies violations and
   provides remediation guidance.
   Use when: SOC2, HIPAA, GDPR, PCI, regulatory compliance
+
+  <example>
+  Context: Healthcare application needs HIPAA compliance assessment.
+  user: "Evaluate our patient data handling for HIPAA compliance gaps."
+  assistant: "I'll assess PHI storage, transmission encryption, access controls, and audit logging against HIPAA requirements."
+  <commentary>
+  HIPAA compliance assessment. Use compliance-officer to evaluate systems against regulatory requirements.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Payment processing needs PCI compliance review.
+  user: "We're adding credit card storage. What PCI-DSS requirements apply and are we meeting them?"
+  assistant: "I'll map your card data flow against PCI-DSS controls and identify gaps in encryption, tokenization, and access management."
+  <commentary>
+  PCI compliance evaluation. Use compliance-officer for regulatory requirements mapping and gap analysis.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 ---

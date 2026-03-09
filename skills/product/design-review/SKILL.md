@@ -69,7 +69,7 @@ wicked-search "[0-9]+px" --type css
 | Components | {✓⚠✗} | {brief note} |
 | Responsive | {✓⚠✗} | {brief note} |
 
-**Scoring guide**: See [refs/scoring-guide.md](refs/scoring-guide.md)
+**Scoring guide**: See [refs/scoring-guide-methodology.md](refs/scoring-guide-methodology.md) and [refs/scoring-guide-examples.md](refs/scoring-guide-examples.md)
 
 ## Common Issues
 
@@ -113,7 +113,7 @@ wicked-search "[0-9]+px" --type css
 2. {Design system improvement}
 ```
 
-**Full report template**: See [refs/report-template.md](refs/report-template.md)
+**Full report template**: See [refs/report-template-findings.md](refs/report-template-findings.md) and [refs/report-template-actions.md](refs/report-template-actions.md)
 
 ## Design System Checklist
 
@@ -180,9 +180,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
 - [review-criteria-visual.md](refs/review-criteria-visual.md) - Visual consistency
 - [review-criteria-components.md](refs/review-criteria-components.md) - Components and responsive
 - [review-criteria-accessibility.md](refs/review-criteria-accessibility.md) - Accessibility and scoring
-- [scoring-guide.md](refs/scoring-guide.md) - Scoring methodology
+- [scoring-guide-methodology.md](refs/scoring-guide-methodology.md) - Scoring methodology
+- [scoring-guide-examples.md](refs/scoring-guide-examples.md) - Scoring examples and application
 - Common issues: [color](refs/common-issues-color-issues.md), [component](refs/common-issues-component-issues.md), [animation](refs/common-issues-animation-issues.md)
-- [report-template.md](refs/report-template.md) - Report format
+- [report-template-findings.md](refs/report-template-findings.md) - Report findings template
+- [report-template-actions.md](refs/report-template-actions.md) - Report actions and tracking
 - Design systems: [tokens](refs/design-systems-tokens.md), [components](refs/design-systems-components.md), [governance](refs/design-systems-governance.md)
 - Quick wins: [top 10](refs/quick-wins-top-10.md), [workflow](refs/quick-wins-workflow.md)
 - Responsive: [mobile-first](refs/responsive-guide-mobile-first-philosophy.md), [typography](refs/responsive-guide-responsive-typography.md), [tables](refs/responsive-guide-responsive-tables.md)

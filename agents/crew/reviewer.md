@@ -2,6 +2,26 @@
 name: reviewer
 description: |
   Perform basic code review and validation.
+
+  Use this agent for general code review when no domain-specific specialist is available.
+
+  <example>
+  Context: Implementation is complete and needs a sanity check.
+  user: "Review the changes in the last 3 commits for obvious issues."
+  assistant: "I'll check the implementation against the design, validate test coverage, and flag concerns."
+  <commentary>
+  General review needed. Use reviewer as a fallback when specialist reviewers aren't matched.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Quick validation before merging a small change.
+  user: "Does this config change look correct? I updated the retry limits."
+  assistant: "I'll verify the config syntax, check for unintended side effects, and validate against requirements."
+  <commentary>
+  Quick validation of a small change. Use reviewer for basic correctness checks.
+  </commentary>
+  </example>
 tools: [Read, Glob, Grep, Bash]
 model: sonnet
 color: yellow

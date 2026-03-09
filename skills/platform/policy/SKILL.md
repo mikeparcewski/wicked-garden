@@ -87,7 +87,7 @@ Find missing:
 - Insufficient documentation
 - Inadequate testing
 
-See [refs/checklists.md](refs/checklists.md) for implementation checklists and gap analysis templates.
+See [refs/checklists-gdpr-hipaa.md](refs/checklists-gdpr-hipaa.md), [refs/checklists-soc2-pci-impl.md](refs/checklists-soc2-pci-impl.md), and [refs/checklists-gap-analysis.md](refs/checklists-gap-analysis.md) for implementation checklists and gap analysis templates.
 
 ### 6. Provide Guidance
 

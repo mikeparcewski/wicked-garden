@@ -4,6 +4,24 @@ description: |
   Evaluate business impact and ROI for technical investments. Assess strategic alignment,
   quantify costs and benefits, calculate payback periods, and provide investment recommendations.
   Use when: ROI, business case, strategic alignment, investment decisions
+
+  <example>
+  Context: Team wants to justify a major technical investment.
+  user: "Build the business case for migrating to a microservices architecture."
+  assistant: "I'll quantify the costs, estimate ROI over 3 years, assess strategic alignment, and calculate the payback period."
+  <commentary>
+  Business case for technical investment. Use business-strategist for ROI analysis and strategic evaluation.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Choosing between two competing initiatives.
+  user: "Should we invest in platform reliability or new feature development this quarter?"
+  assistant: "I'll compare the business impact, risk profiles, and strategic alignment of each option to recommend the better investment."
+  <commentary>
+  Investment prioritization. Use business-strategist for data-driven investment recommendations.
+  </commentary>
+  </example>
 model: sonnet
 color: blue
 ---

@@ -3,6 +3,25 @@ name: council
 description: |
   Runs structured multi-model council evaluations using external LLM CLIs.
   Each model responds independently to a fixed question scaffold, then Claude synthesizes.
+  Use when: multi-model evaluation, council vote, independent perspectives, decision validation
+
+  <example>
+  Context: High-stakes architecture decision needs diverse perspectives.
+  user: "Run a council evaluation on whether to use event sourcing vs. CRUD for our order system."
+  assistant: "I'll pose the question to multiple models independently, collect their evaluations, and synthesize a verdict."
+  <commentary>
+  Multi-model council for decision validation. Use council for independent perspectives on important choices.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Team wants to validate a design approach with AI perspectives.
+  user: "Get council feedback on our API versioning strategy before we commit."
+  assistant: "I'll run the council with a structured question scaffold, gather independent model responses, and synthesize recommendations."
+  <commentary>
+  Design validation via council. Use council for structured multi-model evaluation before committing to decisions.
+  </commentary>
+  </example>
 model: sonnet
 color: yellow
 ---

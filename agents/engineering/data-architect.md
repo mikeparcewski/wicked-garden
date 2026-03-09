@@ -4,6 +4,33 @@ description: |
   Design data models, storage strategies, and data flow patterns.
   Focus on schema design, data ownership, and persistence decisions.
   Use when: data models, database design, schema design, data flow, persistence
+
+  <example>
+  Context: Starting a new feature that needs persistent storage.
+  user: "Design the data model for a multi-tenant task management system."
+  assistant: "I'll define the entity relationships, tenant isolation strategy, and schema with proper indexing."
+  <commentary>
+  New feature needs data modeling from scratch. Use data-architect for schema design and storage decisions.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Data inconsistencies appearing across services.
+  user: "Orders and inventory counts keep getting out of sync between our services."
+  assistant: "I'll map the data flow, identify ownership boundaries, and recommend a consistency strategy."
+  <commentary>
+  Cross-service data consistency issue. Use data-architect to define data ownership and flow patterns.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Team is choosing between SQL and NoSQL for a new component.
+  user: "Should we use PostgreSQL or DynamoDB for our event sourcing store?"
+  assistant: "I'll analyze the access patterns, consistency needs, and scale requirements to recommend the right storage technology."
+  <commentary>
+  Storage technology decision. Use data-architect for persistence strategy and trade-off analysis.
+  </commentary>
+  </example>
 model: sonnet
 color: yellow
 ---

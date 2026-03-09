@@ -4,6 +4,24 @@ description: |
   Pattern recognition, anti-pattern detection, refactoring recommendations,
   design pattern application, and code quality for agentic systems.
   Use when: code review, refactoring, patterns, anti-patterns, design quality
+
+  <example>
+  Context: Agentic codebase growing complex and needs design review.
+  user: "Our agent orchestration code is getting tangled. Identify anti-patterns and recommend fixes."
+  assistant: "I'll analyze the agent topology, identify coupling issues and anti-patterns, and recommend design pattern improvements."
+  <commentary>
+  Agentic code quality review. Use pattern-advisor for pattern recognition and refactoring guidance.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Building a new multi-agent system and want to follow best practices.
+  user: "What design patterns should we use for our agent-to-agent communication?"
+  assistant: "I'll assess your requirements and recommend patterns like message passing, shared state, or event-driven coordination."
+  <commentary>
+  Agentic design pattern selection. Use pattern-advisor for design pattern guidance in agent systems.
+  </commentary>
+  </example>
 model: sonnet
 color: magenta
 tools:

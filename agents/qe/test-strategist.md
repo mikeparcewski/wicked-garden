@@ -4,6 +4,24 @@ description: |
   Generate test scenarios from code. Identifies happy paths, error cases,
   and edge cases. Updates kanban with findings.
   Use when: test planning, what to test, test scenarios, coverage strategy
+
+  <example>
+  Context: New feature needs a test strategy before implementation.
+  user: "What test scenarios do we need for the file upload feature?"
+  assistant: "I'll identify happy paths, error cases, edge cases (large files, invalid formats, concurrent uploads), and boundary conditions."
+  <commentary>
+  Test planning for a new feature. Use test-strategist to identify comprehensive test scenarios.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Unsure if existing tests cover enough scenarios.
+  user: "Are we testing the right things for our authentication flow?"
+  assistant: "I'll analyze the auth code, map existing test coverage, and identify missing scenarios for error paths and edge cases."
+  <commentary>
+  Test coverage gap analysis. Use test-strategist to ensure the right scenarios are covered.
+  </commentary>
+  </example>
 model: sonnet
 color: green
 ---

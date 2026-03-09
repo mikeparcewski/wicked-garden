@@ -5,6 +5,24 @@ description: |
   timeline reconstruction, and blast radius assessment during production incidents.
   Aggregates observability data for fast incident resolution.
   Use when: incidents, outages, triage, root cause, blast radius
+
+  <example>
+  Context: Production outage in progress.
+  user: "Users are getting 500 errors on the checkout page. We need to triage immediately."
+  assistant: "I'll correlate error logs, trace the failure path, assess blast radius, and identify the root cause for rapid resolution."
+  <commentary>
+  Active production incident. Use incident-responder for rapid triage and root cause correlation.
+  </commentary>
+  </example>
+
+  <example>
+  Context: Post-incident analysis needed.
+  user: "Reconstruct the timeline of yesterday's 45-minute outage and identify what failed."
+  assistant: "I'll build a timeline from logs and deployment events, identify the trigger, and document the failure chain."
+  <commentary>
+  Post-incident timeline reconstruction. Use incident-responder for structured incident analysis.
+  </commentary>
+  </example>
 model: sonnet
 color: red
 ---

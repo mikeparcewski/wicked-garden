@@ -63,7 +63,7 @@ design/
 
 See [ADR Template](refs/adr-template.md) for decision records.
 
-See [Architecture Template](refs/architecture-template.md) for full structure.
+See [Architecture Template - Design](refs/architecture-template-design.md) and [Architecture Template - Deployment](refs/architecture-template-deployment.md) for full structure.
 
 ## Integration
 
@@ -137,7 +137,7 @@ Producers → Bus → Consumers
 ```
 **Use**: Async workflows, loose coupling
 
-See [Pattern Catalog](refs/patterns.md) for detailed examples.
+See [Structural Patterns](refs/patterns-structural.md) and [Advanced Patterns](refs/patterns-advanced.md) for detailed examples.
 
 ## Events
 
@@ -156,8 +156,10 @@ See [Pattern Catalog](refs/patterns.md) for detailed examples.
 ## Reference Materials
 
 - [ADR Template](refs/adr-template.md)
-- [Architecture Document Template](refs/architecture-template.md)
-- [Pattern Catalog](refs/patterns.md)
+- [Architecture Template - Design](refs/architecture-template-design.md)
+- [Architecture Template - Deployment](refs/architecture-template-deployment.md)
+- [Structural Patterns](refs/patterns-structural.md)
+- [Advanced Patterns](refs/patterns-advanced.md)
 - Example ADRs:
   - [E-Commerce & Analytics](refs/examples-ecommerce-analytics.md)
   - [SaaS & Trading](refs/examples-saas-trading.md)

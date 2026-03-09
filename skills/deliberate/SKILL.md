@@ -1,20 +1,13 @@
 ---
-name: wicked-garden:deliberate
-description: >
+name: deliberate
+description: |
   Critical thinking framework applied before doing work. Challenges assumptions,
   reframes problems, identifies hidden opportunities, and validates whether the stated
   ask is the right ask. A way of approaching work, not a specialist discipline.
-triggers:
-  - issue resolution
-  - before implementation
-  - requirement review
-  - problem reframing
-  - rethink approach
-tags:
-  - critical-thinking
-  - problem-framing
-  - approach
-tier: 2
+
+  Use when: "rethink this approach", "is this the right problem", "challenge assumptions",
+  "reframe the problem", "before implementation", "issue triage", "deliberate on this",
+  "should we even do this", "root cause analysis", "5 whys"
 ---
 
 # Deliberate

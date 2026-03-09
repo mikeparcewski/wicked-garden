@@ -166,15 +166,8 @@ Average Score:   [ ]
 - Ignoring user feedback
 - No continuous improvement culture
 
-## When to Use
-
-Trigger phrases indicating you need this skill:
-- "Is my agentic system production-ready?"
-- "What's missing before we can scale?"
-- "How mature is our agentic system?"
-- "What should we build next?"
-- "Are we ready to launch?"
-
 ## References
 
-- `refs/assessment-rubric.md` - Detailed scoring rubric, must-have checklists, exit criteria, and progression guidance for each dimension and level
+- `refs/assessment-rubric-dimensions.md` - Scoring rubric for dimensions 1-4 (Reliability, Observability, Safety, Testing) with scoring template and prioritization
+- `refs/assessment-rubric-dimensions5-8.md` - Scoring rubric for dimensions 5-8 (Scalability, Cost, Development Velocity, Documentation) with example assessment
+- `refs/assessment-checklists-progression.md` - Must-have checklists, exit criteria, and progression guidance by level
