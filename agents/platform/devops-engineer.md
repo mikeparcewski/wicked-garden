@@ -10,18 +10,7 @@ description: |
   Context: Team needs a CI/CD pipeline for a new service.
   user: "Set up GitHub Actions for our new Python service — lint, test, build, deploy to staging."
   assistant: "I'll create the workflow with caching, parallel test jobs, and conditional deployment to staging on main branch."
-  <commentary>
-  New pipeline setup. Use devops-engineer for CI/CD design and GitHub Actions configuration.
-  </commentary>
-  </example>
-
-  <example>
-  Context: CI pipeline is slow and blocking developer productivity.
-  user: "Our CI takes 25 minutes. Can we get it under 10?"
-  assistant: "I'll analyze the pipeline stages, identify parallelization opportunities, add caching, and optimize the test matrix."
-  <commentary>
-  Pipeline optimization request. Use devops-engineer for CI/CD performance improvements.
-  </commentary>
+  <commentary>Use devops-engineer for CI/CD pipeline design, optimization, and deployment automation.</commentary>
   </example>
 model: sonnet
 color: blue

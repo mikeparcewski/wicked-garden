@@ -9,18 +9,7 @@ description: |
   Context: Building a data pipeline for a new data source.
   user: "Design an ETL pipeline to ingest events from our Kafka topics into the data warehouse."
   assistant: "I'll design the pipeline with schema validation, deduplication, error handling, and incremental load patterns."
-  <commentary>
-  Pipeline design. Use data-engineer for ETL pipeline architecture with data quality built in.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Data quality issues affecting downstream reports.
-  user: "Our reports show duplicate records and null values. Assess the pipeline data quality."
-  assistant: "I'll profile the data at each pipeline stage, identify where quality degrades, and add validation checks."
-  <commentary>
-  Data quality investigation. Use data-engineer to diagnose and fix pipeline quality issues.
-  </commentary>
+  <commentary>Use data-engineer for ETL pipeline design, data quality assessment, and schema validation.</commentary>
   </example>
 model: sonnet
 color: blue

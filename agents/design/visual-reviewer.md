@@ -9,18 +9,7 @@ description: |
   Context: New page needs visual consistency review before launch.
   user: "Review the new pricing page for design system adherence — spacing, typography, and color."
   assistant: "I'll check every element against design tokens, verify spacing scale usage, and flag any visual inconsistencies."
-  <commentary>
-  Visual design review. Use visual-reviewer for design system compliance and visual consistency audits.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Design system recently updated and implementations may have drifted.
-  user: "We updated our color palette. Audit the codebase for old color values."
-  assistant: "I'll scan CSS and component files for deprecated color tokens and identify all instances needing updates."
-  <commentary>
-  Design token migration audit. Use visual-reviewer to find and fix design system drift.
-  </commentary>
+  <commentary>Use visual-reviewer for design system compliance, visual consistency, and token migration audits.</commentary>
   </example>
 subagent_type: wicked-garden:design:visual-reviewer
 model: sonnet

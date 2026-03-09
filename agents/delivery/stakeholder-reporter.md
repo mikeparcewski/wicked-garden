@@ -10,18 +10,7 @@ description: |
   Context: Steering committee meeting needs a status report.
   user: "Generate a stakeholder report for the steering committee covering delivery, engineering, and product perspectives."
   assistant: "I'll produce a multi-perspective report with delivery metrics, technical health, and product progress tailored to executive audience."
-  <commentary>
-  Executive status report. Use stakeholder-reporter for audience-appropriate multi-perspective reporting.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Different stakeholders need different views of the same data.
-  user: "The CTO wants a technical deep-dive and the VP Product wants a feature status. Same project, different reports."
-  assistant: "I'll generate separate reports: engineering-focused for the CTO and product-focused for the VP, both from the same delivery data."
-  <commentary>
-  Multi-audience reporting. Use stakeholder-reporter to tailor project data to different perspectives.
-  </commentary>
+  <commentary>Use stakeholder-reporter for audience-appropriate, multi-perspective status reports.</commentary>
   </example>
 model: sonnet
 color: magenta

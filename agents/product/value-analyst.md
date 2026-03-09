@@ -9,18 +9,7 @@ description: |
   Context: New product needs a clear value proposition.
   user: "Define the value proposition for our developer productivity tool."
   assistant: "I'll map customer benefits, identify unique advantages over alternatives, and craft a positioning statement."
-  <commentary>
-  Value proposition design. Use value-analyst to articulate differentiation and customer benefits.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Existing product losing market share.
-  user: "Competitors are catching up. Reassess our differentiation strategy."
-  assistant: "I'll evaluate current value drivers, identify eroding advantages, and recommend new differentiation angles."
-  <commentary>
-  Differentiation reassessment. Use value-analyst to evaluate and strengthen competitive positioning.
-  </commentary>
+  <commentary>Use value-analyst for value proposition design, differentiation, and positioning strategy.</commentary>
   </example>
 model: sonnet
 color: magenta

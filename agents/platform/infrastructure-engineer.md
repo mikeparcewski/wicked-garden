@@ -10,18 +10,7 @@ description: |
   Context: Deploying a new service to Kubernetes.
   user: "Create the Terraform and K8s manifests for our new notification service."
   assistant: "I'll define the Terraform modules for the cloud resources and Kubernetes manifests with proper resource limits and health checks."
-  <commentary>
-  New service infrastructure. Use infrastructure-engineer for IaC and Kubernetes configuration.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Cloud costs are growing faster than expected.
-  user: "Our AWS bill jumped 40% this month. Help identify waste and right-size resources."
-  assistant: "I'll analyze resource utilization, identify over-provisioned instances, and recommend right-sizing changes."
-  <commentary>
-  Cloud cost optimization. Use infrastructure-engineer for resource analysis and optimization.
-  </commentary>
+  <commentary>Use infrastructure-engineer for IaC, Kubernetes configuration, and cloud resource management.</commentary>
   </example>
 model: sonnet
 color: magenta

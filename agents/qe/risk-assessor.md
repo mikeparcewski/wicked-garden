@@ -9,18 +9,7 @@ description: |
   Context: New architecture needs risk assessment before implementation.
   user: "Assess the risks of migrating from REST to gRPC for our internal services."
   assistant: "I'll identify failure modes, assess security/reliability/operational risks, and produce a risk matrix with mitigations."
-  <commentary>
-  Architecture change risk assessment. Use risk-assessor to identify and score risks before committing.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Upcoming release has changes to critical paths.
-  user: "What are the risk areas in the changes going into the v3.0 release?"
-  assistant: "I'll analyze the changed code for failure modes, identify high-impact risk areas, and recommend targeted testing."
-  <commentary>
-  Release risk assessment. Use risk-assessor to prioritize testing and mitigation for high-risk changes.
-  </commentary>
+  <commentary>Use risk-assessor to identify failure modes, score risks, and recommend mitigations.</commentary>
   </example>
 model: sonnet
 color: red

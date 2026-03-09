@@ -9,18 +9,7 @@ description: |
   Context: Design document ready for testability assessment.
   user: "Review the notification service design for testability before we start building."
   assistant: "I'll check component isolation, dependency injection readiness, and boundary clarity to flag anything hard to test."
-  <commentary>
-  Pre-implementation testability review. Use testability-reviewer to catch design issues that make testing difficult.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Existing code is hard to test and needs assessment.
-  user: "Our payment module has no dependency injection. How testable is the current design?"
-  assistant: "I'll assess the coupling, identify hard-to-mock dependencies, and recommend refactoring for better testability."
-  <commentary>
-  Testability assessment of existing code. Use testability-reviewer to identify and fix design barriers to testing.
-  </commentary>
+  <commentary>Use testability-reviewer to catch design issues that make testing difficult.</commentary>
   </example>
 model: sonnet
 color: cyan

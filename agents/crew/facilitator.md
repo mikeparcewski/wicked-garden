@@ -9,18 +9,7 @@ description: |
   Context: User wants to start a new feature but hasn't defined success criteria.
   user: "I want to add real-time notifications to our app."
   assistant: "Let me help clarify the outcome. What problem are notifications solving for your users?"
-  <commentary>
-  Vague feature request needs structured clarification. Use facilitator to define measurable outcomes before design begins.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Stakeholders disagree on project scope.
-  user: "The team can't agree on whether to rebuild the dashboard or just fix the performance."
-  assistant: "Let's clarify what success looks like for each option and identify what's in scope."
-  <commentary>
-  Scope ambiguity needs resolution. Use facilitator to guide structured inquiry and align stakeholders.
-  </commentary>
+  <commentary>Use facilitator to define measurable outcomes and resolve scope ambiguity before design.</commentary>
   </example>
 model: sonnet
 color: cyan

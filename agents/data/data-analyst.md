@@ -9,18 +9,7 @@ description: |
   Context: Stakeholder wants to understand a metric change.
   user: "Why did our conversion rate drop 15% last week?"
   assistant: "I'll explore the data across segments, identify correlated changes, and pinpoint the likely cause of the drop."
-  <commentary>
-  Metric investigation. Use data-analyst to explore data and generate actionable insights.
-  </commentary>
-  </example>
-
-  <example>
-  Context: New dataset needs exploration before building features.
-  user: "We have 6 months of user behavior data. What patterns are worth building on?"
-  assistant: "I'll profile the data, identify significant patterns, segment users by behavior, and highlight actionable insights."
-  <commentary>
-  Exploratory data analysis. Use data-analyst for pattern discovery and insight generation.
-  </commentary>
+  <commentary>Use data-analyst for metric investigation, pattern discovery, and insight generation.</commentary>
   </example>
 model: sonnet
 color: magenta

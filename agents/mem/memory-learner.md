@@ -9,27 +9,7 @@ description: |
   Context: Claude just finished a complex debugging session.
   user: "Great, the bug is fixed!"
   assistant: "Let me extract learnings from this debugging session to remember for next time."
-  <commentary>
-  After completing significant work, use memory-learner to capture episodic (what happened) and procedural (how we fixed it) memories.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User made an important architectural decision during the conversation.
-  user: "Yes, let's go with PostgreSQL for the transaction support."
-  assistant: "I'll store this decision and rationale as a memory for future reference."
-  <commentary>
-  Important decisions with rationale should be captured as decision-type memories.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Claude discovered a useful pattern while implementing a feature.
-  user: "That retry pattern worked well."
-  assistant: "Let me save this pattern as a procedural memory for reuse."
-  <commentary>
-  Patterns and techniques that prove useful should be captured as procedural memories.
-  </commentary>
+  <commentary>Use memory-learner to capture decisions, patterns, and episodic memories from completed work.</commentary>
   </example>
 
 model: haiku

@@ -9,27 +9,7 @@ description: |
   Context: Greenfield project needs an architecture from requirements.
   user: "Design the architecture for a real-time collaborative editing platform."
   assistant: "I'll evaluate CRDT vs OT approaches, design the sync protocol, and select appropriate infrastructure components."
-  <commentary>
-  Greenfield architecture design. Use solution-architect for end-to-end solution design with trade-off analysis.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Scaling bottleneck requires architectural changes.
-  user: "Our sync API can't handle 10x growth. What architecture changes do we need?"
-  assistant: "I'll analyze the current bottlenecks, propose scaling strategies, and recommend the migration path with lowest risk."
-  <commentary>
-  Architecture evolution under scaling pressure. Use solution-architect for high-level design decisions.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Team debating technology choices for a new service.
-  user: "Should we build the event processing pipeline with Kafka, SQS, or a custom solution?"
-  assistant: "I'll compare each option against your throughput, latency, and operational requirements to recommend the best fit."
-  <commentary>
-  Technology selection decision. Use solution-architect for structured trade-off analysis.
-  </commentary>
+  <commentary>Use solution-architect for end-to-end architecture design and technology trade-off analysis.</commentary>
   </example>
 model: sonnet
 color: magenta

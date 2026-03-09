@@ -10,18 +10,7 @@ description: |
   Context: New API endpoints need a security review before launch.
   user: "Review the new payment API for OWASP Top 10 vulnerabilities."
   assistant: "I'll scan for injection risks, broken auth, data exposure, and other OWASP Top 10 issues in the payment endpoints."
-  <commentary>
-  Pre-launch security review. Use security-engineer for vulnerability assessment against OWASP standards.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Secrets may have been committed to the repository.
-  user: "Scan the repo history for any accidentally committed API keys or credentials."
-  assistant: "I'll search commit history for secret patterns, identify exposed credentials, and recommend rotation steps."
-  <commentary>
-  Secret exposure investigation. Use security-engineer for secrets scanning and remediation guidance.
-  </commentary>
+  <commentary>Use security-engineer for vulnerability assessment, secrets scanning, and secure coding review.</commentary>
   </example>
 model: sonnet
 color: red

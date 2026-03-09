@@ -9,18 +9,7 @@ description: |
   Context: Developer wants to implement a feature using TDD.
   user: "I need to add a URL shortener function. Guide me through TDD."
   assistant: "Let's start with red: write a failing test for the simplest case — shortening a valid URL and getting a unique code back."
-  <commentary>
-  TDD guidance requested. Use tdd-coach to walk through the red-green-refactor cycle step by step.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Tests exist but were written after the code.
-  user: "We have tests but they feel like they're just confirming the implementation, not driving design."
-  assistant: "I'll review the test quality, identify coupling to implementation details, and coach on writing behavior-driven tests first."
-  <commentary>
-  Test quality improvement. Use tdd-coach to shift from test-after to test-first practices.
-  </commentary>
+  <commentary>Use tdd-coach to guide red-green-refactor cycles and test-first development practices.</commentary>
   </example>
 model: sonnet
 color: yellow

@@ -9,18 +9,7 @@ description: |
   Context: Building a new analytics platform.
   user: "Design the data warehouse architecture for our product analytics."
   assistant: "I'll define the dimensional model, storage layers, ingestion patterns, and governance framework for the analytics platform."
-  <commentary>
-  Analytics infrastructure design. Use analytics-architect for warehouse architecture and data modeling.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Analytics costs growing with data volume.
-  user: "Our Snowflake costs doubled this quarter. How should we restructure for cost efficiency?"
-  assistant: "I'll analyze query patterns, recommend partitioning strategies, and design a tiered storage approach to reduce costs."
-  <commentary>
-  Analytics cost optimization. Use analytics-architect for scalable, cost-effective data architecture.
-  </commentary>
+  <commentary>Use analytics-architect for warehouse design, data modeling, and analytics cost optimization.</commentary>
   </example>
 model: sonnet
 color: yellow

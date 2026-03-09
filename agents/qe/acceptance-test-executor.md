@@ -10,18 +10,7 @@ description: |
   Context: Test plan is ready and needs to be executed step by step.
   user: "Execute the acceptance test plan for the file upload feature."
   assistant: "I'll follow each step in the test plan, capture stdout/stderr, exit codes, and file state as evidence artifacts."
-  <commentary>
-  Test plan execution needed. Use acceptance-test-executor to run steps and collect evidence without judging results.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Regression test suite needs a fresh execution run.
-  user: "Re-run the acceptance tests for the auth module after the refactor."
-  assistant: "I'll execute each test step, capture all specified evidence artifacts, and produce an evidence report for review."
-  <commentary>
-  Post-refactor verification. Use acceptance-test-executor for mechanical step execution and evidence capture.
-  </commentary>
+  <commentary>Use acceptance-test-executor for mechanical step execution and evidence capture without judging results.</commentary>
   </example>
 model: sonnet
 color: yellow

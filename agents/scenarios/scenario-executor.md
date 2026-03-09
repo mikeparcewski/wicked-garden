@@ -11,18 +11,7 @@ description: |
   Context: Running acceptance tests for a wicked-garden domain.
   user: "Execute the crew domain scenario to validate the workflow end-to-end."
   assistant: "I'll read the scenario file, discover required tools, execute each step via Bash or Skill tool, and report pass/fail results."
-  <commentary>
-  Scenario execution with slash commands. Use scenario-executor for full-capability scenario testing.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Validating a new plugin feature works correctly.
-  user: "Run the mem domain scenarios to verify memory store and recall work after the refactor."
-  assistant: "I'll execute each scenario step, capture results, and produce a structured pass/fail report."
-  <commentary>
-  Post-change validation. Use scenario-executor to run acceptance scenarios and verify functionality.
-  </commentary>
+  <commentary>Use scenario-executor for full-capability scenario testing including slash command execution.</commentary>
   </example>
 model: sonnet
 color: green

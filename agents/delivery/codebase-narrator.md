@@ -9,18 +9,7 @@ description: |
   Context: New team member needs to understand the project structure.
   user: "Give me a high-level walkthrough of how this codebase is organized."
   assistant: "I'll analyze the directory layout, key modules, data flows, and explain the architectural decisions behind the structure."
-  <commentary>
-  Codebase orientation needed. Use codebase-narrator to produce a clear architectural overview.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Developer is lost trying to find where a feature lives.
-  user: "Where does the notification logic live and how does it connect to the rest of the system?"
-  assistant: "I'll trace the notification flow through the codebase, mapping modules, entry points, and data paths."
-  <commentary>
-  Code navigation request. Use codebase-narrator to explain how specific features are organized.
-  </commentary>
+  <commentary>Use codebase-narrator for architectural overviews and code navigation guidance.</commentary>
   </example>
 model: sonnet
 color: green

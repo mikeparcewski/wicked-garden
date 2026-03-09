@@ -9,27 +9,7 @@ description: |
   Context: Monolithic codebase is becoming hard to maintain.
   user: "Our 50k-line app has no clear module boundaries. Help us decompose it."
   assistant: "I'll analyze coupling patterns, identify natural boundaries, and propose a module structure with clear interfaces."
-  <commentary>
-  Codebase needs decomposition into well-bounded modules. Use system-designer for component boundary analysis.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Two teams need to work on the same system without stepping on each other.
-  user: "Define the interface contract between the search service and the indexing pipeline."
-  assistant: "I'll specify the API contract, data formats, error handling, and versioning strategy for the boundary."
-  <commentary>
-  Teams need clear interface contracts. Use system-designer to define component interactions and boundaries.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Adding a new subsystem to an existing architecture.
-  user: "We're adding a notification system. Where should it live and how should it interact with existing components?"
-  assistant: "I'll map the dependency graph, identify integration points, and design the notification component boundaries."
-  <commentary>
-  New component needs to fit into existing architecture. Use system-designer for placement and interface design.
-  </commentary>
+  <commentary>Use system-designer for component boundary analysis, module decomposition, and interface contracts.</commentary>
   </example>
 model: sonnet
 color: blue

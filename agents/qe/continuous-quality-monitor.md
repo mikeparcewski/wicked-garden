@@ -9,18 +9,7 @@ description: |
   Context: Active development and quality signals need tracking.
   user: "Monitor quality signals while we build the new API module."
   assistant: "I'll run lint checks, track complexity metrics, monitor test coverage, and flag any quality regressions as you code."
-  <commentary>
-  Build-phase quality monitoring. Use continuous-quality-monitor to track quality signals during active development.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Code complexity is creeping up in a module.
-  user: "The utils module has been growing. Check if we're introducing maintainability problems."
-  assistant: "I'll analyze complexity metrics, identify hotspots, check test coverage gaps, and recommend refactoring targets."
-  <commentary>
-  Quality trend analysis. Use continuous-quality-monitor to assess complexity and coverage during the build phase.
-  </commentary>
+  <commentary>Use continuous-quality-monitor to track quality signals during active development.</commentary>
   </example>
 model: sonnet
 color: yellow

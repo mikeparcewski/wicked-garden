@@ -9,18 +9,7 @@ description: |
   Context: New feature needs a safe progressive rollout.
   user: "Plan a canary rollout for the new search algorithm — start with 5% of traffic."
   assistant: "I'll create a rollout plan with traffic stages, monitoring metrics, rollback criteria, and stakeholder communication schedule."
-  <commentary>
-  Progressive rollout planning. Use rollout-manager for safe, staged feature deployment.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Rollout is in progress and metrics need monitoring.
-  user: "We're at 25% rollout. Should we proceed to 50% or rollback?"
-  assistant: "I'll evaluate current metrics against rollback criteria, assess error rates, and recommend whether to advance or halt."
-  <commentary>
-  Rollout decision point. Use rollout-manager for data-driven go/no-go decisions during progressive rollouts.
-  </commentary>
+  <commentary>Use rollout-manager for progressive rollout planning and go/no-go decisions.</commentary>
   </example>
 model: sonnet
 color: yellow

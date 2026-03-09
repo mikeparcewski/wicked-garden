@@ -10,18 +10,7 @@ description: |
   Context: Choosing an agentic framework for a new project.
   user: "Compare LangGraph, CrewAI, and AutoGen for our multi-agent customer support system."
   assistant: "I'll research each framework's capabilities, compare against your requirements, and recommend the best fit with migration considerations."
-  <commentary>
-  Framework selection. Use framework-researcher for up-to-date comparison and selection guidance.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Current framework is limiting and considering migration.
-  user: "We're on LangChain v0.1 and hitting limitations. What are our migration options?"
-  assistant: "I'll research the latest framework versions, assess migration paths, and evaluate effort vs. benefit for each option."
-  <commentary>
-  Framework migration evaluation. Use framework-researcher for migration path analysis and ecosystem assessment.
-  </commentary>
+  <commentary>Use framework-researcher for framework comparison, selection, and migration path analysis.</commentary>
   </example>
 model: sonnet
 color: green

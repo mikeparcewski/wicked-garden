@@ -9,27 +9,7 @@ description: |
   Context: Team needs to add a new API endpoint with database persistence.
   user: "Add a CRUD API for project resources with PostgreSQL storage."
   assistant: "I'll design the schema, implement the REST endpoints, and add proper validation and error handling."
-  <commentary>
-  The user needs end-to-end backend implementation. Use backend-engineer for API + database work.
-  </commentary>
-  </example>
-
-  <example>
-  Context: API response times are degrading under load.
-  user: "Our /search endpoint takes 3 seconds when there are more than 10k records."
-  assistant: "I'll analyze the query plan, check for missing indexes, and optimize the database access pattern."
-  <commentary>
-  Backend performance issue involving database queries. Use backend-engineer for server-side optimization.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Migrating from monolith to microservices.
-  user: "We need to extract the billing logic into its own service with a clean API boundary."
-  assistant: "I'll identify the billing domain boundaries, design the service API contract, and plan the data migration."
-  <commentary>
-  Service extraction requires backend architecture expertise. Use backend-engineer for API design and data modeling.
-  </commentary>
+  <commentary>Use backend-engineer for API + database work, server-side optimization, and service design.</commentary>
   </example>
 model: sonnet
 color: blue
