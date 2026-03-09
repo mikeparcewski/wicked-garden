@@ -98,11 +98,10 @@ def _parse_single_specialist(spec_data: dict, personas_data: list,
             logger.error(f"Missing required field '{fld}' in {specialist_json}")
             return None
 
-    # Parse personas with validation
+    # Parse personas (optional in lean manifests)
     personas = []
     if not isinstance(personas_data, list):
-        logger.error(f"Invalid 'personas' format in {specialist_json}: must be array")
-        return None
+        personas_data = []
 
     for i, p in enumerate(personas_data):
         if not isinstance(p, dict):
@@ -457,9 +456,7 @@ def validate_specialist(specialist: Specialist) -> List[str]:
         if specialist.role not in ROLE_CATEGORIES and specialist.role not in all_role_values:
             issues.append(f"Unknown role: {specialist.role}")
 
-    # Check personas
-    if not specialist.personas:
-        issues.append("No personas defined")
+    # Check personas (optional in lean manifests)
     for i, persona in enumerate(specialist.personas):
         if not persona.name:
             issues.append(f"Persona {i}: missing name")

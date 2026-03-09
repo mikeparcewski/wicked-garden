@@ -59,9 +59,9 @@ SILENT_EVENTS: frozenset[str] = frozenset(["TaskCompleted"])
 
 REQUIRED_PLUGIN_FIELDS: tuple[str, ...] = ("name", "version", "description")
 
-REQUIRED_SPECIALIST_FIELDS: tuple[str, ...] = ("specialist", "personas", "enhances")
+REQUIRED_SPECIALIST_FIELDS: tuple[str, ...] = ("specialist", "enhances")
 # Multi-specialist format: top-level "specialists" array, each entry has these
-REQUIRED_MULTI_SPECIALIST_ENTRY_FIELDS: tuple[str, ...] = ("name", "role", "personas", "enhances")
+REQUIRED_MULTI_SPECIALIST_ENTRY_FIELDS: tuple[str, ...] = ("name", "role", "enhances")
 
 # Pattern for subagent_type references to wicked-* plugins
 # Matches: subagent_type="wicked-foo:agent-name"
@@ -310,18 +310,8 @@ def _check_single_specialist_entry(
             )
         )
 
-    # Validate personas is a non-empty list
-    if not isinstance(personas, list) or not personas:
-        violations.append(
-            make_violation(
-                plugin=plugin_name,
-                vtype="ghost_specialist",
-                severity="error",
-                message=f"{prefix}'personas' must be a non-empty list.",
-                file=rel_file,
-            )
-        )
-    else:
+    # Validate personas agent paths (if present — personas are optional in lean manifests)
+    if isinstance(personas, list) and personas:
         for persona in personas:
             if not isinstance(persona, dict):
                 continue
