@@ -1,5 +1,5 @@
 {
-  "description": "wicked-garden unified hooks — consolidates 10 plugin hook chains into 5 scripts",
+  "description": "wicked-garden unified hooks — consolidates 10 plugin hook chains into 7 scripts",
   "hooks": {
     "SessionStart": [
       {

@@ -14,14 +14,15 @@ Strategy:
 
 import asyncio
 import sys
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 # Add parent to path for adapter imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from router import IntentType, PromptAnalysis
+from adapter_registry import AdapterRegistry, timed_query, CACHE_BYPASS
 
 
 # Adapter selection rules by intent
@@ -43,35 +44,18 @@ class FastPathResult:
     sources_queried: list[str]
     sources_failed: list[str]
     latency_ms: int
+    adapter_timings: dict = field(default_factory=dict)
 
 
 class FastPathAssembler:
     """Pattern-based context assembly."""
 
     def __init__(self):
-        self.adapters = self._load_adapters()
-
-    def _load_adapters(self) -> dict:
-        """Load available adapters individually for graceful degradation."""
-        adapters = {}
-        adapter_modules = {
-            "domain": "domain_adapter",
-            "context7": "context7_adapter",
-            "tools": "startah_adapter",
-            "delegation": "delegation_adapter",
-        }
-        for name, module_name in adapter_modules.items():
-            try:
-                mod = __import__(f"adapters.{module_name}", fromlist=[module_name])
-                adapters[name] = mod
-            except ImportError as e:
-                print(f"smaht: adapter '{name}' unavailable: {e}", file=sys.stderr)
-        return adapters
+        self._registry = AdapterRegistry()
 
     async def assemble(self, prompt: str, analysis: PromptAnalysis,
                        predicted_intent: 'IntentType | None' = None) -> FastPathResult:
         """Assemble context using pattern-based rules."""
-        import time
         start_time = time.time()
 
         # Check session state for context-dependent prompts.
@@ -79,7 +63,7 @@ class FastPathAssembler:
         session_summary = self._get_session_summary(prompt)
 
         # Get adapters for this intent
-        adapter_names = list(ADAPTER_RULES.get(analysis.intent_type, ["search"]))
+        adapter_names = list(ADAPTER_RULES.get(analysis.intent_type, ["domain", "delegation"]))
 
         # If we have a predicted next intent, add bonus adapters (capped at 2)
         MAX_BONUS_ADAPTERS = 2
@@ -91,12 +75,18 @@ class FastPathAssembler:
                     adapter_names.append(b)
                     bonus_count += 1
 
+        # Within-call deduplication cache and timing accumulator (AC-1.1, AC-2.1)
+        _call_cache: dict[str, list] = {}
+        _timing_acc: dict[str, dict] = {}
+
         # Query adapters in parallel
+        adapters_for_call = self._registry.get(adapter_names)
         tasks = []
         queried = []
         for name in adapter_names:
-            if name in self.adapters:
-                tasks.append(self._query_adapter(name, prompt))
+            if name in adapters_for_call:
+                tasks.append(self._query_adapter(
+                    adapters_for_call[name], name, prompt, _call_cache, _timing_acc))
                 queried.append(name)
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -138,23 +128,25 @@ class FastPathAssembler:
             sources_queried=sources_queried,
             sources_failed=sources_failed,
             latency_ms=latency_ms,
+            adapter_timings=_timing_acc,
         )
 
-    async def _query_adapter(self, name: str, prompt: str, timeout: float = 0.5):
-        """Query a single adapter with timeout."""
-        adapter = self.adapters.get(name)
-        if not adapter:
-            return []
-
-        try:
-            return await asyncio.wait_for(
-                adapter.query(prompt),
-                timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            raise Exception(f"{name} adapter timeout")
-        except Exception as e:
-            raise Exception(f"{name} adapter failed: {e}")
+    async def _query_adapter(
+        self,
+        adapter,
+        name: str,
+        prompt: str,
+        call_cache: dict,
+        timing_acc: dict,
+        timeout: float = 0.5,
+    ) -> list:
+        """Query a single adapter via timed_query (handles cache, timing, bypass)."""
+        return await timed_query(
+            adapter, name, prompt, timeout,
+            timing_accumulator=timing_acc,
+            call_cache=call_cache,
+            cache_bypass=CACHE_BYPASS,
+        )
 
     def _format_briefing(
         self,

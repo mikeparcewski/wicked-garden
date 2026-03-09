@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.44.0] - 2026-03-09
+
+### Features
+- feat: unified adapter registry with within-call deduplication and timing metrics (#295)
+  - New `AdapterRegistry` class consolidates duplicated `_load_adapters()` from fast/slow path assemblers
+  - `timed_query` coroutine adds per-adapter timing, cache hit/miss tracking, and failure counting
+  - `CACHE_BYPASS` constant for adapters requiring always-fresh queries (mem adapter)
+  - Orchestrator metrics extended with `adapter_timings` for observability
+  - 52 new unit tests covering all acceptance criteria
+
+### Bug Fixes
+- fix: stale "search" fallback in ADAPTER_RULES replaced with valid adapter names
+
+### Chores
+- chore: fix marketplace.json persona count (48 → 54)
+- chore: fix hooks.json script count (5 → 7)
+- chore: close #294 (post_tool.py refactor — already well-structured) and #296 (specialist simplification — misdiagnosed problem)
+- chore: create #297 (audit orphaned agents) and #298 (clarify specialist.json role) as replacements
+
 ## [1.43.1] - 2026-03-08
 
 ### Chores
