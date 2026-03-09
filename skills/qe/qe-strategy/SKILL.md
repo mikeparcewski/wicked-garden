@@ -187,6 +187,6 @@ See [`refs/test-type-taxonomy.md`](refs/test-type-taxonomy.md) for full layer de
 - **wicked-crew**: Quality gates in delivery phases
 - **wicked-scenarios**: E2E scenario discovery and execution (optional)
 - **wicked-kanban**: Track QE findings as tasks
-- **wicked-product**: Requirements and UX expertise
-- **wicked-platform**: Deployment and release expertise
-- **wicked-engineering**: Architecture and code quality expertise
+- **product**: Requirements and UX expertise
+- **platform**: Deployment and release expertise
+- **engineering**: Architecture and code quality expertise

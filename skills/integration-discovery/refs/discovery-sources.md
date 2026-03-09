@@ -102,11 +102,11 @@ Stake level: medium — informing user of choice.
 
 | Family | Purpose | Example Skills |
 |--------|---------|----------------|
-| **wicked-engineering** | Engineering & architecture | senior-engineer, debugger |
-| **wicked-qe** | Quality engineering | test-strategist, tdd-coach |
-| **wicked-platform** | Security/compliance | security-engineer, privacy-expert |
-| **wicked-product** | Product management | requirements-analyst, product-manager |
-| **wicked-data** | Data engineering | data-engineer, ml-engineer |
+| **engineering** | Engineering & architecture | senior-engineer, debugger |
+| **qe** | Quality engineering | test-strategist, tdd-coach |
+| **platform** | Security/compliance | security-engineer, privacy-expert |
+| **product** | Product management | requirements-analyst, product-manager |
+| **data** | Data engineering | data-engineer, ml-engineer |
 | **wicked-crew** | Workflow orchestration | orchestrator, facilitator |
 
 ### Skill Discovery Pattern
@@ -117,9 +117,9 @@ Stake level: medium — informing user of choice.
 Task involves security review.
 
 Relevant skills:
-- wicked-platform (security-engineer, privacy-expert)
-- wicked-qe (test-strategist for security test scenarios)
-- wicked-engineering (senior-engineer for code quality)
+- platform (security-engineer, privacy-expert)
+- qe (test-strategist for security test scenarios)
+- engineering (senior-engineer for code quality)
 
 Recommendation: Use wicked-garden:platform:security-engineer as primary reviewer.
 ```

@@ -79,6 +79,6 @@ Display the UX analyst's output directly to the user.
 
 ## Integration
 
-- **wicked-design:mockup**: Request wireframes for designed flows
-- **wicked-design:review**: Visual review of the implemented flow
+- **design:mockup**: Request wireframes for designed flows
+- **design:review**: Visual review of the implemented flow
 - **wicked-kanban**: Track flow issues discovered during analysis

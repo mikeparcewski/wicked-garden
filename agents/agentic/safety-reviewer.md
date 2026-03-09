@@ -594,7 +594,7 @@ TaskUpdate(
 - Performance Analyst on efficient validation strategies
 ```
 
-## Integration with wicked-agentic Skills
+## Integration with agentic Skills
 
 - Use `/wicked-garden:agentic:trust-and-safety` for detailed safety patterns
 - Use `/wicked-garden:agentic:agentic-patterns` for secure design patterns

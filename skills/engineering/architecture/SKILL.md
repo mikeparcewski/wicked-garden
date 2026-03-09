@@ -73,7 +73,7 @@ Auto-engaged during design phase.
 
 Publishes: `[arch:design:completed:success]`
 
-### With wicked-qe
+### With qe
 
 Architecture informs test strategy:
 - Critical paths

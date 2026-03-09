@@ -175,7 +175,7 @@ Gracefully degrades to manual procedures when capabilities unavailable.
 ## Integration
 
 **With wicked-kanban**: Tracks rollout progress per stage
-**With wicked-qe**: Uses test scenarios for validation
+**With qe**: Uses test scenarios for validation
 **With wicked-mem**: Recalls past rollout learnings
 **With wicked-garden:delivery:analyze**: Uses experiment results for confidence
 

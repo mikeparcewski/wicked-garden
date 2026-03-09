@@ -47,7 +47,7 @@ Auto-detects exports from:
 ## Dependencies
 
 Requires:
-- **wicked-data**: Data sampling, schema detection, SQL queries
+- **data**: Data sampling, schema detection, SQL queries
 
 Optional:
 - **wicked-mem**: Memory storage for cross-session insights
@@ -55,7 +55,7 @@ Optional:
 ## Workflow
 
 1. **Pre-flight**: Validate dependencies and input file
-2. **Data Ingestion**: Load via wicked-data
+2. **Data Ingestion**: Load via data
 3. **Column Detection**: Auto-detect field meanings
 4. **Persona Selection**: Generate personas via utils skill
 5. **Analysis**: Run persona-specific queries

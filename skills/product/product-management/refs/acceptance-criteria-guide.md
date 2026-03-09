@@ -466,5 +466,5 @@ When reviewing acceptance criteria:
 ## Resources
 
 - **User Story Template**: `refs/user-story-template.md`
-- **Test Scenario Mapping**: See wicked-qe plugin
+- **Test Scenario Mapping**: See qe plugin
 - **Examples**: Real-world criteria in project history

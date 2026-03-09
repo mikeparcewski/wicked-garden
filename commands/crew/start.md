@@ -192,7 +192,7 @@ Store analysis via phase_manager update (persists via DomainStore):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
-  --data '{"signals_detected": ["security", "data"], "complexity_score": 4, "specialists_recommended": ["wicked-qe", "wicked-product"], "archetype_hints": {}}' \
+  --data '{"signals_detected": ["security", "data"], "complexity_score": 4, "specialists_recommended": ["qe", "product"], "archetype_hints": {}}' \
   --json
 ```
 
@@ -282,11 +282,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/specialist_discover
 ```
 
 This returns available specialist plugins and their roles:
-- **wicked-jam**: ideation (clarify phase)
-- **wicked-qe**: quality-engineering (all phases)
-- **wicked-product**: business-strategy (design, review)
-- **wicked-delivery**: project-management (reporting)
-- **wicked-platform**: devsecops (build phase)
+- **jam**: ideation (clarify phase)
+- **qe**: quality-engineering (all phases)
+- **product**: business-strategy (design, review)
+- **delivery**: project-management (reporting)
+- **platform**: devsecops (build phase)
 
 ### 7. Select Phase Plan
 
@@ -402,9 +402,9 @@ Example output (standard):
 ### Specialist Recommendations
 | Specialist | Role | Status |
 |------------|------|--------|
-| wicked-jam | ideation | ✅ Available |
-| wicked-qe | quality | ✅ Available |
-| wicked-product | review | ❌ Not installed |
+| jam | ideation | ✅ Available |
+| qe | quality | ✅ Available |
+| product | review | ❌ Not installed |
 
 ### Task Lifecycle
 - Staleness detection: 30 minutes
@@ -428,7 +428,7 @@ Example output (auto-finish — complexity <= 2):
 ### Specialist Recommendations
 | Specialist | Role | Status |
 |------------|------|--------|
-| wicked-qe | quality | ✅ Available |
+| qe | quality | ✅ Available |
 
 ### Task Lifecycle
 - Staleness detection: 30 minutes

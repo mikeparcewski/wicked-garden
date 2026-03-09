@@ -48,7 +48,7 @@ Router triggers **slow path** when:
 | Source | Plugin | Content |
 |--------|--------|---------|
 | mem | wicked-mem | Memories, decisions, learnings |
-| jam | wicked-jam | Brainstorm sessions, perspectives |
+| jam | jam | Brainstorm sessions, perspectives |
 | kanban | wicked-kanban | Tasks, artifacts, projects |
 | search | wicked-search | Code symbols, documentation |
 | crew | wicked-crew | Project phase, outcomes, constraints |

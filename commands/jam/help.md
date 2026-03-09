@@ -1,5 +1,5 @@
 ---
-description: Get help with the wicked-jam plugin
+description: Get help with the jam plugin
 ---
 
 # /wicked-garden:jam:help
@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-jam Help
+# jam Help
 
 AI-powered brainstorming with dynamic focus groups.
 

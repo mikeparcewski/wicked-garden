@@ -11,8 +11,8 @@ Annotated template for Wicked Garden plugin READMEs. Replace placeholders and re
 {What this plugin does differently, stated as a concrete outcome.}
 
 <!-- CONDITIONAL: Include only if core value requires multiple invocations to be visible.
-     Examples: wicked-jam (decision lifecycle), wicked-mem (memory building over sessions).
-     Omit for: wicked-engineering (one review = immediate value). -->
+     Examples: jam (decision lifecycle), mem (memory building over sessions).
+     Omit for: engineering (one review = immediate value). -->
 ## {Lifecycle Title — varies by plugin}
 
 {10-20 lines max. Show the compound value arc over time.

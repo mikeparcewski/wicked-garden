@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-platform Help
+# platform Help
 
 Platform engineering and DevSecOps — security, infrastructure, compliance, incident response, CI/CD, and system health.
 
@@ -76,7 +76,7 @@ Platform engineering and DevSecOps — security, infrastructure, compliance, inc
 ## Integration
 
 - **wicked-crew**: Specialist routing for security and platform phases
-- **wicked-engineering**: Architecture review with security lens
-- **wicked-qe**: Security test scenarios
-- **wicked-agentic**: Trust and safety audits for agent systems
+- **engineering**: Architecture review with security lens
+- **qe**: Security test scenarios
+- **agentic**: Trust and safety audits for agent systems
 ```

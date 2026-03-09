@@ -72,5 +72,5 @@ Six adapters query: mem, search, kanban, crew, jam, context7.
 - **wicked-search**: Code and document search adapter
 - **wicked-kanban**: Task context adapter
 - **wicked-crew**: Project phase adapter
-- **wicked-jam**: Brainstorming context adapter
+- **jam**: Brainstorming context adapter
 ```

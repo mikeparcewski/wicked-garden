@@ -72,9 +72,9 @@ Based on available plugins:
 
 | Plugin | Status | Used In |
 |--------|--------|---------|
-| wicked-jam | {available/not installed} | clarify |
+| jam | {available/not installed} | clarify |
 | wicked-search | {available/not installed} | design |
-| wicked-product | {available/not installed} | qe, review |
+| product | {available/not installed} | qe, review |
 | wicked-mem | {available/not installed} | all phases |
 | wicked-kanban | {available/not installed} | build |
 

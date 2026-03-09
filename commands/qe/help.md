@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-qe Help
+# qe Help
 
 Quality engineering — test planning, scenario generation, code review, acceptance testing, and test automation.
 
@@ -70,7 +70,7 @@ Quality engineering — test planning, scenario generation, code review, accepta
 ## Integration
 
 - **wicked-crew**: Specialist routing for test strategy and QE gate phases
-- **wicked-engineering**: Code review with quality lens
-- **wicked-product**: Acceptance criteria as test input
+- **engineering**: Code review with quality lens
+- **product**: Acceptance criteria as test input
 - **wicked-scenarios**: E2E test scenario execution
 ```

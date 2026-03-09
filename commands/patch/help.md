@@ -66,6 +66,6 @@ Structural code transformations — rename symbols, add/remove fields, and propa
 ## Integration
 
 - **wicked-search**: Symbol lookup and blast radius analysis
-- **wicked-engineering**: Architecture-aware refactoring
-- **wicked-qe**: Test updates after structural changes
+- **engineering**: Architecture-aware refactoring
+- **qe**: Test updates after structural changes
 ```

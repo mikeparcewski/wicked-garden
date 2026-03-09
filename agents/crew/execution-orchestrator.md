@@ -32,12 +32,12 @@ Or check phase directories for scenarios and risks identified earlier.
 
 ### 2. Code Review
 
-**With wicked-product** (preferred):
+**With product** (preferred):
 ```
 /wicked-garden:engineering:review {target}
 ```
 
-**Without wicked-product** (fallback):
+**Without product** (fallback):
 Read code and assess:
 - Does implementation match design?
 - Are there obvious quality issues?

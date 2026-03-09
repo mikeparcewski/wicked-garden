@@ -77,4 +77,4 @@ Return in under 15 seconds with a short findings list.
 
 - **wicked-kanban**: Issues are tracked by the reviewer agent
 - **wicked-mem**: Design token patterns stored for future reviews
-- **wicked-engineering**: Coordinate fixes with code review
+- **engineering**: Coordinate fixes with code review

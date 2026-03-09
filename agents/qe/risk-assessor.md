@@ -39,7 +39,7 @@ Check for:
 - **Secrets**: Hardcoded credentials, exposed keys
 - **Dependencies**: Known vulnerabilities
 
-Use wicked-platform if available:
+Use platform if available:
 ```
 /wicked-garden:platform:security {target}
 ```

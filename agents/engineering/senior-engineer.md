@@ -186,7 +186,7 @@ When providing guidance:
 
 ## Integration with Other Specialists
 
-- **wicked-qe**: Defer testing strategy and coverage questions
-- **wicked-product**: Complement their multi-perspective reviews
+- **qe**: Defer testing strategy and coverage questions
+- **product**: Complement their multi-perspective reviews
 - **wicked-crew**: Respond to build/review phase triggers
 - **Frontend/Backend Engineers**: Delegate specialized concerns

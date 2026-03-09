@@ -114,6 +114,6 @@ wicked-browse screenshot {url} --width 375 --output /tmp/mobile.png
 
 ## Integration
 
-- **wicked-design:review**: Code-based analysis complements image-based review
-- **wicked-design:a11y**: Flag contrast issues for accessibility follow-up
-- **wicked-design:mockup**: Compare mockup spec against implementation screenshot
+- **design:review**: Code-based analysis complements image-based review
+- **design:a11y**: Flag contrast issues for accessibility follow-up
+- **design:mockup**: Compare mockup spec against implementation screenshot

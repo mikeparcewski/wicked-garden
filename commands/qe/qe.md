@@ -376,5 +376,5 @@ QE reviews integrate with:
 - **wicked-crew**: Quality gates in delivery phases
 - **wicked-scenarios**: E2E scenario discovery and execution (optional)
 - **wicked-kanban**: Track QE findings as tasks
-- **wicked-product**: Requirements and UX expertise
-- **wicked-platform**: Deployment and release expertise
+- **product**: Requirements and UX expertise
+- **platform**: Deployment and release expertise

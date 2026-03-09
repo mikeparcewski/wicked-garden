@@ -156,7 +156,7 @@ Emit events:
 - `observe:health:degraded:warning`
 - `observe:health:critical:failure`
 
-## Integration with wicked-engineering
+## Integration with engineering
 
 When debugging issues, provide observability context:
 - Recent errors from discovered sources

@@ -399,7 +399,7 @@ graph TB
 - Performance Analyst on orchestration efficiency
 ```
 
-## Integration with wicked-agentic Skills
+## Integration with agentic Skills
 
 - Use `/wicked-garden:agentic:five-layer-architecture` for layer-specific guidance
 - Use `/wicked-garden:agentic:agentic-patterns` for pattern recognition

@@ -19,7 +19,7 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-search to find security patterns
 - **Memory**: Use wicked-mem to recall past compliance findings
-- **Review**: Use wicked-product for security review
+- **Review**: Use product for security review
 - **Kanban**: Use wicked-kanban to track findings
 
 ## Your Focus

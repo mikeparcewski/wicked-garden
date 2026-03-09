@@ -70,7 +70,7 @@ Based on patterns:
 - Root cause hypothesis
 - Investigation steps
 - Recommended actions (rollback, hotfix, etc.)
-- Integration with wicked-engineering for debugging
+- Integration with engineering for debugging
 
 ## Integration Discovery
 
@@ -157,7 +157,7 @@ Emit events:
 - `observe:error:pattern:warning`
 - `observe:correlation:found:success`
 
-## Integration with wicked-engineering
+## Integration with engineering
 
 When errors detected, engage debugger with context:
 - Error stack traces from discovered sources

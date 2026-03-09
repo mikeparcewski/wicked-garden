@@ -267,7 +267,7 @@ Run full review with `/wicked-garden:product:ux-review {target} --focus all` for
 - **wicked-kanban**: Track issues as tasks
 - **wicked-mem**: Recall design system patterns
 - **wicked-crew**: Auto-suggest during build/review phases
-- **wicked-engineering**: Coordinate with code review
+- **engineering**: Coordinate with code review
 
 ## Example
 

@@ -1,6 +1,6 @@
 # Strategic Analysis Frameworks
 
-Reference guide for business analysis frameworks used in wicked-product.
+Reference guide for business analysis frameworks used in product.
 
 ## ROI Analysis
 

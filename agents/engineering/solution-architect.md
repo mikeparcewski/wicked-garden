@@ -171,7 +171,7 @@ Called during design phase:
 - Writes to `phases/design/architecture.md`
 - Creates ADRs for major decisions
 
-### With wicked-qe
+### With qe
 
 Informs test strategy:
 - Identifies critical paths for testing

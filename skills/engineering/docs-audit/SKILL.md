@@ -144,7 +144,7 @@ Functions without usage examples
 
 Use **wicked-search** to find code to audit.
 **wicked-kanban** creates documentation tasks for gaps.
-**wicked-product** reviews documentation quality.
+**product** reviews documentation quality.
 
 ## Events
 

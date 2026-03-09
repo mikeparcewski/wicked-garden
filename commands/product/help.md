@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-product Help
+# product Help
 
 Product management and UX — requirements elicitation, customer feedback analysis, stakeholder alignment, strategy, and UX review.
 
@@ -67,7 +67,7 @@ Product management and UX — requirements elicitation, customer feedback analys
 ## Integration
 
 - **wicked-crew**: Specialist routing for product and UX phases
-- **wicked-qe**: Acceptance criteria drive test scenarios
-- **wicked-delivery**: Strategic alignment for delivery priorities
-- **wicked-jam**: Brainstorming for product decisions
+- **qe**: Acceptance criteria drive test scenarios
+- **delivery**: Strategic alignment for delivery priorities
+- **jam**: Brainstorming for product decisions
 ```

@@ -121,7 +121,7 @@ Format the agent's output into the standard acceptance criteria structure.
 
 Automatically:
 - **wicked-kanban**: Stores AC with traceability
-- **wicked-qe**: AC available for test scenario generation
+- **qe**: AC available for test scenario generation
 - **Event**: Emits `[product:acceptance:defined:success]`
 
 ## Example
