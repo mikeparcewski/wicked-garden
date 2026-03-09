@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.47.0] - 2026-03-09
+
+### Features
+- feat: presentation skill maintenance, visual QA, and consistency (#300) (90b59ca)
+
+### Bug Fixes
+- fix: update old wicked-{domain} specialist references to short names (f754b88)
+
+### Chores
+- chore: fix validator warnings — marketplace version, CLAUDE.md roles (30ec563)
+- release: wicked-garden v1.45.0 (0f6ecda)
+
 ## [1.45.0] - 2026-03-09
 
 ### Features
