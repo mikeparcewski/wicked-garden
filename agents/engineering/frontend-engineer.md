@@ -9,27 +9,7 @@ description: |
   Context: Building a new interactive dashboard component.
   user: "Create a filterable data table component with sorting, pagination, and column resizing."
   assistant: "I'll build a composable table component with proper state management, keyboard navigation, and responsive layout."
-  <commentary>
-  Complex UI component implementation. Use frontend-engineer for React component design and browser API usage.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Page load performance is poor on mobile devices.
-  user: "Our dashboard takes 8 seconds to become interactive on mobile."
-  assistant: "I'll audit the bundle size, check for render-blocking resources, and optimize the critical rendering path."
-  <commentary>
-  Frontend performance issue. Use frontend-engineer for browser performance optimization.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Accessibility audit flagged multiple issues.
-  user: "Our modal dialogs don't trap focus and the dropdown menus aren't keyboard navigable."
-  assistant: "I'll fix the focus management, add ARIA attributes, and ensure full keyboard navigation support."
-  <commentary>
-  Accessibility implementation work. Use frontend-engineer for a11y fixes in UI components.
-  </commentary>
+  <commentary>Use frontend-engineer for React components, UI implementation, and frontend performance.</commentary>
   </example>
 model: sonnet
 color: cyan

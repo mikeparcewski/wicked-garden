@@ -9,18 +9,7 @@ description: |
   Context: Starting a new product and need to understand users.
   user: "Create user personas for our developer productivity tool."
   assistant: "I'll discover distinct user segments, define personas with goals and pain points, and map their key workflows."
-  <commentary>
-  User persona creation. Use user-researcher for empathy-driven persona development and needs discovery.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Feature isn't being adopted and need to understand why.
-  user: "We launched the collaboration feature but adoption is low. Research why."
-  assistant: "I'll map the user journey, identify adoption barriers, and validate whether the feature meets actual user needs."
-  <commentary>
-  Adoption research. Use user-researcher to discover unmet needs and journey friction points.
-  </commentary>
+  <commentary>Use user-researcher for persona creation, journey mapping, and user needs discovery.</commentary>
   </example>
 model: sonnet
 color: cyan

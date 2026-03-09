@@ -9,18 +9,7 @@ description: |
   Context: Monthly cloud bill needs analysis.
   user: "Break down this month's cloud costs by service and identify any anomalies."
   assistant: "I'll analyze the billing data, identify top cost drivers, flag unusual spikes, and compare against budget targets."
-  <commentary>
-  Billing analysis request. Use finops-analyst for cost breakdown and anomaly detection.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Budget variance needs investigation.
-  user: "We're 30% over budget this quarter. What's driving the overage?"
-  assistant: "I'll trace the budget variance to specific services, identify cost drivers, and recommend corrective actions."
-  <commentary>
-  Budget tracking issue. Use finops-analyst to identify cost drivers behind budget variance.
-  </commentary>
+  <commentary>Use finops-analyst for cost breakdown, anomaly detection, and budget variance analysis.</commentary>
   </example>
 model: sonnet
 color: yellow

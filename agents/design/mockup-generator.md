@@ -9,18 +9,7 @@ description: |
   Context: Quick wireframe needed for a feature discussion.
   user: "Create an ASCII wireframe for a settings page with sidebar navigation and form sections."
   assistant: "I'll produce a lo-fi ASCII wireframe showing the layout, navigation structure, and form organization."
-  <commentary>
-  Quick ideation wireframe. Use mockup-generator for fast lo-fi design at the right fidelity.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Developer needs a component spec for implementation.
-  user: "Generate an HTML/CSS mockup of the new dashboard card component with responsive breakpoints."
-  assistant: "I'll create an HTML/CSS prototype with annotated specs for spacing, typography, and responsive behavior."
-  <commentary>
-  Developer handoff spec. Use mockup-generator for implementation-ready component specifications.
-  </commentary>
+  <commentary>Use mockup-generator for wireframes, HTML/CSS prototypes, and component specs.</commentary>
   </example>
 subagent_type: wicked-garden:design:mockup-generator
 model: sonnet

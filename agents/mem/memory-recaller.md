@@ -9,27 +9,14 @@ description: |
   Context: User is working on authentication and Claude needs past context.
   user: "How did we handle JWT validation before?"
   assistant: "Let me search for relevant memories about JWT validation."
-  <commentary>
-  The user is asking about past decisions/implementations. Use memory-recaller to find relevant episodic or procedural memories.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User is making an architectural decision.
-  user: "We need to choose a database. What have we decided before?"
-  assistant: "I'll search for past database decisions in the memory store."
-  <commentary>
-  Search for decision-type memories related to databases to inform the current choice.
-  </commentary>
+  <commentary>Use memory-recaller to find past implementations, decisions, or patterns by topic.</commentary>
   </example>
 
   <example>
   Context: Claude encounters a familiar-seeming bug.
   user: "This auth error looks familiar..."
   assistant: "Let me check if we've encountered this before."
-  <commentary>
-  Search episodic memories for past bug fixes or issues related to authentication.
-  </commentary>
+  <commentary>Search episodic memories for past bug fixes or issues matching the current problem.</commentary>
   </example>
 
 tools: [Grep, Glob, Read]

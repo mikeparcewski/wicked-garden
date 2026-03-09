@@ -10,27 +10,7 @@ description: |
   Context: PR is ready for a thorough code review.
   user: "Review this PR for the new caching layer — focus on correctness and maintainability."
   assistant: "I'll review the cache invalidation logic, error handling, and API design for correctness and long-term maintainability."
-  <commentary>
-  Code review request. Use senior-engineer for thorough review with mentoring-style feedback.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Legacy code needs modernization without breaking functionality.
-  user: "Refactor the auth module — it's 800 lines of nested callbacks."
-  assistant: "I'll restructure into async/await, extract clear helper functions, and ensure all existing tests still pass."
-  <commentary>
-  Refactoring work requiring senior judgment on code quality. Use senior-engineer for safe, incremental improvements.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Junior developer asking for implementation guidance.
-  user: "What's the best way to implement retry logic with exponential backoff?"
-  assistant: "I'll show the pattern with proper jitter, max retries, and error classification for retryable vs. terminal failures."
-  <commentary>
-  Implementation guidance request. Use senior-engineer for best-practice mentoring.
-  </commentary>
+  <commentary>Use senior-engineer for code review, refactoring guidance, and best-practice mentoring.</commentary>
   </example>
 model: sonnet
 color: green

@@ -9,18 +9,7 @@ description: |
   Context: New agentic system needs a safety audit.
   user: "Review our agent pipeline for prompt injection vulnerabilities and missing guardrails."
   assistant: "I'll analyze input validation, output filtering, prompt injection defenses, and human-in-the-loop gates."
-  <commentary>
-  Agentic safety audit. Use safety-reviewer to assess guardrails and adversarial input defenses.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Agent handling user data needs PII protection review.
-  user: "Our customer support agent processes user messages. Ensure PII isn't leaked to logs or external APIs."
-  assistant: "I'll trace data flow through the agent pipeline, check for PII exposure points, and recommend sanitization steps."
-  <commentary>
-  PII protection in agentic systems. Use safety-reviewer for data protection and output validation review.
-  </commentary>
+  <commentary>Use safety-reviewer for guardrails, prompt injection defense, and PII protection in agent systems.</commentary>
   </example>
 model: sonnet
 color: red

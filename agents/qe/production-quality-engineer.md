@@ -9,18 +9,7 @@ description: |
   Context: Just deployed a new release and need post-deploy quality checks.
   user: "Monitor the quality signals after deploying v2.3 to production."
   assistant: "I'll track error rates, latency percentiles, and SLO compliance for the canary period and define rollback criteria."
-  <commentary>
-  Post-deploy monitoring. Use production-quality-engineer to assess quality signals and define rollback triggers.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Performance regression suspected after a deploy.
-  user: "P99 latency jumped from 200ms to 800ms after the last deploy. Assess the quality impact."
-  assistant: "I'll correlate the latency regression with the deployed changes, assess SLO impact, and recommend whether to rollback."
-  <commentary>
-  Performance regression analysis. Use production-quality-engineer for quality-focused post-deploy assessment.
-  </commentary>
+  <commentary>Use production-quality-engineer for post-deploy quality monitoring and rollback criteria.</commentary>
   </example>
 model: sonnet
 color: yellow

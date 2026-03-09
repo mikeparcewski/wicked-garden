@@ -10,18 +10,7 @@ description: |
   Context: Preparing for a SOC2 audit and need to gather evidence.
   user: "Collect all access control evidence for our SOC2 Type II audit."
   assistant: "I'll gather IAM policies, RBAC configurations, access logs, and change management records as audit evidence."
-  <commentary>
-  Audit preparation needs evidence collection. Use auditor to systematically gather and verify compliance artifacts.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Need to verify security controls are functioning.
-  user: "Verify that our encryption-at-rest controls are properly implemented across all data stores."
-  assistant: "I'll check each data store configuration, validate encryption settings, and document findings in the audit trail."
-  <commentary>
-  Control verification request. Use auditor to validate controls and maintain evidence trails.
-  </commentary>
+  <commentary>Use auditor for compliance evidence collection, control verification, and audit trails.</commentary>
   </example>
 model: sonnet
 color: magenta

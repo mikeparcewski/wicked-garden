@@ -9,18 +9,7 @@ description: |
   Context: Feature idea needs formal requirements.
   user: "Write user stories and acceptance criteria for the file sharing feature."
   assistant: "I'll elicit the key use cases, write user stories in standard format, and define testable acceptance criteria for each."
-  <commentary>
-  Requirements documentation. Use requirements-analyst to transform ideas into clear, testable specifications.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Requirements are vague and need refinement.
-  user: "The stakeholder said 'make search better'. Help turn this into actionable requirements."
-  assistant: "I'll ask clarifying questions, identify specific pain points, and document measurable requirements with acceptance criteria."
-  <commentary>
-  Vague requirements need precision. Use requirements-analyst for structured discovery and documentation.
-  </commentary>
+  <commentary>Use requirements-analyst for user stories, acceptance criteria, and requirements documentation.</commentary>
   </example>
 model: sonnet
 color: magenta

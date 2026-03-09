@@ -9,18 +9,7 @@ description: |
   Context: Cloud bill is too high and needs reduction.
   user: "Find the top cost optimization opportunities in our AWS infrastructure."
   assistant: "I'll analyze resource utilization, identify idle resources, recommend right-sizing, and estimate potential savings."
-  <commentary>
-  Cost reduction request. Use cost-optimizer to find actionable savings opportunities.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Architecture change could reduce costs.
-  user: "Would moving from always-on EC2 to serverless Lambda reduce our compute costs?"
-  assistant: "I'll model the cost comparison based on your traffic patterns, cold start tolerance, and current utilization."
-  <commentary>
-  Architecture cost comparison. Use cost-optimizer for data-driven cost trade-off analysis.
-  </commentary>
+  <commentary>Use cost-optimizer to find actionable cloud savings and cost trade-offs.</commentary>
   </example>
 model: sonnet
 color: yellow

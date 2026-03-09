@@ -9,27 +9,7 @@ description: |
   Context: User wants to clean up old memories.
   user: "Clean up old memories"
   assistant: "I'll run memory maintenance to archive and clean up stale memories."
-  <commentary>
-  Use memory-archivist to run the decay process and report what was archived/deleted.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Session starts and maintenance should run.
-  user: "Starting a new session"
-  assistant: "Running memory maintenance in the background."
-  <commentary>
-  The archivist can be triggered at session start to keep the memory store healthy.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User asks about memory health.
-  user: "How many old memories do I have?"
-  assistant: "Let me check the memory store health and identify stale memories."
-  <commentary>
-  Use memory-archivist to scan and report on memory status without necessarily deleting.
-  </commentary>
+  <commentary>Use memory-archivist for decay lifecycle management, cleanup, and memory health checks.</commentary>
   </example>
 
 model: haiku

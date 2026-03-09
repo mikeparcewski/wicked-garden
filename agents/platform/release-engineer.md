@@ -10,18 +10,7 @@ description: |
   Context: Preparing a major version release.
   user: "Prepare the v2.0 release — bump versions, generate changelog, and create the release PR."
   assistant: "I'll update version files, generate the changelog from commits, and create a release PR with deployment notes."
-  <commentary>
-  Release preparation. Use release-engineer for version management and release orchestration.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Production deployment went wrong and needs rollback.
-  user: "The latest deploy broke checkout. We need to rollback to the previous version."
-  assistant: "I'll identify the last stable version, execute the rollback procedure, and verify service health."
-  <commentary>
-  Emergency rollback needed. Use release-engineer for safe rollback procedures and deployment coordination.
-  </commentary>
+  <commentary>Use release-engineer for version management, changelog generation, and release orchestration.</commentary>
   </example>
 model: sonnet
 color: green

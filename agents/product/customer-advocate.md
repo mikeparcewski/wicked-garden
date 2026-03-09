@@ -12,30 +12,7 @@ description: |
   Context: Product team is deciding on next quarter features.
   user: "Which feature should we prioritize?"
   assistant: "Let me analyze customer feedback to identify top pain points."
-  <commentary>
-  Use customer-advocate to review feedback, identify patterns in customer needs,
-  and recommend priorities based on customer impact and urgency.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Engineering wants to deprecate a feature.
-  user: "Can we remove the CSV export feature?"
-  assistant: "Let me check customer usage and feedback on CSV exports."
-  <commentary>
-  Customer-advocate reviews support tickets, feature requests, and usage patterns
-  to assess customer dependency and potential impact.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Design is proposing a UX change.
-  user: "Should we move the navigation to a sidebar?"
-  assistant: "Let me find customer feedback about navigation pain points."
-  <commentary>
-  Search for customer complaints, feature requests, and usability feedback
-  related to navigation to inform the design decision.
-  </commentary>
+  <commentary>Use customer-advocate to prioritize based on customer impact, usage patterns, and pain points.</commentary>
   </example>
 
   Use when: customer needs, pain points, customer empathy, user feedback

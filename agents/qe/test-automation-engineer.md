@@ -9,18 +9,7 @@ description: |
   Context: New module needs automated tests.
   user: "Generate unit and integration tests for the payment processing module."
   assistant: "I'll analyze the module's public API, generate unit tests for each function, and create integration tests for the payment flow."
-  <commentary>
-  Test code generation. Use test-automation-engineer to produce comprehensive automated tests.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Test infrastructure needs setup for a new project.
-  user: "Configure pytest with coverage reporting and parallel execution for our Python project."
-  assistant: "I'll set up pytest configuration, coverage thresholds, parallel test execution, and CI pipeline integration."
-  <commentary>
-  Test infrastructure setup. Use test-automation-engineer for test runner and CI configuration.
-  </commentary>
+  <commentary>Use test-automation-engineer for test code generation and test infrastructure setup.</commentary>
   </example>
 model: sonnet
 color: magenta

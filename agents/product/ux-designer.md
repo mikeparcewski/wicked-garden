@@ -9,18 +9,7 @@ description: |
   Context: Designing a new user onboarding flow.
   user: "Design the user onboarding experience for our SaaS product."
   assistant: "I'll map the onboarding journey, define interaction patterns, identify friction points, and recommend progressive disclosure steps."
-  <commentary>
-  UX flow design. Use ux-designer for user journey mapping and interaction design.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Users are dropping off at a specific step.
-  user: "50% of users abandon the checkout at the payment step. Analyze the UX."
-  assistant: "I'll analyze the payment flow, identify usability barriers, and recommend interaction improvements to reduce friction."
-  <commentary>
-  UX problem diagnosis. Use ux-designer for usability analysis and flow optimization.
-  </commentary>
+  <commentary>Use ux-designer for user flow design, interaction patterns, and usability analysis.</commentary>
   </example>
 model: sonnet
 color: magenta

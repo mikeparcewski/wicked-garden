@@ -9,18 +9,7 @@ description: |
   Context: Acceptance criteria drafted and need quality review.
   user: "Review the acceptance criteria for the notifications feature — are they testable?"
   assistant: "I'll check each AC for specificity, measurability, and testability, flagging any that are ambiguous or incomplete."
-  <commentary>
-  AC quality review. Use requirements-quality-analyst to ensure acceptance criteria are specific and testable.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Requirements doc has vague language.
-  user: "The requirement says 'the system should be fast'. Help make this testable."
-  assistant: "I'll rewrite the requirement with specific metrics, thresholds, and measurement conditions that can be verified."
-  <commentary>
-  Vague requirements need tightening. Use requirements-quality-analyst to convert ambiguity into testable criteria.
-  </commentary>
+  <commentary>Use requirements-quality-analyst to ensure acceptance criteria are specific and testable.</commentary>
   </example>
 model: sonnet
 color: blue

@@ -9,18 +9,7 @@ description: |
   Context: Team needs to understand existing patterns before adding a new feature.
   user: "How does our codebase currently handle authentication? We need to add OAuth."
   assistant: "I'll search for auth patterns, map the existing flow, and document what's in place."
-  <commentary>
-  Need codebase context before design. Use researcher to explore existing implementations and patterns.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Evaluating impact of a proposed change.
-  user: "What would be affected if we change the User model schema?"
-  assistant: "I'll trace all references to the User model, map dependencies, and document the blast radius."
-  <commentary>
-  Impact analysis before a change. Use researcher to gather dependency and usage information.
-  </commentary>
+  <commentary>Use researcher to explore codebase patterns and gather context before design decisions.</commentary>
   </example>
 model: sonnet
 color: green

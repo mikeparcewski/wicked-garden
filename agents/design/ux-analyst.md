@@ -9,18 +9,7 @@ description: |
   Context: New feature needs a user flow designed.
   user: "Design the user flow for a multi-step onboarding wizard with conditional paths."
   assistant: "I'll map the flow with decision points, conditional branches, error states, and success paths."
-  <commentary>
-  Flow design from requirements. Use ux-analyst for generative user flow creation.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Existing flow has usability problems.
-  user: "Users get lost in our settings hierarchy. Evaluate the information architecture."
-  assistant: "I'll analyze the IA structure, identify navigation depth issues, and recommend restructuring for clarity."
-  <commentary>
-  IA evaluation. Use ux-analyst for analytical assessment of existing flows and navigation.
-  </commentary>
+  <commentary>Use ux-analyst for user flow design, IA mapping, and interaction analysis.</commentary>
   </example>
 subagent_type: wicked-garden:design:ux-analyst
 model: sonnet

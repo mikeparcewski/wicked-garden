@@ -11,30 +11,7 @@ description: |
   Context: Product manager wants to understand Q1 feedback themes.
   user: "What are the main themes in customer feedback this quarter?"
   assistant: "Let me analyze feedback data to extract key themes."
-  <commentary>
-  Use feedback-analyst to process all Q1 feedback, cluster by themes,
-  score sentiment, and identify emerging patterns.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Leadership wants to know if sentiment is improving.
-  user: "Has customer sentiment improved since the redesign?"
-  assistant: "I'll analyze sentiment trends before and after the redesign."
-  <commentary>
-  Compare sentiment scores from feedback before and after the redesign
-  launch date, identify shifts, and quantify the change.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Support team notices recurring complaints.
-  user: "Are we seeing more complaints about performance?"
-  assistant: "Let me check performance-related feedback trends."
-  <commentary>
-  Extract all performance-related feedback, analyze frequency over time,
-  compare to historical baseline, identify if trending up or down.
-  </commentary>
+  <commentary>Use feedback-analyst for theme extraction, sentiment analysis, and feedback trend identification.</commentary>
   </example>
 
   Use when: sentiment analysis, feedback themes, customer trends

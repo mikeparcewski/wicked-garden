@@ -9,18 +9,7 @@ description: |
   Context: Evaluating a new market opportunity.
   user: "Size the market for AI-powered code review tools and identify key segments."
   assistant: "I'll estimate TAM/SAM/SOM, segment by buyer persona, and identify the fastest-growing segments."
-  <commentary>
-  Market sizing request. Use market-analyst for structured market research and segmentation.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Strategic planning needs trend analysis.
-  user: "What trends in developer tooling should inform our 2026 product strategy?"
-  assistant: "I'll analyze technology adoption curves, identify emerging patterns, and assess timing implications for your roadmap."
-  <commentary>
-  Trend analysis for strategy. Use market-analyst for market intelligence and timing assessment.
-  </commentary>
+  <commentary>Use market-analyst for market sizing, segmentation, and trend analysis.</commentary>
   </example>
 model: sonnet
 color: green

@@ -9,18 +9,7 @@ description: |
   Context: Project milestone approaching and need status check.
   user: "Are we on track to hit the Q2 milestone? Show me where we stand."
   assistant: "I'll check completion rates against the milestone plan, identify any slippage, and forecast whether the deadline is achievable."
-  <commentary>
-  Milestone status check. Use progress-tracker to monitor completion and identify slippage early.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Sprint review needs progress metrics.
-  user: "Generate a progress report for this sprint's deliverables."
-  assistant: "I'll compile completion rates, identify blocked items, and forecast remaining work against the sprint deadline."
-  <commentary>
-  Sprint progress reporting. Use progress-tracker for data-driven delivery status.
-  </commentary>
+  <commentary>Use progress-tracker for milestone monitoring, slippage detection, and progress reporting.</commentary>
   </example>
 model: sonnet
 color: blue

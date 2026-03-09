@@ -9,18 +9,7 @@ description: |
   Context: New open-source project needs documentation from scratch.
   user: "Write a getting-started guide for our CLI tool that covers installation, configuration, and first use."
   assistant: "I'll create a structured guide with clear steps, code examples, and troubleshooting tips for new users."
-  <commentary>
-  New project needs user-facing documentation. Use technical-writer for clear, audience-appropriate guides.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Internal system has tribal knowledge but no written docs.
-  user: "Document our deployment process — only two people know how it works."
-  assistant: "I'll interview the codebase, trace the deployment scripts, and produce a step-by-step runbook."
-  <commentary>
-  Undocumented process needs to be captured. Use technical-writer to create operational documentation.
-  </commentary>
+  <commentary>Use technical-writer for user guides, README files, and operational documentation.</commentary>
   </example>
 model: sonnet
 color: blue
