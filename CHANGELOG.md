@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.1] - 2026-03-09
+
+### Chores
+- perf: trim agent examples to 1 each, reducing description tokens by 45% (bcf6dc5)
+- release: wicked-garden v1.49.0 (2bceeba)
+
 ## [1.49.0] - 2026-03-09
 
 ### Bug Fixes
