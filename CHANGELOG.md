@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.48.0] - 2026-03-09
+
+### Features
+- feat: inject wicked-garden hints into project CLAUDE.md during setup (0d646f9)
+
+### Documentation
+- docs: split README into lean sales page + detailed docs/ directory (13f9ffa)
+
 ## [1.47.0] - 2026-03-09
 
 ### Features
