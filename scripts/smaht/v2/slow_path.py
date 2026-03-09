@@ -20,15 +20,16 @@ Key difference from fast path:
 
 import asyncio
 import sys
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 # Add parent to path for adapter imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from history_condenser import HistoryCondenser
 from router import PromptAnalysis
+from adapter_registry import AdapterRegistry, timed_query, CACHE_BYPASS
 
 
 @dataclass
@@ -38,31 +39,14 @@ class SlowPathResult:
     sources_queried: list[str]
     sources_failed: list[str]
     latency_ms: int
+    adapter_timings: dict = field(default_factory=dict)
 
 
 class SlowPathAssembler:
     """Comprehensive pattern-based context assembly."""
 
     def __init__(self):
-        self.adapters = self._load_adapters()
-
-    def _load_adapters(self) -> dict:
-        """Load available adapters individually for graceful degradation."""
-        adapters = {}
-        adapter_modules = {
-            "domain": "domain_adapter",
-            "mem": "mem_adapter",
-            "context7": "context7_adapter",
-            "tools": "startah_adapter",
-            "delegation": "delegation_adapter",
-        }
-        for name, module_name in adapter_modules.items():
-            try:
-                mod = __import__(f"adapters.{module_name}", fromlist=[module_name])
-                adapters[name] = mod
-            except ImportError as e:
-                print(f"smaht: adapter '{name}' unavailable: {e}", file=sys.stderr)
-        return adapters
+        self._registry = AdapterRegistry()
 
     async def assemble(
         self,
@@ -72,14 +56,19 @@ class SlowPathAssembler:
         timeout: float = 5.0
     ) -> SlowPathResult:
         """Assemble comprehensive context using pattern-based rules."""
-        import time
         start_time = time.time()
 
-        # Query ALL adapters in parallel with longer timeout
+        # Within-call deduplication cache and timing accumulator (AC-1.1, AC-2.1)
+        _call_cache: dict[str, list] = {}
+        _timing_acc: dict[str, dict] = {}
+
+        # Query ALL adapters in parallel with longer timeout (Gap G-4: access KNOWN_ADAPTERS as class attr)
         adapter_timeout = min(2.0, timeout / 2)  # 2s per adapter max
+        all_adapters = self._registry.get(list(AdapterRegistry.KNOWN_ADAPTERS.keys()))
         tasks = {}
-        for name, adapter in self.adapters.items():
-            tasks[name] = self._query_adapter(name, prompt, timeout=adapter_timeout)
+        for name, adapter in all_adapters.items():
+            tasks[name] = self._query_adapter(adapter, name, prompt, _call_cache, _timing_acc,
+                                              timeout=adapter_timeout)
 
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
 
@@ -128,23 +117,25 @@ class SlowPathAssembler:
             sources_queried=sources_queried,
             sources_failed=sources_failed,
             latency_ms=latency_ms,
+            adapter_timings=_timing_acc,
         )
 
-    async def _query_adapter(self, name: str, prompt: str, timeout: float = 2.0):
-        """Query a single adapter with timeout."""
-        adapter = self.adapters.get(name)
-        if not adapter:
-            return []
-
-        try:
-            return await asyncio.wait_for(
-                adapter.query(prompt),
-                timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            raise Exception(f"{name} adapter timeout")
-        except Exception as e:
-            raise Exception(f"{name} adapter failed: {e}")
+    async def _query_adapter(
+        self,
+        adapter,
+        name: str,
+        prompt: str,
+        call_cache: dict,
+        timing_acc: dict,
+        timeout: float = 2.0,
+    ) -> list:
+        """Query a single adapter via timed_query (handles cache, timing, bypass)."""
+        return await timed_query(
+            adapter, name, prompt, timeout,
+            timing_accumulator=timing_acc,
+            call_cache=call_cache,
+            cache_bypass=CACHE_BYPASS,
+        )
 
     def _format_briefing(
         self,
