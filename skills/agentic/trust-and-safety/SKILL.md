@@ -178,7 +178,7 @@ Before deploying an agentic system:
 - [ ] Incident response plan
 - [ ] Rollback capability
 
-See `refs/safety-checklist.md` for comprehensive checklist with examples.
+See `refs/safety-checklist-core.md` and `refs/safety-checklist-advanced.md` for comprehensive checklist with examples.
 
 ## When to Use
 
@@ -192,7 +192,8 @@ Trigger phrases indicating you need this skill:
 
 ## References
 
-- `refs/safety-checklist.md` - Comprehensive safety review checklist
+- `refs/safety-checklist-core.md` - Core safety checklist (input, output, action, auth, privacy)
+- `refs/safety-checklist-advanced.md` - Advanced safety checklist (monitoring, incidents, testing, ops)
 - `refs/guardrails-input-output.md` - Input validation, sanitization, prompt injection, output filtering
 - `refs/guardrails-actions.md` - Action whitelisting, approvals, sandboxed execution
 - `refs/guardrails-resources.md` - Resource limiting, monitoring, complete guardrail architecture

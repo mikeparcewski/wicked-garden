@@ -1,6 +1,10 @@
 ---
 name: prereq-doctor
-description: "Diagnose missing tools and dependencies, offer to install them. Use when: command not found, ModuleNotFoundError, missing tool, install dependency, prereq check, setup validation."
+description: |
+  Diagnose missing tools and dependencies, offer to install them.
+
+  Use when: "command not found", "ModuleNotFoundError", "missing tool",
+  "install dependency", "prereq check", "setup validation"
 ---
 
 # Prereq Doctor

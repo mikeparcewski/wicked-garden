@@ -61,7 +61,7 @@ wicked-browse a11y-audit {url_or_file}
 - Tab order logical?
 - Can escape modals/menus?
 
-**Full keyboard testing guide**: See [refs/keyboard-testing.md](refs/keyboard-testing.md)
+**Full keyboard testing guide**: See [refs/keyboard-testing-basics.md](refs/keyboard-testing-basics.md) and [refs/keyboard-testing-patterns.md](refs/keyboard-testing-patterns.md)
 
 ### 3. Screen Reader Spot Check
 - Turn on VoiceOver (Mac) or NVDA (Windows)
@@ -171,7 +171,8 @@ Run `ListMcpResourcesTool` to discover available integrations. Fall back to loca
 
 **Detailed guides in refs/:**
 - [wcag-checklist.md](refs/wcag-checklist.md) - Complete WCAG checklists
-- [keyboard-testing.md](refs/keyboard-testing.md) - Keyboard navigation guide
+- [keyboard-testing-basics.md](refs/keyboard-testing-basics.md) - Keyboard testing checklist and core tests
+- [keyboard-testing-patterns.md](refs/keyboard-testing-patterns.md) - Common violations, fixes, and tools
 - [screen-reader-testing-commands.md](refs/screen-reader-testing-commands.md) - Screen reader commands and setup
 - [screen-reader-testing-advanced.md](refs/screen-reader-testing-advanced.md) - Advanced screen reader tests and workflow
 - [aria-patterns-basics.md](refs/aria-patterns-basics.md) - ARIA basics and simple widgets

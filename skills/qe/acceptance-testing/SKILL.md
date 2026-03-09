@@ -91,7 +91,8 @@ Every step in the test plan requires the executor to produce specific artifacts.
 ## Detailed References
 
 - **[Test Plan Format](refs/test-plan-format.md)** — Structure, fields, and examples for test plans
-- **[Evidence Protocol](refs/evidence-protocol.md)** — How to capture, reference, and evaluate evidence
+- **[Evidence Collection](refs/evidence-collection.md)** — How to capture and structure evidence
+- **[Evidence Validation](refs/evidence-validation.md)** — How to evaluate, verify, and manage evidence
 
 ## Evidence Package Output
 

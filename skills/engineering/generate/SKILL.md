@@ -76,7 +76,7 @@ Create focused, useful docs:
 - API docs: endpoints, parameters, responses
 - Reference: functions, classes, types
 
-See [Templates](refs/templates.md) for standard formats.
+See [Templates: API](refs/templates-api.md) and [Templates: Module](refs/templates-module.md) for standard formats.
 
 ## Language Patterns
 
@@ -123,4 +123,5 @@ Use **wicked-mem** to learn and maintain project doc style.
 
 ## Reference
 
-- [Templates](refs/templates.md) - Standard documentation templates
+- [Templates: API](refs/templates-api.md) - README, function, API, class, type templates
+- [Templates: Module](refs/templates-module.md) - OpenAPI, error, config templates and usage

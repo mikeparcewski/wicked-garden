@@ -83,7 +83,7 @@ grep -r "authorize\|authenticate\|require.*auth" {target}
 grep -r "log\|audit\|event" {target}
 ```
 
-See [refs/frameworks.md](refs/frameworks.md) for framework-specific control testing procedures.
+See [refs/frameworks-soc2-hipaa.md](refs/frameworks-soc2-hipaa.md) and [refs/frameworks-gdpr-pci.md](refs/frameworks-gdpr-pci.md) for framework-specific control testing procedures.
 
 ### 4. Document Gaps
 
