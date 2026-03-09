@@ -201,15 +201,23 @@ treatment. They are applied during generation as positioning guides.
 
 ## Template Schema (for registry contributions)
 
+Each zone includes a `css_class` field that maps to the rendered HTML element class (see
+[css-contract.md](css-contract.md) for the full class inventory and required CSS rules).
+The `stat-callout` schema below is the exhaustive exemplar — all 12 templates follow the
+same zone schema pattern. Use css-contract.md's class inventory table for zone-to-class mappings.
+
 ```json
 {
   "name": "stat-callout",
   "description": "One to three dominant statistics with supporting labels. Data-forward.",
   "zones": [
-    { "id": "stat1", "type": "text", "role": "primary-stat", "position": "left-third" },
-    { "id": "stat2", "type": "text", "role": "primary-stat", "position": "center-third" },
-    { "id": "stat3", "type": "text", "role": "primary-stat", "position": "right-third" },
-    { "id": "context", "type": "text", "role": "caption", "position": "bottom-full" }
+    { "id": "stat1", "css_class": "zone-stat1", "type": "text", "role": "primary-stat", "position": "left-third" },
+    { "id": "stat1-label", "css_class": "zone-stat-label", "type": "text", "role": "stat-label", "position": "left-third-label" },
+    { "id": "stat2", "css_class": "zone-stat2", "type": "text", "role": "primary-stat", "position": "center-third" },
+    { "id": "stat2-label", "css_class": "zone-stat-label", "type": "text", "role": "stat-label", "position": "center-third-label" },
+    { "id": "stat3", "css_class": "zone-stat3", "type": "text", "role": "primary-stat", "position": "right-third" },
+    { "id": "stat3-label", "css_class": "zone-stat-label", "type": "text", "role": "stat-label", "position": "right-third-label" },
+    { "id": "context", "css_class": "zone-context", "type": "text", "role": "caption", "position": "bottom-full" }
   ],
   "density": "low",
   "image_support": false,
@@ -217,3 +225,17 @@ treatment. They are applied during generation as positioning guides.
   "avoid_for": ["narrative", "process", "team"]
 }
 ```
+
+The `css_class` field is required for all zones in registry contributions. The renderer uses
+it to apply the correct CSS class to each zone element. For repeated zones (`.zone-event-label`,
+`.zone-step`, `.zone-member-card`), the `css_class` value is the same across all instances.
+
+### Zone Schema Fields
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | yes | Unique zone identifier within the template |
+| `css_class` | yes | CSS class applied to the rendered zone element |
+| `type` | yes | `text`, `image` |
+| `role` | yes | Semantic role: `heading`, `subheading`, `body`, `primary-stat`, `stat-label`, `caption`, `quote`, `callout`, `background`, `logo`, `supporting-visual`, `chart`, `card`, `table-header`, `table-column`, `step`, `label`, `eyebrow`, `structural` |
+| `position` | yes | Named position token resolved to coordinates per 1920×1080 canvas |

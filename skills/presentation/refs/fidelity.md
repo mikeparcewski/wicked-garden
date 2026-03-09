@@ -25,7 +25,8 @@ handed off as-is. When polish matters more than speed.
 - Image placement matches template spec — not drifted, stretched, or misaligned
 - Speaker notes are present on all slides (not just flagged ones)
 - Stat values are visually dominant — larger than labels
-- Bullet lists don't exceed 6 items (split to new slide if needed)
+- Bullet lists don't exceed 6 items (split to new slide if needed) — this is a render-time
+  layout constraint, independent of content-lint.md's 7-item content quality threshold
 - Section dividers are visually distinct from content slides (background contrast)
 - Title slide and closing slide have strong visual weight
 
@@ -124,6 +125,77 @@ Fidelity: rough (1 pass — layout needs user attention, images not sourced)
 
 For HTML output, layout verification in `best` mode uses JavaScript-based checks injected
 into the rendered page to detect overflow and misalignment before finalizing the file.
+
+---
+
+## Visual QA — JavaScript Checks (best fidelity, HTML output)
+
+Three checks run after each render pass. Results are collected into a findings array per slide.
+
+### Check 1 — Zone Overflow
+
+Detects content overflowing its zone boundary. Targets every `.zone-*` element.
+
+```javascript
+// Overflow: scrollHeight > clientHeight OR scrollWidth > clientWidth
+document.querySelectorAll('[class*="zone-"]').forEach(zone => {
+  if (zone.scrollHeight > zone.clientHeight || zone.scrollWidth > zone.clientWidth)
+    findings.push({ type: 'overflow', element: zone.className, severity: 'FAIL',
+      detail: `scroll ${zone.scrollHeight}px > client ${zone.clientHeight}px`,
+      corrective: 'Reduce content, increase zone height, or reduce font-size.' });
+});
+```
+
+### Check 2 — Zone Overlap
+
+Pairwise `getBoundingClientRect()` intersection test on all zone elements.
+
+```javascript
+// Overlap: rect intersection between any two zones
+const zones = Array.from(document.querySelectorAll('[class*="zone-"]'));
+for (let i = 0; i < zones.length; i++)
+  for (let j = i + 1; j < zones.length; j++) {
+    const a = zones[i].getBoundingClientRect(), b = zones[j].getBoundingClientRect();
+    if (!(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top))
+      findings.push({ type: 'overlap', element: `${zones[i].className} × ${zones[j].className}`,
+        severity: 'FAIL', corrective: 'Adjust zone positions or reduce element size.' });
+  }
+```
+
+### Check 3 — Stat Dominance
+
+DOM requirement: `.zone-stat*` MUST be immediately followed by a `.zone-stat-label` sibling.
+Ratio threshold: stat font-size / label font-size ≥ 1.5.
+
+```javascript
+// Stat dominance: stat fontSize must be ≥ 1.5× label fontSize
+document.querySelectorAll('[class*="zone-stat"]:not(.zone-stat-label)').forEach(statEl => {
+  const labelEl = statEl.nextElementSibling;
+  if (!labelEl?.classList.contains('zone-stat-label')) return;
+  const ratio = parseFloat(getComputedStyle(statEl).fontSize) /
+                parseFloat(getComputedStyle(labelEl).fontSize);
+  if (ratio < 1.5)
+    findings.push({ type: 'stat_dominance', element: statEl.className, severity: 'WARN',
+      detail: `Ratio ${ratio.toFixed(2)} < 1.5`, corrective: 'Increase stat font-size.' });
+});
+```
+
+### Findings Schema
+
+```json
+{ "slide_index": 2, "slide_title": "Q1 Metrics", "template": "stat-callout",
+  "findings": [{ "type": "overflow", "element": ".zone-context",
+    "detail": "scroll 142px > client 80px", "severity": "FAIL",
+    "corrective": "Reduce content or reduce font-size." }],
+  "status": "FAIL" }
+```
+
+`status`: `FAIL` if any finding severity is FAIL; `WARN` if highest is WARN; `PASS` if empty.
+
+### Conservative Fallback Trigger
+
+If a slide has `status: FAIL` after pass 3, apply conservative fallback layout
+(see [css-contract.md](css-contract.md)) and mark `status: REVIEW`. Stop after pass 4.
 
 ---
 
