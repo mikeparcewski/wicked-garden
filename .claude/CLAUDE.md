@@ -229,7 +229,7 @@ Skills use **progressive disclosure** for context efficiency:
 - Skills: `wicked-garden:{domain}:{skill-name}` (colon-separated)
 - Events: `{domain}:{action}:{outcome}` (lowercase, colon-separated)
 - Command headers: `# /wicked-garden:{domain}:{command}` as h1 after YAML frontmatter
-- Specialist roles: engineering, devsecops, quality-engineering, product, delivery, data-engineering, brainstorming, agentic-architecture
+- Specialist roles: engineering, devsecops, quality-engineering, product, project-management, data-engineering, brainstorming, agentic-architecture, ux
 
 ## Memory Management
 
