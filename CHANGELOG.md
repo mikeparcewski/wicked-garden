@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.49.0] - 2026-03-09
+
+### Bug Fixes
+- fix: resolve GitHub issues #301-#304 (5488ffe)
+
 ## [1.48.0] - 2026-03-09
 
 ### Features
