@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-142 commands. 86 specialist agents. 79 skills. 9 specialist disciplines. 54 specialist personas. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
+142 commands. 79 specialist agents. 79 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -263,13 +263,13 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 wicked-garden/
 ├── .claude-plugin/
 │   ├── plugin.json          # name, version, description
-│   ├── specialist.json      # 8 specialist roles, 51 personas
+│   ├── specialist.json      # 9 specialist roles (lean manifest)
 │   ├── marketplace.json     # marketplace registration
 │   └── phases.json          # 7-phase catalog with gates and checkpoints
 ├── commands/
 │   ├── {domain}/            # domain-scoped slash commands
 │   └── *.md                 # root-level commands (setup, reset, help, report-issue)
-├── agents/{domain}/         # 86 specialist subagents across 9 domains
+├── agents/{domain}/         # 79 specialist subagents across 9 domains
 ├── skills/
 │   ├── {domain}/SKILL.md    # single-skill domains (flat)
 │   └── {domain}/{skill}/    # multi-skill domains (nested)
