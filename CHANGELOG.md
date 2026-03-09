@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.45.0] - 2026-03-09
+
+### Features
+- feat: audit agents and strip specialist.json to lean manifest (#297, #298) (ab71c9c)
+
+### Chores
+- release: wicked-garden v1.44.0 (e21e8a0)
+
 ## [1.44.0] - 2026-03-09
 
 ### Features
