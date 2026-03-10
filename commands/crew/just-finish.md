@@ -191,6 +191,9 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve --phase {phase}
      ```
    - If gate ran and returned **REJECT**: STOP. Do not call approve. Report to user.
+   - If approve fails due to **missing deliverables**: STOP. Do NOT pass `--override-deliverables`
+     automatically. Report the missing deliverables to the user and wait for them to be created or
+     for explicit user instruction to bypass. Autonomous deliverable overrides are not permitted.
    - `--override-gate` is reserved for exceptional circumstances only (e.g., gate ran
      externally, CI result already available). If used, `--reason` is REQUIRED:
      ```bash

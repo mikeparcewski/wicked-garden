@@ -234,6 +234,13 @@ If user approves (Y or proceeds):
    ```
    This updates `current_phase` and marks the phase as approved in project.json.
 
+   If required deliverables are missing, the approve call will **block** with an error. To bypass in exceptional circumstances:
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve \
+     --phase {phase} --override-deliverables --reason "Deliverables captured in external system: {link}"
+   ```
+   `--override-deliverables` requires `--reason`. The override is recorded in `phases/{phase}/status.md` for audit.
+
 4. Create next phase status.md:
    ```yaml
    phase: {next_phase}
