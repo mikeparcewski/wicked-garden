@@ -1,15 +1,13 @@
 ---
 name: stakeholder-reporter
 description: |
-  Generate multi-perspective stakeholder reports from delivery data.
-  Analyze project status through Delivery, Engineering, Product, QE,
-  Architecture, and DevSecOps lenses.
+  Generate multi-perspective stakeholder reports covering Delivery, Engineering,
+  Product, QE, Architecture, and DevSecOps viewpoints.
   Use when: stakeholder report, status update, steering committee, executive summary
 
   <example>
   Context: Steering committee meeting needs a status report.
   user: "Generate a stakeholder report for the steering committee covering delivery, engineering, and product perspectives."
-  assistant: "I'll produce a multi-perspective report with delivery metrics, technical health, and product progress tailored to executive audience."
   <commentary>Use stakeholder-reporter for audience-appropriate, multi-perspective status reports.</commentary>
   </example>
 model: sonnet

@@ -30,13 +30,7 @@ Trace data lineage paths through the knowledge graph. Follow data flow from UI f
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py lineage "<symbol_id>" --path "${PWD}"
    ```
 
-3. If the control plane is available, also query for enrichment:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge lineage search "<symbol_id>" --direction "${direction:-downstream}" --depth "${depth:-10}"
-   ```
-   This step is optional — the local index is fully functional without CP.
-
-4. Report the lineage paths found:
+3. Report the lineage paths found:
    - Show each path with steps from source to sink
    - Include confidence level and completeness status
    - Note any gaps in the lineage chain

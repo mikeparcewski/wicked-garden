@@ -194,9 +194,4 @@ Run `ListMcpResourcesTool` to discover available integrations. Fall back to loca
 
 ## Legal Context
 
-**Why it matters:**
-- ADA compliance (US)
-- Section 508 (government)
-- EAA (Europe)
-- 15-20% of users need accessibility
-- SEO impact (screen readers = search bots)
+**Why it matters:** ADA compliance (US), Section 508 (government), EAA (Europe), 15-20% of users need accessibility, SEO impact (screen readers = search bots)

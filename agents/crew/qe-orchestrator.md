@@ -7,7 +7,6 @@ description: |
   <example>
   Context: Project just finished the clarify phase.
   user: "Run the quality gate — we just finalized our requirements."
-  assistant: "I'll route to the Value Gate to assess whether we should build this, evaluating problem clarity and scope."
   <commentary>Use qe-orchestrator to detect the appropriate quality gate and dispatch accordingly.</commentary>
   </example>
 model: sonnet

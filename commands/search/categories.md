@@ -21,12 +21,6 @@ Show how indexed symbols break down by type, architectural layer, and directory 
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py categories --path "${PWD}"
    ```
 
-   If the control plane is available, also query for enrichment:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge symbols categories ${project:+--project "${project}"}
-   ```
-   This step is optional — the local index is fully functional without CP.
-
 3. Present results in five sections:
 
    **By Layer** — architectural layers (backend, frontend, database, view):

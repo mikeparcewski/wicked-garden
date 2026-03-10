@@ -8,7 +8,6 @@ description: |
   <example>
   Context: High-stakes architecture decision needs diverse perspectives.
   user: "Run a council evaluation on whether to use event sourcing vs. CRUD for our order system."
-  assistant: "I'll pose the question to multiple models independently, collect their evaluations, and synthesize a verdict."
   <commentary>Use council for multi-model evaluation and independent perspectives on important decisions.</commentary>
   </example>
 model: sonnet

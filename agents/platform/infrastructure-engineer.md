@@ -9,7 +9,6 @@ description: |
   <example>
   Context: Deploying a new service to Kubernetes.
   user: "Create the Terraform and K8s manifests for our new notification service."
-  assistant: "I'll define the Terraform modules for the cloud resources and Kubernetes manifests with proper resource limits and health checks."
   <commentary>Use infrastructure-engineer for IaC, Kubernetes configuration, and cloud resource management.</commentary>
   </example>
 model: sonnet

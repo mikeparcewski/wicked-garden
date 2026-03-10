@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Team is building a new REST API and needs docs for consumers.
   user: "Generate OpenAPI spec and docs for our user management endpoints."
-  assistant: "I'll analyze the route handlers and produce a complete OpenAPI 3.0 spec with request/response examples."
   <commentary>Use api-documentarian for API spec generation, endpoint documentation, and reference materials.</commentary>
   </example>
 model: sonnet

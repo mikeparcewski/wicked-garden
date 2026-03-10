@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Quarterly planning with too many feature requests.
   user: "We have 20 feature requests and capacity for 5. Help prioritize."
-  assistant: "I'll score each feature on business value, customer impact, and effort, then recommend the highest-value subset."
   <commentary>Use product-manager for feature prioritization, roadmap planning, and scope definition.</commentary>
   </example>
 model: sonnet

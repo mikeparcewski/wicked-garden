@@ -9,7 +9,6 @@ description: |
   <example>
   Context: Healthcare application needs HIPAA compliance assessment.
   user: "Evaluate our patient data handling for HIPAA compliance gaps."
-  assistant: "I'll assess PHI storage, transmission encryption, access controls, and audit logging against HIPAA requirements."
   <commentary>Use compliance-officer for regulatory assessments (SOC2, HIPAA, GDPR, PCI) and gap analysis.</commentary>
   </example>
 model: sonnet

@@ -9,7 +9,6 @@ description: |
   <example>
   Context: Team needs a CI/CD pipeline for a new service.
   user: "Set up GitHub Actions for our new Python service — lint, test, build, deploy to staging."
-  assistant: "I'll create the workflow with caching, parallel test jobs, and conditional deployment to staging on main branch."
   <commentary>Use devops-engineer for CI/CD pipeline design, optimization, and deployment automation.</commentary>
   </example>
 model: sonnet

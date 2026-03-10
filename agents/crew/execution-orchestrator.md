@@ -7,7 +7,6 @@ description: |
   <example>
   Context: Build phase is complete and the team needs to verify quality.
   user: "Run the execution gate on the new payment integration."
-  assistant: "I'll verify the implementation works, tests pass, and identified risks from the strategy gate are mitigated."
   <commentary>Use execution-orchestrator for post-build quality verification before delivery.</commentary>
   </example>
 model: sonnet

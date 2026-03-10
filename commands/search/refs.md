@@ -25,18 +25,7 @@ Find all references to/from a code symbol, including documentation cross-referen
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py refs "<symbol>" --path "${PWD}"
    ```
 
-3. If the control plane is available, also query the graph for additional relationships:
-   a. Resolve symbol to UUID:
-      ```bash
-      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph search --q "<symbol>" --limit 5
-      ```
-   b. Traverse from UUID:
-      ```bash
-      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph traverse "<uuid>" --direction both --depth 1
-      ```
-   Merge CP results with local results.
-
-4. Report the relationships found, grouped by type:
+3. Report the relationships found, grouped by type:
    - **Documented in**: Docs that mention this symbol
    - **Called by**: Functions/methods that call this
    - **Calls**: Functions/methods this calls

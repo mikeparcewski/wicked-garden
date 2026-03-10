@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Building a new interactive dashboard component.
   user: "Create a filterable data table component with sorting, pagination, and column resizing."
-  assistant: "I'll build a composable table component with proper state management, keyboard navigation, and responsive layout."
   <commentary>Use frontend-engineer for React components, UI implementation, and frontend performance.</commentary>
   </example>
 model: sonnet

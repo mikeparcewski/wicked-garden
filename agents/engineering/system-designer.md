@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Monolithic codebase is becoming hard to maintain.
   user: "Our 50k-line app has no clear module boundaries. Help us decompose it."
-  assistant: "I'll analyze coupling patterns, identify natural boundaries, and propose a module structure with clear interfaces."
   <commentary>Use system-designer for component boundary analysis, module decomposition, and interface contracts.</commentary>
   </example>
 model: sonnet

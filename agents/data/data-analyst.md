@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Stakeholder wants to understand a metric change.
   user: "Why did our conversion rate drop 15% last week?"
-  assistant: "I'll explore the data across segments, identify correlated changes, and pinpoint the likely cause of the drop."
   <commentary>Use data-analyst for metric investigation, pattern discovery, and insight generation.</commentary>
   </example>
 model: sonnet

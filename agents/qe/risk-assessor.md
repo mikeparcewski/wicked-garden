@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New architecture needs risk assessment before implementation.
   user: "Assess the risks of migrating from REST to gRPC for our internal services."
-  assistant: "I'll identify failure modes, assess security/reliability/operational risks, and produce a risk matrix with mitigations."
   <commentary>Use risk-assessor to identify failure modes, score risks, and recommend mitigations.</commentary>
   </example>
 model: sonnet

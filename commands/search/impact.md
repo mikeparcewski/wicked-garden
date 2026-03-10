@@ -26,13 +26,7 @@ Analyze what would be affected if you changed a symbol. Uses the knowledge graph
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py impact "<symbol>" --path "${PWD}"
    ```
 
-3. If the control plane is available, also query for enrichment:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph impact "<symbol>" --depth "${depth:-10}"
-   ```
-   This step is optional — the local index is fully functional without CP.
-
-4. Parse the response which contains affected symbols and paths.
+3. Parse the response which contains affected symbols and paths.
 
 5. Report the impact assessment:
    - **Affected UI Fields**: What UI elements display/collect this data

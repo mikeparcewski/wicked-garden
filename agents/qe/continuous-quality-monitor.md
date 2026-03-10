@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Active development and quality signals need tracking.
   user: "Monitor quality signals while we build the new API module."
-  assistant: "I'll run lint checks, track complexity metrics, monitor test coverage, and flag any quality regressions as you code."
   <commentary>Use continuous-quality-monitor to track quality signals during active development.</commentary>
   </example>
 model: sonnet

@@ -2,21 +2,12 @@
 name: memory-recaller
 description: |
   Search and retrieve relevant memories without overloading main context.
-
-  Use this agent when you need to search the memory store for relevant context, find past decisions or learnings, or retrieve memories by tag or pattern. This agent runs with minimal tools (Grep, Glob, Read) for fast, focused search operations.
+  Use when: searching memory store, finding past decisions or patterns, recalling context by topic or tag.
 
   <example>
-  Context: User is working on authentication and Claude needs past context.
+  Context: User is working on authentication and needs past context.
   user: "How did we handle JWT validation before?"
-  assistant: "Let me search for relevant memories about JWT validation."
   <commentary>Use memory-recaller to find past implementations, decisions, or patterns by topic.</commentary>
-  </example>
-
-  <example>
-  Context: Claude encounters a familiar-seeming bug.
-  user: "This auth error looks familiar..."
-  assistant: "Let me check if we've encountered this before."
-  <commentary>Search episodic memories for past bug fixes or issues matching the current problem.</commentary>
   </example>
 
 tools: [Grep, Glob, Read]

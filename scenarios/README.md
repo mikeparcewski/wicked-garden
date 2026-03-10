@@ -21,10 +21,8 @@ Each scenario follows a standard structure with YAML frontmatter, setup steps, n
 
 ## Data Access
 
-All scenarios that query plugin data use the Control Plane (CP) at `http://localhost:18889`:
+All scenarios query plugin data via local storage (DomainStore + SQLite). Scripts are invoked through the `_run.py` wrapper:
 
 ```bash
-python3 scripts/cp.py {domain} {source} {verb} [id] [--param value]
+python3 scripts/_run.py scripts/{domain}/{script}.py {args}
 ```
-
-See `scripts/cp.py` for usage details and `scripts/_control_plane.py` for the client library.

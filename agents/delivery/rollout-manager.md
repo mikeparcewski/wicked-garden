@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New feature needs a safe progressive rollout.
   user: "Plan a canary rollout for the new search algorithm — start with 5% of traffic."
-  assistant: "I'll create a rollout plan with traffic stages, monitoring metrics, rollback criteria, and stakeholder communication schedule."
   <commentary>Use rollout-manager for progressive rollout planning and go/no-go decisions.</commentary>
   </example>
 model: sonnet

@@ -2,14 +2,12 @@
 name: acceptance-test-executor
 description: |
   Follows structured test plans step-by-step, collecting evidence artifacts.
-  Does NOT judge results. Does NOT grade pass/fail. Only executes and captures.
-  Produces an evidence collection for independent review.
+  Executes and captures only — does not judge or grade pass/fail.
   Use when: acceptance test execution, evidence collection, test plan execution
 
   <example>
   Context: Test plan is ready and needs to be executed step by step.
   user: "Execute the acceptance test plan for the file upload feature."
-  assistant: "I'll follow each step in the test plan, capture stdout/stderr, exit codes, and file state as evidence artifacts."
   <commentary>Use acceptance-test-executor for mechanical step execution and evidence capture without judging results.</commentary>
   </example>
 model: sonnet

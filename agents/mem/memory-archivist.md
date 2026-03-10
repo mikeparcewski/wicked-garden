@@ -1,14 +1,12 @@
 ---
 name: memory-archivist
 description: |
-  Maintain memory health - decay, archive, and cleanup operations.
-
-  Use this agent when you need to run memory maintenance, clean up old memories, or check memory health. This agent handles the decay lifecycle (active -> archived -> decayed -> deleted) based on age, importance, and access patterns.
+  Maintain memory health — decay, archive, and cleanup operations.
+  Use when: memory maintenance, cleanup, decay lifecycle (active -> archived -> decayed -> deleted).
 
   <example>
   Context: User wants to clean up old memories.
   user: "Clean up old memories"
-  assistant: "I'll run memory maintenance to archive and clean up stale memories."
   <commentary>Use memory-archivist for decay lifecycle management, cleanup, and memory health checks.</commentary>
   </example>
 

@@ -9,7 +9,6 @@ description: |
   <example>
   Context: PR is ready for a thorough code review.
   user: "Review this PR for the new caching layer — focus on correctness and maintainability."
-  assistant: "I'll review the cache invalidation logic, error handling, and API design for correctness and long-term maintainability."
   <commentary>Use senior-engineer for code review, refactoring guidance, and best-practice mentoring.</commentary>
   </example>
 model: sonnet

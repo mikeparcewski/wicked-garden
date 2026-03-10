@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New feature needs a user flow designed.
   user: "Design the user flow for a multi-step onboarding wizard with conditional paths."
-  assistant: "I'll map the flow with decision points, conditional branches, error states, and success paths."
   <commentary>Use ux-analyst for user flow design, IA mapping, and interaction analysis.</commentary>
   </example>
 subagent_type: wicked-garden:design:ux-analyst

@@ -7,7 +7,6 @@ description: |
   <example>
   Context: Team needs creative ideas for a new feature.
   user: "Brainstorm approaches for making our CLI tool more discoverable to new users."
-  assistant: "I'll assemble a focus group of personas (new developer, power user, DevOps engineer) and facilitate a structured discussion."
   <commentary>Use jam facilitator for persona-based brainstorming and structured ideation sessions.</commentary>
   </example>
 model: sonnet

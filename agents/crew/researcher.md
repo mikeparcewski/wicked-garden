@@ -1,14 +1,12 @@
 ---
 name: researcher
 description: |
-  Explore codebase and gather context for design decisions.
-
-  Use this agent to understand the codebase before making design or implementation choices.
+  Explore codebase and gather context before design or implementation choices.
+  Use when: codebase exploration, pattern discovery, context gathering for decisions.
 
   <example>
-  Context: Team needs to understand existing patterns before adding a new feature.
+  Context: Team needs context on existing patterns before adding a feature.
   user: "How does our codebase currently handle authentication? We need to add OAuth."
-  assistant: "I'll search for auth patterns, map the existing flow, and document what's in place."
   <commentary>Use researcher to explore codebase patterns and gather context before design decisions.</commentary>
   </example>
 model: sonnet

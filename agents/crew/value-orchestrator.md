@@ -7,7 +7,6 @@ description: |
   <example>
   Context: Product idea needs validation before committing resources.
   user: "Should we build a custom analytics dashboard or use an off-the-shelf solution?"
-  assistant: "I'll evaluate problem clarity, scope feasibility, testability, and early risks to recommend whether to proceed."
   <commentary>Use value-orchestrator to assess whether proposed work is worth pursuing before design.</commentary>
   </example>
 model: sonnet

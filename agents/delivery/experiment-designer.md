@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Team wants to validate a new feature with an A/B test.
   user: "Design an A/B test for our new checkout flow to see if it improves conversion."
-  assistant: "I'll formulate the hypothesis, select primary/guardrail metrics, calculate sample size, and define the experiment timeline."
   <commentary>Use experiment-designer for A/B test design, hypothesis formulation, and statistical planning.</commentary>
   </example>
 model: sonnet

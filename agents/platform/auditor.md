@@ -9,7 +9,6 @@ description: |
   <example>
   Context: Preparing for a SOC2 audit and need to gather evidence.
   user: "Collect all access control evidence for our SOC2 Type II audit."
-  assistant: "I'll gather IAM policies, RBAC configurations, access logs, and change management records as audit evidence."
   <commentary>Use auditor for compliance evidence collection, control verification, and audit trails.</commentary>
   </example>
 model: sonnet

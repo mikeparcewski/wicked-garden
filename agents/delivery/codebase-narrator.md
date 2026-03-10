@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New team member needs to understand the project structure.
   user: "Give me a high-level walkthrough of how this codebase is organized."
-  assistant: "I'll analyze the directory layout, key modules, data flows, and explain the architectural decisions behind the structure."
   <commentary>Use codebase-narrator for architectural overviews and code navigation guidance.</commentary>
   </example>
 model: sonnet

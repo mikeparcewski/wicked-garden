@@ -25,13 +25,7 @@ Search documents only (PDF, Office docs, markdown) via the unified index.
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py docs "<query>" --path "${PWD}"
    ```
 
-3. If the control plane is available, also query for additional results:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph search --q "<query>" --type document
-   ```
-   Merge CP results with local results, deduplicating by file+section.
-
-4. Report matching document sections with source file locations.
+3. Report matching document sections with source file locations.
 
 ## Example
 

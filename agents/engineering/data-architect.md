@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Starting a new feature that needs persistent storage.
   user: "Design the data model for a multi-tenant task management system."
-  assistant: "I'll define the entity relationships, tenant isolation strategy, and schema with proper indexing."
   <commentary>Use data-architect for schema design, storage decisions, and data flow patterns.</commentary>
   </example>
 model: sonnet

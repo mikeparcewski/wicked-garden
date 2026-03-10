@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Building a new analytics platform.
   user: "Design the data warehouse architecture for our product analytics."
-  assistant: "I'll define the dimensional model, storage layers, ingestion patterns, and governance framework for the analytics platform."
   <commentary>Use analytics-architect for warehouse design, data modeling, and analytics cost optimization.</commentary>
   </example>
 model: sonnet
