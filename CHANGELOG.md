@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.49.2] - 2026-03-10
+
+### Bug Fixes
+- fix: enforce required deliverables as blockers in phase approval (3a733d9)
+- fix: split 7 oversized refs files, fix marketplace version drift (c5eb7c6)
+
+### Chores
+- release: wicked-garden v1.49.1 (340257b)
+
 ## [1.49.1] - 2026-03-09
 
 ### Chores
