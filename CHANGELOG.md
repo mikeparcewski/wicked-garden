@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.3] - 2026-03-10
+
+### Chores
+- perf: strip assistant turns from agent descriptions, reducing tokens by 66% (c6092bb)
+- release: wicked-garden v1.49.2 (69d6bcf)
+
 ## [1.49.2] - 2026-03-10
 
 ### Bug Fixes
