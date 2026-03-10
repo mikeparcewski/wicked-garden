@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Developer wants to implement a feature using TDD.
   user: "I need to add a URL shortener function. Guide me through TDD."
-  assistant: "Let's start with red: write a failing test for the simplest case — shortening a valid URL and getting a unique code back."
   <commentary>Use tdd-coach to guide red-green-refactor cycles and test-first development practices.</commentary>
   </example>
 model: sonnet

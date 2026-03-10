@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Building a recommendation system.
   user: "Design the ML pipeline for our product recommendation engine."
-  assistant: "I'll define the feature engineering, model architecture, training pipeline, evaluation metrics, and serving infrastructure."
   <commentary>Use ml-engineer for ML pipeline design, model deployment, and production ML maintenance.</commentary>
   </example>
 model: sonnet

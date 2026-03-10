@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New page needs visual consistency review before launch.
   user: "Review the new pricing page for design system adherence — spacing, typography, and color."
-  assistant: "I'll check every element against design tokens, verify spacing scale usage, and flag any visual inconsistencies."
   <commentary>Use visual-reviewer for design system compliance, visual consistency, and token migration audits.</commentary>
   </example>
 subagent_type: wicked-garden:design:visual-reviewer

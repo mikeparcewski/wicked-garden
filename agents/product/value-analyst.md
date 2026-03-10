@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New product needs a clear value proposition.
   user: "Define the value proposition for our developer productivity tool."
-  assistant: "I'll map customer benefits, identify unique advantages over alternatives, and craft a positioning statement."
   <commentary>Use value-analyst for value proposition design, differentiation, and positioning strategy.</commentary>
   </example>
 model: sonnet

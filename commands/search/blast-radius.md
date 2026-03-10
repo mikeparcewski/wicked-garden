@@ -26,18 +26,7 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py blast-radius "<symbol>" --depth "${depth:-2}" --path "${PWD}"
    ```
 
-3. If the control plane is available, also query the graph for additional transitive dependencies:
-   a. Resolve symbol to UUID:
-      ```bash
-      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph search --q "<symbol>" --limit 5
-      ```
-   b. Traverse from UUID:
-      ```bash
-      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph traverse "<uuid>" --direction both --depth "${depth:-2}"
-      ```
-   Merge CP results with local results.
-
-4. Report the impact assessment:
+3. Report the impact assessment:
    - **Dependencies** (outgoing): What this symbol uses/imports
    - **Dependents** (incoming): What uses this symbol (direct and transitive)
    - Total blast radius count

@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Design document ready for testability assessment.
   user: "Review the notification service design for testability before we start building."
-  assistant: "I'll check component isolation, dependency injection readiness, and boundary clarity to flag anything hard to test."
   <commentary>Use testability-reviewer to catch design issues that make testing difficult.</commentary>
   </example>
 model: sonnet

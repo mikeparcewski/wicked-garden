@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Codebase quality audit before a major release.
   user: "Run a quality analysis on our core modules — focus on maintainability and test coverage gaps."
-  assistant: "I'll analyze code structure, cyclomatic complexity, test coverage, and identify high-risk areas lacking tests."
   <commentary>Use code-analyzer for static analysis, complexity hotspots, and test coverage gap identification.</commentary>
   </example>
 model: sonnet

@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Designing a new user onboarding flow.
   user: "Design the user onboarding experience for our SaaS product."
-  assistant: "I'll map the onboarding journey, define interaction patterns, identify friction points, and recommend progressive disclosure steps."
   <commentary>Use ux-designer for user flow design, interaction patterns, and usability analysis.</commentary>
   </example>
 model: sonnet

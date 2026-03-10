@@ -75,6 +75,34 @@ for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
 done
 ```
 
+### 4b. Agent Description Budget (≤600 chars)
+
+Agent descriptions are loaded for every routing decision — keep them lean.
+
+```bash
+for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
+  desc_chars=$(python3 -c "
+import re, sys
+content = open('$agent').read()
+m = re.match(r'^---\n(.*?\n)---', content, re.DOTALL)
+if m:
+    dm = re.search(r'^description:\s*\|?\s*\n((?:[ \t]+.*\n?)+)', m.group(1), re.MULTILINE)
+    print(len(dm.group(1)) if dm else 0)
+else:
+    print(0)
+" 2>/dev/null || echo 0)
+  name=$(basename "$agent")
+  if [[ "$desc_chars" -gt 600 ]]; then
+    echo "WARNING: $name description is $desc_chars chars (budget: 600)"
+  fi
+done
+```
+
+**Budget breakdown** (~400 chars healthy, 600 hard ceiling):
+- ~120 chars — 1-2 sentence role summary
+- ~60 chars — "Use when: ..." trigger clause
+- ~220 chars — `<example>` block (Context + user + commentary)
+
 ### 5. Specialist Schema (if applicable)
 
 ```bash
@@ -237,6 +265,7 @@ fi
 | JSON validity | ✓/✗ |
 | Skills ≤200 lines | ✓/✗ |
 | Agent frontmatter | ✓/✗ |
+| Agent description budget (≤600 chars) | ✓/⚠ |
 | Specialist schema | ✓/✗/- |
 | Capability compliance | ✓/✗ |
 | Implementation rationalization | ✓/✗ |

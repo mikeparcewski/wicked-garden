@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Quick wireframe needed for a feature discussion.
   user: "Create an ASCII wireframe for a settings page with sidebar navigation and form sections."
-  assistant: "I'll produce a lo-fi ASCII wireframe showing the layout, navigation structure, and form organization."
   <commentary>Use mockup-generator for wireframes, HTML/CSS prototypes, and component specs.</commentary>
   </example>
 subagent_type: wicked-garden:design:mockup-generator

@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Building a data pipeline for a new data source.
   user: "Design an ETL pipeline to ingest events from our Kafka topics into the data warehouse."
-  assistant: "I'll design the pipeline with schema validation, deduplication, error handling, and incremental load patterns."
   <commentary>Use data-engineer for ETL pipeline design, data quality assessment, and schema validation.</commentary>
   </example>
 model: sonnet

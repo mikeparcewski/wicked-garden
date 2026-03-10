@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Agentic system is expensive to run.
   user: "Our multi-agent pipeline costs $50 per run. Help reduce token usage and cost."
-  assistant: "I'll analyze token consumption per agent, identify redundant context passing, and recommend caching and prompt optimization."
   <commentary>Use performance-analyst for token optimization, cost reduction, and latency improvements in agent systems.</commentary>
   </example>
 model: sonnet

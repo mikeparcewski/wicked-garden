@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New open-source project needs documentation from scratch.
   user: "Write a getting-started guide for our CLI tool that covers installation, configuration, and first use."
-  assistant: "I'll create a structured guide with clear steps, code examples, and troubleshooting tips for new users."
   <commentary>Use technical-writer for user guides, README files, and operational documentation.</commentary>
   </example>
 model: sonnet

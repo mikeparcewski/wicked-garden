@@ -2,13 +2,11 @@
 name: reviewer
 description: |
   Perform basic code review and validation.
-
-  Use this agent for general code review when no domain-specific specialist is available.
+  Use when: general code review without a domain-specific specialist available.
 
   <example>
   Context: Implementation is complete and needs a sanity check.
   user: "Review the changes in the last 3 commits for obvious issues."
-  assistant: "I'll check the implementation against the design, validate test coverage, and flag concerns."
   <commentary>Use reviewer as a fallback for general code review when specialist reviewers aren't matched.</commentary>
   </example>
 tools: [Read, Glob, Grep, Bash]

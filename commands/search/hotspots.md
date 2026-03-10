@@ -23,12 +23,6 @@ Identify hotspot symbols ranked by total reference count (incoming + outgoing). 
 
    With no arguments, returns the top 20 most-connected symbols across the whole codebase.
 
-   If the control plane is available, also query for enrichment:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph hotspots --limit "${limit:-20}" ${layer:+--layer "${layer}"} ${type:+--type "${type}"} ${category:+--category "${category}"}
-   ```
-   This step is optional — the local index is fully functional without CP.
-
 3. Arguments (all optional):
 
    | Argument | Default | Description |

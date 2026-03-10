@@ -25,13 +25,7 @@ Search code symbols only (functions, classes, methods) via the knowledge graph.
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py code "<query>" --path "${PWD}"
    ```
 
-3. If the control plane is available, also query it for additional results:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph search --q "<query>" --type code
-   ```
-   Merge CP results with local results, deduplicating by file+line.
-
-4. Parse results. Each contains: `name`, `type`, `file`, `line`, `score`.
+3. Parse results. Each contains: `name`, `type`, `file`, `line`, `score`.
 
 5. Report matching symbols with file locations and types.
 

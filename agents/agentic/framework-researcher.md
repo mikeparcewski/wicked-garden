@@ -9,7 +9,6 @@ description: |
   <example>
   Context: Choosing an agentic framework for a new project.
   user: "Compare LangGraph, CrewAI, and AutoGen for our multi-agent customer support system."
-  assistant: "I'll research each framework's capabilities, compare against your requirements, and recommend the best fit with migration considerations."
   <commentary>Use framework-researcher for framework comparison, selection, and migration path analysis.</commentary>
   </example>
 model: sonnet

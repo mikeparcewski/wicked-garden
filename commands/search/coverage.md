@@ -27,13 +27,7 @@ Analyze lineage coverage across the indexed codebase. Identifies symbols without
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py coverage --path "${PWD}"
    ```
 
-3. If the control plane is available, also query for enrichment:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge symbols list ${project:+--project "${project}"} ${type:+--type "${type}"}
-   ```
-   This step is optional — the local index is fully functional without CP.
-
-4. Classify each symbol:
+3. Classify each symbol:
    - **Full coverage**: Complete lineage from UI to database (or reverse)
    - **Partial coverage**: Some connections exist but gaps in the chain
    - **Orphan**: No lineage connections found

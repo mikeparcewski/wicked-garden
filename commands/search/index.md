@@ -26,13 +26,7 @@ Build a unified index of code symbols and document content in the local SQLite d
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats
    ```
 
-3. If the control plane is available, sync symbols to the knowledge graph:
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py index "<path>" --export-json | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge symbols ingest
-   ```
-   This step is optional — the local index is fully functional without CP.
-
-4. Report the results showing:
+3. Report the results showing:
    - Code files indexed
    - Doc files indexed
    - Code symbols found

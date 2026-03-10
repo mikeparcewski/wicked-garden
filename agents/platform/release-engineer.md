@@ -9,7 +9,6 @@ description: |
   <example>
   Context: Preparing a major version release.
   user: "Prepare the v2.0 release — bump versions, generate changelog, and create the release PR."
-  assistant: "I'll update version files, generate the changelog from commits, and create a release PR with deployment notes."
   <commentary>Use release-engineer for version management, changelog generation, and release orchestration.</commentary>
   </example>
 model: sonnet

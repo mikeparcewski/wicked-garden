@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Agentic codebase growing complex and needs design review.
   user: "Our agent orchestration code is getting tangled. Identify anti-patterns and recommend fixes."
-  assistant: "I'll analyze the agent topology, identify coupling issues and anti-patterns, and recommend design pattern improvements."
   <commentary>Use pattern-advisor for agentic anti-pattern detection and design pattern guidance.</commentary>
   </example>
 model: sonnet

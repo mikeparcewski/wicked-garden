@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Team wants to justify a major technical investment.
   user: "Build the business case for migrating to a microservices architecture."
-  assistant: "I'll quantify the costs, estimate ROI over 3 years, assess strategic alignment, and calculate the payback period."
   <commentary>Use business-strategist for ROI analysis, business cases, and investment recommendations.</commentary>
   </example>
 model: sonnet

@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New agentic system needs a safety audit.
   user: "Review our agent pipeline for prompt injection vulnerabilities and missing guardrails."
-  assistant: "I'll analyze input validation, output filtering, prompt injection defenses, and human-in-the-loop gates."
   <commentary>Use safety-reviewer for guardrails, prompt injection defense, and PII protection in agent systems.</commentary>
   </example>
 model: sonnet

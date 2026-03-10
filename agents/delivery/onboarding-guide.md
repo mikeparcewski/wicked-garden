@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New developer joining the team.
   user: "I just joined the team. Where should I start to get productive?"
-  assistant: "I'll analyze the project, identify good first issues, explain the delivery patterns, and create a personalized onboarding path."
   <commentary>Use onboarding-guide to create a structured path to productivity for new team members.</commentary>
   </example>
 model: sonnet

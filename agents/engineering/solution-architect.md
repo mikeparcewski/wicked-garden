@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Greenfield project needs an architecture from requirements.
   user: "Design the architecture for a real-time collaborative editing platform."
-  assistant: "I'll evaluate CRDT vs OT approaches, design the sync protocol, and select appropriate infrastructure components."
   <commentary>Use solution-architect for end-to-end architecture design and technology trade-off analysis.</commentary>
   </example>
 model: sonnet

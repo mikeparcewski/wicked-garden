@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Cloud bill is too high and needs reduction.
   user: "Find the top cost optimization opportunities in our AWS infrastructure."
-  assistant: "I'll analyze resource utilization, identify idle resources, recommend right-sizing, and estimate potential savings."
   <commentary>Use cost-optimizer to find actionable cloud savings and cost trade-offs.</commentary>
   </example>
 model: sonnet

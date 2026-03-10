@@ -1073,7 +1073,7 @@ def main():
                 project_data = json.load(f)
             if project_data.get("archived", False):
                 print(f"Error: Cannot execute phase operations on archived project: {args.project}")
-                print("Use 'python3 scripts/cp.py crew projects unarchive {name}' to unarchive first.")
+                print(f"Use '/wicked-garden:crew:archive {args.project} --unarchive' to unarchive first.")
                 return
         except (json.JSONDecodeError, OSError):
             pass  # fail open: invalid project state skipped

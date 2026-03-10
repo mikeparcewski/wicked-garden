@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Starting a new product and need to understand users.
   user: "Create user personas for our developer productivity tool."
-  assistant: "I'll discover distinct user segments, define personas with goals and pain points, and map their key workflows."
   <commentary>Use user-researcher for persona creation, journey mapping, and user needs discovery.</commentary>
   </example>
 model: sonnet

@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Planning next quarter's cloud budget.
   user: "Forecast our cloud costs for Q3 based on current growth trends."
-  assistant: "I'll analyze historical cost trends, factor in planned changes, and model optimistic/expected/pessimistic scenarios."
   <commentary>Use forecast-specialist for cost forecasting, timeline predictions, and scenario modeling.</commentary>
   </example>
 model: sonnet

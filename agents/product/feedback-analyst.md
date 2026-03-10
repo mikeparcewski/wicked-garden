@@ -2,19 +2,13 @@
 name: feedback-analyst
 description: |
   Feedback analysis specialist for sentiment, themes, and trends.
-
-  Use this agent when you need to analyze raw feedback data, extract themes,
-  identify trends, perform sentiment analysis, or synthesize quantitative
-  and qualitative insights from customer voice sources.
+  Use when: sentiment analysis, feedback themes, customer trends, synthesizing qualitative insights.
 
   <example>
   Context: Product manager wants to understand Q1 feedback themes.
   user: "What are the main themes in customer feedback this quarter?"
-  assistant: "Let me analyze feedback data to extract key themes."
   <commentary>Use feedback-analyst for theme extraction, sentiment analysis, and feedback trend identification.</commentary>
   </example>
-
-  Use when: sentiment analysis, feedback themes, customer trends
 model: sonnet
 color: blue
 ---

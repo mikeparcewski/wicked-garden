@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Monthly cloud bill needs analysis.
   user: "Break down this month's cloud costs by service and identify any anomalies."
-  assistant: "I'll analyze the billing data, identify top cost drivers, flag unusual spikes, and compare against budget targets."
   <commentary>Use finops-analyst for cost breakdown, anomaly detection, and budget variance analysis.</commentary>
   </example>
 model: sonnet

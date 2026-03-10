@@ -1,16 +1,13 @@
 ---
 name: scenario-executor
 description: |
-  Full-capability scenario executor that can run both bash commands AND slash commands.
-  Reads scenario markdown files, discovers tools, executes steps via Bash or Skill tool,
-  and reports structured pass/fail results. Use instead of scenario-runner when scenarios
-  contain slash commands (most wicked-garden scenarios do).
+  Runs acceptance scenarios end-to-end: reads scenario markdown, executes steps via Bash
+  or Skill tool, and reports pass/fail results. Handles both bash commands and slash commands.
   Use when: scenario execution, acceptance testing, slash command testing
 
   <example>
   Context: Running acceptance tests for a wicked-garden domain.
   user: "Execute the crew domain scenario to validate the workflow end-to-end."
-  assistant: "I'll read the scenario file, discover required tools, execute each step via Bash or Skill tool, and report pass/fail results."
   <commentary>Use scenario-executor for full-capability scenario testing including slash command execution.</commentary>
   </example>
 model: sonnet

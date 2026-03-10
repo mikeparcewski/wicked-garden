@@ -2,13 +2,11 @@
 name: memory-learner
 description: |
   Extract and structure learnings from completed tasks.
-
-  Use this agent when you need to analyze completed work and extract memories worth preserving. This agent identifies decisions made, problems solved, patterns discovered, and user preferences observed during a task.
+  Use when: capturing decisions, patterns, and episodic memories after completing work.
 
   <example>
   Context: Claude just finished a complex debugging session.
   user: "Great, the bug is fixed!"
-  assistant: "Let me extract learnings from this debugging session to remember for next time."
   <commentary>Use memory-learner to capture decisions, patterns, and episodic memories from completed work.</commentary>
   </example>
 

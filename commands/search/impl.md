@@ -25,13 +25,7 @@ Find code that implements a documented feature or section by searching for imple
    cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py impl "<doc-section>" --path "${PWD}"
    ```
 
-3. If the control plane is available, also query for additional implementation edges:
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/cp.py knowledge graph search --q "<doc-section>" --edge_type implements
-   ```
-   Merge CP results with local results.
-
-4. Report the code symbols that implement this section, with file locations.
+3. Report the code symbols that implement this section, with file locations.
 
 ## Example
 

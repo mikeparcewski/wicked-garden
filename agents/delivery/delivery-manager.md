@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Planning the next sprint.
   user: "Plan the next sprint based on our velocity and the remaining backlog."
-  assistant: "I'll analyze historical velocity, prioritize backlog items by value and risk, and recommend a realistic sprint scope."
   <commentary>Use delivery-manager for sprint planning, scope management, and delivery coordination.</commentary>
   </example>
 model: sonnet

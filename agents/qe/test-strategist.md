@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New feature needs a test strategy before implementation.
   user: "What test scenarios do we need for the file upload feature?"
-  assistant: "I'll identify happy paths, error cases, edge cases (large files, invalid formats, concurrent uploads), and boundary conditions."
   <commentary>Use test-strategist to identify comprehensive test scenarios and coverage gaps.</commentary>
   </example>
 model: sonnet

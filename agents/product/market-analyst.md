@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Evaluating a new market opportunity.
   user: "Size the market for AI-powered code review tools and identify key segments."
-  assistant: "I'll estimate TAM/SAM/SOM, segment by buyer persona, and identify the fastest-growing segments."
   <commentary>Use market-analyst for market sizing, segmentation, and trend analysis.</commentary>
   </example>
 model: sonnet

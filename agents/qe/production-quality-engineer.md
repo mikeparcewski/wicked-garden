@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Just deployed a new release and need post-deploy quality checks.
   user: "Monitor the quality signals after deploying v2.3 to production."
-  assistant: "I'll track error rates, latency percentiles, and SLO compliance for the canary period and define rollback criteria."
   <commentary>Use production-quality-engineer for post-deploy quality monitoring and rollback criteria.</commentary>
   </example>
 model: sonnet

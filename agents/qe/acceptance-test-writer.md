@@ -2,14 +2,12 @@
 name: acceptance-test-writer
 description: |
   Reads acceptance scenarios and produces structured, evidence-gated test plans.
-  Transforms qualitative criteria into concrete artifact requirements with assertions.
-  Every step demands evidence. Every assertion is independently verifiable.
+  Transforms qualitative criteria into concrete, verifiable artifact requirements.
   Use when: acceptance testing, test plan generation, scenario verification design
 
   <example>
   Context: New feature scenario needs a structured test plan.
   user: "Write an acceptance test plan for the 'user can export data as CSV' scenario."
-  assistant: "I'll transform the scenario into evidence-gated steps with concrete artifact requirements and verifiable assertions."
   <commentary>Use acceptance-test-writer to produce structured, evidence-gated test plans from scenarios.</commentary>
   </example>
 model: sonnet

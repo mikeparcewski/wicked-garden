@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Entering a market with established competitors.
   user: "Conduct a SWOT analysis for our CI/CD tool vs. GitHub Actions and CircleCI."
-  assistant: "I'll map strengths, weaknesses, opportunities, and threats against each competitor and recommend positioning."
   <commentary>Use competitive-analyst for SWOT analysis, competitive intelligence, and positioning.</commentary>
   </example>
 model: sonnet

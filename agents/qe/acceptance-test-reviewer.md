@@ -9,7 +9,6 @@ description: |
   <example>
   Context: Executor produced evidence and it needs independent evaluation.
   user: "Review the evidence from the file upload acceptance tests and render a verdict."
-  assistant: "I'll compare each evidence artifact against the test plan assertions and render pass/fail verdicts independently."
   <commentary>Use acceptance-test-reviewer for independent, unbiased verdict on test evidence.</commentary>
   </example>
 model: sonnet

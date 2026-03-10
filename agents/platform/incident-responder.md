@@ -9,7 +9,6 @@ description: |
   <example>
   Context: Production outage in progress.
   user: "Users are getting 500 errors on the checkout page. We need to triage immediately."
-  assistant: "I'll correlate error logs, trace the failure path, assess blast radius, and identify the root cause for rapid resolution."
   <commentary>Use incident-responder for rapid triage, root cause correlation, and incident analysis.</commentary>
   </example>
 model: sonnet

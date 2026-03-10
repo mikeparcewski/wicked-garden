@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Production error with a cryptic stack trace.
   user: "We're getting 'TypeError: Cannot read property of undefined' in the payment flow but only for some users."
-  assistant: "I'll trace the error path, identify the null reference, and determine what input conditions trigger it."
   <commentary>Use debugger for root cause analysis, error investigation, and systematic debugging.</commentary>
   </example>
 model: sonnet

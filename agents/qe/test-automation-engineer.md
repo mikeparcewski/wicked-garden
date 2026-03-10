@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New module needs automated tests.
   user: "Generate unit and integration tests for the payment processing module."
-  assistant: "I'll analyze the module's public API, generate unit tests for each function, and create integration tests for the payment flow."
   <commentary>Use test-automation-engineer for test code generation and test infrastructure setup.</commentary>
   </example>
 model: sonnet

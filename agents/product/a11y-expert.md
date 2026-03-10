@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Product needs WCAG 2.1 AA compliance audit.
   user: "Audit our web app for WCAG 2.1 AA compliance and list the violations."
-  assistant: "I'll check color contrast, keyboard navigation, ARIA usage, semantic HTML, and screen reader compatibility."
   <commentary>Use a11y-expert for WCAG audits, accessible component design, and inclusive patterns.</commentary>
   </example>
 model: sonnet

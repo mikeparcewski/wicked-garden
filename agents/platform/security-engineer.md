@@ -9,7 +9,6 @@ description: |
   <example>
   Context: New API endpoints need a security review before launch.
   user: "Review the new payment API for OWASP Top 10 vulnerabilities."
-  assistant: "I'll scan for injection risks, broken auth, data exposure, and other OWASP Top 10 issues in the payment endpoints."
   <commentary>Use security-engineer for vulnerability assessment, secrets scanning, and secure coding review.</commentary>
   </example>
 model: sonnet

@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Designing a new multi-agent system from scratch.
   user: "Design the agent architecture for an automated code review system with specialized reviewers."
-  assistant: "I'll define the agent topology, orchestration layer, communication patterns, and five-layer architecture validation."
   <commentary>Use architect for agentic topology design, scalability review, and structural validation.</commentary>
   </example>
 model: sonnet

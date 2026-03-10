@@ -9,7 +9,6 @@ description: |
   <example>
   Context: New feature collects user data and needs privacy review.
   user: "We're adding a user profile page that stores name, email, and location. Review for privacy compliance."
-  assistant: "I'll assess the data collection against GDPR requirements, check for proper consent mechanisms, and verify data minimization."
   <commentary>Use privacy-expert for GDPR compliance, PII detection, and privacy-by-design reviews.</commentary>
   </example>
 model: sonnet

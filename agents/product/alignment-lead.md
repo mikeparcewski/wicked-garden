@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Engineering and product disagree on the technical approach.
   user: "Engineering wants to rebuild the system, product wants incremental improvements. Help us align."
-  assistant: "I'll surface each side's concerns, map the trade-offs, and facilitate a shared decision framework."
   <commentary>Use alignment-lead to mediate trade-offs and build consensus across teams.</commentary>
   </example>
 model: sonnet

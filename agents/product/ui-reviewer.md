@@ -8,7 +8,6 @@ description: |
   <example>
   Context: New pages need visual consistency review.
   user: "Review the settings page for design system consistency — spacing, colors, and component usage."
-  assistant: "I'll check adherence to the design system tokens, component patterns, spacing scale, and flag any inconsistencies."
   <commentary>Use ui-reviewer for design system compliance, visual consistency, and component pattern audits.</commentary>
   </example>
 model: sonnet

@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Team needs to add a new API endpoint with database persistence.
   user: "Add a CRUD API for project resources with PostgreSQL storage."
-  assistant: "I'll design the schema, implement the REST endpoints, and add proper validation and error handling."
   <commentary>Use backend-engineer for API + database work, server-side optimization, and service design.</commentary>
   </example>
 model: sonnet

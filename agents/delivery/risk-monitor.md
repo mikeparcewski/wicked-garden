@@ -8,7 +8,6 @@ description: |
   <example>
   Context: Project has multiple dependencies that could cause delays.
   user: "Identify delivery risks for the platform migration — we depend on 3 other teams."
-  assistant: "I'll map the dependency chains, assess each team's delivery risk, and recommend mitigation strategies for critical paths."
   <commentary>Use risk-monitor for delivery risk identification, dependency tracking, and escalation.</commentary>
   </example>
 model: sonnet
