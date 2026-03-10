@@ -5,7 +5,6 @@ description: |
   Supports 5 providers: cstudio, vertex-curl, OpenAI, Stability AI, Replicate.
 
   Use when: "generate image", "create image", "text to image", "new visual"
-    - REPLICATE_API_TOKEN (Replicate Flux models)
 ---
 
 # Image Creation

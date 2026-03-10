@@ -661,6 +661,25 @@ def _record_gate_override(
         pass  # fail open: write failure is non-fatal
 
 
+def _record_deliverable_override(
+    project_dir: Path, phase: str, reason: str, approver: str
+) -> None:
+    """Append a deliverable override record to status.md."""
+    status_file = project_dir / "phases" / phase / "status.md"
+    timestamp = get_utc_timestamp()
+    override_block = (
+        f"\n## Deliverable Overrides\n\n"
+        f"- **Date**: {timestamp}\n"
+        f"- **Approver**: {approver}\n"
+        f"- **Reason**: {reason or '(none provided)'}\n"
+    )
+    try:
+        existing = status_file.read_text() if status_file.exists() else ""
+        status_file.write_text(existing + override_block)
+    except OSError:
+        pass  # fail open: write failure is non-fatal
+
+
 def _load_session_dispatches() -> List[Dict[str, Any]]:
     """Load specialist dispatch records from session state file."""
     import os
@@ -680,6 +699,8 @@ def approve_phase(
     approver: str = "user",
     override_gate: bool = False,
     override_reason: str = "",
+    override_deliverables: bool = False,
+    override_deliverables_reason: str = "",
 ) -> Tuple[ProjectState, Optional[str]]:
     """Approve a phase and return next phase (or None if done).
 
@@ -690,10 +711,24 @@ def approve_phase(
     phase = resolve_phase(phase)
     warnings: List[str] = []
 
-    # Check 1: deliverables for the phase being approved
+    # Check 1: deliverables for the phase being approved — BLOCKING
     deliverable_issues = _check_phase_deliverables(state, phase)
     if deliverable_issues:
-        warnings.extend(deliverable_issues)
+        if override_deliverables:
+            project_dir_for_override = get_project_dir(state.name)
+            _record_deliverable_override(project_dir_for_override, phase, override_deliverables_reason, approver)
+            warnings.extend(deliverable_issues)
+            warnings.append(
+                f"Deliverable override applied for phase '{phase}'. "
+                f"Reason: {override_deliverables_reason or '(none provided)'}"
+            )
+        else:
+            missing = ", ".join(deliverable_issues)
+            raise ValueError(
+                f"Missing required deliverables for phase '{phase}': {missing}. "
+                f"Create the deliverables before approving, "
+                f"or use --override-deliverables --reason '<why>' to bypass."
+            )
 
     # Check 2: gate_required from phases.json — now BLOCKING
     phases_config = load_phases_config()
@@ -991,6 +1026,12 @@ def main():
         default=False,
         help="Bypass gate enforcement for approve action (requires --reason)"
     )
+    parser.add_argument(
+        "--override-deliverables",
+        action="store_true",
+        default=False,
+        help="Bypass deliverable enforcement for approve action (requires --reason)"
+    )
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--description", default="", help="Project description (for create)")
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
@@ -1004,6 +1045,16 @@ def main():
                 "Error: --override-gate requires --reason. "
                 "Provide a meaningful explanation, e.g.: "
                 "--reason 'Gate ran externally via codex; result: APPROVE'",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    # Enforce --reason when --override-deliverables is passed (check before project lookup)
+    if getattr(args, "override_deliverables", False) and args.action in ("approve", "advance"):
+        if not (args.reason or "").strip():
+            print(
+                "Error: --override-deliverables requires --reason. "
+                "Provide a reason for bypassing deliverable checks.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -1077,6 +1128,8 @@ def main():
                 approver=args.approved_by or "user",
                 override_gate=args.override_gate,
                 override_reason=args.reason or "",
+                override_deliverables=args.override_deliverables,
+                override_deliverables_reason=args.reason or "",
             )
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
@@ -1220,6 +1273,8 @@ def main():
                 approver=args.approved_by or "user",
                 override_gate=args.override_gate,
                 override_reason=args.reason or "",
+                override_deliverables=args.override_deliverables,
+                override_deliverables_reason=args.reason or "",
             )
         except ValueError as e:
             if args.json:

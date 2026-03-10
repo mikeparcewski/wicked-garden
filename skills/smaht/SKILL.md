@@ -18,13 +18,13 @@ Gather relevant context before responding using wicked-smaht v2's tiered hybrid 
 
 ```bash
 # Gather context (automatic fast/slow path selection)
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/v2/orchestrator.py" gather "your query"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/v2/orchestrator.py" gather "your query"
 
 # Just route (see path decision without gathering)
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/v2/orchestrator.py" route "your query" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/v2/orchestrator.py" route "your query" --json
 
 # Force deep analysis via slow path
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/v2/orchestrator.py" gather "your query" --session my-session
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/v2/orchestrator.py" gather "your query" --session my-session
 ```
 
 ## Architecture

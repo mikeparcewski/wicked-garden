@@ -29,7 +29,7 @@ Execute Python and Node scripts using the best available package manager.
 
 ```bash
 # In a directory with pyproject.toml:
-cd ${PLUGIN_DIR}/scripts
+cd "${CLAUDE_PLUGIN_ROOT}/scripts"
 
 # Preferred (auto-installs deps)
 uv run python script.py [args]
@@ -48,7 +48,7 @@ python3 script.py [args]
 
 ```bash
 # In a directory with package.json:
-cd ${PLUGIN_DIR}/scripts
+cd "${CLAUDE_PLUGIN_ROOT}/scripts"
 
 # Preferred
 pnpm run script-name
