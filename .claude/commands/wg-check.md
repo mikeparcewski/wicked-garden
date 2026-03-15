@@ -108,6 +108,43 @@ for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
 done
 ```
 
+### 4c. Agent tool-capabilities Compliance
+
+Verify agent tool-capabilities declarations reference valid registry capability names:
+
+```bash
+VALID_CAPABILITIES="code-search code-edit code-execution web-access project-management security-scanning error-tracking documentation version-control ci-cd subagent-dispatch data-query"
+
+for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
+  name=$(basename "$agent")
+  fm=$(sed -n '2,/^---$/p' "$agent" | head -n -1)
+
+  # Check if tool-capabilities is present
+  if echo "$fm" | grep -q "^tool-capabilities:"; then
+    # Extract capability names
+    caps=$(echo "$fm" | sed -n '/^tool-capabilities:/,/^[^ -]/p' | grep '^ *- ' | sed 's/^ *- //')
+
+    if [ -z "$caps" ]; then
+      echo "WARNING: $name has empty tool-capabilities list"
+      continue
+    fi
+
+    # Validate each capability name
+    for cap in $caps; do
+      if ! echo "$VALID_CAPABILITIES" | grep -qw "$cap"; then
+        echo "ERROR: $name declares unknown capability: $cap"
+      fi
+    done
+
+    # Check for duplicates
+    dup_count=$(echo "$caps" | sort | uniq -d | wc -l | tr -d ' ')
+    if [ "$dup_count" -gt 0 ]; then
+      echo "WARNING: $name has duplicate tool-capabilities entries"
+    fi
+  fi
+done
+```
+
 ### 4b. Agent Description Budget (≤600 chars)
 
 Agent descriptions are loaded for every routing decision — keep them lean.
@@ -334,6 +371,7 @@ fi
 | Skills ≤200 lines | ✓/✗ |
 | Agent frontmatter | ✓/✗ |
 | Agent Skills 2.0 (allowed-tools, model) | ✓/✗ |
+| Agent tool-capabilities compliance | ✓/✗ |
 | Agent description budget (≤600 chars) | ✓/⚠ |
 | Skill portability compliance | ✓/✗ |
 | Skill invocation control audit | ✓/info |
@@ -399,6 +437,31 @@ grep -A 10 "## Integration" "./README.md"
 # Look for graceful degradation patterns in scripts
 grep -r "try:" "./scripts/" 2>/dev/null | head -3
 grep -r "except" "./scripts/" 2>/dev/null | head -3
+```
+
+### 12. Capability Resolution Dry Run
+
+Test the capability resolution pipeline end-to-end:
+
+```bash
+python3 -c "
+import sys
+sys.path.insert(0, 'scripts')
+from pathlib import Path
+from _capability_resolver import resolve_all_agents, discover_mcp_servers
+from _agents import AgentLoader
+
+loader = AgentLoader()
+agents = loader.load_disk_agents(Path('agents'))
+mcp = discover_mcp_servers()
+resolutions = resolve_all_agents(agents, config=None, mcp_servers=mcp)
+
+print(f'Resolved {len(resolutions)} agents with tool-capabilities:')
+for name, tools in sorted(resolutions.items()):
+    print(f'  {name}: {\", \".join(tools)}')
+if not resolutions:
+    print('  (no agents have tool-capabilities declared)')
+" 2>&1 || echo "WARNING: Capability resolution dry run failed"
 ```
 
 ### 11. Product Value Assessment

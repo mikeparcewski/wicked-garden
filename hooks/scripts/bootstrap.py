@@ -226,6 +226,26 @@ def _load_agents():
         return 0
 
 
+def _resolve_capabilities(config=None):
+    """Run capability resolution for all loaded agents.
+
+    Returns dict[agent_name, tool_list] or empty dict on any error.
+    Fails open — never blocks bootstrap.
+    """
+    try:
+        from _capability_resolver import resolve_all_agents, discover_mcp_servers
+        from _agents import AgentLoader
+
+        loader = AgentLoader()
+        agents = loader.load_disk_agents(_PLUGIN_ROOT / "agents")
+
+        mcp_servers = discover_mcp_servers()
+        return resolve_all_agents(agents, config, mcp_servers)
+    except Exception as e:
+        print(f"[wicked-garden] capability resolution error: {e}", file=sys.stderr)
+        return {}
+
+
 def _find_active_crew_project(workspace: str = ""):
     """Return (project_data, project_name) for most recently updated active crew project
     scoped to the given workspace.
@@ -654,6 +674,11 @@ def main():
         agents_loaded = _load_agents()
         if state is not None:
             state.update(agents_loaded=agents_loaded)
+
+        # 3b. Resolve tool-capabilities for agents that declare them
+        resolutions = _resolve_capabilities(config)
+        if resolutions and state is not None:
+            state.update(resolved_capabilities=resolutions)
 
         # 4 & 5. Load last crew project for this workspace and kanban board summary
         workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name

@@ -14,6 +14,11 @@ description: |
 model: sonnet
 color: green
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+tool-capabilities:
+  - code-edit
+  - code-execution
+  - code-search
+  - version-control
 ---
 
 # Senior Engineer

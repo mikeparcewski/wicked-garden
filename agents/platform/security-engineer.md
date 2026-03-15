@@ -14,6 +14,12 @@ description: |
 model: sonnet
 color: red
 allowed-tools: Read, Grep, Glob, Bash
+tool-capabilities:
+  - code-edit
+  - code-search
+  - code-execution
+  - security-scanning
+  - version-control
 ---
 
 # Security Engineer

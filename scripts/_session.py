@@ -170,6 +170,11 @@ class SessionState:
     # None means discovery has not run yet this session.
     integration_tools: dict | None = None
 
+    # Resolved capability-to-tool mappings for this session.
+    # Maps agent_name -> list of resolved tool names.
+    # None means resolution has not run yet this session.
+    resolved_capabilities: dict | None = None
+
     # Fast-path sentinel: set by bootstrap.py when config.json setup_complete=True.
     # Allows prompt_submit.py guard to skip config.json file read on every turn.
     # Once True for a session, it never goes back to False.

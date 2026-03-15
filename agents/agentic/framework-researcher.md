@@ -14,6 +14,11 @@ description: |
 model: sonnet
 color: green
 allowed-tools: Read, Grep, Glob, Bash, WebSearch
+tool-capabilities:
+  - code-edit
+  - code-search
+  - code-execution
+  - web-access
 ---
 
 # Framework Researcher
