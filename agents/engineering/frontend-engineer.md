@@ -12,6 +12,7 @@ description: |
   </example>
 model: sonnet
 color: cyan
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Frontend Engineer

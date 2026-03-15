@@ -12,6 +12,7 @@ description: |
   </example>
 model: sonnet
 color: cyan
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Code Analyzer

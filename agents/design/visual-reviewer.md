@@ -13,6 +13,7 @@ description: |
 subagent_type: wicked-garden:design:visual-reviewer
 model: sonnet
 color: cyan
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Visual Reviewer

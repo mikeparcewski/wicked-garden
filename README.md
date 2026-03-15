@@ -4,6 +4,8 @@
 
 141 commands. 79 specialist agents. 79 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
 
+**v2.0** — Skills 2.0 foundations: model-tiered agents (haiku/sonnet/opus), per-agent tool restrictions, 25 cross-platform portable skills, and invocation control. [Changelog](CHANGELOG.md) | [Migration from v1.x](#migration-from-v1x)
+
 ```bash
 claude plugins add mikeparcewski/wicked-garden
 ```
@@ -151,6 +153,16 @@ All 141 commands use colon namespacing: `/wicked-garden:{domain}:{command}`
 | mem | `mem:store` / `mem:recall` | Cross-session memory |
 
 See `/wicked-garden:help` for the full list, or browse [all domains](docs/domains.md).
+
+## Migration from v1.x
+
+v2.0 is backward compatible — all commands work identically. Three changes to be aware of:
+
+1. **Model tiers**: 4 utility agents now use haiku (cheaper, faster). 5 high-stakes agents now use opus (deeper reasoning). If you pin models, review the [changelog](CHANGELOG.md).
+2. **Tool restrictions**: All 79 agents now have `allowed-tools` in their frontmatter. Agents can only use the tools listed. This is a security improvement — no behavioral change for normal usage.
+3. **Skill invocation control**: 6 infrastructure skills are hidden from the `/` menu (`user-invocable: false`). 3 skills are user-only (`disable-model-invocation: true`).
+
+To stay on v1.x: `claude plugins add mikeparcewski/wicked-garden@v1.49.3`
 
 ## License
 

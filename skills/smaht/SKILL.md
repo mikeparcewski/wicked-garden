@@ -8,6 +8,7 @@ description: |
   Use when: "context briefing", "gather background", "what do we know about",
   "resume where we left off", "catch me up", "what happened before",
   "how does smaht work", "context assembly", "prompt enrichment", "auto context"
+user-invocable: false
 ---
 
 # Context Assembly

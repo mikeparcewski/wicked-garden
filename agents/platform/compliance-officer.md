@@ -13,6 +13,7 @@ description: |
   </example>
 model: sonnet
 color: blue
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Compliance Officer

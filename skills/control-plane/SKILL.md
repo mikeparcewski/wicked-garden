@@ -6,6 +6,7 @@ description: |
 
   Use when: "storage internals", "DomainStore API", "persistence issue", "integration routing",
   "local storage", "SqliteStore", "FTS5 search", "debugging persistence"
+user-invocable: false
 ---
 
 # Storage Layer

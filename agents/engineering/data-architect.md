@@ -12,6 +12,7 @@ description: |
   </example>
 model: sonnet
 color: yellow
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Data Architect

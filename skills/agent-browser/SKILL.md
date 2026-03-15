@@ -12,6 +12,7 @@ description: |
   - Web scraping for AI agents
   - Testing web applications
   - End-to-end test execution
+portability: portable
 ---
 
 # Browser Automation

@@ -12,11 +12,7 @@ description: |
   </example>
 model: sonnet
 color: magenta
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Pattern Advisor

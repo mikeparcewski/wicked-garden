@@ -12,6 +12,7 @@ description: |
   </example>
 model: sonnet
 color: blue
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Technical Writer

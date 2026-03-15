@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.0.0] - 2026-03-15
+
+### BREAKING CHANGES
+- Agent model tiers: 4 agents now use haiku (memory-recaller, memory-archivist, memory-learner, continuous-quality-monitor), 5 agents now use opus (execution-orchestrator, value-orchestrator, solution-architect, system-designer, safety-reviewer). Users on fixed model budgets should review.
+- All 79 agents now have `allowed-tools` restrictions. Agents can only use explicitly listed tools. Previously agents had unrestricted tool access.
+
+### Features
+- feat: Skills 2.0 foundations — model tiers, allowed-tools, invocation control, portability (e288c1e)
+- Agent model tiers: haiku for utility agents (75% cost reduction), opus for high-stakes reasoning (architecture, security, gate decisions)
+- `allowed-tools` frontmatter on all 79 agents — explicit tool restrictions per agent role
+- `user-invocable: false` on 6 background skills (smaht, control-plane, runtime-exec, integration-discovery, issue-reporting, observability)
+- `disable-model-invocation: true` on 3 user-only skills (crew/workflow, kanban, presentation)
+- `portability: portable` on 25 cross-platform skills (works on Codex, Gemini CLI, OpenCode, pi-mono)
+- wg-check updated with 3 new validation sections: agent Skills 2.0 compliance, skill portability compliance, invocation control audit
+
+### Bug Fixes
+- fix: remove leftover YAML list items in agent frontmatter (3fe2e1e)
+
+### Architecture Decisions (council-validated)
+- Commands stay as commands (context:fork cannot dispatch subagents — runtime verified)
+- refs/ rename rejected (unanimous council verdict — Codex, Gemini, Claude)
+- Agents stay as separate files (routing stability, no split prompt authority)
+- context:fork reserved for new skills that genuinely benefit from isolation
+
+### Migration from v1.x
+- **No action required** for most users — all commands work identically
+- If you rely on agents having unrestricted tool access, review the new `allowed-tools` assignments
+- If you pin model tiers, note that 4 agents moved to haiku and 5 to opus
+- v1.49.3 remains available: `claude plugins add mikeparcewski/wicked-garden@v1.49.3`
+
 ## [1.49.3] - 2026-03-10
 
 ### Chores

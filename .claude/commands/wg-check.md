@@ -75,6 +75,39 @@ for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
 done
 ```
 
+### 4a. Agent Skills 2.0 Compliance
+
+Verify agents have required Skills 2.0 frontmatter fields:
+
+```bash
+VALID_MODELS="haiku sonnet opus"
+VALID_TOOLS="Read Write Edit Bash Grep Glob Skill Agent WebSearch WebFetch AskUserQuestion"
+
+for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
+  name=$(basename "$agent")
+  fm=$(sed -n '2,/^---$/p' "$agent" | head -n -1)
+
+  # Check allowed-tools present
+  if ! echo "$fm" | grep -q "^allowed-tools:"; then
+    echo "ERROR: $name missing 'allowed-tools' in frontmatter"
+  else
+    # Validate tool names
+    tools_line=$(echo "$fm" | grep "^allowed-tools:" | cut -d: -f2-)
+    for tool in $(echo "$tools_line" | tr ',' '\n' | tr -d ' '); do
+      if [[ -n "$tool" ]] && ! echo "$VALID_TOOLS" | grep -qw "$tool"; then
+        echo "WARNING: $name has non-standard tool: $tool"
+      fi
+    done
+  fi
+
+  # Check model is valid
+  model=$(echo "$fm" | grep "^model:" | awk '{print $2}')
+  if [[ -n "$model" ]] && ! echo "$VALID_MODELS" | grep -qw "$model"; then
+    echo "ERROR: $name has invalid model: $model"
+  fi
+done
+```
+
 ### 4b. Agent Description Budget (≤600 chars)
 
 Agent descriptions are loaded for every routing decision — keep them lean.
@@ -121,6 +154,41 @@ if [[ -f "./.claude-plugin/specialist.json" ]]; then
     fi
   done
 fi
+```
+
+### 5b. Skill Portability Compliance
+
+Skills tagged `portability: portable` must not contain runtime dependencies:
+
+```bash
+PROHIBITED_PATTERNS="python3|uv run|DomainStore|_domain_store|CLAUDE_PLUGIN_ROOT|Task\("
+
+for skill in $(find "./skills" -name "SKILL.md" 2>/dev/null); do
+  if grep -q "portability: portable" "$skill"; then
+    name=$(dirname "$skill" | xargs basename)
+    body=$(sed -n '/^---$/,/^---$/!p' "$skill" | tail -n +2)
+    violations=$(echo "$body" | grep -cE "$PROHIBITED_PATTERNS" 2>/dev/null || echo 0)
+    if [[ "$violations" -gt 0 ]]; then
+      echo "ERROR: Portable skill $name has $violations runtime dependency references"
+    fi
+  fi
+done
+```
+
+### 5c. Skill Invocation Control Audit
+
+Verify `user-invocable` and `disable-model-invocation` are used appropriately:
+
+```bash
+# Count skills with invocation control
+ui_false=$(grep -rl "user-invocable: false" ./skills 2>/dev/null | wc -l | tr -d ' ')
+dmi_true=$(grep -rl "disable-model-invocation: true" ./skills 2>/dev/null | wc -l | tr -d ' ')
+portable=$(grep -rl "portability: portable" ./skills 2>/dev/null | wc -l | tr -d ' ')
+
+echo "Skills 2.0 Frontmatter:"
+echo "  user-invocable: false — $ui_false skills (background/infrastructure)"
+echo "  disable-model-invocation: true — $dmi_true skills (user-only invocation)"
+echo "  portability: portable — $portable skills (cross-platform compatible)"
 ```
 
 ### 6. Capability-Based Discovery Compliance
@@ -265,7 +333,10 @@ fi
 | JSON validity | ✓/✗ |
 | Skills ≤200 lines | ✓/✗ |
 | Agent frontmatter | ✓/✗ |
+| Agent Skills 2.0 (allowed-tools, model) | ✓/✗ |
 | Agent description budget (≤600 chars) | ✓/⚠ |
+| Skill portability compliance | ✓/✗ |
+| Skill invocation control audit | ✓/info |
 | Specialist schema | ✓/✗/- |
 | Capability compliance | ✓/✗ |
 | Implementation rationalization | ✓/✗ |

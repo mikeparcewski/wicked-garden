@@ -3,6 +3,7 @@ name: agentic-patterns
 description: |
   Core agentic architecture patterns and anti-patterns for building robust multi-agent systems.
   Use when: "agent pattern", "multi-agent design", "how should I structure agents", "agentic anti-pattern"
+portability: portable
 ---
 
 # Agentic Patterns

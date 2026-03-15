@@ -13,6 +13,7 @@ description: |
   </example>
 model: sonnet
 color: magenta
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Infrastructure Engineer

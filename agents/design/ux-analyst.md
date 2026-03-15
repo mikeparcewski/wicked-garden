@@ -13,6 +13,7 @@ description: |
 subagent_type: wicked-garden:design:ux-analyst
 model: sonnet
 color: magenta
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # UX Analyst

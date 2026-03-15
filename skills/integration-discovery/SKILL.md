@@ -9,6 +9,7 @@ description: |
   discovering what integrations or MCP servers could help, CLI detection, which tools are
   installed, available CLIs, building task execution strategies, or when unsure which tools,
   skills, or agents to use for current work.
+user-invocable: false
 ---
 
 # Capability Router

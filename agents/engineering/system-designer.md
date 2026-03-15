@@ -10,8 +10,9 @@ description: |
   user: "Our 50k-line app has no clear module boundaries. Help us decompose it."
   <commentary>Use system-designer for component boundary analysis, module decomposition, and interface contracts.</commentary>
   </example>
-model: sonnet
+model: opus
 color: blue
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # System Designer

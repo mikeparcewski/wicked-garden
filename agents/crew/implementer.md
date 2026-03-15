@@ -11,6 +11,7 @@ description: |
   </example>
 model: sonnet
 color: green
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Implementer

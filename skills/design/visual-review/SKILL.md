@@ -6,6 +6,7 @@ description: |
 
   Use when: "visual review", "UI consistency", "design system check", "spacing audit",
   "typography review", "color palette", "component patterns", "visual analysis"
+portability: portable
 ---
 
 # Visual Review Skill

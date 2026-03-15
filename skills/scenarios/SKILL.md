@@ -8,6 +8,7 @@ description: |
   - Creating new test scenarios
   - Understanding the scenario format
   - Choosing the right CLI tool for a test category
+portability: portable
 ---
 
 # Scenario Authoring Guide

@@ -10,13 +10,9 @@ description: |
   user: "Review our agent pipeline for prompt injection vulnerabilities and missing guardrails."
   <commentary>Use safety-reviewer for guardrails, prompt injection defense, and PII protection in agent systems.</commentary>
   </example>
-model: sonnet
+model: opus
 color: red
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Safety Reviewer

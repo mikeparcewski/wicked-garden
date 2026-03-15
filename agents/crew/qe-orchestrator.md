@@ -11,6 +11,7 @@ description: |
   </example>
 model: sonnet
 color: blue
+allowed-tools: Read, Bash, Grep, Glob, Skill, Agent
 ---
 
 # QE Orchestrator
