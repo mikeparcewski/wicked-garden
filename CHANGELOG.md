@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.0] - 2026-03-15
+
+### Features
+- feat: capability-based dynamic tool routing for agents (#307) (#308) (818bad7)
+- feat: wicked-garden v2.0.0 — Skills 2.0 foundations (#306) (d95b3a1)
+
+### Bug Fixes
+- fix: mark gate tasks completed after orchestrator returns (#309) (#310) (31d5f29)
+
 ## [2.0.0] - 2026-03-15
 
 ### BREAKING CHANGES
