@@ -2,12 +2,9 @@
 """
 migrate_capabilities.py — Add tool-capabilities to agent frontmatter.
 
-Reads each target agent's allowed-tools list, maps it to the most
-appropriate set of capabilities from the registry, and adds a
-tool-capabilities: section to the YAML frontmatter.
-
-Does NOT modify allowed-tools — the existing list is preserved as
-the baseline. tool-capabilities adds tools on top.
+Only adds capabilities that require runtime discovery (MCP servers, CLIs).
+Built-in tools (Read, Write, Grep, etc.) are NOT listed — the model
+already knows about those.
 
 Usage:
     python3 scripts/migrate_capabilities.py [--dry-run] [agent-file ...]
@@ -16,7 +13,7 @@ Flags:
     --dry-run   Show what would change without writing files
 
 If specific agent files are given, only those are migrated.
-Otherwise, all 10 default targets are migrated.
+Otherwise, all default targets are migrated.
 
 stdlib-only — no external dependencies.
 """
@@ -27,23 +24,7 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Tool-to-capability reverse mapping (used for inference)
-# ---------------------------------------------------------------------------
-
-TOOL_CAPABILITY_MAP: dict[str, str] = {
-    "Read": "code-edit",
-    "Write": "code-edit",
-    "Edit": "code-edit",
-    "Grep": "code-search",
-    "Glob": "code-search",
-    "Bash": "code-execution",
-    "WebFetch": "web-access",
-    "WebSearch": "web-access",
-    "Task": "subagent-dispatch",
-}
-
-# ---------------------------------------------------------------------------
-# Migration targets: agent_path -> additional capabilities beyond inference
+# Migration targets: agent_path -> capabilities that need runtime discovery
 # ---------------------------------------------------------------------------
 
 MIGRATION_TARGETS: dict[str, list[str]] = {
@@ -56,25 +37,7 @@ MIGRATION_TARGETS: dict[str, list[str]] = {
     "agents/delivery/progress-tracker.md": ["project-management"],
     "agents/agentic/safety-reviewer.md": ["security-scanning"],
     "agents/crew/implementer.md": ["version-control"],
-    "agents/agentic/framework-researcher.md": ["web-access"],
 }
-
-
-def _infer_capabilities(allowed_tools_line: str) -> list[str]:
-    """Infer capabilities from an allowed-tools line.
-
-    Parses the comma-separated tool list and maps each to a capability
-    via TOOL_CAPABILITY_MAP. Returns deduplicated list preserving order.
-    """
-    tools = [t.strip() for t in allowed_tools_line.split(",") if t.strip()]
-    seen: set[str] = set()
-    caps: list[str] = []
-    for tool in tools:
-        cap = TOOL_CAPABILITY_MAP.get(tool)
-        if cap and cap not in seen:
-            seen.add(cap)
-            caps.append(cap)
-    return caps
 
 
 def _add_tool_capabilities(content: str, capabilities: list[str]) -> str:
@@ -124,7 +87,7 @@ def _add_tool_capabilities(content: str, capabilities: list[str]) -> str:
 
 def migrate_agent(
     agent_path: Path,
-    extra_capabilities: list[str] | None = None,
+    capabilities: list[str],
     dry_run: bool = False,
 ) -> tuple[bool, str]:
     """Migrate a single agent file.
@@ -139,32 +102,16 @@ def migrate_agent(
     if "tool-capabilities:" in content:
         return False, f"SKIP (already migrated): {agent_path.name}"
 
-    # Extract allowed-tools line
-    allowed_tools_line = ""
-    for line in content.split("\n"):
-        if line.startswith("allowed-tools:"):
-            allowed_tools_line = line.split(":", 1)[1].strip()
-            break
+    if not capabilities:
+        return False, f"SKIP (no discoverable capabilities): {agent_path.name}"
 
-    # Infer capabilities from allowed-tools
-    inferred = _infer_capabilities(allowed_tools_line)
-
-    # Add extra capabilities (domain-specific)
-    all_caps = list(inferred)
-    for cap in (extra_capabilities or []):
-        if cap not in all_caps:
-            all_caps.append(cap)
-
-    if not all_caps:
-        return False, f"SKIP (no capabilities to add): {agent_path.name}"
-
-    new_content = _add_tool_capabilities(content, all_caps)
+    new_content = _add_tool_capabilities(content, capabilities)
 
     if dry_run:
-        return True, f"WOULD MIGRATE: {agent_path.name} -> {all_caps}"
+        return True, f"WOULD MIGRATE: {agent_path.name} -> {capabilities}"
 
     agent_path.write_text(new_content, encoding="utf-8")
-    return True, f"MIGRATED: {agent_path.name} -> {all_caps}"
+    return True, f"MIGRATED: {agent_path.name} -> {capabilities}"
 
 
 def main():
@@ -182,23 +129,22 @@ def main():
             path = Path(arg)
             if not path.is_absolute():
                 path = repo_root / arg
-            # Find matching target for extra capabilities
             rel = str(path.relative_to(repo_root)) if path.is_relative_to(repo_root) else str(path)
-            extra = MIGRATION_TARGETS.get(rel, [])
-            targets[path] = extra
+            caps = MIGRATION_TARGETS.get(rel, [])
+            targets[path] = caps
     else:
         # Migrate all default targets
         targets = {
-            repo_root / rel_path: extra_caps
-            for rel_path, extra_caps in MIGRATION_TARGETS.items()
+            repo_root / rel_path: caps
+            for rel_path, caps in MIGRATION_TARGETS.items()
         }
 
     print(f"{'DRY RUN — ' if dry_run else ''}Migrating {len(targets)} agent(s)...")
     print()
 
     changed = 0
-    for path, extra_caps in sorted(targets.items()):
-        was_changed, msg = migrate_agent(path, extra_caps, dry_run=dry_run)
+    for path, caps in sorted(targets.items()):
+        was_changed, msg = migrate_agent(path, caps, dry_run=dry_run)
         print(f"  {msg}")
         if was_changed:
             changed += 1

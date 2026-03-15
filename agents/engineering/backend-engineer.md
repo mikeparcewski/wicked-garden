@@ -14,9 +14,6 @@ model: sonnet
 color: blue
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 tool-capabilities:
-  - code-edit
-  - code-execution
-  - code-search
   - version-control
 ---
 

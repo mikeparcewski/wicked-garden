@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-_capability_registry.py — Registry of capability definitions for dynamic tool routing.
+_capability_registry.py — Registry of capabilities that need runtime discovery.
 
-Maps capability names to CapabilityDef entries. Each entry defines the tools
-that satisfy the capability, how to detect them, and fallback behavior.
+Only lists capabilities where tools must be PROBED at runtime (MCP servers,
+CLI binaries). Built-in Claude Code tools (Read, Write, Edit, Grep, Glob,
+Bash, WebFetch, WebSearch, Task) are always available and known to the
+model — they don't belong here.
 
 stdlib-only — no external dependencies.
 
@@ -18,10 +20,10 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ToolOption:
-    """A concrete tool that can satisfy a capability."""
+    """A tool that requires runtime detection to confirm availability."""
 
     name: str  # Tool name as it appears in allowed-tools
-    detection: str  # "always" | "mcp:{pattern}" | "cli:{binary}"
+    detection: str  # "mcp:{pattern}" | "cli:{binary}"
     mcp_pattern: str = ""  # Substring match against MCP server names
     cli_binary: str = ""  # Binary name for shutil.which() probe
     priority: int = 100  # Lower = preferred (user prefs override)
@@ -30,80 +32,36 @@ class ToolOption:
 
 @dataclass
 class CapabilityDef:
-    """Definition of a single capability in the registry."""
+    """A capability that requires runtime environment probing."""
 
     name: str  # kebab-case capability name
     description: str  # Human-readable purpose
-    tools: list[ToolOption] = field(default_factory=list)  # Ordered tool options
+    tools: list[ToolOption] = field(default_factory=list)  # Probeable tool options
     required: bool = False  # If True, warn when no tool available
-    fallback_tools: list[str] = field(default_factory=list)  # Always-available tools
 
 
 # ---------------------------------------------------------------------------
-# Complete Registry (12 capabilities)
+# Registry — only capabilities that need runtime discovery
 # ---------------------------------------------------------------------------
 
 CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
-    "code-search": CapabilityDef(
-        name="code-search",
-        description="Search and navigate codebases — symbol lookup, pattern matching, file discovery.",
-        tools=[
-            ToolOption(name="Grep", detection="always", priority=10),
-            ToolOption(name="Glob", detection="always", priority=10),
-            ToolOption(
-                name="mcp__semgrep-plugin__semgrep",
-                detection="mcp:semgrep",
-                mcp_pattern="semgrep",
-                priority=50,
-                install_hint="Install the Semgrep Claude Code plugin for advanced code search.",
-            ),
-        ],
-        fallback_tools=["Grep", "Glob"],
-    ),
-    "code-edit": CapabilityDef(
-        name="code-edit",
-        description="Read, write, and edit source files.",
-        tools=[
-            ToolOption(name="Read", detection="always", priority=10),
-            ToolOption(name="Write", detection="always", priority=10),
-            ToolOption(name="Edit", detection="always", priority=10),
-        ],
-        fallback_tools=["Read", "Write", "Edit"],
-    ),
-    "code-execution": CapabilityDef(
-        name="code-execution",
-        description="Execute shell commands and scripts.",
-        tools=[
-            ToolOption(name="Bash", detection="always", priority=10),
-        ],
-        fallback_tools=["Bash"],
-    ),
-    "web-access": CapabilityDef(
-        name="web-access",
-        description="Fetch web pages and search the internet.",
-        tools=[
-            ToolOption(name="WebFetch", detection="always", priority=10),
-            ToolOption(name="WebSearch", detection="always", priority=10),
-        ],
-        fallback_tools=["WebFetch", "WebSearch"],
-    ),
     "project-management": CapabilityDef(
         name="project-management",
-        description="Track tasks, issues, and project work across tools like Jira, Linear, and GitHub Issues.",
+        description="Track tasks and issues via Jira, Linear, or GitHub Issues MCP servers.",
         tools=[
             ToolOption(
                 name="mcp__jira__*",
                 detection="mcp:jira",
                 mcp_pattern="jira",
                 priority=50,
-                install_hint="Configure a Jira MCP server for project management integration.",
+                install_hint="Configure a Jira MCP server for project management.",
             ),
             ToolOption(
                 name="mcp__linear__*",
                 detection="mcp:linear",
                 mcp_pattern="linear",
                 priority=50,
-                install_hint="Configure a Linear MCP server for project management integration.",
+                install_hint="Configure a Linear MCP server for project management.",
             ),
             ToolOption(
                 name="mcp__github__*",
@@ -113,12 +71,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
                 install_hint="Configure the GitHub MCP server for issue tracking.",
             ),
         ],
-        # Strategy gate: add kanban and search as fallbacks
-        fallback_tools=["Bash", "Grep"],
     ),
     "security-scanning": CapabilityDef(
         name="security-scanning",
-        description="Scan code for vulnerabilities, secrets, and security issues.",
+        description="Scan code for vulnerabilities via Semgrep, Snyk, or Trivy.",
         tools=[
             ToolOption(
                 name="mcp__semgrep-plugin__semgrep",
@@ -142,12 +98,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
                 install_hint="brew install aquasecurity/trivy/trivy",
             ),
         ],
-        # Fallback: Grep + Bash for manual pattern-based security checks
-        fallback_tools=["Grep", "Bash"],
     ),
     "error-tracking": CapabilityDef(
         name="error-tracking",
-        description="Monitor errors, exceptions, and system health via Sentry, Datadog, or log search.",
+        description="Monitor errors and system health via Sentry or Datadog MCP servers.",
         tools=[
             ToolOption(
                 name="mcp__sentry__*",
@@ -164,12 +118,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
                 install_hint="Configure a Datadog MCP server for error tracking.",
             ),
         ],
-        # Strategy gate: search fallback for log-based error tracking
-        fallback_tools=["Grep", "Bash"],
     ),
     "documentation": CapabilityDef(
         name="documentation",
-        description="Access and manage documentation in Confluence, Notion, or local search.",
+        description="Access external documentation via Confluence or Notion MCP servers.",
         tools=[
             ToolOption(
                 name="mcp__confluence__*",
@@ -186,12 +138,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
                 install_hint="Configure a Notion MCP server for documentation access.",
             ),
         ],
-        # Strategy gate: search fallback for local doc search
-        fallback_tools=["Grep", "Glob"],
     ),
     "version-control": CapabilityDef(
         name="version-control",
-        description="Interact with version control systems — commits, PRs, branches.",
+        description="GitHub/GitLab integration via CLI or MCP server.",
         tools=[
             ToolOption(
                 name="gh",
@@ -220,12 +170,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
                 priority=50,
             ),
         ],
-        # Fallback: Bash for git commands (always available)
-        fallback_tools=["Bash"],
     ),
     "ci-cd": CapabilityDef(
         name="ci-cd",
-        description="Interact with CI/CD pipelines — GitHub Actions, GitLab CI, CircleCI.",
+        description="CI/CD pipeline interaction via GitHub Actions, GitLab CI, or CircleCI.",
         tools=[
             ToolOption(
                 name="mcp__github__*",
@@ -247,20 +195,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
                 install_hint="brew install circleci",
             ),
         ],
-        # Fallback: Bash for reading CI config files and gh/glab CLI
-        fallback_tools=["Bash", "Grep"],
-    ),
-    "subagent-dispatch": CapabilityDef(
-        name="subagent-dispatch",
-        description="Dispatch work to subagents via the Task tool.",
-        tools=[
-            ToolOption(name="Task", detection="always", priority=10),
-        ],
-        fallback_tools=["Task"],
     ),
     "data-query": CapabilityDef(
         name="data-query",
-        description="Query databases and data stores — DuckDB, PostgreSQL, data MCP servers.",
+        description="Query databases via DuckDB, PostgreSQL, or data MCP servers.",
         tools=[
             ToolOption(
                 name="mcp__duckdb__*",
@@ -284,7 +222,5 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
                 install_hint="brew install postgresql",
             ),
         ],
-        # Fallback: Bash for running query commands
-        fallback_tools=["Bash"],
     ),
 }

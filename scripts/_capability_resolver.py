@@ -158,17 +158,11 @@ def probe_environment(
 
         available: list[str] = []
         for tool_opt in cap.tools:
-            if tool_opt.detection == "always":
-                if tool_opt.name not in available:
-                    available.append(tool_opt.name)
-
-            elif tool_opt.detection.startswith("mcp:"):
+            if tool_opt.detection.startswith("mcp:"):
                 pattern = tool_opt.detection[4:].lower()
                 for original, lower in mcp_pairs:
                     if pattern in lower:
-                        # Use MCP wildcard pattern with original casing and double underscore
                         mcp_tool = f"mcp__{original}__*"
-                        # Also add the specific tool name from the registry
                         if tool_opt.name not in available:
                             available.append(tool_opt.name)
                         if mcp_tool not in available:
@@ -251,11 +245,6 @@ def resolve_agent(
                     available.insert(0, m)
 
         resolved_tools.extend(available)
-
-        # Add fallback tools
-        for fb in cap_def.fallback_tools:
-            if fb not in resolved_tools:
-                resolved_tools.append(fb)
 
         # Emit warning for required capabilities with no tools
         if cap_def.required and not available:
