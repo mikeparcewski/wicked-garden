@@ -12,6 +12,7 @@ description: |
   </example>
 model: sonnet
 color: red
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Competitive Analyst

@@ -12,6 +12,7 @@ description: |
 
 model: haiku
 color: magenta
+allowed-tools: Read, Edit, Bash
 ---
 
 # Memory Archivist

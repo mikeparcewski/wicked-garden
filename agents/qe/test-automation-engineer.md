@@ -12,6 +12,7 @@ description: |
   </example>
 model: sonnet
 color: magenta
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Test Automation Engineer

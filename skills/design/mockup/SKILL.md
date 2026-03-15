@@ -7,6 +7,7 @@ description: |
 
   Use when: "mockup", "wireframe", "prototype", "lo-fi design", "component spec",
   "design sketch", "UI layout", "layout draft", "design handoff"
+portability: portable
 ---
 
 # Mockup Skill

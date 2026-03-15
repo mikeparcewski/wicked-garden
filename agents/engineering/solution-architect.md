@@ -10,8 +10,9 @@ description: |
   user: "Design the architecture for a real-time collaborative editing platform."
   <commentary>Use solution-architect for end-to-end architecture design and technology trade-off analysis.</commentary>
   </example>
-model: sonnet
+model: opus
 color: magenta
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Solution Architect

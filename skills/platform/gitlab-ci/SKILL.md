@@ -5,6 +5,7 @@ description: |
 
   Use when: "create CI/CD pipeline", "GitLab CI config", "fix pipeline",
   ".gitlab-ci.yml", "configure runners", "pipeline optimization"
+portability: portable
 ---
 
 # GitLab CI/CD Pipeline Writing

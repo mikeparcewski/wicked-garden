@@ -6,6 +6,7 @@ description: |
 
   Use when: "accessibility", "a11y", "WCAG", "screen reader", "keyboard navigation",
   "color contrast", "aria", "semantic HTML", "accessible design"
+portability: portable
 ---
 
 # Accessibility Skill

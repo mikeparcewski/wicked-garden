@@ -6,6 +6,7 @@ description: |
 
   Use when: "component design", "module boundaries", "how should we organize this",
   "component interfaces", "dependency management", "system decomposition"
+portability: portable
 ---
 
 # System Design Skill

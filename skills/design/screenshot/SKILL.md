@@ -7,6 +7,7 @@ description: |
 
   Use when: "screenshot review", "UI screenshot", "visual analysis from image",
   "design from screenshot", "review PNG", "review JPG", "image-based review"
+portability: portable
 ---
 
 # Screenshot Skill

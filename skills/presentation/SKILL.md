@@ -6,6 +6,7 @@ description: |
   styles", "sync registry", "render as HTML." Four creation modes (brainstorm, create, fast path,
   overview), style learning from existing assets, shared design registry, and dual-format rendering
   to .pptx (PptxGenJS) and self-contained .html (reveal.js) from a single deck spec.
+disable-model-invocation: true
 ---
 
 # Presentation

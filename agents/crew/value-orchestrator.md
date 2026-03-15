@@ -9,8 +9,9 @@ description: |
   user: "Should we build a custom analytics dashboard or use an off-the-shelf solution?"
   <commentary>Use value-orchestrator to assess whether proposed work is worth pursuing before design.</commentary>
   </example>
-model: sonnet
+model: opus
 color: magenta
+allowed-tools: Read, Bash, Grep, Glob, Skill, Agent
 ---
 
 # Value Orchestrator

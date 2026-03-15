@@ -3,6 +3,7 @@ name: maturity-model
 description: |
   Five-level maturity assessment model for agentic systems from prototype to optimized production.
   Use when: "agent maturity", "production readiness", "how mature is my agent", "agent assessment"
+portability: portable
 ---
 
 # Agentic System Maturity Model

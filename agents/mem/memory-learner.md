@@ -12,6 +12,7 @@ description: |
 
 model: haiku
 color: green
+allowed-tools: Read, Write, Bash
 ---
 
 # Memory Learner

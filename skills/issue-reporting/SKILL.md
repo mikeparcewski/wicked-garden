@@ -9,6 +9,7 @@ description: |
 
   Use when: "file a bug", "report issue", "something went wrong", "not working as expected",
   "create issue", reporting UX friction, logging unmet outcomes, or investigating tool failures.
+user-invocable: false
 ---
 
 # Issue Reporting

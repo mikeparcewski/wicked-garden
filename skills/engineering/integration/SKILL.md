@@ -6,6 +6,7 @@ description: |
 
   Use when: "API design", "service integration", "how do these communicate",
   "API contract", "integration pattern", "REST API", "GraphQL", "event schema"
+portability: portable
 ---
 
 # Integration Skill
