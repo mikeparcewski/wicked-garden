@@ -179,6 +179,40 @@ def _probe_plugin_readiness():
     return unready
 
 
+def _suggest_auth_fix(probe_result):
+    """Dynamically extract or infer an auth fix command from a probe failure.
+
+    Looks for common patterns in the error message (e.g., "please login", "run X login",
+    "set SOME_TOKEN") and returns the fix command. No hardcoded tool list — works by
+    parsing the error text that the tool itself produced.
+
+    Returns a fix command string, or None if no fix can be inferred.
+    """
+    error = probe_result.get("error", "")
+    name = probe_result.get("name", "")
+    cmd_base = probe_result.get("command", "").split()[0] if probe_result.get("command") else name
+
+    # Pattern 1: error says "run '<tool> login'" or "please login"
+    # e.g., "please login to Semgrep" → "semgrep login"
+    import re
+    login_match = re.search(r"(?:run|please)\s+['\"]?(\w[\w-]*\s+(?:login|auth\s+login))['\"]?", error, re.IGNORECASE)
+    if login_match:
+        return login_match.group(1)
+
+    # Pattern 2: error mentions a specific env var
+    # e.g., "No SEMGREP_APP_TOKEN found" → "export SEMGREP_APP_TOKEN=<your-token>"
+    env_match = re.search(r"(?:no|missing|set|need)\s+(\w+_(?:TOKEN|KEY|SECRET|API_KEY))\b", error, re.IGNORECASE)
+    if env_match:
+        var = env_match.group(1)
+        return f"export {var}=<your-token>  # or: {cmd_base} login"
+
+    # Pattern 3: generic "login" or "auth" mention
+    if "login" in error.lower() or "auth" in error.lower():
+        return f"{cmd_base} login"
+
+    return None
+
+
 def _load_agents():
     """Load dynamic agents from disk. Returns agent count."""
     try:
@@ -657,13 +691,18 @@ def main():
         # 7b. Probe installed plugin hooks for readiness
         unready_plugins = _probe_plugin_readiness()
         if unready_plugins and state is not None:
-            state.update(unready_plugins=unready_plugins)
+            state.update(unready_plugins=[p["name"] for p in unready_plugins])
         if unready_plugins:
-            names = ", ".join(p["name"] for p in unready_plugins)
+            plugin_lines = []
+            for p in unready_plugins:
+                fix_cmd = _suggest_auth_fix(p)
+                plugin_lines.append(f"  - **{p['name']}**: {p['error']}")
+                if fix_cmd:
+                    plugin_lines.append(f"    Fix: `{fix_cmd}`")
             mode_notes.append(
-                f"[Plugins] {len(unready_plugins)} plugin(s) installed but not ready: {names}. "
-                "Their hooks may produce non-blocking warnings. "
-                "Fix: run setup for each, or disable via `claude plugins remove <name>`."
+                f"[Plugins] {len(unready_plugins)} plugin(s) installed but not ready:\n"
+                + "\n".join(plugin_lines)
+                + "\n  After authenticating, run `/wicked-garden:observability:health` to re-probe."
             )
 
         # 7c. Detect dangerous mode (AskUserQuestion broken)
