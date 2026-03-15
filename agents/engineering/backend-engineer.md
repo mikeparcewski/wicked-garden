@@ -13,6 +13,8 @@ description: |
 model: sonnet
 color: blue
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+tool-capabilities:
+  - version-control
 ---
 
 # Backend Engineer

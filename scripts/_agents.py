@@ -205,10 +205,20 @@ def _parse_agent_md(path: Path) -> AgentProfile | None:
     domain = parsed.get("domain") or _infer_domain(path)
 
     # Build metadata from remaining frontmatter keys
-    metadata_keys = {"model", "color", "version", "author"}
+    metadata_keys = {"model", "color", "version", "author", "allowed-tools"}
     extra_meta = {k: v for k, v in parsed.items() if k in metadata_keys}
     extra_meta["source"] = "disk"
     extra_meta["file"] = str(path)
+
+    # Extract tool-capabilities for capability-based dynamic tool routing
+    tool_caps = _to_list(parsed.get("tool-capabilities"))
+    if tool_caps:
+        extra_meta["tool_capabilities"] = tool_caps
+
+    # Parse allowed-tools into a list for the resolver
+    allowed_tools_list = _to_list(parsed.get("allowed-tools"))
+    if allowed_tools_list:
+        extra_meta["allowed_tools_list"] = allowed_tools_list
 
     return AgentProfile(
         name=name,

@@ -13,6 +13,9 @@ description: |
 model: sonnet
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
+tool-capabilities:
+  - error-tracking
+  - ci-cd
 ---
 
 # Site Reliability Engineer (SRE)

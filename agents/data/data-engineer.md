@@ -13,6 +13,8 @@ description: |
 model: sonnet
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
+tool-capabilities:
+  - data-query
 ---
 
 # Data Engineer

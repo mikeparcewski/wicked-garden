@@ -13,6 +13,8 @@ description: |
 model: opus
 color: red
 allowed-tools: Read, Grep, Glob, Bash
+tool-capabilities:
+  - security-scanning
 ---
 
 # Safety Reviewer
