@@ -13,6 +13,8 @@ description: |
 model: sonnet
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash
+tool-capabilities:
+  - security-scanning
 ---
 
 # Code Analyzer
