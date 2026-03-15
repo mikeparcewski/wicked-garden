@@ -68,7 +68,14 @@ Task(
 )
 ```
 
-### 5. Format Output
+### 5. Complete Gate Task
+
+After the orchestrator returns, mark the gate task as completed:
+```
+TaskUpdate(taskId={task_id from Step 3}, status="completed")
+```
+
+### 6. Format Output
 
 Display the result from orchestrator:
 
@@ -90,7 +97,7 @@ Display the result from orchestrator:
 To view full evidence: `/wicked-garden:crew:evidence`
 ```
 
-### 6. Handle Decisions
+### 7. Handle Decisions
 
 Based on the decision:
 
@@ -122,7 +129,7 @@ Blockers found:
 Must fix before proceeding.
 ```
 
-### 7. Show Evidence Summary
+### 8. Show Evidence Summary
 
 After displaying the gate result, show attached evidence:
 
