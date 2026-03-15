@@ -13,7 +13,6 @@ description: |
 model: sonnet
 color: green
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Skill, Agent
-  - Grep
 ---
 
 # Scenario Executor Agent
