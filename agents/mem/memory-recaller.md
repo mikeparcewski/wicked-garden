@@ -10,9 +10,9 @@ description: |
   <commentary>Use memory-recaller to find past implementations, decisions, or patterns by topic.</commentary>
   </example>
 
-tools: [Grep, Glob, Read]
 model: haiku
 color: cyan
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Memory Recaller

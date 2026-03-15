@@ -12,6 +12,7 @@ description: |
   </example>
 model: sonnet
 color: green
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Accessibility Expert

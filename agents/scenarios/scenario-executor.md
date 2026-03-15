@@ -12,13 +12,7 @@ description: |
   </example>
 model: sonnet
 color: green
-tools:
-  - Bash
-  - Read
-  - Glob
-  - Write
-  - Skill
-  - Grep
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Skill, Agent
 ---
 
 # Scenario Executor Agent

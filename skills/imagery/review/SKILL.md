@@ -6,6 +6,7 @@ description: |
 
   Use when: "review image", "analyze image", "visual review", "brand check",
   "accessibility review", "production readiness", "image quality"
+portability: portable
 ---
 
 # Image Review & Analysis

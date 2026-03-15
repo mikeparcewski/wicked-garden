@@ -13,12 +13,7 @@ description: |
   </example>
 model: sonnet
 color: green
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - WebSearch
+allowed-tools: Read, Grep, Glob, Bash, WebSearch
 ---
 
 # Framework Researcher

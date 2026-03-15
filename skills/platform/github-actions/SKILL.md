@@ -6,6 +6,7 @@ description: |
 
   Use when: "GitHub Actions", "CI/CD pipeline", "workflow YAML", "deploy pipeline",
   "automate deployment", "debug workflow", "Actions security"
+portability: portable
 ---
 
 # GitHub Actions Workflow Writing

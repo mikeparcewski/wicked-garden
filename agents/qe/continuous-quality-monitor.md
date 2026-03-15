@@ -10,8 +10,9 @@ description: |
   user: "Monitor quality signals while we build the new API module."
   <commentary>Use continuous-quality-monitor to track quality signals during active development.</commentary>
   </example>
-model: sonnet
+model: haiku
 color: yellow
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Continuous Quality Monitor

@@ -9,8 +9,9 @@ description: |
   user: "Run the execution gate on the new payment integration."
   <commentary>Use execution-orchestrator for post-build quality verification before delivery.</commentary>
   </example>
-model: sonnet
+model: opus
 color: green
+allowed-tools: Read, Bash, Grep, Glob, Skill, Agent
 ---
 
 # Execution Orchestrator

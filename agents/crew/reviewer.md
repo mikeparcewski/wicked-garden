@@ -9,9 +9,9 @@ description: |
   user: "Review the changes in the last 3 commits for obvious issues."
   <commentary>Use reviewer as a fallback for general code review when specialist reviewers aren't matched.</commentary>
   </example>
-tools: [Read, Glob, Grep, Bash]
 model: sonnet
 color: yellow
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Reviewer

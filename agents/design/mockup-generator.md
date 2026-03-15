@@ -13,6 +13,7 @@ description: |
 subagent_type: wicked-garden:design:mockup-generator
 model: sonnet
 color: yellow
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Mockup Generator

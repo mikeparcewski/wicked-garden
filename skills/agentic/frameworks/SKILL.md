@@ -3,6 +3,7 @@ name: frameworks
 description: |
   Agentic framework landscape, comparison, and selection guide for choosing the right framework for your use case.
   Use when: "which agent framework", "compare frameworks", "LangGraph vs CrewAI", "framework selection"
+portability: portable
 ---
 
 # Agentic Frameworks

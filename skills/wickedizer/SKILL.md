@@ -9,6 +9,7 @@ description: |
   - Creating work items (Jira/Linear/GitHub Issues)
   - Drafting PR descriptions, commit messages, ADRs
   - Writing code comments, docstrings, READMEs
+portability: portable
 ---
 
 # Wickedizer: Clear, Credible, Human Writing

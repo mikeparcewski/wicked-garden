@@ -3,6 +3,7 @@ name: review-methodology
 description: |
   Systematic review methodology for agentic codebases with issue detection, analysis, and reporting.
   Use when: "review agentic code", "audit agent system", "check agent quality", "agentic code review"
+portability: portable
 ---
 
 # Agentic Review Methodology

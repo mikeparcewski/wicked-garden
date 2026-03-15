@@ -7,6 +7,7 @@ description: |
 
   Use when: "user flow", "flow diagram", "interaction design", "information architecture",
   "IA mapping", "user journey map", "navigation design", "flow analysis"
+portability: portable
 ---
 
 # UX Flow Skill

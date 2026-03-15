@@ -5,6 +5,7 @@ description: |
   performance metrics, and SLO status across services. Correlates with deployments
   and code changes. Use for proactive health monitoring and post-deployment validation.
   Use when: "system health", "health check", "deployment health", "production status", "how is production"
+portability: portable
 ---
 
 # Health Aggregation Skill

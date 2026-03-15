@@ -7,6 +7,7 @@ description: |
 
   Use when: "build a React component", "CSS layout issue", "frontend performance",
   "browser API", "component design", "accessibility check", "responsive design"
+portability: portable
 ---
 
 # Frontend Skill

@@ -8,6 +8,7 @@ description: |
   Use when: "track tasks", "create a task", "add a todo", "manage tasks",
   "show my tasks", "what should I work on", "move task to done", "update task status",
   "kanban board", "project management"
+disable-model-invocation: true
 ---
 
 # Task Management with Wicked Kanban
