@@ -108,14 +108,18 @@ for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
 done
 ```
 
-### 4c. Agent tool-capabilities Compliance
+### 4b. Agent tool-capabilities Compliance
 
 Verify agent tool-capabilities declarations reference valid registry capability names:
 
 ```bash
-VALID_CAPABILITIES="code-search code-edit code-execution web-access project-management security-scanning error-tracking documentation version-control ci-cd subagent-dispatch data-query"
+VALID_CAPABILITIES=$(python3 -c "
+import sys; sys.path.insert(0, 'scripts')
+from _capability_registry import CAPABILITY_REGISTRY
+print(' '.join(CAPABILITY_REGISTRY.keys()))
+" 2>/dev/null || echo "code-search code-edit code-execution web-access project-management security-scanning error-tracking documentation version-control ci-cd subagent-dispatch data-query")
 
-for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
+find "./agents" -name "*.md" 2>/dev/null | while IFS= read -r agent; do
   name=$(basename "$agent")
   fm=$(sed -n '2,/^---$/p' "$agent" | head -n -1)
 
@@ -130,14 +134,14 @@ for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
     fi
 
     # Validate each capability name
-    for cap in $caps; do
-      if ! echo "$VALID_CAPABILITIES" | grep -qw "$cap"; then
+    echo "$caps" | while IFS= read -r cap; do
+      if [ -n "$cap" ] && ! echo "$VALID_CAPABILITIES" | grep -qw "$cap"; then
         echo "ERROR: $name declares unknown capability: $cap"
       fi
     done
 
     # Check for duplicates
-    dup_count=$(echo "$caps" | sort | uniq -d | wc -l | tr -d ' ')
+    dup_count=$(echo "$caps" | grep -v '^$' | sort | uniq -d | wc -l | tr -d ' ')
     if [ "$dup_count" -gt 0 ]; then
       echo "WARNING: $name has duplicate tool-capabilities entries"
     fi
@@ -145,7 +149,7 @@ for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
 done
 ```
 
-### 4b. Agent Description Budget (≤600 chars)
+### 4c. Agent Description Budget (≤600 chars)
 
 Agent descriptions are loaded for every routing decision — keep them lean.
 

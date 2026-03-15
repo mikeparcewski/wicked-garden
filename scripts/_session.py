@@ -170,7 +170,7 @@ class SessionState:
     # None means discovery has not run yet this session.
     integration_tools: dict | None = None
 
-    # Resolved capability-to-tool mappings for this session.
+    # Resolved tool lists from capability-based routing.
     # Maps agent_name -> list of resolved tool names.
     # None means resolution has not run yet this session.
     resolved_capabilities: dict | None = None

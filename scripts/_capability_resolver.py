@@ -114,7 +114,7 @@ def probe_environment(
     if mcp_servers is None:
         mcp_servers = []
 
-    mcp_lower = [s.lower() for s in mcp_servers]
+    mcp_pairs = [(s, s.lower()) for s in mcp_servers]  # (original, lower)
     result: dict[str, list[str]] = {}
 
     # Collect all CLI binaries to probe in parallel
@@ -164,10 +164,10 @@ def probe_environment(
 
             elif tool_opt.detection.startswith("mcp:"):
                 pattern = tool_opt.detection[4:].lower()
-                for server in mcp_lower:
-                    if pattern in server:
-                        # Use MCP wildcard pattern (preserve server name as-is)
-                        mcp_tool = f"mcp__{server}_*"
+                for original, lower in mcp_pairs:
+                    if pattern in lower:
+                        # Use MCP wildcard pattern with original casing and double underscore
+                        mcp_tool = f"mcp__{original}__*"
                         # Also add the specific tool name from the registry
                         if tool_opt.name not in available:
                             available.append(tool_opt.name)

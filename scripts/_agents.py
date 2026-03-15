@@ -216,11 +216,9 @@ def _parse_agent_md(path: Path) -> AgentProfile | None:
         extra_meta["tool_capabilities"] = tool_caps
 
     # Parse allowed-tools into a list for the resolver
-    allowed = parsed.get("allowed-tools", "")
-    if isinstance(allowed, str) and allowed:
-        extra_meta["allowed_tools_list"] = [t.strip() for t in allowed.split(",") if t.strip()]
-    elif isinstance(allowed, list):
-        extra_meta["allowed_tools_list"] = allowed
+    allowed_tools_list = _to_list(parsed.get("allowed-tools"))
+    if allowed_tools_list:
+        extra_meta["allowed_tools_list"] = allowed_tools_list
 
     return AgentProfile(
         name=name,

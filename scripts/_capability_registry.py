@@ -51,7 +51,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
             ToolOption(name="Grep", detection="always", priority=10),
             ToolOption(name="Glob", detection="always", priority=10),
             ToolOption(
-                name="mcp__semgrep-plugin_semgrep",
+                name="mcp__semgrep-plugin__semgrep",
                 detection="mcp:semgrep",
                 mcp_pattern="semgrep",
                 priority=50,
@@ -92,21 +92,21 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
         description="Track tasks, issues, and project work across tools like Jira, Linear, and GitHub Issues.",
         tools=[
             ToolOption(
-                name="mcp__jira_*",
+                name="mcp__jira__*",
                 detection="mcp:jira",
                 mcp_pattern="jira",
                 priority=50,
                 install_hint="Configure a Jira MCP server for project management integration.",
             ),
             ToolOption(
-                name="mcp__linear_*",
+                name="mcp__linear__*",
                 detection="mcp:linear",
                 mcp_pattern="linear",
                 priority=50,
                 install_hint="Configure a Linear MCP server for project management integration.",
             ),
             ToolOption(
-                name="mcp__github_*",
+                name="mcp__github__*",
                 detection="mcp:github",
                 mcp_pattern="github",
                 priority=60,
@@ -121,7 +121,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
         description="Scan code for vulnerabilities, secrets, and security issues.",
         tools=[
             ToolOption(
-                name="mcp__semgrep-plugin_semgrep",
+                name="mcp__semgrep-plugin__semgrep",
                 detection="mcp:semgrep",
                 mcp_pattern="semgrep",
                 priority=30,
@@ -150,14 +150,14 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
         description="Monitor errors, exceptions, and system health via Sentry, Datadog, or log search.",
         tools=[
             ToolOption(
-                name="mcp__sentry_*",
+                name="mcp__sentry__*",
                 detection="mcp:sentry",
                 mcp_pattern="sentry",
                 priority=40,
                 install_hint="Configure a Sentry MCP server for error tracking.",
             ),
             ToolOption(
-                name="mcp__datadog_*",
+                name="mcp__datadog__*",
                 detection="mcp:datadog",
                 mcp_pattern="datadog",
                 priority=40,
@@ -172,14 +172,14 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
         description="Access and manage documentation in Confluence, Notion, or local search.",
         tools=[
             ToolOption(
-                name="mcp__confluence_*",
+                name="mcp__confluence__*",
                 detection="mcp:confluence",
                 mcp_pattern="confluence",
                 priority=40,
                 install_hint="Configure a Confluence MCP server for documentation access.",
             ),
             ToolOption(
-                name="mcp__notion_*",
+                name="mcp__notion__*",
                 detection="mcp:notion",
                 mcp_pattern="notion",
                 priority=40,
@@ -208,13 +208,13 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
                 install_hint="brew install glab && glab auth login",
             ),
             ToolOption(
-                name="mcp__github_*",
+                name="mcp__github__*",
                 detection="mcp:github",
                 mcp_pattern="github",
                 priority=50,
             ),
             ToolOption(
-                name="mcp__gitlab_*",
+                name="mcp__gitlab__*",
                 detection="mcp:gitlab",
                 mcp_pattern="gitlab",
                 priority=50,
@@ -228,13 +228,13 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
         description="Interact with CI/CD pipelines — GitHub Actions, GitLab CI, CircleCI.",
         tools=[
             ToolOption(
-                name="mcp__github_*",
+                name="mcp__github__*",
                 detection="mcp:github",
                 mcp_pattern="github",
                 priority=40,
             ),
             ToolOption(
-                name="mcp__gitlab_*",
+                name="mcp__gitlab__*",
                 detection="mcp:gitlab",
                 mcp_pattern="gitlab",
                 priority=40,
@@ -263,7 +263,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
         description="Query databases and data stores — DuckDB, PostgreSQL, data MCP servers.",
         tools=[
             ToolOption(
-                name="mcp__duckdb_*",
+                name="mcp__duckdb__*",
                 detection="mcp:duckdb",
                 mcp_pattern="duckdb",
                 priority=40,
