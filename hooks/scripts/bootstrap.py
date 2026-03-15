@@ -62,6 +62,123 @@ def _save_session_state(state):
         pass
 
 
+def _probe_plugin_readiness():
+    """Dynamically discover installed plugins and probe their hook readiness.
+
+    Scans the plugin cache for installed plugins (excluding ourselves), finds
+    their hooks.json, and runs a lightweight test of each hook command.
+    Returns a list of dicts for plugins whose hooks fail, e.g.:
+        [{"name": "semgrep", "hook": "PostToolUse", "error": "No SEMGREP_APP_TOKEN found"}]
+
+    Runs with a tight timeout (2s per probe) and fails open — never blocks bootstrap.
+    """
+    unready = []
+    try:
+        # Discover plugin cache directories
+        cache_dirs = [
+            Path.home() / ".claude" / "plugins" / "cache",
+            Path(os.environ.get("CLAUDE_CONFIG_DIR", "")) / "plugins" / "cache" if os.environ.get("CLAUDE_CONFIG_DIR") else None,
+        ]
+        # Also check alt-configs location
+        alt_config = Path.home() / "alt-configs" / ".claude" / "plugins" / "cache"
+        if alt_config.exists():
+            cache_dirs.append(alt_config)
+
+        our_name = "wicked-garden"
+        seen_plugins = set()
+
+        for cache_dir in cache_dirs:
+            if cache_dir is None or not cache_dir.exists():
+                continue
+            # Walk plugin org/name directories
+            for org_dir in cache_dir.iterdir():
+                if not org_dir.is_dir():
+                    continue
+                for plugin_dir in org_dir.iterdir():
+                    if not plugin_dir.is_dir():
+                        continue
+                    # Find the actual plugin root (may be versioned)
+                    hooks_candidates = list(plugin_dir.rglob("hooks/hooks.json"))
+                    for hooks_file in hooks_candidates:
+                        plugin_root = hooks_file.parent.parent
+                        # Read plugin.json to get name
+                        pj = plugin_root / ".claude-plugin" / "plugin.json"
+                        if not pj.exists():
+                            pj = plugin_root / "plugin.json"
+                        plugin_name = plugin_dir.name
+                        if pj.exists():
+                            try:
+                                plugin_name = json.loads(pj.read_text()).get("name", plugin_dir.name)
+                            except Exception:
+                                pass
+
+                        # Skip ourselves and already-checked plugins
+                        if plugin_name == our_name or plugin_name in seen_plugins:
+                            continue
+                        seen_plugins.add(plugin_name)
+
+                        # Read their hooks.json
+                        try:
+                            hooks_data = json.loads(hooks_file.read_text())
+                        except Exception:
+                            continue
+
+                        # Probe each hook command with a dry-run (empty stdin, 2s timeout)
+                        for event, entries in hooks_data.get("hooks", {}).items():
+                            for entry in entries:
+                                for hook in entry.get("hooks", []):
+                                    cmd = hook.get("command", "")
+                                    if not cmd or hook.get("type") != "command":
+                                        continue
+                                    # Extract the base binary name for the probe
+                                    parts = cmd.split()
+                                    if not parts:
+                                        continue
+                                    binary = parts[0]
+                                    # Skip if binary references plugin root (needs env var)
+                                    if "${CLAUDE_PLUGIN_ROOT}" in cmd:
+                                        continue
+                                    # Quick probe: just check if the binary is available and
+                                    # runs without error when given empty input
+                                    try:
+                                        result = subprocess.run(
+                                            parts + ["--help"] if len(parts) == 1 else parts[:2] + ["--version"],
+                                            capture_output=True, text=True, timeout=2,
+                                            input="",
+                                        )
+                                        # If the command itself isn't found, skip — that's a
+                                        # different problem (missing install, not unready)
+                                    except FileNotFoundError:
+                                        continue  # Binary not installed — not our problem
+                                    except subprocess.TimeoutExpired:
+                                        continue  # Timed out — assume it works but is slow
+                                    except Exception:
+                                        continue
+
+                                    # For env-var-gated tools, check common auth patterns
+                                    # by looking at stderr for auth/token messages
+                                    if result.returncode != 0:
+                                        stderr = result.stderr.lower()
+                                        auth_signals = ["token", "login", "auth", "credential", "api_key", "api key"]
+                                        if any(sig in stderr for sig in auth_signals):
+                                            # Extract a short error message
+                                            err_lines = [l.strip() for l in result.stderr.strip().split("\n") if l.strip()]
+                                            short_err = err_lines[-1][:120] if err_lines else "auth required"
+                                            unready.append({
+                                                "name": plugin_name,
+                                                "hook": event,
+                                                "command": cmd[:80],
+                                                "error": short_err,
+                                            })
+                                            break  # One failure per plugin is enough
+                                    break  # Only test first hook per event
+                            if any(u["name"] == plugin_name for u in unready):
+                                break  # Already flagged this plugin
+    except Exception:
+        pass  # Fail open — probe errors never block bootstrap
+    return unready
+
+
 def _load_agents():
     """Load dynamic agents from disk. Returns agent count."""
     try:
@@ -537,7 +654,19 @@ def main():
                     onboarding_complete=True,
                 )
 
-        # 7b. Detect dangerous mode (AskUserQuestion broken)
+        # 7b. Probe installed plugin hooks for readiness
+        unready_plugins = _probe_plugin_readiness()
+        if unready_plugins and state is not None:
+            state.update(unready_plugins=unready_plugins)
+        if unready_plugins:
+            names = ", ".join(p["name"] for p in unready_plugins)
+            mode_notes.append(
+                f"[Plugins] {len(unready_plugins)} plugin(s) installed but not ready: {names}. "
+                "Their hooks may produce non-blocking warnings. "
+                "Fix: run setup for each, or disable via `claude plugins remove <name>`."
+            )
+
+        # 7c. Detect dangerous mode (AskUserQuestion broken)
         dangerous_mode = _detect_dangerous_mode()
         if state is not None:
             state.update(dangerous_mode=dangerous_mode)
