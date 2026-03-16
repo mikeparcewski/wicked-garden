@@ -32,7 +32,7 @@ When asked to analyze customer perspective:
 
 1. **Discover Sources** - Check available feedback:
    ```bash
-   LOCAL_PATH=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product voice/feedback)
+   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product voice/feedback)
    ls "${LOCAL_PATH}/"
    ```
 

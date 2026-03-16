@@ -231,7 +231,7 @@ Do not retry a step more than once. One recapture attempt per missing item.
 After checking all evidence items, build the artifact registry JSON and write it to the canonical path:
 
 ```bash
-QE_DIR=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-qe 2>/dev/null || echo "${TMPDIR:-/tmp}/wicked-qe-evidence")
+QE_DIR=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-qe 2>/dev/null || echo "${TMPDIR:-/tmp}/wicked-qe-evidence")
 SCENARIO_SLUG=$(echo "{scenario_name}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
 REGISTRY_PATH="${QE_DIR}/evidence/${SCENARIO_SLUG}-registry.json"
 ```
@@ -269,7 +269,7 @@ Write the registry to `${REGISTRY_PATH}` using the Write tool. If the write fail
 After writing the registry file, persist a backup to DomainStore so it can be recovered cross-session if the file is lost:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/registry_store.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/registry_store.py" \
   --scenario-slug "${SCENARIO_SLUG}" \
   --registry-path "${REGISTRY_PATH}"
 ```
@@ -370,7 +370,7 @@ Evidence:
 ### For Bash Commands
 
 ```
-Action: Run bash command: `LOCAL_PATH=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem) && ls -la "${LOCAL_PATH}/"`
+Action: Run bash command: `LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem) && ls -la "${LOCAL_PATH}/"`
 Evidence:
   stdout: {stdout text}
   stderr: {stderr text}

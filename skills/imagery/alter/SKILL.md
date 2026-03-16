@@ -25,7 +25,7 @@ AI-powered modification of existing images through two primary modes: image-to-i
 Changes the overall style or adds global elements while preserving core composition.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit \
   --image ./source.png \
   --prompt "Same scene but with a dramatic sunset sky" \
   --output ./v2.png
@@ -41,7 +41,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit \
 Precise edits to specific regions using a binary mask (white = edit area, black = preserve).
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" inpaint \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" inpaint \
   --image ./source.png \
   --mask ./mask.png \
   --prompt "Replace with floating lanterns" \
@@ -85,7 +85,7 @@ Use upscaling as the last step to bring a draft to production quality:
 
 ```bash
 # Upscaling (cstudio only — other providers may not support this)
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" generate \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" generate \
   --provider cstudio \
   --prompt "upscale" \
   --output ./final_hires.png

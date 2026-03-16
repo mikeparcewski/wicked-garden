@@ -19,13 +19,13 @@ Install required CLI tools for running E2E test scenarios.
 Use the prereq-doctor to check scenario tools by category:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category testing
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category security
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category testing
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category security
 ```
 
 Also check scenario-specific tools not in the prereq-doctor registry (playwright, agent-browser, curl) via the legacy discovery script:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/scenarios/cli_discovery.py curl playwright agent-browser
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/scenarios/cli_discovery.py curl playwright agent-browser
 ```
 
 Merge results. Separate tools into **available** and **missing**.
@@ -89,8 +89,8 @@ After each group, report success/failure.
 
 Re-run prereq-doctor to confirm:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category testing
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category security
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category testing
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category security
 ```
 
 Display final status:

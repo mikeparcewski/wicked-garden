@@ -167,10 +167,10 @@ List and create comments through the Data API:
 
 ```bash
 # List comments on a task
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" comments list TASK_ID
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" comments list TASK_ID
 
 # Create a comment via stdin JSON
-echo '{"text": "Comment text"}' | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" comments create
+echo '{"text": "Comment text"}' | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" comments create
 ```
 
 Comment fields: `id`, `text`, `author`, `created_at`. Accepts both `text` and `body` as input (normalizes to `text`).

@@ -17,6 +17,7 @@ def _check_cli(name):
 KNOWN_CLIS = {
     "codex": {"skill": "wicked-garden:multi-model", "desc": "OpenAI Codex for code review and generation"},
     "gemini": {"skill": "wicked-garden:multi-model", "desc": "Google Gemini for multi-modal AI tasks"},
+    "copilot": {"skill": "wicked-garden:multi-model", "desc": "GitHub Copilot CLI for AI-assisted coding"},
     "opencode": {"skill": "wicked-garden:multi-model", "desc": "OpenCode for AI-assisted coding"},
     "agent-browser": {"skill": "wicked-garden:agent-browser", "desc": "Browser automation and scraping"},
 }

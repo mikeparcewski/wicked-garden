@@ -68,7 +68,7 @@ Before manual analysis, leverage available tools:
 Use the detection script to identify the framework in use:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
   --path /path/to/codebase \
   --threshold 0.6
 ```
@@ -84,7 +84,7 @@ Output includes:
 Run the agent analyzer to map the agent landscape:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
   --path /path/to/codebase \
   --output topology.json
 ```
@@ -441,14 +441,14 @@ graph TB
 
 ```bash
 # Detect framework
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
   --path . --threshold 0.6
 
 # Analyze agent topology
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
   --path . --output topology.json
 
 # Generate architecture diagram
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
   --path . --format mermaid > architecture.mmd
 ```

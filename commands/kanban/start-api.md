@@ -43,7 +43,7 @@ uv run python scripts/_run.py scripts/kanban/kanban.py search "query"
 ## Data Location
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-kanban
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-kanban
 ```
 
 ## Notes

@@ -77,7 +77,7 @@ def _worktree_branch_name(project: str, task_id: str) -> str:
 def _worktree_path(project: str, task_id: str) -> str:
     """Generate a worktree path in the temp directory."""
     branch = _worktree_branch_name(project, task_id)
-    tmpdir = os.environ.get("TMPDIR", "/tmp")
+    tmpdir = os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()
     return f"{tmpdir}/{branch}"
 
 

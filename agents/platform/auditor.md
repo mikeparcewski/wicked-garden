@@ -166,7 +166,7 @@ grep -r "retention\|rotate\|archive" --include="*.yml"
 
 Use compliance checker script:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/compliance_checker.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/compliance_checker.py" \
   --target {path} \
   --framework {soc2|hipaa|gdpr|pci} \
   --collect-evidence

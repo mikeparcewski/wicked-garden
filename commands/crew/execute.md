@@ -13,7 +13,7 @@ Execute work for the current phase with adaptive role selection.
 Load current project state via phase_manager:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
 ```
 
 This returns current phase, phase_plan, signals, complexity, and phase statuses via DomainStore.
@@ -89,7 +89,7 @@ The orchestrator loop for each phase:
 
 1. **Load project state** via phase_manager:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
    ```
 
 2. **Dispatch the phase** as a fresh subagent via `Task()`. The subagent bootstraps its own context from persistent state rather than inheriting the orchestrator's conversation history. Include bootstrap instructions in the Task prompt so the subagent knows how to self-orient.
@@ -113,7 +113,7 @@ The orchestrator loop for each phase:
 
 ### 3. Load User Preferences (if exists)
 
-Resolve preferences path: `CREW_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-crew)`
+Resolve preferences path: `CREW_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-crew)`
 Check for `${CREW_ROOT}/preferences.yaml` or project-level preferences for:
 - Autonomy level (ask-first, balanced, just-finish)
 - Communication style
@@ -195,7 +195,7 @@ At checkpoints (Section 4.5), **reuse cached hints** unless signal re-analysis d
 Include archetype hints when calling smart_decisioning:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json \
   --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
   "{description}"
 ```
@@ -220,7 +220,7 @@ When a checkpoint phase completes:
 1. **Gather phase artifacts**: Read all files in `phases/{phase}/` and any deliverables produced
 2. **Re-run signal analysis** on the combined project description + phase artifacts:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json "{combined text summary of deliverables}"
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json "{combined text summary of deliverables}"
    ```
 3. **Compare signals AND complexity**: Diff new `signals` against project.json `signals_detected`, AND compare new `complexity` against `complexity_score`
 4. **If new signals found OR complexity increased**:
@@ -279,7 +279,7 @@ This applies to ALL calls to `smart_decisioning.py` — both initial analysis (i
 Run specialist discovery to find installed specialist plugins:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/specialist_discovery.py --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/specialist_discovery.py --json
 ```
 
 This returns all available specialists with their `enhances` declarations (which phases they support).
@@ -670,7 +670,7 @@ Before dispatching build tasks, check whether parallel execution is feasible:
 **Step 1: Capability check**
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py check-capability
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py check-capability
 ```
 
 If capability check returns `not capable` (dirty repo, detached HEAD, git not available), skip to sequential dispatch.
@@ -681,7 +681,7 @@ If worktrees are available, analyze task dependencies to determine parallel batc
 
 ```bash
 # Pass current task list as JSON (from TaskList output)
-echo '{TASK_LIST_JSON}' | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/build_dependency_analyzer.py \
+echo '{TASK_LIST_JSON}' | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/build_dependency_analyzer.py \
   --stdin --max-parallelism 3
 ```
 
@@ -693,7 +693,7 @@ For each batch that has `"parallel": true` AND contains >= 2 tasks:
 
 1. Create a worktree per task:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py \
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py \
      create-worktree --project "{project-name}" --task-id "{task_id}" --json
    ```
 
@@ -734,7 +734,7 @@ For each batch that has `"parallel": true` AND contains >= 2 tasks:
 3. After all parallel subagents complete, merge each worktree back **SEQUENTIALLY** (one at a time, never in parallel — concurrent merges can corrupt the repository):
    ```bash
    # Merge worktrees ONE AT A TIME in dependency order (leaf tasks first)
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py \
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py \
      merge-worktree --path "{worktree_path}" --json
    ```
 
@@ -747,7 +747,7 @@ If any merge returns `"success": false` with `"conflicts"`:
 - Ask user to choose: resolve manually, re-sequence the conflicting tasks, or abort
 - Clean up the worktree after escalation:
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py \
     cleanup-worktree --path "{worktree_path}"
   ```
 
@@ -755,7 +755,7 @@ If any merge returns `"success": false` with `"conflicts"`:
 
 After successful merge, clean up each worktree:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/worktree_manager.py \
   cleanup-worktree --path "{worktree_path}"
 ```
 
@@ -768,7 +768,7 @@ When worktrees are unavailable or the batch has `"parallel": false`, dispatch ta
 After all build tasks complete, generate the traceability matrix to link test-strategy criteria to build outcomes:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/traceability_generator.py \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/traceability_generator.py \
   --phases-dir phases/ \
   --project "{project-name}" \
   --output phases/build/traceability-matrix.md
@@ -810,14 +810,14 @@ Run immediately after each implementation task is created, before test task crea
 
 **Complexity guard** — check before running:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
 ```
 - If `complexity_score < 2`: log "QE test task creation is suggested but not mandatory for low-complexity projects (complexity {score})" and skip to the next task.
 - If `complexity_score >= 2`: change-type detection and test task creation are REQUIRED, not optional. Do not skip even if no QE specialist is engaged.
 
 **Run detection for each implementation task:**
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/change_type_detector.py \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/change_type_detector.py \
   --files {space-separated list of files touched by this task} \
   --task-description "{task description}" \
   --json
@@ -851,7 +851,7 @@ Run immediately after change-type detection for each implementation task.
 
 **Generate test task parameters:**
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/test_task_factory.py \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/test_task_factory.py \
   --change-type "{change_type from detection}" \
   --impl-subject "{implementation task subject}" \
   --project "{project}" \
@@ -1094,7 +1094,7 @@ TaskUpdate(taskId="{id}", status="completed",
 
 1. **Discover available specialists**:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/specialist_discovery.py --json
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/specialist_discovery.py --json
    ```
 
 2. **Filter to reviewers**: Select specialists whose `enhances` list includes the current phase or `"*"`
@@ -1277,7 +1277,7 @@ For skippable phases:
 
 When skipping a phase, use phase_manager which auto-creates a status.md record:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} skip --phase {phase} --reason "{reason}" --approved-by "{who}"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} skip --phase {phase} --reason "{reason}" --approved-by "{who}"
 ```
 
 **Legacy alias**: `qe` maps to `test-strategy` in phases.json. Both names work. When checking phase_plan for injection or skip decisions, always normalize `qe` → `test-strategy` first to prevent duplicate phases.

@@ -826,7 +826,7 @@ def _write_trace(payload: dict) -> None:
             "event": event,
         }
 
-        tmpdir = os.environ.get("TMPDIR", "/tmp")
+        tmpdir = os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()
         trace_file = Path(tmpdir) / f"wicked-trace-{session_id}.jsonl"
         with open(trace_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")

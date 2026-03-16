@@ -110,7 +110,7 @@ Find common ground and remaining tensions.
 **After each round, persist transcript entries** for the session record. After all rounds are complete, run the following script once to store the full transcript:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
   --session-id "{session_id}" \
   --entries '{json_array_of_entries}'
 ```

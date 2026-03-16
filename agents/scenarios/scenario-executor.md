@@ -154,7 +154,7 @@ cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/orchestrator.py rou
 **Signal**: Step says "start a session", "open a new session", "begin a session", "session startup"
 **Action**: Run the bootstrap hook script directly:
 ```bash
-echo '{"session_id": "scenario-test-'$$'"}' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bootstrap.py"
+echo '{"session_id": "scenario-test-'$$'"}' | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bootstrap.py"
 ```
 
 ### 6. Fallback — Best Interpretation

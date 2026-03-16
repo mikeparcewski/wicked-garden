@@ -23,7 +23,7 @@ Show the session state document and context assembly details for debugging.
 Read the session state from the history condenser:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/v2/history_condenser.py ${CLAUDE_SESSION_ID:-default}
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/v2/history_condenser.py ${CLAUDE_SESSION_ID:-default}
 ```
 
 ### 2. Parse Arguments
@@ -53,7 +53,7 @@ Show the "ticket rail" — the L2 cache that survives context compression:
 
 Resolve the smaht session path:
 ```bash
-SMAHT_SESSION=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-smaht sessions ${CLAUDE_SESSION_ID:-default})
+SMAHT_SESSION=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-smaht sessions ${CLAUDE_SESSION_ID:-default})
 ```
 
 Read the last N turns from `{SMAHT_SESSION}/turns.jsonl`:

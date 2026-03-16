@@ -43,7 +43,7 @@ def _find_log_file(session_id: str | None) -> Path | None:
     2. CLAUDE_SESSION_ID env var
     3. Glob $TMPDIR/wicked-ops-*.jsonl — most recently modified if multiple
     """
-    tmpdir = os.environ.get("TMPDIR", "/tmp")
+    tmpdir = os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()
 
     if session_id:
         return Path(tmpdir) / f"wicked-ops-{session_id}.jsonl"

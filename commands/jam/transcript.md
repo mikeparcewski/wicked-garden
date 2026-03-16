@@ -10,7 +10,7 @@ Display the full chronological conversation from a brainstorm or council session
 Without `--session-id`, shows the most recent session's transcript.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/jam/jam.py transcript $ARGUMENTS
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/jam/jam.py transcript $ARGUMENTS
 ```
 
 After running the script, present the output. If the output is in human-readable format, add a brief header summarizing the session topic (if visible) and the total number of entries shown.

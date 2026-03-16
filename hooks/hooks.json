@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bootstrap.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" bootstrap || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" bootstrap || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" bootstrap",
             "timeout": 15000
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" prompt_submit || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" prompt_submit || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" prompt_submit",
             "timeout": 5000
           }
         ]
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool",
             "timeout": 1000
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool",
             "timeout": 1000
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_tool",
             "timeout": 3000
           }
         ]
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool",
             "timeout": 5000
           }
         ]
@@ -73,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool",
             "timeout": 3000,
             "async": true
           }
@@ -84,7 +84,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool",
             "timeout": 2000
           }
         ]
@@ -94,7 +94,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool",
             "timeout": 5000
           }
         ]
@@ -104,7 +104,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool",
             "timeout": 2000
           }
         ]
@@ -116,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post_tool.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" post_tool",
             "timeout": 3000
           }
         ]
@@ -127,7 +127,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" task_completed || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" task_completed || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" task_completed",
             "timeout": 2000
           }
         ]
@@ -139,7 +139,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_compact.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_compact || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_compact || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" pre_compact",
             "timeout": 5000
           }
         ]
@@ -151,7 +151,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" stop || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" stop || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" stop",
             "async": true,
             "timeout": 30000
           }

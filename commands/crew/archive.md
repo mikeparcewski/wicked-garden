@@ -20,14 +20,14 @@ Archive a project to remove it from active listings. Archived projects are hidde
 
    For **archive**:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py "${PROJECT_NAME}" update \
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py "${PROJECT_NAME}" update \
      --data '{"archived": true, "archived_at": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' \
      --json
    ```
 
    For **unarchive**:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py "${PROJECT_NAME}" update \
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py "${PROJECT_NAME}" update \
      --data '{"archived": false, "archived_at": null}' \
      --json
    ```

@@ -47,6 +47,7 @@ Check which external LLM CLIs are available:
 
 ```bash
 which codex 2>/dev/null && echo "codex:available" || echo "codex:missing"
+which copilot 2>/dev/null && echo "copilot:available" || echo "copilot:missing"
 which gemini 2>/dev/null && echo "gemini:available" || echo "gemini:missing"
 which opencode 2>/dev/null && echo "opencode:available" || echo "opencode:missing"
 which pi 2>/dev/null && echo "pi:available" || echo "pi:missing"
@@ -66,7 +67,7 @@ Council requires 2+ independent external LLM CLIs for meaningful multi-model del
 Found: {count} external CLI(s).
 
 Suggestion: Use /wicked-garden:jam:brainstorm for single-model exploration,
-or install additional CLIs (codex, gemini, opencode, pi).
+or install additional CLIs (codex, copilot, gemini, opencode, pi).
 ```
 
 ### 4. Build Question Scaffold
@@ -110,6 +111,11 @@ SCAFFOLD_EOF
 cat "$SCAFFOLD_FILE" | codex exec "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
 ```
 
+**Copilot:**
+```bash
+cat "$SCAFFOLD_FILE" | copilot -p "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely." --output-format text --available-tools=""
+```
+
 **Gemini:**
 ```bash
 cat "$SCAFFOLD_FILE" | gemini "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
@@ -136,7 +142,7 @@ Claude also answers the same 4 questions independently (you already have the sca
 After collecting all external model responses AND Claude's own evaluation, persist them as transcript entries so they are retrievable via `jam.py transcript`. Run once after all responses are in hand:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
   --session-id "{session_id}" \
   --entries '{json_array_of_entries}'
 ```
@@ -154,7 +160,7 @@ Each model's response becomes one entry:
 }
 ```
 
-- Use `persona_name` = model name (e.g., "Claude", "Codex", "Gemini", "OpenCode", "Pi").
+- Use `persona_name` = model name (e.g., "Claude", "Codex", "Copilot", "Gemini", "OpenCode", "Pi").
 - `persona_type` is always `council` for these entries.
 - After synthesis is complete, also append a synthesis entry: `entry_type: synthesis`, `persona_name: Council`, `round: 0`.
 

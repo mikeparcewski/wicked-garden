@@ -247,7 +247,7 @@ Before marking a story as "Ready":
 
 ```bash
 # Add user story to kanban
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" \
   add-task "User Stories" "US-123: Customer Registration" \
   --tags "auth,p0" \
   --description "$(cat story.md)"

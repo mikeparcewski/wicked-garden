@@ -28,7 +28,7 @@ reviews, council sessions, and preference-driven orchestration.
 Always start by detecting which AI CLIs are installed via prereq-doctor:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category ai
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-category ai
 ```
 
 Parse the JSON result. Build `AVAILABLE` list from tools where `status` is `"available"`.

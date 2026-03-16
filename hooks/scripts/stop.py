@@ -50,7 +50,7 @@ def _get_session_id() -> str:
 
 
 def _session_dir(subdir: str) -> Path:
-    tmpdir = os.environ.get("TMPDIR", "/tmp").rstrip("/")
+    tmpdir = (os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()).rstrip("/")
     return Path(tmpdir) / subdir / _get_session_id()
 
 
@@ -299,7 +299,7 @@ def main():
 
         # Compute log file path for session summary
         _ops_log_path = str(
-            Path(os.environ.get("TMPDIR", "/tmp")) / f"wicked-ops-{_get_session_id()}.jsonl"
+            Path(os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()) / f"wicked-ops-{_get_session_id()}.jsonl"
         )
         _log("session", "verbose", "session.end",
              detail={"turns": turn_count,

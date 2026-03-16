@@ -77,7 +77,7 @@ Before manual research, leverage available tools:
 Use the detection script to identify what's in use:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
   --path /path/to/codebase \
   --threshold 0.6
 ```
@@ -207,11 +207,11 @@ If migration is needed:
 
 ```bash
 # Detect current framework
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
   --path . --threshold 0.6
 
 # Analyze current agent topology
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
   --path . --output current-topology.json
 ```
 
@@ -637,7 +637,7 @@ TaskUpdate(
 
 ```bash
 # Detect current framework
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/detect_framework.py" \
   --path . --threshold 0.6
 
 # Quick framework check
