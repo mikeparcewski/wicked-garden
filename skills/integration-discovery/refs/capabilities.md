@@ -219,7 +219,7 @@ Detailed patterns for discovering integrations by capability category.
 **Detection method**: `command -v {tool}` (POSIX-portable, works on macOS, Linux, WSL)
 
 **CLI categories**:
-- AI CLIs: claude, codex, gemini, opencode, pi
+- AI CLIs: claude, codex, copilot, gemini, opencode, pi
 - Browser: playwright, puppeteer, cypress, chrome-devtools-protocol
 - Cloud: aws, gcloud, az, heroku, vercel, fly
 - Observability: datadog-agent, newrelic, dynatrace

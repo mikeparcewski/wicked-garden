@@ -166,7 +166,7 @@ All QE artifacts use paths resolved through `resolve_path.py` for portability ac
 ### Path Resolution
 
 ```bash
-QE_DIR=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-qe 2>/dev/null \
+QE_DIR=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-qe 2>/dev/null \
          || echo "${TMPDIR:-/tmp}/wicked-qe-evidence")
 SCENARIO_SLUG=$(echo "{scenario_name}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
 ```

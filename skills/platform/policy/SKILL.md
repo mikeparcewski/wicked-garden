@@ -119,7 +119,7 @@ Recommend:
 
 Create remediation tasks:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-task \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-task \
   --name "Implement {control}" \
   --description "Policy: {policy}\nGap: {gap}" \
   --priority {P0|P1|P2}

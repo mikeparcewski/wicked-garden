@@ -12,7 +12,7 @@ Persona name matching is case-insensitive. Use the persona's display name as it 
 Without `--session-id`, searches the most recent session.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/jam/jam.py persona $ARGUMENTS
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/jam/jam.py persona $ARGUMENTS
 ```
 
 After running the script, present the output. If entries are returned, add a brief note about how many rounds the persona participated in and whether their position shifted between rounds (you can infer this from the raw_text content).

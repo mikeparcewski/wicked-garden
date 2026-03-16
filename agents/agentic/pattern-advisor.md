@@ -78,7 +78,7 @@ Before manual analysis, leverage available tools:
 Use the pattern scorer to identify patterns and anti-patterns:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
   --path /path/to/codebase \
   --output pattern-report.json
 ```
@@ -496,7 +496,7 @@ agent = Agent(
 Run the pattern scorer to get quantitative assessment:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
   --path /path/to/codebase \
   --output pattern-report.json
 ```
@@ -872,11 +872,11 @@ TaskUpdate(
 
 ```bash
 # Score patterns in codebase
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
   --path . --output pattern-report.json
 
 # Find anti-patterns
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/pattern_scorer.py" \
   --path . --anti-patterns-only
 
 # Search for specific pattern

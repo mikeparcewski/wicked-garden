@@ -42,7 +42,7 @@ Deep visual design and UI implementation review.
 
 ```bash
 # Scan for components
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/product/component-inventory.py" src/
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/component-inventory.py" src/
 
 # Find patterns
 wicked-search "className=" --type jsx
@@ -155,10 +155,10 @@ Fast improvements with high impact:
 wicked-browse screenshot {url} --output design-review/
 
 # Color contrast
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/product/contrast-check.py" "#666" "#fff"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/contrast-check.py" "#666" "#fff"
 
 # Track design debt
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
   "Design Review" "UI: {issue}" "todo" --priority P2 --tags "design,ui"
 ```
 

@@ -37,7 +37,7 @@ Check for feedback data in common locations:
 
 ```bash
 # Resolve product storage root
-PRODUCT_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-product)
+PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-product)
 
 # Check for voice data store
 ls ${PRODUCT_ROOT}/voice/feedback/ 2>/dev/null

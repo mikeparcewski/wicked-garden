@@ -96,12 +96,12 @@ price_per_sqft = price / square_feet
 **Feature quality checks**:
 ```bash
 # Profile feature distributions
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/data_profiler.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data_profiler.py" \
   --input features.csv \
   --output feature_profile.json
 
 # Check for leakage
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import pandas as pd
 df = pd.read_csv('features.csv')
 # Check correlation with target

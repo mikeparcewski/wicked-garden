@@ -3,7 +3,7 @@ name: multi-model
 description: |
   Multi-model AI collaboration: discover installed LLM CLIs and orchestrate
   council sessions, cross-model reviews, and diverse perspective gathering.
-  Detects codex, gemini, opencode, and pi CLIs at runtime via PATH discovery.
+  Detects codex, copilot, gemini, opencode, and pi CLIs at runtime via PATH discovery.
   Decisions stored in wicked-mem. Transcripts persisted via jam scripts.
 
   Use when:
@@ -24,7 +24,7 @@ Each council member is a different model provider for genuine perspective divers
 
 The multi-model system uses **external LLM CLIs** discovered at runtime:
 
-1. **CLI Discovery** — `which codex gemini opencode pi` detects installed CLIs
+1. **CLI Discovery** — `which codex copilot gemini opencode pi` detects installed CLIs
 2. **Quorum Check** — Council requires 2+ external CLIs; 0 = refuse, 1 = warn
 3. **Question Scaffold** — All models answer the same fixed 4-question set
 4. **Parallel Dispatch** — Each CLI receives the scaffold via stdin pipe, runs independently
@@ -48,6 +48,7 @@ The multi-model system uses **external LLM CLIs** discovered at runtime:
 | CLI | Install | Model |
 |-----|---------|-------|
 | `codex` | `brew install codex` | OpenAI Codex |
+| `copilot` | `brew install copilot-cli` | GitHub Copilot |
 | `gemini` | `npm i -g @google/gemini-cli` | Google Gemini |
 | `opencode` | `brew install opencode` | Configurable |
 | `pi` | `brew install pi-mono` | Pi AI |
@@ -136,7 +137,7 @@ With only 1 CLI, it runs as "brainstorm with external guest" with a warning.
 - [Context Management](refs/context.md) — Session state, cross-AI handoffs, context windows
 
 **CLI Providers:**
-- [Codex](refs/codex.md) | [Gemini](refs/gemini.md) | [OpenCode](refs/opencode.md) | [Pi](refs/pi.md)
+- [Codex](refs/codex.md) | [Copilot](refs/copilot.md) | [Gemini](refs/gemini.md) | [OpenCode](refs/opencode.md) | [Pi](refs/pi.md)
 
 **Quality:**
 - [Auditability](refs/auditability.md) — Audit trails, compliance, decision tracking

@@ -34,7 +34,7 @@ Read from recent analyze output or voice data store:
 
 ```bash
 # Resolve product storage root
-PRODUCT_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-product)
+PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-product)
 
 # Check for analysis results
 ls ${PRODUCT_ROOT}/voice/analysis/

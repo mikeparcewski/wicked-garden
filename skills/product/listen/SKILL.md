@@ -96,7 +96,7 @@ The skill automatically discovers available feedback capabilities:
 
 4. **Store for Analysis**
    ```
-   # Resolved via: python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product
+   # Resolved via: sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product
    {local_root}/wicked-product/voice/feedback/{source}/{date}/{id}.md
    ```
 

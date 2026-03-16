@@ -207,5 +207,5 @@ The executor produces this structure:
 - **Completed at**: 2024-01-15T10:30:45Z
 - **Steps executed**: 5 of 5
 - **Steps skipped**: 0
-- **Files created**: $(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-mem/memories/mem_abc123.json
+- **Files created**: $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-mem/memories/mem_abc123.json
 ```

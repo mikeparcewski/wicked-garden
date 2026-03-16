@@ -20,7 +20,7 @@ Extract parameters:
 
 Identify framework to understand security model:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/detect_framework.py --path "$TARGET_PATH"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/detect_framework.py --path "$TARGET_PATH"
 ```
 
 Framework detection informs:
@@ -33,7 +33,7 @@ Framework detection informs:
 
 Map agent structure for trust boundaries:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/analyze_agents.py --path "$TARGET_PATH" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/analyze_agents.py --path "$TARGET_PATH" \
   --framework "$DETECTED_FRAMEWORK"
 ```
 

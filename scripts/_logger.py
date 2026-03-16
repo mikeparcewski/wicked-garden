@@ -43,7 +43,7 @@ def _get_session_id() -> str:
 
 def _log_file(session_id: str) -> Path:
     """Return path to the ops JSONL log file for the given session."""
-    tmpdir = os.environ.get("TMPDIR", "/tmp")
+    tmpdir = os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()
     return Path(tmpdir) / f"wicked-ops-{session_id}.jsonl"
 
 
@@ -64,7 +64,7 @@ def _resolve_level() -> str:
     try:
         import json as _json
         _sid = _get_session_id()
-        _tmpdir = os.environ.get("TMPDIR", "/tmp")
+        _tmpdir = os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()
         _state_path = Path(_tmpdir) / f"wicked-garden-session-{_sid}.json"
         if _state_path.exists():
             _data = _json.loads(_state_path.read_text(encoding="utf-8"))

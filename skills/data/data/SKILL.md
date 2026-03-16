@@ -60,7 +60,7 @@ Reports on: Completeness (null rates), Uniqueness (duplicates), Validity (constr
 Uses `data_profiler.py` script:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/data_profiler.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data_profiler.py" \
   --input data.csv --output profile.json
 ```
 

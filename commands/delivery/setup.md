@@ -14,7 +14,7 @@ Interactive setup for delivery metrics configuration.
 
 Resolve the delivery storage root:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-delivery
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-delivery
 ```
 Use the output as `DELIVERY_ROOT` for all subsequent file paths.
 

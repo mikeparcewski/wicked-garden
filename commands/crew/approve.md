@@ -19,7 +19,7 @@ Review and approve a completed phase to advance the project.
 If no project specified, find the active one:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
 Use the project name from the result.
@@ -120,7 +120,7 @@ If sign-off is `conditional`, display conditions and ask user to confirm before 
 **For phases build, test, and review**: validate that completed tasks include required evidence.
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/evidence.py validate --phase {phase} --complexity {complexity_score}
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/evidence.py validate --phase {phase} --complexity {complexity_score}
 ```
 
 For each completed task in the phase, call `validate_evidence(task.description, complexity_score)`:
@@ -230,13 +230,13 @@ If user approves (Y or proceeds):
 
 3. Update project state via phase_manager.py (which writes project.json):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve --phase {phase}
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve --phase {phase}
    ```
    This updates `current_phase` and marks the phase as approved in project.json.
 
    If required deliverables are missing, the approve call will **block** with an error. To bypass in exceptional circumstances:
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve \
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve \
      --phase {phase} --override-deliverables --reason "Deliverables captured in external system: {link}"
    ```
    `--override-deliverables` requires `--reason`. The override is recorded in `phases/{phase}/status.md` for audit.
@@ -332,7 +332,7 @@ To customize, edit project.json:
 Update via phase_manager:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} update \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} update \
   --data '{"task_lifecycle": {"staleness_threshold_minutes": 60, "recovery_mode": "manual", "user_overrides": {"allow_stale_approval": false, "skip_min_task_validation": false, "allow_partial_completion": false, "skip_signoff": false, "min_tasks_per_phase": 3, "skip_phase": false, "adaptive_task_creation": "enabled"}}}' \
   --json
 ```

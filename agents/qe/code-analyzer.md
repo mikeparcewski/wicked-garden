@@ -158,7 +158,7 @@ When running as part of an execution gate, discover and optionally execute E2E s
 
 **Step 1**: Discover scenarios:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/discover_scenarios.py" --check-tools
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/discover_scenarios.py" --check-tools
 ```
 
 If `"available": false`, skip this section entirely.

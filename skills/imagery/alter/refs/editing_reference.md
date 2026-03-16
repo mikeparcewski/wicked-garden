@@ -65,20 +65,20 @@ When the output is "almost there" but not quite:
 
 ```bash
 # Image-to-image edit
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit \
   --image ./source.png \
   --prompt "Same scene but with dramatic sunset sky" \
   --output ./v2.png
 
 # Inpainting with mask
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" inpaint \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" inpaint \
   --image ./source.png \
   --mask ./mask.png \
   --prompt "Replace with floating lanterns" \
   --output ./v2_inpaint.png
 
 # Use a specific provider
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit \
   --provider stability \
   --image ./source.png \
   --prompt "Oil painting style" \

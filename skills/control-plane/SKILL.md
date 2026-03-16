@@ -80,7 +80,7 @@ cache_dir = get_local_path("wicked-smaht", "cache", "context7")
 
 Or from commands:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>
 ```
 
 ## Further Reading

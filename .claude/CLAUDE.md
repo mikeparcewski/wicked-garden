@@ -156,15 +156,18 @@ Task: wicked-garden:platform:security-engineer
 
 ### Script Invocation
 
-**Hook scripts**: Always `python3` — must be stdlib-only, no external deps.
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bootstrap.py"
-```
+**Cross-platform Python resolution**: Use `_python.sh` shim for all script invocations.
+This resolves `python3`, `python`, or `py -3` — whichever is available on the platform.
 
-**Command scripts**: `python3` if stdlib-only; `cd && uv run python` if has dependencies.
+**Hook scripts**: Dispatched via `invoke.py` with fallback chain (see hooks.json). Must be stdlib-only.
+
+**Command/agent scripts**: Use `_python.sh` shim; `cd && uv run python` if has dependencies.
 ```bash
 # stdlib-only (crew, kanban, mem, patch)
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" ${project} ${action}
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" ${project} ${action}
+
+# via _run.py wrapper (auto-help on argparse errors)
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py ${project} ${action}
 
 # has deps (smaht needs pydantic, search needs tree-sitter)
 cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/v2/orchestrator.py gather "${prompt}"
@@ -189,7 +192,7 @@ Matchers specify tool names: `"*"` for all, or specific like `"TaskCreate"`, `"W
 
 ### Storage
 
-Plugin state is managed by DomainStore (`scripts/_domain_store.py`) — local JSON files with optional integration-discovery routing to external MCP tools. Local paths are resolved dynamically; never hardcode `~/.something-wicked/` paths in consumer code. Use `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>` in commands.
+Plugin state is managed by DomainStore (`scripts/_domain_store.py`) — local JSON files with optional integration-discovery routing to external MCP tools. Local paths are resolved dynamically; never hardcode `~/.something-wicked/` paths in consumer code. Use `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>` in commands.
 
 ### Graceful Degradation
 
@@ -286,3 +289,5 @@ This applies to ALL commands that use `AskUserQuestion`: setup, delivery/setup, 
 - Use `${CLAUDE_PLUGIN_ROOT}` for all paths in plugin scripts — never hardcode paths
 - Quote all shell variables: `"$VAR"` not `$VAR`
 - Quote temp paths: `"${TMPDIR:-/tmp}/..."` (Codex catches unquoted)
+- Python scripts: use `tempfile.gettempdir()` instead of hardcoding `/tmp` — Windows has no `/tmp`
+- Script invocation: use `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh"` — never bare `python3` (not available on Windows)

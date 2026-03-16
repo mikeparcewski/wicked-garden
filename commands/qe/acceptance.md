@@ -30,7 +30,7 @@ Scenario ──→ [Writer] ──→ Test Plan ──→ [Executor] ──→ E
 Before parsing arguments, resolve canonical paths for QE artifacts. These paths are used throughout the pipeline.
 
 ```bash
-QE_DIR=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-qe 2>/dev/null || echo "${TMPDIR:-/tmp}/wicked-qe-evidence")
+QE_DIR=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-qe 2>/dev/null || echo "${TMPDIR:-/tmp}/wicked-qe-evidence")
 SCENARIO_SLUG=$(echo "{scenario_name}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
 TEST_PLAN="${QE_DIR}/test-plans/${SCENARIO_SLUG}.md"
 EVIDENCE="${QE_DIR}/evidence/${SCENARIO_SLUG}.md"
@@ -199,7 +199,7 @@ ls "${REGISTRY}" 2>/dev/null && echo "REGISTRY_OK" || echo "REGISTRY_MISSING"
 If the registry file is missing, attempt to recover it from DomainStore before blocking:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/qe/registry_lookup.py \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/qe/registry_lookup.py \
   --scenario-slug "${SCENARIO_SLUG}" \
   --output "${REGISTRY}"
 ```

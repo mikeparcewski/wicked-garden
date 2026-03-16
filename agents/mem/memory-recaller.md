@@ -27,7 +27,7 @@ Given a query, search `{SM_LOCAL_ROOT}/wicked-mem/` for relevant memories.
 
 1. Resolve the local path first:
    ```bash
-   LOCAL_PATH=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem)
+   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem)
    ```
 
 2. Use ripgrep patterns for flexible matching:

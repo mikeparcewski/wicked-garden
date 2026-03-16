@@ -11,7 +11,7 @@ Display the current project state and available integrations.
 ### 1. Find Active Project
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
 If no active project found (`"project": null`), inform user and suggest `/wicked-garden:crew:start`.
@@ -21,7 +21,7 @@ If no active project found (`"project": null`), inform user and suggest `/wicked
 Use the project name from the find-active result:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} status --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} status --json
 ```
 
 This returns: name, current_phase, phase_plan, phase statuses, signals, complexity, and kanban fields.

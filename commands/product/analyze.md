@@ -38,7 +38,7 @@ Read from voice data store or recent listen results:
 
 ```bash
 # Resolve product storage root
-PRODUCT_ROOT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-product)
+PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-product)
 
 # Check for aggregated feedback
 ls ${PRODUCT_ROOT}/voice/feedback/

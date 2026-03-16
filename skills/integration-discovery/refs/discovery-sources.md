@@ -62,7 +62,7 @@ command -v {tool}   # returns exit 0 if found, non-zero if not
 
 | Category | Key Tools |
 |----------|-----------|
-| AI CLIs | claude, codex, gemini, opencode, pi |
+| AI CLIs | claude, codex, copilot, gemini, opencode, pi |
 | Browser | playwright, puppeteer, cypress |
 | Cloud | aws, gcloud, az, heroku, vercel, fly |
 | Observability | datadog-agent, newrelic, dynatrace |

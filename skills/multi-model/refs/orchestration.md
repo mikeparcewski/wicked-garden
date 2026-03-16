@@ -20,6 +20,7 @@ Each model responds independently to a fixed question scaffold, then Claude synt
 ```bash
 # Council agent detects available CLIs at runtime
 which codex 2>/dev/null && echo "codex:available" || echo "codex:missing"
+which copilot 2>/dev/null && echo "copilot:available" || echo "copilot:missing"
 which gemini 2>/dev/null && echo "gemini:available" || echo "gemini:missing"
 which opencode 2>/dev/null && echo "opencode:available" || echo "opencode:missing"
 which pi 2>/dev/null && echo "pi:available" || echo "pi:missing"
@@ -63,6 +64,7 @@ SCAFFOLD_EOF
 
 # Dispatch in parallel (all run simultaneously via multiple Bash calls)
 cat "$SCAFFOLD_FILE" | codex exec "Evaluate the options. Answer the 4 questions."
+cat "$SCAFFOLD_FILE" | copilot -p "Evaluate the options. Answer the 4 questions." --output-format text --available-tools=""
 cat "$SCAFFOLD_FILE" | gemini "Evaluate the options. Answer the 4 questions."
 cat "$SCAFFOLD_FILE" | opencode run "Evaluate the options. Answer the 4 questions."
 cat "$SCAFFOLD_FILE" | pi exec "Evaluate the options. Answer the 4 questions."
@@ -125,7 +127,7 @@ Key disagreement: {fundamental question models disagree on}.
 Council responses are persisted via `save_transcript.py`:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
   --session-id "{session_id}" \
   --entries '{json_array_of_entries}'
 ```
@@ -162,7 +164,7 @@ Unique: Gemini flagged Redis cluster cost." \
 Run council with 0 external CLIs  # just Claude talking to itself
 
 # GOOD: Check quorum first
-which codex gemini opencode pi    # need 2+ for real council
+which codex copilot gemini opencode pi    # need 2+ for real council
 
 # BAD: Sequential dispatch (one model could influence the next)
 response1=$(codex exec "$q"); echo "$response1" | gemini "$q"

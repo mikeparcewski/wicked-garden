@@ -7,7 +7,7 @@ This module persists a lightweight JSON state file keyed by CLAUDE_SESSION_ID
 so all hooks within a session read/write a consistent view.
 
 State file location:
-    ${TMPDIR:-/tmp}/wicked-garden-session-{SESSION_ID}.json
+    {tempfile.gettempdir()}/wicked-garden-session-{SESSION_ID}.json
 
 Atomic writes: write to .tmp, then os.replace — prevents partial reads.
 
@@ -25,6 +25,7 @@ Usage (hook scripts):
 import json
 import os
 import sys
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -56,7 +57,7 @@ def _get_session_id() -> str:
 
 def _state_file_path() -> Path:
     """Return the path to the session state JSON file for the current session."""
-    tmpdir = os.environ.get("TMPDIR", "/tmp")
+    tmpdir = os.environ.get("TMPDIR") or tempfile.gettempdir()
     session_id = _get_session_id()
     filename = f"wicked-garden-session-{session_id}.json"
     return Path(tmpdir) / filename

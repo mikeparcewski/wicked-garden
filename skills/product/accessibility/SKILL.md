@@ -138,10 +138,10 @@ wicked-search "aria-" --type html          # ARIA usage
 **Tools:**
 ```bash
 # Color contrast check
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/product/contrast-check.py" "#666" "#fff"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/contrast-check.py" "#666" "#fff"
 
 # Track issues
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
   "A11y" "A11y: {issue}" "todo" --priority P0 --tags "accessibility,wcag"
 ```
 

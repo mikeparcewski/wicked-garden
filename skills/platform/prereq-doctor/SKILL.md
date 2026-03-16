@@ -31,13 +31,13 @@ Diagnoses missing CLI tools and Python dependencies, offers to install them.
 
 ```bash
 # Diagnose a specific tool
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check <tool>
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check <tool>
 
 # Diagnose from an error message
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" diagnose "<error_text>"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" diagnose "<error_text>"
 
 # Check all prerequisites for wicked-garden
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-all
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-all
 ```
 
 ## Usage from Commands

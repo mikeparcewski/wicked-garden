@@ -57,7 +57,7 @@ Enable managers to export report data to CSV for offline analysis in Excel.
 ### With Wicked Kanban
 Store requirements as tasks:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" \
   add-task "Requirements" "US-AUTH-001" \
   --tags "auth,p0" \
   --description "$(cat requirements.md)"
