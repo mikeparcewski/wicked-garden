@@ -283,12 +283,17 @@ _QE_CHANGE_THRESHOLD = 3
 
 
 def _handle_write_edit(tool_input: dict) -> dict:
-    """Mark file as stale for search index + track change count for QE nudge + scenario staleness."""
+    """Mark file as stale for search index + track change count for QE nudge + scenario staleness + CLAUDE.md/AGENTS.md sync."""
     file_path = tool_input.get("file_path", "")
     if not file_path:
         return {"continue": True}
 
     messages = []
+
+    # 0. CLAUDE.md ↔ AGENTS.md sync directive
+    sync_msg = _check_instruction_file_sync(file_path)
+    if sync_msg:
+        messages.append(sync_msg)
 
     # 1. Mark file stale for wicked-search
     _mark_file_stale(file_path)
@@ -307,6 +312,57 @@ def _handle_write_edit(tool_input: dict) -> dict:
     if messages:
         result["systemMessage"] = "\n".join(messages)
     return result
+
+
+def _check_instruction_file_sync(file_path: str) -> str | None:
+    """When CLAUDE.md or AGENTS.md is edited, prompt to sync the counterpart.
+
+    Both files serve as instruction files for different AI tools and must stay
+    consistent. CLAUDE.md is the primary (loaded by Claude Code), AGENTS.md is
+    the cross-tool counterpart (Codex, Cursor, Amp, etc.).
+
+    Only fires once per session to avoid repeated nudges.
+    """
+    try:
+        p = Path(file_path)
+        name = p.name
+
+        # Determine which file was edited and which needs syncing
+        if name == "CLAUDE.md":
+            counterpart_name = "AGENTS.md"
+            counterpart = p.parent.parent / "AGENTS.md" if p.parent.name == ".claude" else p.parent / "AGENTS.md"
+        elif name == "AGENTS.md":
+            counterpart_name = "CLAUDE.md"
+            # CLAUDE.md lives in .claude/ subdirectory
+            counterpart = p.parent / ".claude" / "CLAUDE.md"
+            if not counterpart.exists():
+                counterpart = p.parent / "CLAUDE.md"
+        else:
+            return None
+
+        # Only fire once per session
+        from _session import SessionState
+        state = SessionState.load()
+        synced_flags = getattr(state, "instruction_sync_fired", None) or []
+        if name in synced_flags:
+            return None
+        synced_flags.append(name)
+        state.update(instruction_sync_fired=synced_flags)
+
+        if not counterpart.exists():
+            return (
+                f"[Sync] {name} was updated but {counterpart_name} does not exist yet. "
+                f"Create {counterpart_name} with the same user-facing instructions so "
+                f"other AI tools (Codex, Cursor, Amp) follow the same rules."
+            )
+
+        return (
+            f"[Sync] {name} was updated. Read {counterpart.name} and update it to "
+            f"reflect the same user instructions and preferences. Both files must stay "
+            f"consistent — {counterpart_name} is used by other AI coding tools."
+        )
+    except Exception:
+        return None
 
 
 def _mark_file_stale(file_path: str) -> None:

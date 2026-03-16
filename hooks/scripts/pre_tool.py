@@ -7,7 +7,7 @@ Consolidates: crew pretool_taskcreate, crew pretool_planmode, mem block_memory_m
 Dispatches by tool_name from hook payload:
   TaskCreate    → crew initiative metadata injection + one-time suggestion
   EnterPlanMode → deny and redirect to crew workflow
-  Write / Edit  → MEMORY.md / AGENTS.md write guard
+  Write / Edit  → MEMORY.md write guard (AGENTS.md writes allowed, synced via PostToolUse)
 
 Always fails open — any unhandled exception returns permissionDecision: "allow".
 """
@@ -173,13 +173,8 @@ def _handle_write_guard(tool_input: dict) -> str:
     """
     file_path = tool_input.get("file_path", "")
 
-    # Block writes to AGENTS.md — cross-tool read-only file
-    if file_path.lower().endswith("agents.md"):
-        return _deny(
-            "Do not write to AGENTS.md. It is a cross-tool agent instruction "
-            "file shared with other AI coding tools (Codex, Cursor, Amp, etc.) "
-            "and must remain read-only. Use CLAUDE.md for Claude-specific instructions."
-        )
+    # AGENTS.md is a cross-tool instruction file shared with Codex, Cursor, Amp, etc.
+    # Writes are allowed — a PostToolUse hook keeps CLAUDE.md and AGENTS.md in sync.
 
     # Block writes to MEMORY.md or Claude's auto-memory directory
     is_memory_md = file_path.endswith("MEMORY.md")
