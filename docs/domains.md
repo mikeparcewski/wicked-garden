@@ -293,5 +293,4 @@ Skills that apply across all domains:
 | **deliberate** | Five-lens critical thinking before implementation. Challenges premises, finds root causes, spots adjacent opportunities. |
 | **multi-model** | Multi-LLM council reviews using external CLI tools (Codex, Gemini, OpenCode). |
 | **issue-reporting** | Automated GitHub issue detection with duplicate checking, codebase research, and SMART validation. |
-| **presentation** | Create slide decks from content — structures, formats, and exports presentations. |
 | **imagery** | Visual asset lifecycle — review, create, and alter images using AI providers. |

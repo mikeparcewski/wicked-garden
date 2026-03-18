@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.4.0] - 2026-03-17
+
+### Features
+- feat: CLAUDE.md ↔ AGENTS.md sync + remove AGENTS.md write block (8847722)
+
+### Removed
+- remove: presentation skill domain (moved to separate repo)
+
+### Bug Fixes
+- fix: Windows compatibility — cross-platform Python resolution + TMPDIR fallback (9d36cf4)
+
+### Chores
+- release: wicked-garden v2.3.0 — Windows compatibility + Copilot CLI (61840d4)
+- release: wicked-garden v2.2.0 — CLAUDE.md ↔ AGENTS.md sync (9d64122)
+
 ## [2.1.0] - 2026-03-15
 
 ### Features
@@ -20,7 +35,7 @@
 - Agent model tiers: haiku for utility agents (75% cost reduction), opus for high-stakes reasoning (architecture, security, gate decisions)
 - `allowed-tools` frontmatter on all 79 agents — explicit tool restrictions per agent role
 - `user-invocable: false` on 6 background skills (smaht, control-plane, runtime-exec, integration-discovery, issue-reporting, observability)
-- `disable-model-invocation: true` on 3 user-only skills (crew/workflow, kanban, presentation)
+- `disable-model-invocation: true` on 3 user-only skills (crew/workflow, kanban, presentation — presentation later moved to separate repo in v2.4.0)
 - `portability: portable` on 25 cross-platform skills (works on Codex, Gemini CLI, OpenCode, pi-mono)
 - wg-check updated with 3 new validation sections: agent Skills 2.0 compliance, skill portability compliance, invocation control audit
 
