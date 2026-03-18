@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-141 commands. 79 specialist agents. 79 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
+141 commands. 79 specialist agents. 78 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
 
 **v2.0** — Skills 2.0 foundations: model-tiered agents (haiku/sonnet/opus), per-agent tool restrictions, 25 cross-platform portable skills, and invocation control. [Changelog](CHANGELOG.md) | [Migration from v1.x](#migration-from-v1x)
 
