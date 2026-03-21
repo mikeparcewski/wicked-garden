@@ -83,7 +83,31 @@ In "just-finish" mode:
 - Auto-approve routine choices
 - **Auto-engage specialists** when signal thresholds are met
 - Only pause at guardrails
-- **For the clarify phase**: Do NOT ask the user for clarification. Make reasonable assumptions based on the project description and signal analysis. Document all assumptions in the phase deliverables.
+- **For the clarify phase**: Make reasonable assumptions based on the project description and signal analysis. Document all assumptions in the phase deliverables. **After the clarify subagent writes `objective.md`, `acceptance-criteria.md`, and `complexity.md`**, halt and present a summary:
+
+  ```markdown
+  ## Clarify Phase Complete — Confirmation Required
+
+  ### Assumptions Made
+  {List each assumption from the clarify deliverables}
+
+  ### Key Decisions
+  - **Scope**: {in-scope summary}
+  - **Complexity**: {score}/7
+  - **Acceptance Criteria**: {count} criteria defined
+
+  ### Deliverables Written
+  - phases/clarify/objective.md
+  - phases/clarify/acceptance-criteria.md
+  - phases/clarify/complexity.md
+
+  **Review the deliverables above.** These define the success criteria for all
+  subsequent phases.
+
+  Proceed with these assumptions? (Y/n)
+  ```
+
+  **The clarify gate MUST NOT run until the user acknowledges.** This halt applies even in automated runs — the session pauses at this boundary. In dangerous mode (where `AskUserQuestion` auto-completes), wait 30 seconds, log "Autonomous clarify: assumptions accepted by timeout (dangerous mode)", then proceed. This prevents circular self-grading where the same model writes requirements and then validates work against those same requirements without human review.
 - **Track assumptions**: When making any assumption, immediately record it in project.json:
   ```json
   {
@@ -176,7 +200,7 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
 4. **Run mandatory quality gate** (see Section 5.5 below)
 5. **Get sign-off** using the **Gate Reviewer Policy** (see `skills/qe/qe-strategy/SKILL.md` and execute.md section 8):
    - Route reviewer by gate type × complexity score (not a flat priority chain)
-   - Council required at complexity >= 6 execution gates, >= 5 strategy gates
+   - Council required at complexity >= 5 execution gates, >= 4 strategy gates
    - Escalate to council on security/compliance signals, CONDITIONAL gates, or prior REJECT
    - Human sign-off required at complexity >= 6 execution gates (even in just-finish)
    - Fallback chain: Council → Third-party CLI → Specialist → Generic → Human
@@ -202,7 +226,7 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
      ```
 9. Continue until done or guardrail hit
 
-**Sign-off in just-finish mode**: Route reviewer per Gate Reviewer Policy (gate type × complexity). Council is used when policy requires it (high complexity or escalation triggers). If sign-off returns `rejected`, STOP and report to user. If `conditional`, escalate to council if not already used, otherwise proceed and log conditions. Human review is skipped in just-finish mode EXCEPT at complexity >= 6 execution gates (build, test, review) where human approval is mandatory.
+**Sign-off in just-finish mode**: Route reviewer per Gate Reviewer Policy (gate type × complexity). Council is used when policy requires it (high complexity or escalation triggers). If sign-off returns `rejected`, STOP and report to user. If `conditional`, apply AC-4.4 CONDITIONAL auto-resolution (see below). Human review is skipped in just-finish mode EXCEPT at complexity >= 5 execution gates (build, test, review) where human approval is mandatory.
 
 ### 5.5 Mandatory Quality Gate
 
@@ -222,8 +246,27 @@ If `gate_required` is `true`:
 2. **Run full gate** (when fast-pass does NOT apply): `/wicked-garden:crew:gate phases/{phase}/ --gate {gate_type}`
 3. **Handle outcome**:
    - **APPROVE**: Proceed to sign-off
-   - **CONDITIONAL**: Log conditions, proceed (in just-finish mode)
+   - **CONDITIONAL**: Apply AC-4.4 auto-resolution (see below)
    - **REJECT**: **STOP**. Report to user. Do NOT auto-proceed past a rejected gate.
+
+#### AC-4.4 CONDITIONAL Gate Auto-Resolution (just-finish mode)
+
+When a gate returns CONDITIONAL, classify each condition:
+
+**Auto-resolvable**: spec gap, arithmetic error, missing definition, or mechanical fix that does NOT change acceptance criteria or project intent. For each auto-resolvable condition:
+- Make the fix inline
+- Document in `phases/{phase}/conditions-manifest.json` with `"auto_resolved": true` and the resolution
+- Re-run the gate after all auto-resolvable conditions are fixed
+
+**Escalate to council**: condition requires changing acceptance criteria, altering the definition of done, shifting architectural approach, or making a tradeoff that affects project intent. For each escalate condition:
+```
+Skill(skill="wicked-garden:jam:council",
+      args="Gate condition requires intent decision: {condition}. Options: A) Resolve as proposed B) Reject resolution, keep current spec C) Defer")
+```
+
+**Classification rule**: "Does resolving this change what we're building or how we measure success?" If uncertain — escalate (err on the side of caution).
+
+Log all conditions and resolutions in status.md before proceeding to sign-off.
 
 **Testing enforcement**: Before executing phases, verify that `phase_plan` includes test-strategy and test if complexity >= 2. If they're missing from the plan but complexity warrants them, inject them before proceeding (same injection rules as execute.md Section 4.5).
 
@@ -292,6 +335,33 @@ When all phases complete:
 
 - {Any follow-up suggestions}
 ```
+
+### 7.5 Learning Capture (AC-4.6)
+
+**At every gate that returns CONDITIONAL or REJECT**, store the learning:
+
+```
+/wicked-garden:mem:store "Crew learning: {what went wrong and why}" --type procedural --tags "crew,learning" --importance medium
+```
+
+**At project completion (review phase approved)**, store:
+
+1. **User preferences observed** (if any new patterns noticed):
+   ```
+   /wicked-garden:mem:store "{preference observed}" --type preference --tags "crew,user-preference" --importance medium
+   ```
+
+2. **What worked well** (reusable patterns):
+   ```
+   /wicked-garden:mem:store "Crew pattern: {what worked and why}" --type procedural --tags "crew,pattern,success" --importance medium
+   ```
+
+3. **What to avoid** (anti-patterns discovered):
+   ```
+   /wicked-garden:mem:store "Crew anti-pattern: {what failed and why}" --type procedural --tags "crew,anti-pattern" --importance high
+   ```
+
+These are GENERAL learnings, not project-specific. They inform future projects.
 
 ### 8. Error Handling
 

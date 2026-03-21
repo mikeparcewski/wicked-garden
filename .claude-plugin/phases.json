@@ -15,7 +15,13 @@
       "confidence_threshold": 0.9,
       "gate_type": "generic",
       "checkpoint": false,
-      "gate_required": false
+      "gate_required": false,
+      "min_gate_score": null,
+      "valid_skip_reasons": [
+        "complexity_below_threshold",
+        "user_explicit_request",
+        "out_of_scope"
+      ]
     },
     "clarify": {
       "name": "clarify",
@@ -31,7 +37,8 @@
       "confidence_threshold": 0.85,
       "gate_type": "value",
       "checkpoint": true,
-      "gate_required": true
+      "gate_required": true,
+      "min_gate_score": 0.6
     },
     "design": {
       "name": "design",
@@ -47,7 +54,14 @@
       "confidence_threshold": 0.8,
       "gate_type": "strategy",
       "checkpoint": true,
-      "gate_required": true
+      "gate_required": true,
+      "min_gate_score": 0.7,
+      "valid_skip_reasons": [
+        "complexity_below_threshold",
+        "user_explicit_request",
+        "ci_equivalent_exists",
+        "out_of_scope"
+      ]
     },
     "test-strategy": {
       "name": "test-strategy",
@@ -63,7 +77,14 @@
       "confidence_threshold": 0.8,
       "gate_type": "strategy",
       "checkpoint": false,
-      "gate_required": true
+      "gate_required": true,
+      "min_gate_score": 0.6,
+      "skip_complexity_threshold": 3,
+      "valid_skip_reasons": [
+        "complexity_below_threshold",
+        "user_explicit_request",
+        "ci_equivalent_exists"
+      ]
     },
     "build": {
       "name": "build",
@@ -75,11 +96,12 @@
       "specialists": ["engineering", "platform", "data"],
       "fallback_agent": "implementer",
       "is_skippable": false,
-      "depends_on": ["clarify"],
+      "depends_on": ["clarify", "design"],
       "confidence_threshold": 0.7,
       "gate_type": "execution",
       "checkpoint": true,
-      "gate_required": true
+      "gate_required": true,
+      "min_gate_score": 0.7
     },
     "test": {
       "name": "test",
@@ -95,7 +117,14 @@
       "confidence_threshold": 0.75,
       "gate_type": "execution",
       "checkpoint": false,
-      "gate_required": true
+      "gate_required": true,
+      "min_gate_score": 0.8,
+      "valid_skip_reasons": [
+        "complexity_below_threshold",
+        "user_explicit_request",
+        "ci_equivalent_exists",
+        "out_of_scope"
+      ]
     },
     "review": {
       "name": "review",
@@ -111,7 +140,8 @@
       "confidence_threshold": 0.7,
       "gate_type": "execution",
       "checkpoint": false,
-      "gate_required": true
+      "gate_required": true,
+      "min_gate_score": 0.7
     }
   }
 }
