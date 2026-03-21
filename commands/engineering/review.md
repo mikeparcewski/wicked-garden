@@ -1,6 +1,6 @@
 ---
 description: Code review with senior engineering perspective on quality, patterns, and maintainability
-argument-hint: "[file or directory path] [--focus security|performance|patterns|tests] [--scenarios]"
+argument-hint: "[file or directory path] [--focus security|performance|patterns|tests] [--scenarios] [--persona <name>]"
 ---
 
 # /wicked-garden:engineering:review
@@ -12,6 +12,103 @@ Use `--focus` to dive deeper into a specific area:
 - **performance** — N+1 queries, unnecessary iterations, memory leaks, caching
 - **patterns** — design patterns, SOLID, abstraction levels, coupling
 - **tests** — test value and quality. The core question: "What should break in the product for this test to fail?" If the answer is "nothing meaningful", the test is low-value. Favors fewer, higher-quality tests where each test is simple and focuses on one thing.
+
+Use `--persona` to route the review through a named persona's lens:
+- Any persona from `/wicked-garden:persona:list` can be used
+- The persona applies its focus and traits to the review task
+- Falls back to default senior-engineer if persona not found
+
+## Persona Override
+
+If `--persona` is present in $ARGUMENTS:
+
+### 1. Look up the persona
+
+Extract `persona_name` from $ARGUMENTS (the value after `--persona`).
+
+```bash
+PERSONA_JSON=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+  scripts/persona/registry.py --get "${persona_name}" --json 2>/dev/null)
+REGISTRY_EXIT=$?
+```
+
+### 2. Handle lookup
+
+If the persona is found (exit 0 and PERSONA_JSON is non-empty and contains no `"error"` key):
+
+Extract from PERSONA_JSON: `name`, `description`, `focus`, `traits` (as bullet list),
+`personality`, `constraints` (as numbered list), `memories` (as bullet list), `preferences`.
+
+Dispatch the entire review to persona-agent:
+
+```python
+Task(
+    subagent_type="wicked-garden:persona:persona-agent",
+    prompt="""You are **{persona.name}**.
+
+## Your Identity
+{persona.description}
+
+## Your Focus
+{persona.focus}
+
+## Your Traits
+{persona.traits_as_bullets}
+
+## Your Personality
+- **Style**: {persona.personality.style}
+- **Temperament**: {persona.personality.temperament}
+- **Voice**: {persona.personality.humor}
+
+## Your Constraints (MUST follow)
+{persona.constraints_as_numbered_list}
+
+## Your Experience
+{persona.memories_as_bullet_list}
+
+## Your Preferences
+- **Communication**: {persona.preferences.communication}
+- **Code style**: {persona.preferences.code_style}
+- **Review focus**: {persona.preferences.review_focus}
+- **Decision making**: {persona.preferences.decision_making}
+
+## Task
+
+Perform a thorough code review of: {scope}
+
+Apply the same review framework as a senior engineer:
+1. Code clarity and readability
+2. Error handling completeness
+3. Contract enforcement
+4. Context/data optimization
+5. Failure recovery
+6. Naming and conventions
+7. Potential bugs or edge cases
+8. Performance considerations
+9. Test quality — flag tests that assert their own inputs or mirror implementation logic
+
+Your persona's focus and constraints apply ON TOP of this standard review framework.
+Cite file:line for each finding.
+
+## Return Format
+- Summary (overall assessment)
+- Strengths
+- Critical Design Gaps
+- Silent Failure Risks
+- Context Optimization Opportunities
+- Suggestions
+- Recommendations (prioritized)
+"""
+)
+```
+
+**STOP here** — do not continue to the default review flow below.
+
+If the persona is NOT found (exit non-zero or PERSONA_JSON contains `"error"`):
+> "Persona '{persona_name}' not found -- using default engineering review."
+
+Then continue with the default review flow below (no early exit).
 
 ## Instructions
 
