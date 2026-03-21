@@ -52,15 +52,82 @@ Read code and assess:
 
 ### 3. Test Verification
 
-Check for test coverage:
+**CRITICAL: Run actual test suites and capture exit codes. Grep-based file discovery is SUPPLEMENTARY only — it cannot serve as primary evidence.**
+
+#### 3.1 Detect test runner
+
+Detect the project's test command by checking (in order):
+
+1. `test_command` field in project.json (explicit override)
+2. `package.json` scripts.test field (npm/yarn/pnpm projects)
+3. `pyproject.toml`, `pytest.ini`, or `setup.cfg` presence (pytest)
+4. `Makefile` with a `test` target
+5. `go.mod` presence (go test ./...)
+6. `Cargo.toml` presence (cargo test)
+
 ```bash
-find {target} -name "*test*" -o -name "*spec*" 2>/dev/null
+# Check for package.json test script
+cat package.json 2>/dev/null | grep -A1 '"test"' | head -5
+
+# Check for pytest config
+ls pyproject.toml pytest.ini setup.cfg 2>/dev/null
+
+# Check for go or cargo
+ls go.mod Cargo.toml 2>/dev/null
 ```
 
-Assess:
+If no test runner is detected, produce a **CONDITIONAL** gate result (not REJECT) with the condition: "Test command must be specified in project.json `test_command` field before the execution gate can run."
+
+#### 3.2 Execute test suite
+
+Run the detected test command via Bash and capture the exit code:
+
+```bash
+# pytest
+cd {project_root} && python -m pytest --tb=short 2>&1
+echo "EXIT_CODE=$?"
+```
+
+```bash
+# npm test
+cd {project_root} && npm test 2>&1
+echo "EXIT_CODE=$?"
+```
+
+```bash
+# go test
+cd {project_root} && go test ./... 2>&1
+echo "EXIT_CODE=$?"
+```
+
+```bash
+# cargo test
+cd {project_root} && cargo test 2>&1
+echo "EXIT_CODE=$?"
+```
+
+**Exit code interpretation**:
+- Exit code 0: Tests passed — proceed with qualitative assessment
+- Exit code non-zero: Tests FAILED — produce **REJECT** gate result
+
+**A non-zero exit code produces REJECT regardless of LLM assessment.** The qualitative assessment may supplement exit code results but cannot override them.
+
+#### 3.3 Supplementary assessment
+
+After capturing exit code results, assess qualitatively (supplementary only):
 - Do tests exist for identified scenarios?
-- Do tests pass? (run if test command available)
 - Are happy path, error, and edge cases covered?
+- Is coverage adequate for the complexity level?
+
+This assessment informs the gate rationale but **cannot change a REJECT caused by non-zero exit code into an APPROVE or CONDITIONAL**.
+
+#### 3.4 Record test evidence
+
+Write test runner output to `phases/{phase}/evidence/test-output.log`. Include:
+- Exact command that was run
+- Exit code
+- Full stdout/stderr output
+- Pass/fail counts (extracted from output)
 
 ### 4. Risk Validation
 
@@ -91,14 +158,20 @@ Output the assessment as formatted markdown. If a task exists for this gate anal
 
 Write gate result to file and attach as L3 artifact:
 
-Write the gate result to the crew project's phases directory as evidence:
-
 ```bash
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 RESULT_FILE="phases/review/execution-gate-${TIMESTAMP}.md"
 ```
 
-Include the decision, qualitative evidence (code quality, test coverage, risk mitigation), quantitative evidence (scenarios covered, P0/P1 risks mitigated), conditions, and rationale in the file.
+The evidence report MUST include all of the following fields (minimum file size 100 bytes — files below this threshold will be rejected by phase_manager deliverable validation):
+
+- **decision**: APPROVE, CONDITIONAL, or REJECT
+- **test_command**: The exact command that was run (e.g., `python -m pytest --tb=short`)
+- **exit_code**: The numeric exit code from the test runner (0 = pass, non-zero = fail)
+- **pass_fail_counts**: Number of tests passed and failed (e.g., "42 passed, 0 failed")
+- **rationale**: Why this decision was reached, including both exit code result and qualitative assessment
+
+Include also: qualitative evidence (code quality, test coverage, risk mitigation), quantitative evidence (scenarios covered, P0/P1 risks mitigated), and any conditions.
 
 Store decision in wicked-mem (if available):
 ```

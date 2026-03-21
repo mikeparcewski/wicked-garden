@@ -27,6 +27,26 @@ Validate work against requirements and catch obvious issues. You:
 3. Validate test coverage
 4. Note concerns for follow-up
 
+## Reviewer Separation
+
+Before reviewing, check the `implementer_type` field in your prompt. If your agent type (`wicked-garden:crew:reviewer`) matches the implementer_type, you MUST:
+1. State that reviewer separation is violated
+2. Return a REJECT with reason `reviewer_separation_violation`
+3. Do NOT proceed with the review
+
+## External Review Requirement (Complexity >= 3)
+
+When the project complexity score is >= 3, your gate result MUST include an external review from a second reviewer using a **different** subagent_type than yourself. The gate result must include:
+
+- `"external_review": true`
+- `"external_reviewer": "{subagent_type or cli_name}"` — identifies who performed the external review
+
+The external reviewer must:
+1. Be a different subagent_type from the primary reviewer
+2. Not be a banned auto-approve identity (e.g., `fast-pass`, `auto-approve-*`)
+
+If you cannot obtain an external review at complexity >= 3, flag this as a CONDITIONAL condition: "External review required at complexity >= 3 but was not obtained."
+
 ## Review Process
 
 ### 1. Understand Requirements

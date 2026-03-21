@@ -35,6 +35,35 @@ logger = logging.getLogger('wicked-crew.phase-manager')
 # Legacy phase aliases for backward compatibility
 LEGACY_ALIASES = {"qe": "test-strategy"}
 
+# ---------------------------------------------------------------------------
+# Gate enforcement mode — read once at import
+# ---------------------------------------------------------------------------
+# "strict" (default): all new enforcement checks are active
+# "legacy": all new enforcement checks return early, restoring pre-feature behavior
+GATE_ENFORCEMENT_MODE: str = os.environ.get("CREW_GATE_ENFORCEMENT", "strict")
+
+# Banned reviewer name patterns (AC-1.4)
+# Exact matches and prefix patterns that indicate auto-approve bypass
+BANNED_REVIEWER_NAMES: tuple = (
+    "just-finish-auto",
+    "fast-pass",
+    "auto-approve-design-complete",
+)
+BANNED_REVIEWER_PREFIXES: tuple = (
+    "auto-approve-",
+    "auto-review-",
+    "self-review-",
+)
+
+# Valid skip reasons fallback if phases.json lacks valid_skip_reasons (AC-4.2)
+DEFAULT_VALID_SKIP_REASONS: tuple = (
+    "complexity_below_threshold",
+    "user_explicit_request",
+    "ci_equivalent_exists",
+    "out_of_scope",
+    "legacy",
+)
+
 
 def resolve_phase(name: str) -> str:
     """Resolve legacy phase aliases."""
@@ -494,6 +523,7 @@ def can_transition(
     current = resolve_phase(state.current_phase)
 
     phase_order = get_phase_order(state)
+    project_dir = get_project_dir(state.name)
 
     if current not in phase_order:
         reasons.append(f"Current phase '{current}' not in phase plan")
@@ -524,6 +554,14 @@ def can_transition(
                 f"(current status: {phase_state.status})"
             )
 
+    # Check conditions from prior CONDITIONAL gates (AC-1.2)
+    for i in range(max(0, current_idx), target_idx):
+        intermediate = phase_order[i]
+        phase_state_check = state.phases.get(intermediate)
+        if phase_state_check and phase_state_check.status == "approved":
+            condition_issues = _verify_conditions(project_dir, intermediate)
+            reasons.extend(condition_issues)
+
     # Pre-review gate: verify test phases ran before entering review
     if to_phase == "review":
         test_issues = _check_test_phases_before_review(state)
@@ -534,7 +572,6 @@ def can_transition(
     if current_state and current_state.status == "in_progress":
         phases_config = load_phases_config()
         deliverables = phases_config.get(current, {}).get("required_deliverables", [])
-        project_dir = get_project_dir(state.name)
 
         for deliverable in deliverables:
             path = project_dir / "phases" / current / deliverable
@@ -585,7 +622,10 @@ def complete_phase(state: ProjectState, phase: str) -> ProjectState:
 
 
 def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
-    """Check if required deliverables exist for a phase. Returns list of issues."""
+    """Check if required deliverables exist and have content for a phase.
+
+    Returns list of issues (empty = all deliverables present and non-empty).
+    """
     phase = resolve_phase(phase)
     issues = []
     phases_config = load_phases_config()
@@ -598,6 +638,19 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
         path = project_dir / "phases" / phase / deliverable
         if not path.exists():
             issues.append(f"Missing deliverable for {phase}: {deliverable}")
+            continue
+
+        # Content validation (AC-1.5) — skip in legacy mode
+        if GATE_ENFORCEMENT_MODE != "legacy":
+            file_stat = path.stat()
+            if file_stat.st_size == 0:
+                issues.append(f"Empty deliverable for {phase}: {deliverable} (0 bytes)")
+            # Evidence reports need substantive content (AC-3.4)
+            elif deliverable == "evidence/report.md" and file_stat.st_size < 100:
+                issues.append(
+                    f"Insufficient content in {phase}: {deliverable} "
+                    f"({file_stat.st_size} bytes, minimum 100 required for evidence reports)"
+                )
 
     return issues
 
@@ -640,6 +693,165 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
         return json.loads(gate_file.read_text())
     except (json.JSONDecodeError, OSError):
         return None
+
+
+def _write_conditions_manifest(
+    project_dir: Path,
+    phase: str,
+    conditions: List[Dict[str, Any]],
+) -> Path:
+    """Write conditions from a CONDITIONAL gate result to a manifest file.
+
+    Args:
+        project_dir: Project root directory.
+        phase: Phase name that produced the CONDITIONAL result.
+        conditions: List of condition dicts from gate-result.json.
+
+    Returns:
+        Path to the written conditions-manifest.json.
+    """
+    manifest = {
+        "source_gate": phase,
+        "created_at": get_utc_timestamp(),
+        "conditions": [
+            {
+                "id": f"CONDITION-{i + 1}",
+                "description": c.get("description", c.get("condition", str(c))),
+                "verified": False,
+                "resolution": None,
+                "verified_at": None,
+            }
+            for i, c in enumerate(conditions)
+        ],
+    }
+    manifest_path = project_dir / "phases" / phase / "conditions-manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+    return manifest_path
+
+
+def _verify_conditions(
+    project_dir: Path,
+    prior_phase: str,
+) -> List[str]:
+    """Check that all conditions from a prior phase's CONDITIONAL gate are verified.
+
+    Args:
+        project_dir: Project root directory.
+        prior_phase: The phase whose conditions-manifest.json to check.
+
+    Returns:
+        List of blocking reason strings. Empty list means all conditions verified
+        or no manifest exists (legacy project).
+    """
+    if GATE_ENFORCEMENT_MODE == "legacy":
+        return []
+
+    manifest_path = project_dir / "phases" / prior_phase / "conditions-manifest.json"
+    if not manifest_path.exists():
+        # No manifest = no conditions to verify (legacy project or APPROVE gate)
+        return []
+
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return []
+
+    unverified = []
+    for condition in manifest.get("conditions", []):
+        if not condition.get("verified", False):
+            desc = condition.get("description", condition.get("id", "unknown"))
+            unverified.append(
+                f"Unverified condition from {prior_phase} gate: {desc}"
+            )
+
+    return unverified
+
+
+def _validate_gate_reviewer(
+    gate_result: Dict[str, Any],
+) -> Optional[str]:
+    """Validate that the gate reviewer is not a banned auto-approve identity.
+
+    Args:
+        gate_result: Parsed gate-result.json dict.
+
+    Returns:
+        Error message string if reviewer is banned, None if OK.
+    """
+    if GATE_ENFORCEMENT_MODE == "legacy":
+        return None
+
+    reviewer = gate_result.get("reviewer", "")
+    if not reviewer:
+        return (
+            "Gate result is missing 'reviewer' field. "
+            "Re-run the gate with a legitimate reviewer identity."
+        )
+
+    reviewer_lower = reviewer.lower().strip()
+
+    # Check exact match
+    if reviewer_lower in (name.lower() for name in BANNED_REVIEWER_NAMES):
+        return (
+            f"Banned reviewer name '{reviewer}' detected. "
+            f"Auto-approve identities are not permitted as gate reviewers."
+        )
+
+    # Check prefix match
+    for prefix in BANNED_REVIEWER_PREFIXES:
+        if reviewer_lower.startswith(prefix.lower()):
+            return (
+                f"Banned reviewer name pattern '{reviewer}' matches prefix '{prefix}'. "
+                f"Auto-approve identities are not permitted as gate reviewers."
+            )
+
+    return None
+
+
+def _validate_min_gate_score(
+    gate_result: Dict[str, Any],
+    phase: str,
+    phases_config: Dict[str, Any],
+) -> Optional[str]:
+    """Validate that gate score meets the phase's minimum threshold.
+
+    Args:
+        gate_result: Parsed gate-result.json dict.
+        phase: Phase name being approved.
+        phases_config: Full phases config from phases.json.
+
+    Returns:
+        Error message string if score is below threshold, None if OK.
+    """
+    if GATE_ENFORCEMENT_MODE == "legacy":
+        return None
+
+    phase_config = phases_config.get(phase, {})
+    min_score = phase_config.get("min_gate_score")
+    if min_score is None:
+        return None
+
+    actual_score = gate_result.get("score")
+    if actual_score is None:
+        actual_score = 0.0
+
+    try:
+        actual_score = float(actual_score)
+        min_score = float(min_score)
+    except (TypeError, ValueError):
+        return (
+            f"Gate score for phase '{phase}' is not numeric: "
+            f"score={gate_result.get('score')}, min_gate_score={phase_config.get('min_gate_score')}"
+        )
+
+    if actual_score < min_score:
+        return (
+            f"Gate score {actual_score:.2f} is below minimum threshold "
+            f"{min_score:.2f} for phase '{phase}'. "
+            f"Improve deliverable quality and re-run the gate."
+        )
+
+    return None
 
 
 def _record_gate_override(
@@ -764,6 +976,13 @@ def approve_phase(
         else:
             # Gate was run — check if it passed or failed
             gate_result = _load_gate_result(project_dir, phase)
+
+            # Check 2a: banned reviewer names (AC-1.4) — no override allowed
+            if gate_result:
+                reviewer_error = _validate_gate_reviewer(gate_result)
+                if reviewer_error:
+                    raise ValueError(reviewer_error)
+
             if gate_result and gate_result.get("result") == "REJECT":
                 if override_gate and not gate_override_allowed:
                     raise ValueError(
@@ -779,6 +998,26 @@ def approve_phase(
                         f"Resolve findings before approving, "
                         f"or use --override-gate --reason '<why>' to bypass."
                     )
+
+            # Check 2b: CONDITIONAL gate — write conditions manifest (AC-1.2)
+            if gate_result and gate_result.get("result") == "CONDITIONAL":
+                conditions = gate_result.get("conditions", [])
+                if conditions:
+                    _write_conditions_manifest(project_dir, phase, conditions)
+                    logger.info(
+                        f"[approve] CONDITIONAL gate for '{phase}' — "
+                        f"{len(conditions)} conditions written to manifest"
+                    )
+
+            # Check 2c: minimum gate score (AC-1.3)
+            if gate_result:
+                score_error = _validate_min_gate_score(gate_result, phase, phases_config)
+                if score_error:
+                    if override_gate:
+                        _record_gate_override(project_dir, phase, f"Score override: {score_error}", approver)
+                        warnings.append(f"Score check overridden: {score_error}")
+                    else:
+                        raise ValueError(score_error)
 
     # Emit warnings to stderr (stdout is for structured output)
     for w in warnings:
@@ -823,13 +1062,41 @@ def approve_phase(
 
 
 def skip_phase(state: ProjectState, phase: str, reason: str = "", approved_by: str = "auto") -> ProjectState:
-    """Skip a phase. Checks is_skippable from phases.json."""
+    """Skip a phase. Checks is_skippable and skip_complexity_threshold from phases.json."""
     phase = resolve_phase(phase)
 
     phases_config = load_phases_config()
     phase_config = phases_config.get(phase, {})
     if not phase_config.get("is_skippable", True):
         raise ValueError(f"Phase '{phase}' cannot be skipped (is_skippable=false)")
+
+    # Complexity guard: block skip if project complexity exceeds threshold (AC-3.2)
+    if GATE_ENFORCEMENT_MODE != "legacy":
+        skip_threshold = phase_config.get("skip_complexity_threshold")
+        if skip_threshold is not None:
+            complexity = getattr(state, "complexity_score", 0) or 0
+            if complexity >= skip_threshold:
+                raise ValueError(
+                    f"Phase '{phase}' cannot be skipped at complexity {complexity} "
+                    f"(skip_complexity_threshold={skip_threshold}). "
+                    f"The phase is required at this complexity level."
+                )
+
+    # Structured skip reason validation (AC-4.2)
+    if GATE_ENFORCEMENT_MODE != "legacy":
+        valid_reasons = phase_config.get("valid_skip_reasons")
+        if valid_reasons:
+            reason_lower = (reason or "").lower().strip()
+            matched = any(
+                reason_lower == vr.lower() or reason_lower.startswith(vr.lower())
+                for vr in valid_reasons
+                if reason_lower
+            )
+            if not reason_lower or not matched:
+                raise ValueError(
+                    f"Skip reason '{reason}' is not recognized for phase '{phase}'. "
+                    f"Valid skip reasons: {', '.join(valid_reasons)}"
+                )
 
     phase_state = state.phases.get(phase, PhaseState())
     phase_state.status = "skipped"

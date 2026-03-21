@@ -82,6 +82,14 @@ This creates the DomainStore record, initializes the clarify phase, and sets up 
 
 Parse the JSON response to get `project_dir` for later use.
 
+### 4.5 Recall Prior Learnings
+
+```
+/wicked-garden:mem:recall "crew learnings and user preferences" --limit 10
+```
+
+Include recalled learnings in the project context. They inform signal analysis, phase selection, and specialist routing.
+
 ### 5. Dynamic Archetype Pre-Analysis
 
 **Before running signal analysis, dynamically detect what TYPE of project this is.** Quality means different things for different projects — a content site needs messaging consistency, a UI app needs design coherence, infrastructure needs reliability, ML needs evaluation rigor.

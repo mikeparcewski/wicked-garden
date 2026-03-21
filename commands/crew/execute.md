@@ -18,6 +18,19 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 
 This returns current phase, phase_plan, signals, complexity, and phase statuses via DomainStore.
 
+### 1.5 Recall Prior Learnings (AC-4.6)
+
+Before starting any phase work, recall relevant crew learnings:
+
+```
+/wicked-garden:mem:recall "crew learnings and user preferences" --limit 10
+```
+
+Apply recalled learnings to current work. For example:
+- If a learning says "avoid grep-based testing", ensure test phase uses real runners
+- If a user preference says "prefers bundled PRs", adjust commit strategy
+- If an anti-pattern says "don't skip design for complexity > 3", enforce it
+
 ### 2. Task Lifecycle Recovery
 
 **CRITICAL: Run at phase start before any work begins.**
@@ -797,6 +810,38 @@ TaskCreate(
 
 **Task enrichment**: Use `addBlockedBy`/`addBlocks` on TaskUpdate to set dependencies. When completing a task, update its description with the outcome.
 
+#### Task Acceptance Criteria (AC-4.5)
+
+Every build task MUST include structured acceptance criteria in its description:
+
+```
+TaskCreate(
+  subject="Build: {project} - {description}",
+  description="""
+  {WHY this task exists}
+
+  ## Acceptance Criteria
+  - [ ] AC-1: {specific, testable criterion}
+  - [ ] AC-2: {specific, testable criterion}
+
+  ## Evidence Required
+  For each AC, provide: what was done, what was observed, artifact reference.
+  """
+)
+```
+
+When completing a task, the description MUST be updated with evidence mapping:
+
+```
+TaskUpdate(taskId="{id}", status="completed",
+  description="{original}\n\n## Evidence\n- AC-1: {evidence}\n- AC-2: {evidence}")
+```
+
+**Validation**: Before marking a task completed, verify:
+1. Every AC has a corresponding evidence entry
+2. Evidence entries reference concrete artifacts (file paths, test output, diffs)
+3. Assertions like "it works" or "verified" without specifics are insufficient
+
 **Task Subject Prefix Filtering** (case-insensitive):
 - Match pattern: `(?i)^(build|clarify|design|ideate|test-strategy|test|review)[\s:-]`
 
@@ -816,14 +861,17 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 - If `complexity_score >= 2`: change-type detection and test task creation are REQUIRED, not optional. Do not skip even if no QE specialist is engaged.
 
 **Run detection for each implementation task:**
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/change_type_detector.py \
-  --files {space-separated list of files touched by this task} \
-  --task-description "{task description}" \
-  --json
+
+Read the change-type-detector skill for classification rules:
+- `skills/crew/change-type-detector/SKILL.md` — routing and algorithm
+- `skills/crew/change-type-detector/refs/file-classification-rules.md` — decision tables
+
+Apply the classification rules to the files touched by the task. Produce a JSON result:
+```json
+{"change_type": "ui|api|both|unknown", "ui_files": [...], "api_files": [...], "ambiguous_files": [...]}
 ```
 
-If files are not yet known at task creation time, pass an empty `--files` list. The detector will return `change_type: "unknown"`, which suppresses test task creation and logs a warning.
+If files are not yet known at task creation time, set `change_type: "unknown"`, which suppresses test task creation and logs a warning.
 
 **Persist detection results** by writing `phases/build/change-type.json` (create or update using the Write tool):
 ```json
@@ -850,13 +898,13 @@ Run immediately after change-type detection for each implementation task.
 **Skip if `change_type` is "unknown"**: Log "No UI or API files detected for task {impl-task-id} — test task creation skipped" and continue.
 
 **Generate test task parameters:**
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/test_task_factory.py \
-  --change-type "{change_type from detection}" \
-  --impl-subject "{implementation task subject}" \
-  --project "{project}" \
-  --json
-```
+
+Read the test-task-factory skill for templates and routing:
+- `skills/crew/test-task-factory/SKILL.md` — routing rules and subject construction
+- `skills/crew/test-task-factory/refs/test-task-templates.md` — template definitions per change type
+- `skills/crew/test-task-factory/refs/test-evidence-taxonomy.md` — evidence requirements
+
+Apply the skill's algorithm using the `change_type` and `impl-subject` to generate test task parameters as a JSON `test_tasks` array.
 
 **For each entry in `test_tasks` array**, execute task creation:
 ```
@@ -1006,8 +1054,31 @@ If `gate_required` is `true` (all phases except ideate):
 
 4. **Handle gate outcome**:
    - **APPROVE**: Proceed to sign-off
-   - **CONDITIONAL**: Log conditions in status.md, proceed to sign-off but include conditions
+   - **CONDITIONAL**: Classify each condition and handle accordingly (see AC-4.4 below)
    - **REJECT**: Do NOT proceed. Report findings. Re-execute phase work to address issues.
+
+#### AC-4.4 CONDITIONAL Gate Auto-Resolution
+
+When a gate returns CONDITIONAL, classify each condition before proceeding:
+
+**Auto-resolvable** — condition is a specification gap, arithmetic error, missing definition, or mechanical fix that does NOT change acceptance criteria or project intent. Examples: undefined function referenced in design, incorrect line count, missing fallback constant value.
+
+**Escalate** — condition requires changing acceptance criteria, altering the definition of done, shifting architectural approach, or making a tradeoff decision that affects project intent. Examples: "change the testing strategy from E2E to unit-only", "remove a workstream", "lower the quality bar".
+
+**Classification rule**: For each condition, ask "Does resolving this change what we're building or how we measure success?" If uncertain — escalate (err on the side of caution).
+
+**Auto-resolution flow** (interactive mode):
+- For each auto-resolvable condition: make the fix inline, document it in `phases/{phase}/conditions-manifest.json` with `"auto_resolved": true` and the resolution, then re-run the gate
+- For each escalate condition: surface to user with options to resolve as proposed, keep current spec, or defer
+
+**Council escalation flow** (just-finish mode):
+When a condition is classified as escalate and the session is in just-finish mode, dispatch to council:
+```
+Skill(skill="wicked-garden:jam:council",
+      args="Gate condition requires intent decision: {condition}. Options: A) Resolve as proposed B) Reject resolution, keep current spec C) Defer")
+```
+
+Log all conditions and resolutions in status.md before proceeding to sign-off.
 
 5. **Record gate result** in `phases/{phase}/status.md`:
    ```yaml
@@ -1026,7 +1097,7 @@ If `gate_required` is `true` (all phases except ideate):
 
 #### Gate Reviewer Policy (Quick Reference)
 
-| Gate Type | Complexity 0-2 | Complexity 3-5 | Complexity 6-7 |
+| Gate Type | Complexity 0-2 | Complexity 3-4 | Complexity 5-7 |
 |-----------|----------------|----------------|----------------|
 | generic (ideate) | Fast-pass | Single specialist subagent | Single specialist subagent |
 | value (clarify) | `qe-orchestrator` | `qe-orchestrator` + `value-orchestrator` | `qe-orchestrator` + council |
@@ -1054,7 +1125,7 @@ When the policy-selected reviewer is unavailable, fall back in order:
 
 #### Council Sign-Off (Priority 1)
 
-Use when the Gate Reviewer Policy calls for council (complexity >= 6 execution, >= 5 strategy, or escalation trigger hit):
+Use when the Gate Reviewer Policy calls for council (complexity >= 5 execution, >= 4 strategy, or escalation trigger hit):
 
 ```
 Skill(skill="wicked-garden:jam:council",
@@ -1122,12 +1193,55 @@ TaskUpdate(taskId="{id}", status="completed",
 | test | `wicked-garden:qe:test-automation-engineer` | — |
 | review | `wicked-garden:engineering:senior-engineer` + `wicked-garden:qe:code-analyzer` | `wicked-garden:platform:security-engineer` (if security signals) |
 
+#### Reviewer Separation Enforcement
+
+When dispatching any gate reviewer (specialist, generic, or council), enforce that the reviewer differs from the phase implementer:
+
+The reviewer subagent_type MUST differ from the phase executor's subagent_type. If the phase was executed by `wicked-garden:engineering:senior-engineer`, the gate reviewer CANNOT also be `wicked-garden:engineering:senior-engineer`.
+
+Include in every gate dispatch prompt:
+- `implementer_type`: the subagent_type that executed this phase
+- Instruction: "You MUST NOT be the same agent type as the implementer. If your subagent_type matches `{implementer_type}`, REJECT this assignment and report that reviewer separation is violated."
+
+If no specialist is available that differs from the implementer, escalate to council (Priority 1) or third-party CLI (Priority 2).
+
+### 9. Learning Capture (AC-4.6)
+
+**At every gate that returns CONDITIONAL or REJECT**, store the learning:
+
+```
+/wicked-garden:mem:store "Crew learning: {what went wrong and why}" --type procedural --tags "crew,learning" --importance medium
+```
+
+**At project completion (review phase approved)**, the orchestrator stores:
+
+1. **User preferences observed** (if any new patterns noticed):
+   ```
+   /wicked-garden:mem:store "{preference observed}" --type preference --tags "crew,user-preference" --importance medium
+   ```
+
+2. **What worked well** (reusable patterns):
+   ```
+   /wicked-garden:mem:store "Crew pattern: {what worked and why}" --type procedural --tags "crew,pattern,success" --importance medium
+   ```
+
+3. **What to avoid** (anti-patterns discovered):
+   ```
+   /wicked-garden:mem:store "Crew anti-pattern: {what failed and why}" --type procedural --tags "crew,anti-pattern" --importance high
+   ```
+
+These are GENERAL learnings, not project-specific. They inform future projects.
+
 #### Generic Sign-Off (Priority 4)
 
 If no specialist is installed for the current phase, fall back to generic:
 ```
 Task(subagent_type="wicked-garden:crew:reviewer",
      prompt="Sign-off review for {phase} phase of {project-name}.
+     Implementer type: {implementer_type — the subagent_type that executed this phase}
+     You MUST NOT be the same agent type as the implementer. If your subagent_type
+     matches the implementer_type, REJECT this assignment with reason
+     'reviewer_separation_violation'.
      Deliverables: {list deliverables}
      Success criteria: {from outcome.md}
      Verify deliverables meet criteria and flag any gaps.")
