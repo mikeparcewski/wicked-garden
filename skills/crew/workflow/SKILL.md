@@ -28,10 +28,23 @@ User Input → Smart Decisioning → Specialist Discovery → Engagement
 ## Phase Progression
 
 ```
-clarify → design → qe → build → review
+clarify → design → test-strategy → build → test → review
 ```
 
-Each phase has: Clear deliverables, specialist engagement based on signals, approval gate.
+Each phase has: Clear deliverables, specialist engagement based on signals, mandatory quality gate.
+
+## Gate Enforcement (v2.5.0+)
+
+Gates are hard enforcement — not advisory. `phases.json` defines per-phase:
+- `min_gate_score` (0.6-0.8): gates below threshold block advancement
+- `valid_skip_reasons`: enumerated skip reasons; free-text rejected
+- `skip_complexity_threshold`: prevents skipping at high complexity (e.g., test-strategy at >= 3)
+
+Gate verdicts: **APPROVE** → proceed. **CONDITIONAL** → conditions-manifest.json written, must verify before next phase. **REJECT** → blocks advancement, mandatory rework.
+
+CONDITIONAL auto-resolution (AC-4.4): spec gaps fixed inline; intent changes escalate to user/council.
+
+Build depends on design (`depends_on: ["clarify", "design"]`). Rollback: `CREW_GATE_ENFORCEMENT=legacy`.
 
 ## Smart Decisioning
 

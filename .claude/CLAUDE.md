@@ -133,6 +133,31 @@ Dynamic multi-phase workflows with signal-based specialist routing:
 
 Fallback agents (facilitator, researcher, implementer, reviewer) handle phases when specialist agents aren't matched.
 
+### Gate Enforcement (v2.5.0+)
+
+Quality gates are hard enforcement mechanisms, not advisory:
+
+- **REJECT** blocks phase advancement — triggers mandatory rework
+- **CONDITIONAL** writes a `conditions-manifest.json` — conditions must be verified before next phase advances
+- **Auto-resolution** (AC-4.4): spec gap conditions are fixed inline; intent-changing conditions escalate to user or council
+- **Minimum gate scores**: `phases.json` defines `min_gate_score` per phase (0.6-0.8)
+- **Banned reviewers**: `just-finish-auto`, `fast-pass`, `auto-approve-*` are rejected
+- **Content validation**: zero-byte deliverables blocked; evidence needs 100+ bytes
+- **Build depends on design**: `phases.json` `build.depends_on: ["clarify", "design"]`
+- **Structured skip reasons**: `valid_skip_reasons` per phase; free-text rejected
+- **Non-skippable test-strategy**: `skip_complexity_threshold: 3` prevents skipping at complexity >= 3
+- **Rollback**: `CREW_GATE_ENFORCEMENT=legacy` env var bypasses all enforcement
+- **Cross-session learning**: crew agents store learnings in wicked-mem at project completion and gate failures
+
+### On-Demand Personas (v2.6.0+)
+
+Invoke any specialist persona directly without crew or jam:
+- `/wicked-garden:persona:as <name> <task>` — invoke with rich characteristics
+- `/wicked-garden:persona:define` — create custom personas (personality, constraints, memories, preferences)
+- `/wicked-garden:persona:submit` — PR a persona to the repo
+- Registry merges: DomainStore > plugin cache > specialist.json > fallbacks
+- `--persona` flag on `engineering:review` for cross-domain integration
+
 ## Key Patterns
 
 ### Command Delegation
@@ -249,7 +274,7 @@ Skills use **progressive disclosure** for context efficiency:
 
 ### Always Delegate (via Task tool)
 
-- **Domain-specific work**: security review → platform agents, architecture → engineering agents, test strategy → qe agents, data analysis → data agents, brainstorming → jam agents, requirements/UX → product agents, agent architecture → agentic agents, delivery/reporting → delivery agents
+- **Domain-specific work**: security review → platform agents, architecture → engineering agents, test strategy → qe agents, data analysis → data agents, brainstorming → jam agents, requirements/UX → product agents, agent architecture → agentic agents, delivery/reporting → delivery agents, persona invocation → persona agents
 - **Multi-step work** (3+ distinct operations): design + implement + test, analyze + diagnose + fix, research + plan + document
 - **Review/analysis work**: code review, architecture review, risk assessment, quality gates
 - **Parallel-eligible work**: 2+ independent tasks → launch parallel subagents via multiple Task calls in one message

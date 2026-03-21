@@ -2,9 +2,9 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-141 commands. 79 specialist agents. 78 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
+146 commands. 80 specialist agents. 82 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
 
-**v2.0** — Skills 2.0 foundations: model-tiered agents (haiku/sonnet/opus), per-agent tool restrictions, 25 cross-platform portable skills, and invocation control. [Changelog](CHANGELOG.md) | [Migration from v1.x](#migration-from-v1x)
+**v2.6** — On-demand personas with rich characteristics (personality, constraints, memories, preferences). Crew quality gates that actually reject work. Script-to-skill conversion eliminates Python dependency for reasoning. [Changelog](CHANGELOG.md) | [Migration from v1.x](#migration-from-v1x)
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -68,7 +68,7 @@ claude plugins add mikeparcewski/wicked-garden
 
 ## Domains
 
-16 domains, each with its own commands, agents, skills, and scenarios. Every domain works independently.
+17 domains, each with its own commands, agents, skills, and scenarios. Every domain works independently.
 
 ### Workflow & Intelligence
 
@@ -94,6 +94,7 @@ claude plugins add mikeparcewski/wicked-garden
 | **Agentic** | Agent architecture review, safety audits, framework analysis |
 | **Design** | UI review from screenshots, wireframes, accessibility, design systems |
 | **Brainstorming** | Dynamic focus groups for ambiguous problems |
+| **Persona** | On-demand personas — invoke any specialist perspective with rich characteristics (personality, constraints, memories, preferences) |
 
 ### Infrastructure
 
@@ -128,14 +129,14 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](docs/getting-started.md) | Installation, first session, common workflows |
-| [Domains](docs/domains.md) | All 16 domains with full command tables |
+| [Domains](docs/domains.md) | All 17 domains with full command tables |
 | [Crew Workflow](docs/crew-workflow.md) | Signal routing, phases, specialists, checkpoints |
 | [Architecture](docs/architecture.md) | Storage, integration discovery, context assembly |
 | [Advanced Usage](docs/advanced.md) | Multi-model, customization, development commands |
 
 ## Commands
 
-All 141 commands use colon namespacing: `/wicked-garden:{domain}:{command}`
+All 146 commands use colon namespacing: `/wicked-garden:{domain}:{command}`
 
 | Domain | Command | What It Does |
 |--------|---------|-------------|
@@ -150,6 +151,8 @@ All 141 commands use colon namespacing: `/wicked-garden:{domain}:{command}`
 | qe | `qe:acceptance` | Evidence-gated acceptance testing |
 | data | `data:analyze` | SQL on CSV/Excel via DuckDB |
 | jam | `jam:brainstorm` | Multi-persona brainstorming |
+| persona | `persona:as` | Invoke any persona on any task |
+| persona | `persona:define` | Create custom personas with rich characteristics |
 | mem | `mem:store` / `mem:recall` | Cross-session memory |
 
 See `/wicked-garden:help` for the full list, or browse [all domains](docs/domains.md).
@@ -159,7 +162,7 @@ See `/wicked-garden:help` for the full list, or browse [all domains](docs/domain
 v2.0 is backward compatible — all commands work identically. Three changes to be aware of:
 
 1. **Model tiers**: 4 utility agents now use haiku (cheaper, faster). 5 high-stakes agents now use opus (deeper reasoning). If you pin models, review the [changelog](CHANGELOG.md).
-2. **Tool restrictions**: All 79 agents now have `allowed-tools` in their frontmatter. Agents can only use the tools listed. This is a security improvement — no behavioral change for normal usage.
+2. **Tool restrictions**: All 80 agents now have `allowed-tools` in their frontmatter. Agents can only use the tools listed. This is a security improvement — no behavioral change for normal usage.
 3. **Skill invocation control**: 6 infrastructure skills are hidden from the `/` menu (`user-invocable: false`). 3 skills are user-only (`disable-model-invocation: true`).
 
 To stay on v1.x: `claude plugins add mikeparcewski/wicked-garden@v1.49.3`
