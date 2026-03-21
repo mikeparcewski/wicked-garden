@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository **is** the **wicked-garden** plugin — an AI-Native SDLC delivered as a single Claude Code plugin. 16 domain areas cover the full software development lifecycle: ideation, requirements, architecture, implementation, testing, delivery, operations, and persistent memory/learning.
+This repository **is** the **wicked-garden** plugin — an AI-Native SDLC delivered as a single Claude Code plugin. 17 domain areas cover the full software development lifecycle: ideation, requirements, architecture, implementation, testing, delivery, operations, persistent memory/learning, and on-demand persona invocation.
 
 The `.claude/` directory contains **development tools** (prefixed `wg-`) for building and maintaining the plugin. These tools are NOT distributed to marketplace users — they only work when checked out in this repo.
 
@@ -47,7 +47,7 @@ The repository root IS the plugin:
 wicked-garden/
 ├── .claude-plugin/
 │   ├── plugin.json          # Metadata: name, version, description
-│   ├── specialist.json      # 8 specialist roles, 48 personas
+│   ├── specialist.json      # 9 specialist roles
 │   └── marketplace.json     # Marketplace registration
 ├── commands/{domain}/       # Slash commands (*.md with YAML frontmatter)
 ├── agents/{domain}/         # Subagents (*.md with YAML frontmatter)
@@ -80,10 +80,10 @@ Agent subagent_type uses colons: `wicked-garden:{domain}:{agent-name}`
 
 ### Domain Organization
 
-**16 domains**, each with its own commands, agents, skills, scripts, and scenarios:
+**17 domains**, each with its own commands, agents, skills, scripts, and scenarios:
 
 **Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
-**Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic, jam
+**Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic, persona
 **Infrastructure & Tools**: scenarios, patch, observability
 
 Specialists define personas in `.claude-plugin/specialist.json`. Crew discovers them at runtime and routes based on signal analysis.
