@@ -588,7 +588,8 @@ def save_persona(
             result = ds.update("personas", name, payload)
             result["_updated"] = True
         else:
-            result = ds.create("personas", payload, id=name)
+            payload["name"] = name
+            result = ds.create("personas", payload)
             result["_updated"] = False
         result["source"] = "custom"
         return result
@@ -599,9 +600,12 @@ def save_persona(
 
 def save_to_cache(name: str, persona: dict) -> Path:
     """Save a persona to the plugin-level cache for cross-project reuse."""
+    safe_name = Path(name).name  # strip directory components to prevent traversal
+    if not safe_name or safe_name != name:
+        raise ValueError(f"Invalid persona name: {name!r}")
     cache = _cache_dir()
-    cache.mkdir(parents=True, exist_ok=True)
-    path = cache / f"{name}.json"
+    cache.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path = cache / f"{safe_name}.json"
     persona_copy = dict(persona)
     persona_copy["source"] = "cache"
     path.write_text(json.dumps(persona_copy, indent=2), encoding="utf-8")
