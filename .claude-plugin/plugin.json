@@ -1,7 +1,7 @@
 {
   "name": "wicked-garden",
   "version": "2.6.0",
-  "description": "AI-Native SDLC \u2014 the complete software development lifecycle as a single Claude Code plugin. Code intelligence, delivery metrics, persistent memory, workflow orchestration, brainstorming, and 79 specialist agents across 9 disciplines. Fully standalone with local SQLite storage.",
+  "description": "AI-Native SDLC \u2014 the complete software development lifecycle as a single Claude Code plugin. Code intelligence, delivery metrics, persistent memory, workflow orchestration, brainstorming, on-demand personas, and 80 specialist agents across 9 disciplines. Fully standalone with local SQLite storage.",
   "author": {
     "name": "Mike Parcewski"
   }
