@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.5.0] - 2026-03-21
+
+### Features
+- feat: crew quality gate enforcement + script-to-skill conversion (0026743)
+
+### Chores
+- release: wicked-garden v2.4.0 — remove presentation domain (a8647ed)
+
 ## [2.4.0] - 2026-03-17
 
 ### Features
