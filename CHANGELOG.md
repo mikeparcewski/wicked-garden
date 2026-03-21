@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.0] - 2026-03-21
+
+### Features
+- feat: on-demand persona system with rich characteristics (b74985c)
+
+### Chores
+- release: wicked-garden v2.5.0 — crew quality gate enforcement + script-to-skill (c44a5a8)
+
 ## [2.5.0] - 2026-03-21
 
 ### Features
