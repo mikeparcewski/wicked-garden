@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.6.1] - 2026-03-21
+
+### Bug Fixes
+- fix: persona-agent color purple → magenta (valid value) (7ce7b15)
+- fix: persona registry security — path traversal guard + cache dir permissions (38ff1c1)
+
+### Documentation
+- docs: update counts — 17 domains, 80 agents, 9 specialist roles, add persona domain (bc31ab0)
+
+### Chores
+- release: wicked-garden v2.6.0 — on-demand persona system (fd5ad9f)
+
 ## [2.6.0] - 2026-03-21
 
 ### Features
