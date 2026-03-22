@@ -1,11 +1,12 @@
 ---
 name: accessibility
 description: |
-  Accessibility-focused design review and audit. WCAG compliance checking,
-  keyboard navigation, screen reader compatibility, color contrast, semantic structure.
+  Accessible design implementation guidance — building new UI with WCAG patterns,
+  keyboard navigation, screen reader support, ARIA attributes, and color contrast.
 
-  Use when: "accessibility", "a11y", "WCAG", "screen reader", "keyboard navigation",
-  "color contrast", "aria", "semantic HTML", "accessible design"
+  Use when: "make this accessible", "keyboard navigation", "screen reader support",
+  "color contrast", "ARIA patterns", "semantic HTML", "accessible component",
+  "how to implement a11y"
 portability: portable
 ---
 

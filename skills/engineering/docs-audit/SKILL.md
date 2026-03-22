@@ -1,11 +1,11 @@
 ---
 name: docs-audit
 description: |
-  Audit documentation coverage and quality. Find undocumented code, assess documentation
+  Audit documentation coverage and quality. Find undocumented code, assess
   completeness, and provide coverage metrics.
 
-  Use when: "audit docs", "check coverage", "find undocumented code",
-  "documentation quality", "what's missing docs"
+  Use when: "audit docs", "doc coverage report", "find undocumented code",
+  "documentation gaps", "what's missing docs", "doc completeness"
 ---
 
 # Audit Documentation Skill

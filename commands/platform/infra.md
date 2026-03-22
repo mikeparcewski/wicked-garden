@@ -151,7 +151,7 @@ Claude: I'll review your Terraform infrastructure.
 1. **Hardcoded secret** - `terraform/rds.tf:12`
 ```hcl
 # INSECURE
-password = "SuperSecret123!"
+password = "EXAMPLE_ONLY_not_a_real_secret"  # nosec
 ```
 Fix: Use AWS Secrets Manager
 ```hcl

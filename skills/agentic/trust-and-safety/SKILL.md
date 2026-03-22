@@ -162,34 +162,7 @@ See `refs/guardrails-actions.md` and `refs/guardrails-resources.md` for complete
 
 ## Safety Checklist
 
-Before deploying an agentic system:
-
-- [ ] Human approval gates on high-stakes actions
-- [ ] Input validation and sanitization
-- [ ] Output validation against schema
-- [ ] Action whitelisting (not just blacklisting)
-- [ ] Resource limits (time, memory, tokens, cost)
-- [ ] PII detection and redaction
-- [ ] Prompt injection defenses
-- [ ] Hallucination mitigation (RAG, verification)
-- [ ] Circuit breakers on external calls
-- [ ] Rate limiting per user/agent
-- [ ] Kill switch mechanism
-- [ ] Audit logging of all decisions/actions
-- [ ] Incident response plan
-- [ ] Rollback capability
-
-See `refs/safety-checklist-core.md` and `refs/safety-checklist-advanced.md` for comprehensive checklist with examples.
-
-## When to Use
-
-Trigger phrases indicating you need this skill:
-- "How do I make my agent system safe?"
-- "What safety checks should I add?"
-- "How do I prevent agents from doing harmful things?"
-- "What about prompt injection?"
-- "How do I protect PII?"
-- "Should I add human approval?"
+See `refs/safety-checklist-core.md` for the full pre-deployment checklist covering human gates, validation, whitelisting, resource limits, PII, prompt injection, hallucination, circuit breakers, rate limiting, kill switches, audit logging, and rollback. See `refs/safety-checklist-advanced.md` for monitoring, incidents, testing, and ops checklists.
 
 ## References
 

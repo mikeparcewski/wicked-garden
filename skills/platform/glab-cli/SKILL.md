@@ -1,7 +1,8 @@
 ---
 name: glab-cli
 description: |
-  GitLab CLI (glab) utilities — pipeline debugging, MR management, release automation.
+  This skill should be used when working with GitLab CLI (glab) for pipeline debugging,
+  MR management, and release automation.
 
   Use when: "glab", "GitLab pipeline", "MR review", "GitLab CI",
   "merge request", "GitLab release", "glab CLI"

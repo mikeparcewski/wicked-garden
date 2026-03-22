@@ -1,15 +1,15 @@
 ---
 name: data
 description: |
-  Core data engineering capabilities: dataset profiling, schema validation, and data quality assessment.
-  Use when analyzing datasets, validating schemas, or assessing data quality.
+  This skill should be used when profiling datasets, validating schemas, or assessing data quality.
+  Covers dataset profiling, schema validation, and quality assessment.
 
   Use when:
   - "profile this dataset"
   - "validate schema"
   - "check data quality"
   - "what's in this CSV/Excel file"
-  - "analyze this data"
+  - "describe this data"
 ---
 
 # Data Engineering Skill

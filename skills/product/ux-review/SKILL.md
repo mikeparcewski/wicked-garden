@@ -1,12 +1,11 @@
 ---
 name: ux-review
 description: |
-  UX and design quality reviews throughout delivery.
-  User flows, accessibility audits, visual consistency, and user research.
-  Works standalone or integrated with wicked-crew.
+  UX quality review — user flows, information architecture, user research,
+  and usability evaluation. Works standalone or integrated with wicked-crew.
 
-  Use when: "UX review", "accessibility audit", "user flows", "design review",
-  "WCAG compliance", "a11y", "user research", "personas", "user journey"
+  Use when: "UX review", "user flows", "user research", "personas",
+  "user journey", "usability", "information architecture", "navigation review"
 ---
 
 # UX Review Skill

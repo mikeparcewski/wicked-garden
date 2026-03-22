@@ -1,8 +1,8 @@
 ---
 name: ml
 description: |
-  Machine learning model guidance: architecture review, training pipeline design, feature engineering, deployment.
-  Use when developing ML models, reviewing model code, or designing ML systems.
+  This skill should be used when working with machine learning models — architecture review,
+  training pipeline design, feature engineering, and deployment guidance.
 
   Use when:
   - "review this ML model"

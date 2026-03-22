@@ -1,15 +1,15 @@
 ---
 name: numbers
 description: |
-  Interactive data analysis for large CSV/Excel files using DuckDB SQL queries.
-  Provides intelligent sampling, schema detection, and query execution without loading files into memory.
+  This skill should be used when running interactive SQL queries against local data files.
+  Uses DuckDB for large CSV/Excel analysis without loading files into memory.
 
   Use when:
-  - Analyzing CSV, Excel, or other tabular data files
-  - Exploring large datasets (GB-scale files)
-  - Running SQL queries against local data files
-  - Understanding data structure, types, and quality
-  - Joining or aggregating across multiple files
+  - "query this CSV with SQL"
+  - "run SQL against this data file"
+  - "explore large dataset with DuckDB"
+  - "join these CSV files"
+  - "aggregate across multiple files"
   - Detecting data quality issues (nulls, duplicates, type mismatches)
 
 ---

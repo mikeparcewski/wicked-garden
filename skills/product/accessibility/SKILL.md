@@ -1,11 +1,12 @@
 ---
 name: accessibility
 description: |
-  WCAG 2.1 Level AA accessibility audit and remediation guidance.
-  Keyboard navigation, screen readers, semantic HTML, ARIA patterns.
+  Accessibility evaluation and compliance audit — assessing existing products against
+  WCAG 2.1 AA, identifying violations, and prioritizing remediation.
 
-  Use when: "accessibility", "a11y", "WCAG", "keyboard", "screen reader",
-  "semantic HTML", "ARIA", "inclusive design", "disability"
+  Use when: "accessibility audit", "a11y compliance", "WCAG evaluation",
+  "audit for accessibility", "remediation plan", "compliance report",
+  "disability", "inclusive design assessment"
 ---
 
 # Accessibility Skill

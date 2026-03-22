@@ -1,11 +1,12 @@
 ---
 name: design-review
 description: |
-  Visual design and UI consistency review process.
-  Component patterns, design system adherence, responsive design, and visual polish.
+  Visual design and UI consistency review — design system adherence, spacing tokens,
+  typography, color usage, component patterns, and responsive polish.
 
-  Use when: "design review", "UI review", "visual consistency", "design system",
-  "component review", "polish", "responsive design"
+  Use when: "visual review", "UI consistency", "design system adherence",
+  "component patterns", "spacing check", "typography review", "responsive design",
+  "visual polish"
 ---
 
 # Design Review Skill

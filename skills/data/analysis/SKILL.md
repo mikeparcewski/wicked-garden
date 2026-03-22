@@ -1,8 +1,8 @@
 ---
 name: analysis
 description: |
-  Data analysis and insights generation: exploratory analysis, statistical methods, visualization guidance.
-  Use when exploring datasets, finding patterns, or generating business insights.
+  This skill should be used when exploring datasets for patterns and generating business insights —
+  exploratory analysis, statistical methods, and visualization guidance.
 
   Use when:
   - "analyze this data"

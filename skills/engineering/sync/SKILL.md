@@ -1,11 +1,11 @@
 ---
 name: sync
 description: |
-  Keep documentation in sync with code changes. Detect stale docs, identify documentation
-  drift, and suggest updates when code changes.
+  Keep documentation in sync with code changes. Detect stale docs, identify
+  drift between code and docs, and suggest updates when code changes.
 
-  Use when: "check doc freshness", "sync docs", "find stale documentation",
-  "update docs", "docs out of sync"
+  Use when: "check doc freshness", "sync docs", "docs out of date",
+  "update docs after refactor", "docs drift", "docs out of sync"
 ---
 
 # Sync Documentation Skill

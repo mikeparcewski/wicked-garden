@@ -2,7 +2,7 @@
 pytest tests for jam.py thinking field — J-8, J-9, J-24.
 
 Run with:
-    cd /Users/michael.parcewski/Projects/wicked-garden && uv run pytest scripts/jam/test_thinking_field.py -v
+    cd "${CLAUDE_PLUGIN_ROOT}" && uv run pytest scripts/jam/test_thinking_field.py -v
 """
 
 from __future__ import annotations

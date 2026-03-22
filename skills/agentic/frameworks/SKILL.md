@@ -180,15 +180,6 @@ Build from scratch if: very simple use case, specific requirements unmet, want m
 
 **Just getting started:** CrewAI or Pydantic AI | **State management:** LangGraph | **TypeScript:** ADK | **RAG:** LlamaIndex | **Team-based:** CrewAI or ADK | **Max flexibility:** LangGraph | **Production Claude:** ADK
 
-## When to Use
-
-Trigger phrases indicating you need this skill:
-- "What agentic framework should I use?"
-- "Should I use LangChain or LangGraph?"
-- "What's the difference between CrewAI and AutoGen?"
-- "Is [framework] good for [use case]?"
-- "Should I build from scratch or use a framework?"
-
 ## References
 
 - `refs/framework-profiles-1.md` - ADK, LangGraph, CrewAI detailed profiles

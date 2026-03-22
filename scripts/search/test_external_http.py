@@ -2,7 +2,7 @@
 pytest tests for external_indexer.py HTTP source + auth (E-15/E-16/E-17/E-24/E-25).
 
 Run with:
-    cd /Users/michael.parcewski/Projects/wicked-garden && uv run pytest scripts/search/test_external_http.py -v
+    cd "${CLAUDE_PLUGIN_ROOT}" && uv run pytest scripts/search/test_external_http.py -v
 """
 
 from __future__ import annotations

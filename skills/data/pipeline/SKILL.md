@@ -1,8 +1,8 @@
 ---
 name: pipeline
 description: |
-  Data pipeline design and review: ETL patterns, orchestration, performance optimization.
-  Use when designing new pipelines or reviewing existing data workflows.
+  This skill should be used when designing or reviewing data pipelines — ETL patterns,
+  orchestration, and performance optimization for data workflows.
 
   Use when:
   - "design a data pipeline"

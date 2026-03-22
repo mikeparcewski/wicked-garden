@@ -167,15 +167,6 @@ For each issue, document:
 [P0/P1/P2/P3]
 ```
 
-## When to Use
-
-Trigger phrases indicating you need this skill:
-- "Review my agentic codebase"
-- "Audit my agent system"
-- "Is my system production-ready?"
-- "Find issues in my agents"
-- "What's wrong with my implementation?"
-
 ## Tips for Effective Reviews
 
 1. **Be Systematic:** Follow all four phases

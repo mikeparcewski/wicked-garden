@@ -142,37 +142,7 @@ cd ${CLAUDE_PLUGIN_ROOT} && uv run wicked-kanban
 
 ## Workflow Example
 
-### Starting Work on a Feature
-
-1. Create a project:
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "Auth Feature"
-```
-
-2. Get the project to see swimlane IDs:
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project PROJECT_ID
-```
-
-3. Create tasks in "To Do" swimlane:
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Design auth flow" SWIMLANE_ID
-```
-
-4. Move tasks to "In Progress" when starting:
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane IN_PROGRESS_ID
-```
-
-5. Add comments documenting progress:
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID "Implemented JWT validation"
-```
-
-6. Move to "Done" when complete:
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane DONE_ID
-```
+See `refs/workflow-patterns.md` for complete workflow examples (feature dev, bug fix, session resume).
 
 ## Quick Reference
 
