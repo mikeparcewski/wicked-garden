@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.7.0] - 2026-03-22
+
+### Quality & Hygiene
+- fix: 2 skills exceeding 200-line limit (trust-and-safety, kanban) — content moved to refs/
+- fix: add trigger phrases to persona skill for reliable matching
+- fix: disambiguate 5 skill collision pairs (accessibility, review, data analysis)
+- fix: add "This skill should be used when" framing to 8 skills
+- fix: remove redundant "When to Use" body sections from agentic skills
+- fix: replace hardcoded paths in test files with `${CLAUDE_PLUGIN_ROOT}`
+- fix: replace secret scanner flag in infra.md example
+
+### Chores
+- chore: normalize git author metadata across commit history
+- chore: remove tracked .DS_Store from repository
+
 ## [2.6.1] - 2026-03-21
 
 ### Bug Fixes
