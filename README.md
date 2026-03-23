@@ -1,19 +1,12 @@
 # Wicked Garden
 
-**Your Claude Code sessions remember what you decided — and get better over time.**
+**Tell Claude to build a feature. It assembles a crew, runs enforced phases, ships clean code.**
 
 ```bash
-> /wicked-garden:mem:recall "auth decisions"
-# Returns: "Chose stateless JWT over sessions — latency was the driver. Decision date: 2026-02-14."
-
-> /wicked-garden:jam:quick "Should we add rate limiting before or after the gateway?"
-# 4 personas debate for 60 seconds. Synthesis: "After — the gateway already has circuit breakers."
-
-> /wicked-garden:engineering:review
-# Senior engineer reviews your code. Cites file:line. Categorizes: critical/major/minor.
+/wicked-garden:crew:start "add OAuth login with role-based access"
 ```
 
-That is the whole pitch. Memory that compounds. Brainstorming that produces decisions. Specialist agents that do real work. Everything else is scaffolding around those three things.
+Claude analyzes the request, detects security and architecture signals, assembles the right specialists, and runs gated phases — clarify, design, build, test, review. No skipped steps. No hallucinated shortcuts. Every decision is remembered for the next project.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -21,32 +14,27 @@ claude plugins add mikeparcewski/wicked-garden
 
 ## Start Here
 
-Pick the path that fits your day:
-
 | I want to... | Command | What happens |
 |-------------|---------|-------------|
-| **Remember a decision** | `mem:store "chose Postgres for audit trail"` | Persists across sessions. Surfaces when relevant. |
-| **Get a second opinion** | `jam:quick "monorepo or polyrepo?"` | 4 personas debate. You get a synthesis with confidence levels. |
+| **Build a feature** | `crew:start "add payment processing"` | Signal analysis, specialist routing, enforced phases. Adapts to complexity. |
 | **Review my code** | `engineering:review` | Senior engineer perspective. file:line citations. Actionable. |
-| **Understand a codebase** | `search:code "handlePayment"` | Structural search across 73 languages. Symbols, not strings. |
-| **Run a full project** | `crew:start "migrate auth to JWT"` | Signal analysis, phase planning, specialist routing. Adapts to complexity. |
+| **Brainstorm a decision** | `jam:quick "monorepo or polyrepo?"` | 4 personas debate. Synthesis with confidence levels. |
+| **Search the codebase** | `search:code "handlePayment"` | Structural search across 73 languages. Symbols, not strings. |
 | **Check security** | `platform:security` | OWASP Top 10 scan with remediation guidance. |
-| **Brainstorm deeply** | `jam:brainstorm "API design approaches"` | 5-6 personas, 2-3 rounds, full synthesis with action items. |
 | **Analyze data** | `data:analyze sales.csv` | SQL queries on CSV/Excel via DuckDB. Handles 10GB+ files. |
+| **Recall a past decision** | `mem:recall "auth decisions"` | Cross-session memory. Surfaces what you decided and why. |
 
 No setup required. Every command works independently on install.
 
-## Why This Exists
+## Why This Works
 
-Most Claude Code sessions start from scratch. Session 47 has no idea what session 1 decided.
+Most AI coding sessions start from scratch. Session 47 has no idea what session 1 decided. Claude skips steps, hallucinates shortcuts, and ships without review.
 
 Wicked Garden fixes that with three layers:
 
-1. **Memory** (`mem`) — Decisions, patterns, and gotchas persist across sessions and surface automatically when relevant
-2. **Context assembly** (`smaht`) — Every prompt is enriched with memory, search results, project state, and brainstorm outcomes before Claude responds
-3. **Specialist routing** (`crew`) — Signal analysis detects what your project needs and routes to the right specialists automatically
-
-The result: the longer you use it, the better it gets. Your second month is meaningfully better than your first week.
+1. **Enforced workflow** (`crew`) — Signal analysis detects what your project needs, assembles the right specialists, and runs gated phases. Quality gates actually reject work that doesn't meet the bar.
+2. **Cross-session memory** (`mem`) — Decisions, patterns, and gotchas persist and surface automatically. Your second month is better than your first week.
+3. **Context assembly** (`smaht`) — Every prompt is enriched with memory, search results, project state, and brainstorm outcomes before Claude responds.
 
 ## How It Works
 
