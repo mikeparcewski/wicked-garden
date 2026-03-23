@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.8.0] - 2026-03-22
+
+### Domain Consolidation (17 → 14 domains)
+- refactor: design → product (v2.7.0: 5 commands, 3 agents, 5 skills)
+- refactor: scenarios → qe (v2.7.0: 6 commands, 1 agent, 1 skill)
+- refactor: multi-model → smaht (collaborate command moved)
+- refactor: patch → engineering (7 commands, 1 skill, 2 scripts + generators)
+- refactor: observability → platform (7 commands, 1 skill, 4 scripts)
+
+### Orphan Skill Triage (9 → 4 cross-cutting)
+- delete: control-plane skill (documented removed architecture)
+- move: readme-style-guide → .claude/ dev tools (internal tooling)
+- reassign: agent-browser → qe, imagery → product, issue-reporting → crew
+- keep: deliberate, wickedizer, integration-discovery, runtime-exec (cross-cutting)
+
+### Documentation
+- add: README "Start Here" section with 3 opinionated entry paths
+- update: all cross-references, aliases, domain counts, help commands
+
 ## [2.7.0] - 2026-03-22
 
 ### Quality & Hygiene
