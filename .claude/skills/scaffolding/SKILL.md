@@ -236,8 +236,9 @@ if __name__ == "__main__":
 The 16 domains in wicked-garden:
 
 **Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
-**Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic
-**Infrastructure & Tools**: scenarios, patch, observability
+**Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic, persona
+
+Domains are discovered dynamically from `commands/` — new domains are valid immediately.
 
 ### Template Variables
 

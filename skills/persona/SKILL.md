@@ -41,19 +41,18 @@ is executed, not the tools available.
 
 ## Built-in Personas
 
-Loaded from `.claude-plugin/specialist.json` — 9 specialists available as personas:
+Loaded from `.claude-plugin/specialist.json` — 8 specialists available as personas:
 
 | Name | Role | Best for |
 |------|------|---------|
 | engineering | engineering | Code quality, architecture, implementation |
 | platform | devsecops | Security, CI/CD, infrastructure, compliance |
-| product | product | Requirements, UX, business strategy |
+| product | product | Requirements, UX, design review, business strategy |
 | qe | quality-engineering | Test strategy, acceptance criteria, quality gates |
 | data | data-engineering | Pipeline design, ML guidance, analytics |
 | delivery | project-management | Rollout, FinOps, milestone delivery |
 | jam | brainstorming | Ideation, exploration, multi-perspective analysis |
 | agentic | agentic-architecture | Agent safety, tool design, agentic patterns |
-| design | ux | Visual design, UX flows, accessibility |
 
 ## Custom Personas
 

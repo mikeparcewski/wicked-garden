@@ -15,10 +15,10 @@ def _check_cli(name):
 
 # Known third-party CLIs that wicked-garden skills orchestrate
 KNOWN_CLIS = {
-    "codex": {"skill": "wicked-garden:multi-model", "desc": "OpenAI Codex for code review and generation"},
-    "gemini": {"skill": "wicked-garden:multi-model", "desc": "Google Gemini for multi-modal AI tasks"},
-    "copilot": {"skill": "wicked-garden:multi-model", "desc": "GitHub Copilot CLI for AI-assisted coding"},
-    "opencode": {"skill": "wicked-garden:multi-model", "desc": "OpenCode for AI-assisted coding"},
+    "codex": {"skill": "wicked-garden:smaht:collaborate", "desc": "OpenAI Codex for code review and generation"},
+    "gemini": {"skill": "wicked-garden:smaht:collaborate", "desc": "Google Gemini for multi-modal AI tasks"},
+    "copilot": {"skill": "wicked-garden:smaht:collaborate", "desc": "GitHub Copilot CLI for AI-assisted coding"},
+    "opencode": {"skill": "wicked-garden:smaht:collaborate", "desc": "OpenCode for AI-assisted coding"},
     "agent-browser": {"skill": "wicked-garden:agent-browser", "desc": "Browser automation and scraping"},
 }
 

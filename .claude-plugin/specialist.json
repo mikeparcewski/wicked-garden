@@ -16,7 +16,7 @@
     {
       "name": "product",
       "role": "product",
-      "description": "Product and design expertise spanning requirements, UX, customer voice, business strategy, and accessibility.",
+      "description": "Product and design expertise spanning requirements, UX, customer voice, business strategy, accessibility, visual design review, mockups, and user flow analysis.",
       "enhances": ["clarify", "design", "review"]
     },
     {
@@ -47,12 +47,6 @@
       "name": "agentic",
       "role": "agentic-architecture",
       "description": "Validates agentic application architecture, patterns, and design. Reviews agent implementations for safety, performance, and best practices.",
-      "enhances": ["design", "build", "review"]
-    },
-    {
-      "name": "design",
-      "role": "ux",
-      "description": "Visual design, UX analysis, and mockup generation for UI-bearing products. Reviews design system consistency, creates wireframes, and analyzes user flows.",
       "enhances": ["design", "build", "review"]
     }
   ]

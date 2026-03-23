@@ -19,12 +19,18 @@ SCRIPT_DIR = Path(__file__).parent
 TEMPLATES_DIR = SCRIPT_DIR.parent / "templates"
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
-# Valid domains in the unified plugin
-VALID_DOMAINS = [
-    "crew", "smaht", "mem", "search", "jam", "kanban",
-    "engineering", "product", "platform", "qe", "data", "delivery", "agentic",
-    "scenarios", "patch", "observability",
-]
+def _discover_domains() -> list[str]:
+    """Discover valid domains from commands/ directory structure."""
+    commands_dir = PROJECT_ROOT / "commands"
+    if commands_dir.is_dir():
+        return sorted(
+            d.name for d in commands_dir.iterdir()
+            if d.is_dir() and not d.name.startswith("_")
+        )
+    return []
+
+# Valid domains — discovered from commands/ directory at import time
+VALID_DOMAINS = _discover_domains()
 
 
 # Validation patterns
