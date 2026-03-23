@@ -8,7 +8,7 @@
       "name": "wicked-garden",
       "source": "./",
       "description": "AI-Native SDLC \u2014 the complete software development lifecycle as a single Claude Code plugin. 14 domains covering code intelligence, delivery metrics, persistent memory, workflow orchestration, brainstorming, on-demand personas, and 80 specialist agents across 8 disciplines. Fully standalone with local SQLite storage.",
-      "version": "2.9.1"
+      "version": "2.10.0"
     }
   ],
   "version": "2.0.0"

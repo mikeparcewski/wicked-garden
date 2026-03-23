@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.10.0] - 2026-03-22
+
+### Features
+- feat: `smaht:briefing` command — session briefing pulling from mem, kanban, crew, and git
+- feat: `smaht/discovery` skill — contextual command suggestions discovered dynamically from cross-references
+- feat: README rewrite — leads with memory moat demo, intent-based "Start Here" table
+
+### Cleanup
+- fix: removed 5 dead Python scripts (672 lines) — feedback.py, tool_usage_stats.py, migrate_capabilities.py, plugin_status.py
+- fix: moved test_gate_enforcement.py to tests/crew/
+
 ## [2.9.1] - 2026-03-22
 
 ### Bug Fixes
