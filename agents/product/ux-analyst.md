@@ -10,7 +10,7 @@ description: |
   user: "Design the user flow for a multi-step onboarding wizard with conditional paths."
   <commentary>Use ux-analyst for user flow design, IA mapping, and interaction analysis.</commentary>
   </example>
-subagent_type: wicked-garden:design:ux-analyst
+subagent_type: wicked-garden:product:ux-analyst
 model: sonnet
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash

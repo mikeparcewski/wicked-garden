@@ -3,7 +3,7 @@ description: UX flow design and analysis — create user flows, map information 
 argument-hint: "<target-or-description> [--mode create|analyze]"
 ---
 
-# /wicked-garden:design:ux
+# /wicked-garden:product:ux
 
 Design and analyze user flows, interaction patterns, and information architecture.
 Use `--mode create` to generate flows from requirements; `--mode analyze` to evaluate
@@ -13,16 +13,16 @@ existing flows in code or documents.
 
 ```bash
 # Analyze existing flows in code
-/wicked-garden:design:ux src/pages/
+/wicked-garden:product:ux src/pages/
 
 # Create a flow from a description
-/wicked-garden:design:ux "user registration with email verification" --mode create
+/wicked-garden:product:ux "user registration with email verification" --mode create
 
 # Analyze flows in a requirements document
-/wicked-garden:design:ux outcome.md --mode analyze
+/wicked-garden:product:ux outcome.md --mode analyze
 
 # Default: auto-detect mode from input type
-/wicked-garden:design:ux src/components/Checkout
+/wicked-garden:product:ux src/components/Checkout
 ```
 
 ## Instructions
@@ -44,7 +44,7 @@ Auto-detect mode if not specified:
 
 ```
 Task(
-  subagent_type="wicked-garden:design:ux-analyst",
+  subagent_type="wicked-garden:product:ux-analyst",
   prompt="""Perform UX flow {analysis | design} for the following.
 
 ## Target

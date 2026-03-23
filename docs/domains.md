@@ -1,6 +1,6 @@
 # Domains
 
-Wicked Garden is organized into 16 domains. Each domain brings its own commands, agents, skills, and scenarios. Every domain works independently — the ecosystem is additive, not required.
+Wicked Garden is organized into 15 domains. Each domain brings its own commands, agents, skills, and scenarios. Every domain works independently — the ecosystem is additive, not required.
 
 ## Workflow & Intelligence
 
@@ -126,9 +126,9 @@ Senior engineer, solution architect, debugger, technical writer, frontend/backen
 
 **Agents**: senior-engineer, solution-architect, system-designer, data-architect, debugger, technical-writer, frontend-engineer, backend-engineer, api-documentarian
 
-### product — Product Management
+### product — Product Management & Design
 
-Requirements analyst, UX designer, customer advocate, business strategist, market analyst.
+Requirements, UX, customer voice, business strategy, accessibility, visual design review.
 
 | Command | What It Does |
 |---------|-------------|
@@ -140,8 +140,13 @@ Requirements analyst, UX designer, customer advocate, business strategist, marke
 | `product:align` | Facilitate stakeholder alignment |
 | `product:strategy` | ROI, value proposition, competitive analysis |
 | `product:ux-review` | UX and design quality review |
+| `product:review` | Design system consistency review |
+| `product:mockup` | Wireframe and prototype generation |
+| `product:ux` | UX flow analysis |
+| `product:screenshot` | Screenshot-based UI review |
+| `product:a11y` | WCAG accessibility audit |
 
-**Agents**: product-manager, requirements-analyst, ux-designer, customer-advocate, user-researcher, competitive-analyst, value-analyst, market-analyst, feedback-analyst, business-strategist, alignment-lead, a11y-expert, ui-reviewer
+**Agents**: product-manager, requirements-analyst, ux-designer, customer-advocate, user-researcher, competitive-analyst, value-analyst, market-analyst, feedback-analyst, business-strategist, alignment-lead, a11y-expert, ui-reviewer, mockup-generator, visual-reviewer, ux-analyst
 
 ### platform — DevSecOps
 
@@ -174,8 +179,13 @@ Test strategist, automation engineer, risk assessor, TDD coach, acceptance test 
 | `qe:automate` | Generate test code from scenarios |
 | `qe:qe-plan` | Comprehensive test plan generation |
 | `qe:qe-review` | Review test quality and coverage |
+| `qe:run` | Execute an E2E test scenario |
+| `qe:list` | List available scenarios with tool status |
+| `qe:check` | Validate scenario file format |
+| `qe:setup` | Install required CLI tools |
+| `qe:report` | File issues from test failures |
 
-**Agents**: test-strategist, test-automation-engineer, risk-assessor, tdd-coach, acceptance-test-writer, acceptance-test-executor, acceptance-test-reviewer, testability-reviewer, continuous-quality-monitor, production-quality-engineer, requirements-quality-analyst, code-analyzer
+**Agents**: test-strategist, test-automation-engineer, risk-assessor, tdd-coach, acceptance-test-writer, acceptance-test-executor, acceptance-test-reviewer, testability-reviewer, continuous-quality-monitor, production-quality-engineer, requirements-quality-analyst, code-analyzer, scenario-executor
 
 ### data — Data Engineering
 
@@ -220,20 +230,6 @@ Architecture reviewer, safety auditor, pattern advisor, framework researcher.
 
 **Agents**: architect, safety-reviewer, pattern-advisor, performance-analyst, framework-researcher
 
-### design — Visual Design & UX
-
-Visual reviewer, UX analyst, mockup generator. Works with screenshots.
-
-| Command | What It Does |
-|---------|-------------|
-| `design:review` | Design system consistency review |
-| `design:mockup` | Wireframe and prototype generation |
-| `design:ux` | UX flow analysis |
-| `design:screenshot` | Screenshot-based UI review |
-| `design:a11y` | WCAG accessibility audit |
-
-**Agents**: mockup-generator, visual-reviewer, ux-analyst
-
 ### jam — Brainstorming (Specialist Role)
 
 Dynamic persona assembly for clarify and design phases. Brings diverse perspectives to ambiguous problems.
@@ -241,20 +237,6 @@ Dynamic persona assembly for clarify and design phases. Brings diverse perspecti
 ---
 
 ## Infrastructure & Tools
-
-### scenarios — E2E Testing
-
-Human-readable markdown specs that orchestrate real tools — no framework lock-in.
-
-| Command | What It Does |
-|---------|-------------|
-| `scenarios:run` | Execute a test scenario |
-| `scenarios:list` | List available scenarios |
-| `scenarios:check` | Validate scenario format |
-| `scenarios:setup` | Install required CLI tools |
-| `scenarios:report` | File issues from test failures |
-
-**Supported tools**: curl, Playwright, Cypress, k6, Trivy, Semgrep, pa11y, and more.
 
 ### patch — Cross-Language Changes
 

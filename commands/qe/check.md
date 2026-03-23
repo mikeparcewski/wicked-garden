@@ -2,15 +2,15 @@
 description: Validate scenario file format and structure
 ---
 
-# /wicked-garden:scenarios:check
+# /wicked-garden:qe:check
 
 Validate scenario file format and structure.
 
 ## Usage
 
 ```
-/wicked-garden:scenarios:check <scenario-file>
-/wicked-garden:scenarios:check scenarios/    # Check all scenarios in directory
+/wicked-garden:qe:check <scenario-file>
+/wicked-garden:qe:check scenarios/    # Check all scenarios in directory
 ```
 
 ## Instructions

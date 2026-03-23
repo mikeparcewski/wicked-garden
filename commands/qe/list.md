@@ -2,14 +2,14 @@
 description: List available E2E test scenarios with tool availability status
 ---
 
-# /wicked-garden:scenarios:list
+# /wicked-garden:qe:list
 
 List available E2E test scenarios with tool availability status.
 
 ## Usage
 
 ```
-/wicked-garden:scenarios:list [--category api|browser|perf|infra|security|a11y]
+/wicked-garden:qe:list [--category api|browser|perf|infra|security|a11y]
 ```
 
 ## Instructions
@@ -72,7 +72,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 | {tool} | `{install_cmd from prereq-doctor}` | {scenario names} |
 
 ### Quick Install
-To install all missing tools, run `/wicked-garden:scenarios:setup` or install individually:
+To install all missing tools, run `/wicked-garden:qe:setup` or install individually:
 ```bash
 {install_cmd values from prereq-doctor results, joined with " && "}
 ```

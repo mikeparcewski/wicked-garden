@@ -170,7 +170,7 @@ If `"available": false`, skip this section entirely.
 
 **Step 3**: For mode `warn` or `strict`, run each runnable scenario:
 ```
-/wicked-garden:scenarios:run {scenario_file}
+/wicked-garden:qe:run {scenario_file}
 ```
 
 **Step 4**: Report results:

@@ -109,7 +109,7 @@ Write human-readable test scenarios in markdown that orchestrate real tools:
 ```
 
 ```bash
-/wicked-garden:scenarios:run scenarios/auth/login-flow.md
+/wicked-garden:qe:run scenarios/auth/login-flow.md
 ```
 
 Supported tools: curl, Playwright, Cypress, k6 (load testing), Trivy (security), Semgrep (SAST), pa11y (accessibility).

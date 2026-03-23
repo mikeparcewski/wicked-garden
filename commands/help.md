@@ -30,9 +30,8 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | **observability** | Plugin health monitoring, assertions, and hook traces | `/wicked-garden:observability:help` |
 | **patch** | Structural code transformations across the codebase | `/wicked-garden:patch:help` |
 | **platform** | Security, infrastructure, compliance, CI/CD, and incidents | `/wicked-garden:platform:help` |
-| **product** | Requirements, customer feedback, strategy, and UX | `/wicked-garden:product:help` |
-| **qe** | Test planning, scenarios, acceptance testing, and automation | `/wicked-garden:qe:help` |
-| **scenarios** | E2E testing with markdown scenarios and CLI tools | `/wicked-garden:scenarios:help` |
+| **product** | Requirements, customer feedback, strategy, UX, and design review | `/wicked-garden:product:help` |
+| **qe** | Test planning, scenarios, E2E testing, acceptance testing, and automation | `/wicked-garden:qe:help` |
 | **search** | Structural code search, lineage, and codebase intelligence | `/wicked-garden:search:help` |
 | **smaht** | Intelligent context assembly from all sources | `/wicked-garden:smaht:help` |
 ## Quick Start
@@ -72,7 +71,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 1. **smaht** assembles context from memory, search, kanban, and crew for every prompt
 2. **crew** orchestrates multi-phase workflows and routes to specialist domains
 3. **Specialist domains** (engineering, platform, product, qe, data, delivery, agentic, jam) provide deep expertise
-4. **Utility domains** (mem, search, kanban, patch, scenarios, observability) provide tools and infrastructure
+4. **Utility domains** (mem, search, kanban, patch, observability) provide tools and infrastructure
 5. **All state** persists across sessions via mem, kanban, and search indexes
 
 ## Getting Domain Help

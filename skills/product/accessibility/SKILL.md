@@ -1,12 +1,13 @@
 ---
 name: accessibility
 description: |
-  Accessibility evaluation and compliance audit — assessing existing products against
-  WCAG 2.1 AA, identifying violations, and prioritizing remediation.
+  Accessibility audit, compliance evaluation, and implementation guidance — WCAG 2.1 AA,
+  keyboard navigation, screen readers, ARIA patterns, and color contrast.
 
   Use when: "accessibility audit", "a11y compliance", "WCAG evaluation",
   "audit for accessibility", "remediation plan", "compliance report",
-  "disability", "inclusive design assessment"
+  "make this accessible", "keyboard navigation", "screen reader support",
+  "color contrast", "ARIA patterns", "semantic HTML", "accessible component"
 ---
 
 # Accessibility Skill

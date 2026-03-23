@@ -2,14 +2,14 @@
 description: Execute an E2E test scenario by orchestrating CLI tools
 ---
 
-# /wicked-garden:scenarios:run
+# /wicked-garden:qe:run
 
 Execute an E2E test scenario by orchestrating CLI tools.
 
 ## Usage
 
 ```
-/wicked-garden:scenarios:run <scenario-file> [--junit report.xml] [--verbose] [--json] [--no-qe]
+/wicked-garden:qe:run <scenario-file> [--junit report.xml] [--verbose] [--json] [--no-qe]
 ```
 
 **Modes:**
@@ -86,7 +86,7 @@ For any tools marked **not available** by CLI discovery, check if an equivalent 
 | `python3` (for test scripts) | `wicked-garden:runtime-exec` | Smart Python/Node execution with automatic dependency resolution (uv, poetry, pip) |
 | `playwright` | `wicked-garden:agent-browser` | Only if `agent-browser` CLI is available (skill wraps agent-browser, not playwright directly) |
 
-**Note**: `wicked-garden:scenarios:setup` can auto-install missing tools, but it is interactive (prompts user). In `--json` mode, setup is NOT invoked — missing tools go into the `missing_tools` array instead. In interactive mode, setup can be suggested during the Pre-Flight Check.
+**Note**: `wicked-garden:qe:setup` can auto-install missing tools, but it is interactive (prompts user). In `--json` mode, setup is NOT invoked — missing tools go into the `missing_tools` array instead. In interactive mode, setup can be suggested during the Pre-Flight Check.
 
 **Detection**: Check if the skill's parent plugin is installed:
 ```bash

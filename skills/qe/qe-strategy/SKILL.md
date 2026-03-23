@@ -170,7 +170,7 @@ When a crew project reaches the test phase, QE tests **like a product owner** �
 | 3rd | R | 1 — Unit | run existing suite (do NOT generate new unit tests) | Always |
 | 3rd | R | 6 — Regression | run full existing suite | Always |
 
-**E2E tool priority**: Playwright/Cypress (if configured) > curl/fetch against live endpoints > `/wicked-garden:scenarios:run` > `/wicked-garden:qe:acceptance`.
+**E2E tool priority**: Playwright/Cypress (if configured) > curl/fetch against live endpoints > `/wicked-garden:qe:run` > `/wicked-garden:qe:acceptance`.
 
 **Evidence package**: The test phase MUST compile `phases/test/evidence/report.md` with screenshots, execution traces, and spec comparison. The review phase evaluates this package. See [`refs/evidence-taxonomy.md`](refs/evidence-taxonomy.md).
 

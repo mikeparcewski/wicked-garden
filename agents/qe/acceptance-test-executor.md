@@ -49,7 +49,7 @@ A scenario with only `tools.optional` (no required tools) is still a valid wicke
 
 **If wicked-scenarios format AND wicked-scenarios plugin is installed** (`ls plugins/wicked-scenarios/.claude-plugin/plugin.json 2>/dev/null`):
 
-Delegate CLI execution to `/wicked-garden:scenarios:run --json`. The executor STILL follows the full evidence protocol (steps 1-6) — delegation replaces only the mechanical execution of bash commands, not the evidence-capture structure.
+Delegate CLI execution to `/wicked-garden:qe:run --json`. The executor STILL follows the full evidence protocol (steps 1-6) — delegation replaces only the mechanical execution of bash commands, not the evidence-capture structure.
 
 **a) Step 1 — Parse the test plan**: Extract prerequisites, steps, evidence manifest, assertions (same as normal flow).
 
@@ -63,7 +63,7 @@ Delegate CLI execution to `/wicked-garden:scenarios:run --json`. The executor ST
 
 ```
 Skill(
-  skill="wicked-garden:scenarios:run",
+  skill="wicked-garden:qe:run",
   args="${scenario_file_from_test_plan} --json"
 )
 ```

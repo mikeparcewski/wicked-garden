@@ -6,14 +6,14 @@ arguments:
     required: false
 ---
 
-# /wicked-garden:scenarios:report
+# /wicked-garden:qe:report
 
 File GitHub issues for acceptance test failures. Handles deduplication against existing open issues, groups multiple failures per plugin into single issues, and supports both interactive and automatic modes.
 
 ## Usage
 
 ```
-/wicked-garden:scenarios:report [--auto] [--dry-run]
+/wicked-garden:qe:report [--auto] [--dry-run]
 ```
 
 This command is designed to be called **after** acceptance testing completes (via `/wicked-garden:qe:acceptance` or `/wg-test`). It reads the test results from the current conversation context.
@@ -38,7 +38,7 @@ The test results should be available in the conversation context from the preced
 
 If no results are available in context, report an error:
 ```
-No acceptance test results found. Run /wicked-garden:qe:acceptance (or /wg-test) first, then /wicked-garden:scenarios:report.
+No acceptance test results found. Run /wicked-garden:qe:acceptance (or /wg-test) first, then /wicked-garden:qe:report.
 ```
 
 ### 2. Filter to Failures Only

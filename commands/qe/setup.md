@@ -2,14 +2,14 @@
 description: Install required CLI tools for running E2E test scenarios
 ---
 
-# /wicked-garden:scenarios:setup
+# /wicked-garden:qe:setup
 
 Install required CLI tools for running E2E test scenarios.
 
 ## Usage
 
 ```
-/wicked-garden:scenarios:setup [--category api|browser|perf|infra|security|a11y]
+/wicked-garden:qe:setup [--category api|browser|perf|infra|security|a11y]
 ```
 
 ## Instructions
@@ -101,6 +101,6 @@ Display final status:
 **Before**: {old_count}/{total} tools available
 **After**: {new_count}/{total} tools available
 
-{If all installed: "All tools installed. Run `/wicked-garden:scenarios:list` to see available scenarios."}
+{If all installed: "All tools installed. Run `/wicked-garden:qe:list` to see available scenarios."}
 {If some failed: "Some tools could not be installed. See errors above."}
 ```

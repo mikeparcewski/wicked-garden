@@ -3,7 +3,7 @@ description: Mockup and wireframe generation — ASCII wireframes, HTML/CSS prev
 argument-hint: "<description-or-target> [--format ascii|html|spec] [--fidelity low|medium|high]"
 ---
 
-# /wicked-garden:design:mockup
+# /wicked-garden:product:mockup
 
 Generate wireframes, design mockups, and component specifications. Produces output
 at the right fidelity — quick ASCII sketches for ideation, HTML/CSS previews for
@@ -13,19 +13,19 @@ stakeholder review, or annotated specs for developer handoff.
 
 ```bash
 # Generate a wireframe from a description
-/wicked-garden:design:mockup "dashboard with sidebar navigation and card grid"
+/wicked-garden:product:mockup "dashboard with sidebar navigation and card grid"
 
 # Generate from existing requirements
-/wicked-garden:design:mockup outcome.md
+/wicked-garden:product:mockup outcome.md
 
 # Specify format explicitly
-/wicked-garden:design:mockup "login form" --format html
+/wicked-garden:product:mockup "login form" --format html
 
 # Low-fidelity ASCII for quick ideation
-/wicked-garden:design:mockup "checkout flow" --fidelity low
+/wicked-garden:product:mockup "checkout flow" --fidelity low
 
 # Component spec for handoff
-/wicked-garden:design:mockup src/components/Card --format spec
+/wicked-garden:product:mockup src/components/Card --format spec
 ```
 
 ## Instructions
@@ -49,7 +49,7 @@ Auto-select format if not specified:
 
 ```
 Task(
-  subagent_type="wicked-garden:design:mockup-generator",
+  subagent_type="wicked-garden:product:mockup-generator",
   prompt="""Generate a {fidelity}-fidelity {format} mockup for the following.
 
 ## Design Brief / Target

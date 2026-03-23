@@ -3,7 +3,7 @@ description: Systematic visual design review — design system adherence, spacin
 argument-hint: "<target> [--quick]"
 ---
 
-# /wicked-garden:design:review
+# /wicked-garden:product:review
 
 Systematic visual design review of UI code or components. Checks design system
 adherence, spacing, typography, color consistency, and component patterns.
@@ -12,13 +12,13 @@ adherence, spacing, typography, color consistency, and component patterns.
 
 ```bash
 # Review a component
-/wicked-garden:design:review src/components/Button
+/wicked-garden:product:review src/components/Button
 
 # Review a directory
-/wicked-garden:design:review src/components/
+/wicked-garden:product:review src/components/
 
 # Quick scan for obvious violations
-/wicked-garden:design:review src/ --quick
+/wicked-garden:product:review src/ --quick
 ```
 
 ## Instructions
@@ -38,7 +38,7 @@ Also check for design token definitions:
 
 ```
 Task(
-  subagent_type="wicked-garden:design:visual-reviewer",
+  subagent_type="wicked-garden:product:visual-reviewer",
   prompt="""Perform a visual design review of the following UI code.
 
 ## Target

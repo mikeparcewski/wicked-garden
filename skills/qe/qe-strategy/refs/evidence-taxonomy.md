@@ -107,7 +107,7 @@ Reviewers score evidence on three dimensions (0-2 each, max 6):
 
 ### Integration with Scenarios Report
 
-When E2E tests are run via `/wicked-garden:scenarios:run`, use `/wicked-garden:scenarios:report` to generate structured evidence that feeds into the evidence package. The report command produces failure analysis, spec comparison, and artifact references that map directly to the evidence package format.
+When E2E tests are run via `/wicked-garden:qe:run`, use `/wicked-garden:qe:report` to generate structured evidence that feeds into the evidence package. The report command produces failure analysis, spec comparison, and artifact references that map directly to the evidence package format.
 
 ## Anti-Patterns
 

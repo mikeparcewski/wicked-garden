@@ -439,7 +439,7 @@ For each phase, follow this pattern:
 
 1. **E2E / Product-level tests** — Playwright, Cypress, or browser-based tests that verify real user flows
 2. **Live endpoint verification** — curl/fetch against running services to verify API contracts
-3. **Scenario validation** — `/wicked-garden:scenarios:run` or `/wicked-garden:qe:acceptance` for structured E2E
+3. **Scenario validation** — `/wicked-garden:qe:run` or `/wicked-garden:qe:acceptance` for structured E2E
 4. **Integration tests** — contract/schema validation between services
 5. **Unit test suite** — run existing suite as regression baseline (do NOT write new unit tests in this phase)
 
@@ -623,7 +623,7 @@ Write evidence quality assessment to `phases/review/review-findings.md`:
 {List any missing evidence and impact on review confidence}
 ```
 
-If using `/wicked-garden:scenarios:report` for structured evidence, include its output in the evidence evaluation.
+If using `/wicked-garden:qe:report` for structured evidence, include its output in the evidence evaluation.
 
 #### Build Phase: TDD Enforcement (Issue #255)
 

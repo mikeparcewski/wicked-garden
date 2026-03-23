@@ -25,6 +25,11 @@ Quality engineering — test planning, scenario generation, code review, accepta
 | `/wicked-garden:qe:scenarios <feature>` | Generate test scenarios — happy paths, edge cases, error conditions |
 | `/wicked-garden:qe:acceptance <scenario>` | Evidence-gated acceptance testing (Write, Execute, Review pipeline) |
 | `/wicked-garden:qe:automate <plan>` | Generate test code from scenarios or test plan |
+| `/wicked-garden:qe:run <scenario>` | Execute an E2E test scenario by orchestrating CLI tools |
+| `/wicked-garden:qe:list` | List available scenarios with tool availability status |
+| `/wicked-garden:qe:check` | Validate scenario file format and structure |
+| `/wicked-garden:qe:report` | File GitHub issues from test failures with deduplication |
+| `/wicked-garden:qe:setup` | Install required CLI tools for running scenarios |
 | `/wicked-garden:qe:help` | This help message |
 
 ## Quick Start
@@ -72,5 +77,5 @@ Quality engineering — test planning, scenario generation, code review, accepta
 - **wicked-crew**: Specialist routing for test strategy and QE gate phases
 - **engineering**: Code review with quality lens
 - **product**: Acceptance criteria as test input
-- **wicked-scenarios**: E2E test scenario execution
+- **E2E scenarios**: Markdown-based test scenarios orchestrating CLI tools (curl, playwright, k6, trivy, etc.)
 ```

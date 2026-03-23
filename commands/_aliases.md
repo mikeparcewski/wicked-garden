@@ -113,12 +113,26 @@ If you typed an old command name, here are the new equivalents:
 | `/wicked-agentic:frameworks` | `/wicked-garden:agentic:frameworks` |
 | `/wicked-agentic:ask` | `/wicked-garden:agentic:ask` |
 
-## Scenarios
+## Scenarios (consolidated into qe)
 | Old | New |
 |-----|-----|
-| `/wicked-scenarios:run` | `/wicked-garden:scenarios:run` |
-| `/wicked-scenarios:list` | `/wicked-garden:scenarios:list` |
-| `/wicked-scenarios:check` | `/wicked-garden:scenarios:check` |
+| `/wicked-scenarios:run` | `/wicked-garden:qe:run` |
+| `/wicked-scenarios:list` | `/wicked-garden:qe:list` |
+| `/wicked-scenarios:check` | `/wicked-garden:qe:check` |
+| `/wicked-garden:scenarios:run` | `/wicked-garden:qe:run` |
+| `/wicked-garden:scenarios:list` | `/wicked-garden:qe:list` |
+| `/wicked-garden:scenarios:check` | `/wicked-garden:qe:check` |
+| `/wicked-garden:scenarios:report` | `/wicked-garden:qe:report` |
+| `/wicked-garden:scenarios:setup` | `/wicked-garden:qe:setup` |
+
+## Design (consolidated into product)
+| Old | New |
+|-----|-----|
+| `/wicked-garden:design:review` | `/wicked-garden:product:review` |
+| `/wicked-garden:design:a11y` | `/wicked-garden:product:a11y` |
+| `/wicked-garden:design:mockup` | `/wicked-garden:product:mockup` |
+| `/wicked-garden:design:screenshot` | `/wicked-garden:product:screenshot` |
+| `/wicked-garden:design:ux` | `/wicked-garden:product:ux` |
 
 ## Smaht
 | Old | New |

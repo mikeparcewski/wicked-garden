@@ -68,7 +68,7 @@ claude plugins add mikeparcewski/wicked-garden
 
 ## Domains
 
-17 domains, each with its own commands, agents, skills, and scenarios. Every domain works independently.
+15 domains, each with its own commands, agents, skills, and scenarios. Every domain works independently.
 
 ### Workflow & Intelligence
 
@@ -86,13 +86,12 @@ claude plugins add mikeparcewski/wicked-garden
 | Discipline | What It Brings |
 |-----------|---------------|
 | **Engineering** | Code review, architecture, debugging, frontend/backend specialists |
-| **Product** | Requirements, UX, customer voice, business strategy, accessibility |
+| **Product** | Requirements, UX, customer voice, business strategy, accessibility, design review |
 | **Platform** | Security (OWASP), compliance (SOC2/HIPAA/GDPR), SRE, incident response |
-| **Quality** | Test strategy, automation, TDD, acceptance testing with evidence gates |
+| **Quality** | Test strategy, automation, TDD, acceptance testing, E2E scenarios with evidence gates |
 | **Data** | DuckDB SQL on CSV/Excel (10GB+), pipelines, ML, analytics architecture |
 | **Delivery** | Sprint health, A/B tests, progressive rollouts, cost optimization |
 | **Agentic** | Agent architecture review, safety audits, framework analysis |
-| **Design** | UI review from screenshots, wireframes, accessibility, design systems |
 | **Brainstorming** | Dynamic focus groups for ambiguous problems |
 | **Persona** | On-demand personas — invoke any specialist perspective with rich characteristics (personality, constraints, memories, preferences) |
 
@@ -129,7 +128,7 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](docs/getting-started.md) | Installation, first session, common workflows |
-| [Domains](docs/domains.md) | All 17 domains with full command tables |
+| [Domains](docs/domains.md) | All 15 domains with full command tables |
 | [Crew Workflow](docs/crew-workflow.md) | Signal routing, phases, specialists, checkpoints |
 | [Architecture](docs/architecture.md) | Storage, integration discovery, context assembly |
 | [Advanced Usage](docs/advanced.md) | Multi-model, customization, development commands |

@@ -353,9 +353,9 @@ When running multiple scenarios, aggregate results:
 ## Integration
 
 - **wicked-crew**: Use during QE phases for evidence-gated quality gates
-- **wicked-scenarios**: Executor delegates E2E CLI steps to `/wicked-garden:scenarios:run --json` for machine-readable execution artifacts. Writer understands wicked-scenarios format natively.
+- **wicked-scenarios**: Executor delegates E2E CLI steps to `/wicked-garden:qe:run --json` for machine-readable execution artifacts. Writer understands wicked-scenarios format natively.
 - **wicked-kanban**: Track acceptance failures as tasks. When invoked with `--kanban` (or auto-detected when crew is active), creates a kanban project with one task per test plan step, stores evidence inline in kanban artifacts.
-- **/wg-test**: Delegates to `/wicked-garden:qe:acceptance` as the primary acceptance pipeline. Falls back to `/wicked-garden:scenarios:run` directly if QE is not installed.
+- **/wg-test**: Delegates to `/wicked-garden:qe:acceptance` as the primary acceptance pipeline. Falls back to `/wicked-garden:qe:run` directly if QE is not installed.
 
 ### Degradation Behavior
 

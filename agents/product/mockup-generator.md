@@ -10,7 +10,7 @@ description: |
   user: "Create an ASCII wireframe for a settings page with sidebar navigation and form sections."
   <commentary>Use mockup-generator for wireframes, HTML/CSS prototypes, and component specs.</commentary>
   </example>
-subagent_type: wicked-garden:design:mockup-generator
+subagent_type: wicked-garden:product:mockup-generator
 model: sonnet
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash

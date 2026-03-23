@@ -230,7 +230,7 @@ Each layer maps to specific agents and tools. Independent layers can run in para
 |---|---|---|---|---|
 | 1 — Unit | unit/logic | `test-automation-engineer` | `/wicked-garden:qe:automate` | A |
 | 2 — Integration | integration/contract | `test-automation-engineer` | curl/httpie, schema validators | B |
-| 3 — Visual | visual/interaction | `acceptance-test-executor` | `/wicked-garden:design:screenshot`, `/wicked-garden:design:a11y` | B |
+| 3 — Visual | visual/interaction | `acceptance-test-executor` | `/wicked-garden:product:screenshot`, `/wicked-garden:product:a11y` | B |
 | 4 — Security | security | `security-engineer` | `/wicked-garden:platform:security` | B |
 | 5 — Scenario/E2E | scenario/workflow | `acceptance-test-executor` | `/wicked-garden:qe:scenarios`, `/wicked-garden:qe:acceptance` | C |
 | 6 — Regression | regression | inline (run test suite) | pytest/jest/go test/etc. | A |
@@ -275,7 +275,7 @@ Layers not listed for a change type should be marked N-A (with justification) in
 **Layer 3 — Visual / Functional tests**:
 1. Take screenshots of each changed UI element → `phases/test/evidence/{name}-screenshot.png`.
 2. Verify interactive flows complete without errors (form submit, navigation, state transitions).
-3. Run accessibility check: `/wicked-garden:design:a11y` on changed components.
+3. Run accessibility check: `/wicked-garden:product:a11y` on changed components.
 4. Attach screenshot evidence via kanban add-artifact (type: `image`).
 5. Run `validate_test_evidence(artifacts, 'ui')` for each ui test task.
 6. Store results in `phases/test/visual-results.md`.
@@ -292,7 +292,7 @@ Layers not listed for a change type should be marked N-A (with justification) in
 2. **Run product-level tests in priority order**:
    - If Playwright/Cypress: run E2E suite, capture screenshots to `phases/test/evidence/screenshots/`.
    - If live endpoints: curl/fetch verification of API contracts, save payloads to `phases/test/evidence/payloads/`.
-   - If scenarios available: `/wicked-garden:qe:acceptance` or `/wicked-garden:scenarios:run --json`.
+   - If scenarios available: `/wicked-garden:qe:acceptance` or `/wicked-garden:qe:run --json`.
    - At least ONE of the above must execute.
 3. Collect all required evidence per test task description.
 4. Run `validate_test_evidence()` before marking each test task complete.

@@ -10,7 +10,7 @@ description: |
   user: "Review the new pricing page for design system adherence — spacing, typography, and color."
   <commentary>Use visual-reviewer for design system compliance, visual consistency, and token migration audits.</commentary>
   </example>
-subagent_type: wicked-garden:design:visual-reviewer
+subagent_type: wicked-garden:product:visual-reviewer
 model: sonnet
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash

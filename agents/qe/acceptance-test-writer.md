@@ -31,7 +31,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Search**: Use wicked-search to find implementation code referenced in scenarios
 - **Memory**: Use wicked-mem to recall past test patterns and decisions
-- **Scenarios**: Use wicked-garden:scenarios:check to validate scenario format
+- **Scenarios**: Use wicked-garden:qe:check to validate scenario format
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

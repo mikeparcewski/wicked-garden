@@ -80,11 +80,11 @@ Agent subagent_type uses colons: `wicked-garden:{domain}:{agent-name}`
 
 ### Domain Organization
 
-**17 domains**, each with its own commands, agents, skills, scripts, and scenarios:
+**15 domains**, each with its own commands, agents, skills, scripts, and scenarios:
 
 **Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
 **Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic, persona
-**Infrastructure & Tools**: scenarios, patch, observability
+**Infrastructure & Tools**: patch, observability
 
 Specialists define personas in `.claude-plugin/specialist.json`. Crew discovers them at runtime and routes based on signal analysis.
 

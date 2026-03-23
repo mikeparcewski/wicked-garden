@@ -3,7 +3,7 @@ description: Screenshot-based UI review using Claude's multimodal vision — ana
 argument-hint: "<image-path> [<reference-path>]"
 ---
 
-# /wicked-garden:design:screenshot
+# /wicked-garden:product:screenshot
 
 Review UI design from screenshot images using Claude's multimodal capabilities.
 Analyzes layout, spacing, color, typography, and visual consistency without
@@ -13,13 +13,13 @@ requiring access to source code.
 
 ```bash
 # Review a single screenshot
-/wicked-garden:design:screenshot /tmp/dashboard.png
+/wicked-garden:product:screenshot /tmp/dashboard.png
 
 # Compare implementation against a design reference
-/wicked-garden:design:screenshot /tmp/built-ui.png /tmp/design-spec.png
+/wicked-garden:product:screenshot /tmp/built-ui.png /tmp/design-spec.png
 
 # Review screenshots in a directory
-/wicked-garden:design:screenshot ./screenshots/
+/wicked-garden:product:screenshot ./screenshots/
 ```
 
 ## Supported Formats

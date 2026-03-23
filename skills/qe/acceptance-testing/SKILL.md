@@ -103,11 +103,11 @@ When running within a crew test phase, the executor compiles an **evidence packa
 
 The review phase consumes this package for informed sign-off decisions. Pass/fail alone is insufficient — reviewers need visual proof and execution context.
 
-Use `/wicked-garden:scenarios:report` to generate structured evidence from scenario execution results.
+Use `/wicked-garden:qe:report` to generate structured evidence from scenario execution results.
 
 ## Integration
 
 - **wicked-crew**: Evidence-gated quality gates during delivery phases. Test phase compiles evidence package; review phase evaluates it.
-- **wicked-scenarios**: Executor delegates E2E CLI steps to `/wicked-garden:scenarios:run --json` for machine-readable execution artifacts. Writer understands E2E scenario format natively. Falls back to inline bash execution when scenarios plugin is not installed.
+- **wicked-scenarios**: Executor delegates E2E CLI steps to `/wicked-garden:qe:run --json` for machine-readable execution artifacts. Writer understands E2E scenario format natively. Falls back to inline bash execution when scenarios plugin is not installed.
 - **/wg-test**: Delegates to `/wicked-garden:qe:acceptance` as the single acceptance pipeline. QE owns Writer/Executor/Reviewer end-to-end.
 - **Any project**: Works with custom acceptance criteria, not just wicked-garden plugins
