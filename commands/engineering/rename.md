@@ -2,7 +2,7 @@
 description: Rename a field/symbol across all usages in the codebase
 ---
 
-# /wicked-garden:patch:rename
+# /wicked-garden:engineering:rename
 
 Rename a field/symbol across all usages in the codebase.
 
@@ -25,10 +25,10 @@ cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py rename "<symbol_id>" --old 
 
 ```bash
 # Rename field in entity
-/wicked-garden:patch:rename "User.java::User" --old status --new userStatus
+/wicked-garden:engineering:rename "User.java::User" --old status --new userStatus
 
 # Save patches for review
-/wicked-garden:patch:rename "Order.java::Order" --old date --new orderDate -o patches.json
+/wicked-garden:engineering:rename "Order.java::Order" --old date --new orderDate -o patches.json
 ```
 
 ## What Gets Updated

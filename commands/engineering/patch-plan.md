@@ -2,7 +2,7 @@
 description: Show what would be affected by a change without generating patches
 ---
 
-# /wicked-garden:patch:plan
+# /wicked-garden:engineering:plan
 
 Show what would be affected by a change without generating patches.
 
@@ -23,10 +23,10 @@ cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py plan "<symbol_id>" --change
 
 ```bash
 # Plan for adding a field
-/wicked-garden:patch:plan "User.java::User" --change add_field
+/wicked-garden:engineering:plan "User.java::User" --change add_field
 
 # Plan for rename with JSON output
-/wicked-garden:patch:plan "Order.java::Order" --change rename_field --json
+/wicked-garden:engineering:plan "Order.java::Order" --change rename_field --json
 ```
 
 ## Output

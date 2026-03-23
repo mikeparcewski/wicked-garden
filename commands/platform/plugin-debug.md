@@ -2,7 +2,7 @@
 description: View or set the operational log verbosity level for this session
 ---
 
-# /wicked-garden:observability:debug
+# /wicked-garden:platform:debug
 
 View or set the operational log verbosity level (`normal`, `verbose`, or `debug`).
 

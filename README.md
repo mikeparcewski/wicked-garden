@@ -68,7 +68,14 @@ claude plugins add mikeparcewski/wicked-garden
 
 ## Domains
 
-15 domains, each with its own commands, agents, skills, and scenarios. Every domain works independently.
+14 domains, each with its own commands, agents, skills, and scenarios. Every domain works independently.
+
+### Start Here
+
+Three paths, pick the one that fits:
+- **Build software**: `/wicked-garden:crew:start "your project description"` — orchestrates the full lifecycle
+- **Brainstorm ideas**: `/wicked-garden:jam:brainstorm "your question"` — multi-perspective debate
+- **Understand code**: `/wicked-garden:search:code "symbolName"` — structural search across 73 languages
 
 ### Workflow & Intelligence
 
@@ -95,14 +102,6 @@ claude plugins add mikeparcewski/wicked-garden
 | **Brainstorming** | Dynamic focus groups for ambiguous problems |
 | **Persona** | On-demand personas — invoke any specialist perspective with rich characteristics (personality, constraints, memories, preferences) |
 
-### Infrastructure
-
-| Domain | What It Does |
-|--------|-------------|
-| **scenarios** | E2E testing via markdown — orchestrates curl, Playwright, k6, Trivy, Semgrep |
-| **patch** | Cross-language change propagation — add a field, auto-patch the full stack |
-| **observability** | Plugin health monitoring and engineer toolchain discovery |
-
 ## Integration
 
 | Integration | With It | Without It |
@@ -128,7 +127,7 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](docs/getting-started.md) | Installation, first session, common workflows |
-| [Domains](docs/domains.md) | All 15 domains with full command tables |
+| [Domains](docs/domains.md) | All 14 domains with full command tables |
 | [Crew Workflow](docs/crew-workflow.md) | Signal routing, phases, specialists, checkpoints |
 | [Architecture](docs/architecture.md) | Storage, integration discovery, context assembly |
 | [Advanced Usage](docs/advanced.md) | Multi-model, customization, development commands |

@@ -2,14 +2,14 @@
 description: Discover and query engineer monitoring tools (APM, logging, metrics, cloud)
 ---
 
-# /wicked-garden:observability:toolchain
+# /wicked-garden:platform:toolchain
 
 Discover monitoring CLIs available in the current environment and run queries against them.
 
 ## Usage
 
 ```
-/wicked-garden:observability:toolchain [--query "..."] [--category apm|logging|metrics|cloud]
+/wicked-garden:platform:toolchain [--query "..."] [--category apm|logging|metrics|cloud]
 ```
 
 ## Arguments

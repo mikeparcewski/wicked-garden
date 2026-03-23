@@ -2,7 +2,7 @@
 description: Query hook execution traces for the current session
 ---
 
-# /wicked-garden:observability:traces
+# /wicked-garden:platform:traces
 
 Query trace data captured by the PostToolUse hook and stored via DomainStore.
 

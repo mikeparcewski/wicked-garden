@@ -2,7 +2,7 @@
 description: View operational logs for the current session
 ---
 
-# /wicked-garden:observability:logs
+# /wicked-garden:platform:logs
 
 View the plugin's operational JSONL log for the current session.
 

@@ -3,7 +3,7 @@ description: Run health probes against all installed plugins
 argument-hint: "[--plugin name] [--retry-auth] [--json]"
 ---
 
-# /wicked-garden:observability:health
+# /wicked-garden:platform:health
 
 Run health probes to validate ecosystem integrity.
 
@@ -50,4 +50,4 @@ When the user passes `--retry-auth`, re-run the plugin readiness probes from boo
 2. Report results:
    - If all ready: "All plugins authenticated and ready."
    - If still unready: show each plugin, its error, and the fix command.
-   - Suggest: "Run the fix command in your terminal, then retry with `/wicked-garden:observability:health --retry-auth`"
+   - Suggest: "Run the fix command in your terminal, then retry with `/wicked-garden:platform:health --retry-auth`"

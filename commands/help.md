@@ -23,13 +23,11 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | **crew** | Dynamic multi-phase workflow engine with specialist routing | `/wicked-garden:crew:help` |
 | **data** | Data analysis and ontology recommendations | `/wicked-garden:data:help` |
 | **delivery** | Multi-perspective delivery reporting and metrics | `/wicked-garden:delivery:help` |
-| **engineering** | Architecture, code review, debugging, docs, and planning | `/wicked-garden:engineering:help` |
+| **engineering** | Architecture, code review, debugging, docs, planning, and code transformations | `/wicked-garden:engineering:help` |
 | **jam** | AI-powered brainstorming with dynamic focus groups | `/wicked-garden:jam:help` |
 | **kanban** | AI-native task management with automatic sync | `/wicked-garden:kanban:help` |
 | **mem** | Persistent memory — store decisions, recall context | `/wicked-garden:mem:help` |
-| **observability** | Plugin health monitoring, assertions, and hook traces | `/wicked-garden:observability:help` |
-| **patch** | Structural code transformations across the codebase | `/wicked-garden:patch:help` |
-| **platform** | Security, infrastructure, compliance, CI/CD, and incidents | `/wicked-garden:platform:help` |
+| **platform** | Security, infrastructure, compliance, CI/CD, incidents, and plugin diagnostics | `/wicked-garden:platform:help` |
 | **product** | Requirements, customer feedback, strategy, UX, and design review | `/wicked-garden:product:help` |
 | **qe** | Test planning, scenarios, E2E testing, acceptance testing, and automation | `/wicked-garden:qe:help` |
 | **search** | Structural code search, lineage, and codebase intelligence | `/wicked-garden:search:help` |

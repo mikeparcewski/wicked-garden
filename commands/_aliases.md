@@ -141,6 +141,31 @@ If you typed an old command name, here are the new equivalents:
 | `/wicked-smaht:debug` | `/wicked-garden:smaht:debug` |
 | `/wicked-smaht:onboard` | `/wicked-garden:smaht:onboard` |
 
+## Multi-Model (consolidated into smaht)
+| Old | New |
+|-----|-----|
+| `/wicked-garden:multi-model:collaborate` | `/wicked-garden:smaht:collaborate` |
+
+## Patch (consolidated into engineering)
+| Old | New |
+|-----|-----|
+| `/wicked-garden:patch:add-field` | `/wicked-garden:engineering:add-field` |
+| `/wicked-garden:patch:rename` | `/wicked-garden:engineering:rename` |
+| `/wicked-garden:patch:remove` | `/wicked-garden:engineering:remove` |
+| `/wicked-garden:patch:plan` | `/wicked-garden:engineering:patch-plan` |
+| `/wicked-garden:patch:apply` | `/wicked-garden:engineering:apply` |
+| `/wicked-garden:patch:new-generator` | `/wicked-garden:engineering:new-generator` |
+
+## Observability (consolidated into platform)
+| Old | New |
+|-----|-----|
+| `/wicked-garden:observability:health` | `/wicked-garden:platform:plugin-health` |
+| `/wicked-garden:observability:debug` | `/wicked-garden:platform:plugin-debug` |
+| `/wicked-garden:observability:traces` | `/wicked-garden:platform:plugin-traces` |
+| `/wicked-garden:observability:assert` | `/wicked-garden:platform:assert` |
+| `/wicked-garden:observability:logs` | `/wicked-garden:platform:logs` |
+| `/wicked-garden:observability:toolchain` | `/wicked-garden:platform:toolchain` |
+
 ## Startah (dissolved)
 | Old | New |
 |-----|-----|

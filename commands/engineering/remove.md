@@ -2,7 +2,7 @@
 description: Remove a field and all its usages from the codebase
 ---
 
-# /wicked-garden:patch:remove
+# /wicked-garden:engineering:remove
 
 Remove a field and all its usages from the codebase.
 
@@ -24,10 +24,10 @@ cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py remove "<symbol_id>" --fiel
 
 ```bash
 # Remove deprecated field
-/wicked-garden:patch:remove "User.java::User" --field legacyStatus
+/wicked-garden:engineering:remove "User.java::User" --field legacyStatus
 
 # Preview removal
-/wicked-garden:patch:remove "Entity.java::Entity" --field oldField --verbose
+/wicked-garden:engineering:remove "Entity.java::Entity" --field oldField --verbose
 ```
 
 ## Warning
@@ -36,11 +36,11 @@ This operation DELETES code. Always review patches before applying:
 
 ```bash
 # Generate and save patches
-/wicked-garden:patch:remove SYMBOL --field foo -o patches.json
+/wicked-garden:engineering:remove SYMBOL --field foo -o patches.json
 
 # Review
 cat patches.json
 
 # Apply when confident
-/wicked-garden:patch:apply patches.json
+/wicked-garden:engineering:apply patches.json
 ```

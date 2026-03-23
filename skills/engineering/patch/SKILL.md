@@ -20,24 +20,24 @@ Generate and propagate code changes across your entire codebase using the symbol
 /wicked-garden:search:index /path/to/project
 
 # 2. Add a field to an entity
-/wicked-garden:patch:add-field "Entity.java::User" --name email --type String
+/wicked-garden:engineering:add-field "Entity.java::User" --name email --type String
 
 # 3. Rename a field everywhere
-/wicked-garden:patch:rename "Entity.java::User" --old status --new state
+/wicked-garden:engineering:rename "Entity.java::User" --old status --new state
 
 # 4. See propagation plan
-/wicked-garden:patch:plan "Entity.java::User" --change add_field
+/wicked-garden:engineering:plan "Entity.java::User" --change add_field
 ```
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/wicked-garden:patch:plan` | Show what would be affected |
-| `/wicked-garden:patch:add-field` | Add field with propagation |
-| `/wicked-garden:patch:rename` | Rename across all usages |
-| `/wicked-garden:patch:remove` | Remove field everywhere |
-| `/wicked-garden:patch:apply` | Apply saved patches |
+| `/wicked-garden:engineering:plan` | Show what would be affected |
+| `/wicked-garden:engineering:add-field` | Add field with propagation |
+| `/wicked-garden:engineering:rename` | Rename across all usages |
+| `/wicked-garden:engineering:remove` | Remove field everywhere |
+| `/wicked-garden:engineering:apply` | Apply saved patches |
 
 ## Supported Languages
 
@@ -72,7 +72,7 @@ Patches  Patches Patches  Patches
 ### Add Field to JPA Entity
 
 ```bash
-/wicked-garden:patch:add-field "User.java::User" \
+/wicked-garden:engineering:add-field "User.java::User" \
   --name email \
   --type String \
   --column USER_EMAIL \
@@ -99,7 +99,7 @@ ALTER TABLE USERS ADD COLUMN USER_EMAIL VARCHAR(255) NOT NULL;
 ### Rename Field Everywhere
 
 ```bash
-/wicked-garden:patch:rename "Order.java::Order" --old status --new orderStatus
+/wicked-garden:engineering:rename "Order.java::Order" --old status --new orderStatus
 ```
 
 **Updates:**
@@ -113,13 +113,13 @@ ALTER TABLE USERS ADD COLUMN USER_EMAIL VARCHAR(255) NOT NULL;
 
 ```bash
 # Generate patches without applying
-/wicked-garden:patch:add-field SYMBOL --name foo --type String --output patches.json
+/wicked-garden:engineering:add-field SYMBOL --name foo --type String --output patches.json
 
 # Review the patches file
 cat patches.json
 
 # Apply when ready
-/wicked-garden:patch:apply patches.json
+/wicked-garden:engineering:apply patches.json
 ```
 
 ## Type Mappings
@@ -162,7 +162,7 @@ wicked-patch reads from the wicked-search symbol database:
 /wicked-garden:search:index /project --derive-all
 
 # 2. wicked-patch uses it for propagation
-/wicked-garden:patch:add-field SYMBOL --name foo --type String
+/wicked-garden:engineering:add-field SYMBOL --name foo --type String
 ```
 
 ## Safety Features

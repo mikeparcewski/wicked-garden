@@ -1,6 +1,6 @@
 # Domains
 
-Wicked Garden is organized into 15 domains. Each domain brings its own commands, agents, skills, and scenarios. Every domain works independently — the ecosystem is additive, not required.
+Wicked Garden is organized into 14 domains. Each domain brings its own commands, agents, skills, and scenarios. Every domain works independently — the ecosystem is additive, not required.
 
 ## Workflow & Intelligence
 
@@ -235,34 +235,6 @@ Architecture reviewer, safety auditor, pattern advisor, framework researcher.
 Dynamic persona assembly for clarify and design phases. Brings diverse perspectives to ambiguous problems.
 
 ---
-
-## Infrastructure & Tools
-
-### patch — Cross-Language Changes
-
-Add, rename, or remove fields and propagate changes across the full stack.
-
-| Command | What It Does |
-|---------|-------------|
-| `patch:add-field` | Add a field and propagate to all layers |
-| `patch:rename` | Rename a symbol across all usages |
-| `patch:remove` | Remove a field and all usages |
-| `patch:plan` | Preview what would be affected |
-| `patch:apply` | Apply patches from a saved file |
-| `patch:new-generator` | Create a new language generator |
-
-### observability — Plugin Health
-
-Three-layer observability for the plugin itself, plus engineer toolchain discovery.
-
-| Command | What It Does |
-|---------|-------------|
-| `observability:health` | Run health probes against all plugins |
-| `observability:traces` | Query hook execution traces |
-| `observability:logs` | View operational logs |
-| `observability:assert` | Run contract assertions |
-| `observability:toolchain` | Discover monitoring CLIs |
-| `observability:debug` | Set log verbosity |
 
 ---
 

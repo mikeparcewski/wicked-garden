@@ -724,7 +724,7 @@ def main():
             mode_notes.append(
                 f"[Plugins] {len(unready_plugins)} plugin(s) installed but not ready:\n"
                 + "\n".join(plugin_lines)
-                + "\n  After authenticating, run `/wicked-garden:observability:health` to re-probe."
+                + "\n  After authenticating, run `/wicked-garden:platform:health` to re-probe."
             )
 
         # 7c. Detect dangerous mode (AskUserQuestion broken)

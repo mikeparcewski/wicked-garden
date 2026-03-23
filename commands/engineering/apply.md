@@ -2,7 +2,7 @@
 description: Apply patches from a saved JSON file
 ---
 
-# /wicked-garden:patch:apply
+# /wicked-garden:engineering:apply
 
 Apply patches from a saved JSON file.
 
@@ -21,16 +21,16 @@ cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py apply "<patches_file>" [--d
 
 ```bash
 # 1. Generate patches and save
-/wicked-garden:patch:add-field SYMBOL --name foo --type String -o patches.json
+/wicked-garden:engineering:add-field SYMBOL --name foo --type String -o patches.json
 
 # 2. Review the patches
 cat patches.json
 
 # 3. Dry-run to verify
-/wicked-garden:patch:apply patches.json --dry-run
+/wicked-garden:engineering:apply patches.json --dry-run
 
 # 4. Apply for real
-/wicked-garden:patch:apply patches.json
+/wicked-garden:engineering:apply patches.json
 ```
 
 ## Patches File Format

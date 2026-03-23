@@ -2,7 +2,7 @@
 description: Add a field to an entity/class and propagate to all affected files
 ---
 
-# /wicked-garden:patch:add-field
+# /wicked-garden:engineering:add-field
 
 Add a field to an entity/class and propagate to all affected files.
 
@@ -35,13 +35,13 @@ cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py add-field "<symbol_id>" \
 
 ```bash
 # Add email field to User entity
-/wicked-garden:patch:add-field "User.java::User" --name email --type String --column USER_EMAIL
+/wicked-garden:engineering:add-field "User.java::User" --name email --type String --column USER_EMAIL
 
 # Add required date field
-/wicked-garden:patch:add-field "Order.java::Order" --name createdAt --type datetime --required
+/wicked-garden:engineering:add-field "Order.java::Order" --name createdAt --type datetime --required
 
 # Save patches for review
-/wicked-garden:patch:add-field "Entity.java::Entity" --name foo --type String -o patches.json
+/wicked-garden:engineering:add-field "Entity.java::Entity" --name foo --type String -o patches.json
 ```
 
 ## Output

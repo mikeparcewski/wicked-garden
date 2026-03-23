@@ -2,7 +2,7 @@
 description: Create a new language generator for wicked-patch with scaffolding, tests, and validation
 ---
 
-# /wicked-garden:patch:new-generator
+# /wicked-garden:engineering:new-generator
 
 Create a new language generator for wicked-patch with scaffolding, tests, and validation.
 
@@ -249,7 +249,7 @@ Output a summary:
 ## Examples
 
 ```
-/wicked-garden:patch:new-generator scala Slick
-/wicked-garden:patch:new-generator swift CoreData .swift
-/wicked-garden:patch:new-generator elixir Ecto .ex,.exs
+/wicked-garden:engineering:new-generator scala Slick
+/wicked-garden:engineering:new-generator swift CoreData .swift
+/wicked-garden:engineering:new-generator elixir Ecto .ex,.exs
 ```

@@ -2,7 +2,7 @@
 description: Run contract assertions against plugin subprocess outputs
 ---
 
-# /wicked-garden:observability:assert
+# /wicked-garden:platform:assert
 
 Run contract assertions to validate that plugin scripts return data matching their declared schemas.
 

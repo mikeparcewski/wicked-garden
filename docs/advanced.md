@@ -120,13 +120,13 @@ Propagate structural changes across your full stack:
 
 ```bash
 # Add a field to a Java entity — auto-patches SQL, DAO, API, UI
-/wicked-garden:patch:add-field User email:string
+/wicked-garden:engineering:add-field User email:string
 
 # Preview what would change
-/wicked-garden:patch:plan User email:string
+/wicked-garden:engineering:plan User email:string
 
 # Rename a symbol everywhere
-/wicked-garden:patch:rename oldName newName
+/wicked-garden:engineering:rename oldName newName
 ```
 
 ## Observability
@@ -134,10 +134,10 @@ Propagate structural changes across your full stack:
 Monitor the plugin itself:
 
 ```bash
-/wicked-garden:observability:health    # run health probes
-/wicked-garden:observability:traces    # view hook execution traces
-/wicked-garden:observability:logs      # operational logs
-/wicked-garden:observability:assert    # contract assertions
+/wicked-garden:platform:health    # run health probes
+/wicked-garden:platform:traces    # view hook execution traces
+/wicked-garden:platform:logs      # operational logs
+/wicked-garden:platform:assert    # contract assertions
 ```
 
 ### Engineer Toolchain Discovery
@@ -145,7 +145,7 @@ Monitor the plugin itself:
 Find what monitoring tools are available in your environment:
 
 ```bash
-/wicked-garden:observability:toolchain
+/wicked-garden:platform:toolchain
 ```
 
 Discovers APM agents, logging CLIs, metrics tools, and cloud monitoring utilities on your PATH.
