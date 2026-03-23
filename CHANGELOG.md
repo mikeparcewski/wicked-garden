@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.0.1] - 2026-03-23
+
+### Event Log Consumers
+- feat: `mem:recall` supplements results with cross-domain event context
+- feat: smaht `events_adapter` — queries event log on planning, research, and review intents
+- feat: jam facilitator emits per-round events (`rounds.N.completed`, `sessions.synthesized`)
+- feat: `smaht:briefing` reads event log as primary source (falls back to domain queries)
+- feat: crew `phase_manager` emits rich events on project creation and phase approval
+
 ## [3.0.0] - 2026-03-22
 
 ### Unified Event Log
