@@ -7,7 +7,7 @@ Detailed guides for getting the most out of wicked-garden.
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](getting-started.md) | Installation, first session, common workflows |
-| [Domains](domains.md) | All 16 domains with commands, agents, and use cases |
+| [Domains](domains.md) | All 14 domains with commands, agents, and use cases |
 | [Crew Workflow](crew-workflow.md) | Signal-driven workflow engine — phases, specialists, checkpoints |
 | [Architecture](architecture.md) | Storage, integration discovery, context assembly, plugin structure |
 | [Advanced Usage](advanced.md) | Multi-model reviews, customization, development commands |

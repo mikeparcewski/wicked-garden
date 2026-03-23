@@ -47,6 +47,26 @@ store.create("wicked-mem", "memories", "id-001", {"title": "Deploy", "content": 
 results = store.search("deployment", domain="wicked-mem", limit=10)
 ```
 
+### EventStore (v3.0+)
+
+Unified event log — every DomainStore write auto-emits an event to a single SQLite database with FTS5 full-text search. Enables cross-domain queries that per-domain JSON cannot support.
+
+```python
+from _event_store import EventStore
+
+EventStore.ensure_schema()
+EventStore.append(domain="crew", action="phases.build.approved", project_id="my-project")
+events = EventStore.query(project_id="my-project", since="7d", fts="auth migration")
+```
+
+Events are:
+- **Append-only** — no updates or deletes (except retention purge)
+- **Auto-emitted** — DomainStore create/update/delete fires events automatically
+- **Safe metadata only** — full payloads are not replicated into the FTS index
+- **Consumed by** — `smaht:briefing`, `smaht` context assembly, `mem:recall` cross-domain supplementation
+
+Location: `~/.something-wicked/wicked-garden/local/wicked-garden/events/events.db`
+
 ## Integration Discovery
 
 When a domain needs external tools (e.g., kanban looking for Jira, Linear, or Rally), it uses capability-based discovery.

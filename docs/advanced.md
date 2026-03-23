@@ -150,6 +150,26 @@ Find what monitoring tools are available in your environment:
 
 Discovers APM agents, logging CLIs, metrics tools, and cloud monitoring utilities on your PATH.
 
+## Event Log (v3.0+)
+
+Every domain write is logged to a unified event store. Query cross-domain activity:
+
+```bash
+# What happened in the last 7 days?
+/wicked-garden:smaht:events-query --since 7d
+
+# What happened on a specific project?
+/wicked-garden:smaht:events-query --project my-project
+
+# Search for auth-related activity across all domains
+/wicked-garden:smaht:events-query --fts "auth migration"
+
+# Session briefing — what happened since last time
+/wicked-garden:smaht:briefing
+```
+
+The event log is consumed automatically by smaht context assembly, mem:recall (cross-domain supplementation), and the briefing command. Events are retained for 90 days.
+
 ## Development Commands
 
 These commands are for developing the wicked-garden plugin itself (available when working in the repo):

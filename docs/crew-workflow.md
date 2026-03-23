@@ -37,7 +37,7 @@ Every project description is analyzed for **signals** — patterns that indicate
 | architecture | system design, component, API contract | engineering, agentic |
 | performance | latency, throughput, bottleneck, optimize | engineering, platform |
 | data | analytics, pipeline, ETL, database, SQL | data |
-| ux | user experience, usability, user flow | product, design |
+| ux | user experience, usability, user flow | product |
 | compliance | audit, regulatory, GDPR, HIPAA, SOC2 | platform |
 | ambiguity | vague descriptions, multiple interpretations | jam |
 | complexity | large scope, cross-cutting, coordination | delivery, engineering |
@@ -119,18 +119,17 @@ At three checkpoints (clarify, design, build), the system re-analyzes signals an
 
 ## Specialists
 
-Nine specialist roles that crew routes to based on signals:
+Eight specialist roles that crew routes to based on signals:
 
 | Specialist | Role | Engaged By |
 |-----------|------|-----------|
-| engineering | Implementation, architecture, code quality | performance, architecture, complexity |
-| platform | Security, infrastructure, compliance | security, compliance, infrastructure |
-| product | Requirements, UX, customer voice | product, ux, strategy |
-| qe | Testing, quality gates, risk | quality, non-trivial work (complexity >= 2) |
+| engineering | Implementation, architecture, code quality, code transformations | performance, architecture, complexity |
+| platform | Security, infrastructure, compliance, plugin diagnostics | security, compliance, infrastructure |
+| product | Requirements, UX, customer voice, design review, mockups | product, ux, strategy |
+| qe | Testing, quality gates, risk, E2E scenarios | quality, non-trivial work (complexity >= 2) |
 | data | Data pipelines, analytics, ML | data signals |
 | delivery | Project coordination, cost, rollout | complexity >= 5 |
 | agentic | Agent architecture, safety, patterns | architecture signals |
-| design | Visual design, UX analysis, mockups | ux, product signals |
 | jam | Brainstorming, diverse perspectives | ambiguity, architecture, complexity >= 4 |
 
 When a recommended specialist isn't available, fallback agents cover the gap:
@@ -144,7 +143,6 @@ When a recommended specialist isn't available, fallback agents cover the gap:
 | platform | implementer |
 | data | researcher |
 | agentic | reviewer |
-| design | facilitator |
 
 ## Auto-Finish Mode
 

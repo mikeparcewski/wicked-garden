@@ -131,7 +131,7 @@ Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON file
 
 ## Next Steps
 
-- [Domains](domains.md) — browse all 16 domains and their commands
+- [Domains](domains.md) — browse all 14 domains and their commands
 - [Crew Workflow](crew-workflow.md) — understand the signal-driven workflow engine
 - [Architecture](architecture.md) — how storage, routing, and context assembly work
 - [Advanced Usage](advanced.md) — multi-model reviews, customization, dev tools
