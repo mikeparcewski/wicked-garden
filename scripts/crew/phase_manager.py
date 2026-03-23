@@ -1040,6 +1040,29 @@ def approve_phase(
     phase_state.approved_at = get_utc_timestamp()
     phase_state.approved_by = approver
 
+    # Emit rich event to unified event log
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from _event_store import EventStore
+        EventStore.ensure_schema()
+        EventStore.append(
+            domain="crew",
+            action=f"phases.{phase}.approved",
+            source="phases",
+            record_id=state.name,
+            project_id=state.name,
+            payload={
+                "phase": phase,
+                "approver": approver,
+                "gate_result": gate_result.get("result") if gate_result else None,
+                "specialists_engaged": phase_state.specialists_engaged,
+            } if gate_result else {"phase": phase, "approver": approver},
+            tags=["phase-transition", f"phase:{phase}"],
+        )
+    except Exception:
+        pass  # fire-and-forget
+
     # Checkpoint enforcement: re-validate phase plan after checkpoint phases
     injected, reanalysis_warnings = _run_checkpoint_reanalysis(state, phase)
     for w in reanalysis_warnings:
@@ -1233,6 +1256,24 @@ def create_project(
             f"- [ ] Success criteria\n"
             f"- [ ] Scope boundaries\n"
         )
+
+    # Emit project creation event
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from _event_store import EventStore
+        EventStore.ensure_schema()
+        EventStore.append(
+            domain="crew",
+            action="projects.created",
+            source="projects",
+            record_id=name,
+            project_id=name,
+            payload={"name": name, "description": description, "complexity_score": state.complexity_score},
+            tags=["project-lifecycle"],
+        )
+    except Exception:
+        pass
 
     return (state, project_dir)
 

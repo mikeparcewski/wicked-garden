@@ -5,66 +5,98 @@ argument-hint: "[--days N] [--project name]"
 
 # /wicked-garden:smaht:briefing
 
-Generate a "what happened since last session" briefing by pulling from memory, kanban, crew, and git.
+Generate a "what happened since last session" briefing. Primary source: unified event log. Fallback: individual domain queries.
 
 ## Instructions
 
 ### 1. Determine Time Window
 
-Default: last 24 hours. Override with `--days N`.
+Default: last 24 hours. Override with `--days N`. If `--project` specified, filter to that project.
 
-### 2. Gather Context (parallel)
+### 2. Query the Event Log (primary)
 
-Run these in parallel to minimize latency:
+Single query replaces 4 separate domain calls:
 
-**Memory changes:**
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/_event_store.py query \
+  --since "${days:-1}d" \
+  ${project:+--project "$project"} \
+  --limit 100 \
+  --json
 ```
-/wicked-garden:mem:recall "recent decisions and learnings" --limit 10
-```
 
-**Kanban activity:**
+This returns events from ALL domains in one timeline — mem decisions, crew phase transitions, kanban task changes, jam outcomes.
+
+### 2b. Fallback (if event log is empty or unavailable)
+
+If the event log returns no results (new install, events.db not yet populated), fall back to individual queries:
+
+**Memory:** `/wicked-garden:mem:recall "recent decisions and learnings" --limit 10`
+
+**Kanban:**
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/kanban/kanban.py list-projects --json
 ```
 
-**Crew project status:**
+**Crew:**
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
-**Git activity:**
+### 2c. Git Activity (always supplement)
+
+Git history is not in the event log — always query directly:
+
 ```bash
-git log --oneline --since="{N} days ago" --no-merges 2>/dev/null | head -15
+git log --oneline --since="${days:-1} days ago" --no-merges 2>/dev/null | head -15
 ```
 
-### 3. Synthesize Briefing
+### 3. Categorize Events
 
-Present as a concise briefing:
+Group events from the timeline by type:
+
+| Event action pattern | Briefing section |
+|---------------------|-----------------|
+| `memories.created`, `memories.updated` | Recent Decisions |
+| `projects.created`, `phases.*` | Active Work (crew) |
+| `tasks.created`, `tasks.updated` | Active Work (kanban) |
+| `sessions.created`, `*.migrated` | Brainstorm Outcomes |
+| Everything else | Other Activity |
+
+### 4. Synthesize Briefing
 
 ```markdown
-## Session Briefing
+## Session Briefing ({days}d window)
 
 ### Recent Decisions
-{memories stored since last session — decisions, patterns, learnings}
+{events from mem domain — decisions stored, patterns learned}
+- "Chose JWT over sessions" (2 days ago)
+- "Rate limiting goes after gateway" (yesterday)
 
 ### Active Work
-{crew projects in progress — current phase, next step}
-{kanban tasks in progress — grouped by project}
+**Crew**: {project name} — phase: {current}, next: {next step}
+**Kanban**: {N tasks in progress}, {M tasks completed since last session}
+
+### Brainstorm Outcomes
+{jam session decisions made in the window}
 
 ### Code Changes
-{git commits since last session — grouped by area}
+{git commits grouped by area}
 
 ### Suggested Next Steps
-{based on active work and recent context:}
-- Continue: {active crew project phase}
-- Review: {recently changed files that haven't been reviewed}
-- Decide: {open questions from recent jam sessions}
+{based on the event timeline:}
+- Continue: {most recent active crew phase}
+- Review: {files changed since last session}
+- Decide: {any open questions from jam sessions}
 ```
 
-### 4. Suggest Discovery
+### 5. Contextual Discovery
 
-At the end of the briefing, suggest one command the user hasn't used recently that relates to their current work context. Example:
+Suggest ONE related command based on the briefing content:
 
-> Based on your active auth migration, you might find `search:blast-radius handleAuth` useful to see what depends on the auth module.
+- If active crew project → suggest `crew:execute` or `crew:status`
+- If recent mem decisions but no crew project → suggest `crew:start`
+- If code changes but no review → suggest `engineering:review`
+- If brainstorm outcomes with no follow-up → suggest `jam:revisit`
 
-Keep it to ONE suggestion. The goal is gentle discovery, not a feature dump.
+Keep it to ONE suggestion. Frame as: "You might find X useful because..."
