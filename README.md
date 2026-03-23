@@ -18,10 +18,11 @@ claude plugins add mikeparcewski/wicked-garden
 |-------------|---------|-------------|
 | **Build a feature** | `crew:start "add payment processing"` | Signal analysis, specialist routing, enforced phases. Adapts to complexity. |
 | **Understand a codebase** | `smaht:onboard` | Indexes structure, traces flows, maps architecture — Claude learns the project and remembers it across sessions. |
-| **Review my code** | `engineering:review` | Senior engineer perspective. file:line citations. Actionable. |
+| **Generate test scenarios** | `qe:scenarios "checkout flow"` | Happy paths, edge cases, error conditions — tests written before code. |
+| **Run acceptance tests** | `qe:acceptance` | Evidence-gated testing: write plan → execute → independent review. Gates reject inadequate coverage. |
 | **Brainstorm a decision** | `jam:quick "monorepo or polyrepo?"` | 4 personas debate. Synthesis with confidence levels. |
 | **Search the codebase** | `search:code "handlePayment"` | Structural search across 73 languages. Symbols, not strings. |
-| **Check security** | `platform:security` | OWASP Top 10 scan with remediation guidance. |
+| **Get a specific perspective** | `persona:as security "review this auth flow"` | Invoke any specialist on any task — engineering, product, QE, platform, or custom. |
 | **Analyze data** | `data:analyze sales.csv` | SQL queries on CSV/Excel via DuckDB. Handles 10GB+ files. |
 | **Catch up on a project** | `smaht:briefing` | What happened since last session — decisions, tasks, code changes, next steps. |
 | **Recall a past decision** | `mem:recall "auth decisions"` | Cross-session memory. Surfaces what you decided and why. |
