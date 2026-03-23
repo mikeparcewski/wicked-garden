@@ -17,11 +17,13 @@ claude plugins add mikeparcewski/wicked-garden
 | I want to... | Command | What happens |
 |-------------|---------|-------------|
 | **Build a feature** | `crew:start "add payment processing"` | Signal analysis, specialist routing, enforced phases. Adapts to complexity. |
+| **Understand a codebase** | `smaht:onboard` | Indexes structure, traces flows, maps architecture — Claude learns the project and remembers it across sessions. |
 | **Review my code** | `engineering:review` | Senior engineer perspective. file:line citations. Actionable. |
 | **Brainstorm a decision** | `jam:quick "monorepo or polyrepo?"` | 4 personas debate. Synthesis with confidence levels. |
 | **Search the codebase** | `search:code "handlePayment"` | Structural search across 73 languages. Symbols, not strings. |
 | **Check security** | `platform:security` | OWASP Top 10 scan with remediation guidance. |
 | **Analyze data** | `data:analyze sales.csv` | SQL queries on CSV/Excel via DuckDB. Handles 10GB+ files. |
+| **Catch up on a project** | `smaht:briefing` | What happened since last session — decisions, tasks, code changes, next steps. |
 | **Recall a past decision** | `mem:recall "auth decisions"` | Cross-session memory. Surfaces what you decided and why. |
 
 No setup required. Every command works independently on install.
