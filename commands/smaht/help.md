@@ -21,6 +21,8 @@ Intelligent context assembly — intercepts prompts and gathers relevant context
 |---------|-------------|
 | `/wicked-garden:smaht:smaht [query]` | Gather context from wicked-garden sources before responding |
 | `/wicked-garden:smaht:onboard [path]` | Intelligent codebase onboarding using the ecosystem |
+| `/wicked-garden:smaht:briefing` | Session briefing — what happened since last time |
+| `/wicked-garden:smaht:collaborate` | Multi-AI collaboration with external LLM CLIs |
 | `/wicked-garden:smaht:debug` | Show what context was assembled for recent turns |
 | `/wicked-garden:smaht:help` | This help message |
 
