@@ -12,22 +12,31 @@ Claude analyzes the request, detects security and architecture signals, assemble
 claude plugins add mikeparcewski/wicked-garden
 ```
 
-## Start Here
+## What You Do
 
-| I want to... | Command | What happens |
-|-------------|---------|-------------|
-| **Build a feature** | `crew:start "add payment processing"` | Signal analysis, specialist routing, enforced phases. Adapts to complexity. |
-| **Understand a codebase** | `smaht:onboard` | Indexes structure, traces flows, maps architecture — Claude learns the project and remembers it across sessions. |
-| **Generate test scenarios** | `qe:scenarios "checkout flow"` | Happy paths, edge cases, error conditions — tests written before code. |
-| **Run acceptance tests** | `qe:acceptance` | Evidence-gated testing: write plan → execute → independent review. Gates reject inadequate coverage. |
-| **Brainstorm a decision** | `jam:quick "monorepo or polyrepo?"` | 4 personas debate. Synthesis with confidence levels. |
-| **Search the codebase** | `search:code "handlePayment"` | Structural search across 73 languages. Symbols, not strings. |
-| **Get a specific perspective** | `persona:as security "review this auth flow"` | Invoke any specialist on any task — engineering, product, QE, platform, or custom. |
-| **Analyze data** | `data:analyze sales.csv` | SQL queries on CSV/Excel via DuckDB. Handles 10GB+ files. |
-| **Catch up on a project** | `smaht:briefing` | What happened since last session — decisions, tasks, code changes, next steps. |
-| **Recall a past decision** | `mem:recall "auth decisions"` | Cross-session memory. Surfaces what you decided and why. |
+Commands you run when you need them. No setup required.
 
-No setup required. Every command works independently on install.
+| I want to... | Command |
+|-------------|---------|
+| **Build a feature end-to-end** | `crew:start "add payment processing"` — assembles specialists, runs enforced phases, adapts to complexity |
+| **Teach Claude my codebase** | `smaht:onboard` — indexes structure, traces flows, maps architecture. Claude remembers it across sessions. |
+| **Test before I code** | `qe:scenarios "checkout flow"` — generates happy paths, edge cases, error conditions before implementation |
+| **Prove the tests pass** | `qe:acceptance` — evidence-gated: write plan → execute → independent review. Gates reject gaps. |
+| **Brainstorm with perspectives** | `jam:quick "monorepo or polyrepo?"` — 4 personas debate, synthesis with confidence levels |
+| **Find code structurally** | `search:code "handlePayment"` — symbols across 73 languages, not string matching |
+
+## What the Plugin Does Automatically
+
+These run in the background. You don't invoke them — they make everything above smarter.
+
+| What happens | How it works |
+|-------------|-------------|
+| **Every prompt gets project context** | `smaht` assembles memory, search results, project state, and event history before Claude responds |
+| **Decisions persist across sessions** | `mem` stores what you decided and surfaces it when relevant — session 47 knows what session 1 chose |
+| **Cross-domain activity is logged** | `events.db` records every domain write — query with `smaht:events-query` or let `smaht:briefing` summarize |
+| **Tasks sync to a kanban board** | Claude's task tools auto-sync to the kanban via hooks — no manual tracking |
+| **Complexity shapes the workflow** | Signal analysis scores impact, reversibility, and novelty — a config change gets 2 phases, a migration gets 5 |
+| **Quality gates enforce standards** | Gates actually reject work. No rubber-stamping. Bad coverage blocks advancement. |
 
 ## Why This Works
 
