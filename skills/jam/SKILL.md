@@ -157,6 +157,11 @@ Called during clarify, design, and build phases. See "Crew Engagement" section b
 Jam auto-engages when: ambiguity detected, complexity >= 4, architecture signals present,
 or content/documentation-heavy scope.
 
+## References
+
+- `refs/facilitation-patterns.md` — Match persona archetypes to problem types; session length guidance; anti-patterns to avoid
+- `refs/synthesis-patterns.md` — Synthesis structure, quality checklist, techniques (non-obvious connections, surprising agreements, productive tensions), decision record format, examples
+
 ## Output Structure
 
 Put synthesis first (context efficiency):

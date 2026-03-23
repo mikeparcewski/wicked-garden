@@ -13,61 +13,61 @@ Show the following help information:
 ```markdown
 # product Help
 
-Product management and UX — requirements elicitation, customer feedback analysis, stakeholder alignment, strategy, and UX review.
+Product management, UX, and design — from requirements through visual review.
 
-## Commands
+## I want to...
 
-| Command | Description |
+### Understand my users
+| Command | What It Does |
 |---------|-------------|
-| `/wicked-garden:product:elicit` | Elicit and document requirements through structured discovery |
-| `/wicked-garden:product:acceptance <path>` | Define acceptance criteria from requirements and design |
-| `/wicked-garden:product:listen` | Aggregate customer feedback from available sources |
-| `/wicked-garden:product:analyze` | Analyze customer feedback for themes, sentiment, and trends |
-| `/wicked-garden:product:synthesize` | Generate actionable recommendations from feedback insights |
-| `/wicked-garden:product:strategy <target>` | Strategic analysis — ROI, value proposition, market, competitive |
-| `/wicked-garden:product:align` | Facilitate stakeholder alignment and consensus building |
-| `/wicked-garden:product:ux-review <target>` | UX and design quality review — flows, UI, accessibility |
-| `/wicked-garden:product:help` | This help message |
+| `product:listen` | Aggregate customer feedback from available sources |
+| `product:analyze` | Analyze feedback for themes, sentiment, and trends |
+| `product:synthesize` | Generate actionable recommendations from insights |
+
+### Write requirements
+| Command | What It Does |
+|---------|-------------|
+| `product:elicit` | Elicit requirements through structured discovery |
+| `product:acceptance` | Define acceptance criteria from requirements and design |
+
+### Make strategic decisions
+| Command | What It Does |
+|---------|-------------|
+| `product:strategy` | ROI, value proposition, market, competitive analysis |
+| `product:align` | Facilitate stakeholder alignment and consensus building |
+
+### Review UX and design
+| Command | What It Does |
+|---------|-------------|
+| `product:ux-review` | UX quality review — user flows, usability, research |
+| `product:review` | Visual design review — design system, spacing, typography |
+| `product:ux` | UX flow design and information architecture |
+| `product:a11y` | WCAG 2.1 AA accessibility audit |
+| `product:screenshot` | Screenshot-based UI review using vision |
+| `product:mockup` | Generate wireframes and prototypes |
 
 ## Quick Start
 
 ```
+# Start with requirements
 /wicked-garden:product:elicit
-/wicked-garden:product:ux-review ./screens --focus a11y
-/wicked-garden:product:strategy "new pricing tier" --focus roi
-```
 
-## Examples
+# Review a UI for accessibility
+/wicked-garden:product:a11y ./src/components
 
-### Requirements
-```
-/wicked-garden:product:elicit
-/wicked-garden:product:acceptance ./design.md --format gherkin --scenarios
-```
-
-### Customer Feedback Pipeline
-```
+# Analyze customer feedback
 /wicked-garden:product:listen --days 30
 /wicked-garden:product:analyze --sentiment neg
-/wicked-garden:product:synthesize --priority high --format detailed
-```
+/wicked-garden:product:synthesize --priority high
 
-### Strategy
-```
-/wicked-garden:product:strategy "mobile app" --focus market
-/wicked-garden:product:strategy "enterprise plan" --focus competitive
-```
-
-### UX Review
-```
-/wicked-garden:product:ux-review ./app --focus flows
-/wicked-garden:product:ux-review ./components --quick
+# Strategic analysis
+/wicked-garden:product:strategy "new pricing tier" --focus roi
 ```
 
 ## Integration
 
-- **wicked-crew**: Specialist routing for product and UX phases
+- **crew**: Specialist routing for product, UX, and design phases
 - **qe**: Acceptance criteria drive test scenarios
-- **delivery**: Strategic alignment for delivery priorities
 - **jam**: Brainstorming for product decisions
+- **engineering**: `--persona product` on engineering:review for product lens
 ```
