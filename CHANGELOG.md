@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.9.0] - 2026-03-22
+
+### Quality Investments
+- feat: jam refs — facilitation-patterns.md (persona archetypes by problem type) + synthesis-patterns.md (structure, techniques, examples)
+- feat: product help rewritten as task-based navigation ("I want to..." groupings)
+- feat: persona agent enriched with archetype behavior patterns and task-type adaptations
+
+### Cleanup (Third Pass)
+- fix: remove ghost design specialist from specialist.json (merged into product)
+- fix: startah_adapter.py skill reference wicked-garden:multi-model → wicked-garden:smaht:collaborate
+- fix: relocate 6 orphaned scenario directories to correct domain owners
+- fix: CLAUDE.md overview "17 domain areas" → "14 domain areas"
+- fix: wg-scaffold discovers domains dynamically from commands/ directory (no hardcoded list)
+- fix: persona skill table updated to 8 specialists (design merged into product)
+
 ## [2.8.0] - 2026-03-22
 
 ### Domain Consolidation (17 → 14 domains)
