@@ -4,9 +4,9 @@ description: |
   This skill should be used when working with GitHub CLI (gh) for workflow debugging,
   PR management, release automation, and repo operations beyond basic git commands.
 
-  Use when: "debug CI", "failed workflow", "why did CI fail", "PR review queue",
-  "merge PRs", "create release", "repo health check", "bulk issue operations",
-  "GitHub Actions", "workflow runs"
+  Use when: "gh CLI", "gh run list", "gh pr", "debug CI run", "failed workflow run",
+  "why did CI fail", "PR review queue", "merge PRs", "create release",
+  "repo health check", "bulk issue operations", "workflow runs"
 ---
 
 # GitHub CLI Power Utilities

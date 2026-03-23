@@ -4,8 +4,8 @@ description: |
   Visual design and UI consistency review — design system adherence, spacing tokens,
   typography, color usage, component patterns, and responsive polish.
 
-  Use when: "visual review", "UI consistency", "design system adherence",
-  "component patterns", "spacing check", "typography review", "responsive design",
+  Use when: "design critique", "polish the UI", "design system adherence",
+  "responsive design", "visual polish", "review the design",
   "visual polish"
 ---
 

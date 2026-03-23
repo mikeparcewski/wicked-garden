@@ -5,8 +5,8 @@ description: |
   requirements into actionable controls, maps policies to code, and
   provides implementation guidance.
 
-  Use when: "policy", "what does this mean", "how to implement",
-  "policy guidance", "requirements translation"
+  Use when: "regulatory policy", "compliance policy", "translate policy to controls",
+  "map regulation to code", "policy implementation guidance"
 ---
 
 # Policy Skill

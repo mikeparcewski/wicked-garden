@@ -3,12 +3,9 @@ name: wickedizer
 description: |
   This skill should be used when writing, rewriting, or humanizing content. Removes AI tells while preserving meaning. Aligns output to team voice: direct, practical, action-oriented.
 
-  Use when:
-  - Writing or rewriting prose, technical docs, PRDs, slides
-  - Humanizing AI-generated content or de-AI-ing text
-  - Creating work items (Jira/Linear/GitHub Issues)
-  - Drafting PR descriptions, commit messages, ADRs
-  - Writing code comments, docstrings, READMEs
+  Use when: "rewrite this", "humanize this", "de-AI this", "make this sound human",
+  "clean up the writing", "too AI-sounding", "write like a human",
+  "draft PR description", "write commit message"
 portability: portable
 ---
 

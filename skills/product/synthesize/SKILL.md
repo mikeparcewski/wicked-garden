@@ -5,8 +5,8 @@ description: |
   should be used when the user needs to translate analyzed feedback into product
   priorities, feature recommendations, or strategic guidance.
 
-  Use when: "what should we build", "product recommendations", "prioritize features",
-  "translate feedback to action", "feature priorities from feedback"
+  Use when: "recommendations from feedback", "translate feedback to priorities",
+  "feature priorities from customer data", "synthesize feedback into action"
 ---
 
 # Synthesize Skill

@@ -2,7 +2,7 @@
 name: agent-browser
 description: |
   Browser automation skill with priority-ordered CLI discovery.
-  Detects the best available browser automation tool in your PATH and provides
+  Detects the best available browser automation tool in the system PATH and provides
   usage patterns for Playwright, Puppeteer, Cypress, and Selenium WebDriver.
 
   Use when:

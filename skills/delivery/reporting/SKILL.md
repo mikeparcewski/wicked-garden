@@ -4,12 +4,9 @@ description: |
   Multi-perspective project delivery reporting with persona-based analysis.
   Generates actionable reports from project data using 6 specialized stakeholder perspectives.
 
-  Use when:
-  - Generating delivery reports from project exports (Jira, GitHub, Linear, etc.)
-  - Analyzing project status from multiple stakeholder perspectives
-  - Creating sprint retrospective data or steering committee materials
-  - Assessing quality, delivery, and risk metrics
-  - Synthesizing project health across engineering, product, and operations
+  Use when: "generate report", "delivery report", "project status report",
+  "sprint retrospective", "steering committee report", "stakeholder update",
+  "project health summary"
 
   Enhanced with:
   - wicked-garden:mem Stores insights across sessions

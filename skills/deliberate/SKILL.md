@@ -7,7 +7,7 @@ description: |
 
   Use when: "rethink this approach", "is this the right problem", "challenge assumptions",
   "reframe the problem", "before implementation", "issue triage", "deliberate on this",
-  "should we even do this", "root cause analysis", "5 whys"
+  "should we even do this", "question the approach", "5 whys"
 ---
 
 # Deliberate

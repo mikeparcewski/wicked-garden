@@ -5,7 +5,7 @@ description: |
   Transform vague ideas into clear, testable specifications.
 
   Use when: "write user stories", "define requirements",
-  "what are the acceptance criteria", "clarify scope"
+  "elicit requirements", "clarify scope", "specification document"
 ---
 
 # Requirements Analysis Skill

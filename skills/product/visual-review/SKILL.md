@@ -4,8 +4,8 @@ description: |
   Systematic visual design analysis for UI consistency, design system adherence,
   spacing, typography, color, and component patterns.
 
-  Use when: "visual review", "UI consistency", "design system check", "spacing audit",
-  "typography review", "color palette", "component patterns", "visual analysis"
+  Use when: "visual checklist", "score the UI", "spacing audit",
+  "typography check", "color palette review", "component pattern audit", "evidence-based design review"
 portability: portable
 ---
 

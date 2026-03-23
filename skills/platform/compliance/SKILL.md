@@ -6,7 +6,7 @@ description: |
   violations, and provides remediation guidance.
 
   Use when: "compliance check", "SOC2", "HIPAA", "GDPR", "PCI",
-  "regulatory requirements", "audit", "is this compliant"
+  "regulatory requirements", "is this compliant", "compliance gap"
 ---
 
 # Compliance Skill
