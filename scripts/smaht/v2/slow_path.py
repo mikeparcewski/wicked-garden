@@ -185,6 +185,7 @@ class SlowPathAssembler:
         # Source-specific context
         source_labels = {
             "mem": "Memories",
+            "events": "Recent Activity",
             "search": "Code & Docs",
             "kanban": "Tasks",
             "jam": "Brainstorms",

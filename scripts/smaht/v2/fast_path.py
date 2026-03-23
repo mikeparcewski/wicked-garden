@@ -30,9 +30,9 @@ from adapter_registry import AdapterRegistry, timed_query, CACHE_BYPASS
 ADAPTER_RULES = {
     IntentType.DEBUGGING: ["domain", "delegation"],
     IntentType.IMPLEMENTATION: ["domain", "context7", "tools", "delegation"],
-    IntentType.PLANNING: ["domain", "delegation"],
-    IntentType.RESEARCH: ["domain", "context7", "tools", "delegation"],
-    IntentType.REVIEW: ["domain", "delegation"],
+    IntentType.PLANNING: ["domain", "events", "delegation"],
+    IntentType.RESEARCH: ["domain", "events", "context7", "tools", "delegation"],
+    IntentType.REVIEW: ["domain", "events", "delegation"],
     IntentType.GENERAL: ["domain", "delegation"],
 }
 

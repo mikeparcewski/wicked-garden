@@ -634,6 +634,23 @@ def main():
             print(f"  Summary: {m.summary[:100]}...")
             print()
 
+        # Supplement with cross-domain event context (fire-and-forget)
+        if args.query and memories:
+            try:
+                from _event_store import EventStore
+                EventStore.ensure_schema()
+                events = EventStore.query(fts=args.query, limit=5)
+                # Only show events from non-mem domains (mem events are redundant)
+                cross_domain = [e for e in events if e.get("domain") != "wicked-mem"]
+                if cross_domain:
+                    print("--- Related activity across domains ---")
+                    for e in cross_domain:
+                        ts = e.get("ts", "")[:10]
+                        print(f"  [{ts}] {e.get('domain')}.{e.get('action')}: {e.get('record_id', '')}")
+                    print()
+            except Exception:
+                pass  # event log is supplementary — never breaks recall
+
     elif args.operation == "search-all":
         if not args.query:
             print("Error: --query required for search-all")

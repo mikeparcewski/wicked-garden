@@ -137,6 +137,44 @@ After synthesizing (step 4), append one final entry with `entry_type: synthesis`
 
 If the script is unavailable, skip transcript storage silently and continue.
 
+**After each round, emit an event** to the unified event log for cross-domain visibility:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+from _event_store import EventStore
+EventStore.ensure_schema()
+EventStore.append(
+    domain='jam',
+    action='rounds.{round_number}.completed',
+    source='sessions',
+    record_id='{session_id}',
+    payload={'round': {round_number}, 'personas': {persona_count}, 'topic': '{topic_summary}'},
+    tags=['jam-round'],
+)
+"
+```
+
+After synthesis, emit a synthesis event:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+from _event_store import EventStore
+EventStore.ensure_schema()
+EventStore.append(
+    domain='jam',
+    action='sessions.synthesized',
+    source='sessions',
+    record_id='{session_id}',
+    payload={'topic': '{topic}', 'insights_count': {N}, 'confidence': '{HIGH/MEDIUM/LOW}'},
+    tags=['jam-synthesis'],
+)
+"
+```
+
+If event emission fails, skip silently — it is supplementary, not required.
+
 ### 4. Synthesis
 
 After rounds complete, synthesize:
