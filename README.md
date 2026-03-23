@@ -2,7 +2,7 @@
 
 **AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
 
-146 commands. 80 specialist agents. 82 skills. 9 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
+142 commands. 80 specialist agents. 79 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
 
 **v2.6** — On-demand personas with rich characteristics (personality, constraints, memories, preferences). Crew quality gates that actually reject work. Script-to-skill conversion eliminates Python dependency for reasoning. [Changelog](CHANGELOG.md) | [Migration from v1.x](#migration-from-v1x)
 
@@ -117,7 +117,7 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 ## Principles
 
 1. **Signal over ceremony** — The work tells the system what it needs. You don't configure pipelines.
-2. **Perspectives over ego** — 9 specialist domains catch what one voice misses.
+2. **Perspectives over ego** — 8 specialist domains catch what one voice misses.
 3. **Memory over amnesia** — Decisions persist. Session 47 knows what session 1 decided.
 4. **Graceful degradation** — No external tools? Local JSON. Missing a specialist? Fallback agents.
 5. **Prompts over code** — Logic lives in markdown and config. Extensible by anyone.
@@ -134,7 +134,7 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 
 ## Commands
 
-All 146 commands use colon namespacing: `/wicked-garden:{domain}:{command}`
+All 142 commands use colon namespacing: `/wicked-garden:{domain}:{command}`
 
 | Domain | Command | What It Does |
 |--------|---------|-------------|

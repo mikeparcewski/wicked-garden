@@ -137,7 +137,7 @@ All hooks are **stdlib-only Python** — no pip dependencies. All hooks **fail o
 wicked-garden/
 +-- .claude-plugin/
 |   +-- plugin.json          # name, version, description
-|   +-- specialist.json      # 9 specialist roles (lean manifest)
+|   +-- specialist.json      # 8 specialist roles (lean manifest)
 |   +-- marketplace.json     # marketplace registration
 |   +-- phases.json          # 7-phase catalog with gates
 +-- commands/{domain}/       # slash commands (*.md with YAML frontmatter)

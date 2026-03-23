@@ -25,7 +25,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 
 Also check scenario-specific tools not in the prereq-doctor registry (playwright, agent-browser, curl) via the legacy discovery script:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/scenarios/cli_discovery.py curl playwright agent-browser
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/qe/cli_discovery.py curl playwright agent-browser
 ```
 
 Merge results. Separate tools into **available** and **missing**.

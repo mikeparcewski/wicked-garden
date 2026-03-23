@@ -68,7 +68,7 @@ done
 
 If a tool is not in the prereq-doctor registry, fall back to legacy discovery:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/scenarios/cli_discovery.py {unrecognized tools}
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/qe/cli_discovery.py {unrecognized tools}
 ```
 
 Parse the JSON output. For each tool:

@@ -11,14 +11,14 @@ timeout: 60
 
 # Observability Contract Assertions
 
-Validates that `/wicked-garden:observability:assert` discovers registered schemas, validates them
+Validates that `/wicked-garden:platform:assert` discovers registered schemas, validates them
 against their targets, and reports a clean pass with 0 failures. Also confirms that assertion
 results are logged for audit purposes. Covers Layer 3 (contract assertions) of the observability
 stack.
 
 ## Setup
 
-No setup required. The `/wicked-garden:observability:assert` command handles schema discovery
+No setup required. The `/wicked-garden:platform:assert` command handles schema discovery
 and validation internally. Schemas must exist in `schemas/{plugin}/{script}.json` before assertions
 can run.
 
@@ -29,7 +29,7 @@ can run.
 Invoke the assert command targeting the observability domain:
 
 ```
-/wicked-garden:observability:assert --plugin wicked-garden
+/wicked-garden:platform:assert --plugin wicked-garden
 ```
 
 **Expect**: The command completes without error and prints a summary of schemas validated.
@@ -48,7 +48,7 @@ Examine the output from Step 1.
 Invoke the assert command again with JSON output:
 
 ```
-/wicked-garden:observability:assert --plugin wicked-garden --json
+/wicked-garden:platform:assert --plugin wicked-garden --json
 ```
 
 **Expect**:

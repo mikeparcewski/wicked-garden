@@ -12,13 +12,13 @@ timeout: 30
 # Observability Trace Capture
 
 Validates that the PostToolUse hook captures trace records during tool invocations and that
-`/wicked-garden:observability:traces` can query them. Confirms that Layer 1 (runtime tracing)
+`/wicked-garden:platform:traces` can query them. Confirms that Layer 1 (runtime tracing)
 is active and recording.
 
 ## Setup
 
 No setup required. The PostToolUse hook automatically captures trace records for every tool
-invocation. The `/wicked-garden:observability:traces` command queries the accumulated trace data.
+invocation. The `/wicked-garden:platform:traces` command queries the accumulated trace data.
 
 ## Steps
 
@@ -27,7 +27,7 @@ invocation. The `/wicked-garden:observability:traces` command queries the accumu
 Invoke the traces command to see what has been recorded so far in this session:
 
 ```
-/wicked-garden:observability:traces --tail 5
+/wicked-garden:platform:traces --tail 5
 ```
 
 **Expect**: The command completes and either shows recent trace records or indicates no traces
@@ -39,7 +39,7 @@ Run any simple tool invocation (e.g., read a file or list a directory) to genera
 new PostToolUse event. Then query traces again:
 
 ```
-/wicked-garden:observability:traces --tail 5
+/wicked-garden:platform:traces --tail 5
 ```
 
 **Expect**:
@@ -51,7 +51,7 @@ new PostToolUse event. Then query traces again:
 Query traces in machine-readable mode:
 
 ```
-/wicked-garden:observability:traces --tail 1 --json
+/wicked-garden:platform:traces --tail 1 --json
 ```
 
 **Expect**:

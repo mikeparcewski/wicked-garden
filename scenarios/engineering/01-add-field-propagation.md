@@ -86,7 +86,7 @@ First, build the symbol graph so wicked-patch can understand your code structure
 See what would be affected before making changes:
 
 ```bash
-/wicked-garden:patch:plan "src/main/java/com/example/User.java::User" --change add_field
+/wicked-garden:engineering:plan "src/main/java/com/example/User.java::User" --change add_field
 ```
 
 **Expected output**: A PROPAGATION PLAN showing:
@@ -99,7 +99,7 @@ See what would be affected before making changes:
 Add the email field and generate patches for all languages:
 
 ```bash
-/wicked-garden:patch:add-field "src/main/java/com/example/User.java::User" --name email --type String --required -o /tmp/wicked-patch-test/user-service/.patches/patches.json --verbose
+/wicked-garden:engineering:add-field "src/main/java/com/example/User.java::User" --name email --type String --required -o /tmp/wicked-patch-test/user-service/.patches/patches.json --verbose
 ```
 
 **Expected output**: A GENERATED PATCHES block showing patches grouped by file, including:
@@ -123,7 +123,7 @@ cat /tmp/wicked-patch-test/user-service/.patches/manifest.json
 Apply the generated patches:
 
 ```bash
-/wicked-garden:patch:apply /tmp/wicked-patch-test/user-service/.patches/patches.json --skip-git --force
+/wicked-garden:engineering:apply /tmp/wicked-patch-test/user-service/.patches/patches.json --skip-git --force
 ```
 
 When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.

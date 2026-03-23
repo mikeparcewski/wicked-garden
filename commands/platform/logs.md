@@ -11,7 +11,7 @@ Instructions:
 - Build the argument list from the parsed flags (omit flags not provided)
 - Run:
   ```bash
-  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/observability/ops_log_viewer.py $ARGUMENTS
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/ops_log_viewer.py $ARGUMENTS
   ```
 - The script reads `$TMPDIR/wicked-ops-{session_id}.jsonl` and formats output
 - If no file exists, it prints a helpful message and exits cleanly

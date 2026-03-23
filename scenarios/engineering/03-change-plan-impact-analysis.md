@@ -124,7 +124,7 @@ Build the symbol graph to understand dependencies:
 See what would be affected by adding a "reserved" field to track reserved inventory:
 
 ```bash
-/wicked-garden:patch:plan "models/Product.java::Product" --change add_field
+/wicked-garden:engineering:plan "models/Product.java::Product" --change add_field
 ```
 
 **Expected**: A PROPAGATION PLAN showing Product.java as the source, direct impacts listing entity fields, and a LOW risk assessment (adding a field is non-breaking).
@@ -134,7 +134,7 @@ See what would be affected by adding a "reserved" field to track reserved invent
 Preview the impact of renaming "stock" to "availableQuantity":
 
 ```bash
-/wicked-garden:patch:plan "models/Product.java::Product" --change rename_field
+/wicked-garden:engineering:plan "models/Product.java::Product" --change rename_field
 ```
 
 **Expected**: A PROPAGATION PLAN showing the source symbol and risk assessment. Risk may be LOW when impacts stay within a single file with no upstream dependencies, MEDIUM when changes propagate across multiple files, or HIGH when no internal references are found. Cross-file impacts depend on whether the symbol graph resolved method-level references.
@@ -144,7 +144,7 @@ Preview the impact of renaming "stock" to "availableQuantity":
 See what would break if we removed the "price" field:
 
 ```bash
-/wicked-garden:patch:plan "models/Product.java::Product" --change remove_field
+/wicked-garden:engineering:plan "models/Product.java::Product" --change remove_field
 ```
 
 **Expected**: A PROPAGATION PLAN with risk level HIGH. The risk assessment should flag that removal is a breaking change. If no internal references to 'price' are found in the graph, the plan includes a WARNING about no_internal_refs.

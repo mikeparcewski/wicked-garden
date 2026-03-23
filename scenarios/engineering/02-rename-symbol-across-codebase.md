@@ -113,7 +113,7 @@ Build the symbol graph to understand cross-file references:
 See all locations that will be affected by the rename:
 
 ```bash
-/wicked-garden:patch:plan "backend/src/Order.java::Order" --change rename_field
+/wicked-garden:engineering:plan "backend/src/Order.java::Order" --change rename_field
 ```
 
 **Expected**: A PROPAGATION PLAN showing Order as source with a risk assessment. Risk may be LOW when impacts stay within a single file with no upstream dependencies, MEDIUM when changes propagate across multiple files, or HIGH when no internal references are found or the rename touches widely shared interfaces.
@@ -123,7 +123,7 @@ See all locations that will be affected by the rename:
 Rename status to orderStatus across all languages:
 
 ```bash
-/wicked-garden:patch:rename "backend/src/Order.java::Order" --old status --new orderStatus -o /tmp/wicked-patch-rename/.patches/patches.json --verbose
+/wicked-garden:engineering:rename "backend/src/Order.java::Order" --old status --new orderStatus -o /tmp/wicked-patch-rename/.patches/patches.json --verbose
 ```
 
 **Expected**: A GENERATED PATCHES block showing rename operations in Order.java (field, getter, setter, method bodies) and potentially in order.ts and test_order.py if the graph linked them.
@@ -142,7 +142,7 @@ cat /tmp/wicked-patch-rename/.patches/manifest.json
 Update all files with the new symbol name:
 
 ```bash
-/wicked-garden:patch:apply /tmp/wicked-patch-rename/.patches/patches.json --skip-git --force
+/wicked-garden:engineering:apply /tmp/wicked-patch-rename/.patches/patches.json --skip-git --force
 ```
 
 When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.

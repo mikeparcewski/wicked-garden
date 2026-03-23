@@ -6,13 +6,13 @@ This directory contains acceptance test scenarios for the wicked-garden plugin e
 
 ```bash
 # Interactive selection
-/wicked-garden:scenarios:run
+/wicked-garden:qe:run
 
 # Specific scenario
-/wicked-garden:scenarios:run 01-fresh-install
+/wicked-garden:qe:run 01-fresh-install
 
 # List all scenarios
-/wicked-garden:scenarios:list
+/wicked-garden:qe:list
 ```
 
 ## Scenario Format

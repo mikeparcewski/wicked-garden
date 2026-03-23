@@ -245,6 +245,6 @@ Skills that apply across all domains:
 | Skill | What It Does |
 |-------|-------------|
 | **deliberate** | Five-lens critical thinking before implementation. Challenges premises, finds root causes, spots adjacent opportunities. |
-| **multi-model** | Multi-LLM council reviews using external CLI tools (Codex, Gemini, OpenCode). |
+| **multi-model** | Multi-LLM council reviews using external CLI tools (Codex, Gemini, OpenCode). Invoke via `smaht:collaborate`. |
 | **issue-reporting** | Automated GitHub issue detection with duplicate checking, codebase research, and SMART validation. |
 | **imagery** | Visual asset lifecycle — review, create, and alter images using AI providers. |

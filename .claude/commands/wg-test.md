@@ -9,7 +9,7 @@ arguments:
 
 # Test Scenarios
 
-Dev-tool wrapper that delegates to the best available testing pipeline. QE owns acceptance testing end-to-end; the scenarios domain provides standalone execution as a fallback. The `--skills` mode validates plugin skills against standards using the skill-creator skill.
+Dev-tool wrapper that delegates to the best available testing pipeline. QE owns acceptance testing end-to-end; the qe domain (E2E scenarios) provides standalone execution as a fallback. The `--skills` mode validates plugin skills against standards using the skill-creator skill.
 
 ## Process
 
@@ -87,7 +87,7 @@ Also check whether the plugin runtime actually loaded:
 echo "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT:-NOT_SET}"
 ```
 
-If `CLAUDE_PLUGIN_ROOT` is not set, the plugin commands (like `/wicked-garden:qe:acceptance` and `/wicked-garden:scenarios:run`) are NOT registered as invokable skills — even if the command files exist on disk. This is normal when running in environments where the plugin marketplace isn't active (e.g., Claude Code on the web). The inline execution fallback in Step 5 handles this case.
+If `CLAUDE_PLUGIN_ROOT` is not set, the plugin commands (like `/wicked-garden:qe:acceptance` and `/wicked-garden:qe:run`) are NOT registered as invokable skills — even if the command files exist on disk. This is normal when running in environments where the plugin marketplace isn't active (e.g., Claude Code on the web). The inline execution fallback in Step 5 handles this case.
 
 ### 3. Scenario Discovery
 
@@ -149,7 +149,7 @@ Use the tier detected in Step 4 to select the execution path. Try Tier 1 first; 
 
 **Tier 1 — Skill delegation (plugin loaded OR skills registered):**
 
-Delegate to `/wicked-garden:qe:acceptance` (primary) or `/wicked-garden:scenarios:run` (fallback) via the Skill tool.
+Delegate to `/wicked-garden:qe:acceptance` (primary) or `/wicked-garden:qe:run` (fallback) via the Skill tool.
 
 **Primary — QE acceptance (full Writer → Executor → Reviewer pipeline):**
 
@@ -174,7 +174,7 @@ Skill(
 Single scenario:
 ```
 Skill(
-  skill="wicked-garden:scenarios:run",
+  skill="wicked-garden:qe:run",
   args="scenarios/${domain}/${scenario_file}"
 )
 ```
@@ -183,7 +183,7 @@ All scenarios (`--all`) — run sequentially; the glob already yields the full r
 ```
 for each scenario_file in scenarios/${domain}/*.md (excluding README.md):
   Skill(
-    skill="wicked-garden:scenarios:run",
+    skill="wicked-garden:qe:run",
     args="${scenario_file}"
   )
 ```
@@ -202,7 +202,7 @@ For each scenario file:
 2. **Parse YAML frontmatter** — extract `name`, `description`, `tools.required`, `tools.optional`, `env`, `timeout`
 3. **Run CLI discovery** (if the script exists):
    ```bash
-   python3 scripts/scenarios/cli_discovery.py {space-separated tools from required + optional}
+   python3 scripts/qe/cli_discovery.py {space-separated tools from required + optional}
    ```
    If the discovery script doesn't exist, check tools manually with `which {tool}`.
 4. **Execute Setup** — find the `## Setup` section, extract its fenced code block, run via Bash
@@ -238,7 +238,7 @@ For each scenario file:
 Neither command files nor plugin skills exist:
 ```
 Error: No testing pipeline available.
-The qe and scenarios domains must be present to enable testing.
+The qe and qe domain (E2E scenarios)s must be present to enable testing.
   - qe: Full acceptance pipeline with evidence protocol and independent review
   - scenarios: Standalone E2E execution with PASS/FAIL verdicts
 ```
@@ -269,7 +269,7 @@ for each scenario in current_batch:
 ```
 for each scenario in current_batch:
   Task(
-    subagent_type="wicked-garden:scenarios:scenario-executor",
+    subagent_type="wicked-garden:qe:scenario-executor",
     prompt="Execute scenario: {scenario_path}. Return structured results."
   )
 ```
@@ -307,12 +307,12 @@ After testing completes with failures:
 **QE path (primary):** QE acceptance produces structured verdicts (`task_verdicts`, `acceptance_criteria_verdicts`, `failure_analysis`). Invoke report:
 ```
 Skill(
-  skill="wicked-garden:scenarios:report",
+  skill="wicked-garden:qe:report",
   args="--auto"
 )
 ```
 
-**Scenarios-only fallback path:** `/wicked-garden:scenarios:run` produces simple exit codes (0/1/2) and markdown output, NOT structured verdicts. The `report` command requires structured fields, so issue filing is **not available** in this degradation path. Instead, display:
+**Scenarios-only fallback path:** `/wicked-garden:qe:run` produces simple exit codes (0/1/2) and markdown output, NOT structured verdicts. The `report` command requires structured fields, so issue filing is **not available** in this degradation path. Instead, display:
 ```
 Failures detected (exit code 1). Automatic issue filing requires the qe domain
 for structured test verdicts. File manually: gh issue create --title "test(<domain>): ..." --label bug
@@ -536,5 +536,5 @@ This command (`/wg-test`) is a dev-tool wrapper that adds only:
 
 Testing intelligence is owned by:
 - **qe domain** — acceptance pipeline (Writer/Executor/Reviewer), evidence protocol, assertions
-- **scenarios domain** — E2E CLI execution (`/wicked-garden:scenarios:run`), issue filing (`/wicked-garden:scenarios:report`)
+- **qe domain (E2E scenarios)** — E2E CLI execution (`/wicked-garden:qe:run`), issue filing (`/wicked-garden:qe:report`)
 - **skill-creator** — skill quality assessment, standards validation, and improvement suggestions

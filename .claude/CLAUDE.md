@@ -47,7 +47,7 @@ The repository root IS the plugin:
 wicked-garden/
 ├── .claude-plugin/
 │   ├── plugin.json          # Metadata: name, version, description
-│   ├── specialist.json      # 9 specialist roles
+│   ├── specialist.json      # 8 specialist roles
 │   └── marketplace.json     # Marketplace registration
 ├── commands/{domain}/       # Slash commands (*.md with YAML frontmatter)
 ├── agents/{domain}/         # Subagents (*.md with YAML frontmatter)

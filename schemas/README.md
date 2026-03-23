@@ -1,10 +1,10 @@
 # Schemas
 
-JSON contract schemas used by the observability assertion system (`/wicked-garden:observability:assert`).
+JSON contract schemas used by the observability assertion system (`/wicked-garden:platform:assert`).
 
 ## Purpose
 
-These schemas define the expected JSON output shape for key observability scripts. The contract assertion runner (`scripts/observability/assert_contracts.py`) loads each schema, invokes the corresponding script, and validates the output matches the contract.
+These schemas define the expected JSON output shape for key observability scripts. The contract assertion runner (`scripts/platform/observability/assert_contracts.py`) loads each schema, invokes the corresponding script, and validates the output matches the contract.
 
 This catches silent regressions — if a script's output shape changes (missing fields, wrong types, new enum values), the assertion fails before users hit runtime errors.
 
@@ -20,10 +20,10 @@ This catches silent regressions — if a script's output shape changes (missing 
 
 ```bash
 # Run all contract assertions
-/wicked-garden:observability:assert
+/wicked-garden:platform:assert
 
 # Or directly via script
-python3 scripts/observability/assert_contracts.py --json
+python3 scripts/platform/observability/assert_contracts.py --json
 ```
 
 ## Adding a New Schema

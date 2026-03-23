@@ -117,7 +117,7 @@ Build the symbol graph for patch generation:
 Add a "transactionId" field and save patches for review (do NOT apply):
 
 ```bash
-/wicked-garden:patch:add-field "models/Payment.java::Payment" --name transactionId --type String --required -o /tmp/wicked-patch-review/.patches/patches.json --verbose
+/wicked-garden:engineering:add-field "models/Payment.java::Payment" --name transactionId --type String --required -o /tmp/wicked-patch-review/.patches/patches.json --verbose
 ```
 
 ### 3. Review the generated patches
@@ -165,7 +165,7 @@ cat /tmp/wicked-patch-review/.patches/APPROVED
 After approval, apply the patches to the codebase:
 
 ```bash
-/wicked-garden:patch:apply /tmp/wicked-patch-review/.patches/patches.json --skip-git --force
+/wicked-garden:engineering:apply /tmp/wicked-patch-review/.patches/patches.json --skip-git --force
 ```
 
 When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.

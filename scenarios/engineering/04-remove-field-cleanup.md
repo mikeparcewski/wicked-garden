@@ -167,7 +167,7 @@ Build the symbol graph to find all references:
 Preview what will be cleaned up:
 
 ```bash
-/wicked-garden:patch:plan "models/User.java::User" --change remove_field
+/wicked-garden:engineering:plan "models/User.java::User" --change remove_field
 ```
 
 **Expected**: A PROPAGATION PLAN showing User as source with impacts across multiple files. Risk level should be HIGH (remove_field is always HIGH risk). You may also see a `no_internal_refs` warning as a heuristic when the graph shows limited internal references, but this is not specific to any single field.
@@ -177,7 +177,7 @@ Preview what will be cleaned up:
 Create patches to remove the field and all references:
 
 ```bash
-/wicked-garden:patch:remove "models/User.java::User" --field lastLogin -o /tmp/wicked-patch-cleanup/.patches/patches.json --verbose
+/wicked-garden:engineering:remove "models/User.java::User" --field lastLogin -o /tmp/wicked-patch-cleanup/.patches/patches.json --verbose
 ```
 
 **Expected**: A GENERATED PATCHES block showing removal operations in User.java (field, getter, setter) and potentially in dependent files (AuthService.java, UserRepository.java, UserTest.java) if the graph linked them.
@@ -198,7 +198,7 @@ cat /tmp/wicked-patch-cleanup/.patches/manifest.json
 Execute all cleanup operations:
 
 ```bash
-/wicked-garden:patch:apply /tmp/wicked-patch-cleanup/.patches/patches.json --skip-git --force
+/wicked-garden:engineering:apply /tmp/wicked-patch-cleanup/.patches/patches.json --skip-git --force
 ```
 
 When prompted with `Apply N patches to N files? [y/N]`, type `y` and press Enter to confirm.

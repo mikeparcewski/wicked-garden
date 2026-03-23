@@ -34,7 +34,7 @@ Read YAML frontmatter from each file to extract:
 
 Run CLI discovery for all tools referenced across scenarios:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/scenarios/cli_discovery.py
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/qe/cli_discovery.py
 ```
 
 ### 4. Apply Category Filter

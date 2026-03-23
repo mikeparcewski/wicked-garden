@@ -16,7 +16,7 @@ When external LLM CLIs are available, wicked-garden can run council-style review
 
 ```bash
 # Collaborative review with all available models
-/wicked-garden:multi-model:collaborate "Review this authentication implementation"
+/wicked-garden:smaht:collaborate "Review this authentication implementation"
 
 # Council evaluation (structured scoring)
 /wicked-garden:jam:council "Should we use microservices or a monolith?"

@@ -11,13 +11,13 @@ timeout: 60
 
 # Observability Health Probe
 
-Validates that `/wicked-garden:observability:health` can inspect installed plugins, confirm their
+Validates that `/wicked-garden:platform:health` can inspect installed plugins, confirm their
 structure is sound, and report a healthy status. Covers Layer 2 (health probes) of the
 observability stack.
 
 ## Setup
 
-No setup required. The `/wicked-garden:observability:health` command handles all discovery and
+No setup required. The `/wicked-garden:platform:health` command handles all discovery and
 invocation internally.
 
 ## Steps
@@ -27,7 +27,7 @@ invocation internally.
 Invoke the health command targeting the observability domain:
 
 ```
-/wicked-garden:observability:health --plugin wicked-garden --json
+/wicked-garden:platform:health --plugin wicked-garden --json
 ```
 
 **Expect**: The command completes without error and produces structured output.
@@ -46,7 +46,7 @@ Examine the output from Step 1.
 Run the health command again without `--json` (human-readable mode):
 
 ```
-/wicked-garden:observability:health
+/wicked-garden:platform:health
 ```
 
 **Expect**:
