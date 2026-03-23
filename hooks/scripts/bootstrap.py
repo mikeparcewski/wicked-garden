@@ -667,6 +667,14 @@ def main():
 
         _log("bootstrap", "normal", "storage.local", ok=True)
 
+        # 2b. Initialize event store schema (fire-and-forget)
+        try:
+            from _event_store import EventStore
+            EventStore.ensure_schema()
+            _log("bootstrap", "debug", "event_store.schema", ok=True)
+        except Exception:
+            pass  # event store is optional — never block session start
+
         # 3. Load dynamic agents
         agents_loaded, agents_dict = _load_agents()
         if state is not None:

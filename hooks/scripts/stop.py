@@ -194,6 +194,22 @@ def _persist_session_state() -> None:
         pass
 
 
+# ---------------------------------------------------------------------------
+# Step 7: Event store retention purge
+# ---------------------------------------------------------------------------
+
+def _purge_old_events() -> None:
+    """Purge events older than retention period (default 90 days)."""
+    try:
+        from _event_store import EventStore
+        EventStore.ensure_schema()
+        deleted = EventStore.purge_before(days=90)
+        if deleted > 0:
+            _log("stop", "debug", f"event_store.purged {deleted} events")
+    except Exception:
+        pass  # fire-and-forget
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +261,9 @@ def main():
 
         # 4. Persist session state
         _persist_session_state()
+
+        # 5. Event store retention purge
+        _purge_old_events()
 
         # Read session state for task completion count (fail open)
         tasks_completed_this_session = 0

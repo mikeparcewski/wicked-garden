@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.0.0] - 2026-03-22
+
+### Unified Event Log
+- feat: `_event_store.py` — append-only SQLite event store with FTS5 full-text search
+- feat: DomainStore auto-emits events on every create/update/delete (fire-and-forget)
+- feat: `smaht:events-query` command — cross-domain activity queries with --domain, --project, --since, --fts flags
+- feat: `smaht:events-import` command — migrate existing JSON records into event log
+- feat: bootstrap hook initializes event store schema at session start
+- feat: stop hook purges events older than 90 days (configurable retention)
+- security: event payloads emit only safe metadata fields (no sensitive data in FTS index)
+- fix: schema initialization cached after first call (no redundant DDL on every write)
+
+### Previous (included in v3.0.0)
+- Session briefing, contextual discovery, README rewrite, dead code removal (v2.10.0)
+- Script path fixes, trigger disambiguation (v2.9.1)
+- Quality investments: jam refs, product help, persona agent (v2.9.0)
+- Domain consolidation 17→14 (v2.8.0)
+- Skill quality fixes, security hygiene (v2.7.0)
+
 ## [2.10.0] - 2026-03-22
 
 ### Features

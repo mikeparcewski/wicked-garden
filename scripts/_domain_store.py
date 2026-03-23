@@ -309,6 +309,53 @@ class DomainStore:
         return self._local_get(source, id)
 
     # ------------------------------------------------------------------
+    # Event emission (fire-and-forget)
+    # ------------------------------------------------------------------
+
+    def _emit_event(self, action: str, source: str, record_id: str | None = None,
+                    payload: dict | None = None, tags: list[str] | None = None) -> None:
+        """Emit an event to the unified event log. Never raises.
+
+        Emits only safe metadata (id, timestamps, action) — not the full record
+        payload, to avoid replicating sensitive data into the FTS-indexed event log.
+        Callers needing full payload in events should call EventStore.append() directly.
+        """
+        try:
+            from _event_store import EventStore
+            EventStore.ensure_schema()
+
+            # Auto-resolve project_id from session state
+            project_id = None
+            try:
+                from _session import SessionState
+                state = SessionState.load()
+                project_id = getattr(state, "active_project", None)
+            except Exception:
+                pass
+
+            # Emit safe metadata only — strip sensitive fields from payload
+            safe_payload = None
+            if payload is not None:
+                safe_payload = {
+                    k: v for k, v in payload.items()
+                    if k in ("id", "name", "title", "type", "status", "phase",
+                             "created_at", "updated_at", "deleted_at", "tags",
+                             "complexity_score", "signals_detected")
+                }
+
+            EventStore.append(
+                domain=self._domain,
+                action=f"{source}.{action}",
+                source=source,
+                record_id=record_id,
+                payload=safe_payload if safe_payload else None,
+                project_id=project_id,
+                tags=tags,
+            )
+        except Exception:
+            pass  # fire-and-forget — never break domain operations
+
+    # ------------------------------------------------------------------
     # Write operations
     # ------------------------------------------------------------------
 
@@ -336,6 +383,7 @@ class DomainStore:
                     elif "id" not in record:
                         record["id"] = str(uuid.uuid4())
                     self._local_write(source, record["id"], record)
+                    self._emit_event("created", source, record["id"], record)
                     return record
             except Exception:
                 pass  # fall through to local
@@ -344,6 +392,7 @@ class DomainStore:
         if "id" not in record:
             record["id"] = str(uuid.uuid4())
         self._local_write(source, record["id"], record)
+        self._emit_event("created", source, record["id"], record)
         return record
 
     def update(self, source: str, id: str, diff: dict) -> dict | None:
@@ -374,6 +423,7 @@ class DomainStore:
         existing.update(diff)
         existing["updated_at"] = _now()
         self._local_write(source, id, existing)
+        self._emit_event("updated", source, id, diff)
         return existing
 
     def delete(self, source: str, id: str) -> bool:
@@ -404,6 +454,7 @@ class DomainStore:
         existing["deleted"] = True
         existing["deleted_at"] = _now()
         self._local_write(source, id, existing)
+        self._emit_event("deleted", source, id)
         return True
 
     # ------------------------------------------------------------------
