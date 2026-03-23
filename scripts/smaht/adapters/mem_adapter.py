@@ -101,13 +101,16 @@ async def query(prompt: str) -> List[ContextItem]:
         title = memory.title or "Untitled"
         summary = memory.summary or memory.content[:200]
 
-        # Score: base + keyword overlap + type boost
+        # Score: base + keyword overlap + type boost + onboarding boost
         base = 0.25
         kw_score = _keyword_score(prompt_lower, f"{title} {summary}")
         type_boost = _TYPE_BOOSTS.get(memory.type, 0.0)
         # Importance: 2=low, 5=medium, 8=high → add up to 0.1 bonus
         importance_bonus = min((memory.importance - 2) / 60, 0.1)
-        relevance = min(base + kw_score + type_boost + importance_bonus, 1.0)
+        # Onboarding memories are foundational project knowledge — boost them
+        # so architecture/stack/flow context surfaces even when not keyword-matched
+        onboarding_boost = 0.15 if "onboarding" in memory.tags else 0.0
+        relevance = min(base + kw_score + type_boost + importance_bonus + onboarding_boost, 1.0)
 
         # Calculate age in days
         age_days = 0.0

@@ -102,7 +102,10 @@ Include recalled learnings in the project context. They inform signal analysis, 
 2. **Query memories** (if wicked-mem available):
    ```
    /wicked-garden:mem:recall "project type and quality dimensions for this codebase" --limit 5
+   /wicked-garden:mem:recall --tags onboarding --limit 10
    ```
+   Onboarding memories contain foundational knowledge: tech stack, architecture pattern,
+   entry points, key flows, and quality signals. Use these to inform archetype detection.
 
 3. **Analyze codebase structure** (if wicked-search available):
    - `/wicked-garden:search:scout` for pattern detection (component library? API routes? data pipelines? content templates?)

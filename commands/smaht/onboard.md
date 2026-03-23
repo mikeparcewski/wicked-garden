@@ -145,17 +145,48 @@ Combine results from all 3 agents into a structured onboarding profile:
 2. ...
 ```
 
-#### 4.2 Store Discoveries as Memories
+#### 4.2 Store Discoveries as Individual Memories
 
-Save key discoveries to wicked-mem for future sessions:
+Save each discovery as its own memory — one fact per memory, not monolithic summaries.
+This ensures each fact surfaces independently when relevant, rather than requiring
+the entire onboarding dump to match a keyword.
 
+**Technology stack** (one per layer):
 ```
-/wicked-garden:mem:store "Onboarding: {project-name} architecture is {pattern} using {framework}/{lang}. Key entry: {main entry}. {count} services/modules." --type procedural --tags onboarding,{project-name},architecture
-
-/wicked-garden:mem:store "Onboarding: {project-name} has {gap count} gaps: {top gaps}. Test ratio: {ratio}." --type episodic --tags onboarding,{project-name},quality
-
-/wicked-garden:mem:store "Onboarding: {project-name} key flows - {flow summaries}" --type procedural --tags onboarding,{project-name},flows
+/wicked-garden:mem:store "{project-name} is a {language} project using {framework}" --type procedural --tags onboarding,{project-name},stack,{language}
+/wicked-garden:mem:store "{project-name} uses {database} for persistence" --type procedural --tags onboarding,{project-name},stack,database
+/wicked-garden:mem:store "{project-name} tests use {test-framework} — {ratio} test/source ratio" --type procedural --tags onboarding,{project-name},testing
 ```
+
+**Architecture** (one per insight):
+```
+/wicked-garden:mem:store "{project-name} follows {pattern} architecture — {key insight}" --type procedural --tags onboarding,{project-name},architecture
+/wicked-garden:mem:store "{project-name} main entry point: {entry} at {file:line}" --type procedural --tags onboarding,{project-name},entry-point
+```
+
+**Key flows** (one per flow):
+```
+/wicked-garden:mem:store "{project-name} {flow-name} flow: {source} → {handler} → {storage}" --type procedural --tags onboarding,{project-name},flow,{flow-name}
+```
+Repeat for each significant flow discovered.
+
+**Quality signals** (one per finding):
+```
+/wicked-garden:mem:store "{project-name} has {count} TODOs/FIXMEs — tech debt concentrated in {area}" --type episodic --tags onboarding,{project-name},tech-debt
+/wicked-garden:mem:store "{project-name} CI/CD: {present/absent} — {details}" --type procedural --tags onboarding,{project-name},ci
+```
+
+**Gaps** (one per gap):
+```
+/wicked-garden:mem:store "{project-name} gap: {description} — {severity}" --type episodic --tags onboarding,{project-name},gap
+```
+Repeat for each gap found.
+
+**Tagging rules**:
+- Every memory gets `onboarding` + `{project-name}` tags
+- Add a category tag: `stack`, `architecture`, `flow`, `testing`, `gap`, `entry-point`, `ci`, `tech-debt`
+- Add specific tags for the technology: `react`, `python`, `postgres`, etc.
+- This enables targeted recall: `mem:recall --tags postgres` finds the database choice
 
 ### 5. Phase 3 — Validate Against Index
 

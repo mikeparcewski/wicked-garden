@@ -147,8 +147,9 @@ Use the Explore agent or direct tool calls to gather context about the project b
 2. **Query memories** (if wicked-mem available):
    ```
    /wicked-garden:mem:recall "project type and quality dimensions for {project-name}" --limit 5
+   /wicked-garden:mem:recall --tags onboarding --limit 10
    ```
-   Past decisions about this project's quality standards, review patterns, and architecture choices inform archetype detection.
+   Onboarding memories (tech stack, architecture, flows, gaps) plus past quality decisions inform archetype detection.
 
 3. **Analyze codebase structure** (if wicked-search available):
    - `/wicked-garden:search:scout` for common patterns (component library? API routes? data pipelines?)
