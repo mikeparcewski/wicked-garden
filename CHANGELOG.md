@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.1.0] - 2026-03-23
+
+### Features
+- feat: onboarding stores granular memories (one per fact, not monolithic summaries)
+- feat: onboarding memories actively consumed by smaht context assembly (0.15 relevance boost)
+- feat: crew:start and crew:execute explicitly recall onboarding memories for archetype analysis
+- feat: README repositioned — crew as hero, two-table structure (what you do / what plugin does)
+
+### Documentation
+- docs: all docs updated for v3.0 (14 domains, 8 specialists, event log coverage)
+- docs: architecture.md — added EventStore section
+- docs: advanced.md — added Event Log section with query examples
+- docs: crew-workflow.md — removed ghost design specialist, fixed signal routing
+
 ## [3.0.1] - 2026-03-23
 
 ### Event Log Consumers
