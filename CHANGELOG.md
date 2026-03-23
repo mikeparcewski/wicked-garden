@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.9.1] - 2026-03-22
+
+### Bug Fixes
+- fix: correct 31 broken script paths in commands/agents (missing domain prefix)
+- fix: remove 4 references to scripts that never existed (compliance_checker, a11y-check, evidence, bootstrap)
+- fix: disambiguate trigger collisions across 12 skills (design-review/visual-review, product-management/synthesize/requirements-analysis, gh-cli/github-actions, deliberate/debugging, compliance/audit)
+- fix: replace generic trigger phrases in policy and reporting skills
+- fix: add quoted trigger phrases to wickedizer skill
+- fix: second-person "your PATH" → "the system PATH" in agent-browser
+- fix: broken script paths in 6 platform/qe commands (observability→platform, scenarios→qe)
+- fix: stale counts in README (142 cmds, 79 skills, 8 specialists) and CLAUDE.md
+- fix: dead multi-model:collaborate command in docs/advanced.md
+- fix: wg-test stale skill invocations and script path
+- fix: hardcoded ~/Projects paths in new-generator command → ${CLAUDE_PLUGIN_ROOT}
+
 ## [2.9.0] - 2026-03-22
 
 ### Quality Investments
