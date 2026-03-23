@@ -1,106 +1,104 @@
 # Wicked Garden
 
-**AI-Native SDLC — the complete software development lifecycle as a Claude Code plugin.**
+**Your Claude Code sessions remember what you decided — and get better over time.**
 
-142 commands. 80 specialist agents. 79 skills. 8 specialist disciplines. One unified workflow engine that figures out who to call and when — based on what your project actually needs. No sidecar. No server. Just local files and smart routing.
+```bash
+> /wicked-garden:mem:recall "auth decisions"
+# Returns: "Chose stateless JWT over sessions — latency was the driver. Decision date: 2026-02-14."
 
-**v2.6** — On-demand personas with rich characteristics (personality, constraints, memories, preferences). Crew quality gates that actually reject work. Script-to-skill conversion eliminates Python dependency for reasoning. [Changelog](CHANGELOG.md) | [Migration from v1.x](#migration-from-v1x)
+> /wicked-garden:jam:quick "Should we add rate limiting before or after the gateway?"
+# 4 personas debate for 60 seconds. Synthesis: "After — the gateway already has circuit breakers."
+
+> /wicked-garden:engineering:review
+# Senior engineer reviews your code. Cites file:line. Categorizes: critical/major/minor.
+```
+
+That is the whole pitch. Memory that compounds. Brainstorming that produces decisions. Specialist agents that do real work. Everything else is scaffolding around those three things.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
 ```
 
-## What It Actually Does
+## Start Here
 
-One command kicks off a complete delivery:
+Pick the path that fits your day:
 
-```bash
-/wicked-garden:crew:start "Migrate auth from sessions to JWT across 3 services"
+| I want to... | Command | What happens |
+|-------------|---------|-------------|
+| **Remember a decision** | `mem:store "chose Postgres for audit trail"` | Persists across sessions. Surfaces when relevant. |
+| **Get a second opinion** | `jam:quick "monorepo or polyrepo?"` | 4 personas debate. You get a synthesis with confidence levels. |
+| **Review my code** | `engineering:review` | Senior engineer perspective. file:line citations. Actionable. |
+| **Understand a codebase** | `search:code "handlePayment"` | Structural search across 73 languages. Symbols, not strings. |
+| **Run a full project** | `crew:start "migrate auth to JWT"` | Signal analysis, phase planning, specialist routing. Adapts to complexity. |
+| **Check security** | `platform:security` | OWASP Top 10 scan with remediation guidance. |
+| **Brainstorm deeply** | `jam:brainstorm "API design approaches"` | 5-6 personas, 2-3 rounds, full synthesis with action items. |
+| **Analyze data** | `data:analyze sales.csv` | SQL queries on CSV/Excel via DuckDB. Handles 10GB+ files. |
+
+No setup required. Every command works independently on install.
+
+## Why This Exists
+
+Most Claude Code sessions start from scratch. Session 47 has no idea what session 1 decided.
+
+Wicked Garden fixes that with three layers:
+
+1. **Memory** (`mem`) — Decisions, patterns, and gotchas persist across sessions and surface automatically when relevant
+2. **Context assembly** (`smaht`) — Every prompt is enriched with memory, search results, project state, and brainstorm outcomes before Claude responds
+3. **Specialist routing** (`crew`) — Signal analysis detects what your project needs and routes to the right specialists automatically
+
+The result: the longer you use it, the better it gets. Your second month is meaningfully better than your first week.
+
+## How It Works
+
+```
+You type a prompt
+       |
+   [smaht assembles context: mem + search + kanban + crew state]
+       |
+   Claude responds with full project context
+       |
+   [hooks track decisions, sync tasks, store learnings]
+       |
+   Next session starts with everything remembered
 ```
 
-A signal analysis engine scores your project across impact, reversibility, and novelty. It detects `security`, `architecture`, and `performance` signals. Based on those signals, it assembles a phase plan and routes to the right specialists — automatically:
+For complex work, `crew:start` orchestrates the full lifecycle:
 
 ```
-  Smart Decisioning -> complexity 7/7, 4 signals detected
-  +--------------------------------------------------------------+
-  |                                                              |
-  |  CLARIFY --> jam brainstorms 5 approaches                   |
-  |              mem recalls "we chose stateless in Q3"          |
-  |              product validates requirements                  |
-  |                                                              |
-  |  DESIGN ---> engineering:arch designs the migration          |
-  |              search finds all session.get() calls            |
-  |              agentic reviews agent boundaries                |
-  |                                                              |
-  |  TEST -----> qe generates scenarios before code              |
-  |              shift-left: tests exist before implementation   |
-  |                                                              |
-  |  BUILD ----> engineering implements with tracking            |
-  |              platform checks OWASP, secrets, CVEs            |
-  |              kanban tracks every task                        |
-  |                                                              |
-  |  REVIEW ---> multi-perspective: code + security + product    |
-  |              mem stores learnings for next time              |
-  |                                                              |
-  +--------------------------------------------------------------+
+Signal Analysis → Phase Selection → Specialist Routing → Quality Gates → Memory Storage
 ```
 
-A simple config change? Complexity 1, two phases, done in minutes. A cross-cutting migration? Full pipeline, every specialist engaged.
-
+A config change? Complexity 1, two phases, done in minutes.
+A cross-cutting migration? Full pipeline, every specialist engaged.
 **The system adapts to the work. You don't configure it.**
 
-## Quick Start
+## 14 Domains
 
-```bash
-# Install
-claude plugins add mikeparcewski/wicked-garden
-
-# Use any domain immediately — no setup required:
-/wicked-garden:crew:start "Add user authentication"     # full workflow
-/wicked-garden:engineering:review                         # code review
-/wicked-garden:search:code "handleAuth"                   # find symbols
-/wicked-garden:jam:quick "Redis vs Postgres?"             # brainstorm
-/wicked-garden:platform:security                          # OWASP scan
-/wicked-garden:data:analyze sales.csv "top 10 by revenue" # SQL on CSV
-/wicked-garden:qe:scenarios "checkout flow"               # test scenarios
-/wicked-garden:mem:recall "auth decisions"                # cross-session memory
-```
-
-## Domains
-
-14 domains, each with its own commands, agents, skills, and scenarios. Every domain works independently.
-
-### Start Here
-
-Three paths, pick the one that fits:
-- **Build software**: `/wicked-garden:crew:start "your project description"` — orchestrates the full lifecycle
-- **Brainstorm ideas**: `/wicked-garden:jam:brainstorm "your question"` — multi-perspective debate
-- **Understand code**: `/wicked-garden:search:code "symbolName"` — structural search across 73 languages
+Every domain works independently. Install the plugin, use any command.
 
 ### Workflow & Intelligence
 
 | Domain | What It Does | Key Commands |
 |--------|-------------|--------------|
 | **crew** | Signal-driven workflow engine. Analyzes, selects phases, routes to specialists. | `crew:start`, `crew:execute`, `crew:just-finish` |
-| **smaht** | Context assembly brain. Enriches every prompt with relevant context automatically. | `smaht:onboard`, `smaht:debug` |
-| **mem** | Cross-session memory. Decisions and patterns persist and surface when relevant. | `mem:store`, `mem:recall`, `mem:review` |
-| **search** | Structural code intelligence across 73 languages. Symbols, lineage, blast radius. | `search:code`, `search:lineage`, `search:blast-radius` |
-| **jam** | AI brainstorming. 4-6 personas debate from technical, user, and business angles. | `jam:brainstorm`, `jam:quick`, `jam:council` |
-| **kanban** | Persistent task board. Auto-syncs with Claude's task tools via hooks. | `kanban:board-status`, `kanban:new-task` |
+| **smaht** | Context assembly. Enriches every prompt with relevant context automatically. | `smaht:onboard`, `smaht:debug` |
+| **mem** | Cross-session memory. Decisions persist and surface when relevant. | `mem:store`, `mem:recall`, `mem:review` |
+| **search** | Structural code intelligence across 73 languages. | `search:code`, `search:lineage`, `search:blast-radius` |
+| **jam** | AI brainstorming with dynamic focus groups. | `jam:brainstorm`, `jam:quick`, `jam:council` |
+| **kanban** | Persistent task board. Auto-syncs with Claude's task tools. | `kanban:board-status`, `kanban:new-task` |
 
 ### Specialist Disciplines
 
 | Discipline | What It Brings |
 |-----------|---------------|
-| **Engineering** | Code review, architecture, debugging, frontend/backend specialists |
+| **Engineering** | Code review, architecture, debugging, frontend/backend specialists, code transformations |
 | **Product** | Requirements, UX, customer voice, business strategy, accessibility, design review |
-| **Platform** | Security (OWASP), compliance (SOC2/HIPAA/GDPR), SRE, incident response |
+| **Platform** | Security (OWASP), compliance (SOC2/HIPAA/GDPR), SRE, incident response, plugin diagnostics |
 | **Quality** | Test strategy, automation, TDD, acceptance testing, E2E scenarios with evidence gates |
 | **Data** | DuckDB SQL on CSV/Excel (10GB+), pipelines, ML, analytics architecture |
 | **Delivery** | Sprint health, A/B tests, progressive rollouts, cost optimization |
 | **Agentic** | Agent architecture review, safety audits, framework analysis |
-| **Brainstorming** | Dynamic focus groups for ambiguous problems |
-| **Persona** | On-demand personas — invoke any specialist perspective with rich characteristics (personality, constraints, memories, preferences) |
+| **Persona** | On-demand specialist perspectives with rich characteristics |
 
 ## Integration
 
@@ -116,9 +114,9 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 
 ## Principles
 
-1. **Signal over ceremony** — The work tells the system what it needs. You don't configure pipelines.
-2. **Perspectives over ego** — 8 specialist domains catch what one voice misses.
-3. **Memory over amnesia** — Decisions persist. Session 47 knows what session 1 decided.
+1. **Memory over amnesia** — Decisions persist. Session 47 knows what session 1 decided.
+2. **Signal over ceremony** — The work tells the system what it needs. You don't configure pipelines.
+3. **Perspectives over ego** — 8 specialist domains catch what one voice misses.
 4. **Graceful degradation** — No external tools? Local JSON. Missing a specialist? Fallback agents.
 5. **Prompts over code** — Logic lives in markdown and config. Extensible by anyone.
 
@@ -131,29 +129,6 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | [Crew Workflow](docs/crew-workflow.md) | Signal routing, phases, specialists, checkpoints |
 | [Architecture](docs/architecture.md) | Storage, integration discovery, context assembly |
 | [Advanced Usage](docs/advanced.md) | Multi-model, customization, development commands |
-
-## Commands
-
-All 142 commands use colon namespacing: `/wicked-garden:{domain}:{command}`
-
-| Domain | Command | What It Does |
-|--------|---------|-------------|
-| crew | `crew:start` | Start a signal-driven workflow |
-| crew | `crew:just-finish` | Maximum autonomy execution |
-| engineering | `engineering:review` | Multi-pass code review |
-| search | `search:code` | Structural code search |
-| search | `search:lineage` | Trace data from UI to database |
-| platform | `platform:security` | OWASP vulnerability scan |
-| platform | `platform:compliance` | SOC2/HIPAA/GDPR/PCI checks |
-| qe | `qe:scenarios` | Generate test scenarios |
-| qe | `qe:acceptance` | Evidence-gated acceptance testing |
-| data | `data:analyze` | SQL on CSV/Excel via DuckDB |
-| jam | `jam:brainstorm` | Multi-persona brainstorming |
-| persona | `persona:as` | Invoke any persona on any task |
-| persona | `persona:define` | Create custom personas with rich characteristics |
-| mem | `mem:store` / `mem:recall` | Cross-session memory |
-
-See `/wicked-garden:help` for the full list, or browse [all domains](docs/domains.md).
 
 ## Migration from v1.x
 
