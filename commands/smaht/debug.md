@@ -23,7 +23,7 @@ Show the session state document and context assembly details for debugging.
 Read the session state from the history condenser:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/v2/history_condenser.py ${CLAUDE_SESSION_ID:-default}
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/smaht/v2/history_condenser.py ${CLAUDE_SESSION_ID:-default}
 ```
 
 ### 2. Parse Arguments

@@ -119,11 +119,7 @@ If sign-off is `conditional`, display conditions and ask user to confirm before 
 
 **For phases build, test, and review**: validate that completed tasks include required evidence.
 
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/evidence.py validate --phase {phase} --complexity {complexity_score}
-```
-
-For each completed task in the phase, call `validate_evidence(task.description, complexity_score)`:
+Use TaskList to check completed tasks in this phase. For each task, verify evidence fields are present:
 - If any task returns `valid: false`: report missing evidence fields per task
 - **Complexity >= 3**: BLOCK approval if evidence is missing (hard gate)
 - **Complexity < 3**: WARN but allow approval (soft nudge)

@@ -86,7 +86,7 @@ When designing ETL/ELT pipelines:
 
 Use the schema validator script:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/schema_validator.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/schema_validator.py" \
   --schema schemas/expected.json \
   --data data/actual.csv
 ```
@@ -102,7 +102,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/sch
 
 Profile datasets using:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data_profiler.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/data_profiler.py" \
   --input data/sample.csv \
   --output profile.json
 ```

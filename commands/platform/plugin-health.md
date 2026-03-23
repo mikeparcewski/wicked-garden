@@ -19,7 +19,7 @@ Run health probes to validate ecosystem integrity.
 
 Run the health probe script inline (no agent delegation needed):
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/health_probe.py $ARGUMENTS
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/health_probe.py $ARGUMENTS
 ```
 - Display results grouped by plugin, with severity icons
 - Exit code: 0=healthy, 1=warnings, 2=failures

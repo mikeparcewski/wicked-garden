@@ -205,9 +205,9 @@ aria-disabled="true"
 
 If wicked-browse available, can run axe-core:
 
+Use pa11y or Lighthouse if available. Check with:
 ```bash
-# Check if wicked-browse has a11y capabilities
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/a11y-check.py" {url_or_file}
+which pa11y && pa11y {url_or_file} || echo "pa11y not installed"
 ```
 
 Otherwise, recommend tools:

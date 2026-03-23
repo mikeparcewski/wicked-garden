@@ -28,12 +28,12 @@ Gather and display intelligent context from wicked-garden sources.
 Run the v2 orchestrator:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/v2/orchestrator.py gather "{query}" --session {session_id}
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/smaht/v2/orchestrator.py gather "{query}" --session {session_id}
 ```
 
 For sources check:
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/v2/orchestrator.py route "{query}" --json
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/smaht/v2/orchestrator.py route "{query}" --json
 ```
 
 ### 3. Display Results

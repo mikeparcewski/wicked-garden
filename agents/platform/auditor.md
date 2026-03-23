@@ -162,15 +162,10 @@ grep -r "retention\|rotate\|archive" --include="*.yml"
 - Evidence: Incident reports
 - Test: Verify response procedures followed
 
-## Evidence Collection Scripts
+## Evidence Collection
 
-Use compliance checker script:
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/compliance_checker.py" \
-  --target {path} \
-  --framework {soc2|hipaa|gdpr|pci} \
-  --collect-evidence
-```
+Use Grep and Read tools to collect evidence artifacts. Check source code for compliance controls,
+scan configuration for security settings, and verify access patterns against framework requirements.
 
 ## Gap Analysis
 

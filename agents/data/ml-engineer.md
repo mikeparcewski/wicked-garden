@@ -96,7 +96,7 @@ price_per_sqft = price / square_feet
 **Feature quality checks**:
 ```bash
 # Profile feature distributions
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data_profiler.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/data_profiler.py" \
   --input features.csv \
   --output feature_profile.json
 

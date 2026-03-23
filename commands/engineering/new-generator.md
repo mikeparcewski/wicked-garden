@@ -27,7 +27,7 @@ If not provided, ask the user:
 
 Create a new file at:
 ```
-~/Projects/wicked-garden/plugins/wicked-patch/scripts/generators/{language}_generator.py
+${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/generators/{language}_generator.py
 ```
 
 Use this template structure (adapt for the specific language):
@@ -128,7 +128,7 @@ class {Language}Generator(BaseGenerator):
 
 ### Step 3: Update __init__.py
 
-Add import to `~/Projects/wicked-garden/plugins/wicked-patch/scripts/generators/__init__.py`:
+Add import to `${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/generators/__init__.py`:
 
 ```python
 from . import {language}_generator
@@ -136,7 +136,7 @@ from . import {language}_generator
 
 ### Step 4: Create Golden Test Fixture
 
-Create `~/Projects/wicked-garden/plugins/wicked-patch/scripts/tests/fixtures/{language}_add_field.json`:
+Create `${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/tests/fixtures/{language}_add_field.json`:
 
 ```json
 {
@@ -176,7 +176,7 @@ Create `~/Projects/wicked-garden/plugins/wicked-patch/scripts/tests/fixtures/{la
 
 ### Step 5: Update Test File
 
-Add to `~/Projects/wicked-garden/plugins/wicked-patch/scripts/tests/test_conformance.py`:
+Add to `${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/tests/test_conformance.py`:
 
 1. Add contract test in `TestGeneratorContract`:
 ```python

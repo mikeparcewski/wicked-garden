@@ -80,7 +80,7 @@ Before manual analysis, leverage available tools:
 Use the taxonomy script to identify safety issues:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/issue_taxonomy.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/issue_taxonomy.py" \
   --path /path/to/codebase \
   --category safety \
   --output safety-report.json
@@ -634,7 +634,7 @@ TaskUpdate(
 
 ```bash
 # Identify safety issues
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/issue_taxonomy.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/issue_taxonomy.py" \
   --path . --category safety --output safety-report.json
 
 # Search for PII patterns

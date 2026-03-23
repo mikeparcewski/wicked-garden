@@ -86,7 +86,7 @@ Establish current performance metrics:
 
 ```bash
 # Analyze agent execution patterns
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
   --path /path/to/codebase \
   --metrics execution \
   --output performance-baseline.json
@@ -254,7 +254,7 @@ cost = calculate_cost(10_000, 1_000)
 Use the agent analyzer to find parallelizable paths:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
   --path /path/to/codebase \
   --analysis parallelization \
   --output parallel-opportunities.json
@@ -698,10 +698,10 @@ graph LR
 
 ```bash
 # Analyze agent performance
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
   --path . --metrics execution --output performance.json
 
 # Find parallelization opportunities
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/analyze_agents.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
   --path . --analysis parallelization
 ```

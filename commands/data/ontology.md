@@ -22,7 +22,7 @@ Use DuckDB to read the first 100 rows and extract:
 - Cardinality estimates
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/ontology_recommender.py "${file_path}"
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/data/ontology_recommender.py "${file_path}"
 ```
 
 ### 3. Match Against Known Ontologies
