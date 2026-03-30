@@ -24,7 +24,7 @@ ECC has a `PreToolUse` hook that scans prompts for secrets before they reach the
 - Blocks submission of sensitive data
 - Runs on every tool invocation
 
-**WG gap**: Our hooks don't scan for secrets. We fail-open by design, which is correct for availability but leaves a security gap.
+**WG gap**: Our PreToolUse hooks validate task creation and guard Write/Edit, but don't scan for secrets. We fail-open by design, which is correct for availability but leaves a security gap.
 
 ### 3. Deny Rules for Sensitive Paths
 

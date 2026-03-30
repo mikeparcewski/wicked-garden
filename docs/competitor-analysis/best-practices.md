@@ -50,17 +50,19 @@ We have domain-based organization (engineering, platform, qe, etc.) but no langu
 
 | Hook | Purpose | WG Equivalent |
 |------|---------|---------------|
-| `PreCompact` | Save critical state before context compaction | None |
-| `Stop` | Persist learnings at session end | We have Stop hooks but for kanban sync, not learning |
-| `SessionStart` | Auto-load previous context | We have bootstrap but focused on crew state, not general learning |
+| `PreCompact` | Save critical state before context compaction | `pre_compact.py` — serializes session state + compresses event logs |
+| `Stop` | Persist learnings at session end | `stop.py` — archives crew state + session metrics, but limited on general learning capture |
+| `SessionStart` | Auto-load previous context | `bootstrap.py` — loads crew project, kanban, memory, runs decay + onboarding |
 
 ### Recommendations
 
-- [ ] Add a `PreCompact` hook that persists smaht context and active crew state before compaction
-- [ ] Enhance Stop hook to capture session learnings into wicked-mem (beyond just crew gate failures)
-- [ ] Consider a "session reflection" pattern: at session end, extract patterns/gotchas into mem store
+We already have the hook infrastructure in place — the gap is in **what** we persist, not **whether** we persist:
 
-**Priority**: HIGH — We already have the wicked-mem infrastructure; we just need to wire it into more lifecycle hooks.
+- [ ] Enhance `pre_compact.py` to also persist smaht adapter results (not just session state) so context survives compaction
+- [ ] Enhance `stop.py` to capture session learnings into wicked-mem (patterns discovered, gotchas encountered — beyond just crew gate failures and metrics)
+- [ ] Consider a "session reflection" pattern: at session end, extract patterns/gotchas into mem store automatically
+
+**Priority**: MEDIUM — We have the hooks; we need to enrich what they capture.
 
 ## 4. Evaluation & Benchmarking Patterns
 
@@ -125,7 +127,7 @@ No troubleshooting guide. Users hitting issues have no reference.
 ## Summary: Top 5 Practices to Adopt
 
 1. **Model selection per subagent** — Assign haiku/sonnet/opus based on task complexity
-2. **PreCompact hook for state persistence** — Don't lose critical context during compaction
-3. **Session learning persistence** — Wire Stop hook into wicked-mem for pattern capture
+2. **Enrich PreCompact hook** — Persist smaht adapter results alongside session state
+3. **Session learning persistence** — Enhance Stop hook to capture patterns/gotchas into wicked-mem
 4. **Language-specific review criteria** — Load language-aware refs in engineering:review
 5. **Conventional commits** — Structured commit messages for better changelog/release flow

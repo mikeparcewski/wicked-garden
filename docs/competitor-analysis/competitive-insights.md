@@ -122,7 +122,7 @@ ECC has a `chief-of-staff` agent — a meta-orchestrator that coordinates other 
 
 ### Short-Term (Next Release)
 
-1. **Add PreCompact hook** for state persistence
+1. **Enrich PreCompact hook** with smaht adapter results and learning artifacts
 2. **Add secret scanning** to PreToolUse hooks
 3. **Document token economics** in a skill or guide
 4. **Create command quick-reference** card

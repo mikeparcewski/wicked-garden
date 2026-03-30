@@ -21,7 +21,7 @@
 
 ### Top 5 Action Items
 
-1. Add **PreCompact hook** for state persistence before context compaction
+1. Enrich **PreCompact hook** with smaht adapter results and learning artifacts
 2. Add **secret detection** in PreToolUse hooks
 3. Add **language-specific review criteria** to engineering domain
 4. Create **build error resolution** command/agent

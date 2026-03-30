@@ -65,7 +65,7 @@
 | Aspect | ECC | WG | Better |
 |--------|-----|-----|--------|
 | Memory store | `.tmp` files in `.claude/` + observation JSONL | DomainStore + SqliteStore with FTS5 | **WG** significantly |
-| Session persistence | Hook-based (PreCompact, Stop, SessionStart) | SessionState + bootstrap | Comparable |
+| Session persistence | Hook-based (PreCompact, Stop, SessionStart) | PreCompact + Stop + bootstrap (all 3 hooks present) | **WG** for infrastructure |
 | Context assembly | Manual system prompt injection | smaht 3-tier routing (HOT/FAST/SLOW) | **WG** significantly |
 | Cross-session recall | File-based with manual loading | wicked-mem with BM25 search | **WG** |
 
@@ -90,7 +90,7 @@
 
 2. **Rules system** — ECC has 34 always-loaded rules covering coding style, git workflow, testing, performance, security. We embed these in CLAUDE.md and skills, but having extractable, composable rules would improve governance.
 
-3. **PreCompact hook** — Protecting state before context compaction is critical for long sessions. We have no equivalent.
+3. **Enriched PreCompact hook** — We have `pre_compact.py` that serializes session state, but ECC's approach of also persisting learning artifacts and adapter results before compaction is worth adopting.
 
 4. **Build error resolution** — `/build-fix` with language-aware resolvers is practical. Users hit build errors constantly; a dedicated resolution path saves time.
 
