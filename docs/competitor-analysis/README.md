@@ -8,11 +8,11 @@
 
 | Document | Focus | Key Findings |
 |----------|-------|-------------|
-| [best-practices.md](best-practices.md) | Practices we should adopt | Model selection per subagent, PreCompact hooks, session learning, language-specific reviews, conventional commits |
-| [feature-comparison.md](feature-comparison.md) | Functionality overlap & implementation quality | WG stronger in orchestration/gates/memory; ECC stronger in language breadth/security tooling |
+| [best-practices.md](best-practices.md) | Practices we should adopt | Model selection per subagent, enriched hooks, session learning, language-specific reviews, conventional commits |
+| [feature-comparison.md](feature-comparison.md) | Functionality overlap & gaps (15 items) | WG stronger in orchestration/gates/memory; ECC stronger in language breadth/security/continuous learning |
 | [cross-platform-strategy.md](cross-platform-strategy.md) | CLI/IDE cross-platform handling | ECC supports 5 platforms; recommend WG stays deep on Claude Code, exports portable knowledge layer |
 | [security-lessons.md](security-lessons.md) | Security practices to adopt | Secret scanning, supply chain scanning, memory sanitization, deny rules |
-| [competitive-insights.md](competitive-insights.md) | Strategic takeaways & recommendations | ECC wins breadth + convenience; WG wins depth + orchestration; close obvious gaps, maintain architectural advantages |
+| [competitive-insights.md](competitive-insights.md) | Strategic takeaways & recommendations | ECC wins breadth + convenience; WG wins depth + orchestration; includes continuous learning analysis, CLAUDE.md templates |
 
 ## TL;DR
 

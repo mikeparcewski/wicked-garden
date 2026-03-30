@@ -94,23 +94,31 @@
 
 4. **Build error resolution** — `/build-fix` with language-aware resolvers is practical. Users hit build errors constantly; a dedicated resolution path saves time.
 
+5. **Continuous learning / instinct system** — ECC's `/learn` command extracts reusable patterns from sessions and saves them as skill files. Instincts have confidence scoring with decay, can be clustered into skills via `/evolve`, and imported/exported for team sharing. Our wicked-mem stores learnings at gate failures and project completion, but lacks automated pattern extraction from general sessions.
+
 ### Tier 2: Should-Have
 
-5. **Token/cost tracking** — ECC's Stop hook tracks token usage and costs per session. Useful for teams managing budgets.
+6. **Token/cost tracking** — ECC's Stop hook tracks token usage and costs per session. Useful for teams managing budgets.
 
-6. **Desktop notifications** — ECC notifies users when long-running agent tasks complete. Simple quality-of-life improvement.
+7. **Desktop notifications** — ECC notifies users when long-running agent tasks complete. Simple quality-of-life improvement.
 
-7. **Troubleshooting guide** — Dedicated troubleshooting documentation for common failure modes.
+8. **Troubleshooting guide** — Dedicated troubleshooting documentation for common failure modes.
 
-8. **Conventional commit enforcement** — Structured commit messages improve changelog generation.
+9. **Conventional commit enforcement** — Structured commit messages improve changelog generation.
+
+10. **Example CLAUDE.md templates** — ECC provides 7 project-type-specific CLAUDE.md examples (SaaS/Next.js, Go microservice, Django API, Laravel, Rust API). Useful as onboarding accelerators.
+
+11. **Hook profiles** — ECC supports `ECC_HOOK_PROFILE` (minimal/standard/strict) and `ECC_DISABLED_HOOKS` for granular hook control. Users can tune strictness per project.
 
 ### Tier 3: Nice-to-Have
 
-9. **llms.txt pattern** — Using `/llms.txt` endpoints from documentation sites for LLM-optimized docs loading.
+12. **llms.txt pattern** — Using `/llms.txt` endpoints from documentation sites for LLM-optimized docs loading.
 
-10. **Voice input guidance** — Documentation on using transcription tools with Claude Code.
+13. **Voice input guidance** — Documentation on using transcription tools with Claude Code.
 
-11. **Status line customization** — Guidance on customizing the Claude Code status bar.
+14. **Status line customization** — Guidance on customizing the Claude Code status bar.
+
+15. **Autonomous loop safeguards** — ECC's `loop-operator` agent enforces quality gates, eval baselines, rollback paths, and branch isolation before running autonomous loops. Detects stalls and retry storms.
 
 ## Features WG Has That ECC Lacks (Our Advantages)
 

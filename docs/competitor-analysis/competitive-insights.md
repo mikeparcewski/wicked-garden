@@ -87,7 +87,36 @@ rules/
 
 **Important caveat**: ECC notes that "Rules cannot be distributed via plugins and must be installed manually." This is a Claude Code platform limitation. We should verify if this is still the case and, if so, whether there's a workaround.
 
-### 6. Token Economics Awareness
+### 6. Continuous Learning System
+
+ECC has a notable **instinct/learning system** that we should study:
+
+- `/learn` extracts reusable patterns from sessions → saves as skill files to `~/.claude/skills/learned/`
+- Patterns categorized as: error resolution, debugging techniques, workarounds, project-specific
+- **Confidence scoring with decay** — instincts lose confidence over time if not reinforced
+- `/evolve` clusters related instincts into higher-level skills
+- Import/export for team sharing of learned patterns
+- PreToolUse/PostToolUse hooks observe patterns during sessions (claimed "100% reliable")
+- Expired pending instincts pruned after 30-day TTL
+
+**WG comparison**: Our wicked-mem stores learnings at gate failures and project completion, but lacks:
+- Automated pattern extraction from general sessions (not just crew workflows)
+- Confidence scoring with temporal decay
+- Clustering of related memories into higher-level patterns
+- Easy team sharing/import/export of learned patterns
+
+**Recommendation**: Evaluate whether wicked-mem should gain automated session pattern extraction. The instinct → evolve → skill pipeline is a compelling feedback loop. However, their flat-file approach is fragile compared to our FTS5 store.
+
+### 7. Example CLAUDE.md Templates
+
+ECC provides **7 project-type-specific CLAUDE.md examples** that serve as onboarding accelerators:
+- Generic project, user-level config, SaaS/Next.js, Go microservice, Django API, Laravel API, Rust API
+
+Each includes project-specific rules like "Never trust client-side price data — always fetch from Stripe server-side" (SaaS example).
+
+**Lesson**: We could offer template CLAUDE.md files that reference wicked-garden skills for common project types. This would accelerate onboarding and demonstrate immediate value.
+
+### 8. Token Economics Awareness
 
 ECC is highly conscious of token costs and context window management. This resonates with users paying for Claude API usage.
 
