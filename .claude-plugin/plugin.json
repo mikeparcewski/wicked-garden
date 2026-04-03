@@ -88,6 +88,10 @@
     }
   },
 
+  "_future_lspServers": {
+    "_comment": "Issue #347: lspServers field enables Language Server Protocol integration for richer code intelligence (go-to-definition, find-references, hover, diagnostics). When Claude Code adds lspServers support to plugins, investigate integrating with the search/CIQ domain for enhanced symbol resolution. Candidate servers: TypeScript (typescript-language-server), Python (pyright), Rust (rust-analyzer)."
+  },
+
   "_future_outputStyles": {
     "_comment": "Issue #338: outputStyles field is not yet supported as a configuration block in plugin.json. When Claude Code adds outputStyles support, move these declarations to a top-level outputStyles block or the ./styles/ directory. These define domain-specific formatting for different work modes.",
     "crew-phase": {
