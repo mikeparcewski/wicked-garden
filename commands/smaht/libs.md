@@ -34,16 +34,18 @@ If records are returned, present a summary table:
 Library Knowledge Base
 ======================
 
-| Library    | Version  | Key APIs | Patterns | Age       |
-|------------|----------|----------|----------|-----------|
-| react      | 18.x     | 8        | 4        | 2 days    |
-| fastapi    | 0.115    | 6        | 3        | 1 week    |
-| next.js    | —        | 9        | 5        | 3 hours   |
+| Library    | Version  | Key APIs | Patterns | Fetched          |
+|------------|----------|----------|----------|------------------|
+| react      | 18.x     | 8        | 4        | 2 days ago       |
+| fastapi    | 0.115    | 6        | 3        | 1 week ago       |
+| next.js    | —        | 9        | 5        | 3 hours ago      |
+| express    | 4.x      | 7        | 3        | 45 days (stale)  |
 
 {total} cheatsheet(s) stored.
 
-To inspect a specific cheatsheet, run:
-  /wicked-garden:smaht:learn {library}   — refresh with latest docs
+  /wicked-garden:smaht:learn {library}            — refresh with latest docs
+  /wicked-garden:smaht:learn {library} --remove   — remove a stale cheatsheet
+  /wicked-garden:smaht:learn --update-all         — refresh all cheatsheets
 ```
 
 Column definitions:
@@ -51,9 +53,11 @@ Column definitions:
 - **Version**: `version_hint` if present, else `—`
 - **Key APIs**: `len(key_apis)` array
 - **Patterns**: `len(common_patterns)` array
-- **Age**: human-readable age derived from `timestamp` field
+- **Fetched**: human-readable age derived from `fetched_at` field (falls back to `timestamp` if `fetched_at` is absent)
 
-Sort by `timestamp` descending (newest first).
+Sort by `fetched_at` (or `timestamp`) descending (newest first).
+
+If a cheatsheet is older than 30 days, append a staleness indicator (e.g. " (stale)") to the Fetched column to prompt the user to refresh.
 
 ### 4. Empty State
 
@@ -74,5 +78,7 @@ Future prompts mentioning that library skip the live MCP call.
 ## Notes
 
 - Cheatsheets are stored per-library; the most recent entry wins on lookup.
-- Re-running `/wicked-garden:smaht:learn {library}` refreshes the cheatsheet with current docs.
+- Re-running `/wicked-garden:smaht:learn {library}` refreshes the cheatsheet and shows a diff of what changed.
+- Use `/wicked-garden:smaht:learn {library} --remove` to delete a stale cheatsheet.
+- Use `/wicked-garden:smaht:learn --update-all` to refresh all cached cheatsheets at once.
 - The smaht context assembler uses these cheatsheets automatically — no manual lookup needed during normal work.

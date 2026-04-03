@@ -220,6 +220,14 @@ class SessionState:
     turn_start_ts: str = ""
     turn_tool_count: int = 0
 
+    # PostToolUse hook latency profiling (Issue #312).
+    # Cumulative milliseconds spent in the post_tool.py main() function.
+    post_tool_total_ms: int = 0
+    # Total number of PostToolUse hook invocations this session.
+    post_tool_call_count: int = 0
+    # Per-handler cumulative milliseconds: {"Read": 42, "Write|Edit": 15, ...}
+    post_tool_handler_ms: dict | None = None
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

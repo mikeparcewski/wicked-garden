@@ -10,8 +10,11 @@ Check the wicked-garden plugin quality. Fast structural checks by default, full 
 Parse: $ARGUMENTS
 
 - **--full**: Run comprehensive assessment including product value evaluation
+- **--agents**: Run only the agent trigger frequency analysis (Section 10) in detail
 
 The check always targets the repo root (the single unified plugin). No path argument needed.
+
+If `--agents` is passed, skip all other sections and run only Section 10 (Agent Trigger Analysis) with detailed output.
 
 ## Quick Check (Default)
 
@@ -431,6 +434,173 @@ else:
 " 2>/dev/null || python -c "print('WARNING: Could not validate specialist roles')"
 ```
 
+### 10. Agent Trigger Analysis
+
+Analyze agent descriptions for trigger quality, overlap, and coverage gaps.
+
+```bash
+# 10a. Count agents per domain and check description quality
+python3 -c "
+import os, re, sys
+from pathlib import Path
+from collections import defaultdict
+
+agents_root = Path('./agents')
+domains = sorted(d.name for d in agents_root.iterdir() if d.is_dir())
+
+# Parse agent frontmatter
+agents = []
+for domain in domains:
+    domain_path = agents_root / domain
+    for md in sorted(domain_path.glob('*.md')):
+        content = md.read_text()
+        m = re.match(r'^---\n(.*?\n)---', content, re.DOTALL)
+        if not m:
+            continue
+        fm = m.group(1)
+        name_m = re.search(r'^name:\s*(.+)', fm, re.MULTILINE)
+        name = name_m.group(1).strip() if name_m else md.stem
+
+        # Extract description (handles multiline YAML with blank lines)
+        desc_m = re.search(r'^description:\s*\|?\s*\n((?:(?:[ \t]+.*|)\n)*)', fm, re.MULTILINE)
+        if desc_m:
+            desc = desc_m.group(1).strip()
+        else:
+            desc_m = re.search(r'^description:\s*(.+)', fm, re.MULTILINE)
+            desc = desc_m.group(1).strip() if desc_m else ''
+
+        has_example = '<example>' in desc
+        agents.append({
+            'domain': domain,
+            'name': name,
+            'desc': desc,
+            'desc_len': len(desc),
+            'has_example': has_example,
+            'file': str(md),
+        })
+
+# 10a. Summary table
+print('### Agent Trigger Analysis')
+print()
+domain_counts = defaultdict(int)
+for a in agents:
+    domain_counts[a['domain']] += 1
+print('| Domain | Agent Count |')
+print('|--------|------------|')
+for d in sorted(domain_counts):
+    print(f\"| {d} | {domain_counts[d]} |\")
+print(f'| **Total** | **{len(agents)}** |')
+print()
+
+# 10b. Short descriptions (<50 chars)
+short = [a for a in agents if a['desc_len'] < 50]
+if short:
+    print(f'WARNING: {len(short)} agents with short descriptions (<50 chars) — may not trigger well:')
+    for a in short:
+        print(f'  {a[\"domain\"]}/{a[\"name\"]}: {a[\"desc_len\"]} chars')
+    print()
+
+# 10c. Missing example blocks
+no_examples = [a for a in agents if not a['has_example']]
+if no_examples:
+    print(f'WARNING: {len(no_examples)} agents missing <example> blocks in description:')
+    for a in no_examples:
+        print(f'  {a[\"domain\"]}/{a[\"name\"]}')
+    print()
+
+# 10d. Trigger phrase overlap detection
+# Extract 'Use when:' phrases and key trigger words
+trigger_words = defaultdict(list)
+for a in agents:
+    use_when = re.search(r'Use when:\s*(.+)', a['desc'])
+    if use_when:
+        phrases = [w.strip().lower() for w in re.split(r'[,;]', use_when.group(1)) if w.strip()]
+        for phrase in phrases:
+            # Normalize and collect 2+ word phrases
+            words = phrase.split()
+            for i in range(len(words)):
+                for j in range(i+2, min(i+4, len(words)+1)):
+                    bigram = ' '.join(words[i:j])
+                    if len(bigram) > 5:
+                        trigger_words[bigram].append(f'{a[\"domain\"]}/{a[\"name\"]}')
+
+# Find overlapping trigger phrases (shared by 2+ agents in different domains)
+overlaps = {}
+for phrase, agent_list in trigger_words.items():
+    domains_seen = set(a.split('/')[0] for a in agent_list)
+    if len(agent_list) >= 2 and len(domains_seen) >= 2:
+        overlaps[phrase] = agent_list
+
+if overlaps:
+    # Deduplicate: keep only the longest overlapping phrase per agent pair
+    print(f'NOTICE: {len(overlaps)} trigger phrases shared across domains (potential overlap):')
+    shown = set()
+    for phrase in sorted(overlaps, key=lambda p: (-len(overlaps[p]), p)):
+        agents_key = tuple(sorted(set(overlaps[phrase])))
+        if agents_key not in shown and len(shown) < 15:
+            shown.add(agents_key)
+            print(f'  \"{phrase}\" -> {\" , \".join(sorted(set(overlaps[phrase])))}')
+    print()
+else:
+    print('OK: No cross-domain trigger phrase overlaps detected')
+    print()
+
+# Summary
+errors = len(short) + len(no_examples)
+if errors == 0:
+    print('Agent Trigger Analysis: PASS')
+else:
+    print(f'Agent Trigger Analysis: {len(short)} short descriptions, {len(no_examples)} missing examples')
+" 2>/dev/null || python -c "print('WARNING: Could not run agent trigger analysis')"
+```
+
+```bash
+# 10e. Detailed per-domain breakdown (shown with --agents flag, or on --full)
+# When running with --agents, also show per-agent detail:
+python3 -c "
+import os, re, sys
+from pathlib import Path
+
+agents_root = Path('./agents')
+domains = sorted(d.name for d in agents_root.iterdir() if d.is_dir())
+
+print('### Detailed Agent Inventory')
+print()
+for domain in domains:
+    domain_path = agents_root / domain
+    mds = sorted(domain_path.glob('*.md'))
+    if not mds:
+        continue
+    print(f'#### {domain} ({len(mds)} agents)')
+    print('| Agent | Desc Len | Has Example | Trigger Phrases |')
+    print('|-------|----------|-------------|-----------------|')
+    for md in mds:
+        content = md.read_text()
+        m = re.match(r'^---\n(.*?\n)---', content, re.DOTALL)
+        if not m:
+            continue
+        fm = m.group(1)
+        name_m = re.search(r'^name:\s*(.+)', fm, re.MULTILINE)
+        name = name_m.group(1).strip() if name_m else md.stem
+        desc_m = re.search(r'^description:\s*\|?\s*\n((?:(?:[ \t]+.*|)\n)*)', fm, re.MULTILINE)
+        if desc_m:
+            desc = desc_m.group(1).strip()
+        else:
+            desc_m = re.search(r'^description:\s*(.+)', fm, re.MULTILINE)
+            desc = desc_m.group(1).strip() if desc_m else ''
+        has_ex = 'yes' if '<example>' in desc else 'NO'
+        use_when = re.search(r'Use when:\s*(.+)', desc)
+        triggers = use_when.group(1).strip()[:60] if use_when else '(none)'
+        status = 'short' if len(desc) < 50 else ''
+        print(f'| {name} | {len(desc)}{\" !!\" if len(desc) < 50 else \"\"} | {has_ex} | {triggers} |')
+    print()
+" 2>/dev/null || python -c "print('WARNING: Could not run detailed agent inventory')"
+```
+
+**When to run each part**:
+- Section 10a-10d (summary + warnings) runs as part of every quick check
+- Section 10e (detailed inventory) runs only with `--agents` or `--full` flags
+
 ### Quick Check Output
 
 ```markdown
@@ -454,6 +624,7 @@ else:
 | README style guide | ✓/✗ |
 | README freshness | ✓/✗ |
 | Self-referential integrity | ✓/✗ |
+| Agent trigger analysis | ✓/⚠ |
 
 **Result**: PASS / FAIL
 

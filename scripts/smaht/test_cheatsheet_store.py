@@ -6,6 +6,10 @@ Covers:
 - get non-existent library -> {"found": false}
 - list with search filter
 - store returns success:false when DomainStore.create returns None
+- update detection with diff reporting
+- remove cheatsheet
+- update-all listing
+- staleness tracking (fetched_at metadata)
 """
 
 import json
@@ -41,8 +45,15 @@ def _make_storage_mock(records=None):
     def _list(source):
         return list(_store)
 
+    def _delete(source, record_id):
+        to_remove = [r for r in _store if r.get("id") == record_id]
+        for r in to_remove:
+            _store.remove(r)
+        return True
+
     sm.create.side_effect = _create
     sm.list.side_effect = _list
+    sm.delete.side_effect = _delete
     return sm, _store
 
 
@@ -263,3 +274,155 @@ class TestRoundTrip:
         assert out.get("version_hint") == "18.x"
         assert len(out.get("key_apis", [])) == 1
         assert out["key_apis"][0]["name"] == "useState"
+
+
+class TestUpdateDetection:
+    def test_store_new_library_reports_updated_false(self, capsys):
+        sm, _ = _make_storage_mock()
+        mod = _load_module(sm)
+
+        args = MagicMock()
+        args.library = "react"
+        args.data = json.dumps({"key_apis": [{"name": "useState"}]})
+        args.version_hint = None
+
+        mod.cmd_store(args)
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["updated"] is False
+
+    def test_store_existing_library_reports_updated_true_with_diff(self, capsys):
+        existing = [{
+            "id": "old-id",
+            "library": "react",
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "fetched_at": "2026-01-01T00:00:00+00:00",
+            "key_apis": [{"name": "useState"}],
+            "common_patterns": [],
+            "gotchas": [],
+        }]
+        sm, _ = _make_storage_mock(existing)
+        mod = _load_module(sm)
+
+        args = MagicMock()
+        args.library = "react"
+        args.data = json.dumps({
+            "key_apis": [{"name": "useState"}, {"name": "useEffect"}],
+            "common_patterns": [],
+            "gotchas": ["Watch out for stale closures"],
+        })
+        args.version_hint = None
+
+        mod.cmd_store(args)
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["updated"] is True
+        assert out["diff"]["has_changes"] is True
+        assert "useEffect" in out["diff"]["changes"]["key_apis"]["added"]
+        assert "Watch out for stale closures" in out["diff"]["changes"]["gotchas"]["added"]
+
+    def test_store_sets_fetched_at_and_last_updated(self, capsys):
+        existing = [{
+            "id": "old-id",
+            "library": "react",
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "fetched_at": "2026-01-01T00:00:00+00:00",
+            "key_apis": [],
+            "common_patterns": [],
+            "gotchas": [],
+        }]
+        sm, store = _make_storage_mock(existing)
+        mod = _load_module(sm)
+
+        args = MagicMock()
+        args.library = "react"
+        args.data = json.dumps({"key_apis": []})
+        args.version_hint = None
+
+        mod.cmd_store(args)
+        capsys.readouterr()
+
+        # The stored record should have fetched_at and last_updated
+        stored = [r for r in store if r.get("library") == "react"]
+        assert len(stored) >= 1
+        latest = stored[-1]
+        assert "fetched_at" in latest
+        assert "last_updated" in latest
+        assert "previous_fetched_at" in latest
+
+
+class TestCmdRemove:
+    def test_remove_existing_library_succeeds(self, capsys):
+        records = [{"id": "abc", "library": "react", "timestamp": "2026-01-01T00:00:00+00:00"}]
+        sm, _ = _make_storage_mock(records)
+        mod = _load_module(sm)
+
+        args = MagicMock()
+        args.library = "react"
+        mod.cmd_remove(args)
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["success"] is True
+        assert out["removed"] == 1
+
+    def test_remove_nonexistent_library_exits_with_error(self, capsys):
+        sm, _ = _make_storage_mock()
+        mod = _load_module(sm)
+
+        args = MagicMock()
+        args.library = "nonexistent"
+
+        with pytest.raises(SystemExit) as exc_info:
+            mod.cmd_remove(args)
+
+        assert exc_info.value.code == 1
+        out = json.loads(capsys.readouterr().out)
+        assert out["success"] is False
+
+
+class TestCmdUpdateAll:
+    def test_update_all_returns_unique_libraries(self, capsys):
+        records = [
+            {"library": "react", "timestamp": "2026-01-01T00:00:00+00:00",
+             "fetched_at": "2026-01-01T00:00:00+00:00", "version_hint": "18.x"},
+            {"library": "react", "timestamp": "2026-02-01T00:00:00+00:00",
+             "fetched_at": "2026-02-01T00:00:00+00:00", "version_hint": "18.x"},
+            {"library": "fastapi", "timestamp": "2026-01-15T00:00:00+00:00",
+             "fetched_at": "2026-01-15T00:00:00+00:00"},
+        ]
+        sm, _ = _make_storage_mock(records)
+        mod = _load_module(sm)
+
+        args = MagicMock()
+        mod.cmd_update_all(args)
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["count"] == 2
+        libs = [l["library"] for l in out["libraries"]]
+        assert "react" in libs
+        assert "fastapi" in libs
+
+
+class TestDiffCheatsheets:
+    def test_no_changes_detected(self):
+        sm, _ = _make_storage_mock()
+        mod = _load_module(sm)
+
+        old = {"key_apis": [{"name": "a"}], "common_patterns": [{"name": "p"}], "gotchas": ["g"]}
+        new = {"key_apis": [{"name": "a"}], "common_patterns": [{"name": "p"}], "gotchas": ["g"]}
+
+        changes, has_changes = mod._diff_cheatsheets(old, new)
+        assert has_changes is False
+        assert changes == {}
+
+    def test_added_and_removed_apis(self):
+        sm, _ = _make_storage_mock()
+        mod = _load_module(sm)
+
+        old = {"key_apis": [{"name": "a"}, {"name": "b"}], "common_patterns": [], "gotchas": []}
+        new = {"key_apis": [{"name": "b"}, {"name": "c"}], "common_patterns": [], "gotchas": []}
+
+        changes, has_changes = mod._diff_cheatsheets(old, new)
+        assert has_changes is True
+        assert "a" in changes["key_apis"]["removed"]
+        assert "c" in changes["key_apis"]["added"]

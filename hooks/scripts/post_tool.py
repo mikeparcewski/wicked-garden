@@ -770,14 +770,26 @@ def _handle_read(tool_input: dict, tool_response=None) -> dict:
     a single read exceeds _READ_LINE_THRESHOLD lines or _READ_CHAR_THRESHOLD
     chars.  Tracks cumulative bytes read for escalating warnings.
 
+    Optimized (Issue #312): uses a single SessionState load/save for both
+    large-file tracking and framework detection, avoiding redundant disk I/O
+    on the highest-frequency tool.
+
     Always returns {"continue": True} — never blocks reads.
     """
     file_path = (tool_input.get("file_path") or "")
     messages = []
 
-    # --- Large-file-read detection ---
+    # --- Quick path-based framework check (no I/O needed) ---
+    file_path_lower = file_path.lower()
+    detected_frameworks = []
+    if file_path_lower:
+        for framework, patterns in _FRAMEWORK_PATTERNS.items():
+            if any(p in file_path_lower for p in patterns):
+                detected_frameworks.append(framework)
+
+    # --- Parse response text for size check ---
+    response_text = ""
     try:
-        response_text = ""
         if isinstance(tool_response, str):
             response_text = tool_response
         elif isinstance(tool_response, dict):
@@ -791,63 +803,60 @@ def _handle_read(tool_input: dict, tool_response=None) -> dict:
                 elif isinstance(block, str):
                     parts.append(block)
             response_text = "\n".join(parts)
+    except Exception:
+        pass
 
-        if response_text:
-            char_count = len(response_text)
-            line_count = response_text.count("\n") + 1
-
+    # --- Single SessionState load/save for both concerns ---
+    needs_state = bool(response_text) or bool(detected_frameworks)
+    if needs_state:
+        try:
             from _session import SessionState
             state = SessionState.load()
+            state_dirty = False
 
-            # Update cumulative read size
-            cumulative = (state.read_bytes_total or 0) + char_count
-            warn_count = state.read_large_warn_count or 0
+            # Large-file-read detection
+            if response_text:
+                char_count = len(response_text)
+                line_count = response_text.count("\n") + 1
 
-            if line_count >= _READ_LINE_THRESHOLD or char_count >= _READ_CHAR_THRESHOLD:
-                warn_count += 1
-                short_path = Path(file_path).name if file_path else "unknown"
+                cumulative = (state.read_bytes_total or 0) + char_count
+                warn_count = state.read_large_warn_count or 0
 
-                if cumulative >= _CUMULATIVE_WARN_THRESHOLD and warn_count > 2:
-                    # Escalated warning — heavy cumulative reads
-                    messages.append(
-                        f"[Context] Large file read: {short_path} ({line_count} lines, "
-                        f"{char_count:,} chars). Session total: {cumulative:,} chars read inline. "
-                        f"Context window pressure is high — delegate remaining reads to "
-                        f"subagents via Task tool to preserve context."
-                    )
-                else:
-                    messages.append(
-                        f"[Context] Large file read detected ({line_count} lines, "
-                        f"{char_count:,} chars). Consider delegating to a subagent to "
-                        f"preserve context. Use Task tool with the file path instead of "
-                        f"reading inline."
-                    )
+                if line_count >= _READ_LINE_THRESHOLD or char_count >= _READ_CHAR_THRESHOLD:
+                    warn_count += 1
+                    short_path = Path(file_path).name if file_path else "unknown"
 
-            state.update(
-                read_bytes_total=cumulative,
-                read_large_warn_count=warn_count,
-            )
-    except Exception:
-        pass
+                    if cumulative >= _CUMULATIVE_WARN_THRESHOLD and warn_count > 2:
+                        messages.append(
+                            f"[Context] Large file read: {short_path} ({line_count} lines, "
+                            f"{char_count:,} chars). Session total: {cumulative:,} chars read inline. "
+                            f"Context window pressure is high — delegate remaining reads to "
+                            f"subagents via Task tool to preserve context."
+                        )
+                    else:
+                        messages.append(
+                            f"[Context] Large file read detected ({line_count} lines, "
+                            f"{char_count:,} chars). Consider delegating to a subagent to "
+                            f"preserve context. Use Task tool with the file path instead of "
+                            f"reading inline."
+                        )
 
-    # --- Agentic framework detection (existing behavior) ---
-    try:
-        file_path_lower = file_path.lower()
-        if file_path_lower:
-            detected = []
-            for framework, patterns in _FRAMEWORK_PATTERNS.items():
-                if any(p in file_path_lower for p in patterns):
-                    detected.append(framework)
+                state.read_bytes_total = cumulative
+                state.read_large_warn_count = warn_count
+                state_dirty = True
 
-            if detected:
-                from _session import SessionState
-                state = SessionState.load()
-                existing = getattr(state, "detected_frameworks", None) or []
-                combined = list(set(existing + detected))
-                state.update(detected_frameworks=combined)
+            # Framework detection (merged into same state load)
+            if detected_frameworks:
+                existing = state.detected_frameworks or []
+                combined = list(set(existing + detected_frameworks))
+                if combined != existing:
+                    state.detected_frameworks = combined
+                    state_dirty = True
+
+            if state_dirty:
                 state.save()
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     result = {"continue": True}
     if messages:
@@ -1150,6 +1159,33 @@ def _check_turn_progress(tool_name: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Latency profiling (Issue #312) — cumulative PostToolUse timing in SessionState
+# ---------------------------------------------------------------------------
+
+def _record_latency(handler_label: str, handler_ms: int, total_ms: int) -> None:
+    """Accumulate PostToolUse latency in SessionState for profiling.
+
+    Updates three fields:
+      - post_tool_total_ms:    cumulative wall-clock time across all invocations
+      - post_tool_call_count:  total invocation count
+      - post_tool_handler_ms:  per-handler cumulative ms (keyed by handler_label)
+
+    Fails silently — never crashes the hook.
+    """
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        state.post_tool_total_ms = (state.post_tool_total_ms or 0) + total_ms
+        state.post_tool_call_count = (state.post_tool_call_count or 0) + 1
+        handler_breakdown = state.post_tool_handler_ms or {}
+        handler_breakdown[handler_label] = handler_breakdown.get(handler_label, 0) + handler_ms
+        state.post_tool_handler_ms = handler_breakdown
+        state.save()
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Main dispatcher
 # ---------------------------------------------------------------------------
 
@@ -1171,15 +1207,21 @@ def main():
         _log("posttool", "debug", "hook.start", detail={"tool": tool_name})
 
         # Write observability trace (low-priority, always runs)
+        _t_trace = time.monotonic()
         _write_trace(payload)
+        _trace_ms = int((time.monotonic() - _t_trace) * 1000)
 
         # --- Route by event type and tool name ---
+        handler_label = tool_name or "unknown"
+        _t_handler = time.monotonic()
 
         # PostToolUseFailure path
         if has_error:
+            handler_label = "failure"
             result = _handle_failure(payload)
         # Task-management tools
         elif tool_name in ("TaskCreate", "TaskUpdate", "TodoWrite"):
+            handler_label = "TaskCreate|TaskUpdate|TodoWrite"
             messages = []
 
             task_result = _handle_task_tools(tool_name, tool_input)
@@ -1195,6 +1237,7 @@ def main():
                 result["systemMessage"] = "\n".join(messages)
         # Write / Edit tools (async — quick operations only)
         elif tool_name in ("Write", "Edit"):
+            handler_label = "Write|Edit"
             result = _handle_write_edit(tool_input)
         # Task (subagent dispatch + permission failure detection)
         elif tool_name == "Task":
@@ -1213,13 +1256,19 @@ def main():
             result = _handle_skill(tool_input)
         # Grep / Glob (discovery hints for search commands)
         elif tool_name in ("Grep", "Glob"):
+            handler_label = "Grep|Glob"
             result = _handle_grep_glob(tool_name, tool_input)
         # All other tools — pass through
         else:
+            handler_label = "passthrough"
             result = {"continue": True}
 
+        _handler_ms = int((time.monotonic() - _t_handler) * 1000)
+
         # Turn progress visibility (Issue #323): append status note on long turns
+        _t_turn = time.monotonic()
         turn_status = _check_turn_progress(tool_name)
+        _turn_ms = int((time.monotonic() - _t_turn) * 1000)
         if turn_status:
             existing_msg = result.get("systemMessage", "")
             if existing_msg:
@@ -1227,7 +1276,20 @@ def main():
             else:
                 result["systemMessage"] = turn_status
 
-        _log("posttool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
+        # --- Latency profiling (Issue #312) ---
+        _total_ms = int((time.monotonic() - _t0) * 1000)
+        _record_latency(handler_label, _handler_ms, _total_ms)
+
+        _log("posttool", "verbose", "hook.latency", ms=_total_ms, detail={
+            "tool": tool_name,
+            "handler": handler_label,
+            "handler_ms": _handler_ms,
+            "trace_ms": _trace_ms,
+            "turn_progress_ms": _turn_ms,
+            "total_ms": _total_ms,
+        })
+
+        _log("posttool", "debug", "hook.end", ms=_total_ms)
         print(json.dumps(result))
 
     except Exception as e:
