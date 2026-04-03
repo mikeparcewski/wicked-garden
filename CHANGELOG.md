@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.3.0] - 2026-04-03
+
+### Features
+- feat: hook upgrades (SubagentStart/Stop, PermissionRequest, Notification) + TODOs (dd0815d)
+- feat: plugin manifest modernization + agent budgets for all 80 agents (f6f83ee)
+- feat: smaht:learn tracking, PostToolUse profiling, agent trigger analysis (50b0ff4)
+
+### Documentation
+- docs: add LSP server integration TODO to plugin.json (#347) (8d2831d)
+
 ## [3.2.0] - 2026-04-03
 
 ### Features
