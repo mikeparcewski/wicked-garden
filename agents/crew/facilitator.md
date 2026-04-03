@@ -10,6 +10,8 @@ description: |
   <commentary>Use facilitator to define measurable outcomes and resolve scope ambiguity before design.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash
 ---

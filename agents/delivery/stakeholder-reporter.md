@@ -11,6 +11,8 @@ description: |
   <commentary>Use stakeholder-reporter for audience-appropriate, multi-perspective status reports.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

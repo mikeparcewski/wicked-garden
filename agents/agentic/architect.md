@@ -11,6 +11,8 @@ description: |
   <commentary>Use architect for agentic topology design, scalability review, and structural validation.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

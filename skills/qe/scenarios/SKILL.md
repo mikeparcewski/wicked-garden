@@ -9,6 +9,9 @@ description: |
   - Understanding the scenario format
   - Choosing the right CLI tool for a test category
 portability: portable
+# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
+# file-context auto-activation, add:
+#   paths: ["**/*.test.*", "**/*.spec.*", "**/test/**", "**/tests/**", "**/__tests__/**"]
 ---
 
 # Scenario Authoring Guide

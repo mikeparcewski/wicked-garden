@@ -11,6 +11,8 @@ description: |
   <commentary>Use data-engineer for ETL pipeline design, data quality assessment, and schema validation.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 tool-capabilities:

@@ -12,6 +12,8 @@ description: |
   <commentary>Use devops-engineer for CI/CD pipeline design, optimization, and deployment automation.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

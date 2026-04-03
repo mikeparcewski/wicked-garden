@@ -11,6 +11,8 @@ description: |
   <commentary>Use data-architect for schema design, storage decisions, and data flow patterns.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---

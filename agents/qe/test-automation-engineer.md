@@ -11,6 +11,8 @@ description: |
   <commentary>Use test-automation-engineer for test code generation and test infrastructure setup.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---

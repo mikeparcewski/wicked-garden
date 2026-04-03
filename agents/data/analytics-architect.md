@@ -11,6 +11,8 @@ description: |
   <commentary>Use analytics-architect for warehouse design, data modeling, and analytics cost optimization.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

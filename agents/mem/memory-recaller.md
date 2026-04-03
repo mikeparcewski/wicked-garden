@@ -11,6 +11,8 @@ description: |
   </example>
 
 model: haiku
+effort: low
+max-turns: 5
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash
 ---

@@ -12,6 +12,8 @@ description: |
   <commentary>Use auditor for compliance evidence collection, control verification, and audit trails.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

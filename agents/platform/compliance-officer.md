@@ -12,6 +12,8 @@ description: |
   <commentary>Use compliance-officer for regulatory assessments (SOC2, HIPAA, GDPR, PCI) and gap analysis.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

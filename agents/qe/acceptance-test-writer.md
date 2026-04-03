@@ -11,6 +11,8 @@ description: |
   <commentary>Use acceptance-test-writer to produce structured, evidence-gated test plans from scenarios.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

@@ -11,6 +11,8 @@ description: |
   <commentary>Use user-researcher for persona creation, journey mapping, and user needs discovery.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash
 ---

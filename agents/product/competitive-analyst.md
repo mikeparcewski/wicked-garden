@@ -11,6 +11,8 @@ description: |
   <commentary>Use competitive-analyst for SWOT analysis, competitive intelligence, and positioning.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: red
 allowed-tools: Read, Grep, Glob, Bash
 ---

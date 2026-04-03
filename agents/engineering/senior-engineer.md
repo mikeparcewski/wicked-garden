@@ -12,6 +12,8 @@ description: |
   <commentary>Use senior-engineer for code review, refactoring guidance, and best-practice mentoring.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 tool-capabilities:

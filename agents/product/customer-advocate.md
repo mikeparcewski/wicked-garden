@@ -10,6 +10,8 @@ description: |
   <commentary>Use customer-advocate to prioritize based on customer impact, usage patterns, and pain points.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

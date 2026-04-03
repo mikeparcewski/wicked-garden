@@ -11,6 +11,8 @@ description: |
   <commentary>Use backend-engineer for API + database work, server-side optimization, and service design.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 tool-capabilities:

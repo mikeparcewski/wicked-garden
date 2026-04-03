@@ -11,6 +11,8 @@ description: |
   <commentary>Use risk-monitor for delivery risk identification, dependency tracking, and escalation.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: red
 allowed-tools: Read, Grep, Glob, Bash
 ---

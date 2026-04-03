@@ -11,6 +11,8 @@ description: |
   <commentary>Use requirements-analyst for user stories, acceptance criteria, and requirements documentation.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

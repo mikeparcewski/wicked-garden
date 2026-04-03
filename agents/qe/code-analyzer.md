@@ -11,6 +11,8 @@ description: |
   <commentary>Use code-analyzer for static analysis, complexity hotspots, and test coverage gap identification.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash
 tool-capabilities:

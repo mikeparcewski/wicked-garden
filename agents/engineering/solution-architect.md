@@ -11,6 +11,8 @@ description: |
   <commentary>Use solution-architect for end-to-end architecture design and technology trade-off analysis.</commentary>
   </example>
 model: opus
+effort: high
+max-turns: 15
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

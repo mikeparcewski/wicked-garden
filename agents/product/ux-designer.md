@@ -11,6 +11,8 @@ description: |
   <commentary>Use ux-designer for user flow design, interaction patterns, and usability analysis.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

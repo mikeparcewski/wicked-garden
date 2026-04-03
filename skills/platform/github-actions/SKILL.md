@@ -7,6 +7,9 @@ description: |
   Use when: "GitHub Actions", "CI/CD pipeline", "workflow YAML", "deploy pipeline",
   "automate deployment", "debug workflow", "Actions security"
 portability: portable
+# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
+# file-context auto-activation, add:
+#   paths: [".github/workflows/**/*.yml", ".github/workflows/**/*.yaml", ".github/actions/**"]
 ---
 
 # GitHub Actions Workflow Writing

@@ -10,6 +10,8 @@ description: |
   <commentary>Use implementer to execute approved designs with task tracking and quality checks.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 tool-capabilities:

@@ -11,6 +11,8 @@ description: |
   <commentary>Use scenario-executor for full-capability scenario testing including slash command execution.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Skill, Agent
 ---

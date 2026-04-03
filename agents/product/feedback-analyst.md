@@ -10,6 +10,8 @@ description: |
   <commentary>Use feedback-analyst for theme extraction, sentiment analysis, and feedback trend identification.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

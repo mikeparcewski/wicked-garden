@@ -11,6 +11,8 @@ description: |
   <commentary>Use risk-assessor to identify failure modes, score risks, and recommend mitigations.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: red
 allowed-tools: Read, Grep, Glob, Bash
 ---

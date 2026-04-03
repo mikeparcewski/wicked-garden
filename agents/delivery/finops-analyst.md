@@ -11,6 +11,8 @@ description: |
   <commentary>Use finops-analyst for cost breakdown, anomaly detection, and budget variance analysis.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

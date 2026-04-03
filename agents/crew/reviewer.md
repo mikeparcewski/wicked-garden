@@ -10,6 +10,8 @@ description: |
   <commentary>Use reviewer as a fallback for general code review when specialist reviewers aren't matched.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

@@ -11,6 +11,8 @@ description: |
   <commentary>Use tdd-coach to guide red-green-refactor cycles and test-first development practices.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

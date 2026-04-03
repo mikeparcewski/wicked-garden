@@ -10,6 +10,8 @@ description: |
   <commentary>Use value-orchestrator to assess whether proposed work is worth pursuing before design.</commentary>
   </example>
 model: opus
+effort: high
+max-turns: 15
 color: magenta
 allowed-tools: Read, Bash, Grep, Glob, Skill, Agent
 ---

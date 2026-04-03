@@ -12,6 +12,8 @@ description: |
   <commentary>Use acceptance-test-reviewer for independent, unbiased verdict on test evidence.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: red
 allowed-tools: Read, Grep, Glob, Bash
 ---

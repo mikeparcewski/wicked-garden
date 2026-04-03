@@ -11,6 +11,8 @@ description: |
   <commentary>Use business-strategist for ROI analysis, business cases, and investment recommendations.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

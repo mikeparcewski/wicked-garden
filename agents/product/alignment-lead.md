@@ -11,6 +11,8 @@ description: |
   <commentary>Use alignment-lead to mediate trade-offs and build consensus across teams.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

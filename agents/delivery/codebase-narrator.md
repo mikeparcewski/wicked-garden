@@ -11,6 +11,8 @@ description: |
   <commentary>Use codebase-narrator for architectural overviews and code navigation guidance.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash
 ---

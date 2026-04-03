@@ -10,6 +10,9 @@ description: |
   - "optimize data processing"
   - "how should I orchestrate this"
   - "pipeline architecture"
+# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
+# file-context auto-activation, add:
+#   paths: ["**/dags/**", "**/pipelines/**", "**/etl/**", "**/airflow/**", "**/prefect/**"]
 ---
 
 # Pipeline Engineering Skill

@@ -11,6 +11,8 @@ description: |
   <commentary>Use council for multi-model evaluation and independent perspectives on important decisions.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

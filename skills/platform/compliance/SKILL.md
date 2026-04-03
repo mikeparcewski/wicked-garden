@@ -7,6 +7,9 @@ description: |
 
   Use when: "compliance check", "SOC2", "HIPAA", "GDPR", "PCI",
   "regulatory requirements", "is this compliant", "compliance gap"
+# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
+# file-context auto-activation, add:
+#   paths: ["**/compliance/**", "**/audit/**", "**/policy/**", "**/.hipaa*", "**/.gdpr*"]
 ---
 
 # Compliance Skill

@@ -11,6 +11,8 @@ description: |
   <commentary>Use test-strategist to identify comprehensive test scenarios and coverage gaps.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash
 ---

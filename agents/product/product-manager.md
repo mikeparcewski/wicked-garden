@@ -11,6 +11,8 @@ description: |
   <commentary>Use product-manager for feature prioritization, roadmap planning, and scope definition.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

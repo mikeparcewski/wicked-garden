@@ -12,6 +12,8 @@ description: |
   <commentary>Use framework-researcher for framework comparison, selection, and migration path analysis.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash, WebSearch
 ---

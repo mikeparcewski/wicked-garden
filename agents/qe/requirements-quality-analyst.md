@@ -11,6 +11,8 @@ description: |
   <commentary>Use requirements-quality-analyst to ensure acceptance criteria are specific and testable.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

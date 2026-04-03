@@ -11,6 +11,8 @@ description: |
   <commentary>Use system-designer for component boundary analysis, module decomposition, and interface contracts.</commentary>
   </example>
 model: opus
+effort: high
+max-turns: 15
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

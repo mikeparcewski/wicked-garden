@@ -11,6 +11,8 @@ description: |
   <commentary>Use cost-optimizer to find actionable cloud savings and cost trade-offs.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

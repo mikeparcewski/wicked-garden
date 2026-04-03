@@ -12,6 +12,8 @@ description: |
   <commentary>Use security-engineer for vulnerability assessment, secrets scanning, and secure coding review.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: red
 allowed-tools: Read, Grep, Glob, Bash
 tool-capabilities:

@@ -10,6 +10,8 @@ description: |
   <commentary>Use researcher to explore codebase patterns and gather context before design decisions.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash
 ---

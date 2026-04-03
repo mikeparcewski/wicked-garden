@@ -11,6 +11,8 @@ description: |
   <commentary>Use frontend-engineer for React components, UI implementation, and frontend performance.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: cyan
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---

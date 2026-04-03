@@ -11,6 +11,8 @@ description: |
   <commentary>Use testability-reviewer to catch design issues that make testing difficult.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash
 ---

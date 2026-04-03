@@ -11,6 +11,8 @@ description: |
   <commentary>Use acceptance-test-executor for mechanical step execution and evidence capture without judging results.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Skill, Agent
 ---

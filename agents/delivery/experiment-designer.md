@@ -11,6 +11,8 @@ description: |
   <commentary>Use experiment-designer for A/B test design, hypothesis formulation, and statistical planning.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---

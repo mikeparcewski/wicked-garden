@@ -11,6 +11,8 @@ description: |
   <commentary>Use continuous-quality-monitor to track quality signals during active development.</commentary>
   </example>
 model: haiku
+effort: low
+max-turns: 5
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

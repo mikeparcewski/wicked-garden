@@ -4,5 +4,116 @@
   "description": "AI-Native SDLC \u2014 the complete software development lifecycle as a single Claude Code plugin. 14 domains covering code intelligence, delivery metrics, persistent memory, workflow orchestration, brainstorming, on-demand personas, and 80 specialist agents across 8 disciplines. Fully standalone with local SQLite storage.",
   "author": {
     "name": "Mike Parcewski"
+  },
+  "repository": "https://github.com/mikeparcewski/wicked-garden",
+  "license": "MIT",
+  "keywords": [
+    "sdlc",
+    "workflow",
+    "engineering",
+    "testing",
+    "delivery",
+    "memory",
+    "search",
+    "brainstorming",
+    "personas",
+    "code-intelligence",
+    "kanban",
+    "agentic"
+  ],
+
+  "_future_userConfig": {
+    "_comment": "Issue #335, #346: userConfig is not yet supported in plugin.json schema. When Claude Code adds userConfig support, move these fields out of _future_userConfig and into a top-level userConfig block. This would replace the manual /wicked-garden:setup flow.",
+    "storage_mode": {
+      "type": "string",
+      "default": "local",
+      "enum": ["local", "sqlite"],
+      "description": "Where to persist plugin state: local JSON files or SQLite with FTS5"
+    },
+    "onboarding_preference": {
+      "type": "string",
+      "default": "auto",
+      "enum": ["auto", "manual", "skip"],
+      "description": "How to handle first-run onboarding: auto-detect and configure, prompt user, or skip"
+    },
+    "log_level": {
+      "type": "string",
+      "default": "info",
+      "enum": ["debug", "info", "warn", "error"],
+      "description": "Verbosity level for operational logs"
+    },
+    "jira_api_token": {
+      "_comment": "Issue #346: When userConfig supports sensitive:true, this field should use it to store the token in the OS keychain rather than plaintext.",
+      "type": "string",
+      "sensitive": true,
+      "description": "Jira API token for issue sync (stored in OS keychain when sensitive flag is supported)"
+    },
+    "linear_api_token": {
+      "type": "string",
+      "sensitive": true,
+      "description": "Linear API token for issue sync (stored in OS keychain when sensitive flag is supported)"
+    },
+    "slack_webhook_url": {
+      "type": "string",
+      "sensitive": true,
+      "description": "Slack webhook URL for notifications (stored in OS keychain when sensitive flag is supported)"
+    }
+  },
+
+  "_future_channels": {
+    "_comment": "Issue #348: channels field is not yet supported in plugin.json schema. When Claude Code adds channel support, move these declarations to a top-level channels block. Channels formalize external service connections with discovery and auth.",
+    "jira": {
+      "type": "rest-api",
+      "description": "Jira issue tracker for bi-directional sync with kanban domain",
+      "auth": "oauth2",
+      "capabilities": ["read-issues", "write-issues", "webhooks"]
+    },
+    "linear": {
+      "type": "rest-api",
+      "description": "Linear issue tracker for bi-directional sync with kanban domain",
+      "auth": "api-key",
+      "capabilities": ["read-issues", "write-issues", "webhooks"]
+    },
+    "slack": {
+      "type": "webhook",
+      "description": "Slack notifications for crew phase completions and gate failures",
+      "auth": "webhook-url",
+      "capabilities": ["send-messages"]
+    },
+    "github": {
+      "type": "rest-api",
+      "description": "GitHub for issue triage, PR creation, and CI status",
+      "auth": "token",
+      "capabilities": ["read-issues", "write-issues", "read-prs", "write-prs", "read-checks"]
+    }
+  },
+
+  "_future_outputStyles": {
+    "_comment": "Issue #338: outputStyles field is not yet supported as a configuration block in plugin.json. When Claude Code adds outputStyles support, move these declarations to a top-level outputStyles block or the ./styles/ directory. These define domain-specific formatting for different work modes.",
+    "crew-phase": {
+      "description": "Structured output for crew workflow phases with phase headers, gate results, and evidence summaries",
+      "format": "markdown",
+      "sections": ["phase-header", "deliverables", "gate-result", "evidence-summary"]
+    },
+    "engineering-review": {
+      "description": "Code review output with severity-tagged findings, file annotations, and action items",
+      "format": "markdown",
+      "sections": ["summary", "findings-by-severity", "file-annotations", "action-items"]
+    },
+    "delivery-report": {
+      "description": "Delivery metrics report with velocity charts, risk indicators, and forecast",
+      "format": "markdown",
+      "sections": ["velocity", "risks", "forecast", "recommendations"]
+    },
+    "qe-results": {
+      "description": "Test execution results with pass/fail counts, coverage, and failure analysis",
+      "format": "markdown",
+      "sections": ["summary", "results-table", "failure-analysis", "coverage"]
+    },
+    "brainstorm-synthesis": {
+      "description": "Jam session output with perspectives, convergence points, and actionable next steps",
+      "format": "markdown",
+      "sections": ["perspectives", "convergence", "divergence", "next-steps"]
+    }
   }
 }

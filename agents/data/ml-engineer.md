@@ -11,6 +11,8 @@ description: |
   <commentary>Use ml-engineer for ML pipeline design, model deployment, and production ML maintenance.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash
 ---

@@ -11,6 +11,8 @@ description: |
   <commentary>Use performance-analyst for token optimization, cost reduction, and latency improvements in agent systems.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

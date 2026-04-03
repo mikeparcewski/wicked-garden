@@ -10,6 +10,8 @@ description: |
   <commentary>Use jam facilitator for persona-based brainstorming and structured ideation sessions.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash
 ---

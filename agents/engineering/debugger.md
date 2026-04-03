@@ -11,6 +11,8 @@ description: |
   <commentary>Use debugger for root cause analysis, error investigation, and systematic debugging.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: red
 allowed-tools: Read, Grep, Glob, Bash
 ---

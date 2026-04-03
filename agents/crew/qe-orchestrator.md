@@ -10,6 +10,8 @@ description: |
   <commentary>Use qe-orchestrator to detect the appropriate quality gate and dispatch accordingly.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Bash, Grep, Glob, Skill, Agent
 ---

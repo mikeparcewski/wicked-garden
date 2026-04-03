@@ -11,6 +11,8 @@ description: |
   <commentary>Use data-analyst for metric investigation, pattern discovery, and insight generation.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

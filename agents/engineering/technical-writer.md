@@ -11,6 +11,8 @@ description: |
   <commentary>Use technical-writer for user guides, README files, and operational documentation.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---

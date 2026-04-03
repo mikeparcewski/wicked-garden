@@ -11,6 +11,8 @@ description: |
   <commentary>Use progress-tracker for milestone monitoring, slippage detection, and progress reporting.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 tool-capabilities:

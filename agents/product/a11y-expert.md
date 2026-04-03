@@ -11,6 +11,8 @@ description: |
   <commentary>Use a11y-expert for WCAG audits, accessible component design, and inclusive patterns.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash
 ---

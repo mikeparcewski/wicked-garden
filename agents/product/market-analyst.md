@@ -11,6 +11,8 @@ description: |
   <commentary>Use market-analyst for market sizing, segmentation, and trend analysis.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash
 ---

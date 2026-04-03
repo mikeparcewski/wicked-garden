@@ -11,6 +11,8 @@ description: |
   <commentary>Use sre for capacity planning, system health assessment, and reliability analysis.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 tool-capabilities:

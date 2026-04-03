@@ -13,6 +13,8 @@ description: |
   <commentary>Use persona-agent when dispatched by persona:as or --persona flag.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---

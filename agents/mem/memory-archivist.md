@@ -11,6 +11,8 @@ description: |
   </example>
 
 model: haiku
+effort: low
+max-turns: 5
 color: magenta
 allowed-tools: Read, Edit, Bash
 ---

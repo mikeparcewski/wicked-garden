@@ -12,6 +12,8 @@ description: |
   <commentary>Use incident-responder for rapid triage, root cause correlation, and incident analysis.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: red
 allowed-tools: Read, Grep, Glob, Bash
 ---

@@ -11,6 +11,8 @@ description: |
   <commentary>Use ui-reviewer for design system compliance, visual consistency, and component pattern audits.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

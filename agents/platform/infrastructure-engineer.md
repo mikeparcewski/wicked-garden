@@ -12,6 +12,8 @@ description: |
   <commentary>Use infrastructure-engineer for IaC, Kubernetes configuration, and cloud resource management.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

@@ -12,6 +12,8 @@ description: |
   <commentary>Use privacy-expert for GDPR compliance, PII detection, and privacy-by-design reviews.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

@@ -1,0 +1,74 @@
+{
+  "_comment": "Issue #328: Component declarations for wicked-garden plugin. Claude Code plugin.json does not yet support inline component declarations beyond path overrides. This manifest documents all components for tooling, validation, and future schema support. When plugin.json gains a 'components' field, merge this data into plugin.json.",
+
+  "domains": [
+    "agentic", "crew", "data", "delivery", "engineering",
+    "jam", "kanban", "mem", "persona", "platform",
+    "product", "qe", "search", "smaht"
+  ],
+
+  "summary": {
+    "commands": 146,
+    "agents": 80,
+    "skills": 80,
+    "hooks": 7,
+    "specialists": 8
+  },
+
+  "agents_by_domain": {
+    "agentic":     ["architect", "framework-researcher", "pattern-advisor", "performance-analyst", "safety-reviewer"],
+    "crew":        ["execution-orchestrator", "facilitator", "implementer", "qe-orchestrator", "researcher", "reviewer", "value-orchestrator"],
+    "data":        ["analytics-architect", "data-analyst", "data-engineer", "ml-engineer"],
+    "delivery":    ["codebase-narrator", "cost-optimizer", "delivery-manager", "experiment-designer", "finops-analyst", "forecast-specialist", "onboarding-guide", "progress-tracker", "risk-monitor", "rollout-manager", "stakeholder-reporter"],
+    "engineering": ["api-documentarian", "backend-engineer", "data-architect", "debugger", "frontend-engineer", "senior-engineer", "solution-architect", "system-designer", "technical-writer"],
+    "jam":         ["council", "facilitator"],
+    "mem":         ["memory-archivist", "memory-learner", "memory-recaller"],
+    "persona":     ["persona-agent"],
+    "platform":    ["auditor", "compliance-officer", "devops-engineer", "incident-responder", "infrastructure-engineer", "privacy-expert", "release-engineer", "security-engineer", "sre"],
+    "product":     ["a11y-expert", "alignment-lead", "business-strategist", "competitive-analyst", "customer-advocate", "feedback-analyst", "market-analyst", "mockup-generator", "product-manager", "requirements-analyst", "ui-reviewer", "user-researcher", "ux-analyst", "ux-designer", "value-analyst", "visual-reviewer"],
+    "qe":          ["acceptance-test-executor", "acceptance-test-reviewer", "acceptance-test-writer", "code-analyzer", "continuous-quality-monitor", "production-quality-engineer", "requirements-quality-analyst", "risk-assessor", "scenario-executor", "tdd-coach", "test-automation-engineer", "test-strategist", "testability-reviewer"]
+  },
+
+  "skills_by_domain": {
+    "agentic":               ["agentic-patterns", "context-engineering", "five-layer-architecture", "frameworks", "maturity-model", "review-methodology", "trust-and-safety"],
+    "crew":                  ["adaptive", "change-type-detector", "crew-qe-gate", "evidence-validation", "issue-reporting", "test-task-factory", "workflow"],
+    "data":                  ["analysis", "data", "ml", "numbers", "pipeline"],
+    "deliberate":            ["deliberate"],
+    "delivery":              ["design", "reporting", "rollout"],
+    "engineering":           ["architecture", "backend", "debugging", "docs-audit", "engineering", "frontend", "generate", "integration", "patch", "sync", "system-design"],
+    "integration-discovery": ["integration-discovery"],
+    "jam":                   ["jam"],
+    "kanban":                ["kanban"],
+    "mem":                   ["mem"],
+    "multi-model":           ["multi-model"],
+    "persona":               ["persona"],
+    "platform":              ["audit", "compliance", "errors", "gh-cli", "github-actions", "gitlab-ci", "glab-cli", "health", "observability", "policy", "prereq-doctor", "traces"],
+    "product":               ["acceptance-criteria", "accessibility", "analyze", "design-review", "imagery", "listen", "mockup", "product-management", "requirements-analysis", "screenshot", "strategy", "synthesize", "ux-flow", "ux-review", "visual-review"],
+    "qe":                    ["acceptance-testing", "agent-browser", "qe-strategy", "scenarios"],
+    "runtime-exec":          ["runtime-exec"],
+    "search":                ["graph-export", "unified-search"],
+    "smaht":                 ["discovery", "smaht"],
+    "wickedizer":            ["wickedizer"]
+  },
+
+  "hooks": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "TaskCompleted",
+    "SubagentStart",
+    "Stop"
+  ],
+
+  "specialists": [
+    {"name": "engineering",  "role": "engineering"},
+    {"name": "platform",     "role": "devsecops"},
+    {"name": "product",      "role": "product"},
+    {"name": "qe",           "role": "quality-engineering"},
+    {"name": "data",         "role": "data-engineering"},
+    {"name": "delivery",     "role": "project-management"},
+    {"name": "jam",          "role": "brainstorming"},
+    {"name": "agentic",      "role": "agentic-architecture"}
+  ]
+}

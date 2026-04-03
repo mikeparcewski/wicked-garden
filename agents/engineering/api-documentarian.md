@@ -11,6 +11,8 @@ description: |
   <commentary>Use api-documentarian for API spec generation, endpoint documentation, and reference materials.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---

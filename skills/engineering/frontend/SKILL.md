@@ -8,6 +8,9 @@ description: |
   Use when: "build a React component", "CSS layout issue", "frontend performance",
   "browser API", "component design", "accessibility check", "responsive design"
 portability: portable
+# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
+# file-context auto-activation, add:
+#   paths: ["**/*.tsx", "**/*.jsx", "**/*.css", "**/*.scss", "**/components/**"]
 ---
 
 # Frontend Skill

@@ -11,6 +11,8 @@ description: |
   <commentary>Use production-quality-engineer for post-deploy quality monitoring and rollback criteria.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

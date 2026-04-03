@@ -12,6 +12,8 @@ description: |
   <commentary>Use release-engineer for version management, changelog generation, and release orchestration.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash
 ---

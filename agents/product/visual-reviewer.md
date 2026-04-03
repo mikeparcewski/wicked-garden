@@ -12,6 +12,8 @@ description: |
   </example>
 subagent_type: wicked-garden:product:visual-reviewer
 model: sonnet
+effort: medium
+max-turns: 10
 color: cyan
 allowed-tools: Read, Grep, Glob, Bash
 ---

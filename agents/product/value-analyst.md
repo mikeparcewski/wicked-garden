@@ -11,6 +11,8 @@ description: |
   <commentary>Use value-analyst for value proposition design, differentiation, and positioning strategy.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

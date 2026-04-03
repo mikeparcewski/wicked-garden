@@ -11,6 +11,8 @@ description: |
   <commentary>Use pattern-advisor for agentic anti-pattern detection and design pattern guidance.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

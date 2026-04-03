@@ -12,6 +12,8 @@ description: |
   </example>
 subagent_type: wicked-garden:product:mockup-generator
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

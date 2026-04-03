@@ -11,6 +11,8 @@ description: |
   <commentary>Use forecast-specialist for cost forecasting, timeline predictions, and scenario modeling.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
 ---

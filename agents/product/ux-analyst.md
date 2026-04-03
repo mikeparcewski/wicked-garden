@@ -12,6 +12,8 @@ description: |
   </example>
 subagent_type: wicked-garden:product:ux-analyst
 model: sonnet
+effort: medium
+max-turns: 10
 color: magenta
 allowed-tools: Read, Grep, Glob, Bash
 ---

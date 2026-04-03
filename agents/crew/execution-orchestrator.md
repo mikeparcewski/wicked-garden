@@ -10,6 +10,8 @@ description: |
   <commentary>Use execution-orchestrator for post-build quality verification before delivery.</commentary>
   </example>
 model: opus
+effort: high
+max-turns: 15
 color: green
 allowed-tools: Read, Bash, Grep, Glob, Skill, Agent
 ---

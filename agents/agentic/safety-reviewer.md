@@ -11,6 +11,8 @@ description: |
   <commentary>Use safety-reviewer for guardrails, prompt injection defense, and PII protection in agent systems.</commentary>
   </example>
 model: opus
+effort: high
+max-turns: 15
 color: red
 allowed-tools: Read, Grep, Glob, Bash
 tool-capabilities:

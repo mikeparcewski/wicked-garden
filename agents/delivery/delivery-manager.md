@@ -11,6 +11,8 @@ description: |
   <commentary>Use delivery-manager for sprint planning, scope management, and delivery coordination.</commentary>
   </example>
 model: sonnet
+effort: medium
+max-turns: 10
 color: blue
 allowed-tools: Read, Grep, Glob, Bash
 ---
