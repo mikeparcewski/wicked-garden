@@ -14,13 +14,24 @@ Migration reads this field to populate symbol_refs with ref_type='documents'.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Set
 
 from models import GraphNode, NodeType
+
+# Linker timeout in seconds. Override via WICKED_LINKER_TIMEOUT env var.
+# Default: 600s (10 min). Prevents runaway linking on very large codebases (#327).
+LINKER_TIMEOUT = int(os.environ.get('WICKED_LINKER_TIMEOUT', '600'))
+
+
+class LinkerTimeoutError(Exception):
+    """Raised when the linker phase exceeds its time budget."""
+    pass
 
 
 class DependencyLinker:
@@ -112,13 +123,26 @@ class DependencyLinker:
                 self._module_path_index[module_path] = node_id
 
     def _resolve_references(self) -> int:
-        """Resolve call targets and inheritance, building reverse index."""
+        """Resolve call targets and inheritance, building reverse index.
+
+        Checks elapsed time every 10k nodes and raises LinkerTimeoutError
+        if LINKER_TIMEOUT is exceeded, allowing graceful degradation (#327).
+        """
         resolved = 0
+        start_time = time.monotonic()
 
         total = len(self.nodes)
         for i, (node_id, node) in enumerate(self.nodes.items()):
             if i > 0 and i % 10000 == 0:
-                print(f"  Resolved {i}/{total} symbols...", file=sys.stderr)
+                elapsed = time.monotonic() - start_time
+                print(f"  Resolved {i}/{total} symbols ({elapsed:.1f}s)...", file=sys.stderr)
+                if LINKER_TIMEOUT > 0 and elapsed > LINKER_TIMEOUT:
+                    print(
+                        f"  WARNING: Linker timeout after {elapsed:.0f}s "
+                        f"({i}/{total} symbols resolved). Writing partial results.",
+                        file=sys.stderr,
+                    )
+                    break
             # Resolve function/method calls
             for call in node.calls:
                 target_id = self._resolve_symbol(call.name, node.file)
@@ -366,12 +390,27 @@ class DocLinker:
     def _link_doc_nodes(self) -> int:
         """Scan each doc node, match symbol mentions, write metadata.documents.
 
+        Respects LINKER_TIMEOUT to prevent runaway doc linking (#327).
+
         Returns:
             Total number of doc-to-code edges created across all doc nodes.
         """
         total = 0
+        start_time = time.monotonic()
+        checked = 0
 
         for node_id, node in self.nodes.items():
+            checked += 1
+            if checked % 10000 == 0 and LINKER_TIMEOUT > 0:
+                elapsed = time.monotonic() - start_time
+                if elapsed > LINKER_TIMEOUT:
+                    print(
+                        f"  WARNING: DocLinker timeout after {elapsed:.0f}s. "
+                        f"Writing partial results.",
+                        file=sys.stderr,
+                    )
+                    break
+
             if node.domain != "doc":
                 continue
             if node.node_type not in (NodeType.DOC_SECTION, NodeType.DOC_PAGE):
@@ -432,6 +471,9 @@ class DocLinker:
 
 def link_index(index_path: Path) -> int:
     """Convenience function to link an index file (code refs + doc-to-code refs).
+
+    Both linkers enforce WICKED_LINKER_TIMEOUT and write partial results
+    on timeout rather than hanging indefinitely (#327).
 
     Args:
         index_path: Path to the JSONL index.

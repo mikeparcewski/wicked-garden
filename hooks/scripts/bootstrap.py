@@ -594,6 +594,28 @@ def _detect_dangerous_mode():
 # Discovery: contextual command suggestions based on project type (Issue #322)
 # ---------------------------------------------------------------------------
 
+def _probe_onedrive_path() -> str | None:
+    """Detect if cwd is under a OneDrive or CloudStorage path with spaces.
+
+    On macOS, OneDrive-synced directories live under paths like:
+        ~/Library/CloudStorage/OneDrive - CompanyName/...
+    The spaces cause failures when paths are not properly quoted.
+
+    Returns the resolved canonical base path (via Path.resolve()), or None
+    if cwd is not under a OneDrive/CloudStorage directory.
+    Fails open — any error returns None.
+    """
+    try:
+        cwd = Path.cwd()
+        cwd_str = str(cwd)
+        if "OneDrive" in cwd_str or "CloudStorage" in cwd_str:
+            resolved = cwd.resolve()
+            return str(resolved)
+    except Exception:
+        pass
+    return None
+
+
 def _suggest_commands_for_project() -> str | None:
     """Detect project type from files in cwd and suggest 2-3 relevant commands.
 
@@ -719,6 +741,11 @@ def main():
                 session_ended=False,
             )
 
+        # 2a. Probe OneDrive / spaces-in-paths (Issue #321)
+        onedrive_path = _probe_onedrive_path()
+        if onedrive_path and state is not None:
+            state.update(onedrive_base_path=onedrive_path)
+
         _log("bootstrap", "normal", "storage.local", ok=True)
 
         # 2b. Initialize event store schema (fire-and-forget)
@@ -750,6 +777,11 @@ def main():
         # 6b. Check search index staleness and auto-reindex if needed
         search_staleness_note = _check_search_staleness()
         mode_notes = []
+        if onedrive_path:
+            mode_notes.append(
+                f"[Path] OneDrive directory detected. Resolved base: {onedrive_path}. "
+                "Always quote paths with spaces."
+            )
         if search_staleness_note:
             mode_notes.append(f"[Search] {search_staleness_note}")
 

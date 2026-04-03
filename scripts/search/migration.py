@@ -14,7 +14,6 @@ Usage:
 """
 
 import argparse
-import fcntl
 import json
 import os
 import re
@@ -24,6 +23,38 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
+
+# Cross-platform file locking: fcntl on Unix, msvcrt on Windows (#327)
+try:
+    import fcntl
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False
+
+
+def _lock_file(fd):
+    """Acquire exclusive lock on file descriptor (cross-platform)."""
+    if _HAS_FCNTL:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    else:
+        # Windows fallback: msvcrt.locking on the underlying fd
+        try:
+            import msvcrt
+            msvcrt.locking(fd.fileno(), msvcrt.LK_NBLCK, 1)
+        except (ImportError, OSError):
+            pass  # Best-effort — no locking available
+
+
+def _unlock_file(fd):
+    """Release exclusive lock on file descriptor (cross-platform)."""
+    if _HAS_FCNTL:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    else:
+        try:
+            import msvcrt
+            msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
+        except (ImportError, OSError):
+            pass
 
 # Layer mapping (matches api.py)
 TYPE_TO_LAYER = {
@@ -1702,7 +1733,7 @@ def main():
         # Take file lock before any reads or writes
         args.output.parent.mkdir(parents=True, exist_ok=True)
         lock_fd = open(lock_path, 'w')
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        _lock_file(lock_fd)
 
         # Decide: full rebuild vs. incremental update.
         #
@@ -1740,7 +1771,7 @@ def main():
     finally:
         # Release file lock
         if lock_fd is not None:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            _unlock_file(lock_fd)
             lock_fd.close()
 
 

@@ -208,6 +208,12 @@ class SessionState:
     # List of hint IDs like ["grep_search", "manual_review", "debugging"].
     hints_shown: list | None = None
 
+    # OneDrive / spaces-in-paths resolution (Issue #321).
+    # Stores the resolved canonical base path when cwd is under a OneDrive
+    # or CloudStorage directory (macOS ~/Library/CloudStorage/OneDrive - .../...).
+    # Empty string means not applicable (cwd is not under OneDrive).
+    onedrive_base_path: str = ""
+
     # Turn progress visibility (Issue #323).
     # turn_start_ts: ISO timestamp when the current turn began (set by prompt_submit).
     # turn_tool_count: number of tool calls in the current turn (incremented by post_tool).

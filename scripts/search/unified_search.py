@@ -1435,6 +1435,9 @@ class UnifiedSearchIndex:
             stats["doc_sections"] = doc_node_count
 
         # Pass 2: Link dependencies (code-to-code: calls, imports, inheritance)
+        # Resilience (#327): DependencyLinker enforces WICKED_LINKER_TIMEOUT
+        # (default 600s) and writes partial results on timeout rather than
+        # hanging indefinitely on very large codebases.
         if jsonl_path.exists():
             print(f"  Pass 2: Linking code dependencies...", file=sys.stderr)
             linker = DependencyLinker()
@@ -2406,7 +2409,10 @@ async def main():
             if result.returncode == 0:
                 report = json.loads(result.stdout)
                 print(f"  Unified DB: {report['stats']['symbols_total']} symbols, {report['stats']['refs_total']} refs")
-                # Rebuild FTS5 index to prevent stale row corruption (#176/#158)
+                # Rebuild FTS5 index to prevent stale row corruption (#176/#158).
+                # Resilience (#327): If rebuild fails, search still works via
+                # non-FTS tiers (exact, prefix, qualified_name LIKE). The
+                # query_builder also auto-rebuilds on first stale-row hit.
                 try:
                     fts_conn = sqlite3.connect(str(unified_db_path))
                     fts_conn.execute("INSERT INTO symbols_fts(symbols_fts) VALUES('rebuild')")
@@ -3090,4 +3096,19 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Guard against nested asyncio.run() crashes (#327): if an event loop is
+    # already running (e.g., invoked from a hook or Jupyter), attach to it
+    # instead of calling asyncio.run() which would raise RuntimeError.
+    try:
+        _loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _loop = None
+
+    if _loop is not None:
+        # Already inside an event loop — schedule and run without nesting
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _pool:
+            _fut = _pool.submit(asyncio.run, main())
+            _fut.result()
+    else:
+        asyncio.run(main())

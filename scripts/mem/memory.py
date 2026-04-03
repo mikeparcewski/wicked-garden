@@ -287,8 +287,15 @@ class MemoryStore:
         limit: int = 10,
         include_archived: bool = False,
         all_projects: bool = False,
+        cross_version: bool = True,
     ) -> List[Memory]:
-        """Recall memories matching criteria."""
+        """Recall memories matching criteria.
+
+        Args:
+            cross_version: When True (default), also search sibling project
+                directories for memories stored under older plugin versions.
+                This prevents memory loss across version upgrades (#326).
+        """
         params = {}
         if type:
             params["type"] = type.value
@@ -310,6 +317,15 @@ class MemoryStore:
                 seen_ids.add(memory.id)
                 memories.append(memory)
 
+        # Cross-version search: scan sibling project directories (#326)
+        if cross_version:
+            sibling_records = self._cross_version_scan(params)
+            for record in sibling_records:
+                memory = self._dict_to_memory(record)
+                if memory and memory.id not in seen_ids:
+                    seen_ids.add(memory.id)
+                    memories.append(memory)
+
         # Filter by tags
         if tags:
             memories = [m for m in memories if all(t in m.tags for t in tags)]
@@ -321,18 +337,64 @@ class MemoryStore:
         # Sort by access count (most accessed first) and recency
         memories.sort(key=lambda m: (m.access_count, m.accessed), reverse=True)
 
-        # Update access for returned memories
+        # Update access for returned memories (only for current-project records)
         for memory in memories[:limit]:
             self._update_access(memory)
 
         result_slice = memories[:limit]
         _log("mem", "verbose", "memory.recalled",
-             detail={"query": query, "count": len(result_slice), "project": self.project})
+             detail={"query": query, "count": len(result_slice), "project": self.project,
+                      "cross_version": cross_version})
         return result_slice
 
+    def _cross_version_scan(self, params: Dict) -> List[Dict]:
+        """Scan sibling project directories for memories matching params.
+
+        Reads JSON files from wicked-mem/memories/ directories in other
+        project slugs (older versions). Uses the same _matches_params
+        filter as DomainStore._local_list.
+
+        Fails silently — returns [] on any import or I/O error.
+        """
+        try:
+            from _paths import list_sibling_source_dirs
+        except ImportError:
+            return []
+
+        from _domain_store import _matches_params
+
+        records: List[Dict] = []
+        try:
+            sibling_dirs = list_sibling_source_dirs("wicked-mem", "memories")
+        except Exception:
+            return []
+
+        for mem_dir in sibling_dirs:
+            try:
+                for json_file in mem_dir.glob("*.json"):
+                    try:
+                        record = json.loads(json_file.read_text(encoding="utf-8"))
+                    except (json.JSONDecodeError, OSError):
+                        continue
+                    if record.get("deleted"):
+                        continue
+                    if not _matches_params(record, params):
+                        continue
+                    records.append(record)
+            except OSError:
+                continue  # skip unreadable directories
+
+        return records
+
     def search(self, pattern: str, path: Optional[str] = None,
-               all_projects: bool = False) -> List[Memory]:
-        """Search memories via StorageManager FTS5 search."""
+               all_projects: bool = False,
+               cross_version: bool = True) -> List[Memory]:
+        """Search memories via StorageManager FTS5 search.
+
+        Args:
+            cross_version: When True (default), also search sibling project
+                directories for memories stored under older versions (#326).
+        """
         params = {}
         if not all_projects and self.project:
             params["project"] = self.project
@@ -347,6 +409,18 @@ class MemoryStore:
                     self._update_access(memory)
                     memories.append(memory)
 
+        # Cross-version search (#326)
+        if cross_version:
+            # Build params with q for token-based filtering
+            scan_params = dict(params)
+            scan_params["q"] = pattern
+            for record in self._cross_version_scan(scan_params):
+                memory = self._dict_to_memory(record)
+                if memory and memory.status == MemoryStatus.ACTIVE.value:
+                    if memory.id not in seen_ids:
+                        seen_ids.add(memory.id)
+                        memories.append(memory)
+
         return memories
 
     def search_all(
@@ -354,13 +428,19 @@ class MemoryStore:
         query: str,
         include_archived: bool = False,
         limit: int = 50,
+        cross_version: bool = True,
     ) -> List[Dict]:
         """Search ALL memories across ALL projects with enriched results."""
         results = []
         seen_ids = set()
         query_lower = query.lower()
 
-        for record in self._sm.search("memories", query):
+        # Combine current-project records with cross-version records (#326)
+        all_records = list(self._sm.search("memories", query))
+        if cross_version:
+            all_records.extend(self._cross_version_scan({"q": query}))
+
+        for record in all_records:
             memory = self._dict_to_memory(record)
             if not memory or memory.id in seen_ids:
                 continue
@@ -592,6 +672,8 @@ def main():
                         help="Importance level (low=2, medium=5, high=8)")
     parser.add_argument("--summary", help="Memory summary")
     parser.add_argument("--all-projects", action="store_true", help="Search ALL projects")
+    parser.add_argument("--no-cross-version", action="store_true",
+                        help="Disable cross-version search (only search current project directory)")
 
     args = parser.parse_args()
 
@@ -626,6 +708,7 @@ def main():
             type=mem_type,
             limit=args.limit,
             all_projects=args.all_projects,
+            cross_version=not args.no_cross_version,
         )
         for m in memories:
             project_label = f" [{m.project}]" if m.project else ""
@@ -656,7 +739,8 @@ def main():
             print("Error: --query required for search-all")
             return 1
 
-        results = ms.search_all(args.query, limit=args.limit)
+        results = ms.search_all(args.query, limit=args.limit,
+                                cross_version=not args.no_cross_version)
         print(json.dumps(results, indent=2))
 
     elif args.operation == "search":

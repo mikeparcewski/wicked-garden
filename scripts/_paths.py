@@ -104,3 +104,30 @@ def list_projects() -> list[dict]:
             "is_current": project_dir.name == _get_project_slug(),
         })
     return results
+
+
+def list_sibling_source_dirs(domain: str, source: str) -> list[Path]:
+    """Return source directories from ALL sibling projects (excluding current).
+
+    Used by MemoryStore to search across version boundaries. For example,
+    when the current project slug is ``3.1.0-a1fef338``, this returns the
+    ``wicked-mem/memories/`` directories from ``2.6.1-ec3414ad``,
+    ``2.4.0-b187281f``, etc.
+
+    Only returns directories that actually exist and contain at least one
+    JSON file, so the caller can safely glob them.
+    """
+    if not _PROJECTS_ROOT.exists():
+        return []
+
+    current_slug = _get_project_slug()
+    dirs: list[Path] = []
+    for project_dir in _PROJECTS_ROOT.iterdir():
+        if not project_dir.is_dir():
+            continue
+        if project_dir.name == current_slug:
+            continue  # skip current project — already searched by DomainStore
+        candidate = project_dir / domain / source
+        if candidate.is_dir() and any(candidate.glob("*.json")):
+            dirs.append(candidate)
+    return dirs

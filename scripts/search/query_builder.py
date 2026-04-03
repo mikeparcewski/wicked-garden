@@ -95,14 +95,24 @@ class UnifiedQueryEngine:
             'domain': 'unknown', 'layer': 'unknown', 'category': '', 'content': '', 'metadata': {}
         }
 
-    def _rebuild_fts5(self):
-        """Rebuild FTS5 index to fix stale/missing rows."""
+    def _rebuild_fts5(self) -> bool:
+        """Rebuild FTS5 index to fix stale/missing rows.
+
+        Resilience (#327): Called automatically when FTS5 queries hit
+        'missing row' errors (stale content-sync table). If rebuild itself
+        fails (e.g., DB locked or fully corrupt), callers fall through to
+        non-FTS tiers (qualified_name LIKE) so search still returns results.
+
+        Returns True if rebuild succeeded, False otherwise.
+        """
         try:
             self.conn.execute("INSERT INTO symbols_fts(symbols_fts) VALUES('rebuild')")
             self.conn.commit()
             print("FTS5 index auto-rebuilt after stale row detection", file=sys.stderr)
+            return True
         except Exception as e:
             print(f"FTS5 auto-rebuild failed: {e}", file=sys.stderr)
+            return False
 
     @staticmethod
     def _exclusion_clause(seen_ids: Set[str], col: str = "id") -> Tuple[str, tuple]:

@@ -362,6 +362,75 @@ if [[ "$readme_skills" != "$actual_skills" ]]; then
 fi
 ```
 
+### 9. Self-Referential Integrity
+
+Verify the plugin's own references resolve correctly — prevents the "cobbler's children" problem where refactors break internal paths.
+
+```bash
+# 9a. Script paths in commands/agents actually exist
+BROKEN=0
+for md in $(find ./commands ./agents -name "*.md" 2>/dev/null); do
+  refs=$(grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/[^ "]+\.(py|sh)' "$md" 2>/dev/null | sed 's|\${CLAUDE_PLUGIN_ROOT}/||')
+  for ref in $refs; do
+    if [[ ! -f "./$ref" ]]; then
+      echo "ERROR: $(echo $md | sed 's|^\./||'): broken script path: $ref"
+      BROKEN=$((BROKEN + 1))
+    fi
+  done
+done
+if [[ "$BROKEN" -gt 0 ]]; then
+  echo "ERROR: $BROKEN broken script references in commands/agents"
+fi
+```
+
+```bash
+# 9b. hooks.json script paths resolve
+python3 -c "
+import json, re, sys
+from pathlib import Path
+root = Path('.')
+hooks = json.loads((root / 'hooks/hooks.json').read_text())
+broken = 0
+for event, matchers in hooks.get('hooks', {}).items():
+    for m in matchers:
+        for h in m.get('hooks', []):
+            for p in re.findall(r'\\\$\{CLAUDE_PLUGIN_ROOT\}/([^ \"]+\.py)', h.get('command', '')):
+                if not (root / p).exists():
+                    print(f'ERROR: hooks.json [{event}]: script not found: {p}')
+                    broken += 1
+if broken:
+    print(f'ERROR: {broken} broken hook script references')
+else:
+    print('OK: All hook script paths resolve')
+" 2>/dev/null || python -c "print('WARNING: Could not validate hook script paths')"
+```
+
+```bash
+# 9c. specialist.json roles match what specialist_discovery.py accepts
+python3 -c "
+import json, re, sys
+from pathlib import Path
+root = Path('.')
+specs = json.loads((root / '.claude-plugin/specialist.json').read_text())
+disc = (root / 'scripts/crew/specialist_discovery.py').read_text()
+m = re.search(r'ROLE_CATEGORIES\s*=\s*\{([^}]+)\}', disc, re.DOTALL)
+if not m:
+    print('WARNING: Could not parse ROLE_CATEGORIES')
+    sys.exit(0)
+role_keys = set(re.findall(r'\"([^\"]+)\"\s*:', m.group(1)))
+bad = 0
+for s in specs.get('specialists', []):
+    role = s.get('role', '')
+    if role and role not in role_keys:
+        print(f\"ERROR: specialist '{s.get(\"name\",\"?\")}' has role '{role}' not in ROLE_CATEGORIES\")
+        bad += 1
+if bad:
+    print(f'ERROR: {bad} specialist roles not recognized by discovery')
+else:
+    print(f'OK: All {len(specs.get(\"specialists\", []))} specialist roles match ROLE_CATEGORIES')
+" 2>/dev/null || python -c "print('WARNING: Could not validate specialist roles')"
+```
+
 ### Quick Check Output
 
 ```markdown
@@ -384,6 +453,7 @@ fi
 | Implementation rationalization | ✓/✗ |
 | README style guide | ✓/✗ |
 | README freshness | ✓/✗ |
+| Self-referential integrity | ✓/✗ |
 
 **Result**: PASS / FAIL
 
