@@ -189,6 +189,20 @@ class SessionState:
     # If compaction happened <60s ago, skip redundant WIP save.
     last_compact_ts: str = ""
 
+    # Cumulative bytes read via the Read tool this session (post_tool.py).
+    # Used for escalating context-window warnings.
+    read_bytes_total: int = 0
+
+    # Number of large-file-read warnings emitted this session.
+    # Escalation tiers: first warning is informational, repeated warnings
+    # become more urgent.
+    read_large_warn_count: int = 0
+
+    # Subagent permission failure counter (post_tool.py Task handler).
+    # Incremented when a subagent completes without doing work due to
+    # Bash permission issues or tool-access failures (Issue #318).
+    subagent_permission_failures: int = 0
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

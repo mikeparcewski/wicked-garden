@@ -10,7 +10,7 @@ Dispatches by tool_name from hook payload:
   TaskCreate / TaskUpdate / TodoWrite  → kanban sync + crew state + delivery metrics + mem checkpoint
   Write / Edit                         → stale file marking + QE change tracking + MEMORY.md guard
   Task                                 → subagent activity tracking
-  Read                                 → agentic framework detection (path-based heuristic)
+  Read                                 → large-file-read warning + agentic framework detection
   Bash                                 → activity tracking
   PostToolUseFailure (any tool_name)   → failure counting + auto issue detection
 
@@ -548,11 +548,75 @@ def _check_scenario_staleness(file_path: str):
 
 
 # ---------------------------------------------------------------------------
-# Handler: Task (subagent dispatch tracking)
+# Handler: Task (subagent dispatch tracking + permission failure detection)
 # ---------------------------------------------------------------------------
 
-def _handle_task_dispatch(tool_input: dict) -> dict:
-    """Record subagent activity in session state."""
+# Patterns that indicate a subagent completed without doing work due to
+# permission/access issues (Issue #318). Checked case-insensitively.
+_PERMISSION_FAILURE_PATTERNS = [
+    "i need bash access",
+    "bash permission was denied",
+    "permission denied",
+    "tool was not available",
+    "i don't have access to",
+    "i do not have access to",
+    "unable to execute bash",
+    "bash tool is not available",
+    "don't have permission",
+    "do not have permission",
+    "requires bash access",
+    "couldn't run the command",
+    "could not run the command",
+    "bash tool was denied",
+    "not permitted to run",
+]
+
+
+def _check_permission_failure(tool_response) -> str | None:
+    """Inspect subagent result text for permission failure signals.
+
+    Returns a short snippet of the matching text if a permission failure
+    pattern is detected, or None if the result looks normal.
+    """
+    if not tool_response:
+        return None
+
+    # tool_response can be a string or a dict with a "result" or "text" field
+    if isinstance(tool_response, dict):
+        text = (
+            tool_response.get("result", "")
+            or tool_response.get("text", "")
+            or tool_response.get("content", "")
+            or tool_response.get("output", "")
+        )
+        # Also check stringified dict as fallback
+        if not text:
+            text = json.dumps(tool_response)
+    elif isinstance(tool_response, str):
+        text = tool_response
+    else:
+        text = str(tool_response)
+
+    text_lower = text.lower()
+    for pattern in _PERMISSION_FAILURE_PATTERNS:
+        idx = text_lower.find(pattern)
+        if idx != -1:
+            # Extract a short snippet around the match for the system message
+            start = max(0, idx - 20)
+            end = min(len(text), idx + len(pattern) + 60)
+            snippet = text[start:end].strip()
+            # Truncate if still too long
+            if len(snippet) > 120:
+                snippet = snippet[:120] + "..."
+            return snippet
+
+    return None
+
+
+def _handle_task_dispatch(tool_input: dict, tool_response=None) -> dict:
+    """Record subagent activity in session state and detect permission failures."""
+    messages = []
+
     try:
         subagent_type = tool_input.get("subagent_type", "")
         if not subagent_type:
@@ -567,10 +631,35 @@ def _handle_task_dispatch(tool_input: dict) -> dict:
         })
         # Keep last 20 dispatches only
         state.update(subagent_dispatches=dispatches[-20:])
+
+        # --- Permission failure detection (Issue #318) ---
+        snippet = _check_permission_failure(tool_response)
+        if snippet:
+            failures = (getattr(state, "subagent_permission_failures", None) or 0) + 1
+            state.update(subagent_permission_failures=failures)
+
+            _log(
+                "crew", "warn", "subagent.permission_failure",
+                ok=False,
+                detail={"agent": subagent_type, "snippet": snippet, "count": failures},
+            )
+
+            messages.append(
+                "[Crew] Subagent completed without work \u2014 permission issue detected. "
+                "The subagent '{}' reported: '{}'. "
+                "Consider running with broader permissions or executing the task inline.".format(
+                    subagent_type, snippet
+                )
+            )
+
         state.save()
     except Exception:
         pass
-    return {"continue": True}
+
+    result = {"continue": True}
+    if messages:
+        result["systemMessage"] = "\n".join(messages)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -590,28 +679,101 @@ _FRAMEWORK_PATTERNS = {
 }
 
 
-def _handle_read(tool_input: dict) -> dict:
-    """Quick path-based agentic framework detection."""
-    file_path = (tool_input.get("file_path") or "").lower()
-    if not file_path:
-        return {"continue": True}
+_READ_LINE_THRESHOLD = 500
+_READ_CHAR_THRESHOLD = 5000
+_CUMULATIVE_WARN_THRESHOLD = 50000
 
+
+def _handle_read(tool_input: dict, tool_response=None) -> dict:
+    """Large-file-read warning + path-based agentic framework detection.
+
+    Checks the Read tool output size and emits a systemMessage warning when
+    a single read exceeds _READ_LINE_THRESHOLD lines or _READ_CHAR_THRESHOLD
+    chars.  Tracks cumulative bytes read for escalating warnings.
+
+    Always returns {"continue": True} — never blocks reads.
+    """
+    file_path = (tool_input.get("file_path") or "")
+    messages = []
+
+    # --- Large-file-read detection ---
     try:
-        detected = []
-        for framework, patterns in _FRAMEWORK_PATTERNS.items():
-            if any(p in file_path for p in patterns):
-                detected.append(framework)
+        response_text = ""
+        if isinstance(tool_response, str):
+            response_text = tool_response
+        elif isinstance(tool_response, dict):
+            response_text = tool_response.get("content", "") or tool_response.get("output", "") or ""
+        elif isinstance(tool_response, list):
+            # Some hook payloads wrap content in a list of blocks
+            parts = []
+            for block in tool_response:
+                if isinstance(block, dict):
+                    parts.append(block.get("text", "") or block.get("content", "") or "")
+                elif isinstance(block, str):
+                    parts.append(block)
+            response_text = "\n".join(parts)
 
-        if detected:
+        if response_text:
+            char_count = len(response_text)
+            line_count = response_text.count("\n") + 1
+
             from _session import SessionState
             state = SessionState.load()
-            existing = getattr(state, "detected_frameworks", None) or []
-            combined = list(set(existing + detected))
-            state.update(detected_frameworks=combined)
-            state.save()
+
+            # Update cumulative read size
+            cumulative = (state.read_bytes_total or 0) + char_count
+            warn_count = state.read_large_warn_count or 0
+
+            if line_count >= _READ_LINE_THRESHOLD or char_count >= _READ_CHAR_THRESHOLD:
+                warn_count += 1
+                short_path = Path(file_path).name if file_path else "unknown"
+
+                if cumulative >= _CUMULATIVE_WARN_THRESHOLD and warn_count > 2:
+                    # Escalated warning — heavy cumulative reads
+                    messages.append(
+                        f"[Context] Large file read: {short_path} ({line_count} lines, "
+                        f"{char_count:,} chars). Session total: {cumulative:,} chars read inline. "
+                        f"Context window pressure is high — delegate remaining reads to "
+                        f"subagents via Task tool to preserve context."
+                    )
+                else:
+                    messages.append(
+                        f"[Context] Large file read detected ({line_count} lines, "
+                        f"{char_count:,} chars). Consider delegating to a subagent to "
+                        f"preserve context. Use Task tool with the file path instead of "
+                        f"reading inline."
+                    )
+
+            state.update(
+                read_bytes_total=cumulative,
+                read_large_warn_count=warn_count,
+            )
     except Exception:
         pass
-    return {"continue": True}
+
+    # --- Agentic framework detection (existing behavior) ---
+    try:
+        file_path_lower = file_path.lower()
+        if file_path_lower:
+            detected = []
+            for framework, patterns in _FRAMEWORK_PATTERNS.items():
+                if any(p in file_path_lower for p in patterns):
+                    detected.append(framework)
+
+            if detected:
+                from _session import SessionState
+                state = SessionState.load()
+                existing = getattr(state, "detected_frameworks", None) or []
+                combined = list(set(existing + detected))
+                state.update(detected_frameworks=combined)
+                state.save()
+    except Exception:
+        pass
+
+    result = {"continue": True}
+    if messages:
+        result["systemMessage"] = "\n".join(messages)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -883,12 +1045,14 @@ def main():
         # Write / Edit tools (async — quick operations only)
         elif tool_name in ("Write", "Edit"):
             result = _handle_write_edit(tool_input)
-        # Task (subagent dispatch)
+        # Task (subagent dispatch + permission failure detection)
         elif tool_name == "Task":
-            result = _handle_task_dispatch(tool_input)
-        # Read (framework detection)
+            tool_response = payload.get("tool_response", {})
+            result = _handle_task_dispatch(tool_input, tool_response)
+        # Read (large-file warning + framework detection)
         elif tool_name == "Read":
-            result = _handle_read(tool_input)
+            tool_response = payload.get("tool_response", "")
+            result = _handle_read(tool_input, tool_response)
         # Bash (activity tracking)
         elif tool_name == "Bash":
             tool_response = payload.get("tool_response", {})
