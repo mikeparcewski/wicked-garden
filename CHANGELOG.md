@@ -143,15 +143,12 @@
 - feat: crew quality gate enforcement + script-to-skill conversion (0026743)
 
 ### Chores
-- release: wicked-garden v2.4.0 — remove presentation domain (a8647ed)
+- release: wicked-garden v2.4.0 (a8647ed)
 
 ## [2.4.0] - 2026-03-17
 
 ### Features
 - feat: CLAUDE.md ↔ AGENTS.md sync + remove AGENTS.md write block (8847722)
-
-### Removed
-- remove: presentation skill domain (moved to separate repo)
 
 ### Bug Fixes
 - fix: Windows compatibility — cross-platform Python resolution + TMPDIR fallback (9d36cf4)
@@ -180,7 +177,7 @@
 - Agent model tiers: haiku for utility agents (75% cost reduction), opus for high-stakes reasoning (architecture, security, gate decisions)
 - `allowed-tools` frontmatter on all 79 agents — explicit tool restrictions per agent role
 - `user-invocable: false` on 6 background skills (smaht, control-plane, runtime-exec, integration-discovery, issue-reporting, observability)
-- `disable-model-invocation: true` on 3 user-only skills (crew/workflow, kanban, presentation — presentation later moved to separate repo in v2.4.0)
+- `disable-model-invocation: true` on 2 user-only skills (crew/workflow, kanban)
 - `portability: portable` on 25 cross-platform skills (works on Codex, Gemini CLI, OpenCode, pi-mono)
 - wg-check updated with 3 new validation sections: agent Skills 2.0 compliance, skill portability compliance, invocation control audit
 
@@ -234,9 +231,6 @@
 - docs: split README into lean sales page + detailed docs/ directory (13f9ffa)
 
 ## [1.47.0] - 2026-03-09
-
-### Features
-- feat: presentation skill maintenance, visual QA, and consistency (#300) (90b59ca)
 
 ### Bug Fixes
 - fix: update old wicked-{domain} specialist references to short names (f754b88)
@@ -520,23 +514,10 @@
 
 ## [1.19.1] - 2026-03-05
 
-### Features
-- feat: add presentation skill with full deck creation capabilities (6f832ce)
-
-### Refactoring
-- refactor: polish presentation skill per reviewer recommendations (ee1ea70)
-
 ## [1.19.0] - 2026-03-05
 
-### Features
-- feat: add presentation skill — full-featured deck creation in pptx and html formats with style learning, design registry, and four creation modes
-
 ### Refactoring
-- refactor: rename ppt-maker skill to presentation, align with library conventions
-- refactor: rename references/ to refs/ in presentation skill directory
 - refactor: convert all CLI command syntax to natural language invocations
-- refactor: update 8 storage namespaces from ppt-maker:* to presentation:*
-- refactor: remove client-specific example data from presentation skill docs
 
 ### Chores
 - release: wicked-garden v1.18.0 (9b6d4db)

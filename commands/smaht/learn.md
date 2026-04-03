@@ -25,10 +25,10 @@ Extract from the command arguments:
 
 ### 2. Resolve Library ID via Context7
 
-Call the Context7 MCP tool to resolve the canonical library identifier:
+Use the Context7 MCP tool to resolve the canonical library identifier. The tool name depends on your MCP server configuration — look for a `resolve-library-id` tool from a context7 server:
 
 ```
-mcp__context7__resolve-library-id(libraryName="{library}")
+resolve-library-id(libraryName="{library}")
 ```
 
 If resolution fails or returns no match, report to the user and stop:
@@ -39,10 +39,10 @@ Could not resolve "{library}" in Context7. Try a different spelling or check ava
 
 ### 3. Fetch Documentation
 
-Call Context7 to retrieve key documentation using the resolved ID:
+Use the Context7 `get-library-docs` tool with the resolved ID:
 
 ```
-mcp__context7__get-library-docs(
+get-library-docs(
   libraryId="{resolved_id}",
   topic="key APIs and common patterns"
 )

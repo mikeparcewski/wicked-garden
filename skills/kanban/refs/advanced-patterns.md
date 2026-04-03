@@ -1,5 +1,7 @@
 # Advanced Patterns
 
+> **Note**: Tool names below use short `kanban__` prefix. Actual MCP tool names depend on your server configuration.
+
 Advanced task management patterns for sprints, dependencies, and project documentation.
 
 ## Sprint Planning Workflow
@@ -7,7 +9,7 @@ Advanced task management patterns for sprints, dependencies, and project documen
 ### 1. Create Sprint
 
 ```
-mcp__wicked-kanban__save_sprint(
+kanban__save_sprint(
   project_id="proj-123",
   name="Sprint 1",
   start_date="2024-01-15",
@@ -19,13 +21,13 @@ mcp__wicked-kanban__save_sprint(
 ### 2. Assign Tasks to Sprint
 
 ```
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   task_id="task-1",
   sprint_id="sprint-1"
 )
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   task_id="task-2",
   sprint_id="sprint-1"
@@ -35,7 +37,7 @@ mcp__wicked-kanban__save_task(
 ### 3. Track Sprint Progress
 
 ```
-mcp__wicked-kanban__get_sprint(
+kanban__get_sprint(
   project_id="proj-123",
   sprint_id="sprint-1"
 )
@@ -47,7 +49,7 @@ Create a complex task dependency graph:
 
 ```
 # Foundation task
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   name="Set up database schema",
   swimlane_id="todo-id",
@@ -55,14 +57,14 @@ mcp__wicked-kanban__save_task(
 )  # Returns task-db
 
 # Parallel tasks depending on foundation
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   name="Implement user model",
   swimlane_id="todo-id",
   depends_on=["task-db"]
 )  # Returns task-user
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   name="Implement session model",
   swimlane_id="todo-id",
@@ -70,7 +72,7 @@ mcp__wicked-kanban__save_task(
 )  # Returns task-session
 
 # Final task depending on both
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   name="Integrate auth with sessions",
   swimlane_id="todo-id",
@@ -86,7 +88,7 @@ Attach artifacts to project for reference:
 
 ```
 # Add PRD
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-123",
   target="project",
   attachment_type="artifact",
@@ -99,7 +101,7 @@ mcp__wicked-kanban__attach(
 )
 
 # Add design doc
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-123",
   target="project",
   attachment_type="artifact",
@@ -117,7 +119,7 @@ mcp__wicked-kanban__attach(
 Find high-priority unblocked work:
 
 ```
-mcp__wicked-kanban__search(
+kanban__search(
   query="",
   scope="tasks",
   min_priority="P0",

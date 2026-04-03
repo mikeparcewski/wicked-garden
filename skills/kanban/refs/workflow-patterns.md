@@ -1,5 +1,7 @@
 # Workflow Patterns
 
+> **Note**: Tool names below use short `kanban__` prefix. Actual MCP tool names depend on your server configuration.
+
 Common workflows for task management with wicked-kanban.
 
 ## Feature Development Workflow
@@ -7,7 +9,7 @@ Common workflows for task management with wicked-kanban.
 ### 1. Create Feature Project
 
 ```
-mcp__wicked-kanban__save_project(
+kanban__save_project(
   name="User Authentication",
   description="Implement JWT-based authentication system"
 )
@@ -16,7 +18,7 @@ mcp__wicked-kanban__save_project(
 ### 2. Get Project Details
 
 ```
-mcp__wicked-kanban__get_project(project_id="proj-123")
+kanban__get_project(project_id="proj-123")
 ```
 
 Extract swimlane IDs from response for task placement.
@@ -25,7 +27,7 @@ Extract swimlane IDs from response for task placement.
 
 ```
 # Create design task
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   name="Design auth flow",
   swimlane_id="todo-swimlane-id",
@@ -33,7 +35,7 @@ mcp__wicked-kanban__save_task(
 )
 
 # Create implementation task with dependency
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   name="Implement login endpoint",
   swimlane_id="todo-swimlane-id",
@@ -42,7 +44,7 @@ mcp__wicked-kanban__save_task(
 )
 
 # Create testing task
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   name="Write auth tests",
   swimlane_id="todo-swimlane-id",
@@ -56,7 +58,7 @@ mcp__wicked-kanban__save_task(
 Move task to "In Progress":
 
 ```
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   task_id="design-task-id",
   swimlane_id="in-progress-swimlane-id"
@@ -68,7 +70,7 @@ mcp__wicked-kanban__save_task(
 Add comments as work progresses:
 
 ```
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-123",
   target="task",
   attachment_type="comment",
@@ -83,7 +85,7 @@ mcp__wicked-kanban__attach(
 When code is committed:
 
 ```
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-123",
   target="task",
   attachment_type="commit",
@@ -98,7 +100,7 @@ mcp__wicked-kanban__attach(
 Move to "Done":
 
 ```
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   task_id="design-task-id",
   swimlane_id="done-swimlane-id"
@@ -112,7 +114,7 @@ Dependent tasks automatically become unblocked.
 ### 1. Create Bug Task
 
 ```
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   name="Fix: Login timeout on slow connections",
   description="Users report timeout errors when logging in on 3G connections",
@@ -127,7 +129,7 @@ mcp__wicked-kanban__save_task(
 ### 2. Investigate and Document
 
 ```
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-123",
   target="task",
   attachment_type="comment",
@@ -141,7 +143,7 @@ mcp__wicked-kanban__attach(
 
 ```
 # Link fix commit
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-123",
   target="task",
   attachment_type="commit",
@@ -151,7 +153,7 @@ mcp__wicked-kanban__attach(
 )
 
 # Move to done
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-123",
   task_id="bug-task-id",
   swimlane_id="done-swimlane-id"
@@ -165,7 +167,7 @@ When starting a new Claude Code session:
 ### 1. Find Active Work
 
 ```
-mcp__wicked-kanban__search(
+kanban__search(
   query="",
   scope="tasks",
   ready_only=true
@@ -175,7 +177,7 @@ mcp__wicked-kanban__search(
 ### 2. Get Context on In-Progress Tasks
 
 ```
-mcp__wicked-kanban__get_task(
+kanban__get_task(
   project_id="proj-123",
   task_id="in-progress-task"
 )

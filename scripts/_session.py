@@ -185,6 +185,10 @@ class SessionState:
     # Written by setup.md Step 5. Values: None | "full" | "quick" | "skip"
     onboarding_mode: str | None = None
 
+    # Dedup guard for PreCompact hook — ISO timestamp of last compaction.
+    # If compaction happened <60s ago, skip redundant WIP save.
+    last_compact_ts: str = ""
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

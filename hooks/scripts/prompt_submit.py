@@ -289,6 +289,118 @@ def _check_onboarding_gate(prompt: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# WIP recovery after context compaction
+# ---------------------------------------------------------------------------
+
+def _build_wip_recovery_block(session_id: str, project: str) -> str:
+    """Build a WIP recovery block if compaction just happened.
+
+    Returns a formatted markdown block with working state so the model
+    can resume without repeating completed work. Returns empty string
+    if no compaction occurred or if WIP data is unavailable.
+
+    Zero overhead on normal (non-compacted) prompts — the compaction
+    check is a single file read that short-circuits immediately.
+    """
+    try:
+        from context_pressure import PressureTracker
+        tracker = PressureTracker(session_id)
+        if not tracker.was_just_compacted():
+            return ""
+    except Exception:
+        return ""
+
+    _log("smaht", "debug", "wip_recovery.start")
+
+    # --- Source 1: WIP snapshot saved by PreCompact hook ---
+    wip_data = None
+    try:
+        from history_condenser import HistoryCondenser
+        condenser = HistoryCondenser(session_id)
+        wip_path = condenser.session_dir / "wip_snapshot.json"
+        if wip_path.exists():
+            wip_data = json.loads(wip_path.read_text())
+            _log("smaht", "debug", "wip_recovery.source", detail="snapshot")
+    except Exception:
+        pass
+
+    # --- Source 2: Fallback to live session state from HistoryCondenser ---
+    if not wip_data:
+        try:
+            from history_condenser import HistoryCondenser
+            condenser = HistoryCondenser(session_id)
+            wip_data = condenser.get_session_state()
+            _log("smaht", "debug", "wip_recovery.source", detail="live_state")
+        except Exception:
+            pass
+
+    if not wip_data:
+        _log("smaht", "debug", "wip_recovery.empty")
+        return ""
+
+    # --- Source 3: Kanban in-progress tasks (optional, fail gracefully) ---
+    in_progress_tasks = []
+    try:
+        kanban_script = _SCRIPTS_DIR / "kanban" / "kanban.py"
+        if kanban_script.exists():
+            import subprocess
+            python_shim = _PLUGIN_ROOT / "scripts" / "_python.sh"
+            result = subprocess.run(
+                ["sh", str(python_shim), str(kanban_script), "list-tasks",
+                 "--status", "in_progress", "--json"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                tasks_data = json.loads(result.stdout)
+                if isinstance(tasks_data, list):
+                    in_progress_tasks = [
+                        t.get("subject", t.get("title", "untitled"))
+                        for t in tasks_data[:5]
+                    ]
+    except Exception:
+        pass  # kanban query is best-effort
+
+    # --- Format recovery block (budget: <1000 chars) ---
+    parts = ["## [Recovery] Context was just compacted -- here is your WIP state\n"]
+
+    current_task = wip_data.get("current_task", "")
+    if current_task:
+        parts.append(f"**You were working on**: {current_task[:120]}")
+
+    decisions = wip_data.get("decisions", [])
+    if decisions:
+        parts.append(f"**Recent decisions**: {'; '.join(decisions[:3])}")
+
+    file_scope = wip_data.get("file_scope", [])
+    if file_scope:
+        parts.append(f"**Active files**: {', '.join(file_scope[:6])}")
+
+    constraints = wip_data.get("active_constraints", [])
+    if constraints:
+        parts.append(f"**Constraints**: {'; '.join(constraints[:3])}")
+
+    questions = wip_data.get("open_questions", [])
+    if questions:
+        parts.append(f"**Open questions**: {'; '.join(questions[:2])}")
+
+    if in_progress_tasks:
+        parts.append("\n### In-Progress Tasks")
+        for task in in_progress_tasks:
+            parts.append(f"- {task[:80]}")
+
+    parts.append("\n**IMPORTANT**: Review this state before proceeding. Do NOT repeat completed work.")
+
+    block = "\n".join(parts)
+
+    # Enforce budget: truncate to ~1000 chars if needed
+    if len(block) > 1000:
+        block = block[:997] + "..."
+
+    _log("smaht", "debug", "wip_recovery.done", detail={"chars": len(block)})
+    return block
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -403,7 +515,10 @@ def main():
         except Exception:
             pass  # fail open
 
-        if not briefing and not onboarding_directive:
+        # WIP recovery: inject working state after context compaction
+        wip_block = _build_wip_recovery_block(session_id, project)
+
+        if not briefing and not onboarding_directive and not wip_block:
             print(json.dumps({"continue": True}))
             return
 
@@ -414,7 +529,11 @@ def main():
         )
         all_parts = [header]
 
-        # Onboarding directive goes first for highest priority
+        # WIP recovery block goes first so it's the first thing the model sees
+        if wip_block:
+            all_parts.append(wip_block)
+
+        # Onboarding directive goes next for high priority
         if onboarding_directive:
             all_parts.append(onboarding_directive)
 

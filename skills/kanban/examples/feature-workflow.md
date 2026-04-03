@@ -1,5 +1,7 @@
 # Example: Feature Development Workflow
 
+> **Note**: Tool names below use short `kanban__` prefix. Actual MCP tool names depend on your server configuration (e.g., `mcp__wicked-kanban__save_project`).
+
 Complete example of managing a feature from start to finish.
 
 ## Scenario
@@ -13,7 +15,7 @@ User: "I need to implement user authentication"
 
 Claude: Creating a project for the authentication feature.
 
-mcp__wicked-kanban__save_project(
+kanban__save_project(
   name="User Authentication",
   description="JWT-based authentication with OAuth provider support"
 )
@@ -36,7 +38,7 @@ Response:
 Claude: Breaking down the feature into tasks with dependencies.
 
 # Design task (no dependencies)
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   name="Design authentication flow",
   description="Create sequence diagrams and select OAuth provider",
@@ -46,7 +48,7 @@ mcp__wicked-kanban__save_task(
 # Returns: task-design
 
 # Implementation tasks (depend on design)
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   name="Implement JWT token service",
   swimlane_id="swim-todo",
@@ -55,7 +57,7 @@ mcp__wicked-kanban__save_task(
 )
 # Returns: task-jwt
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   name="Implement OAuth integration",
   swimlane_id="swim-todo",
@@ -65,7 +67,7 @@ mcp__wicked-kanban__save_task(
 # Returns: task-oauth
 
 # Login endpoint (depends on JWT and OAuth)
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   name="Implement login endpoint",
   swimlane_id="swim-todo",
@@ -75,7 +77,7 @@ mcp__wicked-kanban__save_task(
 # Returns: task-login
 
 # Testing (depends on login)
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   name="Write authentication tests",
   swimlane_id="swim-todo",
@@ -92,7 +94,7 @@ User: "Let's start with the design"
 
 Claude: Moving design task to In Progress.
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   task_id="task-design",
   swimlane_id="swim-progress"
@@ -100,7 +102,7 @@ mcp__wicked-kanban__save_task(
 
 Claude: [Works on design, creates sequence diagrams]
 
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-auth-001",
   target="task",
   attachment_type="comment",
@@ -115,7 +117,7 @@ mcp__wicked-kanban__attach(
 ```
 Claude: Design complete. Moving to Done.
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   task_id="task-design",
   swimlane_id="swim-done"
@@ -131,7 +133,7 @@ User: "Start on the JWT service"
 
 Claude: Moving JWT task to In Progress.
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   task_id="task-jwt",
   swimlane_id="swim-progress"
@@ -139,7 +141,7 @@ mcp__wicked-kanban__save_task(
 
 Claude: [Implements JWT service]
 
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-auth-001",
   target="task",
   attachment_type="commit",
@@ -148,7 +150,7 @@ mcp__wicked-kanban__attach(
   target_id="task-jwt"
 )
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   task_id="task-jwt",
   swimlane_id="swim-done"
@@ -162,7 +164,7 @@ After both JWT and OAuth tasks complete:
 ```
 Claude: Both JWT and OAuth complete. Login endpoint is now unblocked.
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   task_id="task-login",
   swimlane_id="swim-progress"
@@ -170,7 +172,7 @@ mcp__wicked-kanban__save_task(
 
 # ... implementation ...
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   task_id="task-login",
   swimlane_id="swim-done"
@@ -182,7 +184,7 @@ mcp__wicked-kanban__save_task(
 ```
 Claude: Login endpoint complete. Starting on tests.
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   task_id="task-tests",
   swimlane_id="swim-progress"
@@ -190,7 +192,7 @@ mcp__wicked-kanban__save_task(
 
 # ... write and run tests ...
 
-mcp__wicked-kanban__attach(
+kanban__attach(
   project_id="proj-auth-001",
   target="task",
   attachment_type="comment",
@@ -199,7 +201,7 @@ mcp__wicked-kanban__attach(
   target_id="task-tests"
 )
 
-mcp__wicked-kanban__save_task(
+kanban__save_task(
   project_id="proj-auth-001",
   task_id="task-tests",
   swimlane_id="swim-done"

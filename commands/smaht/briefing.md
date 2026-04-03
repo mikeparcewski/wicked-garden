@@ -9,6 +9,23 @@ Generate a "what happened since last session" briefing. Primary source: unified 
 
 ## Instructions
 
+### 0. Post-Compaction Recovery
+
+If this briefing is requested after a context compaction event, check for WIP state first and present it prominently at the top of the briefing:
+
+1. Check for WIP snapshot file at the session's history condenser directory (`wip_snapshot.json`)
+2. If no snapshot, query `HistoryCondenser(session_id).get_session_state()` for live working state
+3. Query kanban for in-progress tasks: `kanban.py list-tasks --status in_progress --json`
+4. Present recovered WIP state at the top of the briefing output:
+   - **Current task**: what the user was working on
+   - **Recent decisions**: choices already made (do NOT re-ask)
+   - **Active files**: files in scope for the current work
+   - **Open questions**: unresolved items that still need answers
+   - **In-progress tasks**: kanban items currently being worked
+5. Add: "Context was compacted. Review this state before proceeding. Do NOT repeat completed work."
+
+If no compaction occurred (normal briefing request), skip this step entirely.
+
 ### 1. Determine Time Window
 
 Default: last 24 hours. Override with `--days N`. If `--project` specified, filter to that project.
