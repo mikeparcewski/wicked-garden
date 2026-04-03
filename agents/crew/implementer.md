@@ -16,6 +16,10 @@ color: green
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 tool-capabilities:
   - version-control
+# TODO (Issue #344): When Claude Code supports `isolation: worktree` in agent
+# frontmatter, add it here. Implementer agents modify files and switch branches,
+# which can conflict with parallel agents. Worktree isolation would give each
+# implementer a separate git worktree to work in safely.
 ---
 
 # Implementer

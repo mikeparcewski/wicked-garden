@@ -14,6 +14,9 @@ effort: medium
 max-turns: 10
 color: yellow
 allowed-tools: Read, Grep, Glob, Bash
+# TODO (Issue #344): When Claude Code supports `isolation: worktree` in agent
+# frontmatter, add it here. Reviewer agents should operate on a stable snapshot
+# of the code, not a moving target that implementer agents may be modifying.
 ---
 
 # Reviewer

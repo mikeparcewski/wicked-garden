@@ -14,6 +14,9 @@ effort: medium
 max-turns: 10
 color: green
 allowed-tools: Read, Grep, Glob, Bash
+# TODO (Issue #344): When Claude Code supports `isolation: worktree` in agent
+# frontmatter, add it here. Researcher agents are read-only but running them in
+# a worktree would prevent conflicts if the main context modifies files mid-research.
 ---
 
 # Researcher

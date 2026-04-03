@@ -1,5 +1,24 @@
 {
   "description": "wicked-garden unified hooks — consolidates 10 plugin hook chains into 7 scripts",
+
+  "_TODO_329_updatedInput": "Issue #329: updatedInput for in-flight tool redirection. The _allow() helper in pre_tool.py already emits updatedInput in hookSpecificOutput, but Claude Code may not yet honor updatedInput for PreToolUse hooks to redirect tool calls. If/when supported, use updatedInput in the MEMORY.md write guard to redirect Write/Edit on MEMORY.md to a mem:store call instead of denying.",
+
+  "_TODO_333_CwdChanged": "Issue #333: CwdChanged is NOT a valid hook event. When supported, add a CwdChanged hook that re-scopes the active crew project, search index, and session state to the new working directory. This would replace the current cwd-based workspace detection in bootstrap.py.",
+
+  "_TODO_334_FileChanged": "Issue #334: FileChanged is NOT a valid hook event. When supported, add a FileChanged hook to catch all file mutations (including those from external tools and MCP servers) and mark search index entries as stale. Currently only Write/Edit are tracked via PostToolUse.",
+
+  "_TODO_337_prompt_agent_hook_types": "Issue #337: Hook types 'prompt' and 'agent' are not documented as supported (only 'command' is used). When supported, use type:'prompt' for lightweight validation hooks (no subprocess overhead) and type:'agent' for complex hooks that need LLM reasoning (e.g., intent classification in UserPromptSubmit).",
+
+  "_TODO_342_InstructionsLoaded": "Issue #342: InstructionsLoaded is NOT a valid hook event. When supported, add an InstructionsLoaded hook to dynamically inject domain-specific instructions based on the active crew project phase, detected frameworks, and session context. This would replace the static systemMessage approach in bootstrap.py.",
+
+  "_TODO_340_asyncRewake": "Issue #340: asyncRewake is not a supported hook/tool feature. When supported, use asyncRewake for long-running operations (search indexing, QE acceptance tests, crew gate analysis) so the agent can be suspended and rewoken when the operation completes, instead of polling or blocking.",
+
+  "_TODO_341_http_hooks": "Issue #341: HTTP hook type (type: 'http') is not supported. When supported, add HTTP hooks for external service integration: POST crew phase transitions to a webhook URL, send gate results to a quality dashboard, notify Slack/Teams on crew project completion. Currently all hooks are type: 'command' (subprocess).",
+
+  "_TODO_344_isolation_worktree": "Issue #344: Agent frontmatter field 'isolation: worktree' is not supported. When supported, add isolation: worktree to the crew implementer, researcher, and reviewer agents so they operate in separate git worktrees. This would prevent destructive operations (branch switching, file modifications) in one agent from affecting others running in parallel.",
+
+  "_TODO_345_once_flag": "Issue #345: The 'once' flag is not documented as a supported hook property. When supported, add \"once\": true to the SessionStart bootstrap hook so it only fires on the first session start, not on reconnects. Currently bootstrap.py handles this by checking session state for staleness.",
+
   "hooks": {
     "SessionStart": [
       {
@@ -139,6 +158,56 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" task_completed || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" task_completed || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" task_completed",
             "timeout": 2000
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" subagent_lifecycle start || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" subagent_lifecycle start || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" subagent_lifecycle start",
+            "timeout": 2000
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" subagent_lifecycle stop || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" subagent_lifecycle stop || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" subagent_lifecycle stop",
+            "timeout": 2000,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" permission_request || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" permission_request || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" permission_request",
+            "timeout": 2000
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" notification || python \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" notification || py -3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/invoke.py\" notification",
+            "timeout": 3000,
+            "async": true
           }
         ]
       }

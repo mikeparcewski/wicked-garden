@@ -9,6 +9,11 @@ description: |
   "clarify outcome", "design phase", "build phase", "approve phase", "crew workflow",
   "phase progression", "QE gate", "shift-left testing", or structured delivery guidance.
 disable-model-invocation: true
+# TODO (Issue #332): When Claude Code supports `context: "fork"` in skill frontmatter,
+# add `context: fork` here to run crew workflow in a forked context. This would prevent
+# the heavy crew orchestration from consuming the parent context window. Currently,
+# crew workflow relies on delegation via Task() to manage context, but a native fork
+# would be more efficient.
 ---
 
 # Workflow Skill (v3)
