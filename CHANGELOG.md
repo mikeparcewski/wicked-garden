@@ -1,5 +1,49 @@
 # Changelog
 
+## [3.2.0] - 2026-04-03
+
+### Features
+- feat: OneDrive path fix, CI pipeline, cross-version memory, search hardening (ce2c7e6)
+- feat: brainstorm fast convergence, plugin discoverability hints, turn progress (7581f3c)
+- feat: large-read delegation warnings + subagent permission failure detection (6ccf6c5)
+- feat: PreCompact WIP persistence + post-compaction recovery + plugin cleanup (0c2eecb)
+- feat: onboarding memories — granular storage + active consumption (51405de)
+- feat: wire all event consumers — mem recall, smaht adapter, jam per-round events (0660a78)
+- feat: wire first event consumers — briefing reads events, crew emits rich events (dae8d77)
+- feat: unified event log — EventStore with FTS5, DomainStore auto-emit, cross-domain queries (c34a164)
+- feat: session briefing, contextual discovery, dead code removal (a2df3d6)
+- feat: jam refs, task-based product help, enriched persona agent (174d7fc)
+
+### Bug Fixes
+- fix: correct 31 broken script paths, remove 4 missing script refs (fdf44b5)
+- fix: disambiguate trigger collisions across 12 skills (f07832c)
+- fix: fourth cleanup — broken script paths, stale counts, dead command refs (6fb6b57)
+- fix: third cleanup pass — ghost specialist, stale refs, orphaned scenarios (8da557e)
+- fix: skill quality improvements — deduplicate triggers, enforce line limits, remove hardcoded paths (407f272)
+
+### Documentation
+- docs: update all docs for v3.0 — domain counts, specialist table, event log (0b1cdd8)
+- docs: README split into two stories — what you do vs what the plugin does (b202123)
+- docs: README Start Here — add testing, persona; drop commodity features (550d427)
+- docs: add smaht:onboard and smaht:briefing to README Start Here (d409dba)
+- docs: README reposition — crew as hero, memory as compound interest (dde6995)
+- docs: rewrite README to lead with memory moat, not command counts (4e6d53c)
+- docs: update README, CLAUDE.md, workflow skill for v2.5-2.6 features (d62c16a)
+
+### Refactoring
+- refactor: consolidate multi-model, patch, observability into parent domains (15 → 14) (49823a8)
+- refactor: consolidate design → product, scenarios → qe (17 → 15 domains) (f82aab3)
+
+### Chores
+- release: wicked-garden v3.1.0 — onboarding rework, README reposition, doc updates (abaaa05)
+- release: wicked-garden v3.0.1 — event log consumers fully wired (a2d25a3)
+- release: wicked-garden v2.10.0 — session briefing, contextual discovery, README rewrite (f5194ef)
+- release: wicked-garden v2.9.1 — script path fixes + trigger disambiguation (aa733ba)
+- release: wicked-garden v2.9.0 — quality investments + third cleanup pass (5baaea8)
+- release: wicked-garden v2.8.0 — domain consolidation (17 → 14) (79a9ad8)
+- release: wicked-garden v2.7.0 — skill quality + security hygiene (0c24de2)
+- release: wicked-garden v2.6.1 — security fixes + doc updates (a7fe039)
+
 ## [3.1.0] - 2026-03-23
 
 ### Features
