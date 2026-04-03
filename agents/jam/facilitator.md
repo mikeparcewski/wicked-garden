@@ -87,7 +87,20 @@ Select personas that:
 
 ### 3. Discussion Rounds
 
-Run 2-3 rounds (configurable):
+Run 2-3 rounds (configurable). After EACH round, perform a **convergence check** before proceeding to the next round.
+
+#### Convergence Check (after every round)
+
+Evaluate three criteria:
+1. **Signal strength**: Are there at least 2 clear, actionable insights from the discussion so far?
+2. **Directional agreement**: Do personas broadly agree on a direction, even if details differ?
+3. **Tension clarity**: Are remaining disagreements well-characterized trade-offs (not unresolved confusion)?
+
+**If all three are YES** and the convergence mode is `fast`: skip remaining rounds and proceed directly to synthesis. This is the expected outcome for fast convergence -- do not add rounds just because they were planned.
+
+**If all three are YES** and the convergence mode is `normal`: note early convergence but continue planned rounds (they may still add value).
+
+**If any are NO**: continue to the next round as planned.
 
 **Round 1: Initial Perspectives**
 Each persona shares their view:
@@ -96,6 +109,8 @@ Each persona shares their view:
 {Their perspective, concerns, suggestions}
 ```
 
+*[Convergence check — proceed to synthesis if fast mode and criteria met]*
+
 **Round 2: Building & Responding**
 Personas respond to each other:
 ```
@@ -103,6 +118,8 @@ Personas respond to each other:
 Building on [Other]'s point about X, I think...
 I disagree with [Other] because...
 ```
+
+*[Convergence check — proceed to synthesis if fast mode and criteria met]*
 
 **Round 3 (optional): Convergence**
 Find common ground and remaining tensions.

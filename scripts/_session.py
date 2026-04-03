@@ -203,6 +203,17 @@ class SessionState:
     # Bash permission issues or tool-access failures (Issue #318).
     subagent_permission_failures: int = 0
 
+    # Discovery hints shown this session — tracks which "did you know?" hints
+    # have been emitted so each is shown at most once (Issue #322).
+    # List of hint IDs like ["grep_search", "manual_review", "debugging"].
+    hints_shown: list | None = None
+
+    # Turn progress visibility (Issue #323).
+    # turn_start_ts: ISO timestamp when the current turn began (set by prompt_submit).
+    # turn_tool_count: number of tool calls in the current turn (incremented by post_tool).
+    turn_start_ts: str = ""
+    turn_tool_count: int = 0
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

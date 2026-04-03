@@ -11,7 +11,8 @@ Dispatches by tool_name from hook payload:
   Write / Edit                         → stale file marking + QE change tracking + MEMORY.md guard
   Task                                 → subagent activity tracking
   Read                                 → large-file-read warning + agentic framework detection
-  Bash                                 → activity tracking
+  Bash                                 → activity tracking + discovery hints
+  Grep / Glob                          → discovery hints for search commands
   PostToolUseFailure (any tool_name)   → failure counting + auto issue detection
 
 Traces are written to a session-scoped JSONL file in $TMPDIR (local only).
@@ -272,6 +273,84 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
     except Exception as e:
         print(f"[wicked-garden] task_tools handler error: {e}", file=sys.stderr)
         return {"continue": True}
+
+
+# ---------------------------------------------------------------------------
+# Discovery hints — "did you know?" suggestions (Issue #322)
+#
+# Each hint has an ID, a one-line suggestion, and fires at most once per session.
+# Detects patterns in tool usage and suggests wicked-garden commands that could
+# do the job better. Lightweight — single SessionState read/write.
+# ---------------------------------------------------------------------------
+
+_DISCOVERY_HINTS = {
+    "grep_search": (
+        "[Tip] wicked-garden has semantic code search: "
+        "`/wicked-garden:search:code <query>` finds symbols with context, "
+        "or `/wicked-garden:search:blast-radius <symbol>` for impact analysis."
+    ),
+    "manual_review": (
+        "[Tip] For structured code review with senior-engineer perspective, "
+        "try `/wicked-garden:engineering:review`."
+    ),
+    "debugging": (
+        "[Tip] For systematic debugging with root cause analysis, "
+        "try `/wicked-garden:engineering:debug`."
+    ),
+    "requirements": (
+        "[Tip] For structured requirements elicitation, "
+        "try `/wicked-garden:product:elicit`."
+    ),
+    "architecture": (
+        "[Tip] For architecture analysis and design review, "
+        "try `/wicked-garden:engineering:arch`."
+    ),
+    "data_analysis": (
+        "[Tip] For interactive data analysis with DuckDB, "
+        "try `/wicked-garden:data:numbers` or `/wicked-garden:data:analyze`."
+    ),
+}
+
+
+def _try_discovery_hint(hint_id: str) -> str | None:
+    """Emit a discovery hint if it hasn't been shown this session.
+
+    Returns the hint message, or None if already shown or on any error.
+    At most one hint is shown per session to avoid nagging.
+    """
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        shown = state.hints_shown or []
+
+        # Cap: at most 2 hints per session total to stay subtle
+        if len(shown) >= 2:
+            return None
+
+        if hint_id in shown:
+            return None
+
+        hint_text = _DISCOVERY_HINTS.get(hint_id)
+        if not hint_text:
+            return None
+
+        shown.append(hint_id)
+        state.update(hints_shown=shown)
+        return hint_text
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Handler: Grep / Glob (discovery hint for search commands)
+# ---------------------------------------------------------------------------
+
+def _handle_grep_glob(tool_name: str, tool_input: dict) -> dict:
+    """On repeated Grep/Glob usage, suggest wicked-garden search commands."""
+    hint = _try_discovery_hint("grep_search")
+    if hint:
+        return {"continue": True, "systemMessage": hint}
+    return {"continue": True}
 
 
 # ---------------------------------------------------------------------------
@@ -809,7 +888,8 @@ def _handle_skill(tool_input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def _handle_bash(tool_input: dict, tool_response) -> dict:
-    """Track bash activity (lightweight — just increment counter in session state)."""
+    """Track bash activity + detect usage patterns for discovery hints."""
+    messages = []
     try:
         from _session import SessionState
         state = SessionState.load()
@@ -818,7 +898,20 @@ def _handle_bash(tool_input: dict, tool_response) -> dict:
         state.save()
     except Exception:
         pass
-    return {"continue": True}
+
+    # --- Discovery hints from bash command patterns ---
+    command = (tool_input.get("command") or "").lower()
+    if command:
+        # Manual grep/rg usage → suggest wicked-garden search
+        if any(kw in command for kw in ["grep ", "rg ", "ripgrep", "ag "]):
+            hint = _try_discovery_hint("grep_search")
+            if hint:
+                messages.append(hint)
+
+    result = {"continue": True}
+    if messages:
+        result["systemMessage"] = "\n".join(messages)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -999,6 +1092,64 @@ def _write_trace(payload: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Turn progress visibility (Issue #323)
+# ---------------------------------------------------------------------------
+
+_TURN_STATUS_THRESHOLD_SECS = 120  # 2 minutes
+
+
+def _check_turn_progress(tool_name: str) -> str | None:
+    """Increment turn tool count and return a status note if the turn is long-running.
+
+    Returns a status string when elapsed time exceeds _TURN_STATUS_THRESHOLD_SECS,
+    or None if the turn is still short or state is unavailable.
+    """
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+
+        # Increment tool count
+        new_count = (state.turn_tool_count or 0) + 1
+        state.update(turn_tool_count=new_count)
+
+        # Check elapsed time
+        turn_start = state.turn_start_ts
+        if not turn_start:
+            return None
+
+        start_dt = datetime.fromisoformat(turn_start.replace("Z", "+00:00"))
+        now_dt = datetime.now(timezone.utc)
+        elapsed_secs = (now_dt - start_dt).total_seconds()
+
+        if elapsed_secs < _TURN_STATUS_THRESHOLD_SECS:
+            return None
+
+        elapsed_mins = int(elapsed_secs / 60)
+
+        # Build status note
+        parts = [
+            f"[Status] This turn has been running for {elapsed_mins} "
+            f"minute{'s' if elapsed_mins != 1 else ''}. "
+            f"{new_count} tool call{'s' if new_count != 1 else ''} so far."
+        ]
+
+        # Include active crew phase/specialist if available
+        active_project = state.active_project
+        if active_project and isinstance(active_project, dict):
+            phase = active_project.get("current_phase", "")
+            specialist = active_project.get("current_specialist", "")
+            if phase:
+                detail = f"Active crew phase: {phase}"
+                if specialist:
+                    detail += f" ({specialist})"
+                parts.append(detail)
+
+        return " ".join(parts)
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Main dispatcher
 # ---------------------------------------------------------------------------
 
@@ -1053,16 +1204,28 @@ def main():
         elif tool_name == "Read":
             tool_response = payload.get("tool_response", "")
             result = _handle_read(tool_input, tool_response)
-        # Bash (activity tracking)
+        # Bash (activity tracking + discovery hints)
         elif tool_name == "Bash":
             tool_response = payload.get("tool_response", {})
             result = _handle_bash(tool_input, tool_response)
         # Skill (mem:store escalation counter reset)
         elif tool_name == "Skill":
             result = _handle_skill(tool_input)
+        # Grep / Glob (discovery hints for search commands)
+        elif tool_name in ("Grep", "Glob"):
+            result = _handle_grep_glob(tool_name, tool_input)
         # All other tools — pass through
         else:
             result = {"continue": True}
+
+        # Turn progress visibility (Issue #323): append status note on long turns
+        turn_status = _check_turn_progress(tool_name)
+        if turn_status:
+            existing_msg = result.get("systemMessage", "")
+            if existing_msg:
+                result["systemMessage"] = existing_msg + "\n" + turn_status
+            else:
+                result["systemMessage"] = turn_status
 
         _log("posttool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(json.dumps(result))

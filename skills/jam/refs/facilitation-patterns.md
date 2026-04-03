@@ -101,3 +101,21 @@ Match persona archetypes to problem types for effective brainstorming sessions.
 | Complexity score >= 4 in crew | Full brainstorm with domain-specific personas |
 | Ambiguity detected in clarify phase | Full brainstorm focused on framing the problem |
 | Time pressure ("we need to decide today") | Quick jam — speed > thoroughness |
+| User says "converge fast" or "get to the point" | Full brainstorm with `--converge fast` — personas + early exit |
+
+## Convergence Assessment
+
+After each discussion round, the facilitator should assess convergence before proceeding:
+
+**Converged (skip remaining rounds in fast mode):**
+- 2+ actionable insights have emerged
+- Personas broadly agree on direction (details may differ)
+- Remaining disagreements are well-characterized trade-offs, not confusion
+
+**Not converged (continue to next round):**
+- Personas are talking past each other (different framing, different assumptions)
+- Key tensions are unresolved and unclear
+- No actionable insight has emerged yet
+- A persona raised a concern that others have not addressed
+
+The goal is to reach synthesis as soon as the discussion has produced enough signal. Extra rounds that merely reinforce existing positions waste time without adding insight.

@@ -35,8 +35,8 @@ Best for: Important decisions, complex problems, strategic thinking
 ### Quick Jam (`/jam`)
 
 - 4 personas
-- 1 round
-- Brief synthesis
+- 1 round (forced — never extends)
+- Brief synthesis (2-3 insights max)
 - No storage prompt
 
 Best for: Quick decisions, gut checks, rapid exploration
@@ -68,6 +68,17 @@ Best for: Gathering input, self-directed thinking, discussion prep
 3. **Genuine**: Each has legitimate concerns (no strawmen)
 4. **Buildable**: Personas can respond to each other
 
+## Convergence Modes
+
+| Mode | Flag | Behavior |
+|------|------|----------|
+| Normal | (default) | Run all planned rounds, then synthesize |
+| Fast | `--converge fast` | After each round, check if signal is sufficient; skip remaining rounds if yes |
+
+Fast convergence checks three criteria after each round: (1) at least 2 actionable insights, (2) directional agreement, (3) tensions are well-characterized. If all pass, synthesis begins immediately.
+
+Quick jam (`/jam`) always uses forced fast convergence (1 round, then synthesize).
+
 ## Discussion Dynamics
 
 ### Round 1: Initial Perspectives
@@ -77,12 +88,16 @@ Each persona shares their view:
 - Key concern
 - Suggestion or consideration
 
+*Convergence check (fast mode: synthesize if criteria met)*
+
 ### Round 2: Building
 
 Personas respond to each other:
 - Build on good ideas
 - Challenge assumptions
 - Find connections
+
+*Convergence check (fast mode: synthesize if criteria met)*
 
 ### Round 3: Convergence (optional)
 

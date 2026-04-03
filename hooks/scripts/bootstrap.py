@@ -591,6 +591,60 @@ def _detect_dangerous_mode():
 
 
 # ---------------------------------------------------------------------------
+# Discovery: contextual command suggestions based on project type (Issue #322)
+# ---------------------------------------------------------------------------
+
+def _suggest_commands_for_project() -> str | None:
+    """Detect project type from files in cwd and suggest 2-3 relevant commands.
+
+    Lightweight: checks only for a few marker files (no directory walks).
+    Returns a formatted suggestion string, or None if no suggestions apply.
+    """
+    try:
+        cwd = Path.cwd()
+        suggestions = []
+
+        # Detect project signals from marker files
+        has_package_json = (cwd / "package.json").exists()
+        has_pyproject = (cwd / "pyproject.toml").exists() or (cwd / "setup.py").exists()
+        has_dockerfile = (cwd / "Dockerfile").exists() or (cwd / "docker-compose.yml").exists()
+        has_terraform = (cwd / "main.tf").exists() or (cwd / "terraform").is_dir()
+        has_tests = (
+            (cwd / "tests").is_dir() or (cwd / "test").is_dir()
+            or (cwd / "__tests__").is_dir() or (cwd / "spec").is_dir()
+        )
+        has_csv_data = any(cwd.glob("*.csv")) or (cwd / "data").is_dir()
+        has_ci = (cwd / ".github" / "workflows").is_dir()
+
+        # Always useful
+        suggestions.append("`/wicked-garden:search:code` — semantic code search")
+        suggestions.append("`/wicked-garden:engineering:review` — structured code review")
+
+        # Project-type-specific
+        if has_tests:
+            suggestions.append("`/wicked-garden:qe:scenarios` — generate test scenarios")
+        if has_dockerfile or has_terraform:
+            suggestions.append("`/wicked-garden:platform:security` — security review")
+        if has_csv_data:
+            suggestions.append("`/wicked-garden:data:numbers` — interactive data analysis")
+        if has_ci:
+            suggestions.append("`/wicked-garden:platform:actions` — GitHub Actions optimization")
+
+        # Cap at 3 suggestions
+        suggestions = suggestions[:3]
+
+        if not suggestions:
+            return None
+
+        return (
+            "[Quick Start] Available commands for this project:\n"
+            + "\n".join(f"  - {s}" for s in suggestions)
+        )
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -805,6 +859,12 @@ def main():
             briefing_parts.append(
                 "[Setup] Run `/wicked-garden:setup --reconfigure` to change connection or re-onboard."
             )
+
+        # Discovery: show 2-3 contextual command suggestions based on project files
+        if not onboarding_directive and has_memories:
+            discovery_lines = _suggest_commands_for_project()
+            if discovery_lines:
+                briefing_parts.append(discovery_lines)
 
         # Onboarding directive goes LAST for highest priority
         if onboarding_directive:
