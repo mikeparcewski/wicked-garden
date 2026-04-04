@@ -109,13 +109,22 @@ clarify (required)
               +-> review (required, depends on build)
 ```
 
+### Within Phases
+
+As phases execute, the crew engine tracks work at a granular level:
+
+- **Traceability Links**: `traceability.py` automatically creates cross-phase links between artifacts, decisions, and deliverables. A requirement defined in clarify is linked to the design that addresses it, the code that implements it, and the test that validates it. BFS traversal finds transitive dependencies, and coverage reports identify orphaned artifacts with no upstream or downstream connections.
+- **Artifact Lifecycle**: Every artifact (spec, design doc, code deliverable, test plan) is tracked through a 6-state lifecycle managed by `artifact_state.py`: DRAFT, IN_REVIEW, APPROVED, IMPLEMENTED, VERIFIED, CLOSED. State transitions are enforced — you cannot build from a DRAFT design or close without verification.
+- **Verification Protocol**: At each gate, `verification_protocol.py` runs 6-point checks: completeness (all required deliverables present), consistency (no contradictions across artifacts), traceability (links exist to upstream requirements), quality metrics (meets minimum gate score), dependency satisfaction (all depends_on phases completed), and evidence validation (evidence meets minimum byte threshold).
+
 ### Checkpoints
 
 At three checkpoints (clarify, design, build), the system re-analyzes signals and can inject new phases mid-flight:
 
-- Design phase reveals security concerns not in the original description? Security specialist gets pulled in.
-- Build phase discovers data migration needs? Data specialist and test phase get added.
-- Complexity changes based on what's found? Phase plan adjusts.
+- Design phase reveals security concerns not in the original description? Signal re-analysis detects the new security pattern and pulls in the platform specialist.
+- Build phase discovers data migration needs? Data specialist and test phase get injected into the remaining plan.
+- Complexity changes based on what's found? Phase plan adjusts — phases can be added but never silently removed.
+- Checkpoint re-analysis uses the same `smart_decisioning.py` pipeline as initial analysis, so specialist matching and complexity scoring are consistent.
 
 ## Specialists
 
@@ -180,6 +189,24 @@ Every crew project creates a kanban initiative. Tasks created during phases are 
 /wicked-garden:kanban:board-status    # see all projects and tasks
 ```
 
+## Cross-Phase Intelligence
+
+v3.4 introduces cross-phase intelligence — the ability for crew to understand relationships between artifacts, decisions, and deliverables across the entire workflow lifecycle.
+
+- **Traceability Graph**: Every artifact is linked to its upstream requirements and downstream implementations. `traceability.py` provides BFS traversal to answer "what depends on this?" and coverage reports to find gaps.
+- **Impact Analysis**: When an artifact changes mid-workflow, `impact_analyzer.py` identifies all downstream phases and artifacts that may be affected, preventing silent breakage.
+- **Lifecycle Scoring**: Search results within crew context are ranked using `lifecycle_scoring.py` — phase-weighted, recency-aware, and traceability-boosted so the most relevant artifacts surface first.
+
+For details on the traceability model and artifact states, see the scripts in `scripts/crew/`.
+
+## Project Management
+
+Each crew project is isolated via `project_registry.py`:
+
+- **Project Registration**: Every `crew:start` registers a project with a unique ID, description, and metadata.
+- **Isolation**: `get_project_filter()` returns a filter function that scopes all queries (kanban tasks, memories, artifacts, evidence) to the active project. This prevents cross-project data leakage when multiple crew projects exist.
+- **Multi-Project Support**: You can have multiple active projects. `crew:status` shows the current one; `crew:archive` manages lifecycle.
+
 ## Memory Integration
 
-Crew stores significant decisions and patterns in memory automatically. When you start a new project, relevant memories from past projects surface during the clarify phase.
+Crew stores significant decisions and patterns in memory automatically. When you start a new project, relevant memories from past projects surface during the clarify phase. v3.4's phase-aware recall (`mem/phase_scoring.py`) weights memories by affinity to the current crew phase — architecture decisions rank higher during design, test patterns rank higher during test-strategy.

@@ -170,6 +170,58 @@ Every domain write is logged to a unified event store. Query cross-domain activi
 
 The event log is consumed automatically by smaht context assembly, mem:recall (cross-domain supplementation), and the briefing command. Events are retained for 90 days.
 
+### Knowledge Graph Integration (v3.4.0+)
+
+Events are also consumed by the knowledge graph (`scripts/smaht/knowledge_graph.py`), which maintains typed entities (requirements, designs, tasks, tests, decisions, incidents, acceptance criteria, evidence) and their relationships. The knowledge graph provides structured traversal that complements the event log's chronological view. See [Architecture: Knowledge Graph](architecture.md#knowledge-graph-v340) for details.
+
+## Cross-Phase Intelligence (v3.4.0+)
+
+v3.4.0 added 9 modules across 5 domains that make crew phases aware of each other. Instead of isolated phases that hand off deliverables, phases now share traceability links, artifact state, verification evidence, and impact analysis.
+
+Key capabilities:
+
+- **Traceability links** between requirements, designs, code, tests, and evidence
+- **Artifact state machine** enforcing lifecycle transitions (DRAFT through CLOSED)
+- **6-point verification protocol** for evidence-based review gates
+- **Cross-phase impact analysis** combining traceability, knowledge graph, and phase metadata
+- **Phase-aware memory scoring** so recall prioritizes relevant context for the current phase
+- **Council consensus** with structured dissent tracking for multi-model decisions
+
+For the full guide with CLI examples, see [Cross-Phase Intelligence](cross-phase-intelligence.md).
+
+## Council Consensus (v3.4.0+)
+
+The jam domain's `consensus.py` provides a structured 3-stage protocol for council sessions where multiple AI models (or specialist personas) evaluate a question independently.
+
+### 3-Stage Protocol
+
+1. **Independent Proposals** -- Each participant submits a proposal with rationale, confidence score (0.0-1.0), and concerns
+2. **Cross-Review** -- Participants review each other's proposals, noting agreements, disagreements (with counter-rationale), and questions
+3. **Synthesis** -- Consensus points are identified via word-overlap clustering; dissenting views are extracted and classified by strength
+
+### Dissent Tracking
+
+Dissenting views are classified into three levels:
+
+- **Strong**: Raised by 2+ personas, or has detailed counter-rationale (>50 characters)
+- **Moderate**: Raised by 1 persona with rationale
+- **Mild**: Noted as concern or unresolved question without strong objection
+
+### Memory Integration
+
+`format_for_memory()` converts consensus results into a dict suitable for `mem:store`, preserving the decision, confidence, participant count, and strong dissents as structured metadata.
+
+```bash
+# Run full consensus protocol
+consensus.py synthesize --proposals proposals.json --reviews reviews.json --question "Should we use microservices?"
+
+# Score consensus without synthesis
+consensus.py score --proposals proposals.json
+
+# Format results for display (with dissent)
+consensus.py format --result result.json --show-dissent
+```
+
 ## Development Commands
 
 These commands are for developing the wicked-garden plugin itself (available when working in the repo):

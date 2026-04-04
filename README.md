@@ -37,6 +37,7 @@ These run in the background. You don't invoke them — they make everything abov
 | **Tasks sync to a kanban board** | Claude's task tools auto-sync to the kanban via hooks — no manual tracking |
 | **Complexity shapes the workflow** | Signal analysis scores impact, reversibility, and novelty — a config change gets 2 phases, a migration gets 5 |
 | **Quality gates enforce standards** | Gates actually reject work. No rubber-stamping. Bad coverage blocks advancement. |
+| **Cross-phase intelligence links deliverables** | Traceability links connect phase outputs automatically. Artifact states track lifecycle from draft to closed. Verification protocol runs at gates. |
 
 ## Why This Works
 
@@ -129,16 +130,15 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | [Crew Workflow](docs/crew-workflow.md) | Signal routing, phases, specialists, checkpoints |
 | [Architecture](docs/architecture.md) | Storage, integration discovery, context assembly |
 | [Advanced Usage](docs/advanced.md) | Multi-model, customization, development commands |
+| [Cross-Phase Intelligence](docs/cross-phase-intelligence.md) | Traceability links, artifact states, verification protocol, knowledge graph |
 
-## Migration from v1.x
+## What Changed in v3.x
 
-v2.0 is backward compatible — all commands work identically. Three changes to be aware of:
+**v3.0-3.2** — Unified event log (`events.db`), session briefing (`smaht:briefing`), domain consolidation from 5 plugins into 1, onboarding memories for cross-session continuity.
 
-1. **Model tiers**: 4 utility agents now use haiku (cheaper, faster). 5 high-stakes agents now use opus (deeper reasoning). If you pin models, review the [changelog](CHANGELOG.md).
-2. **Tool restrictions**: All 80 agents now have `allowed-tools` in their frontmatter. Agents can only use the tools listed. This is a security improvement — no behavioral change for normal usage.
-3. **Skill invocation control**: 6 infrastructure skills are hidden from the `/` menu (`user-invocable: false`). 3 skills are user-only (`disable-model-invocation: true`).
+**v3.3** — Manifest modernization (`plugin.json` schema upgrade), 4 new lifecycle hook events (SubagentStart, SubagentStop, PermissionRequest, Notification), agent budgets for all 80 agents.
 
-To stay on v1.x: `claude plugins add mikeparcewski/wicked-garden@v1.49.3`
+**v3.4** — Cross-phase intelligence: traceability links with BFS traversal across phase deliverables, artifact state machine (6-state lifecycle with gate integration), verification protocol (6-point evidence-based review), knowledge graph (SQLite entity + relationship store), lifecycle scoring (5 composable functions for phase-aware ranking), council consensus (3-stage protocol with dissent tracking). Also: project isolation (formal `project_id` namespacing), impact analysis ("if I change X, what breaks?"), phase-aware memory recall, 10 E2E scenarios with 3 bug fixes.
 
 ## License
 

@@ -137,10 +137,12 @@ These are suggestions to Claude, not mandatory routes.
 
 ## Hook System
 
-Seven Python scripts handle lifecycle events:
+The plugin supports 14 lifecycle events. Six Python scripts handle the active hooks; remaining events are available for future use or custom extensions.
 
-| Hook | Event | Purpose |
-|------|-------|---------|
+### Active Hooks
+
+| Hook Script | Event | Purpose |
+|-------------|-------|---------|
 | bootstrap | SessionStart | Initialize session state, detect environment |
 | prompt_submit | UserPromptSubmit | Context assembly via smaht |
 | pretool_taskcreate | PreToolUse:TaskCreate | Inject crew initiative metadata |
@@ -148,6 +150,27 @@ Seven Python scripts handle lifecycle events:
 | compact | PreCompact | Checkpoint session state before compression |
 | stop | Stop (async) | Store session learnings |
 | task_completed | TaskCompleted | Verify task completion quality |
+
+### All Lifecycle Events
+
+| Event | Fires When | Matchers |
+|-------|-----------|----------|
+| SessionStart | Session begins | n/a |
+| UserPromptSubmit | User sends a prompt | n/a |
+| PreToolUse | Before a tool executes | Tool name (`"*"`, `"TaskCreate"`, etc.) |
+| PostToolUse | After a tool succeeds | Tool name |
+| PostToolUseFailure | After a tool fails | Tool name |
+| TaskCompleted | A task is marked completed | n/a (no matchers) |
+| SubagentStart | Subagent begins execution | Agent type |
+| SubagentStop | Subagent finishes execution | Agent type |
+| Stop | Session ends normally | n/a |
+| PreCompact | Before context compression | n/a |
+| Notification | Plugin sends a notification | n/a |
+| PermissionRequest | User is asked for permission | n/a |
+| TeammateIdle | A teammate becomes idle | n/a |
+| SessionEnd | Session terminates | n/a |
+
+SubagentStart, SubagentStop, PermissionRequest, and Notification were added in v3.3.0.
 
 All hooks are **stdlib-only Python** — no pip dependencies. All hooks **fail open** — if a hook errors, it returns `{"ok": true}` and logs to stderr.
 
@@ -202,3 +225,68 @@ Specialists are defined in `.claude-plugin/specialist.json` as a lean manifest. 
 - **enhances**: Which crew phases they participate in
 
 Crew's smart decisioning maps signals to specialists and determines which to engage for each project.
+
+## Knowledge Graph (v3.4.0+)
+
+A typed entity and relationship layer backed by SQLite, managed by `scripts/smaht/knowledge_graph.py`. Tracks requirements, designs, tasks, tests, decisions, and their traceability relationships across crew phases.
+
+### Entity Types (8)
+
+`requirement`, `acceptance_criteria`, `design_artifact`, `task`, `test_scenario`, `evidence`, `decision`, `incident`
+
+### Relationship Types (7)
+
+`TRACES_TO`, `IMPLEMENTED_BY`, `TESTED_BY`, `VERIFIES`, `DECIDED_BY`, `BLOCKS`, `SUPERSEDES`
+
+### Storage
+
+Entities and relationships are stored in a single SQLite database at `~/.something-wicked/wicked-garden/local/wicked-smaht/knowledge/knowledge_graph.db`. Indexed by entity type, project, phase, and relationship endpoints for fast lookups.
+
+### Subgraph Traversal
+
+`get_subgraph(entity_id, depth=2)` performs BFS from a starting entity, collecting all reachable entities and relationships within the specified depth. Used by the impact analyzer to discover transitive dependencies.
+
+```bash
+# Create an entity
+knowledge_graph.py create-entity --type requirement --name "Auth must use OAuth2" --phase clarify --project P1
+
+# Get related entities
+knowledge_graph.py related --id <entity-id> --direction forward
+
+# Extract a subgraph (2 hops deep)
+knowledge_graph.py subgraph --id <entity-id> --depth 2
+
+# View graph statistics
+knowledge_graph.py stats
+```
+
+## Lifecycle Scoring (v3.4.0+)
+
+Five composable scorers in `scripts/search/lifecycle_scoring.py` that boost or penalize search and memory results based on crew phase, artifact freshness, traceability links, and gate status.
+
+### Scorers
+
+| Scorer | Effect |
+|--------|--------|
+| `phase_weighted` | Boosts items matching the active crew phase via an affinity matrix (e.g., `requirement` gets 1.4x during clarify) |
+| `recency_decay` | Exponential decay based on item age in days (`e^(-rate * days)`, default rate 0.01) |
+| `traceability_boost` | Boosts items with traceability links (1.3x for 1-2 links, 1.5x for 3+) |
+| `gate_status` | Multiplier based on artifact state (VERIFIED 1.4x, APPROVED 1.3x, DRAFT 0.7x) |
+| `reciprocal_rank_fusion` | Fuses multiple independent rankings via RRF with configurable k parameter |
+
+### Pipeline Composition
+
+Scorers are chained via `score_pipeline()`. The default pipeline runs `phase_weighted`, `recency_decay`, `traceability_boost`, and `gate_status` in order. RRF is opt-in for multi-ranker fusion.
+
+```bash
+# Score items with default pipeline
+lifecycle_scoring.py score --phase build < items.json
+
+# Score with specific scorers
+lifecycle_scoring.py score --phase test --scorers phase_weighted,recency_decay < items.json
+
+# Custom decay rate
+lifecycle_scoring.py score --phase build --decay-rate 0.05 < items.json
+```
+
+Each item in the output includes `_score` (final composite score) and `_score_breakdown` (per-scorer multipliers) for transparency.

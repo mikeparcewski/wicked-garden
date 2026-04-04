@@ -105,6 +105,15 @@ Plain English to SQL results via DuckDB. Works on CSV, Excel, Parquet — files 
 /wicked-garden:mem:recall "session storage decisions"
 ```
 
+### "I need to trace decisions across phases"
+
+```bash
+/wicked-garden:crew:evidence            # show evidence and traceability for current project
+/wicked-garden:crew:status              # see phase state, artifact lifecycle, linked deliverables
+```
+
+Crew automatically creates traceability links between phase deliverables — a design decision in the clarify phase is linked forward to the architecture artifact, implementation, and test plan. Use `crew:evidence` to see the full chain.
+
 ## How Commands Work
 
 All commands follow the pattern `/wicked-garden:{domain}:{command}`:
@@ -126,6 +135,8 @@ Every domain also has a help command:
 ## What Happens Behind the Scenes
 
 When you run a command, a context assembly layer called **smaht** intercepts your prompt and enriches it with relevant context — recent memory, active crew projects, kanban tasks, and code intelligence. This happens automatically on every prompt, not just wicked-garden commands.
+
+During crew workflows, the system also tracks **traceability links** between phase deliverables (so a clarify decision connects forward to design artifacts and implementation), manages **artifact states** through a 6-state lifecycle (draft, review, approved, rework, superseded, closed), and runs a **verification protocol** at quality gates to ensure evidence-based advancement.
 
 Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON files, scoped per working directory. No data leaves your machine unless you configure external integrations.
 
