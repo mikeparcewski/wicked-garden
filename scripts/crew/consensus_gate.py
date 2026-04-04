@@ -28,9 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from jam.consensus import (  # noqa: E402
     ConsensusResult,
-    CrossReview,
     Proposal,
-    score_consensus,
     store_council_result,
     synthesize,
 )
@@ -300,9 +298,9 @@ def evaluate_consensus_gate(
     )
     consensus_result = synthesize(proposals, cross_reviews=None, question=question)
 
-    # Score the proposals
-    scores = score_consensus(proposals)
-    agreement_ratio = scores.get("agreement_ratio", 0.0)
+    # Derive agreement_ratio from the consensus_points already computed by synthesize()
+    total_points = len(consensus_result.consensus_points)
+    agreement_ratio = consensus_result.confidence if total_points else 0.0
 
     # Store consensus result for audit trail
     session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")
@@ -312,7 +310,18 @@ def evaluate_consensus_gate(
         logger.warning("[consensus-gate] Failed to store council result: %s", exc)
 
     # Write consensus report to project dir
+    scores = {"agreement_ratio": agreement_ratio, "divergent_points": []}
     _write_consensus_report(project_path, phase, consensus_result, scores)
+
+    # Build base result dict (shared across all outcomes)
+    base = {
+        "consensus_confidence": consensus_result.confidence,
+        "consensus_points": consensus_result.consensus_points,
+        "dissenting_views": [asdict(d) for d in consensus_result.dissenting_views],
+        "open_questions": consensus_result.open_questions,
+        "participants": consensus_result.participants,
+        "agreement_ratio": agreement_ratio,
+    }
 
     # Map consensus result to gate outcome
     strong_dissents = [
@@ -325,24 +334,16 @@ def evaluate_consensus_gate(
         dissent_summary = "; ".join(
             f"{d.persona}: {d.view}" for d in strong_dissents[:3]
         )
-        return {
-            "result": "REJECT",
-            "reason": f"Strong dissent from consensus council: {dissent_summary}",
-            "consensus_confidence": consensus_result.confidence,
-            "consensus_points": consensus_result.consensus_points,
-            "dissenting_views": [asdict(d) for d in consensus_result.dissenting_views],
-            "open_questions": consensus_result.open_questions,
-            "participants": consensus_result.participants,
-            "agreement_ratio": agreement_ratio,
-        }
+        return {**base, "result": "REJECT",
+                "reason": f"Strong dissent from consensus council: {dissent_summary}"}
 
     # Rule 2: Low agreement ratio triggers CONDITIONAL
     try:
-        threshold = float(confidence_threshold)
+        conf_threshold = float(confidence_threshold)
     except (TypeError, ValueError):
-        threshold = 0.7
+        conf_threshold = 0.7
 
-    if agreement_ratio < threshold:
+    if agreement_ratio < conf_threshold:
         conditions = []
         for dv in consensus_result.dissenting_views:
             conditions.append({
@@ -356,36 +357,14 @@ def evaluate_consensus_gate(
                 "source": "consensus-council",
                 "severity": "moderate",
             })
-
-        return {
-            "result": "CONDITIONAL",
-            "reason": (
-                f"Consensus agreement ratio ({agreement_ratio:.2f}) "
-                f"below threshold ({threshold:.2f})"
-            ),
-            "conditions": conditions,
-            "consensus_confidence": consensus_result.confidence,
-            "consensus_points": consensus_result.consensus_points,
-            "dissenting_views": [asdict(d) for d in consensus_result.dissenting_views],
-            "open_questions": consensus_result.open_questions,
-            "participants": consensus_result.participants,
-            "agreement_ratio": agreement_ratio,
-        }
+        return {**base, "result": "CONDITIONAL", "conditions": conditions,
+                "reason": (f"Consensus agreement ratio ({agreement_ratio:.2f}) "
+                           f"below threshold ({conf_threshold:.2f})")}
 
     # Rule 3: Sufficient agreement -> APPROVE
-    return {
-        "result": "APPROVE",
-        "reason": (
-            f"Consensus council approved with {agreement_ratio:.2f} "
-            f"agreement ratio ({consensus_result.participants} participants)"
-        ),
-        "consensus_confidence": consensus_result.confidence,
-        "consensus_points": consensus_result.consensus_points,
-        "dissenting_views": [asdict(d) for d in consensus_result.dissenting_views],
-        "open_questions": consensus_result.open_questions,
-        "participants": consensus_result.participants,
-        "agreement_ratio": agreement_ratio,
-    }
+    return {**base, "result": "APPROVE",
+            "reason": (f"Consensus council approved with {agreement_ratio:.2f} "
+                       f"agreement ratio ({consensus_result.participants} participants)")}
 
 
 # ---------------------------------------------------------------------------

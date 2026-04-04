@@ -82,6 +82,13 @@ class Importance(Enum):
 
 _IMPORTANCE_FROM_STR = {"low": 2, "medium": 5, "high": 8, "critical": 9}
 
+# Tier weighting for recall ranking
+_TIER_WEIGHT = {
+    MemoryTier.SEMANTIC.value: 1.3,
+    MemoryTier.EPISODIC.value: 1.0,
+    MemoryTier.WORKING.value: 0.8,
+}
+
 
 def _parse_importance(val) -> int:
     """Parse importance from int or legacy string format."""
@@ -399,19 +406,11 @@ class MemoryStore:
         if not include_archived:
             memories = [m for m in memories if m.status == MemoryStatus.ACTIVE.value]
 
-        # Sort with tier weighting: semantic 1.3x, episodic 1.0x, working 0.8x
-        # Applied on top of access_count + recency ranking.
-        _TIER_WEIGHT = {
-            MemoryTier.SEMANTIC.value: 1.3,
-            MemoryTier.EPISODIC.value: 1.0,
-            MemoryTier.WORKING.value: 0.8,
-        }
-
-        def _sort_key(m):
-            weight = _TIER_WEIGHT.get(m.tier, 1.0)
-            return (m.access_count * weight, m.accessed)
-
-        memories.sort(key=_sort_key, reverse=True)
+        # Sort with tier weighting applied on top of access_count + recency ranking
+        memories.sort(
+            key=lambda m: (m.access_count * _TIER_WEIGHT.get(m.tier, 1.0), m.accessed),
+            reverse=True,
+        )
 
         # Update access for returned memories (only for current-project records)
         for memory in memories[:limit]:

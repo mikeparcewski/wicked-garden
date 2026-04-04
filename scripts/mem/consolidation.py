@@ -12,20 +12,14 @@ Stdlib-only. Cross-platform.
 """
 
 import re
-import sys
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
-
-# Resolve siblings from scripts/ directory
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from mem.memory import (
     Memory,
     MemoryStatus,
     MemoryStore,
     MemoryTier,
-    MemoryType,
     _log,
 )
 
@@ -35,22 +29,50 @@ from mem.memory import (
 # ---------------------------------------------------------------------------
 
 _MIN_WORD_LEN = 4
+_SIMILARITY_THRESHOLD = 0.35
 
 
-def _jaccard_similarity(text_a: str, text_b: str, min_word_len: int = _MIN_WORD_LEN) -> float:
-    """Word-overlap Jaccard similarity between two strings.
-
-    Extracts words of length >= min_word_len, lowercased, then computes
-    |intersection| / |union|.  Matches the pattern in jam/consensus.py.
-    """
-    wa = {w for w in re.findall(r"[a-z0-9]+", text_a.lower()) if len(w) >= min_word_len}
-    wb = {w for w in re.findall(r"[a-z0-9]+", text_b.lower()) if len(w) >= min_word_len}
+def _jaccard_similarity(text_a: str, text_b: str) -> float:
+    """Word-overlap Jaccard similarity between two strings."""
+    wa = {w for w in re.findall(r"[a-z0-9]+", text_a.lower()) if len(w) >= _MIN_WORD_LEN}
+    wb = {w for w in re.findall(r"[a-z0-9]+", text_b.lower()) if len(w) >= _MIN_WORD_LEN}
     if not wa or not wb:
         return 0.0
     return len(wa & wb) / len(wa | wb)
 
 
-_SIMILARITY_THRESHOLD = 0.35
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _fetch_active(store: MemoryStore, tier: Optional[str] = None) -> List[Memory]:
+    """Load active memories, optionally filtered by tier."""
+    result: List[Memory] = []
+    for record in store._sm.list("memories"):
+        mem = store._dict_to_memory(record)
+        if not mem or mem.status != MemoryStatus.ACTIVE.value:
+            continue
+        if tier and mem.tier != tier:
+            continue
+        result.append(mem)
+    return result
+
+
+def _cluster_by_similarity(memories: List[Memory]) -> List[List[Memory]]:
+    """Group memories into clusters by Jaccard word-overlap similarity."""
+    clusters: List[List[Memory]] = []
+    for mem in memories:
+        placed = False
+        text = mem.title + " " + mem.content
+        for cluster in clusters:
+            rep = cluster[0]
+            if _jaccard_similarity(rep.title + " " + rep.content, text) > _SIMILARITY_THRESHOLD:
+                cluster.append(mem)
+                placed = True
+                break
+        if not placed:
+            clusters.append([mem])
+    return clusters
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +82,7 @@ _SIMILARITY_THRESHOLD = 0.35
 def consolidate_working(store: MemoryStore) -> Dict[str, int]:
     """Promote working-tier memories to episodic tier.
 
-    - Drops transient items: access_count <= 1 AND older than the session TTL
-      (default 1 day for working memories).
+    - Drops transient items: access_count <= 1 AND older than the session TTL.
     - Merges similar remaining items using Jaccard similarity.
     - Promotes surviving items to episodic tier.
 
@@ -72,18 +93,7 @@ def consolidate_working(store: MemoryStore) -> Dict[str, int]:
     merged = 0
 
     now = datetime.now(timezone.utc)
-
-    # Gather all active working-tier memories
-    all_records = store._sm.list("memories")
-    working_memories: List[Memory] = []
-    for record in all_records:
-        mem = store._dict_to_memory(record)
-        if (
-            mem
-            and mem.tier == MemoryTier.WORKING.value
-            and mem.status == MemoryStatus.ACTIVE.value
-        ):
-            working_memories.append(mem)
+    working_memories = _fetch_active(store, MemoryTier.WORKING.value)
 
     if not working_memories:
         return {"promoted": promoted, "dropped": dropped, "merged": merged}
@@ -96,57 +106,28 @@ def consolidate_working(store: MemoryStore) -> Dict[str, int]:
         age_days = (now - created).total_seconds() / 86400
 
         if mem.access_count <= 1 and age_days > ttl:
-            # Drop transient — archive it
             store._sm.update("memories", mem.id, {"status": MemoryStatus.ARCHIVED.value})
             dropped += 1
         else:
             retainable.append(mem)
 
-    # Cluster similar retainable memories using Jaccard
-    clusters: List[List[Memory]] = []
-    for mem in retainable:
-        placed = False
-        for cluster in clusters:
-            representative = cluster[0]
-            sim = _jaccard_similarity(
-                representative.title + " " + representative.content,
-                mem.title + " " + mem.content,
-            )
-            if sim > _SIMILARITY_THRESHOLD:
-                cluster.append(mem)
-                placed = True
-                break
-        if not placed:
-            clusters.append([mem])
-
-    # Process each cluster
-    for cluster in clusters:
+    # Cluster and process
+    for cluster in _cluster_by_similarity(retainable):
         if len(cluster) == 1:
-            # Single item — just promote
-            mem = cluster[0]
-            store._sm.update("memories", mem.id, {"tier": MemoryTier.EPISODIC.value})
+            store._sm.update("memories", cluster[0].id, {"tier": MemoryTier.EPISODIC.value})
             promoted += 1
         else:
-            # Merge: pick the one with highest importance/access_count as survivor
             cluster.sort(key=lambda m: (m.importance, m.access_count), reverse=True)
             survivor = cluster[0]
-
-            # Merge content from others into survivor
-            extra_content = []
+            merged_content = survivor.content
             for other in cluster[1:]:
-                extra_content.append(other.content)
-                # Archive the merged-away memories
+                if other.content and other.content not in merged_content:
+                    merged_content += "\n---\n" + other.content
                 store._sm.update("memories", other.id, {
                     "status": MemoryStatus.ARCHIVED.value,
                     "tier": MemoryTier.EPISODIC.value,
                 })
                 merged += 1
-
-            # Update survivor with merged content and promote
-            merged_content = survivor.content
-            for ec in extra_content:
-                if ec and ec not in merged_content:
-                    merged_content += "\n---\n" + ec
             store._sm.update("memories", survivor.id, {
                 "tier": MemoryTier.EPISODIC.value,
                 "content": merged_content,
@@ -170,84 +151,39 @@ def consolidate_episodic(store: MemoryStore) -> Dict[str, int]:
     - access_count >= 10
     - importance >= 8
 
-    Similar promoted memories are merged into a single semantic entry.
-    Originals are archived for audit trail.
-
     Returns {promoted: int, merged: int, archived: int}.
     """
     promoted = 0
     merged_count = 0
     archived = 0
 
-    all_records = store._sm.list("memories")
-    episodic_memories: List[Memory] = []
-    for record in all_records:
-        mem = store._dict_to_memory(record)
-        if (
-            mem
-            and mem.tier == MemoryTier.EPISODIC.value
-            and mem.status == MemoryStatus.ACTIVE.value
-        ):
-            episodic_memories.append(mem)
-
+    episodic_memories = _fetch_active(store, MemoryTier.EPISODIC.value)
     if not episodic_memories:
         return {"promoted": promoted, "merged": merged_count, "archived": archived}
 
-    # Count session_id diversity across all episodic memories for cross-session detection.
-    # Group by content similarity to find recurring patterns.
-    content_clusters: List[List[Memory]] = []
-    for mem in episodic_memories:
-        placed = False
-        for cluster in content_clusters:
-            representative = cluster[0]
-            sim = _jaccard_similarity(
-                representative.title + " " + representative.content,
-                mem.title + " " + mem.content,
-            )
-            if sim > _SIMILARITY_THRESHOLD:
-                cluster.append(mem)
-                placed = True
-                break
-        if not placed:
-            content_clusters.append([mem])
-
-    # Identify promotion candidates
+    # Identify promotion candidates from similarity clusters
     candidates: List[List[Memory]] = []
-    for cluster in content_clusters:
-        # Check session diversity
+    for cluster in _cluster_by_similarity(episodic_memories):
         session_ids = {m.session_id for m in cluster if m.session_id}
-        session_diverse = len(session_ids) >= 3
-
-        # Check individual promotion triggers
-        any_high_access = any(m.access_count >= 10 for m in cluster)
-        any_high_importance = any(m.importance >= 8 for m in cluster)
-
-        if session_diverse or any_high_access or any_high_importance:
+        if (len(session_ids) >= 3
+                or any(m.access_count >= 10 for m in cluster)
+                or any(m.importance >= 8 for m in cluster)):
             candidates.append(cluster)
 
-    # Process candidates
     for cluster in candidates:
-        # Sort by importance then access_count descending
         cluster.sort(key=lambda m: (m.importance, m.access_count), reverse=True)
         survivor = cluster[0]
 
         if len(cluster) > 1:
-            # Merge content from duplicates
-            extra_content = []
+            merged_content = survivor.content
             for other in cluster[1:]:
                 if other.content and other.content not in survivor.content:
-                    extra_content.append(other.content)
-                # Archive originals
+                    merged_content += "\n---\n" + other.content
                 store._sm.update("memories", other.id, {
                     "status": MemoryStatus.ARCHIVED.value,
                 })
                 archived += 1
                 merged_count += 1
-
-            merged_content = survivor.content
-            for ec in extra_content:
-                merged_content += "\n---\n" + ec
-
             store._sm.update("memories", survivor.id, {
                 "tier": MemoryTier.SEMANTIC.value,
                 "content": merged_content,
@@ -270,7 +206,6 @@ def consolidate_episodic(store: MemoryStore) -> Dict[str, int]:
 def deduplicate(store: MemoryStore, tier: Optional[str] = None) -> Dict[str, int]:
     """Find and merge near-duplicate memories within a tier (or all tiers).
 
-    Uses word-overlap Jaccard similarity at threshold 0.35.
     Keeps the memory with higher importance/access_count, archives the rest.
 
     Returns {merged: int, archived: int}.
@@ -278,43 +213,14 @@ def deduplicate(store: MemoryStore, tier: Optional[str] = None) -> Dict[str, int
     merged = 0
     archived = 0
 
-    all_records = store._sm.list("memories")
-    memories: List[Memory] = []
-    for record in all_records:
-        mem = store._dict_to_memory(record)
-        if not mem or mem.status != MemoryStatus.ACTIVE.value:
-            continue
-        if tier and mem.tier != tier:
-            continue
-        memories.append(mem)
-
+    memories = _fetch_active(store, tier)
     if not memories:
         return {"merged": merged, "archived": archived}
 
-    # Cluster by similarity
-    clusters: List[List[Memory]] = []
-    for mem in memories:
-        placed = False
-        for cluster in clusters:
-            representative = cluster[0]
-            sim = _jaccard_similarity(
-                representative.title + " " + representative.content,
-                mem.title + " " + mem.content,
-            )
-            if sim > _SIMILARITY_THRESHOLD:
-                cluster.append(mem)
-                placed = True
-                break
-        if not placed:
-            clusters.append([mem])
-
-    # Process clusters with duplicates
-    for cluster in clusters:
+    for cluster in _cluster_by_similarity(memories):
         if len(cluster) <= 1:
             continue
-
         cluster.sort(key=lambda m: (m.importance, m.access_count), reverse=True)
-        # Keep first (highest score), archive the rest
         for dup in cluster[1:]:
             store._sm.update("memories", dup.id, {
                 "status": MemoryStatus.ARCHIVED.value,

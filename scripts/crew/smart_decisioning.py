@@ -1812,7 +1812,6 @@ def analyze_input(
                     signal_confidences["infrastructure"] = 0.4
                     signals = list(signal_confidences.keys())
                 complexity = min(complexity + 1, 7)
-                flags_incident = True
                 archetype_adj_applied["incident_history_bonus"] = {
                     "related_incidents_found": len(_incident_records),
                     "complexity_bonus": 1,

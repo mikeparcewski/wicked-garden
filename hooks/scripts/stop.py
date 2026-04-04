@@ -192,8 +192,6 @@ def _run_working_consolidation() -> list:
     return messages
 
 
-
-
 def _get_turn_count() -> int:
     try:
         from _session import SessionState
