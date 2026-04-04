@@ -6,7 +6,7 @@
 /wicked-garden:crew:start "add OAuth login with role-based access"
 ```
 
-Claude analyzes the request, detects security and architecture signals, assembles the right specialists, and runs gated phases — clarify, design, build, test, review. No skipped steps. No hallucinated shortcuts. Every decision is remembered for the next project.
+Claude analyzes the request, detects security and architecture signals, assembles the right specialists, and runs gated phases — clarify, design, build, test, review, operate. No skipped steps. No hallucinated shortcuts. Every decision is remembered for the next project.
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -20,24 +20,27 @@ Commands you run when you need them. No setup required.
 |-------------|---------|
 | **Build a feature end-to-end** | `crew:start "add payment processing"` — assembles specialists, runs enforced phases, adapts to complexity |
 | **Teach Claude my codebase** | `smaht:onboard` — indexes structure, traces flows, maps architecture. Claude remembers it across sessions. |
-| **Test before I code** | `qe:scenarios "checkout flow"` — generates happy paths, edge cases, error conditions before implementation |
-| **Prove the tests pass** | `qe:acceptance` — evidence-gated: write plan → execute → independent review. Gates reject gaps. |
-| **Brainstorm with perspectives** | `jam:quick "monorepo or polyrepo?"` — 4 personas debate, synthesis with confidence levels |
-| **Find code structurally** | `search:code "handlePayment"` — symbols across 73 languages, not string matching |
+| **Review code with domain expertise** | `engineering:review` — security checks OWASP Top 10, architecture detects scope creep, QE catches test manipulation |
+| **Test before I code** | `qe:scenarios "checkout flow"` — generates happy paths, edge cases, error conditions, maps to CLI tools |
+| **Brainstorm with real perspectives** | `jam:council "monorepo or polyrepo?"` — pipes the question to every LLM CLI on your machine (Codex, Gemini, Copilot), synthesizes agreements and dissent |
+| **Find what breaks if I change this** | `search:blast-radius "handlePayment"` — dependency analysis across your codebase, not string matching |
+| **Design an A/B test** | `delivery:experiment` — hypothesis, sample size calculation, instrumentation plan, decision criteria |
+| **Collect audit evidence** | `platform:audit` — per-control evidence collection (SOC2, HIPAA, GDPR) with PASS/PARTIAL/FAIL and auditor notes |
 
 ## What the Plugin Does Automatically
 
-These run in the background. You don't invoke them — they make everything above smarter.
+These run in the background via lifecycle hooks. You don't invoke them — they make everything above smarter.
 
 | What happens | How it works |
 |-------------|-------------|
-| **Every prompt gets project context** | `smaht` assembles memory, search results, project state, and event history before Claude responds |
-| **Decisions persist across sessions** | `mem` stores what you decided and surfaces it when relevant — session 47 knows what session 1 chose |
-| **Cross-domain activity is logged** | `events.db` records every domain write — query with `smaht:events-query` or let `smaht:briefing` summarize |
+| **Every prompt gets project context** | `smaht` assembles memory, search results, project state, and event history before Claude responds — 3-tier routing keeps it fast for simple prompts |
+| **Decisions persist across sessions** | `mem` stores what you decided and surfaces it when relevant — search "auth" and find the JWT decision from three months ago via auto-generated synonym tags |
+| **Working memory consolidates over time** | Session noise drops away, important patterns get promoted to durable knowledge. 3 tiers: working (transient) → episodic (sprint-level) → semantic (permanent) |
 | **Tasks sync to a kanban board** | Claude's task tools auto-sync to the kanban via hooks — no manual tracking |
-| **Complexity shapes the workflow** | Signal analysis scores impact, reversibility, and novelty — a config change gets 2 phases, a migration gets 5 |
-| **Quality gates enforce standards** | Gates actually reject work. No rubber-stamping. Bad coverage blocks advancement. |
-| **Cross-phase intelligence links deliverables** | Traceability links connect phase outputs automatically. Artifact states track lifecycle from draft to closed. Verification protocol runs at gates. |
+| **Complexity shapes the workflow** | 7-dimension scoring (impact, reversibility, novelty, test complexity, documentation, coordination, operational) — a config change gets 2 phases, a migration gets 7 |
+| **Quality gates enforce standards** | Gates actually reject work. High-complexity gates require multi-perspective consensus from specialist proposers. Bad coverage blocks advancement. |
+| **Traceability links deliverables across phases** | Requirements → designs → code → tests → evidence → gate approvals. After deploy, incidents link back to the requirements that caused them. |
+| **Session teardown captures learnings** | Stop hook prompts memory storage, consolidates working memories, and persists session metadata for next time |
 
 ## Why This Works
 
@@ -45,9 +48,9 @@ Most AI coding sessions start from scratch. Session 47 has no idea what session 
 
 Wicked Garden fixes that with three layers:
 
-1. **Enforced workflow** (`crew`) — Signal analysis detects what your project needs, assembles the right specialists, and runs gated phases. Quality gates actually reject work that doesn't meet the bar.
-2. **Cross-session memory** (`mem`) — Decisions, patterns, and gotchas persist and surface automatically. Your second month is better than your first week.
-3. **Context assembly** (`smaht`) — Every prompt is enriched with memory, search results, project state, and brainstorm outcomes before Claude responds.
+1. **Enforced workflow** (`crew`) — Signal analysis detects what your project needs, scores complexity across 7 dimensions, assembles the right specialists, and runs gated phases. Quality gates reject work that doesn't meet the bar. Consensus review at complexity 5+ brings multiple specialist perspectives before advancement.
+2. **Cross-session memory** (`mem`) — Decisions, patterns, and gotchas persist and surface automatically. Auto-generated search tags mean "auth" finds the "JWT session token" decision. Working memories consolidate into durable knowledge over time.
+3. **Context assembly** (`smaht`) — Every prompt is enriched with memory, search results, project state, and brainstorm outcomes. Three-tier routing (hot/fast/slow) keeps simple prompts fast and complex ones thorough.
 
 ## How It Works
 
@@ -81,37 +84,50 @@ Every domain works independently. Install the plugin, use any command.
 
 | Domain | What It Does | Key Commands |
 |--------|-------------|--------------|
-| **crew** | Signal-driven workflow engine. Analyzes, selects phases, routes to specialists. | `crew:start`, `crew:execute`, `crew:just-finish` |
-| **smaht** | Context assembly. Enriches every prompt with relevant context automatically. | `smaht:onboard`, `smaht:debug` |
-| **mem** | Cross-session memory. Decisions persist and surface when relevant. | `mem:store`, `mem:recall`, `mem:review` |
-| **search** | Structural code intelligence across 73 languages. | `search:code`, `search:lineage`, `search:blast-radius` |
-| **jam** | AI brainstorming with dynamic focus groups. | `jam:brainstorm`, `jam:quick`, `jam:council` |
-| **kanban** | Persistent task board. Auto-syncs with Claude's task tools. | `kanban:board-status`, `kanban:new-task` |
+| **crew** | Signal-driven workflow engine with 8 phases, consensus gates, and operate-phase feedback loops | `crew:start`, `crew:execute`, `crew:just-finish`, `crew:retro` |
+| **smaht** | Automatic context assembly on every prompt. 3-tier routing keeps simple prompts fast. | `smaht:onboard`, `smaht:collaborate`, `smaht:briefing` |
+| **mem** | 3-tier persistent memory (working → episodic → semantic) with auto-consolidation and tag-based search | `mem:store`, `mem:recall`, `mem:consolidate` |
+| **search** | Structural code intelligence — symbols, blast radius, data lineage, service maps | `search:code`, `search:lineage`, `search:blast-radius`, `search:service-map` |
+| **jam** | AI brainstorming with dynamic focus groups and multi-model council sessions | `jam:brainstorm`, `jam:quick`, `jam:council` |
+| **kanban** | Persistent task board. Auto-syncs with Claude's task tools via hooks. | `kanban:board-status`, `kanban:new-task`, `kanban:initiative` |
 
 ### Specialist Disciplines
 
 | Discipline | What It Brings |
 |-----------|---------------|
-| **Engineering** | Code review, architecture, debugging, frontend/backend specialists, code transformations |
-| **Product** | Requirements, UX, customer voice, business strategy, accessibility, design review |
-| **Platform** | Security (OWASP), compliance (SOC2/HIPAA/GDPR), SRE, incident response, plugin diagnostics |
-| **Quality** | Test strategy, automation, TDD, acceptance testing, E2E scenarios with evidence gates |
-| **Data** | DuckDB SQL on CSV/Excel (10GB+), pipelines, ML, analytics architecture |
-| **Delivery** | Sprint health, A/B tests, progressive rollouts, cost optimization |
-| **Agentic** | Agent architecture review, safety audits, framework analysis |
-| **Persona** | On-demand specialist perspectives with rich characteristics |
+| **Engineering** | Code review with scope creep detection, architecture analysis, systematic debugging, implementation planning with parallel risk assessment |
+| **Product** | Requirements elicitation, stakeholder alignment (maps power/interest), multi-dimensional strategy (ROI + market + competitive), UX flows, WCAG accessibility audits, wireframes |
+| **Platform** | Security review (OWASP), compliance evidence collection (SOC2/HIPAA/GDPR/PCI per control), incident triage with deployment correlation, infrastructure review |
+| **Quality** | Test scenarios mapped to CLI tools, test code generation matching project conventions, acceptance testing with evidence gates, agent manipulation detection in tests |
+| **Data** | DuckDB SQL on CSV/Excel (10GB+), pipeline review (silent data loss, idempotency), ML review (data leakage, production readiness), analytics architecture |
+| **Delivery** | A/B test design with sample size calculation, progressive rollouts with automatic rollback triggers, multi-perspective stakeholder reports, cost optimization |
+| **Agentic** | Agent architecture design, 5-layer validation, safety audit (guardrails, prompt injection, PII), framework comparison |
+| **Persona** | On-demand specialist invocation with rich characteristics — custom personas with personality, constraints, and memories |
 
 ## Integration
 
 | Integration | With It | Without It |
 |------------|---------|------------|
-| **External MCP tools** | kanban syncs to Jira/Linear, mem to Notion | Local JSON files — same API |
+| **External MCP tools** | kanban syncs to Jira/Linear, mem to Notion — auto-discovered at runtime | Local JSON files — same API |
 | **GitHub CLI (`gh`)** | Auto-file issues, PR creation, releases | Manual issue/PR workflow |
 | **Tree-sitter** | 73-language structural code search, lineage | Grep-based text search |
 | **DuckDB** | SQL on 10GB+ CSV/Excel files | Basic file reading |
-| **External LLM CLIs** | Multi-model council reviews (Codex, Gemini) | Claude-only specialist agents |
+| **External LLM CLIs** | Multi-model council reviews (Codex, Gemini, Copilot) with independent perspectives | Claude-only specialist agents |
 
 The plugin works fully standalone. Each integration adds capability but nothing breaks without it.
+
+## What You Can't Do With Just a CLAUDE.md
+
+| Capability | CLAUDE.md | Wicked Garden |
+|-----------|-----------|---------------|
+| Persistent cross-session memory | No — each session starts fresh | Yes — decisions surface automatically when relevant |
+| Automatic context assembly | No — must manually recap | Yes — smaht injects memory + search + project state every turn |
+| Enforced quality gates | No — suggestions, often skipped | Yes — hooks deny advancement when evidence is missing |
+| Runtime integration discovery | No — hardcoded tool references | Yes — auto-detect MCP servers, CLI tools, external LLMs |
+| Multi-model perspectives | No — Claude only | Yes — council pipes to Codex, Gemini, Copilot |
+| Signal-driven complexity scoring | No — fixed workflow | Yes — 7-dimension analysis adapts phases to the work |
+| Session teardown with learning capture | No — session just ends | Yes — stop hook prompts memory storage, consolidates knowledge |
+| Cross-phase traceability | No — deliverables are disconnected | Yes — requirements → designs → code → tests → evidence → incidents |
 
 ## Principles
 
@@ -132,13 +148,17 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | [Advanced Usage](docs/advanced.md) | Multi-model, customization, development commands |
 | [Cross-Phase Intelligence](docs/cross-phase-intelligence.md) | Traceability links, artifact states, verification protocol, knowledge graph |
 
-## What Changed in v3.x
+## Changelog
 
-**v3.0-3.2** — Unified event log (`events.db`), session briefing (`smaht:briefing`), domain consolidation from 5 plugins into 1, onboarding memories for cross-session continuity.
+**v3.6** — Consensus-backed gate decisions for high-complexity work (multi-perspective specialist review), Operate phase closing the SDLC feedback loop (incidents, feedback, retro), 3-tier memory with auto-consolidation (working → episodic → semantic), auto-generated search tags for better keyword recall.
 
-**v3.3** — Manifest modernization (`plugin.json` schema upgrade), 4 new lifecycle hook events (SubagentStart, SubagentStop, PermissionRequest, Notification), agent budgets for all 80 agents.
+**v3.5** — Comprehensive documentation update across all domains.
 
-**v3.4** — Cross-phase intelligence: traceability links with BFS traversal across phase deliverables, artifact state machine (6-state lifecycle with gate integration), verification protocol (6-point evidence-based review), knowledge graph (SQLite entity + relationship store), lifecycle scoring (5 composable functions for phase-aware ranking), council consensus (3-stage protocol with dissent tracking). Also: project isolation (formal `project_id` namespacing), impact analysis ("if I change X, what breaks?"), phase-aware memory recall, 10 E2E scenarios with 3 bug fixes.
+**v3.4** — Cross-phase intelligence: traceability links, artifact state machine, verification protocol, knowledge graph, council consensus with dissent tracking. 10 E2E scenarios.
+
+**v3.3** — Manifest modernization, 4 new lifecycle hook events, agent budgets for all 80 agents.
+
+**v3.0-3.2** — Unified event log, session briefing, domain consolidation from 5 plugins into 1.
 
 ## License
 
