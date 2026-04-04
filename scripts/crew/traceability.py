@@ -46,11 +46,12 @@ _SOURCE = "traceability"
 # ---------------------------------------------------------------------------
 
 VALID_LINK_TYPES = frozenset({
-    "TRACES_TO",       # requirement → design
-    "IMPLEMENTED_BY",  # design → code
-    "TESTED_BY",       # requirement/code → test scenario
-    "VERIFIES",        # test result → requirement
-    "SATISFIES",       # evidence → requirement
+    "TRACES_TO",          # requirement → design
+    "IMPLEMENTED_BY",     # design → code
+    "TESTED_BY",          # requirement/code → test scenario
+    "VERIFIES",           # test result → requirement
+    "SATISFIES",          # evidence → requirement
+    "CONSENSUS_REVIEWED", # gate artifact → consensus report (multi-perspective review)
 })
 
 # Artifact types that represent "complete" coverage endpoints

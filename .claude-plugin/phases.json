@@ -56,6 +56,9 @@
       "checkpoint": true,
       "gate_required": true,
       "min_gate_score": 0.7,
+      "consensus_threshold": 5,
+      "consensus_proposers": ["engineering", "devsecops", "product"],
+      "strong_dissent_blocks": true,
       "valid_skip_reasons": [
         "complexity_below_threshold",
         "user_explicit_request",
@@ -101,7 +104,10 @@
       "gate_type": "execution",
       "checkpoint": true,
       "gate_required": true,
-      "min_gate_score": 0.7
+      "min_gate_score": 0.7,
+      "consensus_threshold": 5,
+      "consensus_proposers": ["engineering", "quality-engineering", "devsecops"],
+      "strong_dissent_blocks": true
     },
     "test": {
       "name": "test",
@@ -141,7 +147,10 @@
       "gate_type": "execution",
       "checkpoint": false,
       "gate_required": true,
-      "min_gate_score": 0.7
+      "min_gate_score": 0.7,
+      "consensus_threshold": 5,
+      "consensus_proposers": ["quality-engineering", "product", "engineering"],
+      "strong_dissent_blocks": true
     }
   }
 }

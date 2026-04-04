@@ -230,6 +230,8 @@ If user approves (Y or proceeds):
    ```
    This updates `current_phase` and marks the phase as approved in project.json.
 
+   **Consensus gate (high-complexity projects)**: For projects with `complexity_score >= consensus_threshold` (default 5), phase_manager automatically runs multi-perspective consensus evaluation using the jam consensus protocol. Proposer specialists are configured per phase in `phases.json` (e.g., engineering + security + product for design). If strong dissent is detected, the gate is REJECTED. If agreement ratio is below the confidence threshold, the gate returns CONDITIONAL with conditions from dissenting views. The consensus report is written to `phases/{phase}/consensus-report.json`. Override with `--override-gate` or set `CREW_GATE_ENFORCEMENT=legacy` to bypass.
+
    If required deliverables are missing, the approve call will **block** with an error. To bypass in exceptional circumstances:
    ```bash
    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} approve \

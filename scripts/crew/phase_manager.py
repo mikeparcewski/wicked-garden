@@ -25,6 +25,29 @@ from _domain_store import DomainStore, get_local_path
 
 _sm = DomainStore("wicked-crew")
 
+# Late-import helper for consensus gate (avoids circular imports at module level)
+_consensus_gate = None
+
+
+def _get_consensus_gate():
+    """Lazy-load consensus_gate module to avoid import-time side effects."""
+    global _consensus_gate
+    if _consensus_gate is None:
+        try:
+            from crew.consensus_gate import (
+                should_use_consensus,
+                evaluate_consensus_gate,
+                _write_consensus_evidence,
+            )
+            _consensus_gate = {
+                "should_use_consensus": should_use_consensus,
+                "evaluate_consensus_gate": evaluate_consensus_gate,
+                "_write_consensus_evidence": _write_consensus_evidence,
+            }
+        except ImportError:
+            _consensus_gate = {}
+    return _consensus_gate
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -982,6 +1005,76 @@ def approve_phase(
                 reviewer_error = _validate_gate_reviewer(gate_result)
                 if reviewer_error:
                     raise ValueError(reviewer_error)
+
+            # Check 2a.1: consensus evaluation for high-complexity projects
+            if gate_result:
+                cg = _get_consensus_gate()
+                _should_use = cg.get("should_use_consensus")
+                _evaluate = cg.get("evaluate_consensus_gate")
+                _write_evidence = cg.get("_write_consensus_evidence")
+
+                if _should_use and _evaluate:
+                    project_state_dict = asdict(state) if hasattr(state, '__dataclass_fields__') else {}
+                    # Allow --consensus-threshold override stored in extras
+                    effective_phase_config = dict(phase_config)
+                    custom_threshold = (state.extras or {}).get("consensus_threshold")
+                    if custom_threshold is not None:
+                        effective_phase_config["consensus_threshold"] = custom_threshold
+
+                    if _should_use(project_state_dict, effective_phase_config):
+                        logger.info(
+                            "[approve] Running consensus evaluation for phase '%s' "
+                            "(complexity=%s, threshold=%s)",
+                            phase,
+                            state.complexity_score,
+                            effective_phase_config.get("consensus_threshold"),
+                        )
+                        consensus_out = _evaluate(
+                            str(project_dir), phase, project_state_dict, phases_config,
+                        )
+                        if consensus_out:
+                            # Attach consensus metadata to gate result
+                            gate_result["consensus"] = consensus_out
+
+                            if consensus_out["result"] == "REJECT":
+                                if _write_evidence:
+                                    _write_evidence(project_dir, phase, consensus_out)
+                                if not override_gate:
+                                    raise ValueError(
+                                        f"Gate REJECTED by consensus council: "
+                                        f"{consensus_out.get('reason', 'strong dissent')}"
+                                    )
+                                else:
+                                    _record_gate_override(
+                                        project_dir, phase,
+                                        f"Consensus REJECT overridden: {consensus_out.get('reason', '')}",
+                                        approver,
+                                    )
+                                    warnings.append(
+                                        f"Consensus REJECT overridden. "
+                                        f"Reason: {override_reason or '(none provided)'}"
+                                    )
+
+                            elif consensus_out["result"] == "CONDITIONAL":
+                                conditions = consensus_out.get("conditions", [])
+                                if conditions:
+                                    _write_conditions_manifest(
+                                        project_dir, phase, conditions,
+                                    )
+                                    logger.info(
+                                        "[approve] Consensus CONDITIONAL for '%s' — "
+                                        "%d conditions written to manifest",
+                                        phase, len(conditions),
+                                    )
+
+                            elif consensus_out["result"] == "APPROVE":
+                                logger.info(
+                                    "[approve] Consensus council APPROVED phase '%s' "
+                                    "(confidence=%.2f, agreement=%.2f)",
+                                    phase,
+                                    consensus_out.get("consensus_confidence", 0),
+                                    consensus_out.get("agreement_ratio", 0),
+                                )
 
             if gate_result and gate_result.get("result") == "REJECT":
                 if override_gate and not gate_override_allowed:

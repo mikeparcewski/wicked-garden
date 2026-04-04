@@ -17,6 +17,7 @@ Extract the project description from arguments. If no description provided, ask 
 - `--force` — Skip the pre-flight complexity gate entirely. Use when you know crew is the right tool.
 - `--quick` — Use a lightweight phase plan: build + review only. Skips clarify, design, test-strategy, and test phases. Useful for well-understood, low-risk changes.
 - `--no-auto-finish` — Disable automatic just-finish execution for low-complexity changes (routing_lane "auto" or "fast"). Without this flag, complexity <= 2 automatically applies the quick phase plan and chains into just-finish mode.
+- `--consensus-threshold=N` — Override the per-phase consensus threshold (default: 5). Gate decisions for phases with `consensus_threshold` configured will use multi-perspective consensus when project complexity >= N. Set to 0 to always use consensus, or 8 to disable. Stored in project extras for the lifetime of the project.
 
 ### 2. Generate Project Name
 
@@ -204,6 +205,14 @@ Store analysis via phase_manager update (persists via DomainStore):
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
   --data '{"signals_detected": ["security", "data"], "complexity_score": 4, "specialists_recommended": ["qe", "product"], "archetype_hints": {}}' \
+  --json
+```
+
+**If `--consensus-threshold=N` was passed**: Store the override in project extras so it applies to all gate decisions for this project:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
+  --data '{"extras": {"consensus_threshold": N}}' \
   --json
 ```
 
