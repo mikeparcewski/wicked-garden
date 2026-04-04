@@ -1,0 +1,246 @@
+---
+name: cross-module-integration
+title: Cross-Module Integration Across 9 Crew Scripts
+description: End-to-end integration test spanning project registry, knowledge graph, traceability, artifact state, impact analysis, lifecycle scoring, phase scoring, verification protocol, and consensus
+type: integration
+difficulty: advanced
+estimated_minutes: 15
+---
+
+# Cross-Module Integration Across 9 Crew Scripts
+
+Validates that 9 different scripts work together in a realistic workflow: create a project, register entities in the knowledge graph, create traceability links, manage artifact state transitions, run impact analysis, score results with lifecycle scoring, enrich memories with phase info, run the verification protocol, and synthesize consensus.
+
+## Setup
+
+Set up project name and script path aliases:
+
+```bash
+PROJECT="integration-test-$$"
+CREW="${CLAUDE_PLUGIN_ROOT}/scripts/crew"
+SMAHT="${CLAUDE_PLUGIN_ROOT}/scripts/smaht"
+SEARCH="${CLAUDE_PLUGIN_ROOT}/scripts/search"
+MEM="${CLAUDE_PLUGIN_ROOT}/scripts/mem"
+JAM="${CLAUDE_PLUGIN_ROOT}/scripts/jam"
+```
+
+## Steps
+
+### 1. Create project via project_registry
+
+```bash
+python3 "${CREW}/project_registry.py" create --name "$PROJECT" --json
+```
+
+**Expected**: Returns JSON with the project record including `id`, `name` matching the project name, `status` = "active". Capture the project ID for subsequent steps.
+
+### 2. Register entities in knowledge graph
+
+```bash
+REQ=$(python3 "${SMAHT}/knowledge_graph.py" create-entity --type requirement --name "Users must authenticate via OAuth2" --phase clarify --project "$PROJECT")
+DESIGN=$(python3 "${SMAHT}/knowledge_graph.py" create-entity --type design_artifact --name "OAuth2 flow architecture" --phase design --project "$PROJECT")
+TASK=$(python3 "${SMAHT}/knowledge_graph.py" create-entity --type task --name "Implement OAuth2 middleware" --phase build --project "$PROJECT")
+TEST=$(python3 "${SMAHT}/knowledge_graph.py" create-entity --type test_scenario --name "OAuth2 token validation" --phase test --project "$PROJECT")
+
+echo "$REQ" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('REQ: %s' % d['entity_id'])"
+echo "$DESIGN" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('DESIGN: %s' % d['entity_id'])"
+echo "$TASK" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('TASK: %s' % d['entity_id'])"
+echo "$TEST" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('TEST: %s' % d['entity_id'])"
+```
+
+**Expected**: Four entities created with state=DRAFT. Each prints its entity_id.
+
+### 3. Create traceability links between artifacts
+
+```bash
+REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+DESIGN_ID=$(echo "$DESIGN" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+TASK_ID=$(echo "$TASK" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+TEST_ID=$(echo "$TEST" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+
+python3 "${CREW}/traceability.py" create \
+  --source-id "$REQ_ID" --source-type requirement \
+  --target-id "$DESIGN_ID" --target-type design \
+  --link-type TRACES_TO --project "$PROJECT" --created-by clarify
+
+python3 "${CREW}/traceability.py" create \
+  --source-id "$DESIGN_ID" --source-type design \
+  --target-id "$TASK_ID" --target-type task \
+  --link-type IMPLEMENTED_BY --project "$PROJECT" --created-by design
+
+python3 "${CREW}/traceability.py" create \
+  --source-id "$REQ_ID" --source-type requirement \
+  --target-id "$TEST_ID" --target-type test_scenario \
+  --link-type TESTED_BY --project "$PROJECT" --created-by clarify
+```
+
+**Expected**: Three traceability links created: req-to-design (TRACES_TO), design-to-task (IMPLEMENTED_BY), req-to-test (TESTED_BY). Each returns JSON with an `id` field.
+
+### 4. Register and transition artifact via artifact_state
+
+```bash
+ART=$(python3 "${CREW}/artifact_state.py" register --name "OAuth2 architecture doc" --type design --project "$PROJECT" --phase design --json)
+ART_ID=$(echo "$ART" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+echo "Registered artifact: $ART_ID"
+
+python3 "${CREW}/artifact_state.py" transition --id "$ART_ID" --to IN_REVIEW --by "design-phase" --json
+python3 "${CREW}/artifact_state.py" transition --id "$ART_ID" --to APPROVED --by "gate-check" --json | python3 -c "
+import json, sys
+art = json.load(sys.stdin)
+assert art['state'] == 'APPROVED', 'Expected APPROVED, got %s' % art['state']
+assert len(art['state_history']) == 2, 'Expected 2 transitions, got %d' % len(art['state_history'])
+print('PASS: Artifact transitioned to APPROVED with 2 history entries')
+"
+```
+
+**Expected**: Artifact registered as DRAFT, transitioned to IN_REVIEW, then APPROVED. State history has 2 entries. Prints PASS.
+
+### 5. Run impact analysis from requirement
+
+```bash
+REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+python3 "${CREW}/impact_analyzer.py" analyze --source-id "$REQ_ID" --project "$PROJECT" --depth 3 | tee "${TMPDIR:-/tmp}/impact.json" | python3 -c "
+import json, sys
+report = json.load(sys.stdin)
+assert 'impact' in report, 'Missing impact key'
+assert 'risk_summary' in report, 'Missing risk_summary key'
+total = report['risk_summary']['total_affected']
+print('PASS: Impact analysis found %d affected artifacts' % total)
+print('Risk level: %s' % report['risk_summary']['risk_level'])
+"
+```
+
+**Expected**: Impact report contains `impact.direct` and `impact.transitive` arrays, plus `risk_summary` with `total_affected`, `phases_affected`, and `risk_level`. Prints PASS with the count and risk level.
+
+### 6. Score impact results with lifecycle scoring
+
+```bash
+python3 -c "
+import json
+report = json.load(open('${TMPDIR:-/tmp}/impact.json'))
+items = report.get('impact', {}).get('direct', []) + report.get('impact', {}).get('transitive', [])
+# Enrich items with fields lifecycle_scoring expects
+for i, item in enumerate(items):
+    item.setdefault('id', item.get('id', 'item-%d' % i))
+    item.setdefault('state', 'DRAFT')
+    item.setdefault('created_at', '2026-04-04T10:00:00Z')
+json.dump(items, open('${TMPDIR:-/tmp}/impact_items.json', 'w'))
+print('Prepared %d items for scoring' % len(items))
+"
+
+python3 "${SEARCH}/lifecycle_scoring.py" score --phase build --scorers phase_weighted,gate_status < "${TMPDIR:-/tmp}/impact_items.json" | python3 -c "
+import json, sys
+scored = json.load(sys.stdin)
+if scored:
+    assert '_score' in scored[0], 'Missing _score'
+    assert '_score_breakdown' in scored[0], 'Missing _score_breakdown'
+    print('PASS: Lifecycle scoring applied to %d impact items' % len(scored))
+else:
+    print('PASS: No items to score (impact analysis returned empty)')
+"
+```
+
+**Expected**: Impact items scored with phase_weighted and gate_status. Design items get boosted in build phase. Prints PASS.
+
+### 7. Enrich a memory record with phase info
+
+```bash
+python3 -c "
+import json, sys
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/mem')
+from phase_scoring import enrich_memory_with_phase
+memory = {'content': 'OAuth2 design decision', 'type': 'decision'}
+enriched = enrich_memory_with_phase(memory, active_phase='build')
+assert enriched.get('phase') == 'build', 'Expected phase=build, got %s' % enriched.get('phase')
+print(json.dumps(enriched))
+print('PASS: Memory enriched with phase=build')
+"
+```
+
+**Expected**: Memory record now has `phase` = "build" stamped on it. Prints PASS.
+
+### 8. Run verification protocol
+
+```bash
+python3 "${CREW}/verification_protocol.py" run --project "$PROJECT" --phases-dir "${TMPDIR:-/tmp}/phases-$$" | python3 -c "
+import json, sys
+report = json.load(sys.stdin)
+check_names = [c['name'] for c in report.get('checks', [])]
+expected = ['acceptance_criteria', 'test_suite', 'debug_artifacts', 'code_quality', 'documentation', 'traceability']
+for name in expected:
+    assert name in check_names, 'Missing check: %s' % name
+statuses = {c['name']: c['status'] for c in report['checks']}
+print('PASS: All 6 verification checks present')
+for name in expected:
+    print('  %s: %s' % (name, statuses[name]))
+"
+```
+
+**Expected**: Verification protocol produces valid JSON with all 6 check names: acceptance_criteria, test_suite, debug_artifacts, code_quality, documentation, traceability. Most checks will SKIP since there is no real codebase, but the protocol itself runs without error. Prints PASS.
+
+### 9. Score consensus from minimal proposals
+
+```bash
+cat > "${TMPDIR:-/tmp}/mini-proposals.json" <<'EOF'
+[
+  {"persona": "Engineer A", "proposal": "Use OAuth2 with PKCE for all APIs", "rationale": "Consistency", "confidence": 0.8, "concerns": []},
+  {"persona": "Engineer B", "proposal": "Use OAuth2 with PKCE for external APIs only", "rationale": "Simpler", "confidence": 0.7, "concerns": ["Internal API overhead"]}
+]
+EOF
+
+python3 "${JAM}/consensus.py" synthesize --proposals "${TMPDIR:-/tmp}/mini-proposals.json" --question "Auth approach" | python3 -c "
+import json, sys
+result = json.load(sys.stdin)
+assert 'decision' in result, 'Missing decision'
+assert 'confidence' in result, 'Missing confidence'
+assert result['participants'] == 2, 'Expected 2 participants'
+print('PASS: Consensus synthesized from 2 proposals')
+print('Decision: %s' % result['decision'][:80])
+"
+```
+
+**Expected**: Consensus synthesis completes with 2 participants and produces a structured decision. Prints PASS.
+
+### 10. Traceability coverage report
+
+```bash
+python3 "${CREW}/traceability.py" coverage --project "$PROJECT" | python3 -c "
+import json, sys
+report = json.load(sys.stdin)
+assert 'total_requirements' in report, 'Missing total_requirements'
+assert 'coverage_pct' in report, 'Missing coverage_pct'
+assert 'covered' in report, 'Missing covered list'
+print('PASS: Coverage report generated')
+print('Requirements: %d, Coverage: %.1f%%' % (report['total_requirements'], report['coverage_pct']))
+if report['covered']:
+    print('Covered requirement IDs: %s' % [c['id'] for c in report['covered']])
+"
+```
+
+**Expected**: Coverage report shows requirements with forward chains. The requirement created in step 3 should show coverage to test_scenario (via TESTED_BY link). Prints PASS.
+
+## Success Criteria
+
+- [ ] Project created via project_registry
+- [ ] Four entity types registered in knowledge graph
+- [ ] Three traceability links created (TRACES_TO, IMPLEMENTED_BY, TESTED_BY)
+- [ ] Artifact state transitions work (DRAFT -> IN_REVIEW -> APPROVED)
+- [ ] Impact analysis finds affected artifacts from requirement
+- [ ] Lifecycle scoring applies phase_weighted and gate_status to impact items
+- [ ] Phase scoring enriches memory records with active phase
+- [ ] Verification protocol produces valid JSON with all 6 check names
+- [ ] Consensus synthesis works with minimal proposals
+- [ ] Traceability coverage report identifies requirement coverage
+
+## Cleanup
+
+```bash
+python3 "${CREW}/traceability.py" delete --project "$PROJECT" 2>/dev/null
+PROJECT_ID=$(python3 "${CREW}/project_registry.py" find --name "$PROJECT" --json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null)
+if [ -n "$PROJECT_ID" ]; then
+  python3 "${CREW}/project_registry.py" archive --id "$PROJECT_ID" --json 2>/dev/null
+fi
+rm -f "${TMPDIR:-/tmp}/impact.json" "${TMPDIR:-/tmp}/impact_items.json" "${TMPDIR:-/tmp}/mini-proposals.json"
+rm -rf "${TMPDIR:-/tmp}/phases-$$"
+```

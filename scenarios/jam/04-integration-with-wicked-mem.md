@@ -172,3 +172,70 @@ wicked-garden:jam:brainstorm
 ```
 
 This demonstrates plugin composability where wicked-jam enhances with wicked-mem but degrades gracefully without it.
+
+## Council Consensus Integration (v3.4.0+)
+
+These additional steps validate the structured consensus protocol from `consensus.py`:
+
+### 10. Format Council Result for Memory
+
+```bash
+# Create test proposals
+cat > /tmp/test-proposals.json <<'EOF'
+[
+  {"persona": "Architect", "proposal": "Use TimescaleDB for time-series", "rationale": "PostgreSQL extension, minimal migration", "confidence": 0.8, "concerns": ["Scaling limits at 10TB+"]},
+  {"persona": "DBA", "proposal": "Use TimescaleDB with partitioning", "rationale": "Best balance of familiarity and performance", "confidence": 0.85, "concerns": ["Compression tuning needed"]},
+  {"persona": "SRE", "proposal": "Use ClickHouse for analytics, keep PostgreSQL for OLTP", "rationale": "Separation of concerns", "confidence": 0.7, "concerns": ["Two systems to maintain"]}
+]
+EOF
+
+# Synthesize consensus
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" synthesize \
+  --proposals /tmp/test-proposals.json \
+  --question "Which database for time-series data?" > /tmp/consensus-result.json
+
+# Verify structured output
+python3 -c "
+import json
+r = json.load(open('/tmp/consensus-result.json'))
+assert 'decision' in r, 'Missing decision'
+assert 'confidence' in r, 'Missing confidence'
+assert 'dissenting_views' in r, 'Missing dissenting_views'
+assert 0 <= r['confidence'] <= 1, 'Confidence out of range'
+print('CONSENSUS_VALID')
+print(f'Confidence: {r[\"confidence\"]}')
+print(f'Dissenting views: {len(r[\"dissenting_views\"])}')
+"
+```
+
+**Expected**: `CONSENSUS_VALID` with confidence between 0-1 and at least one dissenting view
+
+### 11. Store Council Result in wicked-mem Format
+
+```bash
+python3 -c "
+import json, sys
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/jam')
+from consensus import synthesize, format_for_memory, Proposal
+
+proposals = [Proposal(**p) for p in json.load(open('/tmp/test-proposals.json'))]
+result = synthesize(proposals, question='Which database for time-series data?')
+mem_record = format_for_memory(result)
+
+assert mem_record.get('type') == 'decision', 'Memory type should be decision'
+assert 'content' in mem_record, 'Missing content field'
+assert 'metadata' in mem_record, 'Missing metadata'
+print('MEMORY_FORMAT_VALID')
+print(f'Type: {mem_record[\"type\"]}')
+print(f'Has dissent metadata: {\"dissent_count\" in str(mem_record[\"metadata\"])}')
+"
+```
+
+**Expected**: `MEMORY_FORMAT_VALID` with type=decision and dissent metadata
+
+### Success Criteria (Consensus Integration)
+- [ ] Council synthesis produces structured JSON with decision, confidence, dissenting_views
+- [ ] Confidence score is between 0 and 1
+- [ ] Dissenting views are preserved (not flattened)
+- [ ] format_for_memory returns dict with type=decision suitable for wicked-mem
