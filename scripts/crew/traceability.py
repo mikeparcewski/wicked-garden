@@ -51,10 +51,13 @@ VALID_LINK_TYPES = frozenset({
     "TESTED_BY",       # requirement/code → test scenario
     "VERIFIES",        # test result → requirement
     "SATISFIES",       # evidence → requirement
+    "DEPLOYED_BY",     # evidence → deployment artifact
+    "INCIDENT_OF",     # incident → requirement/code that caused it
+    "FEEDBACK_ON",     # feedback → feature/requirement
 })
 
 # Artifact types that represent "complete" coverage endpoints
-_COVERAGE_ENDPOINTS = frozenset({"test_scenario", "evidence"})
+_COVERAGE_ENDPOINTS = frozenset({"test_scenario", "evidence", "incident", "deployment"})
 
 
 # ---------------------------------------------------------------------------

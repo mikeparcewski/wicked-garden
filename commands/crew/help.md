@@ -26,6 +26,10 @@ Dynamic multi-phase workflow engine with signal-based specialist routing. Crew a
 | `/wicked-garden:crew:status` | Show current project status, phase, and next steps |
 | `/wicked-garden:crew:evidence [task-id]` | Show evidence summary for a task or project |
 | `/wicked-garden:crew:just-finish` | Execute remaining work with maximum autonomy |
+| `/wicked-garden:crew:operate` | Enter/manage the operate phase for post-delivery monitoring |
+| `/wicked-garden:crew:incident <desc>` | Log a production incident linked to the project |
+| `/wicked-garden:crew:feedback <text>` | Capture user/stakeholder feedback |
+| `/wicked-garden:crew:retro` | Generate retrospective from operate phase data |
 | `/wicked-garden:crew:archive <project>` | Archive or unarchive a project |
 | `/wicked-garden:crew:profile` | Configure preferences and working style |
 | `/wicked-garden:crew:help` | This help message |
@@ -45,6 +49,7 @@ Dynamic multi-phase workflow engine with signal-based specialist routing. Crew a
 3. **Approve** phases — checkpoints re-analyze and may inject new phases
 4. **Gate** critical phases — QE validation before proceeding
 5. **Just-finish** — hand off remaining work with full autonomy
+6. **Operate** — post-delivery monitoring, incidents, feedback, and retro
 
 ## Options
 

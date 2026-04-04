@@ -142,6 +142,30 @@
       "checkpoint": false,
       "gate_required": true,
       "min_gate_score": 0.7
+    },
+    "operate": {
+      "name": "operate",
+      "description": "Post-delivery monitoring, incident tracking, and feedback collection. Captures operational signals and feeds them back into future planning.",
+      "triggers": ["infrastructure", "security", "performance"],
+      "complexity_range": [3, 7],
+      "required_deliverables": ["operational-checklist.md"],
+      "optional_deliverables": ["feedback-summary.md", "incident-log.md"],
+      "specialists": ["platform", "qe"],
+      "fallback_agent": "reviewer",
+      "is_skippable": true,
+      "depends_on": ["review"],
+      "confidence_threshold": 0.7,
+      "gate_type": "feedback",
+      "checkpoint": false,
+      "gate_required": false,
+      "min_gate_score": 0.6,
+      "skip_complexity_threshold": 3,
+      "valid_skip_reasons": [
+        "complexity_below_threshold",
+        "user_explicit_request",
+        "no_production_deployment",
+        "internal_tooling"
+      ]
     }
   }
 }

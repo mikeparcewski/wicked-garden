@@ -83,9 +83,41 @@ Based on available plugins:
 {Based on current phase and status}
 ```
 
-### 6. Suggest Actions
+### 6. Show Operate Phase Data (if applicable)
+
+If the current phase is "operate" or if operate data exists in the project state, show a summary:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path('${CLAUDE_PLUGIN_ROOT}/scripts')))
+from _domain_store import DomainStore
+ds = DomainStore('wicked-crew')
+incidents = [i for i in ds.list('incidents') if i.get('project_id') == '{project_name}']
+feedback = [f for f in ds.list('feedback') if f.get('project_id') == '{project_name}']
+print(json.dumps({'incidents': len(incidents), 'feedback': len(feedback)}, indent=2))
+"
+```
+
+If incidents or feedback exist, display:
+
+```markdown
+### Operate Phase Data
+
+| Metric | Count |
+|--------|-------|
+| Incidents | {incident_count} |
+| Feedback | {feedback_count} |
+| Checklist items | {completed}/{total} |
+
+Use `/wicked-garden:crew:operate --status` for full operational details.
+```
+
+### 7. Suggest Actions
 
 Based on current state:
 - If phase awaiting approval: suggest `/wicked-garden:crew:approve {phase}`
 - If phase in progress: suggest `/wicked-garden:crew:execute`
+- If operate phase active: suggest `/wicked-garden:crew:incident`, `/wicked-garden:crew:feedback`, or `/wicked-garden:crew:retro`
 - If project complete: show completion summary

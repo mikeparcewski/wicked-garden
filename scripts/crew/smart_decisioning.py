@@ -1787,6 +1787,41 @@ def analyze_input(
     signal_confidences, complexity = _apply_context(signal_confidences, complexity, context)
     signals = list(signal_confidences.keys())  # Refresh after context injection
 
+    # Incident history awareness (Issue #359) — check if related components
+    # have prior incidents stored in DomainStore. If so, inject a reliability
+    # signal and add a +1 complexity bonus to account for operational risk.
+    try:
+        _incident_records = _sm.list("incidents")
+        if _incident_records:
+            # Check if any incident mentions terms from the input text
+            _text_lower = text.lower()
+            _has_related_incidents = any(
+                any(
+                    term in _text_lower
+                    for term in (inc.get("affected_components") or [])
+                )
+                or any(
+                    word in _text_lower
+                    for word in (inc.get("description", "").lower().split()[:5])
+                    if len(word) > 4
+                )
+                for inc in _incident_records
+            )
+            if _has_related_incidents:
+                if "infrastructure" not in signal_confidences:
+                    signal_confidences["infrastructure"] = 0.4
+                    signals = list(signal_confidences.keys())
+                complexity = min(complexity + 1, 7)
+                flags_incident = True
+                archetype_adj_applied["incident_history_bonus"] = {
+                    "related_incidents_found": len(_incident_records),
+                    "complexity_bonus": 1,
+                }
+                logger.info("Incident history detected — +1 complexity bonus applied")
+    except Exception:
+        # Fail open — incident history is best-effort
+        pass
+
     # Dimension-driven flags
     flags: Dict[str, bool] = {}
     if risk_dims.reversibility >= 2:
