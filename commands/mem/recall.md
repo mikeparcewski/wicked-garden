@@ -35,6 +35,15 @@ Note: This script uses only standard library - no package manager needed.
 
 Omit flags that are not specified by the user.
 
+## Low-Result Handling
+
+If recall returns 0-2 results, try expanding the search:
+1. Generate 2-3 synonym/related terms for the query
+2. Re-run recall with the expanded terms
+3. Display both the original and expanded results, noting which came from expansion
+
+Example: Query "auth" returns 0 results → expand to "authentication session tokens security" → retry
+
 ## Output
 
 For each memory, display:

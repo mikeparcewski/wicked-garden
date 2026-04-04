@@ -209,6 +209,9 @@ class MemoryStore:
                 "related": memory.related,
             },
         }
+        # Flat string of tags for FTS5 matching (not buried in JSON array syntax)
+        if memory.tags:
+            d["search_tags"] = " ".join(memory.tags)
         return d
 
     def _dict_to_memory(self, data: Dict) -> Optional[Memory]:

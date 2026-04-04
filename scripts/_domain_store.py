@@ -540,10 +540,21 @@ def _matches_params(record: dict, params: dict) -> bool:
     for key, value in params.items():
         if key == "q":
             # Token-based search across text fields (all tokens must match)
-            searchable = " ".join(
+            text_fields = [
                 str(record.get(f, ""))
                 for f in ("title", "content", "summary", "description")
-            ).lower()
+            ]
+            # Include tags (may be a list)
+            tags_val = record.get("tags", [])
+            if isinstance(tags_val, list):
+                text_fields.append(" ".join(str(t) for t in tags_val))
+            elif tags_val:
+                text_fields.append(str(tags_val))
+            # Include search_tags if present
+            search_tags_val = record.get("search_tags", "")
+            if search_tags_val:
+                text_fields.append(str(search_tags_val))
+            searchable = " ".join(text_fields).lower()
             tokens = str(value).lower().split()
             if not all(tok in searchable for tok in tokens):
                 return False

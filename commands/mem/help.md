@@ -24,6 +24,7 @@ Persistent memory across sessions — store decisions, recall context, and manag
 | `/wicked-garden:mem:review` | Browse, understand, and manage stored memories |
 | `/wicked-garden:mem:stats` | Show memory statistics |
 | `/wicked-garden:mem:forget <id>` | Archive or delete a memory |
+| `/wicked-garden:mem:retag` | Backfill search tags on existing memories |
 | `/wicked-garden:mem:help` | This help message |
 
 ## Quick Start

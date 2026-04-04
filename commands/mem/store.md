@@ -29,7 +29,7 @@ python3 scripts/mem/memory.py store \
   --title "SHORT_TITLE_HERE" \
   --content "CONTENT_HERE" \
   --type TYPE_HERE \
-  --tags "TAG1,TAG2" \
+  --tags "TAG1,TAG2,AUTO_TAG1,AUTO_TAG2" \
   --importance medium \
   --tier TIER_HERE
 ```
@@ -37,6 +37,8 @@ python3 scripts/mem/memory.py store \
 Note: This script uses only standard library - no package manager needed.
 
 Note: `--title` is required. Generate a concise title from the content.
+
+Note: Always provide tags. If the user didn't specify `--tags`, generate 3-5 search tags from the content (see Tag Generation section below).
 
 ## Memory Type Guidelines
 
@@ -54,6 +56,24 @@ Note: `--title` is required. Generate a concise title from the content.
 | `working` | Transient session context, auto-consolidated on session end | 0.8x |
 | `episodic` | Sprint-level patterns and observations (default) | 1.0x |
 | `semantic` | Durable project knowledge, prioritized in search results | 1.3x |
+
+## Tag Generation
+
+When storing a memory, ALWAYS generate 3-5 search tags even if the user doesn't specify `--tags`. Combine user-provided tags with auto-generated ones.
+
+Generate tags that include:
+- **Synonyms**: auth/authentication, DB/database, API/endpoint, config/configuration
+- **Abbreviations**: JWT, REST, GraphQL, CI/CD, K8s/Kubernetes
+- **Related concepts**: "jwt" → also tag tokens, session, security
+- **Domain terms**: specific technology/pattern names mentioned
+- **Think**: "what would someone search for to find this memory?"
+
+Example: For content "Chose JWT with 15-minute expiry and httpOnly refresh tokens":
+- User tags: `auth, architecture`
+- Auto-generated: `jwt, tokens, session, security, authentication, cookies, refresh-token`
+- Final: `auth, architecture, jwt, tokens, session, security, authentication, cookies, refresh-token`
+
+Merge user-provided tags with auto-generated tags. Deduplicate.
 
 ## Examples
 
