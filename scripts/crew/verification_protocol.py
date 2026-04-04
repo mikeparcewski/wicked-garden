@@ -329,7 +329,10 @@ def check_test_suite(
     """Run the project test command and check for exit code 0."""
     name = "test_suite"
 
-    runner = _detect_test_runner()
+    # Detect test runner from the phases directory parent (project root),
+    # not from CWD which may be the plugin repo itself
+    project_root = str(phases_dir.parent) if phases_dir else None
+    runner = _detect_test_runner(cwd=project_root)
     if runner is None:
         return CheckResult(
             name=name,

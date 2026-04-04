@@ -325,7 +325,10 @@ def switch_project(project_id: str) -> Optional[dict]:
     return set_active(project_id)
 
 
-def get_project_filter(project_id: Optional[str] = None) -> Dict[str, str]:
+def get_project_filter(
+    project_id: Optional[str] = None,
+    workspace: Optional[str] = None,
+) -> Dict[str, str]:
     """Return a filter dict for scoping domain queries to a project.
 
     This is the primary integration point for cross-domain isolation.
@@ -342,12 +345,13 @@ def get_project_filter(project_id: Optional[str] = None) -> Dict[str, str]:
 
     Args:
         project_id: Explicit project ID. If None, uses the active project.
+        workspace: Workspace to check for active project. If None, uses default.
 
     Returns:
         {"project_id": "<uuid>"} or {} if no project context.
     """
     if not project_id:
-        active = get_active()
+        active = get_active(workspace=workspace)
         project_id = active["id"] if active else None
 
     if not project_id:
@@ -420,6 +424,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # filter
     p = subparsers.add_parser("filter", help="Output project filter JSON for piping")
     p.add_argument("--id", default=None, dest="project_id", help="Project ID (default: active)")
+    p.add_argument("--workspace", default=None, help="Workspace to check for active project")
     p.add_argument("--json", action="store_true", dest="as_json", help="JSON output (always JSON)")
 
     return parser
@@ -554,7 +559,7 @@ def main() -> None:
 
     elif args.command == "filter":
         # Filter is always useful as JSON, but respect the flag
-        result = get_project_filter(project_id=args.project_id)
+        result = get_project_filter(project_id=args.project_id, workspace=getattr(args, 'workspace', None))
         if args.command == "filter":
             # Default to JSON for filter command
             _output(result, as_json=True)

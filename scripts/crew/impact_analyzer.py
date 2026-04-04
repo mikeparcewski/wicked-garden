@@ -198,26 +198,53 @@ def analyze_impact(
     # --- Layer 1: Traceability links ---
     forward_links, reverse_links = _gather_traceability(source_id, project_id)
 
+    # Separate 1-hop (direct) from 2+ hop (transitive) links.
+    # forward_trace returns BFS-ordered links; links whose source_id
+    # matches the query source_id are direct (1-hop), others are transitive.
+    # The depth parameter limits how many hops to include.
+    hop_targets: dict = {}  # target_id -> hop distance
     for link in forward_links:
+        link_source = link.get("source_id", "")
+        link_target = link.get("target_id", "")
+        link_rel = link.get("link_type", link.get("relationship", "TRACES_TO"))
+
+        # Calculate hop distance
+        if link_source == source_id:
+            hop = 1
+        elif link_source in hop_targets:
+            hop = hop_targets[link_source] + 1
+        else:
+            hop = 2  # unknown intermediate, treat as transitive
+
+        # Skip if beyond depth limit
+        if hop > depth:
+            continue
+
+        hop_targets[link_target] = hop
+
         entry = {
-            "id": link.get("target_id", link.get("id", "")),
+            "id": link_target,
             "type": link.get("target_type", link.get("source_type", "")),
-            "name": link.get("name", link.get("target_id", "")),
-            "relationship": link.get("relationship", "TRACES_TO"),
+            "name": link.get("name", link_target),
+            "relationship": link_rel,
         }
-        # Preserve phase info if available
         if link.get("phase"):
             entry["phase"] = link["phase"]
         if link.get("source_type"):
             entry["source_type"] = link["source_type"]
-        direct.append(entry)
+
+        if hop == 1:
+            direct.append(entry)
+        else:
+            entry["via"] = link_source
+            transitive.append(entry)
 
     for link in reverse_links:
         entry = {
             "id": link.get("source_id", link.get("id", "")),
             "type": link.get("source_type", link.get("type", "")),
             "name": link.get("name", link.get("source_id", "")),
-            "relationship": link.get("relationship", "TRACED_FROM"),
+            "relationship": link.get("link_type", link.get("relationship", "TRACED_FROM")),
         }
         if link.get("phase"):
             entry["phase"] = link["phase"]
