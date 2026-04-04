@@ -168,6 +168,30 @@ def _run_memory_decay() -> list:
     return messages
 
 
+def _run_working_consolidation() -> list:
+    """Consolidate working-tier memories to episodic on session end.
+
+    Returns a list of message strings. Fails open — never blocks session end.
+    """
+    messages = []
+    try:
+        from mem.memory import MemoryStore
+        from mem.consolidation import consolidate_working
+
+        project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+        store = MemoryStore(project)
+        stats = consolidate_working(store)
+        total = stats.get("promoted", 0) + stats.get("merged", 0)
+        if total > 0 or stats.get("dropped", 0) > 0:
+            messages.append(
+                f"[Memory] Consolidation: {stats['promoted']} promoted to episodic, "
+                f"{stats['merged']} merged, {stats['dropped']} transient dropped"
+            )
+    except Exception as e:
+        print(f"[wicked-garden] consolidation error: {e}", file=sys.stderr)
+    return messages
+
+
 
 
 def _get_turn_count() -> int:
@@ -253,6 +277,9 @@ def main():
         # 2b. Automatic memory promotion (fail open — never blocks session end)
         promotion_messages = _run_memory_promotion(session_id)
 
+        # 2c. Consolidate working-tier memories to episodic (fail open)
+        consolidation_messages = _run_working_consolidation()
+
         # 3. Memory decay
         decay_messages = _run_memory_decay()
 
@@ -308,9 +335,9 @@ def main():
                 "Do NOT skip silently."
             )
 
-        # Combine all pre-reflection messages (outcome + promotion notices)
+        # Combine all pre-reflection messages (outcome + promotion + consolidation notices)
         # Note: decay_messages already included via decay_prefix in reflection
-        prepend_messages = outcome_messages + promotion_messages
+        prepend_messages = outcome_messages + promotion_messages + consolidation_messages
         if prepend_messages:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         else:

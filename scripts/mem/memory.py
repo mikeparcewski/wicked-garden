@@ -54,6 +54,18 @@ class MemoryType(Enum):
     WORKING = "working"         # Current session context
 
 
+class MemoryTier(str, Enum):
+    """Memory consolidation tiers.
+
+    Working: transient session context, auto-consolidated on session end.
+    Episodic: sprint-level patterns and observations.
+    Semantic: durable project knowledge promoted from episodic.
+    """
+    WORKING = "working"
+    EPISODIC = "episodic"
+    SEMANTIC = "semantic"
+
+
 class MemoryStatus(Enum):
     """Memory lifecycle states."""
     ACTIVE = "active"           # Live, surfaced in searches
@@ -129,6 +141,9 @@ class Memory:
     # Session
     session_id: Optional[str] = None
 
+    # Consolidation tier (working → episodic → semantic)
+    tier: str = MemoryTier.EPISODIC.value  # default for backward compat
+
 
 def generate_id() -> str:
     """Generate a unique memory ID (UUID)."""
@@ -180,6 +195,7 @@ class MemoryStore:
             "ttl_days": memory.ttl_days,
             "accessed_at": memory.accessed,
             "access_count": memory.access_count,
+            "tier": memory.tier,
             "metadata": {
                 "context": memory.context,
                 "outcome": memory.outcome,
@@ -233,9 +249,37 @@ class MemoryStore:
                 tags=data.get("tags", []),
                 project=data.get("project"),
                 session_id=data.get("session_id"),
+                tier=data.get("tier", MemoryTier.EPISODIC.value),
             )
         except Exception:
             return None
+
+    # ==================== Tier Auto-Detection ====================
+
+    @staticmethod
+    def _auto_detect_tier(
+        mem_type: MemoryType,
+        importance: int,
+        ttl_days: Optional[int],
+    ) -> str:
+        """Determine the appropriate tier for a memory based on its attributes.
+
+        Rules (evaluated in order):
+        - WORKING type -> working tier
+        - DECISION or PREFERENCE type -> semantic tier
+        - importance >= 8 -> semantic tier
+        - ttl_days <= 1 -> working tier
+        - Default -> episodic tier
+        """
+        if mem_type == MemoryType.WORKING:
+            return MemoryTier.WORKING.value
+        if mem_type in (MemoryType.DECISION, MemoryType.PREFERENCE):
+            return MemoryTier.SEMANTIC.value
+        if importance >= 8:
+            return MemoryTier.SEMANTIC.value
+        if ttl_days is not None and ttl_days <= 1:
+            return MemoryTier.WORKING.value
+        return MemoryTier.EPISODIC.value
 
     # ==================== Core Operations ====================
 
@@ -253,8 +297,18 @@ class MemoryStore:
         agent_id: Optional[str] = None,
         source: str = "manual",
         session_id: Optional[str] = None,
+        tier: Optional[str] = None,
     ) -> Memory:
-        """Store a new memory."""
+        """Store a new memory.
+
+        Args:
+            tier: Consolidation tier (working/episodic/semantic). Auto-detected
+                  from type and importance when not specified.
+        """
+        ttl = DEFAULT_TTLS.get(type)
+        if tier is None:
+            tier = self._auto_detect_tier(type, importance.value, ttl)
+
         memory = Memory(
             id=generate_id(),
             type=type.value,
@@ -268,15 +322,17 @@ class MemoryStore:
             importance=importance.value,
             project=self.project,
             tags=tags or [],
-            ttl_days=DEFAULT_TTLS.get(type),
+            ttl_days=ttl,
             source=source,
             session_id=session_id,
+            tier=tier,
         )
 
         self._sm.create("memories", self._memory_to_dict(memory))
         _log("mem", "verbose", "memory.stored",
              ok=True,
-             detail={"title": memory.title[:60], "type": memory.type, "project": memory.project})
+             detail={"title": memory.title[:60], "type": memory.type,
+                     "tier": memory.tier, "project": memory.project})
         return memory
 
     def recall(
@@ -284,6 +340,7 @@ class MemoryStore:
         query: Optional[str] = None,
         tags: Optional[List[str]] = None,
         type: Optional[MemoryType] = None,
+        tier: Optional[str] = None,
         limit: int = 10,
         include_archived: bool = False,
         all_projects: bool = False,
@@ -292,6 +349,7 @@ class MemoryStore:
         """Recall memories matching criteria.
 
         Args:
+            tier: Filter by consolidation tier (working/episodic/semantic).
             cross_version: When True (default), also search sibling project
                 directories for memories stored under older plugin versions.
                 This prevents memory loss across version upgrades (#326).
@@ -299,6 +357,8 @@ class MemoryStore:
         params = {}
         if type:
             params["type"] = type.value
+        if tier:
+            params["tier"] = tier
         if not all_projects and self.project:
             params["project"] = self.project
 
@@ -330,12 +390,28 @@ class MemoryStore:
         if tags:
             memories = [m for m in memories if all(t in m.tags for t in tags)]
 
+        # Filter by tier (post-filter for cross-version records that may not
+        # support tier-level filtering in _matches_params)
+        if tier:
+            memories = [m for m in memories if m.tier == tier]
+
         # Filter by status
         if not include_archived:
             memories = [m for m in memories if m.status == MemoryStatus.ACTIVE.value]
 
-        # Sort by access count (most accessed first) and recency
-        memories.sort(key=lambda m: (m.access_count, m.accessed), reverse=True)
+        # Sort with tier weighting: semantic 1.3x, episodic 1.0x, working 0.8x
+        # Applied on top of access_count + recency ranking.
+        _TIER_WEIGHT = {
+            MemoryTier.SEMANTIC.value: 1.3,
+            MemoryTier.EPISODIC.value: 1.0,
+            MemoryTier.WORKING.value: 0.8,
+        }
+
+        def _sort_key(m):
+            weight = _TIER_WEIGHT.get(m.tier, 1.0)
+            return (m.access_count * weight, m.accessed)
+
+        memories.sort(key=_sort_key, reverse=True)
 
         # Update access for returned memories (only for current-project records)
         for memory in memories[:limit]:
@@ -343,8 +419,9 @@ class MemoryStore:
 
         result_slice = memories[:limit]
         _log("mem", "verbose", "memory.recalled",
-             detail={"query": query, "count": len(result_slice), "project": self.project,
-                      "cross_version": cross_version})
+             detail={"query": query, "tier": tier,
+                     "count": len(result_slice), "project": self.project,
+                     "cross_version": cross_version})
         return result_slice
 
     def _cross_version_scan(self, params: Dict) -> List[Dict]:
@@ -466,6 +543,7 @@ class MemoryStore:
                     "id": memory.id,
                     "title": memory.title,
                     "type": memory.type,
+                    "tier": memory.tier,
                     "project": memory.project or "global",
                     "match_type": match_type,
                     "tags": memory.tags,
@@ -590,6 +668,7 @@ class MemoryStore:
             "total": 0,
             "by_type": {},
             "by_status": {},
+            "by_tier": {},
             "by_tag": {},
         }
 
@@ -600,6 +679,7 @@ class MemoryStore:
             stats["total"] += 1
             stats["by_type"][memory.type] = stats["by_type"].get(memory.type, 0) + 1
             stats["by_status"][memory.status] = stats["by_status"].get(memory.status, 0) + 1
+            stats["by_tier"][memory.tier] = stats["by_tier"].get(memory.tier, 0) + 1
             for tag in memory.tags:
                 stats["by_tag"][tag] = stats["by_tag"].get(tag, 0) + 1
 
@@ -654,12 +734,14 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Wicked Memory Operations")
-    parser.add_argument("operation", choices=["store", "recall", "search", "search-all", "forget", "stats", "decay", "review", "get", "update", "archive", "delete"],
+    parser.add_argument("operation", choices=["store", "recall", "search", "search-all", "forget", "stats", "decay", "review", "get", "update", "archive", "delete", "consolidate"],
                        help="Operation to perform")
     parser.add_argument("--title", "-t", help="Memory title")
     parser.add_argument("--content", "-c", help="Memory content")
     parser.add_argument("--type", choices=["episodic", "procedural", "decision", "preference", "working"],
                        help="Memory type (default: episodic for store operation)")
+    parser.add_argument("--tier", choices=["working", "episodic", "semantic"],
+                       help="Memory tier (auto-detected when not specified)")
     parser.add_argument("--query", "-q", help="Search query")
     parser.add_argument("--pattern", "-p", help="Ripgrep pattern")
     parser.add_argument("--tags", help="Comma-separated tags")
@@ -696,8 +778,9 @@ def main():
             tags=tags,
             importance=importance,
             summary=args.summary,
+            tier=args.tier,
         )
-        print(f"Stored: {memory.id}")
+        print(f"Stored: {memory.id} (tier: {memory.tier})")
 
     elif args.operation == "recall":
         tags = args.tags.split(",") if args.tags else None
@@ -706,13 +789,15 @@ def main():
             query=args.query,
             tags=tags,
             type=mem_type,
+            tier=args.tier,
             limit=args.limit,
             all_projects=args.all_projects,
             cross_version=not args.no_cross_version,
         )
         for m in memories:
             project_label = f" [{m.project}]" if m.project else ""
-            print(f"[{m.id}] {m.type}{project_label}: {m.title}")
+            tier_label = f" ({m.tier})" if m.tier else ""
+            print(f"[{m.id}] {m.type}{tier_label}{project_label}: {m.title}")
             print(f"  Tags: {', '.join(m.tags)}")
             print(f"  Summary: {m.summary[:100]}...")
             print()
@@ -798,6 +883,7 @@ def main():
                 memories_data.append({
                     "id": m.id,
                     "type": m.type,
+                    "tier": m.tier,
                     "title": m.title,
                     "summary": m.summary[:100],
                     "tags": m.tags,
@@ -835,6 +921,7 @@ def main():
             print(json.dumps({
                 "id": memory.id,
                 "type": memory.type,
+                "tier": memory.tier,
                 "title": memory.title,
                 "summary": memory.summary,
                 "content": memory.content,
@@ -896,6 +983,15 @@ def main():
             print(f"Deleted: {args.id}")
         else:
             print(f"Not found: {args.id}")
+            return 1
+
+    elif args.operation == "consolidate":
+        try:
+            from mem.consolidation import consolidate_all
+            result = consolidate_all(ms)
+            print(json.dumps(result, indent=2))
+        except Exception as e:
+            print(f"Consolidation error: {e}", file=sys.stderr)
             return 1
 
     return 0
