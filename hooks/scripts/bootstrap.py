@@ -558,7 +558,10 @@ _MEMORY_INSTRUCTIONS = (
     "Never write to MEMORY.md directly — use /wicked-garden:mem:store. "
     "MEMORY.md is auto-generated and read-only. "
     "When editing CLAUDE.md or AGENTS.md, keep both files in sync — "
-    "a PostToolUse hook will remind you."
+    "a PostToolUse hook will remind you. "
+    "Memory uses 3 tiers: semantic (durable project knowledge, prioritized in recall), "
+    "episodic (sprint-level patterns), working (transient session context, auto-consolidated). "
+    "Use --tier semantic for decisions and permanent knowledge."
 )
 
 _DANGEROUS_MODE_WARNING = (
