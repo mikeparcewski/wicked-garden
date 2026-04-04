@@ -11,7 +11,7 @@
       "name": "platform",
       "role": "devsecops",
       "description": "DevSecOps specialist for security scanning, CI/CD pipelines, infrastructure, compliance, and incident response.",
-      "enhances": ["build", "review", "*"]
+      "enhances": ["build", "review", "operate", "*"]
     },
     {
       "name": "product",
@@ -23,7 +23,7 @@
       "name": "qe",
       "role": "quality-engineering",
       "description": "Quality Engineering specialist for test strategy, scenario generation, test automation, and shift-left quality practices.",
-      "enhances": ["clarify", "design", "qe", "build", "review", "*"]
+      "enhances": ["clarify", "design", "qe", "build", "review", "operate", "*"]
     },
     {
       "name": "data",
