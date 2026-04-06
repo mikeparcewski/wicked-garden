@@ -12,6 +12,12 @@ description: |
 
 Structured requirements elicitation from discovery through documentation.
 
+> **Default: Graph mode.** For complexity >= 3 or compliance projects, produce
+> a `requirements/` graph (see `requirements-graph` skill) instead of a
+> monolithic document. Use `--monolith` to force the legacy single-file format.
+> See: `requirements-graph/SKILL.md` for graph layout and schema.
+> See: `requirements-navigate/SKILL.md` for querying and maintaining the graph.
+
 ## Process
 
 ### 1. Context Gathering
