@@ -893,6 +893,371 @@ def _handle_skill(tool_input: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Handler: Bash async — consensus gate (Issue #368, Tier 2)
+# ---------------------------------------------------------------------------
+# This handler is invoked from the ASYNC PostToolUse/Bash hook entry.
+# It fires on every Bash call but fast-exits unless the command is a
+# phase_manager.py approve invocation on a high-complexity project.
+#
+# When matched, it runs the full consensus evaluation synchronously within
+# this process (which itself runs async/non-blocking to the agent).
+# The result is written to phases/{phase}/reviewer-report.md for the
+# PreToolUse Tier 1 hook to check on the NEXT phase's approve call.
+# ---------------------------------------------------------------------------
+
+_REVIEWER_REPORT_HEADER = """\
+---
+verdict: {verdict}
+evidence_items_checked: {evidence_items_checked}
+reviewer: consensus-gate
+reviewed_at: {reviewed_at}
+agreement_ratio: {agreement_ratio}
+findings: {findings}
+conditions: {conditions}
+---
+"""
+
+_REVIEWER_REPORT_PENDING = """\
+---
+verdict: pending
+evidence_items_checked: 0
+reviewer: consensus-gate
+reviewed_at: {reviewed_at}
+agreement_ratio: 0.0
+findings: []
+conditions: []
+note: "consensus evaluation failed or was skipped — will be re-evaluated on next approve"
+---
+"""
+
+
+def _parse_project_phase_from_command(command: str):
+    """Extract project name and optional --phase from a phase_manager.py approve command.
+
+    Returns (project_name, phase) tuple. phase may be None if --phase not given.
+    Example command:
+      sh ...phase_manager.py my-project approve --phase design
+    """
+    import shlex
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+
+    project_name = None
+    phase = None
+
+    # Find index of phase_manager.py in tokens
+    pm_idx = next(
+        (i for i, t in enumerate(tokens) if "phase_manager.py" in t),
+        None,
+    )
+    if pm_idx is None:
+        return None, None
+
+    # Tokens after phase_manager.py: project action [--phase name] [--other flags]
+    after = tokens[pm_idx + 1:]
+
+    # after[0] = project name (positional arg comes before action in phase_manager CLI)
+    # Format is: phase_manager.py <project> <action> [flags]
+    if len(after) >= 2:
+        project_name = after[0]
+        # after[1] should be "approve"
+        # Look for --phase flag
+        for i, tok in enumerate(after[2:], start=2):
+            if tok == "--phase" and i + 1 < len(after):
+                phase = after[i + 1]
+                break
+
+    # Safety: validate project name
+    if project_name:
+        import re as _re
+        if not _re.match(r'^[a-zA-Z0-9_-]{1,64}$', project_name):
+            project_name = None
+
+    return project_name, phase
+
+
+def _load_project_for_consensus(project_name: str):
+    """Load project state dict for consensus evaluation.
+
+    Returns (project_state_dict, project_dir_path) or (None, None) on failure.
+    project_state_dict contains at minimum 'complexity_score'.
+    """
+    try:
+        scripts_crew = _PLUGIN_ROOT / "scripts" / "crew"
+        if str(scripts_crew) not in sys.path:
+            sys.path.insert(0, str(scripts_crew))
+
+        from phase_manager import load_project_state, get_project_dir
+        state = load_project_state(project_name)
+        if state is None:
+            return None, None
+
+        project_dir = get_project_dir(project_name)
+
+        # Convert dataclass to dict (handles both dataclass and plain dict)
+        try:
+            import dataclasses
+            if dataclasses.is_dataclass(state):
+                state_dict = dataclasses.asdict(state)
+            else:
+                state_dict = dict(state)
+        except Exception:
+            state_dict = {"complexity_score": getattr(state, "complexity_score", 0)}
+
+        return state_dict, project_dir
+    except Exception:
+        return None, None
+
+
+def _resolve_phase_for_consensus(project_state_dict: dict, explicit_phase) -> str:
+    """Resolve which phase was just approved.
+
+    Uses explicit_phase if provided, else current_phase from project state.
+    """
+    if explicit_phase:
+        return str(explicit_phase)
+
+    # project_state_dict may have current_phase directly or nested
+    phase = project_state_dict.get("current_phase")
+    if phase:
+        return str(phase)
+
+    return "unknown"
+
+
+def _load_phases_config() -> dict:
+    """Load phases.json from .claude-plugin/. Returns {} on failure."""
+    try:
+        phases_file = _PLUGIN_ROOT / ".claude-plugin" / "phases.json"
+        if phases_file.exists():
+            return json.loads(phases_file.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def _build_reviewer_report_yaml(verdict: str, consensus_result: dict) -> str:
+    """Build the YAML frontmatter block for reviewer-report.md from consensus result."""
+    agreement_ratio = consensus_result.get("agreement_ratio", 0.0)
+    try:
+        agreement_ratio = round(float(agreement_ratio), 4)
+    except (TypeError, ValueError):
+        agreement_ratio = 0.0
+
+    # Collect findings from consensus_points
+    findings_raw = consensus_result.get("consensus_points", [])
+    findings_list = []
+    for fp in findings_raw[:10]:  # cap at 10
+        if isinstance(fp, dict):
+            text = fp.get("point", fp.get("description", str(fp)))
+        else:
+            text = str(fp)
+        # YAML-safe single-line entry
+        findings_list.append(
+            '  - "' + text[:200].replace('"', "'") + '"'
+        )
+
+    # Collect conditions from consensus result
+    conditions_raw = consensus_result.get("conditions", []) or []
+    conditions_list = []
+    for cond in conditions_raw[:10]:
+        if isinstance(cond, dict):
+            text = cond.get("description", str(cond))
+        else:
+            text = str(cond)
+        conditions_list.append(
+            '  - "' + text[:200].replace('"', "'") + '"'
+        )
+
+    evidence_count = len(findings_raw) + len(
+        consensus_result.get("dissenting_views", []) or []
+    )
+
+    findings_yaml = "[\n" + "\n".join(findings_list) + "\n]" if findings_list else "[]"
+    conditions_yaml = "[\n" + "\n".join(conditions_list) + "\n]" if conditions_list else "[]"
+
+    return _REVIEWER_REPORT_HEADER.format(
+        verdict=verdict.lower(),
+        evidence_items_checked=evidence_count,
+        reviewed_at=_now_iso(),
+        agreement_ratio=agreement_ratio,
+        findings=findings_yaml,
+        conditions=conditions_yaml,
+    )
+
+
+def _write_reviewer_report(phase_dir: "Path", verdict: str, consensus_result: dict) -> None:
+    """Write or append consensus findings to reviewer-report.md.
+
+    If the file already exists (written by the independent-reviewer agent from #367),
+    append the consensus section rather than overwriting it.
+    """
+    report_path = phase_dir / "reviewer-report.md"
+    yaml_block = _build_reviewer_report_yaml(verdict, consensus_result)
+
+    if report_path.exists():
+        # Append consensus section to existing report
+        existing = report_path.read_text(encoding="utf-8")
+        separator = "\n\n---\n## Consensus Gate Evaluation\n\n"
+        report_path.write_text(
+            existing + separator + yaml_block,
+            encoding="utf-8",
+        )
+    else:
+        # Create new report with full frontmatter
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(yaml_block, encoding="utf-8")
+
+
+def _write_pending_reviewer_report(phase_dir: "Path") -> None:
+    """Write a pending reviewer-report.md when consensus evaluation fails.
+
+    Only writes if no report exists yet — never overwrites a real result.
+    """
+    report_path = phase_dir / "reviewer-report.md"
+    if report_path.exists():
+        return  # Don't clobber an existing report
+
+    try:
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            _REVIEWER_REPORT_PENDING.format(reviewed_at=_now_iso()),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
+    """Async consensus gate — fires after phase_manager.py approve on high-complexity projects.
+
+    FAST EARLY-EXIT: Returns immediately if the Bash command is not a
+    phase_manager.py approve call (the vast majority of Bash invocations).
+
+    On match:
+    1. Parse project name and phase from the command.
+    2. Load project state. If complexity < 5, skip.
+    3. Invoke consensus_gate.evaluate_consensus_gate() directly (this process is async).
+    4. Write result to phases/{phase}/reviewer-report.md.
+    5. If evaluation fails, write a pending report. Never block.
+
+    Legacy bypass: CREW_GATE_ENFORCEMENT=legacy skips entirely.
+    """
+    # --- Legacy mode bypass ---
+    if os.environ.get("CREW_GATE_ENFORCEMENT") == "legacy":
+        return {"continue": True}
+
+    # --- Fast early-exit: only act on phase_manager.py approve ---
+    command = (tool_input.get("command") or "")
+    if "phase_manager.py" not in command or "approve" not in command:
+        return {"continue": True}
+
+    # Verify the command contains both keywords in the right order
+    # (avoid false matches on e.g. "grep approve phase_manager.py")
+    pm_pos = command.find("phase_manager.py")
+    approve_pos = command.find("approve", pm_pos)
+    if pm_pos < 0 or approve_pos < 0:
+        return {"continue": True}
+
+    # --- Parse project name and phase from command ---
+    project_name, explicit_phase = _parse_project_phase_from_command(command)
+    if not project_name:
+        return {"continue": True}
+
+    # --- Load project state ---
+    project_state_dict, project_dir = _load_project_for_consensus(project_name)
+    if project_state_dict is None or project_dir is None:
+        return {"continue": True}
+
+    # --- Complexity gate: skip if complexity < 5 ---
+    try:
+        complexity = int(project_state_dict.get("complexity_score") or 0)
+    except (TypeError, ValueError):
+        complexity = 0
+
+    if complexity < 5:
+        return {"continue": True}
+
+    # --- Determine which phase was just approved ---
+    phase = _resolve_phase_for_consensus(project_state_dict, explicit_phase)
+    phase_dir = project_dir / "phases" / phase
+
+    # --- Load phases config and check if consensus is configured for this phase ---
+    phases_config = _load_phases_config()
+    phase_config = phases_config.get(phase, {})
+    proposers = phase_config.get("consensus_proposers", [])
+    consensus_threshold = phase_config.get("consensus_threshold")
+
+    # If phase has no consensus config, check for a generic threshold of 5
+    if not proposers:
+        # Default proposers for unconfigured phases at high complexity
+        proposers = ["engineering", "quality-engineering", "product"]
+    if consensus_threshold is None:
+        consensus_threshold = 5
+
+    # Final consensus threshold check
+    try:
+        if complexity < int(consensus_threshold):
+            return {"continue": True}
+    except (TypeError, ValueError):
+        pass
+
+    # --- Run consensus evaluation ---
+    try:
+        scripts_crew = _PLUGIN_ROOT / "scripts" / "crew"
+        if str(scripts_crew) not in sys.path:
+            sys.path.insert(0, str(scripts_crew))
+
+        import consensus_gate as _cg
+
+        # Inject proposers into phases_config if not present (default fallback)
+        if phase not in phases_config:
+            phases_config[phase] = {
+                "consensus_threshold": consensus_threshold,
+                "consensus_proposers": proposers,
+                "strong_dissent_blocks": True,
+                "confidence_threshold": 0.7,
+            }
+
+        consensus_result = _cg.evaluate_consensus_gate(
+            project_dir=str(project_dir),
+            phase=phase,
+            project_state=project_state_dict,
+            phases_config=phases_config,
+        )
+
+        if consensus_result is None:
+            # No gate-result.json to evaluate — not an error, just nothing to do
+            return {"continue": True}
+
+        verdict = consensus_result.get("result", "pending").lower()
+        if verdict not in ("approved", "conditional", "rejected"):
+            # Map gate result codes to reviewer-report verdicts
+            verdict_map = {"approve": "approved", "reject": "rejected",
+                           "conditional": "conditional"}
+            verdict = verdict_map.get(verdict, "pending")
+
+        _write_reviewer_report(phase_dir, verdict, consensus_result)
+        _log("crew", "info", "consensus_gate.complete",
+             detail={"project": project_name, "phase": phase, "verdict": verdict,
+                     "complexity": complexity})
+
+    except Exception as exc:
+        # Fail-open: write pending report, log error, never crash
+        try:
+            _write_pending_reviewer_report(phase_dir)
+            _log("crew", "warn", "consensus_gate.error",
+                 ok=False, detail={"project": project_name, "phase": phase,
+                                   "error": str(exc)[:200]})
+        except Exception:
+            pass
+
+    return {"continue": True}
+
+
+# ---------------------------------------------------------------------------
 # Handler: Bash (general activity tracking)
 # ---------------------------------------------------------------------------
 
@@ -1247,10 +1612,12 @@ def main():
         elif tool_name == "Read":
             tool_response = payload.get("tool_response", "")
             result = _handle_read(tool_input, tool_response)
-        # Bash (activity tracking + discovery hints)
+        # Bash (activity tracking + discovery hints + async consensus gate)
         elif tool_name == "Bash":
             tool_response = payload.get("tool_response", {})
             result = _handle_bash(tool_input, tool_response)
+            # Tier 2 consensus gate (Issue #368) — fast-exits unless phase_manager approve
+            _handle_bash_consensus(tool_input, tool_response)
         # Skill (mem:store escalation counter reset)
         elif tool_name == "Skill":
             result = _handle_skill(tool_input)

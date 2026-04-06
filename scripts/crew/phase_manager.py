@@ -124,6 +124,91 @@ def load_phases_config() -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Enforcement threshold accessors — read from phases.json with safe defaults
+# ---------------------------------------------------------------------------
+# Default fallbacks used when phases.json is missing a field (backward compat)
+_DEFAULT_MIN_TEST_COVERAGE: float = 0.80
+_DEFAULT_REQUIRED_SPECIALISTS: list = []
+_DEFAULT_REQUIRED_DELIVERABLES: list = []
+
+
+def get_min_test_coverage(phase_name: str) -> Optional[float]:
+    """Return the minimum test coverage threshold for a phase.
+
+    Returns the float value from phases.json, or None if the phase does not
+    require coverage enforcement (e.g. non-test phases).  Falls back to
+    _DEFAULT_MIN_TEST_COVERAGE only for the canonical test/review phases when
+    the field is absent from phases.json, so old configs remain backward
+    compatible.
+
+    Always returns None when CREW_GATE_ENFORCEMENT=legacy.
+    """
+    if GATE_ENFORCEMENT_MODE == "legacy":
+        return None
+
+    phases = load_phases_config()
+    phase = phases.get(resolve_phase(phase_name), {})
+
+    if "min_test_coverage" in phase:
+        return phase["min_test_coverage"]
+
+    # Backward-compat default: apply coverage floor only to test/review phases
+    if resolve_phase(phase_name) in ("test", "review"):
+        return _DEFAULT_MIN_TEST_COVERAGE
+
+    return None
+
+
+def get_required_deliverables(phase_name: str) -> List[dict]:
+    """Return the structured required-deliverables list for a phase.
+
+    Each entry is a dict with keys: ``file`` (str), ``min_bytes`` (int),
+    ``frontmatter`` (list of str).  Falls back to an empty list so callers
+    always receive an iterable.
+
+    Legacy string entries (old schema) are promoted to dicts with defaults so
+    the function is safe against phases.json files that haven't been migrated.
+
+    Always returns [] when CREW_GATE_ENFORCEMENT=legacy.
+    """
+    if GATE_ENFORCEMENT_MODE == "legacy":
+        return []
+
+    phases = load_phases_config()
+    phase = phases.get(resolve_phase(phase_name), {})
+    raw = phase.get("required_deliverables", _DEFAULT_REQUIRED_DELIVERABLES)
+
+    result: List[dict] = []
+    for entry in raw:
+        if isinstance(entry, dict):
+            result.append({
+                "file": entry.get("file", ""),
+                "min_bytes": entry.get("min_bytes", 100),
+                "frontmatter": entry.get("frontmatter", []),
+            })
+        elif isinstance(entry, str):
+            # Promote legacy plain-string entries gracefully
+            result.append({"file": entry, "min_bytes": 100, "frontmatter": []})
+    return result
+
+
+def get_required_specialists(phase_name: str) -> List[str]:
+    """Return the list of specialist domains that must engage for a phase.
+
+    Falls back to an empty list when the field is absent so low-complexity
+    phases (which have no required specialists) continue to work unchanged.
+
+    Always returns [] when CREW_GATE_ENFORCEMENT=legacy.
+    """
+    if GATE_ENFORCEMENT_MODE == "legacy":
+        return []
+
+    phases = load_phases_config()
+    phase = phases.get(resolve_phase(phase_name), {})
+    return list(phase.get("required_specialists", _DEFAULT_REQUIRED_SPECIALISTS))
+
+
 def _topological_sort(phases_config: dict) -> List[str]:
     """Sort phases by depends_on relationships. Detects cycles."""
     order = []

@@ -1,6 +1,6 @@
 ---
 description: Approve a phase and advance to next stage
-argument-hint: "<phase> [project-name]"
+argument-hint: "<phase> [project-name] [--override-reviewer]"
 ---
 
 # /wicked-garden:crew:approve
@@ -196,6 +196,139 @@ Show summary of phase deliverables and validation status:
 **Approve and advance to {next_phase}?** (Y/n)
 {if validation failures: "⚠️ Approval blocked. Fix issues or add overrides."}
 ```
+
+### 4.7 Independent Reviewer (Complexity >= 5)
+
+**This check runs before the final approval prompt. Skip entirely if complexity < 5 or `--override-reviewer` flag is present.**
+
+#### 4.7.1 Detect Complexity and Override Flag
+
+Read `phases/{phase}/status.md` and `project.json` (already loaded in earlier steps). Check `complexity_score` from project.json. Check if the user invoked approve with `--override-reviewer`.
+
+```python
+complexity = project.get("complexity_score", 0)
+override_reviewer = "--override-reviewer" in raw_args
+```
+
+#### 4.7.2 Spawn Independent Reviewer (complexity >= 5, no override)
+
+If complexity >= 5 and `--override-reviewer` is NOT set:
+
+```markdown
+Spawning independent reviewer for complexity-{complexity} project...
+```
+
+Dispatch the independent reviewer as a subagent. The reviewer has cold context and must read artifacts fresh:
+
+```
+Task(
+  subagent_type="wicked-garden:crew:independent-reviewer",
+  prompt="""You are performing an independent phase review for a crew project.
+
+project_path: {absolute path to project directory, resolved from project.json location}
+phase_name: {phase}
+phase_dir: {absolute path to phases/{phase}/}
+
+Review the phase artifacts and write your verdict to phases/{phase}/reviewer-report.md.
+Your task ID for tracking is the task created by this invocation.
+
+Do not ask clarifying questions. Read files, check numbers, write the report."""
+)
+```
+
+Wait for the reviewer to complete before continuing.
+
+#### 4.7.3 Read Reviewer Report
+
+After the reviewer completes, read `phases/{phase}/reviewer-report.md`:
+
+```python
+# Extract verdict from YAML frontmatter
+verdict = fm.get("verdict")          # approved | conditional | rejected
+conditions = fm.get("conditions", [])
+findings = fm.get("findings", [])
+evidence_items = fm.get("evidence_items_checked", 0)
+```
+
+If `reviewer-report.md` is missing or cannot be read: treat as `rejected` with finding "Reviewer did not produce a report."
+
+#### 4.7.4 Act on Verdict
+
+**If verdict = `rejected`:**
+
+```markdown
+## Independent Review: REJECTED
+
+The independent reviewer rejected this phase. Approval is blocked.
+
+### Findings
+{for each finding: "- {finding}"}
+
+**Next steps**: Address the findings above, re-execute the phase, then run `/wicked-garden:crew:approve {phase}` again.
+To skip the reviewer (not recommended): `/wicked-garden:crew:approve {phase} --override-reviewer`
+```
+
+STOP — do not proceed to the approval prompt or phase_manager.py call.
+
+**If verdict = `conditional`:**
+
+Write `phases/{phase}/conditions-manifest.json`:
+
+```json
+[
+  {
+    "id": "reviewer-condition-{N}",
+    "description": "{condition text}",
+    "source": "independent-reviewer",
+    "created_at": "{ISO timestamp}",
+    "resolved_at": null
+  }
+]
+```
+
+Then display:
+
+```markdown
+## Independent Review: CONDITIONAL
+
+The reviewer approved with conditions. Conditions have been written to
+phases/{phase}/conditions-manifest.json and must be resolved before the next phase.
+
+### Conditions
+{for each condition: "- {condition}"}
+
+Proceeding with conditional approval...
+```
+
+Continue to the approval prompt.
+
+**If verdict = `approved`:**
+
+```markdown
+## Independent Review: APPROVED ({evidence_items} evidence items checked)
+```
+
+Continue to the approval prompt.
+
+#### 4.7.5 Override Reviewer
+
+If `--override-reviewer` was set, skip sections 4.7.2–4.7.4 entirely and record the override:
+
+Append to `phases/{phase}/status.md`:
+
+```yaml
+reviewer_override:
+  skipped_at: {ISO timestamp}
+  reason: "User passed --override-reviewer flag"
+```
+
+Then display:
+
+```markdown
+> Note: Independent reviewer skipped via --override-reviewer. Override recorded in status.md.
+```
+
+Continue to the approval prompt.
 
 ### 5. Process Approval
 

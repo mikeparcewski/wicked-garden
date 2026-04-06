@@ -32,6 +32,7 @@ Dynamic multi-phase workflow engine with signal-based specialist routing. Crew a
 | `/wicked-garden:crew:retro` | Generate retrospective from operate phase data |
 | `/wicked-garden:crew:archive <project>` | Archive or unarchive a project |
 | `/wicked-garden:crew:profile` | Configure preferences and working style |
+| `/wicked-garden:crew:migrate-gates` | Migration guide for in-flight projects to strict gate enforcement |
 | `/wicked-garden:crew:help` | This help message |
 
 ## Quick Start

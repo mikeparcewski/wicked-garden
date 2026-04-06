@@ -3,6 +3,7 @@
 SubagentStart / SubagentStop hook — wicked-garden agent lifecycle tracking.
 
 Issue #330: Track subagent start/stop events for observability and crew coordination.
+Issue #365: Record specialist engagement for approve-command gate enforcement.
 
 Receives the lifecycle phase as the first CLI argument ("start" or "stop").
 Reads the hook payload from stdin (JSON with agent metadata).
@@ -17,6 +18,7 @@ Responsibilities:
     - Decrement active subagent count
     - Calculate and record duration
     - Write trace entry for the subagent execution
+    - Record specialist engagement to phases/{phase}/specialist-engagement.json
 
 Always fails open — any unhandled exception returns {"continue": true}.
 """
@@ -76,6 +78,123 @@ def _write_trace(entry: dict) -> None:
             f.write(json.dumps(entry) + "\n")
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Specialist engagement tracking (Issue #365)
+# ---------------------------------------------------------------------------
+
+def _load_specialist_domains() -> set:
+    """Return the set of specialist domain names from specialist.json.
+
+    Reads .claude-plugin/specialist.json relative to CLAUDE_PLUGIN_ROOT.
+    Returns an empty set on any error so the hook stays fail-open.
+    """
+    try:
+        specialist_path = _PLUGIN_ROOT / ".claude-plugin" / "specialist.json"
+        data = json.loads(specialist_path.read_text(encoding="utf-8"))
+        return {s["name"] for s in data.get("specialists", []) if "name" in s}
+    except Exception:
+        return set()
+
+
+def _parse_specialist_from_agent_type(agent_type: str, specialist_domains: set):
+    """Parse domain and agent name from a wicked-garden subagent_type string.
+
+    Expected format: ``wicked-garden:{domain}:{agent-name}``
+
+    Returns ``(domain, agent_name)`` if the domain is a known specialist domain,
+    otherwise returns ``(None, None)``.
+    """
+    if not agent_type or not agent_type.startswith("wicked-garden:"):
+        return None, None
+
+    parts = agent_type.split(":")
+    # Expect at least 3 parts: "wicked-garden", domain, agent-name
+    if len(parts) < 3:
+        return None, None
+
+    domain = parts[1]
+    agent_name = ":".join(parts[2:])  # preserve any colons in agent name
+
+    if domain not in specialist_domains:
+        return None, None
+
+    return domain, agent_name
+
+
+def _record_specialist_engagement(domain: str, agent_name: str) -> None:
+    """Append a specialist engagement entry to the active phase directory.
+
+    Writes to:
+        {project_dir}/phases/{current_phase}/specialist-engagement.json
+
+    The file is a JSON array. If it does not exist it is created; if it
+    exists the new entry is appended.  All errors are silently swallowed so
+    the hook never blocks on I/O failures.
+    """
+    try:
+        from _session import SessionState
+        from _paths import get_local_path
+
+        state = SessionState.load()
+
+        # Resolve current phase — prefer the cached active_project dict, fall
+        # back to loading the project state file directly.
+        current_phase: str | None = None
+        project_id: str | None = state.active_project_id
+
+        if state.active_project and isinstance(state.active_project, dict):
+            current_phase = state.active_project.get("current_phase")
+
+        if not current_phase and project_id:
+            try:
+                import re
+                if re.match(r'^[a-zA-Z0-9_-]{1,64}$', project_id):
+                    base = get_local_path("wicked-crew", "projects")
+                    project_json = base / project_id / "project.json"
+                    if project_json.exists():
+                        pdata = json.loads(project_json.read_text(encoding="utf-8"))
+                        current_phase = pdata.get("current_phase")
+            except Exception:
+                pass
+
+        if not current_phase or not project_id:
+            # No active crew project — nothing to record
+            return
+
+        # Validate project_id before using it in a path
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]{1,64}$', project_id):
+            return
+
+        base = get_local_path("wicked-crew", "projects")
+        phase_dir = base / project_id / "phases" / current_phase
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        engagement_file = phase_dir / "specialist-engagement.json"
+
+        # Load existing entries or start fresh
+        entries: list = []
+        if engagement_file.exists():
+            try:
+                entries = json.loads(engagement_file.read_text(encoding="utf-8"))
+                if not isinstance(entries, list):
+                    entries = []
+            except Exception:
+                entries = []
+
+        entries.append({
+            "domain": domain,
+            "agent": agent_name,
+            "completed_at": _now_iso(),
+        })
+
+        tmp_path = engagement_file.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+        os.replace(tmp_path, engagement_file)
+
+    except Exception as exc:
+        print(f"[wicked-garden] specialist engagement record error: {exc}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +282,17 @@ def _handle_stop(payload: dict) -> None:
         "timestamp": _now_iso(),
         "session_id": _get_session_id(),
     })
+
+    # Record specialist engagement (Issue #365)
+    # subagent_type is the canonical identifier; agent_name may be a display name.
+    agent_type = payload.get("subagent_type", agent_name)
+    try:
+        specialist_domains = _load_specialist_domains()
+        domain, specialist_agent = _parse_specialist_from_agent_type(agent_type, specialist_domains)
+        if domain is not None:
+            _record_specialist_engagement(domain, specialist_agent)
+    except Exception as exc:
+        print(f"[wicked-garden] specialist engagement check error: {exc}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
