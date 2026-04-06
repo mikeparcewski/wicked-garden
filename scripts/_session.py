@@ -176,6 +176,12 @@ class SessionState:
     # None means resolution has not run yet this session.
     resolved_capabilities: dict | None = None
 
+    # wicked-brain dependency check (set by bootstrap.py at SessionStart).
+    # True  — wicked-brain plugin is installed (found in enabledPlugins).
+    # False — not installed; bootstrap emits an install hint to the briefing.
+    # None  — check has not run yet this session (e.g., early-exit before setup).
+    brain_available: bool | None = None
+
     # Fast-path sentinel: set by bootstrap.py when config.json setup_complete=True.
     # Allows prompt_submit.py guard to skip config.json file read on every turn.
     # Once True for a session, it never goes back to False.

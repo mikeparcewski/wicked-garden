@@ -594,6 +594,96 @@ def _detect_dangerous_mode():
 
 
 # ---------------------------------------------------------------------------
+# wicked-brain dependency check
+# ---------------------------------------------------------------------------
+
+def _check_brain_dependency():
+    """Check whether the wicked-brain plugin is installed.
+
+    Scans ~/.claude/settings.json and .claude/settings.json (project-level)
+    for 'wicked-brain' in their enabledPlugins keys.
+
+    If found:
+        - Returns (True, None) — no briefing note needed.
+        - Also attempts a lightweight server health probe on the default port
+          and returns (True, note) where note describes the offline state if
+          the server is not reachable.
+
+    If NOT found:
+        - Returns (False, note) — note contains the install instruction.
+
+    Always fails open — any exception returns (None, None) so the session
+    is never blocked.
+    """
+    try:
+        # Settings file locations to check (global first, then project-local)
+        settings_candidates = [
+            Path.home() / ".claude" / "settings.json",
+            Path(".claude") / "settings.json",
+        ]
+
+        # Also honour CLAUDE_CONFIG_DIR if set
+        config_dir_env = os.environ.get("CLAUDE_CONFIG_DIR")
+        if config_dir_env:
+            settings_candidates.append(Path(config_dir_env) / "settings.json")
+
+        brain_installed = False
+        for settings_path in settings_candidates:
+            try:
+                if not settings_path.exists():
+                    continue
+                settings = json.loads(settings_path.read_text(encoding="utf-8"))
+                enabled = settings.get("enabledPlugins", {})
+                # enabledPlugins is a dict keyed by plugin name
+                if isinstance(enabled, dict) and "wicked-brain" in enabled:
+                    brain_installed = True
+                    break
+                # Some versions may store it as a list
+                if isinstance(enabled, list) and "wicked-brain" in enabled:
+                    brain_installed = True
+                    break
+            except (json.JSONDecodeError, OSError):
+                continue  # Malformed or unreadable — skip this candidate
+
+        if not brain_installed:
+            note = (
+                "[wicked-brain] Not installed. Install for enhanced code intelligence "
+                "and memory: claude plugin install wicked-brain --scope project"
+            )
+            return False, note
+
+        # wicked-brain is installed — optionally probe server health
+        # Use a short timeout so we never block the hook budget
+        server_note = None
+        try:
+            import urllib.request
+            import urllib.error
+
+            # Default wicked-brain API port; read from env if overridden
+            port = int(os.environ.get("WICKED_BRAIN_PORT", "7777"))
+            url = f"http://localhost:{port}/api"
+            req = urllib.request.Request(
+                url,
+                data=json.dumps({"action": "health"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=1) as resp:
+                pass  # Server responded — healthy
+        except Exception:
+            # Server not running, connection refused, or timeout — informational only
+            server_note = (
+                "[wicked-brain] Plugin installed but server is not running. "
+                "Start it to enable enhanced code intelligence."
+            )
+
+        return True, server_note
+
+    except Exception:
+        return None, None  # Fail open — never block session start
+
+
+# ---------------------------------------------------------------------------
 # Discovery: contextual command suggestions based on project type (Issue #322)
 # ---------------------------------------------------------------------------
 
@@ -828,6 +918,13 @@ def main():
         dangerous_mode = _detect_dangerous_mode()
         if state is not None:
             state.update(dangerous_mode=dangerous_mode)
+
+        # 7d. Check wicked-brain dependency
+        brain_available, brain_note = _check_brain_dependency()
+        if state is not None and brain_available is not None:
+            state.update(brain_available=brain_available)
+        if brain_note:
+            mode_notes.append(brain_note)
 
         # 8. Assemble session briefing
         # --- Status block (user-facing) ---

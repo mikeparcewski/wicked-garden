@@ -1,0 +1,19 @@
+{
+  "name": "wicked-search",
+  "version": "1.0.0",
+  "description": "AST-powered code intelligence with tree-sitter — symbol extraction, ORM linkers, framework adapters, and data lineage. Optional enrichment layer for wicked-brain.",
+  "author": {
+    "name": "Mike Parcewski"
+  },
+  "repository": "https://github.com/mikeparcewski/wicked-search",
+  "license": "MIT",
+  "keywords": [
+    "search",
+    "code-intelligence",
+    "tree-sitter",
+    "ast",
+    "lineage",
+    "blast-radius",
+    "orm"
+  ]
+}

@@ -119,7 +119,42 @@ TaskUpdate(
 )
 ```
 
-## Output Format
+## Output Mode
+
+Read `complexity_score` from project.json before writing output. If project.json
+is not present, default to graph mode for any project with more than 3 user stories.
+
+**Graph mode** (complexity >= 3 OR compliance signals detected):
+
+Produce a `requirements/` graph directory instead of a monolithic document.
+Follow the requirements-graph skill layout exactly:
+
+```
+requirements/
+  meta.md                             # project-level summary (requirements-root node)
+  {area}/
+    meta.md                           # area summary + story table (area node)
+    {US-NNN}/
+      meta.md                         # story definition + AC table (user-story node)
+      {AC-NNN}-{slug}.md             # atomic acceptance criterion (acceptance-criterion node)
+  _scope.md                           # in/out/future scope
+  _questions.md                       # open questions
+```
+
+Each file uses YAML frontmatter with `id`, `type`, and the required fields for its node
+type. See `wicked-garden:product:requirements-graph` skill for the full frontmatter schema
+and examples.
+
+**Compliance signals** that trigger graph mode regardless of complexity:
+`security`, `compliance`, `regulatory`, `audit`, `sox`, `hipaa`, `gdpr`, `pci`
+
+**Monolith mode** (complexity < 3, no compliance signals):
+
+Produce the existing inline format shown below.
+
+---
+
+## Output Format (monolith mode)
 
 ```markdown
 ## Requirements Analysis

@@ -743,20 +743,28 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
 
     project_dir = get_project_dir(state.name)
     for deliverable in deliverables:
-        path = project_dir / "phases" / phase / deliverable
+        # Support both string and dict deliverable formats (dict has "file" key)
+        deliverable_name = deliverable["file"] if isinstance(deliverable, dict) else deliverable
+        path = project_dir / "phases" / phase / deliverable_name
         if not path.exists():
-            issues.append(f"Missing deliverable for {phase}: {deliverable}")
+            issues.append(f"Missing deliverable for {phase}: {deliverable_name}")
             continue
 
         # Content validation (AC-1.5) — skip in legacy mode
         if GATE_ENFORCEMENT_MODE != "legacy":
             file_stat = path.stat()
+            min_bytes = deliverable.get("min_bytes", 0) if isinstance(deliverable, dict) else 0
             if file_stat.st_size == 0:
-                issues.append(f"Empty deliverable for {phase}: {deliverable} (0 bytes)")
-            # Evidence reports need substantive content (AC-3.4)
-            elif deliverable == "evidence/report.md" and file_stat.st_size < 100:
+                issues.append(f"Empty deliverable for {phase}: {deliverable_name} (0 bytes)")
+            elif min_bytes > 0 and file_stat.st_size < min_bytes:
                 issues.append(
-                    f"Insufficient content in {phase}: {deliverable} "
+                    f"Insufficient content in {phase}: {deliverable_name} "
+                    f"({file_stat.st_size} bytes, minimum {min_bytes} required)"
+                )
+            # Evidence reports need substantive content (AC-3.4)
+            elif deliverable_name == "evidence/report.md" and file_stat.st_size < 100:
+                issues.append(
+                    f"Insufficient content in {phase}: {deliverable_name} "
                     f"({file_stat.st_size} bytes, minimum 100 required for evidence reports)"
                 )
 

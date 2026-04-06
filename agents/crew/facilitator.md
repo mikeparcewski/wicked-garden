@@ -102,6 +102,13 @@ If creating sub-tasks (e.g., separate clarification topics):
 - Use `TaskCreate` with subject `"Clarify: {project-name} - {topic}"`
 - Mark each `in_progress` → `completed` as you work through them
 
+## Requirements Output Note
+
+When a requirements-analyst is engaged during clarify (complexity >= 3 or compliance
+signals), it produces a `requirements/` graph directory instead of a monolithic document.
+The facilitator does not need to change its behavior — the analyst handles the switch.
+See `wicked-garden:product:requirements-graph` skill for the graph format spec.
+
 ## Output
 
 Produce a clear `outcome.md` that the user approves before moving to design phase.
