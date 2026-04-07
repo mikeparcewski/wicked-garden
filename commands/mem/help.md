@@ -13,18 +13,21 @@ Show the following help information:
 ```markdown
 # wicked-mem Help
 
-Persistent memory across sessions — store decisions, recall context, and manage institutional knowledge.
+Brain-backed persistent memory across sessions — store decisions, recall context, and manage institutional knowledge.
+
+Memories are stored as markdown chunk files in `~/.wicked-brain/memories/` organized by tier (working/episodic/semantic) and indexed via the brain API for fast search.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/wicked-garden:mem:store <content>` | Store a new memory |
-| `/wicked-garden:mem:recall [query]` | Recall memories matching a query |
-| `/wicked-garden:mem:review` | Browse, understand, and manage stored memories |
-| `/wicked-garden:mem:stats` | Show memory statistics |
-| `/wicked-garden:mem:forget <id>` | Archive or delete a memory |
-| `/wicked-garden:mem:retag` | Backfill search tags on existing memories |
+| `/wicked-garden:mem:store <content>` | Store a new memory (writes chunk file + brain index) |
+| `/wicked-garden:mem:recall [query]` | Search memories via brain API |
+| `/wicked-garden:mem:review` | Browse and manage stored memory chunk files |
+| `/wicked-garden:mem:stats` | Show memory statistics (brain + file counts) |
+| `/wicked-garden:mem:forget <id>` | Delete a memory (chunk file + brain index) |
+| `/wicked-garden:mem:consolidate` | Compile wiki from memories + lint expired chunks |
+| `/wicked-garden:mem:retag` | Backfill search tags on under-tagged memories |
 | `/wicked-garden:mem:help` | This help message |
 
 ## Quick Start
@@ -49,13 +52,14 @@ Persistent memory across sessions — store decisions, recall context, and manag
 /wicked-garden:mem:recall --tags auth
 /wicked-garden:mem:recall --type decision
 /wicked-garden:mem:review --stale
-/wicked-garden:mem:review --project my-app
+/wicked-garden:mem:review --tier semantic
 ```
 
 ### Cleanup
 ```
-/wicked-garden:mem:forget mem_abc123
-/wicked-garden:mem:forget mem_abc123 --hard
+/wicked-garden:mem:forget mem-abc123
+/wicked-garden:mem:consolidate
+/wicked-garden:mem:retag --dry-run
 ```
 
 ## Memory Types
@@ -67,9 +71,17 @@ Persistent memory across sessions — store decisions, recall context, and manag
 | `procedural` | How-to steps, workflows, patterns |
 | `preference` | User preferences, style choices |
 
+## Storage
+
+Memories are stored as markdown files with YAML frontmatter:
+- **Path**: `~/.wicked-brain/memories/{tier}/mem-{uuid}.md`
+- **Tiers**: working (transient), episodic (sprint-level), semantic (permanent)
+- **Index**: Brain API at `http://localhost:4242/api` for full-text search
+
 ## Integration
 
 - **wicked-smaht**: Auto-recalls relevant memories for every prompt
 - **wicked-crew**: Persists decisions and context across phases
+- **wicked-brain**: Chunk storage, search index, compile, and lint
 - **jam**: Stores brainstorming insights
 ```

@@ -5,37 +5,36 @@ argument-hint: "[--sample-size N] [--format table|json]"
 
 # /wicked-garden:search:validate
 
-Validate the accuracy of the knowledge graph index using consistency-based checks.
+Validate the accuracy of the brain index using consistency-based checks.
 
 ## Arguments
 
 - `--sample-size` (optional): Number of samples per check (default: 100)
 - `--format` (optional): Output format - table, json (default: table)
-- `--project` (optional): Project to validate
 
 ## Instructions
 
-1. Run validation via the local unified index (primary):
+1. **Check brain stats** to get index summary:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py validate --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"stats","params":{}}'
+   ```
+   If brain is unavailable, inform the user and suggest starting it with `wicked-brain:server`.
+
+2. **Sample symbols from the brain** by searching for common patterns:
+   ```bash
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"function class method","limit":100}}'
    ```
 
-2. Get detailed statistics:
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
-   ```
-
-3. For each sampled symbol, verify it exists at the stated file:line location:
+3. **For each sampled symbol**, verify it exists at the stated file:line location:
    - Read the file at the stated path
    - Check that the symbol name appears near the stated line
    - Track valid/invalid counts
 
-4. Check FTS5 index integrity:
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py integrity-check --path "${PWD}"
-   ```
-
-5. Report the validation results:
+4. Report the validation results:
 
    ```markdown
    ## Accuracy Validation Report
@@ -44,6 +43,8 @@ Validate the accuracy of the knowledge graph index using consistency-based check
    - **Overall Accuracy**: {percentage}%
    - **Target (95%)**: MET/NOT MET
    - **Checks Passed**: {n}/{total}
+   - **Brain Chunks**: {from stats}
+   - **Brain Tags**: {from stats}
 
    ### Validation Results
 
@@ -63,5 +64,4 @@ Validate the accuracy of the knowledge graph index using consistency-based check
 ```
 /wicked-garden:search:validate
 /wicked-garden:search:validate --sample-size 200
-/wicked-garden:search:validate --project my-app
 ```

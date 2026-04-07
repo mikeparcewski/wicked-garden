@@ -9,27 +9,33 @@ Show how indexed symbols break down by type, architectural layer, and directory 
 
 ## Instructions
 
-1. Check that an index exists for the current project:
+1. **Query brain for symbol inventory**:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"class function method entity table component","limit":100}}'
    ```
-   If the output shows 0 symbols or the index is not found, stop and inform the user:
-   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+   If brain is unavailable, fall back to Grep/Glob:
+   - Use Glob to discover source file structure by directory
+   - Use Grep to extract symbol definitions (class, function, method, etc.)
+   Suggest `wicked-brain:ingest` to index the codebase for richer categorization.
 
-2. Run the categories query via the local unified index (primary):
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py categories --path "${PWD}"
-   ```
+2. **Categorize symbols** by analyzing brain results and file paths:
+   - **By Layer**: backend, frontend, database, view (inferred from directory structure)
+   - **By Type**: class, function, method, table, component (from symbol definitions)
+   - **By Directory**: group by top-level directory categories
 
-3. Present results in five sections:
+3. **Detect relationships** using Grep to find cross-category references (imports, calls).
 
-   **By Layer** — architectural layers (backend, frontend, database, view):
+4. Present results in five sections:
+
+   **By Layer** — architectural layers:
    | Layer | Symbols |
    |-------|---------|
    | backend | 1,234 |
    | database | 456 |
 
-   **By Type** — symbol types (class, function, method, table, etc.):
+   **By Type** — symbol types:
    | Type | Count |
    |------|-------|
    | class | 500 |
@@ -41,19 +47,19 @@ Show how indexed symbols break down by type, architectural layer, and directory 
    | controllers | 200 |
    | models | 150 |
 
-   **Layer Relationships** — how architectural layers connect (from `data.relationships.by_layer`):
+   **Layer Relationships** — how architectural layers connect:
    | Source | Target | Ref Type | Count |
    |--------|--------|----------|-------|
    | backend | database | queries | 340 |
    | frontend | backend | calls | 210 |
 
-   **Directory Relationships** — top cross-directory connections (from `data.relationships.by_directory`):
+   **Directory Relationships** — top cross-directory connections:
    | Source | Target | Ref Type | Count |
    |--------|--------|----------|-------|
    | controllers | services | calls | 120 |
    | services | models | imports | 95 |
 
-3. Highlight:
+5. Highlight:
    - The dominant layer and any imbalances
    - Strongest cross-layer relationships (which layers are tightly coupled)
    - Directory clusters that have high interconnection (potential modules)
@@ -63,5 +69,4 @@ Show how indexed symbols break down by type, architectural layer, and directory 
 
 ```
 /wicked-garden:search:categories
-/wicked-garden:search:categories --project my-app
 ```

@@ -11,28 +11,29 @@ Analyze lineage coverage across the indexed codebase. Identifies symbols without
 
 - `--type` (optional): Filter to specific symbol type (e.g., entity_field, column)
 - `--show-orphans` (optional): Include list of orphan symbols in output
-- `--project` (optional): Filter to specific project
 
 ## Instructions
 
-1. Check that an index exists for the current project:
+1. **Query brain for all indexed symbols**:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"class function entity model column field","limit":100}}'
    ```
-   If the output shows 0 symbols or the index is not found, stop and inform the user:
-   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+   If brain is unavailable, fall back to Grep/Glob:
+   - Use Glob to find all source files
+   - Use Grep to extract class/function/entity definitions
+   Suggest `wicked-brain:ingest` to index the codebase first.
 
-2. Run the coverage report via the local unified index (primary):
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py coverage --path "${PWD}"
-   ```
+2. **For each symbol, trace lineage** using Grep:
+   - Search for references to the symbol across all source files
+   - Check if it has both upstream (who calls/imports it) and downstream (what it calls/imports) connections
+   - Classify coverage:
+     - **Full coverage**: Connected in both directions through layers
+     - **Partial coverage**: Some connections exist but gaps in the chain
+     - **Orphan**: No lineage connections found
 
-3. Classify each symbol:
-   - **Full coverage**: Complete lineage from UI to database (or reverse)
-   - **Partial coverage**: Some connections exist but gaps in the chain
-   - **Orphan**: No lineage connections found
-
-5. Report the coverage analysis:
+3. Report the coverage analysis:
 
    ```markdown
    ## Coverage Report
@@ -60,5 +61,5 @@ Analyze lineage coverage across the indexed codebase. Identifies symbols without
 
 ## Notes
 
-- Requires indexing with `/wicked-garden:search:index --derive` for lineage data
-- High orphan count may indicate incomplete indexing
+- Brain provides the symbol inventory; Grep traces the connections
+- High orphan count may indicate the codebase needs re-indexing via `wicked-brain:ingest`

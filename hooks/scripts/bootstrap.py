@@ -319,110 +319,59 @@ def _load_kanban_summary():
         return None
 
 
-def _run_memory_decay():
-    """Run memory decay maintenance. Returns a summary string or None."""
+def _brain_api(action, params=None, timeout=3):
+    """Call brain API. Returns parsed JSON or None."""
     try:
-        from mem.memory import MemoryStore
-        project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-        store = MemoryStore(project)
-        result = store.run_decay()
-        if result.get("archived", 0) > 0 or result.get("deleted", 0) > 0:
-            return f"Memory: {result['archived']} archived, {result['deleted']} cleaned"
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _run_memory_decay():
+    """Run memory decay maintenance via brain lint. Returns a summary string or None."""
+    try:
+        result = _brain_api("lint", {}, timeout=5)
+        if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
+            return f"Memory: {result.get('archived', 0)} archived, {result.get('deleted', 0)} cleaned"
         return None
     except Exception:
         return None
 
 
 def _check_search_staleness():
-    """Detect stale search index via watcher.py and trigger an incremental reindex.
+    """Check brain index health. Returns a briefing note or None.
 
-    Runs `watcher.py check --reindex --json` via subprocess against the directories
-    that are already indexed in the SQLite DB (falling back to cwd).
-
-    Returns a briefing note string, or None to skip (no index, not stale, or error).
+    Brain is the unified knowledge layer — no legacy SQLite fallback.
     Fails open — any exception returns None so the session always continues.
     """
     try:
-        import sqlite3
-
-        db_path = Path.home() / ".something-wicked" / "wicked-search" / "unified_search.db"
-        if not db_path.exists():
-            return None  # No index yet — nothing to check
-
-        # --- Discover indexed directories from the DB ---
-        indexed_dirs = []
-        try:
-            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=2)
-            try:
-                tables = [
-                    row[0] for row in
-                    conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-                ]
-                _FILE_COLS = {"file", "path", "file_path", "filepath"}
-                seen_roots = set()
-                for table in tables:
-                    cols = [
-                        row[1] for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall()
-                    ]
-                    for col in cols:
-                        if col in _FILE_COLS:
-                            rows = conn.execute(
-                                f'SELECT DISTINCT "{col}" FROM "{table}" LIMIT 500'
-                            ).fetchall()
-                            for (fpath,) in rows:
-                                if fpath:
-                                    p = Path(fpath)
-                                    # Walk up to find a plausible root (first existing ancestor)
-                                    candidate = p if p.is_dir() else p.parent
-                                    if str(candidate) not in seen_roots and candidate.exists():
-                                        seen_roots.add(str(candidate))
-                # Collapse to top-level roots (remove subdirs already covered by a parent)
-                sorted_roots = sorted(seen_roots)
-                for root in sorted_roots:
-                    if not any(root.startswith(other + os.sep) for other in sorted_roots if other != root):
-                        indexed_dirs.append(root)
-            finally:
-                conn.close()
-        except Exception:
-            pass  # DB read failed — fall back to cwd
-
-        if not indexed_dirs:
-            indexed_dirs = [str(Path.cwd())]
-
-        # --- Invoke watcher.py check --reindex --json ---
-        watcher_script = str(_PLUGIN_ROOT / "scripts" / "search" / "watcher.py")
-        cmd = [
-            "uv", "run", "python", watcher_script,
-            "check", "--reindex", "--json",
-            "--dirs", *indexed_dirs,
-        ]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=str(_PLUGIN_ROOT),
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
         )
-        if result.returncode != 0 or not result.stdout.strip():
-            return None
-
-        data = json.loads(result.stdout)
-        if not data.get("stale"):
-            return None  # Up to date — nothing to report
-
-        changed_count = data.get("changed_count", 0)
-        reindex_ok = data.get("reindex_ok")  # May be absent if reindex wasn't triggered
-
-        if reindex_ok is True:
-            return f"Search index auto-updated ({changed_count} file(s) changed)"
-        elif reindex_ok is False:
-            return f"Search index may be stale — {changed_count} file(s) changed but reindex failed"
-        else:
-            # Stale but reindex wasn't run (shouldn't happen with --reindex flag, but be safe)
-            return f"Search index may be stale — {changed_count} file(s) changed"
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            stats = json.loads(resp.read().decode("utf-8"))
+            total = stats.get("total", 0)
+            if total == 0:
+                return "Brain index is empty — run `wicked-brain:ingest` to index your codebase"
+            return None  # Brain is healthy
 
     except Exception:
-        return None  # Always fail-open
+        return None  # Brain unavailable — not an error, agent uses Grep/Glob
 
 
 def _check_onboarding_status():
@@ -434,55 +383,40 @@ def _check_onboarding_status():
     project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
     cwd = str(Path.cwd())
 
-    has_index = True   # default: assume done (fail open)
+    has_index = False
     has_memories = False  # default: assume not onboarded (fail-closed for new projects)
 
-    # Check search index (local SQLite database)
+    # Check search index — brain is the knowledge layer
     try:
-        import sqlite3
-        db_path = Path.home() / ".something-wicked" / "wicked-search" / "unified_search.db"
-        if not db_path.exists():
-            has_index = False
-        else:
-            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=2)
-            try:
-                # Introspect tables for a file/path column, check for entries under cwd
-                tables = [
-                    row[0] for row in
-                    conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-                ]
-                _FILE_COLS = {"file", "path", "file_path", "filepath"}
-                found = False
-                for table in tables:
-                    cols = [
-                        row[1] for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall()
-                    ]
-                    for col in cols:
-                        if col in _FILE_COLS:
-                            cursor = conn.execute(
-                                f'SELECT 1 FROM "{table}" WHERE "{col}" LIKE ? LIMIT 1',
-                                (cwd + "%",),
-                            )
-                            if cursor.fetchone() is not None:
-                                found = True
-                                break
-                    if found:
-                        break
-                has_index = found
-            finally:
-                conn.close()
+        import urllib.request
+        import urllib.error
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            stats = json.loads(resp.read().decode("utf-8"))
+            if stats.get("total", 0) > 0:
+                has_index = True
     except Exception:
-        pass  # Fail open
+        pass  # brain unavailable — agent falls back to Grep/Glob
 
-    # Check onboarding memories
+    # Check onboarding memories via brain search API
     try:
-        from mem.memory import MemoryStore
-        store = MemoryStore(project)
-        memories = store.recall(tags=["onboarding"], limit=1)
-        has_memories = len(memories) > 0
+        result = _brain_api("search", {"query": "onboarding", "limit": 5}, timeout=3)
+        if result and isinstance(result, list):
+            # Check if any result path contains "/mem-" (memory chunk)
+            has_memories = any("/mem-" in str(r.get("path", "")) for r in result)
+        elif result and isinstance(result, dict) and result.get("results"):
+            has_memories = any("/mem-" in str(r.get("path", "")) for r in result["results"])
+        else:
+            has_memories = True  # brain returned empty or unexpected — assume onboarded
     except Exception:
         has_memories = True  # fail open on exception — assume onboarded to avoid false triggers
-        print("[wicked-garden] onboarding check: MemoryStore error, assuming onboarded", file=sys.stderr)
+        print("[wicked-garden] onboarding check: brain API error, assuming onboarded", file=sys.stderr)
 
     directive = None
     if not has_memories:
@@ -925,6 +859,39 @@ def main():
             state.update(brain_available=brain_available)
         if brain_note:
             mode_notes.append(brain_note)
+
+        # 7e. Brain auto-init and auto-ingest
+        #     If brain is installed but has no content for this project, emit
+        #     a directive so the agent auto-runs init + ingest on first use.
+        if brain_available:
+            try:
+                import urllib.request
+                port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+                req = urllib.request.Request(
+                    f"http://localhost:{port}/api",
+                    data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=2) as resp:
+                    stats = json.loads(resp.read().decode("utf-8"))
+                    if stats.get("total", 0) == 0:
+                        mode_notes.append(
+                            "[wicked-brain] Brain is empty for this project. "
+                            "You MUST run these skills now (non-blocking, async):\n"
+                            "  1. `wicked-brain:init` — initialize the brain if not already done\n"
+                            "  2. `wicked-brain:ingest` with the current working directory — "
+                            "index the codebase for search and memory\n"
+                            "Do NOT wait for ingest to complete before responding to the user."
+                        )
+            except Exception:
+                # Brain server not running — emit start directive
+                if brain_available:
+                    mode_notes.append(
+                        "[wicked-brain] Plugin installed but server is not running. "
+                        "You SHOULD invoke `wicked-brain-server` to start the brain server, "
+                        "then run `wicked-brain:ingest` to index the codebase."
+                    )
 
         # 8. Assemble session briefing
         # --- Status block (user-facing) ---

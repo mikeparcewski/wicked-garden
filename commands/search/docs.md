@@ -13,17 +13,17 @@ Search documents only (PDF, Office docs, markdown) via the unified index.
 
 ## Instructions
 
-1. Check that an index exists for the current project:
+1. **Search via brain** (unified knowledge layer):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"<query>","limit":10}}'
    ```
-   If the output shows 0 symbols or the index is not found, stop and inform the user:
-   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+   Filter results to document types (.md, .txt, .html, .csv, .json).
 
-2. Run the doc search via the local unified index (primary):
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py docs "<query>" --path "${PWD}"
-   ```
+2. **If brain is unavailable** (connection refused or empty results):
+   Fall back to native tools — use Grep with `--glob "*.md"` or `--glob "*.txt"` to search documents.
+   Suggest: `wicked-brain:ingest` to index the codebase for richer search.
 
 3. Report matching document sections with source file locations.
 

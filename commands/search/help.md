@@ -13,7 +13,7 @@ Show the following help information:
 ```markdown
 # wicked-search Help
 
-Structural code search, document search, lineage tracing, and codebase intelligence powered by the knowledge graph in the control plane.
+Structural code search, document search, lineage tracing, and codebase intelligence powered by the brain knowledge layer.
 
 ## Commands
 
@@ -22,7 +22,7 @@ Structural code search, document search, lineage tracing, and codebase intellige
 | `/wicked-garden:search:search <query>` | Search across all code and documents |
 | `/wicked-garden:search:code <query>` | Search code symbols (functions, classes, methods) |
 | `/wicked-garden:search:docs <query>` | Search documents (PDF, Office, markdown) |
-| `/wicked-garden:search:index <path>` | Build unified index for code and documents |
+| `/wicked-garden:search:index <path>` | Build index via `wicked-brain:ingest` |
 | `/wicked-garden:search:lineage <symbol>` | Trace data lineage from source to sink |
 | `/wicked-garden:search:blast-radius <symbol>` | Analyze dependencies and dependents of a symbol |
 | `/wicked-garden:search:impact <symbol>` | Analyze what would be affected by changing a symbol |
@@ -33,25 +33,32 @@ Structural code search, document search, lineage tracing, and codebase intellige
 | `/wicked-garden:search:coverage` | Report lineage coverage and identify orphan symbols |
 | `/wicked-garden:search:service-map` | Detect and visualize service architecture |
 | `/wicked-garden:search:scout <pattern>` | Quick pattern reconnaissance (no index required) |
-| `/wicked-garden:search:stats` | Show index statistics |
-| `/wicked-garden:search:quality` | Validate and improve index accuracy |
-| `/wicked-garden:search:validate` | Validate index accuracy with consistency checks |
+| `/wicked-garden:search:stats` | Show brain index statistics |
+| `/wicked-garden:search:quality` | Validate and improve brain index accuracy |
+| `/wicked-garden:search:validate` | Validate brain index accuracy with consistency checks |
 | `/wicked-garden:search:help` | This help message |
 
 ## Quick Start
 
 ```
-/wicked-garden:search:index .
+wicked-brain:ingest .
 /wicked-garden:search:code "handlePayment"
 /wicked-garden:search:blast-radius UserService --depth 3
 ```
 
 ## Architecture
 
-Search commands use a **local-first** architecture powered by the unified index (`unified_search.py`, SQLite-backed):
+Search commands use a **brain-first** architecture:
+
+1. **Primary**: Query the brain knowledge layer at `http://localhost:4242/api`
+2. **Fallback**: Use native Grep/Glob/Read tools for direct file search
+3. **Indexing**: `wicked-brain:ingest` replaces the old indexer
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py {command} [args]
+# Brain search pattern used by all commands:
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"<query>","limit":N}}'
 ```
 
 ## Examples
@@ -79,7 +86,7 @@ cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unifi
 
 ### Index Management
 ```
-/wicked-garden:search:index . --derive-all
+wicked-brain:ingest .
 /wicked-garden:search:stats
 /wicked-garden:search:validate
 /wicked-garden:search:quality --max-iterations 3
@@ -87,7 +94,8 @@ cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unifi
 
 ## Integration
 
-- **wicked-smaht**: Search adapter feeds context assembly via local index (CP optional)
+- **wicked-brain**: Knowledge layer providing search, stats, and ingestion
+- **wicked-smaht**: Search adapter feeds context assembly via brain
 - **wicked-patch**: Symbol lookup for structural refactoring
 - **engineering**: Architecture and code analysis
 - **wicked-crew**: Context for all workflow phases

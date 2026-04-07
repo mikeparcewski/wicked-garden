@@ -5,11 +5,11 @@ argument-hint: "<symbol> [--direction upstream|downstream|both] [--depth N]"
 
 # /wicked-garden:search:lineage
 
-Trace data lineage paths through the knowledge graph. Follow data flow from UI fields to database columns (downstream) or reverse (upstream).
+Trace data lineage paths through the codebase. Follow data flow from UI fields to database columns (downstream) or reverse (upstream).
 
 ## Arguments
 
-- `symbol` (required): The symbol ID to trace from
+- `symbol` (required): The symbol to trace from
 - `--direction` (optional): Direction to trace (default: downstream)
   - `downstream`: Source → sink (e.g., UI field → DB column)
   - `upstream`: Sink → source (e.g., DB column → UI fields)
@@ -18,34 +18,40 @@ Trace data lineage paths through the knowledge graph. Follow data flow from UI f
 
 ## Instructions
 
-1. Check that an index exists for the current project:
+1. **Search brain for the symbol** to find its location and references:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"<symbol>","limit":20}}'
    ```
-   If the output shows 0 symbols or the index is not found, stop and inform the user:
-   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+   If brain is unavailable or returns no results, fall back to Grep:
+   ```
+   Grep: <symbol> across all source files
+   ```
+   If no results at all, suggest: `wicked-brain:ingest` to index the codebase first.
 
-2. Run the lineage trace via the local unified index (primary):
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py lineage "<symbol_id>" --path "${PWD}"
-   ```
+2. **Trace data flow** using Grep to follow the symbol through layers:
+   - Search for imports/requires of the file containing the symbol
+   - Search for function calls that pass the symbol as an argument
+   - Search for assignments, mappings, and transformations of the symbol
+   - Follow the chain through controller → service → repository → database layers
 
 3. Report the lineage paths found:
    - Show each path with steps from source to sink
-   - Include confidence level and completeness status
+   - Include file locations at each step
    - Note any gaps in the lineage chain
 
 ## Examples
 
 ```bash
 # Trace downstream from a UI field
-/wicked-garden:search:lineage form_binding::person.firstName --direction downstream
+/wicked-garden:search:lineage firstName --direction downstream
 
 # Find all UI fields that use a database column
-/wicked-garden:search:lineage column::USERS.EMAIL --direction upstream
+/wicked-garden:search:lineage EMAIL --direction upstream
 
 # Trace both directions
-/wicked-garden:search:lineage entity_field::User.email --direction both
+/wicked-garden:search:lineage User.email --direction both
 ```
 
 ## Output
@@ -67,5 +73,5 @@ Trace data lineage paths through the knowledge graph. Follow data flow from UI f
 
 ## Notes
 
-- Requires indexing first with `/wicked-garden:search:index`
+- Brain search provides indexed symbol locations; Grep traces the connections
 - Use `/wicked-garden:search:impact` for reverse lineage (upstream consumers)

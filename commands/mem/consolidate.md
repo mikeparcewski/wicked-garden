@@ -1,43 +1,44 @@
 ---
 description: Manually trigger memory consolidation across tiers
 argument-hint: ""
-allowed-tools: [Bash, Read]
 ---
 
 # /wicked-garden:mem:consolidate
 
-Run memory consolidation across all three tiers: working, episodic, and semantic.
+Run memory consolidation via brain skills. This synthesizes wiki articles from memory chunks and auto-decays expired TTL chunks.
 
 ## What It Does
 
-1. **Working -> Episodic**: Promotes surviving working-tier memories to episodic.
-   Drops transient items (access_count <= 1 and past TTL). Merges similar items.
-2. **Episodic -> Semantic**: Promotes episodic memories that appear across 3+ sessions,
-   have access_count >= 10, or importance >= 8 to the semantic (permanent) tier.
-3. **Deduplication**: Finds near-duplicate memories within each tier using word-overlap
-   similarity and merges them (keeps highest importance/access_count).
+1. **Compile**: Synthesizes wiki articles from related memory chunks (groups by topic, creates knowledge pages)
+2. **Lint**: Auto-decays expired TTL chunks, cleans broken references, validates integrity
 
 ## Execution
 
-Run from the plugin directory using available Python:
+### Step 1: Invoke brain compile skill
 
-```bash
-cd "${CLAUDE_PLUGIN_ROOT}"
-python3 scripts/mem/memory.py consolidate
+```
+Skill(skill="wicked-brain-compile")
 ```
 
-Note: This script uses only standard library - no package manager needed.
+This is an LLM-driven operation that reads memory chunks, identifies concept clusters, and writes wiki articles to `~/.wicked-brain/wiki/concepts/`.
 
-## Output
+### Step 2: Invoke brain lint skill
 
-Display the JSON result showing counts for each consolidation pass:
-- `working_to_episodic`: {promoted, dropped, merged}
-- `episodic_to_semantic`: {promoted, merged, archived}
-- `deduplication`: {merged, archived}
+```
+Skill(skill="wicked-brain-lint")
+```
+
+This checks chunk health: expired TTL, broken wikilinks, missing frontmatter fields.
+
+### Step 3: Report results
+
+Display what compile created and what lint cleaned up.
+
+If brain is unavailable, suggest: `wicked-brain-server` to start it.
 
 ## When to Use
 
 - After long sessions with many working memories
-- Periodically to keep memory clean and promote recurring patterns
-- Before important sessions where you want semantic memories prioritized
-- Note: Working -> Episodic consolidation runs automatically on session end
+- Periodically to promote recurring patterns to wiki articles
+- Before important sessions where you want consolidated knowledge
+- Note: Working memory consolidation runs automatically on session end
