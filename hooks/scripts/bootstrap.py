@@ -320,12 +320,27 @@ def _load_kanban_summary():
 
 
 def _run_memory_decay():
-    """Run memory decay maintenance. Returns a summary string or None."""
+    """Run memory decay maintenance + brain lint. Returns a summary string or None."""
     try:
         from mem.memory import MemoryStore
         project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
         store = MemoryStore(project)
         result = store.run_decay()
+
+        # Also trigger brain:lint to auto-decay expired brain chunks
+        try:
+            import urllib.request
+            port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+            req = urllib.request.Request(
+                f"http://localhost:{port}/api",
+                data=json.dumps({"action": "lint", "params": {}}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=3)
+        except Exception:
+            pass  # brain lint is best-effort
+
         if result.get("archived", 0) > 0 or result.get("deleted", 0) > 0:
             return f"Memory: {result['archived']} archived, {result['deleted']} cleaned"
         return None
@@ -841,7 +856,9 @@ def main():
         if brain_note:
             mode_notes.append(brain_note)
 
-        # 7e. If brain server is reachable, check if it has any content
+        # 7e. Brain auto-init and auto-ingest
+        #     If brain is installed but has no content for this project, emit
+        #     a directive so the agent auto-runs init + ingest on first use.
         if brain_available:
             try:
                 import urllib.request
@@ -856,11 +873,21 @@ def main():
                     stats = json.loads(resp.read().decode("utf-8"))
                     if stats.get("total", 0) == 0:
                         mode_notes.append(
-                            "[wicked-brain] Brain is empty. "
-                            "Run `wicked-brain:ingest` to index your codebase."
+                            "[wicked-brain] Brain is empty for this project. "
+                            "You MUST run these skills now (non-blocking, async):\n"
+                            "  1. `wicked-brain:init` — initialize the brain if not already done\n"
+                            "  2. `wicked-brain:ingest` with the current working directory — "
+                            "index the codebase for search and memory\n"
+                            "Do NOT wait for ingest to complete before responding to the user."
                         )
             except Exception:
-                pass  # fail open
+                # Brain server not running — emit start directive
+                if brain_available:
+                    mode_notes.append(
+                        "[wicked-brain] Plugin installed but server is not running. "
+                        "You SHOULD invoke `wicked-brain-server` to start the brain server, "
+                        "then run `wicked-brain:ingest` to index the codebase."
+                    )
 
         # 8. Assemble session briefing
         # --- Status block (user-facing) ---

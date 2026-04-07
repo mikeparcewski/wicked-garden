@@ -5,7 +5,7 @@ argument-hint: "<doc-section>"
 
 # /wicked-garden:search:impl
 
-Find code that implements a documented feature or section by searching for implementation edges in the knowledge graph.
+Find code that implements a documented feature or section by searching the brain knowledge layer.
 
 ## Arguments
 
@@ -13,19 +13,23 @@ Find code that implements a documented feature or section by searching for imple
 
 ## Instructions
 
-1. Check that an index exists for the current project:
+1. **Search brain for the documented feature**:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"<doc-section>","limit":20}}'
    ```
-   If the output shows 0 symbols or the index is not found, stop and inform the user:
-   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
-
-2. Run the implementation search via the local unified index (primary):
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py impl "<doc-section>" --path "${PWD}"
+   If brain is unavailable or returns no results, fall back to Grep:
    ```
+   Grep: <doc-section> across all source files (*.py, *.js, *.ts, *.java, *.go, *.rb, *.rs)
+   ```
+   Suggest `wicked-brain:ingest` to index the codebase for richer implementation mapping.
 
-3. Report the code symbols that implement this section, with file locations.
+2. **Filter results** to code files (not docs) that reference or implement the feature.
+
+3. **Use Grep to verify** implementations by searching for class/function definitions in the matched files.
+
+4. Report the code symbols that implement this section, with file locations.
 
 ## Example
 
@@ -36,5 +40,5 @@ Find code that implements a documented feature or section by searching for imple
 
 ## Notes
 
-- Requires indexing first with `/wicked-garden:search:index`
-- Cross-references are auto-detected during indexing (CamelCase, snake_case, backtick-quoted names)
+- Brain search finds both code and doc chunks; filter to code for implementation mapping
+- Cross-references are detected during brain ingestion

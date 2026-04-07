@@ -5,7 +5,7 @@ argument-hint: "[--max-iterations N]"
 
 # /wicked-garden:search:quality
 
-Run the Index Quality Crew - coordinated agents that validate index quality and automatically fill gaps until >=95% accuracy is achieved.
+Run the Index Quality Crew - coordinated agents that validate brain index quality and automatically fill gaps until >=95% accuracy is achieved.
 
 ## Architecture
 
@@ -17,18 +17,20 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
 ## Arguments
 
 - `--max-iterations` (optional): Maximum iterations before stopping (default: 10)
-- `--project` (optional): Project to improve
 
 ## Instructions
 
-1. First, check current index quality via the local unified index:
+1. **Check current brain health and stats**:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"stats","params":{}}'
    ```
+   If brain is unavailable, inform the user and suggest starting it with `wicked-brain:server`.
 
-2. Run validation to establish baseline:
+2. **Run validation** to establish baseline:
    ```
-   /wicked-garden:search:validate ${project:+--project "${project}"}
+   /wicked-garden:search:validate
    ```
 
 3. If accuracy < 95%, iterate:
@@ -40,10 +42,7 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
 
    **Strategy phase**: Create extraction plan based on discoveries.
 
-   **Execute phase**: Re-index with the discovered patterns:
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py index "<project_path>" --force
-   ```
+   **Execute phase**: Re-ingest with the discovered content via `wicked-brain:ingest`.
 
    **Validate phase**: Re-run `/wicked-garden:search:validate` to check improvement.
 
@@ -54,5 +53,4 @@ Scout Agent → Strategy Agent → Validator Agent → Executor
 ```
 /wicked-garden:search:quality
 /wicked-garden:search:quality --max-iterations 3
-/wicked-garden:search:quality --project my-app
 ```

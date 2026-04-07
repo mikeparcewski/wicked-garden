@@ -237,14 +237,65 @@ def deduplicate(store: MemoryStore, tier: Optional[str] = None) -> Dict[str, int
 # Consolidated runner
 # ---------------------------------------------------------------------------
 
-def consolidate_all(store: MemoryStore) -> Dict:
-    """Run both consolidation passes and deduplication.
+def _trigger_brain_compile():
+    """Trigger brain:compile to synthesize wiki articles from chunks.
 
-    Returns combined stats from all three operations.
+    This maps the wicked-mem consolidation (chunks→wiki) to the brain's
+    compile pipeline. Fires async via the brain API — non-blocking.
+    Fails silently if brain is unavailable.
+    """
+    try:
+        import json
+        import os
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=json.dumps({"action": "compile", "params": {}}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass  # brain compile is best-effort
+
+
+def _trigger_brain_lint():
+    """Trigger brain:lint to auto-decay working-tier chunks with expired TTL.
+
+    Maps wicked-mem working-tier decay to brain's lint pipeline.
+    Fails silently if brain is unavailable.
+    """
+    try:
+        import json
+        import os
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=json.dumps({"action": "lint", "params": {}}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass  # brain lint is best-effort
+
+
+def consolidate_all(store: MemoryStore) -> Dict:
+    """Run both consolidation passes, deduplication, and brain sync.
+
+    Returns combined stats from all operations.
     """
     working_stats = consolidate_working(store)
     episodic_stats = consolidate_episodic(store)
     dedup_stats = deduplicate(store)
+
+    # Trigger brain compile + lint after consolidation
+    # compile: synthesizes wiki articles from promoted chunks
+    # lint: auto-decays expired working-tier brain chunks
+    _trigger_brain_compile()
+    _trigger_brain_lint()
 
     result = {
         "working_to_episodic": working_stats,

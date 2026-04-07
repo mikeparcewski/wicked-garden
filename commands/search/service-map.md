@@ -5,31 +5,36 @@ argument-hint: "[project_root] [--format table|json|mermaid]"
 
 # /wicked-garden:search:service-map
 
-Detect services and their connections from infrastructure configuration files and the knowledge graph. Generates a service dependency map.
+Detect services and their connections from infrastructure configuration files and the brain knowledge layer. Generates a service dependency map.
 
 ## Arguments
 
 - `project_root` (optional): Project root directory to scan (default: current directory)
 - `--format` (optional): Output format - table, json, mermaid (default: table)
-- `--project` (optional): Project name in knowledge graph
 
 ## Instructions
 
-1. Detect infrastructure-defined services by scanning for config files:
+1. **Detect infrastructure-defined services** by scanning for config files:
    ```
    Glob: **/docker-compose*.yml, **/k8s/**, **/kubernetes/**, **/helm/**
    ```
-
    Parse found files to extract service names, types, and connections.
 
-2. Query the local unified index for code-level services (primary):
+2. **Search brain for service patterns** in the codebase:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py service-map --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"service endpoint controller route","limit":30}}'
    ```
+   If brain is unavailable, fall back to Grep:
+   ```
+   Grep: @(Service|RestController|Controller|Router|app\.(get|post|put|delete))
+   ```
+   Suggest `wicked-brain:ingest` to index the codebase for richer service discovery.
 
 3. Merge infrastructure and code-level discoveries into a unified service map.
 
-5. Report in requested format:
+4. Report in requested format:
 
    ### Table Format (default)
    ```markdown
@@ -56,7 +61,7 @@ Detect services and their connections from infrastructure configuration files an
 ```
 /wicked-garden:search:service-map
 /wicked-garden:search:service-map --format mermaid
-/wicked-garden:search:service-map /path/to/project --project my-app
+/wicked-garden:search:service-map /path/to/project
 ```
 
 ## Detection Sources (Priority Order)
@@ -68,4 +73,4 @@ Detect services and their connections from infrastructure configuration files an
 ## Notes
 
 - Infrastructure sources (docker, k8s) don't require indexing
-- Code patterns require prior indexing with `/wicked-garden:search:index`
+- Code patterns benefit from brain indexing via `wicked-brain:ingest`

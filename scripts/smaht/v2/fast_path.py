@@ -28,11 +28,11 @@ from adapter_registry import AdapterRegistry, timed_query, CACHE_BYPASS
 # Adapter selection rules by intent
 # "domain" is the DomainStore adapter — queries kanban/crew/jam directly
 ADAPTER_RULES = {
-    IntentType.DEBUGGING: ["domain", "delegation"],
-    IntentType.IMPLEMENTATION: ["domain", "context7", "tools", "delegation"],
+    IntentType.DEBUGGING: ["domain", "brain", "delegation"],
+    IntentType.IMPLEMENTATION: ["domain", "brain", "context7", "tools", "delegation"],
     IntentType.PLANNING: ["domain", "events", "delegation"],
-    IntentType.RESEARCH: ["domain", "events", "context7", "tools", "delegation"],
-    IntentType.REVIEW: ["domain", "events", "delegation"],
+    IntentType.RESEARCH: ["domain", "brain", "events", "context7", "tools", "delegation"],
+    IntentType.REVIEW: ["domain", "brain", "events", "delegation"],
     IntentType.GENERAL: ["domain", "delegation"],
 }
 

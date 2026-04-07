@@ -5,14 +5,10 @@ description = "AI-Native SDLC delivered as a single Claude Code plugin"
 requires-python = ">=3.10"
 dependencies = [
     "rapidfuzz>=3.0",
-    "tree-sitter>=0.20.0",
-    "tree-sitter-language-pack",
     "aiofiles>=23.0",
     "pydantic>=2.0",
     "pathspec>=0.11.0",
-    "lxml>=4.9.0",
     "pyyaml>=6.0",
-    "kreuzberg>=3.7.0",
 ]
 
 [project.optional-dependencies]

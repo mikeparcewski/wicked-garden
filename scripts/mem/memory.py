@@ -402,6 +402,12 @@ class MemoryStore:
         memories = []
         seen_ids = set()
 
+        # When brain is available and we have a query, search brain FTS5 first
+        # for better BM25 ranking, then fill from DomainStore for completeness
+        brain_priority_ids = set()
+        if query and self._brain_port:
+            brain_priority_ids = self._brain_recall(query, limit * 2)
+
         # Use FTS5 search when query is present, list for tag/type-only filters
         if query:
             records = self._sm.search("memories", query, **params)
@@ -436,11 +442,13 @@ class MemoryStore:
         if not include_archived:
             memories = [m for m in memories if m.status == MemoryStatus.ACTIVE.value]
 
-        # Sort with tier weighting applied on top of access_count + recency ranking
-        memories.sort(
-            key=lambda m: (m.access_count * _TIER_WEIGHT.get(m.tier, 1.0), m.accessed),
-            reverse=True,
-        )
+        # Sort with tier weighting + brain boost applied on top of access_count + recency
+        def _sort_key(m):
+            tier_w = _TIER_WEIGHT.get(m.tier, 1.0)
+            brain_boost = 1.5 if m.id in brain_priority_ids else 1.0
+            return (m.access_count * tier_w * brain_boost, m.accessed)
+
+        memories.sort(key=_sort_key, reverse=True)
 
         # Update access for returned memories (only for current-project records)
         for memory in memories[:limit]:
@@ -682,6 +690,37 @@ class MemoryStore:
         })
 
     # ==================== Brain Integration ====================
+
+    def _brain_recall(self, query: str, limit: int = 20) -> set:
+        """Search brain FTS5 for memory IDs matching query. Returns set of IDs."""
+        if not self._brain_port:
+            return set()
+        try:
+            import urllib.request
+            payload = json.dumps({
+                "action": "search",
+                "params": {"query": query, "limit": limit},
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                f"http://localhost:{self._brain_port}/api",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                ids = set()
+                for r in data.get("results", []):
+                    path = r.get("path", "") or r.get("id", "")
+                    if "/mem-" in path:
+                        # Extract memory UUID from chunk path
+                        part = path.split("/mem-")[-1]
+                        if part.endswith(".md"):
+                            part = part[:-3]
+                        ids.add(part)
+                return ids
+        except Exception:
+            return set()
 
     def _brain_index(self, memory: Memory):
         """Index memory in brain FTS5 for cross-domain search. Fails silently."""
