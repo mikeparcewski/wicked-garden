@@ -281,6 +281,8 @@ Where `{selection}` is one of: `github`, `linear`, `jira`, `ado`, `rally`, `loca
 
 #### 5.1 Full Onboarding
 
+Full onboarding runs the **brain pipeline** — a single sequence that initializes the knowledge layer, indexes the codebase, improves search quality, and stores onboarding context. The user doesn't need to know about these individual steps.
+
 First, ask which directories to onboard:
 
 **INTERACTIVE mode**: Use AskUserQuestion with header "Directories", options: "Current directory (Recommended)" = "Onboard the project root: {cwd}", "Specify directories" = "Choose specific directories to index (enter paths via Other)".
@@ -297,23 +299,52 @@ Then STOP and wait for the user's reply.
 
 **After receiving the answer**: Verify the selection. Echo it back.
 
-Then invoke the onboarding engine:
+##### Brain Pipeline (runs automatically as part of full onboarding)
 
+Execute these steps in sequence. Show progress to the user as each completes. If any step fails, log it and continue — each step is independently valuable.
+
+**Step A — Brain init** (if brain doesn't exist):
+```bash
+curl -s -X POST http://localhost:4242/api -H "Content-Type: application/json" -d '{"action":"health","params":{}}' 2>/dev/null
 ```
-Skill(skill="wicked-garden:smaht:onboard")
+If connection refused or no brain directory at `~/.wicked-brain`:
+```
+Skill(skill="wicked-brain-init")
+```
+Then start the server:
+```
+Skill(skill="wicked-brain-server")
 ```
 
-If the user specified custom directories, pass them as context to the onboarding skill.
+**Step B — Ingest codebase** (index all files into brain FTS5):
+```
+Skill(skill="wicked-brain-ingest", args="{selected_directory}")
+```
+Show: "Indexing codebase into brain..."
 
-This handles indexing, exploration, memory storage, and validation.
+**Step C — Retag** (expand mechanical keywords into semantic tags):
+```
+Skill(skill="wicked-brain-retag")
+```
+Show: "Improving search tags..."
 
-After onboarding completes, store an enriched onboarding memory with detected context from Step 5.0:
+**Step D — Compile** (synthesize wiki articles from chunk clusters):
+```
+Skill(skill="wicked-brain-compile")
+```
+Show: "Generating knowledge articles..."
+
+**Step E — Store onboarding memory** as a brain chunk:
+
+Store an enriched onboarding memory with detected context from Step 5.0:
 
 ```
 Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.\" --type procedural --tags onboarding,project-context,{project}")
 ```
 
 Where `{DETECTED_TOOLS_SUMMARY}` lists only the tools where the value is `true` (e.g., "gh, docker").
+
+Show: "Onboarding complete — brain has {N} chunks, {M} wiki articles."
 
 #### 5.2 Quick Scout
 

@@ -878,19 +878,21 @@ def main():
                     if stats.get("total", 0) == 0:
                         mode_notes.append(
                             "[wicked-brain] Brain is empty for this project. "
-                            "You MUST run these skills now (non-blocking, async):\n"
-                            "  1. `wicked-brain:init` — initialize the brain if not already done\n"
-                            "  2. `wicked-brain:ingest` with the current working directory — "
-                            "index the codebase for search and memory\n"
-                            "Do NOT wait for ingest to complete before responding to the user."
+                            "You MUST run the full brain pipeline now as background agents:\n"
+                            "  1. `wicked-brain:init` — initialize the brain if needed\n"
+                            "  2. `wicked-brain:ingest` with the current working directory\n"
+                            "  3. `wicked-brain:retag` — expand keywords into semantic tags\n"
+                            "  4. `wicked-brain:compile` — synthesize wiki articles from chunks\n"
+                            "Run these sequentially in a background agent. "
+                            "Do NOT wait for completion before responding to the user."
                         )
             except Exception:
                 # Brain server not running — emit start directive
                 if brain_available:
                     mode_notes.append(
                         "[wicked-brain] Plugin installed but server is not running. "
-                        "You SHOULD invoke `wicked-brain-server` to start the brain server, "
-                        "then run `wicked-brain:ingest` to index the codebase."
+                        "You MUST invoke `wicked-brain-server` to start the brain server, "
+                        "then run the brain pipeline: ingest → retag → compile."
                     )
 
         # 8. Assemble session briefing

@@ -374,8 +374,9 @@ def _handle_write_edit(tool_input: dict) -> dict:
     if sync_msg:
         messages.append(sync_msg)
 
-    # 1. Mark file stale for wicked-search
+    # 1. Mark file stale + re-index in brain
     _mark_file_stale(file_path)
+    _brain_reindex_file(file_path)
 
     # 2. QE change tracking
     qe_nudge = _track_qe_change(file_path)
@@ -455,6 +456,54 @@ def _mark_file_stale(file_path: str) -> None:
             state.update(stale_files=stale)
     except Exception:
         pass
+
+
+def _brain_reindex_file(file_path: str) -> None:
+    """Re-index a changed file in the brain FTS5 index. Fails silently.
+
+    Reads the file content and POSTs it to the brain index API so the brain
+    stays current as files are edited during the session. Async-safe: uses
+    stdlib urllib with a short timeout.
+    """
+    try:
+        import urllib.request
+        p = Path(file_path)
+        if not p.exists() or not p.is_file():
+            return
+        # Only index text files the brain cares about
+        text_ext = {".md", ".txt", ".py", ".js", ".ts", ".jsx", ".tsx", ".sh",
+                    ".json", ".yaml", ".yml", ".toml", ".html", ".css", ".mjs"}
+        if p.suffix.lower() not in text_ext:
+            return
+        # Read content (cap at 50KB to avoid slow indexing on huge files)
+        content = p.read_text(encoding="utf-8", errors="replace")[:50000]
+        if not content.strip():
+            return
+        # Build a safe chunk ID from the file path
+        safe = file_path.lower().replace("/", "-").replace("\\", "-")
+        safe = re.sub(r"[^a-z0-9.-]", "-", safe)
+        safe = re.sub(r"-+", "-", safe).strip("-")
+        chunk_id = f"chunks/extracted/{safe}/chunk-001.md"
+
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({
+            "action": "index",
+            "params": {
+                "id": chunk_id,
+                "path": chunk_id,
+                "content": content,
+                "brain_id": "wicked-brain",
+            },
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=2)
+    except Exception:
+        pass  # brain re-index is best-effort, never blocks the hook
 
 
 def _track_qe_change(file_path: str):
