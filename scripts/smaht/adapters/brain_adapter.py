@@ -99,29 +99,40 @@ def _readable_title(source_file: str) -> str:
 def _clean_snippet(raw: str) -> str:
     """Strip YAML frontmatter lines and FTS highlight tags from snippet.
 
-    FTS5 snippets may contain frontmatter content when the brain server
-    re-indexes full chunk files (including frontmatter prepended on write).
+    FTS5 snippets contain frontmatter when the brain server re-indexes full
+    chunk files. Strip aggressively: snake_case keys, floats, timestamps,
+    list tags, and separator markers.
     """
     import re as _re
+
     # Remove FTS5 highlight markers and ellipsis separators
     text = _re.sub(r"<[^>]+>", "", raw)
     text = text.replace("…", " ").replace("...", " ")
-    # Strip YAML-looking tokens (key: value patterns, list items, ---) regardless of position
-    # These appear when FTS snippet lands in frontmatter content
+
+    # Patterns that indicate frontmatter / metadata noise — skip these lines
+    _yaml_key = _re.compile(r'^[a-z][a-z_]+:\s*')        # snake_case key: value
+    _bare_float = _re.compile(r'^\d+\.\d+$')              # e.g. "0.7"
+    _timestamp = _re.compile(r'^\d{4}-\d{2}-\d{2}')       # ISO date
+    _tag_list = _re.compile(r'^- [a-z][\w\-]*$')          # bare tag list items
+    _uuid_like = _re.compile(r'^[a-f0-9\-]{8,}$')         # UUIDs
+    # YAML values that are bare file paths (stripped of their key, leftover orphans)
+    _file_path = _re.compile(r'^[\w/.\- ]+\.(md|py|js|ts|jsx|tsx|json|yaml|yml|sh|txt)$')
+
     lines = []
     for line in text.split("\n"):
         stripped = line.strip()
         if not stripped or stripped == "---":
             continue
-        # Skip lines that look like YAML (key: value with no sentence punctuation)
-        if _re.match(r'^[\w_\-]+:\s+\S', stripped) and '.' not in stripped[:40]:
-            continue
-        # Skip bare list items that look like tag lists
-        if stripped.startswith('- ') and not _re.search(r'[.!?]', stripped):
+        if (_yaml_key.match(stripped)
+                or _bare_float.match(stripped)
+                or _timestamp.match(stripped)
+                or _tag_list.match(stripped)
+                or _uuid_like.match(stripped)
+                or _file_path.match(stripped)):
             continue
         lines.append(stripped)
+
     result = " ".join(lines).strip()
-    # If nothing survived, return empty (will be omitted from briefing)
     return result[:160] if result else ""
 
 
