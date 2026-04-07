@@ -13,23 +13,22 @@ Search across both code symbols and documents via the unified index.
 
 ## Instructions
 
-1. Check that an index exists for the current project:
+1. **Search via brain** (unified knowledge layer):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"<query>","limit":10}}'
    ```
-   If the output shows 0 symbols or the index is not found, stop and inform the user:
-   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+   If the response contains `"results"` with entries, report them grouped by type.
 
-2. Run the unified search via the local index (primary):
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py search "<query>" --path "${PWD}"
-   ```
+2. **If brain is unavailable** (connection refused or empty results):
+   Fall back to native tools — use Grep and Glob to search the codebase directly.
+   Suggest: `wicked-brain:ingest` to index the codebase for richer search.
 
-3. Report results grouped by type (code symbols vs documents), with relevance context:
+3. Report results with:
    - Symbol name and type
    - File location
-   - Score
-   - Description snippet
+   - Score / relevance snippet
 
 ## Example
 

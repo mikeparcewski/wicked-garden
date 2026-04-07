@@ -13,16 +13,20 @@ Show statistics about the indexed search database.
 
 ## Instructions
 
-1. Run the stats query via the local unified index (primary):
+1. **Get brain stats** (unified knowledge layer):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"stats","params":{}}'
    ```
 
-2. Report:
-   - Total symbols indexed
-   - Total references/edges
-   - Breakdown by symbol type
-   - Projects indexed
+2. **If brain is unavailable**, report that no index is available and suggest:
+   > Run `wicked-brain:ingest` to build the search index.
+
+3. Report:
+   - Brain status (online/offline)
+   - Total chunks, wiki articles, memories
+   - Database size, last indexed timestamp
 
 ## Example
 

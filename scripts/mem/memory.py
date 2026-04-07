@@ -158,11 +158,37 @@ def generate_id() -> str:
 
 
 class MemoryStore:
-    """StorageManager-backed memory storage and operations."""
+    """StorageManager-backed memory storage with optional brain integration.
+
+    When wicked-brain is available, memories are ALSO indexed in brain's FTS5
+    for richer cross-domain search. DomainStore remains the source of truth
+    for CRUD; brain is a search accelerator.
+    """
 
     def __init__(self, project: Optional[str] = None):
         self.project = project or self._detect_project()
         self._sm = StorageManager("wicked-mem")
+        self._brain_port = self._probe_brain()
+
+    @staticmethod
+    def _probe_brain() -> Optional[int]:
+        """Probe brain server availability. Returns port or None."""
+        try:
+            import urllib.request
+            port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+            req = urllib.request.Request(
+                f"http://localhost:{port}/api",
+                data=json.dumps({"action": "health", "params": {}}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=1) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("status") == "ok":
+                    return port
+        except Exception:
+            pass
+        return None
 
     def _detect_project(self) -> Optional[str]:
         """Detect project name from current directory."""
@@ -339,6 +365,7 @@ class MemoryStore:
         )
 
         self._sm.create("memories", self._memory_to_dict(memory))
+        self._brain_index(memory)
         _log("mem", "verbose", "memory.stored",
              ok=True,
              detail={"title": memory.title[:60], "type": memory.type,
@@ -568,6 +595,7 @@ class MemoryStore:
 
         if hard:
             self._sm.delete("memories", memory_id)
+            self._brain_remove(memory_id)
         else:
             self._sm.update("memories", memory_id, {"status": MemoryStatus.ARCHIVED.value})
         return True
@@ -652,6 +680,58 @@ class MemoryStore:
             "accessed_at": memory.accessed,
             "access_count": memory.access_count,
         })
+
+    # ==================== Brain Integration ====================
+
+    def _brain_index(self, memory: Memory):
+        """Index memory in brain FTS5 for cross-domain search. Fails silently."""
+        if not self._brain_port:
+            return
+        try:
+            import urllib.request
+            search_text = f"{memory.title} {memory.summary} {memory.content} {' '.join(memory.tags)}"
+            chunk_id = f"memories/{memory.tier}/mem-{memory.id}"
+            payload = json.dumps({
+                "action": "index",
+                "params": {
+                    "id": chunk_id,
+                    "path": chunk_id,
+                    "content": search_text,
+                    "brain_id": "wicked-brain",
+                },
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                f"http://localhost:{self._brain_port}/api",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=2)
+        except Exception:
+            pass  # brain indexing is best-effort
+
+    def _brain_remove(self, memory_id: str):
+        """Remove memory from brain FTS5 index. Fails silently."""
+        if not self._brain_port:
+            return
+        try:
+            import urllib.request
+            # Try all tier prefixes since we don't know which tier the memory was in
+            for tier in ("working", "episodic", "semantic"):
+                chunk_id = f"memories/{tier}/mem-{memory_id}"
+                payload = json.dumps({
+                    "action": "remove",
+                    "params": {"id": chunk_id},
+                }).encode("utf-8")
+                req = urllib.request.Request(
+                    f"http://localhost:{self._brain_port}/api",
+                    data=payload,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                urllib.request.urlopen(req, timeout=1)
+        except Exception:
+            pass
 
     # ==================== Utility ====================
 

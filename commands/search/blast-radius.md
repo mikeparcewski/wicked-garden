@@ -14,17 +14,18 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
 
 ## Instructions
 
-1. Check that an index exists for the current project:
+1. **Search via brain** for reference discovery:
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"<symbol>","limit":30}}'
    ```
-   If the output shows 0 symbols or the index is not found, stop and inform the user:
-   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+   Use matching chunks as the starting set for blast radius analysis.
 
-2. Run the blast radius analysis via the local unified index (primary):
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py blast-radius "<symbol>" --depth "${depth:-2}" --path "${PWD}"
-   ```
+2. **Expand with native tools**: Use Grep to find transitive dependencies at the requested depth. For each direct reference found, search for its callers/importers to build the dependency graph.
+
+3. **If brain is unavailable**: Use Grep and Glob exclusively to trace the dependency chain.
+   Suggest: `wicked-brain:ingest` for richer graph-based analysis.
 
 3. Report the impact assessment:
    - **Dependencies** (outgoing): What this symbol uses/imports

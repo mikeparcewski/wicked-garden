@@ -13,21 +13,19 @@ Search code symbols only (functions, classes, methods) via the knowledge graph.
 
 ## Instructions
 
-1. Check that an index exists for the current project:
+1. **Search via brain** (unified knowledge layer):
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py stats --path "${PWD}"
+   curl -s -X POST http://localhost:4242/api \
+     -H "Content-Type: application/json" \
+     -d '{"action":"search","params":{"query":"<query>","limit":10}}'
    ```
-   If the output shows 0 symbols or the index is not found, stop and inform the user:
-   > No index found for this directory. Run `/wicked-garden:search:index .` first to build the search index.
+   Filter results to code file types (.py, .js, .ts, .go, .java, .rb, .rs, .sh).
 
-2. Run the code search via the local unified index (primary):
-   ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py code "<query>" --path "${PWD}"
-   ```
+2. **If brain is unavailable** (connection refused or empty results):
+   Fall back to native tools — use Grep to search for the symbol/pattern across code files.
+   Suggest: `wicked-brain:ingest` to index the codebase for richer search.
 
-3. Parse results. Each contains: `name`, `type`, `file`, `line`, `score`.
-
-5. Report matching symbols with file locations and types.
+3. Report matching symbols with file locations and types.
 
 ## Example
 
