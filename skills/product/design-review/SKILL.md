@@ -152,8 +152,7 @@ Fast improvements with high impact:
 
 **Tools:**
 ```bash
-# Screenshots for comparison
-wicked-browse screenshot {url} --output design-review/
+# Screenshots: Use the Read tool on a screenshot file, or capture via browser automation if available.
 
 # Color contrast
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/contrast-check.py" "#666" "#fff"

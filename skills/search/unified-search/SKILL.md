@@ -80,10 +80,12 @@ Use `/wicked-garden:search:search` for:
 
 ## Architecture
 
-All search commands query the **knowledge graph** via search scripts:
+All search commands query the **knowledge graph** via the brain API:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py {verb} [--param value ...]
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"...","limit":10}}'
 ```
 
 ### Knowledge Domain Sources
@@ -102,7 +104,9 @@ cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py {ver
 ### Traverse
 BFS traversal from a symbol, returning full node/edge objects:
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py traverse <symbol-id> --depth 2 --direction both
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"<symbol-id>","limit":10}}'
 ```
 - `--depth`: 1-3 (default 1, max 3)
 - `--direction`: `both`, `in`, `out`
@@ -111,16 +115,19 @@ cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py traverse <sy
 ### Hotspots
 Rank symbols by total connectivity (in-degree + out-degree):
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py hotspots --limit 10 --layer backend --type entity
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"hotspots","limit":10}}'
 ```
 - Supports `--layer` and `--type` filters
 - Default limit: 20, sorted by total_count descending
 
 ### Multi-Project
-All verbs support `--project` for multi-codebase isolation:
+All queries support project-scoped isolation via the brain API:
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py projects list
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/graph.py hotspots --project my-app
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"hotspots","project":"my-app","limit":10}}'
 ```
 
 ## Cross-Reference Detection

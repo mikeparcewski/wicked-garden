@@ -66,7 +66,7 @@ Effective prompts follow this structure:
 
 Example: "A minimalist office workspace with a single monitor, soft natural side lighting, centered composition, matte finish, neutral color palette"
 
-For detailed prompt engineering techniques, see [refs/prompt_engineering.md](refs/prompt_engineering.md).
+For detailed prompt engineering techniques, see [refs/prompt-engineering.md](refs/prompt-engineering.md).
 
 ### Step 3: Generate
 
@@ -97,8 +97,8 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imag
 
 ## Detailed References
 
-- **Provider APIs and configuration**: [refs/provider_reference.md](refs/provider_reference.md)
-- **Prompt engineering techniques**: [refs/prompt_engineering.md](refs/prompt_engineering.md)
+- **Provider APIs and configuration**: [refs/provider-reference.md](refs/provider-reference.md)
+- **Prompt engineering techniques**: [refs/prompt-engineering.md](refs/prompt-engineering.md)
 
 ## Integration With Other Sub-Skills
 

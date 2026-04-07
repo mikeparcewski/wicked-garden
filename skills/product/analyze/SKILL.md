@@ -66,12 +66,12 @@ See [refs/algorithms.md](refs/algorithms.md) for detailed scoring.
 1. **Load Feedback Data**:
    ```bash
    LOCAL_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product)
-   # Count total items
-   find "${LOCAL_ROOT}/voice/feedback/" -name "*.md" | wc -l
-
-   # Load recent feedback
-   find "${LOCAL_ROOT}/voice/feedback/" -name "*.md" -mtime -30
    ```
+   Then use the **Glob** tool to find feedback files:
+   ```
+   Glob(pattern="**/*.md", path="${LOCAL_ROOT}/voice/feedback/")
+   ```
+   Read individual files with the **Read** tool to load recent feedback.
 
 2. **Extract Themes**:
    - Keyword frequency analysis

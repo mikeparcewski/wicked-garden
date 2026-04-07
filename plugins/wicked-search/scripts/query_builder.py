@@ -21,9 +21,21 @@ from collections import defaultdict, deque
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-# Import FTS5 query sanitizer from sibling scripts directory
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _sqlite_store import _sanitize_fts_query
+def _sanitize_fts_query(query: str) -> str:
+    """Sanitize a query string for FTS5 MATCH syntax.
+
+    Strips characters that are special in FTS5 (quotes, parentheses,
+    Boolean operators) and wraps each token with implicit AND.
+    """
+    import re
+    # Remove FTS5 special chars: " ' ( ) * : ^
+    cleaned = re.sub(r'["\'\(\)\*\:\^]', " ", query)
+    # Collapse whitespace and strip
+    tokens = cleaned.split()
+    if not tokens:
+        return '""'
+    # Quote each token to prevent FTS5 syntax errors
+    return " ".join(f'"{t}"' for t in tokens)
 
 
 class UnifiedQueryEngine:

@@ -35,16 +35,20 @@ record = ds.get("memories", "abc123")
 results = ds.list("memories", limit=10)
 ```
 
-### SqliteStore
+### Brain API
 
-Full-text search via SQLite FTS5 with BM25 ranking. Used by search and memory domains for fast querying.
+Full-text search via the wicked-brain server (FTS5 + BM25 ranking). Used by search and memory domains for fast querying.
 
-```python
-from _sqlite_store import SqliteStore
+```bash
+# Search
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"deployment","limit":10}}'
 
-store = SqliteStore()
-store.create("wicked-mem", "memories", "id-001", {"title": "Deploy", "content": "Use WAL mode"})
-results = store.search("deployment", domain="wicked-mem", limit=10)
+# Index a chunk
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"index","params":{"id":"chunk-path","path":"chunk-path","content":"text","brain_id":"wicked-brain"}}'
 ```
 
 ### EventStore (v3.0+)

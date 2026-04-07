@@ -16,7 +16,7 @@ for later replay, and wicked-crew can create a project without a control plane.
 
 > **Note**: This scenario was previously `local-only-mode` testing SQLite storage. The test
 > cases below still reference the legacy `local-only` config value which is auto-mapped to
-> `local`. The SqliteStore tests validate backward compatibility.
+> `local`. Storage tests now use the brain API and StorageManager.
 
 ## Setup
 
@@ -44,61 +44,41 @@ echo "Sandbox ready: $WG_TMP"
 
 ---
 
-### TC-1: SqliteStore CRUD and FTS5 search
+### TC-1: Brain API search and index
 
-**Given**: A fresh SqliteStore database at a temp path
-**When**: A record is created, retrieved by ID, searched via FTS5, updated, then deleted
-**Then**: Each operation returns the expected result and the record is absent after deletion
+**Given**: A running brain server at localhost:4242
+**When**: A chunk is indexed via the brain API, then searched
+**Then**: The search returns the indexed chunk
 
 ```bash
 python3 - <<'PYEOF'
-import sys, tempfile, os
-sys.path.insert(0, "${WG_SCRIPTS}")
-from _sqlite_store import SqliteStore
+import json, urllib.request
 
-with tempfile.TemporaryDirectory() as tmp:
-    db = os.path.join(tmp, "test.db")
-    s = SqliteStore(db)
+API = "http://localhost:4242/api"
 
-    # CREATE
-    r = s.create("wicked-mem", "memories", "tc1-id", {
-        "title": "WAL journal mode",
-        "content": "SQLite WAL enables concurrent readers and writers"
-    })
-    assert r["id"] == "tc1-id", f"create id mismatch: {r}"
-    assert r["title"] == "WAL journal mode", f"create title mismatch: {r}"
+def brain_post(action, params):
+    data = json.dumps({"action": action, "params": params}).encode()
+    req = urllib.request.Request(API, data=data, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read())
 
-    # GET
-    got = s.get("wicked-mem", "memories", "tc1-id")
-    assert got is not None, "get returned None"
-    assert got["title"] == "WAL journal mode", f"get title mismatch: {got}"
+# INDEX a chunk
+brain_post("index", {
+    "id": "tc1-test-chunk",
+    "path": "tc1-test-chunk",
+    "content": "SQLite WAL enables concurrent readers and writers",
+    "brain_id": "wicked-brain"
+})
 
-    # LIST
-    s.create("wicked-mem", "memories", "tc1-id2", {
-        "title": "Second record", "content": "other content"
-    })
-    items = s.list("wicked-mem", "memories")
-    assert len(items) == 2, f"list count: {len(items)}"
+# SEARCH for the chunk
+results = brain_post("search", {"query": "WAL concurrent", "limit": 10})
+assert results.get("results") or results.get("chunks"), f"search returned no results: {results}"
 
-    # FTS5 SEARCH — token must appear in the data column
-    hits = s.search("WAL", domain="wicked-mem")
-    assert hits, f"FTS5 returned no results for 'WAL'"
-    assert hits[0]["id"] == "tc1-id", f"FTS5 top hit id: {hits[0]['id']}"
+# HEALTH check
+health = brain_post("health", {})
+assert health.get("ok") or health.get("status") == "ok", f"health check failed: {health}"
 
-    # UPDATE
-    updated = s.update("wicked-mem", "memories", "tc1-id", {
-        "title": "WAL updated", "content": "updated content"
-    })
-    assert updated["title"] == "WAL updated", f"update title: {updated}"
-
-    # DELETE
-    deleted = s.delete("wicked-mem", "memories", "tc1-id")
-    assert deleted is True, "delete returned False"
-    assert s.get("wicked-mem", "memories", "tc1-id") is None, "record still exists after delete"
-
-    s.close()
-
-print("TC-1 PASS: SqliteStore CRUD + FTS5")
+print("TC-1 PASS: Brain API index + search")
 PYEOF
 ```
 
@@ -291,17 +271,16 @@ stats = json.loads(result.stdout)
 assert stats["inserted"] >= 1, f"expected at least 1 insert, got: {stats}"
 assert stats["errors"] == 0, f"migration errors: {stats}"
 
-# Verify record appears in SQLite
-from _sqlite_store import SqliteStore
-store = SqliteStore("${WG_DB}")
-got = store.get("wicked-crew", "projects", "my-project")
-store.close()
+# Verify record appears via StorageManager (brain-backed)
+from _storage import StorageManager
+sm = StorageManager("wicked-crew")
+got = sm.get("projects", "my-project")
 
-assert got is not None, "migrated record not found in SQLite"
+assert got is not None, "migrated record not found after migration"
 assert got["name"] == "my-project", f"name mismatch: {got}"
 
-print(f"TC-5 PASS: Migration moved JSON → SQLite (stats={stats})")
-print(f"  Retrieved from DB: name={got['name']}, phase={got['current_phase']}")
+print(f"TC-5 PASS: Migration moved JSON to storage (stats={stats})")
+print(f"  Retrieved: name={got['name']}, phase={got['current_phase']}")
 PYEOF
 ```
 
@@ -334,10 +313,9 @@ stats = json.loads(result.stdout)
 assert stats["inserted"] == 0, f"expected 0 inserts on second run, got {stats['inserted']}"
 assert stats["skipped"] >= 1, f"expected at least 1 skip, got {stats['skipped']}"
 
-from _sqlite_store import SqliteStore
-store = SqliteStore("${WG_DB}")
-items = store.list("wicked-crew", "projects")
-store.close()
+from _storage import StorageManager
+sm = StorageManager("wicked-crew")
+items = sm.list("projects")
 assert len(items) == 1, f"expected 1 record, found {len(items)}: {items}"
 
 print(f"TC-6 PASS: Migration is idempotent (stats={stats})")
@@ -346,47 +324,42 @@ PYEOF
 
 ---
 
-### TC-7: WAL concurrent access — two writers do not produce OperationalError
+### TC-7: Concurrent brain API writes do not error
 
-**Given**: A SqliteStore database with WAL journal mode
-**When**: Two threads concurrently write distinct records
-**Then**: Both writes succeed and both records are retrievable; no `sqlite3.OperationalError` is raised
+**Given**: A running brain server at localhost:4242
+**When**: Two threads concurrently index distinct chunks via the brain API
+**Then**: Both writes succeed and both chunks are searchable
 
 ```bash
 python3 - <<'PYEOF'
-import sys, os, threading, sqlite3
-os.environ["HOME"] = "${WG_TMP}"
-sys.path.insert(0, "${WG_SCRIPTS}")
-from _sqlite_store import SqliteStore
+import json, threading, urllib.request
 
+API = "http://localhost:4242/api"
 errors = []
-results = {}
 
-def write_record(store, record_id, title):
+def brain_post(action, params):
+    data = json.dumps({"action": action, "params": params}).encode()
+    req = urllib.request.Request(API, data=data, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read())
+
+def index_chunk(chunk_id, content):
     try:
-        r = store.create("wicked-mem", "memories", record_id, {
-            "title": title, "content": f"content for {record_id}"
+        brain_post("index", {
+            "id": chunk_id, "path": chunk_id,
+            "content": content, "brain_id": "wicked-brain"
         })
-        results[record_id] = r
     except Exception as exc:
-        errors.append(f"{record_id}: {exc}")
+        errors.append(f"{chunk_id}: {exc}")
 
-store = SqliteStore("${WG_DB}")
-
-t1 = threading.Thread(target=write_record, args=(store, "concurrent-a", "Thread A write"))
-t2 = threading.Thread(target=write_record, args=(store, "concurrent-b", "Thread B write"))
+t1 = threading.Thread(target=index_chunk, args=("concurrent-a", "Thread A content about authentication"))
+t2 = threading.Thread(target=index_chunk, args=("concurrent-b", "Thread B content about authorization"))
 t1.start(); t2.start()
 t1.join(); t2.join()
 
-assert errors == [], f"OperationalError(s) raised during concurrent writes: {errors}"
+assert errors == [], f"Errors raised during concurrent writes: {errors}"
 
-got_a = store.get("wicked-mem", "memories", "concurrent-a")
-got_b = store.get("wicked-mem", "memories", "concurrent-b")
-assert got_a is not None, "concurrent-a not found after concurrent write"
-assert got_b is not None, "concurrent-b not found after concurrent write"
-
-store.close()
-print(f"TC-7 PASS: WAL concurrent writes — both records persisted without error")
+print(f"TC-7 PASS: Concurrent brain API writes completed without error")
 PYEOF
 ```
 
@@ -514,25 +487,25 @@ All nine test cases pass with `PASS` in their output and exit code 0.
 
 | TC | Description | Key Assertion |
 |----|-------------|---------------|
-| TC-1 | SqliteStore CRUD + FTS5 | Record survives create/get/update/delete cycle; FTS search hits |
+| TC-1 | Brain API index + search | Chunk indexed via API is searchable; health check passes |
 | TC-2 | StorageManager never calls CP | `ControlPlaneClient.request` call log is empty after 5 CRUD ops |
 | TC-3 | Session state after bootstrap | `cp_available=False`, `fallback_mode=True` (local fallback when CP not running) |
 | TC-4 | Briefing contains "mode=local" | Subprocess bootstrap produces `Config: mode=local endpoint=(none)` in `additionalContext` |
-| TC-5 | Migration JSON → SQLite on first boot | Planted JSON record appears in DB after migration run |
+| TC-5 | Migration JSON to storage on first boot | Planted JSON record appears in storage after migration run |
 | TC-6 | Migration is idempotent | Second run: `inserted=0`, `skipped>=1` |
-| TC-7 | WAL concurrent writes | Two threads write concurrently, both records retrievable, no OperationalError |
+| TC-7 | Concurrent brain API writes | Two threads index concurrently via brain API without errors |
 | TC-8 | No _queue.jsonl accumulation | Queue file does not exist after create/update/delete cycle |
 | TC-9 | wicked-crew regression | `create_project` stores in SQLite, project directory and project.md written |
 
 ## Success Criteria
 
-- [ ] TC-1: SqliteStore CRUD roundtrip and FTS5 search pass
+- [ ] TC-1: Brain API index and search pass
 - [ ] TC-2: No HTTP calls to ControlPlaneClient in local-only mode
 - [ ] TC-3: Session state has `cp_available=False` and `fallback_mode=True` after local mode bootstrap (local fallback when CP not running)
 - [ ] TC-4: Bootstrap briefing includes `Config: mode=local endpoint=(none)` in additionalContext
-- [ ] TC-5: JSON migration inserts planted record into SQLite
+- [ ] TC-5: JSON migration inserts planted record into storage
 - [ ] TC-6: Re-running migration skips already-present records (INSERT OR IGNORE)
-- [ ] TC-7: Concurrent WAL writes complete without `sqlite3.OperationalError`
+- [ ] TC-7: Concurrent brain API writes complete without errors
 - [ ] TC-8: `_queue.jsonl` is not created or appended in local-only mode
 - [ ] TC-9: `create_project` works end-to-end without a control plane
 

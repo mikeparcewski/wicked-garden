@@ -4,29 +4,31 @@ Standard procedure for executing wicked-search queries via the search scripts.
 
 ## Search Script Pattern
 
-All search commands use the search scripts directly:
+All search commands use the brain API:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py {verb} [--param value ...]
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"{verb}","params":{...}}'
 ```
 
 ### Examples
 
 ```bash
 # Search symbols
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py search --q "authenticate"
-
-# Traverse from a symbol
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py traverse "MyClass" --direction both --depth 2
-
-# Get hotspots
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py hotspots --limit 20
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"search","params":{"query":"authenticate","limit":10}}'
 
 # Get stats
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py stats
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"stats","params":{}}'
 
-# Impact analysis
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/query_builder.py impact "USERS.EMAIL" --depth 10
+# Health check
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"health","params":{}}'
 ```
 
 ## Available Verbs
@@ -65,12 +67,11 @@ Results are returned as JSON:
 
 ## Error Handling
 
-- Script not found: Check `CLAUDE_PLUGIN_ROOT` is set correctly
+- Connection refused: Brain server may not be running — start with `/wicked-brain:server`
 - Empty results: Verify indexing was done (`/wicked-garden:search:stats`)
-- Import errors: Run `cd "${CLAUDE_PLUGIN_ROOT}" && uv sync` to install dependencies
 
 ## Troubleshooting
 
-- **Script error**: Check that the search scripts are accessible and the index is built
+- **Connection error**: Ensure the brain server is running at `http://localhost:4242`
 - **Empty results**: Verify indexing was done (`/wicked-garden:search:stats`)
-- **Wrong project**: Use `--project` to target the correct codebase
+- **Wrong project**: Use `project` param in the API request to target the correct codebase

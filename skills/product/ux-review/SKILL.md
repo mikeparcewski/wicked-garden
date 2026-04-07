@@ -99,7 +99,7 @@ Review produces:
 
 Works with:
 - **wicked-crew**: Auto-suggested after phases
-- **wicked-browse**: Screenshot capture, a11y testing
+- **Read tool**: Analyze screenshots directly; capture via browser automation if available
 - **wicked-kanban**: Issue tracking
 - **wicked-mem**: Design system memory
 - **wicked-search**: Pattern discovery

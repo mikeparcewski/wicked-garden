@@ -176,7 +176,7 @@ wicked-patch reads from the wicked-search symbol database:
 ## CLI Reference
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/scripts
-python3 patch.py --help
-python3 patch.py generators  # List supported languages
+cd "${CLAUDE_PLUGIN_ROOT}/scripts"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/patch.py" --help
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/patch.py" generators  # List supported languages
 ```

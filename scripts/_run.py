@@ -14,13 +14,13 @@ script's parent directory as fallback).
 
 Examples:
   # Show usage before invoking
-  python3 scripts/_run.py --usage scripts/search/unified_search.py index
+  python3 scripts/_run.py --usage scripts/crew/phase_manager.py create
 
   # Run with auto-help on error
-  python3 scripts/_run.py scripts/search/unified_search.py index /path --project foo
+  python3 scripts/_run.py scripts/crew/phase_manager.py create my-project --description "foo"
 
   # Works with uv for scripts that need deps
-  cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/search/unified_search.py index /path
+  cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/crew/phase_manager.py status my-project
 """
 
 import json

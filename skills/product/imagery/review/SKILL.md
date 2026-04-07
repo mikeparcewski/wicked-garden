@@ -27,10 +27,10 @@ Four analysis lenses, each with a dedicated reference:
 
 | Lens | Purpose | Reference |
 |------|---------|-----------|
-| **General** | Subject, scene, context summary | [refs/analysis_lenses.md](refs/analysis_lenses.md) |
-| **Technical** | Components, hierarchy, interactivity | [refs/analysis_lenses.md](refs/analysis_lenses.md) |
-| **Style** | Palette, mood, lighting, texture | [refs/analysis_lenses.md](refs/analysis_lenses.md) |
-| **Layout** | Focal points, composition, visual weight | [refs/analysis_lenses.md](refs/analysis_lenses.md) |
+| **General** | Subject, scene, context summary | [refs/analysis-lenses.md](refs/analysis-lenses.md) |
+| **Technical** | Components, hierarchy, interactivity | [refs/analysis-lenses.md](refs/analysis-lenses.md) |
+| **Style** | Palette, mood, lighting, texture | [refs/analysis-lenses.md](refs/analysis-lenses.md) |
+| **Layout** | Focal points, composition, visual weight | [refs/analysis-lenses.md](refs/analysis-lenses.md) |
 
 ### Quick Analysis
 
@@ -48,10 +48,10 @@ Four review gates ensure assets are "Business Ready" before delivery:
 
 | Gate | Purpose | Reference |
 |------|---------|-----------|
-| **Brand Compliance** | Logo, palette, typography, tone alignment | [refs/quality_gates.md](refs/quality_gates.md) |
-| **Accessibility** | Contrast ratios, color-blind safety, readability | [refs/quality_gates.md](refs/quality_gates.md) |
-| **Production Readiness** | Artifacts, resolution, format, cleanliness | [refs/quality_gates.md](refs/quality_gates.md) |
-| **Sensitivity** | Cultural appropriateness, inclusivity, bias | [refs/quality_gates.md](refs/quality_gates.md) |
+| **Brand Compliance** | Logo, palette, typography, tone alignment | [refs/quality-gates.md](refs/quality-gates.md) |
+| **Accessibility** | Contrast ratios, color-blind safety, readability | [refs/quality-gates.md](refs/quality-gates.md) |
+| **Production Readiness** | Artifacts, resolution, format, cleanliness | [refs/quality-gates.md](refs/quality-gates.md) |
+| **Sensitivity** | Cultural appropriateness, inclusivity, bias | [refs/quality-gates.md](refs/quality-gates.md) |
 
 ### Gate Selection
 

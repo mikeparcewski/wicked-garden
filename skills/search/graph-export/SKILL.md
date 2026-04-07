@@ -109,10 +109,11 @@ from graph_client import GraphClient
 
 ### Triggering Cache Export
 
-To populate the cache, run indexing with `--export-cache`:
+To populate the cache, ingest content via the brain API:
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/indexer.py ingest-symbols < symbols.json
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/indexer.py ingest-refs < refs.json
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"index","params":{"id":"chunk-path","path":"chunk-path","content":"text","brain_id":"wicked-brain"}}'
 ```
 
 This will:

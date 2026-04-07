@@ -193,8 +193,6 @@ Put synthesis first (context efficiency):
 ### Open Questions
 {What's unresolved}
 
----
-
 ### Session Details
 {Personas, rounds, discussion summary}
 ```

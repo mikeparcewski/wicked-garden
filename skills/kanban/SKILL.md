@@ -29,24 +29,24 @@ The script is located at `${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py`. Execu
 
 **List all projects:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py list-projects
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" list-projects
 ```
 
 **Get full project state (swimlanes + tasks):**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py get-project PROJECT_ID
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" get-project PROJECT_ID
 ```
 
 ### Creating Tasks
 
 **Create a project first:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-project "Project Name" -d "Description"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-project "Project Name" -d "Description"
 ```
 
 **Create a task (need swimlane_id from project):**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-task PROJECT_ID "Task Name" SWIMLANE_ID -p P1 -d "Description"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task PROJECT_ID "Task Name" SWIMLANE_ID -p P1 -d "Description"
 ```
 
 Priority levels: P0 (Critical), P1 (High), P2 (Normal), P3 (Low)
@@ -55,36 +55,36 @@ Priority levels: P0 (Critical), P1 (High), P2 (Normal), P3 (Low)
 
 **Update task status (move to different swimlane):**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane NEW_SWIMLANE_ID
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" update-task PROJECT_ID TASK_ID --swimlane NEW_SWIMLANE_ID
 ```
 
 **Update task priority:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --priority P0
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" update-task PROJECT_ID TASK_ID --priority P0
 ```
 
 ### Comments and Commits
 
 **Add comment to task:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-comment PROJECT_ID TASK_ID "Comment text"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-comment PROJECT_ID TASK_ID "Comment text"
 ```
 
 **Link commit to task:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py add-commit PROJECT_ID TASK_ID abc123
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-commit PROJECT_ID TASK_ID abc123
 ```
 
 ### Searching
 
 **Search tasks across projects:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py search "search query"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" search "search query"
 ```
 
 **Search within a specific project:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py search "search query" --project PROJECT_ID
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" search "search query" --project PROJECT_ID
 ```
 
 ## Scoped Boards
@@ -101,7 +101,7 @@ Four board types with purpose-built column schemas:
 Create a typed initiative with `--board-type`:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py create-initiative PROJECT_ID "API Design" --board-type jam
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-initiative PROJECT_ID "API Design" --board-type jam
 # or: /wicked-garden:kanban:initiative create "API Design" --board-type jam
 ```
 
@@ -137,7 +137,7 @@ Access the visual kanban board at `http://localhost:18888`. The web UI provides:
 
 The server auto-starts with the Claude Code session. To start manually:
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT} && uv run wicked-kanban
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run wicked-kanban
 ```
 
 ## Workflow Example

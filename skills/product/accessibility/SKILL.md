@@ -49,12 +49,7 @@ Content must work with assistive technologies.
 ## Quick Audit Process
 
 ### 1. Automated Scan
-```bash
-# If wicked-browse available
-wicked-browse a11y-audit {url_or_file}
-
-# Otherwise use: axe DevTools, Lighthouse, WAVE, pa11y
-```
+Use the Read tool on a screenshot file, or capture via browser automation if available (e.g., Playwright, Puppeteer, or an MCP browser tool). For automated WCAG scanning, use axe DevTools, Lighthouse, WAVE, or pa11y.
 
 ### 2. Keyboard Test (5 minutes)
 - Tab through entire page

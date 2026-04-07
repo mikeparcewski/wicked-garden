@@ -93,7 +93,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imag
 
 ## Detailed References
 
-- **Editing techniques, provider commands, and refinement strategies**: [refs/editing_reference.md](refs/editing_reference.md)
+- **Editing techniques, provider commands, and refinement strategies**: [refs/editing-reference.md](refs/editing-reference.md)
 
 ## Integration With Other Sub-Skills
 

@@ -114,7 +114,7 @@ Convert file paths to safe chunk directory names:
 - Collapse consecutive hyphens
 - Strip leading/trailing hyphens
 
-Example: `scripts/mem/memory.py` -> `scripts-mem-memory.py`
+Example: `src/auth/login.py` -> `src-auth-login.py`
 
 ### Tag Expansion
 

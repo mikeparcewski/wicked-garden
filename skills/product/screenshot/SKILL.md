@@ -80,16 +80,7 @@ Compare:
 
 ## Screenshot Capture
 
-If a URL is available, capture with the browser:
-
-```bash
-# Capture via wicked-browse (if available)
-wicked-browse screenshot {url} --output /tmp/review.png
-
-# Capture specific viewport
-wicked-browse screenshot {url} --width 375 --output /tmp/mobile.png
-wicked-browse screenshot {url} --width 1440 --output /tmp/desktop.png
-```
+Use the **Read** tool on a screenshot file, or capture via browser automation if available (e.g., Playwright, Puppeteer, or an MCP browser tool). Place captured images in a local path and then read them for analysis.
 
 ## Multi-View Analysis
 
@@ -150,5 +141,5 @@ Review the same page at multiple viewports:
 - **visual-review skill**: Use for code-based analysis; screenshot for image-based
 - **accessibility skill**: Color contrast visible in screenshots
 - **mockup skill**: Screenshots of implementations vs mockup specs
-- **wicked-browse**: Captures screenshots from live URLs
+- **Browser automation**: Capture screenshots from live URLs via Playwright, Puppeteer, or an MCP browser tool if available
 - **imagery/review skill**: For AI-powered visual analysis of screenshots, see the `imagery/review` skill

@@ -159,8 +159,8 @@ Captures code or content search results.
   - pattern: "def store_memory"
   - files_matched: 2
   - results: ```
-    scripts/mem/memory.py:45: def store_memory(content, type, tags):
-    scripts/mem/memory.py:102: def store_memory_batch(items):
+    ~/.wicked-brain/memories/episodic/mem-abc123.md (matched in content)
+    ~/.wicked-brain/memories/semantic/mem-def456.md (matched in content)
     ```
 ```
 

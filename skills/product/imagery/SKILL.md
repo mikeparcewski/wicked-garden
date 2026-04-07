@@ -84,12 +84,12 @@ Review identifies issues → alter sub-skill applies changes → review validate
 ## Reference Map
 
 ### Review References
-- `review/refs/analysis_lenses.md` — Four analysis lenses (general, technical, style, layout)
-- `review/refs/quality_gates.md` — Four quality gates (brand, a11y, production, sensitivity)
+- `review/refs/analysis-lenses.md` — Four analysis lenses (general, technical, style, layout)
+- `review/refs/quality-gates.md` — Four quality gates (brand, a11y, production, sensitivity)
 
 ### Create References
-- `create/refs/provider_reference.md` — Provider APIs and configuration
-- `create/refs/prompt_engineering.md` — Crafting effective prompts
+- `create/refs/provider-reference.md` — Provider APIs and configuration
+- `create/refs/prompt-engineering.md` — Crafting effective prompts
 
 ### Alter References
-- `alter/refs/editing_reference.md` — Modification patterns, provider commands, refinement strategies
+- `alter/refs/editing-reference.md` — Modification patterns, provider commands, refinement strategies
