@@ -119,41 +119,68 @@ def _read_config_preference(domain: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
+def _brain_api(action, params=None, timeout=3):
+    """Call brain API. Returns parsed JSON or None."""
+    try:
+        import urllib.request
+        import os as _os
+        port = int(_os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
 def _check_mem_preference(domain: str) -> Optional[str]:
-    """Query the memory store for a previously stored tool preference.
+    """Query brain for a previously stored tool preference.
 
-    Searches for memories tagged with both "tool-preference" and the domain
-    name.  Returns the tool name stored in the memory's content field, or
-    None if not found or if the mem module is unavailable.
+    Searches for memories tagged with "tool-preference" and the domain
+    name via the brain search API. Returns the tool name found in the
+    memory content, or None if not found or brain is unavailable.
 
-    Fails gracefully on ImportError so callers that run before mem is
-    initialized (e.g. during onboarding) continue to work.
+    Fails gracefully so callers that run before brain is initialized
+    (e.g. during onboarding) continue to work.
     """
     try:
-        # MemoryStore lives in scripts/mem/ which is a sibling of this file.
-        _scripts_dir = str(Path(__file__).parent)
-        if _scripts_dir not in sys.path:
-            sys.path.insert(0, _scripts_dir)
+        result = _brain_api("search", {"query": f"tool-preference {domain}", "limit": 5}, timeout=3)
+        if not result:
+            return None
 
-        from mem.memory import MemoryStore
-
-        # Use _skip_discovery=True on the underlying DomainStore to avoid
-        # a circular call back into this resolver.
-        # MemoryStore itself creates DomainStore("wicked-mem") internally.
-        # We patch around that by using a project-less store and catching
-        # the case where mem is not yet migrated to DomainStore.
-        ms = MemoryStore(project=None)
-        memories = ms.recall(tags=["tool-preference", domain], all_projects=True, limit=5)
-        for memory in memories:
-            # Content field holds the tool name we stored in _store_preference
-            content = (memory.content or "").strip()
-            if content:
-                return content
-        return None
-    except ImportError:
+        # Handle both list and dict response formats
+        results = result if isinstance(result, list) else result.get("results", [])
+        for r in results:
+            # Look for tool-preference memories that match this domain
+            content = r.get("content", "") or ""
+            path = r.get("path", "") or ""
+            if "tool-preference" in content and domain in content:
+                # Extract the tool name — it's the short content of the memory
+                # Try to read the actual chunk file for the definitive content
+                try:
+                    chunk_path = Path.home() / ".wicked-brain" / path
+                    if chunk_path.exists():
+                        text = chunk_path.read_text(encoding="utf-8")
+                        # Content is after the frontmatter and title
+                        parts = text.split("---", 2)
+                        if len(parts) >= 3:
+                            body = parts[2].strip()
+                            # Skip the title line (# ...)
+                            body_lines = [l for l in body.splitlines() if l.strip() and not l.startswith("#")]
+                            if body_lines:
+                                tool = body_lines[-1].strip()
+                                if tool:
+                                    return tool
+                except Exception:
+                    pass
         return None
     except Exception:
-        # Mem store may be empty or uninitialized — always fail gracefully
+        # Brain may be unavailable — always fail gracefully
         return None
 
 
@@ -248,43 +275,47 @@ def _local_fallback_and_store(domain: str, matches: list) -> str:
 
 
 def _store_preference(domain: str, tool: str) -> None:
-    """Persist a tool preference to the memory store.
+    """Persist a tool preference to brain as a memory chunk.
 
-    Writes a memory with tags=["tool-preference", domain] so future sessions
-    can skip the discovery step.
+    Writes a memory chunk with tags=["tool-preference", domain] so future
+    sessions can skip the discovery step.
 
-    Uses DomainStore with _skip_discovery=True to prevent circular init:
-    DomainStore → _integration_resolver → _check_mem_preference → MemoryStore
-    → DomainStore("wicked-mem") which would call this resolver again.
-
-    Fails silently on any error so a broken mem store never blocks writes.
+    Fails silently on any error so a broken brain never blocks writes.
     """
     try:
-        _scripts_dir = str(Path(__file__).parent)
-        if _scripts_dir not in sys.path:
-            sys.path.insert(0, _scripts_dir)
+        import uuid
+        import os as _os
+        from datetime import datetime, timezone
 
-        from mem.memory import MemoryStore, MemoryType, Importance
-        from _domain_store import DomainStore
+        mem_id = str(uuid.uuid4())
+        chunk_id = f"memories/semantic/mem-{mem_id}"
+        chunk_path = Path.home() / ".wicked-brain" / f"{chunk_id}.md"
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Build a MemoryStore that skips integration-discovery on its
-        # internal DomainStore to avoid circular initialization.
-        # We monkey-patch the _sm attribute after construction so the store()
-        # call uses the skip-discovery DomainStore.
-        ms = MemoryStore.__new__(MemoryStore)
-        ms.project = None
-        ms._sm = DomainStore("wicked-mem", _skip_discovery=True)
+        tags_list = ["tool-preference", domain]
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        title = f"Tool preference: {domain} → {tool}"
 
-        ms.store(
-            title=f"Tool preference: {domain} → {tool}",
-            content=tool,
-            type=MemoryType.PREFERENCE,
-            tags=["tool-preference", domain],
-            importance=Importance.MEDIUM,
-            source="auto",
-        )
-    except ImportError:
-        pass  # fail open: mem store optional
+        lines = ["---"]
+        lines.append("source: wicked-mem")
+        lines.append("memory_type: preference")
+        lines.append("memory_tier: semantic")
+        lines.append(f"title: {title}")
+        lines.append("importance: 5")
+        lines.append("contains:")
+        for t in tags_list:
+            lines.append(f"  - {t}")
+        lines.append(f'indexed_at: "{now}"')
+        lines.append("---")
+        lines.append("")
+        lines.append(f"# {title}")
+        lines.append("")
+        lines.append(tool)
+
+        chunk_path.write_text("\n".join(lines), encoding="utf-8")
+
+        # Index in brain FTS5
+        search_text = f"{title} {tool} {' '.join(tags_list)}"
+        _brain_api("index", {"id": f"{chunk_id}.md", "path": f"{chunk_id}.md", "content": search_text, "brain_id": "wicked-brain"})
     except Exception:
-        # Mem store may be unavailable — always fail gracefully
-        pass  # fail open: graceful degradation
+        pass  # fail open: brain may be unavailable

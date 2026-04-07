@@ -319,30 +319,30 @@ def _load_kanban_summary():
         return None
 
 
-def _run_memory_decay():
-    """Run memory decay maintenance + brain lint. Returns a summary string or None."""
+def _brain_api(action, params=None, timeout=3):
+    """Call brain API. Returns parsed JSON or None."""
     try:
-        from mem.memory import MemoryStore
-        project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-        store = MemoryStore(project)
-        result = store.run_decay()
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
 
-        # Also trigger brain:lint to auto-decay expired brain chunks
-        try:
-            import urllib.request
-            port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
-            req = urllib.request.Request(
-                f"http://localhost:{port}/api",
-                data=json.dumps({"action": "lint", "params": {}}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            urllib.request.urlopen(req, timeout=3)
-        except Exception:
-            pass  # brain lint is best-effort
 
-        if result.get("archived", 0) > 0 or result.get("deleted", 0) > 0:
-            return f"Memory: {result['archived']} archived, {result['deleted']} cleaned"
+def _run_memory_decay():
+    """Run memory decay maintenance via brain lint. Returns a summary string or None."""
+    try:
+        result = _brain_api("lint", {}, timeout=5)
+        if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
+            return f"Memory: {result.get('archived', 0)} archived, {result.get('deleted', 0)} cleaned"
         return None
     except Exception:
         return None
@@ -404,15 +404,19 @@ def _check_onboarding_status():
     except Exception:
         pass  # brain unavailable — agent falls back to Grep/Glob
 
-    # Check onboarding memories
+    # Check onboarding memories via brain search API
     try:
-        from mem.memory import MemoryStore
-        store = MemoryStore(project)
-        memories = store.recall(tags=["onboarding"], limit=1)
-        has_memories = len(memories) > 0
+        result = _brain_api("search", {"query": "onboarding", "limit": 5}, timeout=3)
+        if result and isinstance(result, list):
+            # Check if any result path contains "/mem-" (memory chunk)
+            has_memories = any("/mem-" in str(r.get("path", "")) for r in result)
+        elif result and isinstance(result, dict) and result.get("results"):
+            has_memories = any("/mem-" in str(r.get("path", "")) for r in result["results"])
+        else:
+            has_memories = True  # brain returned empty or unexpected — assume onboarded
     except Exception:
         has_memories = True  # fail open on exception — assume onboarded to avoid false triggers
-        print("[wicked-garden] onboarding check: MemoryStore error, assuming onboarded", file=sys.stderr)
+        print("[wicked-garden] onboarding check: brain API error, assuming onboarded", file=sys.stderr)
 
     directive = None
     if not has_memories:

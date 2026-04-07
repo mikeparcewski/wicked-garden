@@ -34,7 +34,6 @@ class AdapterRegistry:
     # place to add or rename an adapter.
     KNOWN_ADAPTERS: dict[str, str] = {
         "domain":     "adapters.domain_adapter",
-        "mem":        "adapters.mem_adapter",
         "brain":      "adapters.brain_adapter",
         "events":     "adapters.events_adapter",
         "context7":   "adapters.context7_adapter",

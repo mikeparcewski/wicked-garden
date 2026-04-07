@@ -151,17 +151,32 @@ def _run_memory_promotion(session_id: str) -> list:
 # Step 2 & 3: Memory flush reminder + decay
 # ---------------------------------------------------------------------------
 
+def _brain_api(action, params=None, timeout=3):
+    """Call brain API. Returns parsed JSON or None."""
+    try:
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
 def _run_memory_decay() -> list:
-    """Run decay maintenance. Return list of result message strings."""
+    """Run decay maintenance via brain lint API. Return list of result message strings."""
     messages = []
     try:
-        from mem.memory import MemoryStore
-        project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-        store = MemoryStore(project)
-        result = store.run_decay()
-        if result.get("archived", 0) > 0 or result.get("deleted", 0) > 0:
+        result = _brain_api("lint", {}, timeout=5)
+        if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
             messages.append(
-                f"[Memory] Decay: {result['archived']} archived, {result['deleted']} cleaned"
+                f"[Memory] Decay: {result.get('archived', 0)} archived, {result.get('deleted', 0)} cleaned"
             )
     except Exception as e:
         print(f"[wicked-garden] decay error: {e}", file=sys.stderr)
@@ -169,23 +184,19 @@ def _run_memory_decay() -> list:
 
 
 def _run_working_consolidation() -> list:
-    """Consolidate working-tier memories to episodic on session end.
+    """Consolidate working-tier memories via brain compile + lint.
 
     Returns a list of message strings. Fails open — never blocks session end.
     """
     messages = []
     try:
-        from mem.memory import MemoryStore
-        from mem.consolidation import consolidate_working
-
-        project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-        store = MemoryStore(project)
-        stats = consolidate_working(store)
-        total = stats.get("promoted", 0) + stats.get("merged", 0)
-        if total > 0 or stats.get("dropped", 0) > 0:
+        compile_result = _brain_api("compile", {}, timeout=10)
+        lint_result = _brain_api("lint", {}, timeout=5)
+        compiled = compile_result.get("compiled", 0) if compile_result else 0
+        cleaned = lint_result.get("deleted", 0) if lint_result else 0
+        if compiled > 0 or cleaned > 0:
             messages.append(
-                f"[Memory] Consolidation: {stats['promoted']} promoted to episodic, "
-                f"{stats['merged']} merged, {stats['dropped']} transient dropped"
+                f"[Memory] Consolidation: {compiled} compiled, {cleaned} cleaned"
             )
     except Exception as e:
         print(f"[wicked-garden] consolidation error: {e}", file=sys.stderr)

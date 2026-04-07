@@ -13,7 +13,7 @@ Promotion criteria:
 
 Integration:
   - Reads from: facts.jsonl (local session facts)
-  - Writes to: wicked-mem via direct MemoryStore import
+  - Writes to: wicked-brain via brain API (chunk files + FTS5 index)
   - Marks promoted facts with promoted_at timestamp
 """
 
@@ -36,7 +36,6 @@ if str(_V2_DIR) not in sys.path:
     sys.path.insert(0, str(_V2_DIR))
 
 from fact_extractor import Fact, FactExtractor
-from mem.memory import MemoryStore, MemoryType, Importance
 
 
 # Fact types eligible for promotion to wicked-mem
@@ -46,20 +45,77 @@ PROMOTABLE_TYPES = {"decision", "discovery"}
 MIN_CONTENT_LENGTH = 15
 
 
+def _brain_api(action, params=None, timeout=3):
+    """Call brain API. Returns parsed JSON or None."""
+    try:
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="episodic", importance=5):
+    """Write a memory chunk to brain. Returns chunk_id or None."""
+    try:
+        import uuid
+        mem_id = str(uuid.uuid4())
+        chunk_id = f"memories/{tier}/mem-{mem_id}"
+        chunk_path = Path.home() / ".wicked-brain" / f"{chunk_id}.md"
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+
+        tags_list = tags or []
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        lines = ["---"]
+        lines.append("source: wicked-mem")
+        lines.append(f"memory_type: {mem_type}")
+        lines.append(f"memory_tier: {tier}")
+        lines.append(f"title: {title}")
+        lines.append(f"importance: {importance}")
+        lines.append("contains:")
+        for t in tags_list:
+            lines.append(f"  - {t}")
+        lines.append(f'indexed_at: "{now}"')
+        lines.append("---")
+        lines.append("")
+        lines.append(f"# {title}")
+        lines.append("")
+        lines.append(content)
+
+        chunk_path.write_text("\n".join(lines), encoding="utf-8")
+
+        # Index in brain FTS5
+        search_text = f"{title} {content} {' '.join(tags_list)}"
+        _brain_api("index", {"id": f"{chunk_id}.md", "path": f"{chunk_id}.md", "content": search_text, "brain_id": "wicked-brain"})
+        return chunk_id
+    except Exception:
+        return None
+
+
 def _run_mem_store(title: str, content: str, mem_type: str = "episodic") -> bool:
-    """Store a memory via direct MemoryStore call.
+    """Store a memory via brain API (write chunk + index).
 
     Returns True on success, False on failure.
     """
     try:
-        store = MemoryStore()
-        mt = MemoryType(mem_type) if mem_type in {m.value for m in MemoryType} else MemoryType.EPISODIC
-        store.store(
+        chunk_id = _write_brain_memory(
             title=title,
             content=content,
-            type=mt,
+            tier=mem_type if mem_type in ("episodic", "semantic", "working") else "episodic",
+            tags=[],
+            mem_type=mem_type,
+            importance=5,
         )
-        return True
+        return chunk_id is not None
     except Exception:
         return False
 

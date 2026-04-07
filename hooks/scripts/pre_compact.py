@@ -14,7 +14,7 @@ import json
 import os
 import sys
 import time
-import uuid
+import uuid as _uuid_mod
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,6 +34,65 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
         log(domain, level, event, ok=ok, ms=ms, detail=detail)
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Brain API helpers
+# ---------------------------------------------------------------------------
+
+def _brain_api(action, params=None, timeout=3):
+    """Call brain API. Returns parsed JSON or None."""
+    try:
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="episodic", importance=5):
+    """Write a memory chunk to brain. Returns chunk_id or None."""
+    try:
+        mem_id = str(_uuid_mod.uuid4())
+        chunk_id = f"memories/{tier}/mem-{mem_id}"
+        chunk_path = Path.home() / ".wicked-brain" / f"{chunk_id}.md"
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+
+        tags_list = tags or []
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        lines = ["---"]
+        lines.append("source: wicked-mem")
+        lines.append(f"memory_type: {mem_type}")
+        lines.append(f"memory_tier: {tier}")
+        lines.append(f"title: {title}")
+        lines.append(f"importance: {importance}")
+        lines.append("contains:")
+        for t in tags_list:
+            lines.append(f"  - {t}")
+        lines.append(f'indexed_at: "{now}"')
+        lines.append("---")
+        lines.append("")
+        lines.append(f"# {title}")
+        lines.append("")
+        lines.append(content)
+
+        chunk_path.write_text("\n".join(lines), encoding="utf-8")
+
+        # Index in brain FTS5
+        search_text = f"{title} {content} {' '.join(tags_list)}"
+        _brain_api("index", {"id": f"{chunk_id}.md", "path": f"{chunk_id}.md", "content": search_text, "brain_id": "wicked-brain"})
+        return chunk_id
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -131,24 +190,19 @@ def _save_wip_state(session_id, project):
     current_task = condenser_state.get("current_task") or ""
     title = f"WIP: {current_task or 'Session work'} — pre-compaction snapshot"
 
-    # Store via MemoryStore
+    # Store via brain API (write chunk file + index)
     try:
-        from mem.memory import MemoryStore, MemoryType, Importance
-
-        store = MemoryStore(project)
-        store.store(
+        chunk_id = _write_brain_memory(
             title=title,
             content=content,
-            type=MemoryType.WORKING,
-            summary=f"Auto-saved WIP state before compaction (turn {ss_fields.get('turn_count', '?')})",
-            context="Auto-saved before context compression",
-            importance=Importance.MEDIUM,
+            tier="working",
             tags=["wip", "pre-compact", "auto-saved"],
-            source="hook:pre_compact",
-            session_id=session_id,
+            mem_type="working",
+            importance=5,
         )
-        _log("context", "verbose", "pre_compact.wip_saved", ok=True,
-             detail={"title": title[:60], "chars": len(content)})
+        if chunk_id:
+            _log("context", "verbose", "pre_compact.wip_saved", ok=True,
+                 detail={"title": title[:60], "chars": len(content)})
     except Exception as e:
         print(f"[wicked-garden] pre_compact WIP save error: {e}", file=sys.stderr)
 

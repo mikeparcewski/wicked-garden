@@ -77,25 +77,76 @@ def _gather_context_sync(orchestrator, prompt: str):
 # Session goal capture (turns 1-2)
 # ---------------------------------------------------------------------------
 
+def _brain_api(action, params=None, timeout=3):
+    """Call brain API. Returns parsed JSON or None."""
+    try:
+        import urllib.request
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="episodic", importance=5):
+    """Write a memory chunk to brain. Returns chunk_id or None."""
+    try:
+        import uuid
+        mem_id = str(uuid.uuid4())
+        chunk_id = f"memories/{tier}/mem-{mem_id}"
+        chunk_path = Path.home() / ".wicked-brain" / f"{chunk_id}.md"
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+
+        tags_list = tags or []
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+        lines = ["---"]
+        lines.append("source: wicked-mem")
+        lines.append(f"memory_type: {mem_type}")
+        lines.append(f"memory_tier: {tier}")
+        lines.append(f"title: {title}")
+        lines.append(f"importance: {importance}")
+        lines.append("contains:")
+        for t in tags_list:
+            lines.append(f"  - {t}")
+        lines.append(f'indexed_at: "{now}"')
+        lines.append("---")
+        lines.append("")
+        lines.append(f"# {title}")
+        lines.append("")
+        lines.append(content)
+
+        chunk_path.write_text("\n".join(lines), encoding="utf-8")
+
+        # Index in brain FTS5
+        search_text = f"{title} {content} {' '.join(tags_list)}"
+        _brain_api("index", {"id": f"{chunk_id}.md", "path": f"{chunk_id}.md", "content": search_text, "brain_id": "wicked-brain"})
+        return chunk_id
+    except Exception:
+        return None
+
+
 def _capture_session_goal(prompt: str, turn_count: int, project: str, session_id: str):
-    """On turns 1-2, save the session goal as WORKING memory."""
+    """On turns 1-2, save the session goal as WORKING memory via brain API."""
     if turn_count > 2:
         return
     if len(prompt.strip()) < 20:
         return
     try:
-        from mem.memory import MemoryStore, MemoryType, Scope, Importance
-        store = MemoryStore(project)
-        store.store(
+        _write_brain_memory(
             title=f"Session goal (turn {turn_count})",
             content=prompt[:500],
-            type=MemoryType.WORKING,
-            summary="Session goal captured from opening prompt",
-            context="Auto-captured on session start",
-            importance=Importance.MEDIUM,
-            scope=Scope.PROJECT,
-            source="hook:prompt_submit",
-            session_id=session_id,
+            tier="working",
+            tags=["session-goal", "auto-captured"],
+            mem_type="working",
+            importance=5,
         )
     except Exception:
         pass

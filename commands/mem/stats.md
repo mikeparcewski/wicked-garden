@@ -5,22 +5,40 @@ argument-hint: ""
 
 # /wicked-garden:mem:stats
 
-Show memory statistics including counts by type, status, tier, and tag.
+Show memory statistics from the brain API and local chunk files.
 
 ## Execution
 
+### Step 1: Get brain-level stats
+
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}"
-python3 scripts/mem/memory.py stats
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"stats","params":{}}'
 ```
 
-Note: This script uses only standard library - no package manager needed.
+Display the brain stats (total chunks, index size, etc.).
+
+### Step 2: Count memory chunks by tier
+
+Use Glob to count memory chunk files in each tier:
+
+- `$HOME/.wicked-brain/memories/working/mem-*.md` -> working count
+- `$HOME/.wicked-brain/memories/episodic/mem-*.md` -> episodic count
+- `$HOME/.wicked-brain/memories/semantic/mem-*.md` -> semantic count
+
+### Step 3: Sample frontmatter for type breakdown
+
+Read a sample of chunk files (up to 50) across all tiers to extract `memory_type` from frontmatter. Build counts by type (episodic, decision, procedural, preference).
+
+### Step 4: Handle brain unavailability
+
+If the brain API is unreachable, still report file-based stats from Step 2-3 and note that brain stats are unavailable.
 
 ## Output
 
-Display the JSON result with:
-- `total`: Total memory count
-- `by_type`: Count per memory type (episodic, decision, procedural, preference, working)
-- `by_status`: Count per status (active, archived, decayed)
-- `by_tier`: Count per consolidation tier (working, episodic, semantic)
-- `by_tag`: Count per tag
+Display:
+- **Brain stats**: Total indexed chunks, memory-specific count
+- **By tier**: working / episodic / semantic counts
+- **By type**: episodic / decision / procedural / preference counts
+- **Total memories**: Sum of all chunk files

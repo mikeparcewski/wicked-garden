@@ -6,38 +6,49 @@ allowed-tools: [Bash, Read]
 
 # /wicked-garden:mem:consolidate
 
-Run memory consolidation across all three tiers: working, episodic, and semantic.
+Run memory consolidation via the brain API. This synthesizes wiki articles from memory chunks and auto-decays expired TTL chunks.
 
 ## What It Does
 
-1. **Working -> Episodic**: Promotes surviving working-tier memories to episodic.
-   Drops transient items (access_count <= 1 and past TTL). Merges similar items.
-2. **Episodic -> Semantic**: Promotes episodic memories that appear across 3+ sessions,
-   have access_count >= 10, or importance >= 8 to the semantic (permanent) tier.
-3. **Deduplication**: Finds near-duplicate memories within each tier using word-overlap
-   similarity and merges them (keeps highest importance/access_count).
+1. **Compile**: Synthesizes wiki articles from related memory chunks. Groups memories by topic/domain and creates consolidated knowledge pages.
+2. **Lint**: Auto-decays expired TTL chunks, cleans broken references, and validates chunk integrity.
 
 ## Execution
 
-Run from the plugin directory using available Python:
+### Step 1: Run brain compile
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}"
-python3 scripts/mem/memory.py consolidate
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"compile","params":{}}'
 ```
 
-Note: This script uses only standard library - no package manager needed.
+Display the compile results (articles created/updated, chunks consumed).
+
+### Step 2: Run brain lint
+
+```bash
+curl -s -X POST http://localhost:4242/api \
+  -H "Content-Type: application/json" \
+  -d '{"action":"lint","params":{}}'
+```
+
+Display the lint results (expired chunks removed, broken refs fixed, issues found).
+
+### Step 3: Handle brain unavailability
+
+If the brain API is unreachable, display:
+> Brain API is not reachable. Start it with `wicked-brain:server` or check brain status.
 
 ## Output
 
-Display the JSON result showing counts for each consolidation pass:
-- `working_to_episodic`: {promoted, dropped, merged}
-- `episodic_to_semantic`: {promoted, merged, archived}
-- `deduplication`: {merged, archived}
+Display results from both operations:
+- **Compile**: Articles created/updated, memory chunks synthesized
+- **Lint**: Expired chunks decayed, broken references cleaned, health issues found
 
 ## When to Use
 
 - After long sessions with many working memories
 - Periodically to keep memory clean and promote recurring patterns
-- Before important sessions where you want semantic memories prioritized
-- Note: Working -> Episodic consolidation runs automatically on session end
+- Before important sessions where you want consolidated knowledge available
+- Note: Working memory consolidation runs automatically on session end
