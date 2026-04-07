@@ -117,9 +117,19 @@ class FastPathAssembler:
         for items in selected.values():
             all_items.extend(items)
 
+        # Extract active constraints from session summary (constraints only)
+        active_constraints = []
+        if session_summary:
+            for line in session_summary.split("\n"):
+                if "Constraints" in line or "constraints" in line:
+                    # Strip markdown bold markers, extract the constraint text
+                    constraint_text = line.split(":", 1)[-1].strip().strip("**").strip()
+                    if constraint_text:
+                        active_constraints = constraint_text.split("; ")
+                    break
+
         # Format briefing
-        briefing = self._format_briefing(prompt, analysis, all_items, sources_failed,
-                                         session_summary=session_summary)
+        briefing = self._format_briefing(prompt, analysis, all_items, active_constraints, sources_failed)
 
         latency_ms = int((time.time() - start_time) * 1000)
 
@@ -153,70 +163,50 @@ class FastPathAssembler:
         prompt: str,
         analysis: PromptAnalysis,
         items: list,
+        active_constraints: list[str],
         failed_sources: list[str],
-        session_summary: str = "",
     ) -> str:
-        """Format items into a simple briefing."""
-        # Compact situation line
+        """Format items into a compact authoritative briefing.
+
+        Does not re-emit session history or last turn — those are already in
+        Claude's context window. Only surfaces what is NOT already visible.
+        """
+        # Situation line (1 line)
         entities_str = f" | {', '.join(analysis.entities[:3])}" if analysis.entities else ""
-        lines = [
-            f"[{analysis.intent_type.value}{entities_str}]",
-            "",
-        ]
+        lines = [f"[{analysis.intent_type.value}{entities_str}]"]
 
-        # Inject session context when available (keeps fast path context-aware)
-        if session_summary:
-            lines.append("## Session Context")
-            lines.append(session_summary)
+        # Active constraints (user-stated rules that persist across turns)
+        if active_constraints:
+            lines.append(f"**Constraints:** {'; '.join(active_constraints)}")
+
+        # Separate CLIs from knowledge items
+        tools_items = [i for i in items if getattr(i, 'source', '') == "tools"]
+        knowledge_items = [i for i in items if getattr(i, 'source', '') != "tools"]
+
+        if knowledge_items:
             lines.append("")
+            lines.append("**Relevant knowledge:**")
+            for item in knowledge_items[:5]:  # Max 5 knowledge items on fast path
+                title = getattr(item, 'title', str(item)[:50])
+                snippet = getattr(item, 'summary', '') or getattr(item, 'excerpt', '')
+                if snippet:
+                    snippet = snippet[:70].replace("\n", " ").strip()
+                    lines.append(f"- **{title}**: {snippet}")
+                else:
+                    lines.append(f"- **{title}**")
 
-        # Group items by source (with safe attribute access)
-        by_source: dict[str, list] = {}
-        for item in items:
-            source = getattr(item, 'source', 'unknown')
-            if source not in by_source:
-                by_source[source] = []
-            by_source[source].append(item)
-
-        # Format each source
-        source_labels = {
-            "mem": "Memories",
-            "search": "Code & Docs",
-            "kanban": "Tasks",
-            "jam": "Brainstorms",
-            "crew": "Project State",
-            "context7": "External Docs",
-            "tools": "Available CLIs",
-            "delegation": "Delegation Hints",
-        }
-
-        if by_source:
-            lines.append("## Relevant Context")
-            lines.append("")
-
-            for source, source_items in by_source.items():
-                label = source_labels.get(source, source)
-                lines.append(f"### {label}")
-
-                for item in source_items[:5]:  # Max 5 per source
-                    # Safe attribute access with fallbacks
-                    title = getattr(item, 'title', str(item)[:50])
-                    summary = getattr(item, 'summary', '')[:60]
-                    lines.append(f"- **{title}**: {summary}")
-
+        if tools_items:
+            cli_names = []
+            for t in tools_items[:4]:
+                name = getattr(t, 'title', '').replace(' available', '').split()[0]
+                if name:
+                    cli_names.append(name)
+            if cli_names:
                 lines.append("")
+                lines.append(f"**Available CLIs:** {', '.join(cli_names)}")
 
-        # Proactive suggestion (max 1 per turn)
-        suggestion = self._generate_suggestion(analysis, items)
-        if suggestion:
-            lines.append("## Suggestion")
-            lines.append(f"*{suggestion}*")
-            lines.append("")
-
-        # Note failures (single line, no section header)
         if failed_sources:
             lines.append(f"Unavailable: {', '.join(failed_sources)}")
-            lines.append("")
 
         return "\n".join(lines)
 

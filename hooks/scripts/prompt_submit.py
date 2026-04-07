@@ -317,6 +317,118 @@ def _suggest_discovery(prompt: str, state) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Complexity + risk scoring (inline, no API calls, no external imports)
+# ---------------------------------------------------------------------------
+
+_SYNTHESIS_THRESHOLD = 0.25  # complexity >= this OR is_risky → trigger synthesis
+
+_DEEP_WORK_SIGNALS = frozenset({
+    "implement", "architecture", "design", "refactor", "migrate",
+    "integrate", "why does", "how does", "why is", "how do", "how should",
+    "explain", "compare", "analyze", "review", "investigate", "diagnose",
+    "difference between", "best approach", "should i", "what if",
+    "trade-off", "tradeoff", "what happens", "what would",
+})
+
+_RISK_SIGNALS = frozenset({
+    "delete", "drop table", "remove all", "migration", "production", "prod ",
+    "deploy", "breaking change", "credentials", "secret key",
+    "password", "force push", "hard reset",
+})
+# Risk signals that must match as whole words (not substrings)
+_RISK_WORD_SIGNALS = frozenset({"auth token", "api key", "rollback", "purge", "truncate"})
+
+_MULTI_PART_SIGNALS = frozenset({
+    "and also", "additionally", "furthermore", "first,", "second,",
+    "third,", "as well as", "along with",
+})
+
+
+def _score_complexity_and_risk(prompt: str, state) -> tuple[float, bool]:
+    """Fast inline complexity + risk scoring. No external imports, <1ms."""
+    words = prompt.split()
+    word_count = len(words)
+    prompt_lower = prompt.lower()
+
+    complexity = 0.0
+
+    # Length signals (longer = more likely complex)
+    if word_count > 8:  complexity += 0.10
+    if word_count > 25: complexity += 0.10
+    if word_count > 60: complexity += 0.10
+    if word_count > 110: complexity += 0.05
+
+    # Multi-part signals
+    if any(s in prompt_lower for s in _MULTI_PART_SIGNALS): complexity += 0.15
+    if prompt.count("?") > 1: complexity += 0.10
+
+    # Deep work signals (understanding / analysis / design)
+    matches = sum(1 for s in _DEEP_WORK_SIGNALS if s in prompt_lower)
+    complexity += min(matches * 0.15, 0.30)
+
+    # Novelty: prompt topics not in session history → new territory
+    try:
+        session_topics = set(getattr(state, "topics", None) or [])
+        if session_topics:
+            prompt_words = {w.lower() for w in words if len(w) > 4}
+            if not (prompt_words & session_topics):
+                complexity += 0.15  # No overlap = unfamiliar territory
+    except Exception:
+        pass
+
+    # Risk detection (separate from complexity)
+    is_risky = (
+        any(s in prompt_lower for s in _RISK_SIGNALS)
+        or any(s in prompt_lower for s in _RISK_WORD_SIGNALS)
+    )
+
+    return min(complexity, 1.0), is_risky
+
+
+def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, state) -> str:
+    """Build the synthesis skill invocation directive for complex/risky prompts."""
+    # Compact recent turns summary for the skill
+    turns_summary = ""
+    try:
+        from history_condenser import HistoryCondenser
+        import os as _os
+        session_id = _os.environ.get("CLAUDE_SESSION_ID", "default")
+        condenser = HistoryCondenser(session_id)
+        s = condenser.get_session_state()
+        parts = []
+        if s.get("current_task"):
+            parts.append(f"task={s['current_task'][:80]}")
+        if s.get("active_constraints"):
+            parts.append(f"constraints={'; '.join(s['active_constraints'][-2:])}")
+        if s.get("decisions"):
+            parts.append(f"decisions={'; '.join(s['decisions'][-2:])}")
+        turns_summary = " | ".join(parts)
+    except Exception:
+        pass
+
+    # Encode args for the skill (simple key=value pairs)
+    import json as _json
+    args_parts = [
+        f"complexity={complexity:.2f}",
+        f"risk={'true' if is_risky else 'false'}",
+    ]
+    if turns_summary:
+        args_parts.append(f"turns={turns_summary[:300]}")
+    # Prompt last (may contain special chars)
+    args_parts.append(f"prompt={prompt[:500]}")
+
+    args_str = " | ".join(args_parts)
+
+    return (
+        "[Context Assembly] This prompt requires deep context synthesis.\n"
+        "BEFORE answering, invoke the synthesis skill:\n\n"
+        f"  Skill(skill='wicked-garden:smaht:synthesize', args='{args_str}')\n\n"
+        "Read the CONTEXT BRIEFING it produces. Use it to ground your response. "
+        "Answer the original prompt only after the briefing is complete."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Setup gate
 # ---------------------------------------------------------------------------
 
@@ -639,6 +751,67 @@ def main():
     # Session goal capture on turns 1-2
     _capture_session_goal(prompt, turn_count, project, session_id)
 
+    # Complexity + risk gate — inject synthesis skill directive for complex/risky prompts.
+    # Uses Router path decision (most accurate) with inline risk scoring as a fallback.
+    # Synthesis is skipped if onboarding is pending (no context yet to synthesize from).
+    if not onboarding_directive:
+        complexity, is_risky = _score_complexity_and_risk(prompt, state)
+        _should_synthesize = False
+        try:
+            from router import Router
+            _r = Router(session_topics=list(getattr(state, "topics", None) or [])).route(prompt)
+            _word_count = len(prompt.split())
+            _prompt_lower = prompt.lower()
+
+            # Near-HOT guard: very short phrases with no technical signals are continuations.
+            # Catches "ok looks good", "sounds right", "makes sense" — Router sees these as
+            # ambiguous/slow but they carry no real intent worth synthesizing.
+            _has_technical = (
+                "?" in prompt
+                or any(s in _prompt_lower for s in _DEEP_WORK_SIGNALS)
+                or any(s in _prompt_lower for s in _RISK_SIGNALS)
+            )
+            _is_near_hot = (_word_count <= 6) and not _has_technical
+
+            # Synthesize when:
+            # - Router says compound/ambiguous (slow) AND has real content (not near-HOT)
+            # - Low confidence AND long enough to have real intent (> 8 words)
+            # - Risky keywords (need verification regardless of length)
+            # - Inline heuristics exceed threshold AND > 8 words
+            _low_confidence = (_r.analysis.confidence < 0.60) and (_word_count > 8)
+            _should_synthesize = (
+                not _is_near_hot
+                and (
+                    (_r.path.value == "slow" and _has_technical)
+                    or is_risky
+                    or _low_confidence
+                    or (complexity >= _SYNTHESIS_THRESHOLD and _word_count > 8)
+                )
+            )
+            complexity = float(getattr(_r.analysis, "confidence", complexity))
+        except Exception:
+            # Fallback: inline heuristics
+            _should_synthesize = (complexity >= _SYNTHESIS_THRESHOLD) or is_risky
+
+        if _should_synthesize:
+            synthesis_directive = _build_synthesis_directive(prompt, complexity, is_risky, state)
+            _log("smaht", "debug", "synthesis.triggered",
+                 detail={"complexity": complexity, "risk": is_risky, "turn": turn_count})
+            merged = (
+                f"<system-reminder>\n"
+                f"<!-- wicked-garden | path=synthesis | turn={turn_count} -->\n"
+                f"{synthesis_directive}\n"
+                f"</system-reminder>"
+            )
+            print(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": merged,
+                },
+                "continue": True,
+            }))
+            return
+
     try:
         # Delegate all routing and context assembly to smaht v2 Orchestrator.
         # The Orchestrator handles HOT/FAST/SLOW routing, adapter queries,
@@ -690,6 +863,12 @@ def main():
 
         if briefing:
             sanitized = briefing.replace("</system-reminder>", "")
+            # Directive framing: makes the briefing authoritative rather than supplementary.
+            # Claude should ground its response in this context, not supplement it with guesses.
+            all_parts.append(
+                "Ground your response in this project context. "
+                "Do not assume or infer beyond what is stated here.\n"
+            )
             all_parts.append(sanitized)
 
         # Periodic memory storage nudge (every 10 turns)

@@ -28,8 +28,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from history_condenser import HistoryCondenser
-from router import PromptAnalysis
+from router import PromptAnalysis, IntentType
 from adapter_registry import AdapterRegistry, timed_query, CACHE_BYPASS
+
+# Intent-driven adapter selection for slow path — wider than fast path but not exhaustive.
+# Querying ALL adapters on every complex prompt wastes tokens and latency.
+SLOW_ADAPTER_RULES = {
+    IntentType.DEBUGGING:       ["domain", "brain", "events", "tools", "delegation"],
+    IntentType.IMPLEMENTATION:  ["domain", "brain", "context7", "tools", "events", "delegation"],
+    IntentType.PLANNING:        ["domain", "brain", "events", "context7", "delegation"],
+    IntentType.RESEARCH:        ["domain", "brain", "events", "context7", "tools", "delegation"],
+    IntentType.REVIEW:          ["domain", "brain", "events", "context7", "delegation"],
+    IntentType.GENERAL:         ["domain", "brain", "events", "delegation"],
+}
 
 
 @dataclass
@@ -62,11 +73,13 @@ class SlowPathAssembler:
         _call_cache: dict[str, list] = {}
         _timing_acc: dict[str, dict] = {}
 
-        # Query ALL adapters in parallel with longer timeout (Gap G-4: access KNOWN_ADAPTERS as class attr)
-        adapter_timeout = min(2.0, timeout / 2)  # 2s per adapter max
-        all_adapters = self._registry.get(list(AdapterRegistry.KNOWN_ADAPTERS.keys()))
+        # Intent-driven adapter selection: wider than fast path but not exhaustive.
+        # Slow path gets longer timeouts (2s) and more items per adapter.
+        adapter_timeout = min(2.0, timeout / 2)
+        adapter_names = list(SLOW_ADAPTER_RULES.get(analysis.intent_type, ["domain", "brain", "events", "delegation"]))
+        adapters_for_call = self._registry.get(adapter_names)
         tasks = {}
-        for name, adapter in all_adapters.items():
+        for name, adapter in adapters_for_call.items():
             tasks[name] = self._query_adapter(adapter, name, prompt, _call_cache, _timing_acc,
                                               timeout=adapter_timeout)
 
@@ -85,19 +98,15 @@ class SlowPathAssembler:
                 if result:
                     all_items[name] = result
 
-        # Get history context
-        condensed_history = condenser.get_condensed_history()
-        last_turn = condenser.get_last_turn()
-
-        # Cap condensed history at source to prevent budget overrun
-        # History producer (summary + lanes + facts + turns) grows unbounded
-        MAX_HISTORY_CHARS = 1200  # ~300 tokens max for session history
-        if condensed_history and len(condensed_history) > MAX_HISTORY_CHARS:
-            condensed_history = condensed_history[:MAX_HISTORY_CHARS].rsplit('\n', 1)[0]
+        # Extract active constraints from session (constraints only — history is in Claude's window)
+        active_constraints = []
+        try:
+            active_constraints = condenser.summary.active_constraints[-3:]
+        except Exception:
+            pass
 
         # Intelligent selection: pick highest-relevance items within budget
-        # Reserve chars for situation + history + recent context
-        reserved = 600  # situation + last turn + capped session history
+        reserved = 80  # situation line only — history/last_turn excluded from output
         try:
             from budget_enforcer import BudgetEnforcer
             enforcer = BudgetEnforcer()
@@ -105,9 +114,9 @@ class SlowPathAssembler:
         except Exception:
             selected_items = all_items  # Fallback: use all
 
-        # Format comprehensive briefing
+        # Format compact authoritative briefing
         briefing = self._format_briefing(
-            prompt, analysis, selected_items, condensed_history, last_turn, sources_failed
+            prompt, analysis, selected_items, active_constraints, sources_failed
         )
 
         latency_ms = int((time.time() - start_time) * 1000)
@@ -142,12 +151,15 @@ class SlowPathAssembler:
         prompt: str,
         analysis: PromptAnalysis,
         items_by_source: dict,
-        condensed_history: str,
-        last_turn,
-        sources_failed: list[str]
+        active_constraints: list[str],
+        sources_failed: list[str],
     ) -> str:
-        """Format comprehensive briefing with all available context."""
-        # Compact situation line
+        """Format compact authoritative briefing.
+
+        Omits last_turn and condensed_history — those are already in Claude's context
+        window and repeating them wastes tokens without adding signal.
+        """
+        # Situation line (1 line)
         entities_str = f" | {', '.join(analysis.entities[:3])}" if analysis.entities else ""
         notes = []
         if analysis.is_compound:
@@ -155,80 +167,46 @@ class SlowPathAssembler:
         if analysis.requires_history:
             notes.append("refs history")
         notes_str = f" | {', '.join(notes)}" if notes else ""
-        lines = [
-            f"[{analysis.intent_type.value}{entities_str}{notes_str}]",
-            "",
-        ]
+        lines = [f"[{analysis.intent_type.value}{entities_str}{notes_str}]"]
 
-        # Last turn context (if available, with system-reminder stripping)
-        if last_turn:
-            import re as _re
-            clean_assistant = _re.sub(
-                r'<system-reminder>.*?</system-reminder>', '',
-                last_turn.assistant or '', flags=_re.DOTALL
-            ).strip()
-            lines.extend([
-                "## Recent Context",
-                f"**Last**: {last_turn.user[:100]}",
-                f"**Response**: {clean_assistant[:150]}",
-                "",
-            ])
+        # Active constraints (compact, 1 line — user-stated rules that persist)
+        if active_constraints:
+            lines.append(f"**Constraints:** {'; '.join(active_constraints)}")
 
-        # Condensed history (only if non-empty and has real content)
-        if condensed_history and "(No summary yet)" not in condensed_history and condensed_history.strip():
-            lines.extend([
-                "## Session History",
-                condensed_history,
-                "",
-            ])
+        # Flatten all items sorted by relevance (BudgetEnforcer already sorted by score)
+        all_items_flat = []
+        for source, items in items_by_source.items():
+            for item in items:
+                all_items_flat.append((source, item))
 
-        # Source-specific context
-        source_labels = {
-            "mem": "Memories",
-            "events": "Recent Activity",
-            "search": "Code & Docs",
-            "kanban": "Tasks",
-            "jam": "Brainstorms",
-            "crew": "Project State",
-            "context7": "External Docs",
-            "tools": "Available CLIs",
-            "delegation": "Delegation Hints",
-        }
+        # Separate CLIs for compact display; everything else is knowledge
+        tools_items = [(s, i) for s, i in all_items_flat if s == "tools"]
+        knowledge_items = [(s, i) for s, i in all_items_flat if s != "tools"]
 
-        has_context = any(items for items in items_by_source.values())
-        if has_context:
-            lines.append("## Relevant Context")
+        if knowledge_items:
             lines.append("")
-
-            for source, items in items_by_source.items():
-                if not items:
-                    continue
-
-                label = source_labels.get(source, source)
-                lines.append(f"### {label}")
-
-                for item in items[:5]:  # Max 5 per source
-                    # Safe attribute access with fallbacks
-                    title = getattr(item, 'title', str(item)[:50])
-                    summary = getattr(item, 'summary', '')
-                    excerpt = getattr(item, 'excerpt', '')
-
+            lines.append("**Relevant knowledge:**")
+            for _source, item in knowledge_items[:8]:  # Max 8 knowledge items
+                title = getattr(item, 'title', str(item)[:50])
+                snippet = getattr(item, 'summary', '') or getattr(item, 'excerpt', '')
+                if snippet:
+                    snippet = snippet[:80].replace("\n", " ").strip()
+                    lines.append(f"- **{title}**: {snippet}")
+                else:
                     lines.append(f"- **{title}**")
 
-                    if summary:
-                        lines.append(f"  {summary[:100]}")
-
-                    if excerpt:
-                        excerpt_clean = excerpt[:100].replace("\n", " ").strip()
-                        if excerpt_clean:
-                            lines.append(f"  > {excerpt_clean}")
-
+        if tools_items:
+            cli_names = []
+            for _s, t in tools_items[:4]:
+                name = getattr(t, 'title', '').replace(' available', '').split()[0]
+                if name:
+                    cli_names.append(name)
+            if cli_names:
                 lines.append("")
+                lines.append(f"**Available CLIs:** {', '.join(cli_names)}")
 
-        # Note failures (single line, no section header — only for actual source failures)
         if sources_failed:
             lines.append(f"Unavailable: {', '.join(sources_failed)}")
-            lines.append("")
 
         return "\n".join(lines)
 

@@ -10,8 +10,8 @@ Two phases:
 
 Budget per path:
   HOT:  100 tokens → 400 chars
-  FAST: 500 tokens → 2000 chars
-  SLOW: 1000 tokens → 4000 chars
+  FAST: 300 tokens → 1200 chars  (reduced: history/last_turn no longer included)
+  SLOW: 600 tokens → 2400 chars  (reduced: history/last_turn no longer included)
 """
 
 import re
@@ -39,7 +39,7 @@ SOURCE_PRIORITY = {
 class BudgetEnforcer:
     """Enforce token budget on context briefings using intelligent selection."""
 
-    CHAR_BUDGETS = {"hot": 400, "fast": 2000, "slow": 4000}
+    CHAR_BUDGETS = {"hot": 400, "fast": 1200, "slow": 2400}
     OVERHEAD = 200  # system-reminder wrapper + HTML comment header (variable but bounded)
 
     def select_items(self, items_by_source: dict, path: str, reserved_chars: int = 0) -> dict:
@@ -112,34 +112,37 @@ class BudgetEnforcer:
             return briefing[:budget]
 
     def _truncate(self, text: str, budget: int) -> str:
-        """Safety-net truncation for already-formatted text."""
+        """Safety-net truncation for already-formatted text.
+
+        Briefings now use flat format (no ## sections). Trim from the bottom:
+        1. Drop Available CLIs line
+        2. Drop knowledge items from the end
+        3. Hard slice as last resort
+        """
         result = text
+        lines = result.split('\n')
 
-        # 1. Remove excerpts (> lines)
-        result = re.sub(r'  > .+\n?', '', result)
+        # 1. Drop Available CLIs line (lowest signal)
+        lines = [l for l in lines if not l.startswith('**Available CLIs:**')]
+        result = '\n'.join(lines)
         if len(result) <= budget:
             return result
 
-        # 2. Remove Suggestion section
-        result = re.sub(r'\n## Suggestion\n.*?(?=\n## |\Z)', '', result, flags=re.DOTALL)
+        # 2. Drop knowledge items from the end until within budget
+        while len(result) > budget and lines:
+            # Find last knowledge item line (starts with "- **")
+            for i in range(len(lines) - 1, -1, -1):
+                if lines[i].startswith('- **'):
+                    lines.pop(i)
+                    break
+            else:
+                break  # No more knowledge items to drop
+            result = '\n'.join(lines)
+
         if len(result) <= budget:
             return result
 
-        # 3. Truncate Session History to 3 lines
-        def truncate_history(m):
-            lines = m.group(0).split('\n')
-            return '\n'.join(lines[:4])
-        result = re.sub(r'## Session History\n(?:.*\n?)*?(?=\n## |\Z)', truncate_history, result)
-        if len(result) <= budget:
-            return result
-
-        # 4. Remove lower-priority source sections
-        for source in ['Delegation Hints', 'Available CLIs', 'Brainstorms', 'External Docs', 'Project State']:
-            result = re.sub(rf'\n### {source}\n.*?(?=\n### |\n## |\Z)', '', result, flags=re.DOTALL)
-            if len(result) <= budget:
-                return result
-
-        # 5. Hard slice
+        # 3. Hard slice
         return result[:budget]
 
     @staticmethod

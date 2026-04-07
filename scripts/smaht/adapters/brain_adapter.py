@@ -73,6 +73,58 @@ def _keyword_score(prompt_lower: str, text: str) -> float:
     return min(score, 0.45)
 
 
+def _readable_title(source_file: str) -> str:
+    """Convert a chunk source path to a human-readable title.
+
+    e.g. "skills-crew-workflow-refs-specialist-routing-rules.md"
+      → "crew / specialist-routing-rules"
+    """
+    import re as _re
+    # Strip leading domain prefix like "skills-", "commands-", "agents-", "hooks-"
+    name = _re.sub(r'^(skills|commands|agents|hooks|scenarios|scripts|docs)-', '', source_file)
+    # Strip .md extension
+    name = name.removesuffix('.md')
+    # Split on '-' to get components; find the domain and the tail
+    parts = name.split('-')
+    if len(parts) >= 2:
+        # First part is domain; rest is description
+        domain = parts[0]
+        # Skip "refs" and numeric-looking chunks
+        desc_parts = [p for p in parts[1:] if p != 'refs' and not p.startswith('chunk')]
+        if desc_parts:
+            return f"{domain} / {'-'.join(desc_parts)}"
+    return name
+
+
+def _clean_snippet(raw: str) -> str:
+    """Strip YAML frontmatter lines and FTS highlight tags from snippet.
+
+    FTS5 snippets may contain frontmatter content when the brain server
+    re-indexes full chunk files (including frontmatter prepended on write).
+    """
+    import re as _re
+    # Remove FTS5 highlight markers and ellipsis separators
+    text = _re.sub(r"<[^>]+>", "", raw)
+    text = text.replace("…", " ").replace("...", " ")
+    # Strip YAML-looking tokens (key: value patterns, list items, ---) regardless of position
+    # These appear when FTS snippet lands in frontmatter content
+    lines = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not stripped or stripped == "---":
+            continue
+        # Skip lines that look like YAML (key: value with no sentence punctuation)
+        if _re.match(r'^[\w_\-]+:\s+\S', stripped) and '.' not in stripped[:40]:
+            continue
+        # Skip bare list items that look like tag lists
+        if stripped.startswith('- ') and not _re.search(r'[.!?]', stripped):
+            continue
+        lines.append(stripped)
+    result = " ".join(lines).strip()
+    # If nothing survived, return empty (will be omitted from briefing)
+    return result[:160] if result else ""
+
+
 async def query(prompt: str) -> List[ContextItem]:
     """Query brain for code and document context relevant to the prompt."""
     results = await run_in_thread(_query_brain, prompt)
@@ -81,31 +133,48 @@ async def query(prompt: str) -> List[ContextItem]:
 
     import re
     prompt_lower = prompt.lower()
-    items: List[ContextItem] = []
+
+    # First pass: build items grouped by source file (deduplicate chunks → 1 item per source)
+    best_by_source: dict[str, dict] = {}
 
     for r in results:
         path = r.get("path", "") or r.get("id", "")
         snippet = r.get("snippet", "")
-        clean_snippet = re.sub(r"<[^>]+>", "", snippet)[:200]
 
         # Determine source file from chunk path
         source_file = ""
         if "chunks/extracted/" in path:
             part = path.replace("chunks/extracted/", "").split("/chunk-")[0]
             source_file = part
+        else:
+            source_file = path
 
-        title = source_file or path
-        kw_score = _keyword_score(prompt_lower, f"{title} {clean_snippet}")
+        clean_snippet = _clean_snippet(snippet)
+        kw_score = _keyword_score(prompt_lower, f"{source_file} {clean_snippet}")
         relevance = min(0.3 + kw_score, 1.0)
 
+        # Keep only the highest-scoring chunk per source file
+        existing = best_by_source.get(source_file)
+        if existing is None or relevance > existing["relevance"]:
+            best_by_source[source_file] = {
+                "path": path,
+                "source_file": source_file,
+                "snippet": clean_snippet,
+                "relevance": relevance,
+            }
+
+    # Second pass: convert to ContextItems
+    items: List[ContextItem] = []
+    for source_file, entry in best_by_source.items():
+        title = _readable_title(source_file)
         items.append(ContextItem(
-            id=path,
+            id=entry["path"],
             source="brain",
             title=title,
-            summary=clean_snippet,
-            excerpt=clean_snippet[:100],
-            relevance=relevance,
-            metadata={"brain_path": path},
+            summary=entry["snippet"],
+            excerpt=entry["snippet"][:100],
+            relevance=entry["relevance"],
+            metadata={"brain_path": entry["path"]},
         ))
 
     items.sort(key=lambda x: x.relevance, reverse=True)
