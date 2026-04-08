@@ -318,9 +318,43 @@ class KanbanStore:
 
     # ==================== Tasks ====================
 
+    @staticmethod
+    def _strip_composite_id(project_id: str, task_id: str) -> str:
+        """Strip the project_id prefix from a composite task ID.
+
+        create-task returns ``id: "project_id:task_id"`` for display, but
+        get_task/update_task expect the short task_id only.  When callers
+        pass the composite form we silently strip the prefix so both forms
+        work correctly.
+        """
+        prefix = f"{project_id}:"
+        if task_id.startswith(prefix):
+            return task_id[len(prefix):]
+        return task_id
+
     def get_task(self, project_id: str, task_id: str) -> Optional[Dict]:
-        """Get a single task by ID."""
-        return self._sm.get("tasks", f"{project_id}:{task_id}")
+        """Get a single task by ID, including comments from the activity log."""
+        task_id = self._strip_composite_id(project_id, task_id)
+        task = self._sm.get("tasks", f"{project_id}:{task_id}")
+        if task is None:
+            return None
+        # Attach comments sourced from the activity log
+        raw_comments = self._sm.list(
+            "activity", project_id=project_id, task_id=task_id, type="comment"
+        )
+        task["comments"] = sorted(
+            [
+                {
+                    "id": c.get("comment_id", c.get("id")),
+                    "commenter": c.get("by", "claude"),
+                    "timestamp": c.get("ts"),
+                    "content": c.get("content"),
+                }
+                for c in raw_comments
+            ],
+            key=lambda c: c.get("timestamp") or "",
+        )
+        return task
 
     def list_tasks(self, project_id: str, swimlane: str = None,
                    initiative_id: str = None) -> List[Dict]:
@@ -384,6 +418,7 @@ class KanbanStore:
 
     def update_task(self, project_id: str, task_id: str, **updates) -> Optional[Dict]:
         """Update a task."""
+        task_id = self._strip_composite_id(project_id, task_id)
         task = self.get_task(project_id, task_id)
         if not task:
             return None

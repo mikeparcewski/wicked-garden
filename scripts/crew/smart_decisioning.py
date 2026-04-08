@@ -328,7 +328,6 @@ DOCUMENTATION_SIGNALS = [
     ("user guide*", 2, "user guide"),
     ("migration guide*", 2, "migration guide"),
     ("changelog", 1, "changelog"),
-    ("readme", 1, "README"),
     ("runbook", 2, "runbook"),
     ("playbook", 2, "playbook"),
     ("docstring*", 1, "docstrings"),
