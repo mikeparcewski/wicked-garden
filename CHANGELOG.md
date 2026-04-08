@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.0.4] - 2026-04-08
+
+### Bug Fixes
+- fix(kanban,crew): get-task returns comments + composite ID handling; README false positive (d690c72)
+- fix(scenarios): update stale crew acceptance test scenarios (7788c96)
+
+### Tests
+- test(scenarios): align 3 stale acceptance scenarios with smaht v2 synthesis path (#389) (fb4051f)
+- test(scenarios): align 3 stale acceptance scenarios with smaht v2 synthesis path (f10dd25)
+
+### Chores
+- chore: trim refs/ files to ≤300 lines (23 files) (#390) (cbb00b6)
+- release: wicked-garden v4.0.3 — kanban KanbanStore routing + skill fixes (ecd93a9)
+
 ## [4.0.3] - 2026-04-08
 
 ### Bug Fixes
