@@ -27,36 +27,67 @@ _STOP_WORDS = frozenset({
     "when", "where", "and", "or", "but", "if", "for", "of", "to", "from",
     "in", "on", "at", "by", "with", "about", "not", "so", "just", "also",
     "need", "want", "let", "get", "make", "test", "check", "fix", "work",
+    # English filler that passes len>2 but over-constrains FTS5 AND matching
+    "one", "two", "all", "any", "some", "out", "use", "via", "per",
+    "without", "going", "through", "using", "into", "onto", "upon",
+    "there", "their", "then", "than", "its", "our", "has",
+    # Prepositions / general connectors that look content-y but aren't
+    "between", "across", "along", "around", "before", "after",
+    "exist", "exists", "show", "tell", "give", "take",
 })
 
 
-def _extract_keywords(prompt: str) -> str:
+def _extract_keywords(prompt: str, limit: int = 3) -> str:
+    """Extract up to `limit` keywords for FTS5 AND query.
+
+    Position-order preserves the prompt's intent; the first non-stop words
+    are almost always the topic. Callers pass limit=2 for retry fallback.
+    """
     words = prompt.lower().split()
     keywords = [w for w in words if w not in _STOP_WORDS and len(w) > 2]
-    return " ".join(keywords[:10]) if keywords else ""
+    seen: set[str] = set()
+    unique = []
+    for w in keywords:
+        if w not in seen:
+            seen.add(w)
+            unique.append(w)
+    return " ".join(unique[:limit]) if unique else ""
 
 
 def _query_brain(prompt: str) -> list:
-    """Query brain FTS5 index. Runs in thread pool."""
-    query = _extract_keywords(prompt)
+    """Query brain FTS5 index with automatic recall fallback.
+
+    FTS5 uses AND — more terms = fewer results. Try 3 terms first (higher
+    precision); if < 2 results, retry with 2 terms to widen recall.
+    """
+    query = _extract_keywords(prompt, limit=3)
     if not query:
         return []
 
     try:
         port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
-        payload = json.dumps({
-            "action": "search",
-            "params": {"query": query, "limit": 10},
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return data.get("results", [])
+
+        def _search(q: str) -> list:
+            payload = json.dumps({
+                "action": "search",
+                "params": {"query": q, "limit": 10},
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                f"http://localhost:{port}/api",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                return json.loads(resp.read().decode("utf-8")).get("results", [])
+
+        results = _search(query)
+        if len(results) < 2:
+            # Widen: drop to 2 terms for better recall
+            fallback = _extract_keywords(prompt, limit=2)
+            if fallback != query:
+                results = _search(fallback)
+        return results
     except Exception:
         return []
 
@@ -143,7 +174,10 @@ async def query(prompt: str) -> List[ContextItem]:
         return []
 
     import re
-    prompt_lower = prompt.lower()
+    # Score against extracted keywords only (not full prompt) so incidental
+    # words in the prompt (e.g. "crew" in "without going through the crew
+    # workflow") don't boost unrelated documents that happen to mention them.
+    score_against = _extract_keywords(prompt, limit=3) or prompt.lower()
 
     # First pass: build items grouped by source file (deduplicate chunks → 1 item per source)
     best_by_source: dict[str, dict] = {}
@@ -161,7 +195,7 @@ async def query(prompt: str) -> List[ContextItem]:
             source_file = path
 
         clean_snippet = _clean_snippet(snippet)
-        kw_score = _keyword_score(prompt_lower, f"{source_file} {clean_snippet}")
+        kw_score = _keyword_score(score_against, f"{source_file} {clean_snippet}")
         relevance = min(0.3 + kw_score, 1.0)
 
         # Keep only the highest-scoring chunk per source file
