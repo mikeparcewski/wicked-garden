@@ -11,6 +11,7 @@ Strategy:
 3. Return ContextItems sorted by relevance
 """
 
+import asyncio
 import sys
 import time
 from datetime import datetime, timezone
@@ -113,12 +114,17 @@ def _keyword_score(prompt_lower: str, text: str, weight: float = 0.2) -> float:
 def _query_domain(config: dict, keywords: str, project: str = "") -> list:
     """Query a single DomainStore domain. Runs in thread pool.
 
+    Uses _skip_discovery=True to bypass integration-discovery (MCP routing).
+    This is a read-only context query — smaht never needs to delegate reads
+    to external tools, and discovery can block for up to 3 s when brain is
+    slow, which exceeds the fast-path 0.5 s timeout (issue #374).
+
     Returns a list of raw record dicts, or [] on any error.
     """
     try:
         from _domain_store import DomainStore
 
-        ds = DomainStore(config["domain_name"])
+        ds = DomainStore(config["domain_name"], _skip_discovery=True)
 
         params: dict = {}
         if keywords:
@@ -154,10 +160,19 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     items: list[ContextItem] = []
     now = datetime.now(timezone.utc)
 
-    for config in _DOMAIN_QUERIES:
-        records = await run_in_thread(
-            _query_domain, config, keywords, project or ""
-        )
+    # Query all domains in parallel to avoid serial blocking (issue #374).
+    # Previously a serial for-loop meant a slow first domain (e.g. wicked-kanban
+    # during cold session) would delay every subsequent domain query.
+    domain_results = await asyncio.gather(
+        *[run_in_thread(_query_domain, config, keywords, project or "")
+          for config in _DOMAIN_QUERIES],
+        return_exceptions=True,
+    )
+
+    for config, records in zip(_DOMAIN_QUERIES, domain_results):
+        # Skip domains that raised (run_in_thread wraps; gather returns exception objects)
+        if isinstance(records, Exception) or not isinstance(records, list):
+            continue
 
         for record in records[:10]:  # Cap per domain
             # Skip archived or deleted records
