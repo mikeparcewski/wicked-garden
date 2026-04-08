@@ -47,7 +47,7 @@ result = await pipeline.execute({"topic": "AI Safety"})
 - **With Parallel Stages:** Allow some stages to fan out and merge back
 
 ### Observability
-Track: stage completion, stage duration, inter-stage data size, failure points.
+Track stage completion, duration, inter-stage data size, and failure points.
 
 ## Hierarchical Pattern
 
@@ -97,14 +97,10 @@ class HierarchicalAgent:
 ```
 
 ### Variations
-- **Dynamic Delegation:** Parent adapts plan based on subtask results
-- **Multi-Level Hierarchy:** Specialists can themselves be hierarchical agents
-- **Load Balancing:** Parent distributes work across multiple instances of same specialist
+Dynamic delegation (parent adapts on subtask results), multi-level hierarchy (specialists are themselves hierarchical), load balancing across specialist instances.
 
 ### Common Pitfalls
-- **Deep Nesting:** More than 3 levels becomes hard to debug and reason about
-- **Micromanagement:** Parent specifying too much detail, limiting specialist autonomy
-- **Bottleneck:** Parent becomes single point of failure or performance bottleneck
+Deep nesting (>3 levels), parent micromanagement limiting specialist autonomy, parent becoming a bottleneck or single point of failure.
 
 ## Collaborative Pattern
 
@@ -161,10 +157,7 @@ async def synthesis_consensus(proposals):
 - **Weighted Voting:** Different agents have different vote weights
 
 ### Consensus Mechanisms
-- **Majority Vote:** Simple, but may ignore minority insights
-- **Synthesis:** Rich output, but expensive and can be unpredictable
-- **First-to-N:** Fast, but may miss better solutions
-- **Veto-Based:** Any agent can veto unsafe proposals
+Majority Vote (simple), Synthesis (rich but expensive), First-to-N (fast), Veto-Based (any agent blocks unsafe proposals).
 
 ## Autonomous Pattern
 
@@ -206,10 +199,7 @@ class MonitoringAgent:
 ```
 
 ### Coordination Patterns
-Even autonomous agents may need minimal coordination:
-- **Shared Event Bus:** Publish events, subscribe to relevant ones
-- **Shared State Store:** Read/write shared state with optimistic locking
-- **Rate Limiting:** Coordinate to stay under global rate limits
+Even autonomous agents may need minimal coordination via shared event bus, shared state store, or rate limiting to stay under global limits.
 
 ## ReAct Pattern
 
@@ -274,42 +264,11 @@ Agent creates a complete execution plan upfront, then executes all steps. Planni
 - Environment is predictable and stable
 - Planning cost is justified (complex dependencies, resource optimization)
 - Need to validate plan before execution
-- Can estimate all required steps in advance
 
 ### When NOT to Use
 - Environment changes during execution
-- Can't predict what steps will be needed
 - Planning overhead exceeds execution savings
 - Need to start execution quickly
-
-### Implementation Example
-
-```python
-class PlanExecuteAgent:
-    async def solve(self, task):
-        # Planning phase
-        plan = await self.create_plan(task)
-
-        # Optional: validate plan
-        if not self.validate_plan(plan):
-            raise ValueError("Invalid plan")
-
-        # Execution phase
-        results = []
-        for step in plan.steps:
-            result = await self.execute_step(step)
-            results.append(result)
-
-        return self.aggregate_results(results)
-
-    async def create_plan(self, task):
-        prompt = f"""Create a detailed execution plan for:
-        {task}
-
-        Available actions: {self.available_actions}
-        Return JSON with steps."""
-        return await self.llm.generate(prompt)
-```
 
 ### Planning Strategies
 - **Forward Planning:** Start from initial state, plan steps to goal
@@ -322,44 +281,11 @@ class PlanExecuteAgent:
 Agent reviews its own outputs and iteratively improves them through self-critique and refinement.
 
 ### When to Use
-- Quality matters more than speed
-- Initial output is expected to be imperfect
-- Cost of iteration is acceptable
-- Clear quality criteria exist
+- Quality matters more than speed; initial output is expected to be imperfect
+- Cost of iteration is acceptable and clear quality criteria exist
 
 ### When NOT to Use
-- Latency is critical
-- Token budget is tight
-- Output quality is already sufficient
-- No clear improvement criteria
-
-### Implementation Example
-
-```python
-class ReflectiveAgent:
-    async def produce(self, task, max_iterations=3):
-        output = await self.initial_draft(task)
-
-        for i in range(max_iterations):
-            critique = await self.critique(output, task)
-
-            if critique.is_satisfactory:
-                break
-
-            output = await self.refine(output, critique)
-
-        return output
-
-    async def critique(self, output, original_task):
-        prompt = f"""Review this output:
-        {output}
-
-        Original task: {original_task}
-
-        Does it fully satisfy requirements?
-        What could be improved?"""
-        return await self.llm.generate(prompt)
-```
+- Latency is critical, token budget is tight, or no clear improvement criteria
 
 ### Variations
 - **With External Critic:** Separate critic agent reviews producer's output

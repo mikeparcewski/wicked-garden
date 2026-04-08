@@ -261,42 +261,7 @@ Can't see what agents are doing, why they made decisions, or where failures occu
 
 ### How to Fix
 
-```python
-class ObservableAgent:
-    def __init__(self, logger, tracer):
-        self.logger = logger
-        self.tracer = tracer
-
-    async def process(self, input):
-        # Create trace span
-        with self.tracer.span("agent.process") as span:
-            span.set_attribute("input", input)
-
-            # Log reasoning
-            self.logger.info("Agent reasoning about task", extra={
-                "task": input,
-                "agent_id": self.id
-            })
-
-            # Execute with instrumentation
-            start_time = time.time()
-            try:
-                result = await self._execute(input)
-                span.set_attribute("success", True)
-                self.logger.info("Agent completed task", extra={
-                    "duration": time.time() - start_time,
-                    "tokens_used": result.tokens
-                })
-                return result
-            except Exception as e:
-                span.set_attribute("success", False)
-                span.set_attribute("error", str(e))
-                self.logger.error("Agent failed", extra={
-                    "error": str(e),
-                    "input": input
-                }, exc_info=True)
-                raise
-```
+Wrap every agent in an `ObservableAgent` decorator that: opens a trace span, logs the task and agent ID before execution, records success/failure + duration + tokens_used after execution, and re-raises exceptions with full context.
 
 ### What to Observe
 - Agent decisions and reasoning

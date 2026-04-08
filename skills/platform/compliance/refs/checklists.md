@@ -229,9 +229,7 @@ Detailed verification checklists for each framework.
 - [ ] Incident response plan tested
 - [ ] Service provider (vendor) management
 
-## Quick Violation Detection
-
-### Common Anti-Patterns
+## Quick Violation Detection — Common Anti-Patterns
 
 **PII/PHI in Logs**:
 ```python
@@ -293,34 +291,9 @@ grep -r "TLSv1\|SSLv" --include="*.conf" --include="*.yaml"
 
 ## Evidence Collection
 
-### Code Evidence
-
-- Encryption implementations
-- Access control decorators/middleware
-- Audit logging statements
-- Input validation functions
-- Error handling (no PII leakage)
-
-### Configuration Evidence
-
-- TLS/SSL settings
-- Database encryption settings
-- Key management configuration
-- Network security rules
-- IAM policies
-
-### Documentation Evidence
-
-- Architecture diagrams
-- Data flow diagrams
-- Security policies
-- Incident response plans
-- Privacy notices
-
-### Operational Evidence
-
-- Access logs
-- Audit logs
-- Security monitoring dashboards
-- Incident reports
-- Training records
+| Category | Examples |
+|---|---|
+| Code | Encryption implementations, access control decorators, audit logging, input validation |
+| Configuration | TLS/SSL settings, DB encryption, key management, IAM policies |
+| Documentation | Architecture diagrams, data flow diagrams, security policies, incident response plans |
+| Operational | Access logs, audit logs, security dashboards, incident reports, training records |

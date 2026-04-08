@@ -81,21 +81,9 @@ Good user stories are:
 
 ## Common Personas
 
-### External Users
-- **Customer**: Purchases/uses product
-- **Visitor**: Browsing, not registered
-- **Subscriber**: Paying customer
-- **Partner**: External organization
-
-### Internal Users
-- **Admin**: System administrator
-- **Support Agent**: Customer support
-- **Manager**: Oversight/reporting
-- **Developer**: System maintenance
-
-### System
-- **System**: Automated processes
-- **API Consumer**: External system integration
+**External**: Customer, Visitor, Subscriber, Partner
+**Internal**: Admin, Support Agent, Manager, Developer
+**System**: System (automated), API Consumer (external integration)
 
 ## Examples by Domain
 
@@ -161,27 +149,11 @@ So that I can integrate with the service quickly
 
 ## Story Sizing
 
-### Small (S) - 1-2 days
-```
-As a user
-I want to update my email address
-So that I receive notifications at my current email
-```
-
-### Medium (M) - 3-5 days
-```
-As a customer
-I want to search products with filters
-So that I can narrow results by category, price, and rating
-```
-
-### Large (L) - 1-2 weeks
-```
-As a customer
-I want a complete checkout process
-So that I can purchase items with payment and shipping
-```
-*Note: Large stories should be broken down*
+| Size | Time | Example |
+|---|---|---|
+| S | 1-2 days | Update email address |
+| M | 3-5 days | Search products with filters |
+| L | 1-2 weeks | Complete checkout process — should be broken down |
 
 ## Breaking Down Large Stories
 
@@ -315,6 +287,6 @@ Use this template when creating new user stories:
 
 ## Resources
 
-- **Examples**: See `/skills/requirements-analysis/refs/story-examples/` for domain-specific examples
-- **Template Script**: Run `${CLAUDE_PLUGIN_ROOT}/scripts/user-story-template.sh` to generate formatted template
-- **Validation**: Review stories against INVEST criteria checklist
+- Domain-specific examples: `skills/requirements-analysis/refs/story-examples/`
+- Generate template: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/user-story-template.sh"`
+- Validate against INVEST criteria checklist above

@@ -235,21 +235,11 @@ Response: 200 OK
 ### Webhooks
 
 ```http
-# Register webhook
 POST /webhooks
-{
-  "url": "https://example.com/webhook",
-  "events": ["order.created", "order.fulfilled"],
-  "secret": "whsec_abc123"
-}
+{ "url": "https://example.com/webhook", "events": ["order.created"], "secret": "whsec_abc123" }
 
 Response: 201 Created
-{
-  "id": "wh_123",
-  "url": "https://example.com/webhook",
-  "events": ["order.created", "order.fulfilled"],
-  "created_at": "2025-01-24T10:00:00Z"
-}
+{ "id": "wh_123", "url": "https://example.com/webhook", "events": ["order.created"], "created_at": "..." }
 ```
 
 ## Security
@@ -266,10 +256,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 X-API-Key: pk_live_abc123def456
 ```
 
-**Basic Auth** (over HTTPS only)
-```http
-Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=
-```
+**Basic Auth** (HTTPS only): `Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=`
 
 ### Rate Limiting
 
@@ -290,11 +277,6 @@ Response: 429 Too Many Requests
 ### CORS
 
 ```http
-# Preflight request
-OPTIONS /users
-Access-Control-Request-Method: POST
-Access-Control-Request-Headers: Authorization
-
 # Preflight response
 Access-Control-Allow-Origin: https://example.com
 Access-Control-Allow-Methods: GET, POST, PUT, DELETE
@@ -304,71 +286,13 @@ Access-Control-Max-Age: 86400
 
 ## Best Practices
 
-### 1. Use Proper HTTP Methods
-
-Don't use POST for everything. Match the operation:
-- GET for reads
-- POST for creates
-- PUT for full replacements
-- PATCH for partial updates
-- DELETE for removals
-
-### 2. Version Your API
-
-```http
-# URL versioning
-/v1/users
-/v2/users
-
-# Header versioning
-Accept: application/vnd.api+json; version=2
-
-# Custom header
-X-API-Version: 2
-```
-
-### 3. Handle Errors Gracefully
-
-Always return:
-- Appropriate status code
-- Clear error message
-- Request ID for tracking
-- Actionable guidance
-
-### 4. Document Everything
-
-Use OpenAPI/Swagger specification (see openapi-template.yaml)
-
-### 5. Idempotency
-
-Support idempotency keys for POST/PATCH:
-```http
-POST /payments
-Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
-```
-
-### 6. Pagination for Collections
-
-Always paginate large collections. Never return unbounded arrays.
-
-### 7. Use HTTPS
-
-All production APIs must use TLS 1.2+
-
-### 8. Validation
-
-Validate early, fail fast with clear messages
-
-### 9. Consistency
-
-- Consistent naming (camelCase vs snake_case)
-- Consistent error format
-- Consistent timestamp format (ISO 8601)
-
-### 10. Monitoring
-
-Log all requests with:
-- Request ID
-- User ID
-- Response time
-- Status code
+1. **Use proper HTTP methods** — GET/POST/PUT/PATCH/DELETE; don't use POST for everything
+2. **Version your API** — URL (`/v1/users`), header, or content-type versioning
+3. **Handle errors gracefully** — appropriate status code, clear message, request ID, actionable guidance
+4. **Document everything** — OpenAPI/Swagger specification (see openapi-template.yaml)
+5. **Idempotency** — support `Idempotency-Key` header for POST/PATCH
+6. **Pagination** — always paginate collections; never return unbounded arrays
+7. **Use HTTPS** — TLS 1.2+ in all production environments
+8. **Validate early** — fail fast with clear field-level error messages
+9. **Consistency** — uniform naming (camelCase or snake_case), error format, ISO 8601 timestamps
+10. **Monitoring** — log every request: request ID, user ID, response time, status code

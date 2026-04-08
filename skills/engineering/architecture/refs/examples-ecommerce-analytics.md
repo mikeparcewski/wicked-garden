@@ -54,41 +54,14 @@ Structure:
 
 ## Consequences
 
-### Positive
-
-- Faster development (no distributed system complexity)
-- Easier debugging and testing
-- Simple deployment pipeline
-- Lower operational overhead
-- Clear module boundaries allow future extraction
-
-### Negative
-
-- All modules deploy together
-- Shared database limits independent scaling
-- Risk of coupling if not disciplined
-- Entire app restarts on deployment
-
-### Mitigation
-
-- Enforce module boundaries via package structure
-- Use events for cross-module communication
-- Plan extraction points for future microservices
-- Monitor module dependencies
+**Positive**: Faster development; easier debugging; simple deployment; lower ops overhead; clear module boundaries enable future extraction.
+**Negative**: All modules deploy together; shared database limits independent scaling; risk of coupling if not disciplined.
+**Mitigation**: Enforce boundaries via package structure; use events for cross-module communication.
 
 ## Alternatives Considered
 
-### Microservices
-
-**Pros**: Independent scaling, deployment, technology choices
-**Cons**: Operational complexity, distributed debugging, network overhead
-**Rejected**: Team size and timeline don't support the overhead
-
-### Traditional Monolith
-
-**Pros**: Simplest approach, proven
-**Cons**: No clear boundaries, harder to extract later
-**Rejected**: Want clear module separation for future growth
+**Microservices**: Independent scaling but operational complexity exceeds team capacity — rejected.
+**Traditional Monolith**: Simplest but no clear boundaries, harder to extract later — rejected.
 
 ## Migration Path
 
@@ -272,39 +245,14 @@ Implement **Lambda Architecture**:
 
 ## Consequences
 
-### Positive
-
-- Real-time and batch workloads optimized separately
-- Immutable batch layer (replayable)
-- Speed layer handles stragglers
-- Scalable to billions of events
-
-### Negative
-
-- Two processing paths to maintain
-- Eventual consistency between layers
-- More operational complexity
-- Duplicate logic risk
-
-### Mitigation
-
-- Share computation logic as libraries
-- Automated reconciliation between layers
-- Clear data freshness SLAs
+**Positive**: Independent optimization of real-time and batch; immutable batch layer (replayable); scalable to billions of events.
+**Negative**: Two processing paths; eventual consistency; duplicate logic risk.
+**Mitigation**: Share logic as libraries; automated reconciliation; clear data freshness SLAs.
 
 ## Alternatives Considered
 
-### Pure Streaming (Kappa Architecture)
-
-**Pros**: Single processing path
-**Cons**: Hard to replay history, less efficient for large scans
-**Rejected**: Historical queries are critical
-
-### Pure Batch
-
-**Pros**: Simpler, accurate
-**Cons**: Can't meet real-time SLA
-**Rejected**: Real-time is a key differentiator
+**Pure Streaming (Kappa)**: Single path, but hard to replay history — rejected, historical queries are critical.
+**Pure Batch**: Simpler, accurate, but can't meet real-time SLA — rejected, real-time is a key differentiator.
 ```
 
 ### System Diagram

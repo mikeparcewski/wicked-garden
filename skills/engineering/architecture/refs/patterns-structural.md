@@ -201,10 +201,7 @@ class PostgresUserRepository implements UserRepository {
 **Command Events**: Request for action
 
 ### Patterns
-
-**Pub/Sub**: One-to-many broadcasting
-**Event Sourcing**: Store events as source of truth
-**CQRS**: Separate read and write models
+**Pub/Sub**: One-to-many broadcasting · **Event Sourcing**: Events as source of truth · **CQRS**: Separate read/write models
 
 ## Hexagonal Architecture (Ports & Adapters)
 

@@ -166,45 +166,15 @@ NPV = -Initial Investment + Σ(Annual Net Benefit / (1 + Discount Rate)^year)
 
 ## Technology Adoption Lifecycle
 
-### Stages
+| Segment | % | Characteristics |
+|---|---|---|
+| Innovators | 2.5% | Enthusiasts, high risk tolerance, small market |
+| Early Adopters | 13.5% | Visionaries, willing to pay premium, reference customers |
+| Early Majority | 34% | Pragmatists, need proven solutions, large market |
+| Late Majority | 34% | Conservatives, price sensitive, commodity expectations |
+| Laggards | 16% | Skeptics, resist change, forced adoption |
 
-**Innovators (2.5%)**:
-- Technology enthusiasts
-- Want cutting edge
-- High risk tolerance
-- Small market, low revenue
-
-**Early Adopters (13.5%)**:
-- Visionaries
-- Solve real problems
-- Willing to pay premium
-- Reference customers
-
-**Early Majority (34%)**:
-- Pragmatists
-- Need proven solutions
-- Want low risk
-- Large market, scaling revenue
-
-**Late Majority (34%)**:
-- Conservatives
-- Adopt when necessary
-- Price sensitive
-- Commodity expectations
-
-**Laggards (16%)**:
-- Skeptics
-- Resist change
-- Forced adoption
-- Low margins
-
-### The Chasm
-
-Critical transition between Early Adopters and Early Majority:
-- Different buying criteria
-- Need different messaging
-- Requires whole product
-- Beachhead strategy essential
+**The Chasm**: Critical transition between Early Adopters and Early Majority — different buying criteria, requires whole product and beachhead strategy.
 
 ## TAM/SAM/SOM Framework
 
@@ -313,26 +283,9 @@ Critical transition between Early Adopters and Early Majority:
 
 ## Market Maturity Stages
 
-### Emerging (0-2 years)
-- Problem awareness growing
-- Few solutions exist
-- High uncertainty, high potential
-- Risk: Market doesn't materialize
-
-### Growing (2-5 years)
-- Clear need established
-- Multiple solutions competing
-- Standards forming
-- Opportunity: Capture share early
-
-### Mature (5+ years)
-- Dominant players established
-- Commoditization beginning
-- Efficiency focus
-- Challenge: Differentiation harder
-
-### Declining
-- Being replaced/disrupted
-- Shrinking investment
-- Exit strategies
-- Risk: Avoid unless niche play
+| Stage | Characteristics | Risk/Opportunity |
+|---|---|---|
+| Emerging (0-2y) | Few solutions, high uncertainty | Market may not materialize |
+| Growing (2-5y) | Clear need, standards forming | Capture share early |
+| Mature (5y+) | Dominant players, commoditization | Differentiation harder |
+| Declining | Disrupted, shrinking investment | Avoid unless niche play |

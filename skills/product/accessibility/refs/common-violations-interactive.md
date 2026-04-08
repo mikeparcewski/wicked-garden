@@ -296,6 +296,4 @@ If you have limited time, fix these first:
 
 ## Resources
 
-- **WebAIM WCAG Checklist**: https://webaim.org/standards/wcag/checklist
-- **A11Y Style Guide**: https://a11y-style-guide.com/
-- **Inclusive Components**: https://inclusive-components.design/
+WebAIM WCAG Checklist · A11Y Style Guide (a11y-style-guide.com) · Inclusive Components (inclusive-components.design)

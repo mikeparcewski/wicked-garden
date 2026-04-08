@@ -273,43 +273,15 @@ Numbers don't tell the whole story. Include qualitative observations:
 
 ### Design System Maturity
 
-**Level 1: Ad-hoc (✗)**
-- No design tokens
-- Styles scattered across files
-- Heavy duplication
-- No component library
-
-**Level 2: Emerging (⚠)**
-- Some design tokens defined
-- Basic component library
-- Inconsistent usage
-- Some documentation
-
-**Level 3: Established (✓)**
-- Comprehensive design tokens
-- Well-documented components
-- Consistent usage
-- Active maintenance
-
-**Level 4: Mature (✓✓)**
-- Enforced design tokens
-- Composable components
-- Automated testing
-- Version control and governance
+| Level | Characteristics |
+|---|---|
+| 1 Ad-hoc (✗) | No tokens, scattered styles, heavy duplication |
+| 2 Emerging (⚠) | Some tokens, basic components, inconsistent usage |
+| 3 Established (✓) | Comprehensive tokens, documented components, active maintenance |
+| 4 Mature (✓✓) | Enforced tokens, composable components, automated testing + governance |
 
 ### User Impact Assessment
 
-**Critical Issues:**
-- Accessibility violations (color contrast, focus states)
-- Broken functionality (missing states)
-- Confusing patterns (inconsistent buttons)
-
-**Medium Issues:**
-- Inconsistent spacing
-- Design token violations
-- Duplicate components
-
-**Low Issues:**
-- Minor polish opportunities
-- Edge case states
-- Optimization potential
+**Critical**: Accessibility violations, broken states, confusing interaction patterns
+**Medium**: Inconsistent spacing, token violations, duplicate components
+**Low**: Polish, edge case states, optimization

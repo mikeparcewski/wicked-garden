@@ -86,23 +86,9 @@ GET /orders?user_id=123
 ### GET - Retrieve Resources
 
 ```http
-# Get collection
-GET /users
-Response: 200 OK
-[
-  { "id": 1, "name": "Alice" },
-  { "id": 2, "name": "Bob" }
-]
-
-# Get single resource
-GET /users/1
-Response: 200 OK
-{ "id": 1, "name": "Alice", "email": "alice@example.com" }
-
-# Resource not found
-GET /users/999
-Response: 404 Not Found
-{ "error": "User not found" }
+GET /users           → 200 [{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]
+GET /users/1         → 200 {"id":1,"name":"Alice","email":"alice@example.com"}
+GET /users/999       → 404 {"error":"User not found"}
 ```
 
 ### POST - Create Resources

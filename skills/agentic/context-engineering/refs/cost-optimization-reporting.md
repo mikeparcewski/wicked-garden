@@ -275,50 +275,12 @@ By Agent:
 
 ## Real-World Cost Examples
 
-### Example 1: Code Review System
+**Code Review System** (100 files/day, ~10K tokens/file):
+- Claude Opus: ~$18.75/day → ~$562/month
+- Claude Sonnet: ~$3.75/day → ~$112/month — **~$450/month savings**
 
-```python
-# Scenario: Review 100 files/day
-files_per_day = 100
-avg_file_size = 500  # lines
-chars_per_line = 80
-
-# Calculate tokens
-input_per_file = (avg_file_size * chars_per_line) // 4  # ~10K tokens
-output_per_file = 500  # Review comments
-
-# Using Claude Opus
-calc = CostCalculator()
-cost_opus = calc.calculate('claude-opus-4-6', input_per_file, output_per_file)
-daily_cost_opus = cost_opus['total_cost'] * files_per_day
-
-# Using Claude Sonnet (cheaper)
-cost_sonnet = calc.calculate('claude-sonnet-4-5', input_per_file, output_per_file)
-daily_cost_sonnet = cost_sonnet['total_cost'] * files_per_day
-
-print(f"Daily cost with Opus: ${daily_cost_opus:.2f}")  # ~$18.75
-print(f"Daily cost with Sonnet: ${daily_cost_sonnet:.2f}")  # ~$3.75
-print(f"Monthly savings with Sonnet: ${(daily_cost_opus - daily_cost_sonnet) * 30:.2f}")  # ~$450
-```
-
-### Example 2: Customer Support Bot
-
-```python
-# Scenario: 1000 conversations/day, avg 10 messages each
-conversations_per_day = 1000
-messages_per_conversation = 10
-tokens_per_message = 100  # Short messages
-
-total_tokens_per_day = conversations_per_day * messages_per_conversation * tokens_per_message
-
-# Cost calculation
-calc = CostCalculator()
-cost = calc.calculate('claude-haiku-4', total_tokens_per_day, total_tokens_per_day)
-
-print(f"Daily cost: ${cost['total_cost']:.2f}")  # ~$1.60
-print(f"Monthly cost: ${cost['total_cost'] * 30:.2f}")  # ~$48
-print(f"Annual cost: ${cost['total_cost'] * 365:.2f}")  # ~$584
-```
+**Customer Support Bot** (1000 conversations/day × 10 messages × 100 tokens):
+- Claude Haiku: ~$1.60/day → ~$48/month → ~$584/year
 
 ## Best Practices
 
