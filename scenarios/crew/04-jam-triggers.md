@@ -1,7 +1,7 @@
 ---
 name: jam-triggers
 title: Jam Session Suggestion Triggers
-description: Verify jam hints fire for ambiguity signals and respect the session gate and path guards
+description: Verify jam hints fire on FAST/SLOW paths only; synthesis-path prompts skip all hints
 type: testing
 difficulty: beginner
 estimated_minutes: 6
@@ -10,9 +10,13 @@ estimated_minutes: 6
 # Jam Session Suggestion Triggers
 
 This scenario verifies that prompts containing exploration and ambiguity signals receive a jam
-session suggestion on FAST and SLOW paths, that the suggestion is suppressed when a jam command
-is already in the prompt, that the one-per-session gate works, and that jam suggestions do not
-compete with active onboarding directives.
+session suggestion on FAST and SLOW paths. Important: prompts that trigger the synthesis path
+(complex + risky or high complexity heuristic score) return early from the hook before any hints
+are appended — jam and crew suggestions are never emitted on the synthesis path.
+
+Jam suggestions fire on FAST/SLOW paths only, the suggestion is suppressed when a jam command
+is already in the prompt, the one-per-session gate prevents repeat suggestions, and jam hints
+do not compete with active onboarding directives.
 
 ## Setup
 
@@ -120,7 +124,11 @@ echo '{"prompt": "What are the tradeoffs between these design options? Compare a
 
 **Expected**: `jam=False onboarding=True`
 
-### 7. Jam and crew hints can coexist
+### 7. Synthesis-path prompts do NOT emit jam or crew hints
+
+Prompts that trigger the synthesis path (high complexity + deep-work signals) cause the hook
+to return early with only the synthesis directive. The jam suggestion and crew hint code is
+never reached. Verify that a clearly synthesis-eligible prompt produces no jam hint.
 
 ```bash
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
@@ -135,33 +143,35 @@ EOF
 
 echo '{"prompt": "I need to design and implement a migration strategy — but should we use a strangler fig pattern or big bang? Help me think through the tradeoffs and alternatives across the system architecture", "session_id": "sess-7"}' \
   | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print(f'crew={\"crew:start\" in ctx} jam={\"jam:\" in ctx}')"
+  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); is_synthesis='path=synthesis' in ctx or 'synthesize' in ctx.lower(); has_jam='[Suggestion]' in ctx and 'jam:' in ctx; print(f'synthesis={is_synthesis} jam={has_jam}')"
 ```
 
-**Expected**: `crew=True jam=True`
+**Expected**: `synthesis=True jam=False` (synthesis path returns early; jam hint never appended)
 
 ## Expected Outcome
 
-Jam suggestions fire precisely for prompts with exploration intent, once per session, without
-conflicting with onboarding directives or duplicating existing jam invocations. Crew and jam
-suggestions can coexist in the same context injection.
+Jam suggestions fire precisely for prompts with exploration intent on FAST or SLOW paths, once
+per session, without conflicting with onboarding directives or duplicating existing jam
+invocations. Prompts that trigger the synthesis path (high complexity/risk) return early and
+never reach the jam suggestion code — synthesis and jam are mutually exclusive per prompt turn.
 
 ## Success Criteria
 
-- [ ] Jam suggestion appended for prompts with tradeoffs/options/alternatives
+- [ ] Jam suggestion appended for prompts with tradeoffs/options/alternatives (FAST/SLOW path)
 - [ ] Suggestion names jam:quick or jam:brainstorm (not generic)
 - [ ] No duplicate suggestion when prompt already contains /jam:
 - [ ] jam_hint_shown=True prevents second suggestion
 - [ ] jam_hint_shown flag written to session state after first suggestion
 - [ ] No jam suggestion when onboarding directive is active
-- [ ] Jam and crew suggestions coexist when both conditions are met
+- [ ] Synthesis-path prompts produce no jam hint (synthesis and jam are mutually exclusive)
 
 ## Value Demonstrated
 
-Jam session suggestions were never emitted before this change — the `jam` intent classification
-was used only for FAST-path adapter selection, never for user-facing guidance. Connecting
-ambiguity signals to jam suggestions closes the gap between detecting that a prompt needs
-structured thinking and actually offering the tool for it.
+Jam session suggestions connect ambiguity signals to user-facing guidance. The synthesis path
+intentionally takes priority for high-complexity prompts — users on that path get the full
+synthesis skill invoked before answering, which is more useful than a jam suggestion alone.
+Jam suggestions target the common case: medium-complexity FAST/SLOW path prompts where the user
+would benefit from structured thinking but the request doesn't warrant full synthesis.
 
 ## Cleanup
 
