@@ -197,6 +197,8 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
                 swimlane_map = {"pending": "todo", "in_progress": "in_progress", "completed": "done"}
                 old_swimlane = None  # previous swimlane unknown from hook context
                 swimlane = swimlane_map.get(status)
+                if swimlane is None:
+                    print(f"[wicked-kanban] Unknown status: {status!r}. Valid: pending, in_progress, completed", file=sys.stderr)
                 updates = {}
                 if swimlane:
                     updates["swimlane"] = swimlane
@@ -271,7 +273,7 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
         return result
 
     except Exception as e:
-        print(f"[wicked-garden] task_tools handler error: {e}", file=sys.stderr)
+        print(f"[wicked-kanban] sync error: {type(e).__name__}: {e}", file=sys.stderr)
         return {"continue": True}
 
 
