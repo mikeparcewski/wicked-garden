@@ -1,22 +1,21 @@
 ---
 name: local-mode
 title: Local Storage Mode
-description: StorageManager local mode uses CP primary with local JSON fallback — auto-start, graceful degradation, queue replay, and crew integration all work correctly
+description: Plugin operates standalone without external dependencies — DomainStore writes local JSON files, data persists across instances, and bootstrap briefing reflects local mode correctly
 type: integration
 difficulty: intermediate
-estimated_minutes: 12
+estimated_minutes: 8
 requires: [python3]
 ---
 
 # Scenario: Local Storage Mode
 
-Validates `local` mode end-to-end: StorageManager falls back to local JSON files when CP
-is unavailable, the bootstrap briefing reflects the mode correctly, queued writes accumulate
-for later replay, and wicked-crew can create a project without a control plane.
+Validates that wicked-garden is fully self-contained when no external integrations are
+configured. The plugin must work with nothing but Python and a local filesystem.
 
-> **Note**: This scenario was previously `local-only-mode` testing SQLite storage. The test
-> cases below still reference the legacy `local-only` config value which is auto-mapped to
-> `local`. Storage tests now use the brain API and StorageManager.
+Core storage layer: `DomainStore` (`scripts/_domain_store.py`) writes JSON files under
+`~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json`. No control plane,
+no SQLite migrations, no brain server required.
 
 ## Setup
 
@@ -25,17 +24,8 @@ All tests use an isolated temporary directory so they cannot touch a real
 
 ```bash
 # Create an isolated sandbox — every test case below references $WG_TMP
-export WG_TMP="$(mktemp -d /tmp/wg-local-only-XXXXX)"
-export WG_LOCAL="$WG_TMP/local"
-export WG_DB="$WG_LOCAL/wicked-garden.db"
-export WG_CONFIG="$WG_TMP/config.json"
+export WG_TMP="$(mktemp -d /tmp/wg-local-mode-XXXXX)"
 export WG_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-
-# Write a minimal local-only config
-mkdir -p "$WG_TMP"
-cat > "$WG_CONFIG" <<'EOF'
-{"mode": "local-only", "setup_complete": true}
-EOF
 
 echo "Sandbox ready: $WG_TMP"
 ```
@@ -44,166 +34,178 @@ echo "Sandbox ready: $WG_TMP"
 
 ---
 
-### TC-1: Brain API search and index
+### TC-1: DomainStore creates local JSON files without any external dependencies
 
-**Given**: A running brain server at localhost:4242
-**When**: A chunk is indexed via the brain API, then searched
-**Then**: The search returns the indexed chunk
-
-```bash
-python3 - <<'PYEOF'
-import json, urllib.request
-
-API = "http://localhost:4242/api"
-
-def brain_post(action, params):
-    data = json.dumps({"action": action, "params": params}).encode()
-    req = urllib.request.Request(API, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
-
-# INDEX a chunk
-brain_post("index", {
-    "id": "tc1-test-chunk",
-    "path": "tc1-test-chunk",
-    "content": "SQLite WAL enables concurrent readers and writers",
-    "brain_id": "wicked-brain"
-})
-
-# SEARCH for the chunk
-results = brain_post("search", {"query": "WAL concurrent", "limit": 10})
-assert results.get("results") or results.get("chunks"), f"search returned no results: {results}"
-
-# HEALTH check
-health = brain_post("health", {})
-assert health.get("ok") or health.get("status") == "ok", f"health check failed: {health}"
-
-print("TC-1 PASS: Brain API index + search")
-PYEOF
-```
-
----
-
-### TC-2: StorageManager in local-only mode never calls ControlPlaneClient
-
-**Given**: Config sets `"mode": "local-only"`
-**When**: StorageManager.create, get, list, update, and delete are called
-**Then**: No HTTP request is made to the control plane (ControlPlaneClient.request is not invoked)
-
-```bash
-python3 - <<'PYEOF'
-import sys, os, json, tempfile, unittest.mock
-sys.path.insert(0, "${WG_SCRIPTS}")
-
-# Point config loader at the isolated config
-import _control_plane as _cp_mod
-
-_orig_load_config = _cp_mod.load_config
-
-def _patched_load_config():
-    return {"mode": "local-only", "setup_complete": True}
-
-_cp_mod.load_config = _patched_load_config
-
-# Patch HOME so _LOCAL_ROOT resolves inside our sandbox
-os.environ["HOME"] = "${WG_TMP}"
-
-# Import StorageManager AFTER patching so it picks up the patched loader
-import importlib, _storage
-importlib.reload(_storage)
-from _storage import StorageManager
-
-call_log = []
-
-with unittest.mock.patch.object(
-    _storage.get_client().__class__, "request",
-    side_effect=lambda *a, **kw: call_log.append((a, kw)) or None
-):
-    sm = StorageManager("wicked-mem")
-    assert sm._mode == "local", f"mode is {sm._mode!r}, expected local (normalized from local-only)"
-
-    sm.create("memories", {"id": "tc2-id", "title": "no-CP test", "content": "isolated"})
-    sm.get("memories", "tc2-id")
-    sm.list("memories")
-    sm.update("memories", "tc2-id", {"title": "updated"})
-    sm.delete("memories", "tc2-id")
-
-assert call_log == [], f"ControlPlaneClient.request was called {len(call_log)} times: {call_log}"
-print("TC-2 PASS: StorageManager local-only (normalized to local) never calls ControlPlaneClient")
-PYEOF
-```
-
----
-
-### TC-3: Bootstrap local mode sets correct session state
-
-**Given**: `config.json` contains `"mode": "local-only"` and `"setup_complete": true`
-**When**: Bootstrap initializes for local mode (legacy `"local-only"` normalizes to `"local"`)
+**Given**: No external MCP tools configured, no brain server, no control plane
+**When**: `DomainStore.create` is called for the `wicked-mem` domain
 **Then**:
-  - `state.cp_available` is `False` (CP is not running in local mode)
-  - `state.fallback_mode` is `True` (local is the fallback when CP is not reachable)
-  - `state.setup_complete` is `True`
-  - The briefing `additionalContext` contains `mode=local`
+  - The JSON file is written to `$WG_TMP/.something-wicked/wicked-garden/local/wicked-mem/memories/{id}.json`
+  - The file contains the correct payload fields
 
 ```bash
 python3 - <<'PYEOF'
 import sys, os, json
+from pathlib import Path
+
+# Point DomainStore at isolated sandbox
 os.environ["HOME"] = "${WG_TMP}"
 sys.path.insert(0, "${WG_SCRIPTS}")
 
-# Reload _storage so _LOCAL_ROOT picks up patched HOME
-import importlib
-import _storage
-importlib.reload(_storage)
+# Override _LOCAL_ROOT before importing DomainStore
+import _paths
+_paths._LOCAL_ROOT = Path("${WG_TMP}") / ".something-wicked" / "wicked-garden" / "local"
 
-import _control_plane as _cp_mod
-_cp_mod.load_config = lambda: {"mode": "local-only", "setup_complete": True}
+import _domain_store
+_domain_store._LOCAL_ROOT = _paths._LOCAL_ROOT
 
-# Build a SessionState manually (no file I/O needed — test state mutations only)
-from _session import SessionState
-state = SessionState()
+from _domain_store import DomainStore
 
-# In local mode bootstrap: CP check fails (not running), so state is set as fallback
-# This replicates the state.update call in bootstrap.py local mode branch (lines 642-648)
-state.update(
-    cp_available=False,
-    cp_version="",
-    fallback_mode=True,  # fallback_mode=not cp_available
-    setup_complete=True,
-)
+ds = DomainStore("wicked-mem", hook_mode=True)  # hook_mode skips discovery
+record = ds.create("memories", {
+    "id": "tc1-test",
+    "title": "Local mode test",
+    "content": "DomainStore writes local JSON without external deps",
+})
 
-# Assertions
-assert state.cp_available is False, f"cp_available should be False, got {state.cp_available}"
-assert state.fallback_mode is True, f"fallback_mode should be True (local fallback when CP not running), got {state.fallback_mode}"
-assert state.setup_complete is True, f"setup_complete should be True"
+assert record is not None, "create() returned None"
+assert record.get("id") == "tc1-test", f"id mismatch: {record.get('id')}"
+assert record.get("title") == "Local mode test", f"title mismatch: {record.get('title')}"
 
-print(f"TC-3 PASS: Bootstrap local mode state — cp_available=False, fallback_mode=True")
-print(f"  cp_available : {state.cp_available}")
-print(f"  fallback_mode: {state.fallback_mode}")
-print(f"  setup_complete: {state.setup_complete}")
+# Verify the JSON file was written to disk
+expected_path = _domain_store._LOCAL_ROOT / "wicked-mem" / "memories" / "tc1-test.json"
+assert expected_path.exists(), f"JSON file not created at {expected_path}"
+
+on_disk = json.loads(expected_path.read_text())
+assert on_disk["id"] == "tc1-test", f"on-disk id mismatch: {on_disk}"
+assert on_disk["content"] == "DomainStore writes local JSON without external deps"
+
+print(f"TC-1 PASS: DomainStore created JSON at {expected_path}")
 PYEOF
 ```
 
 ---
 
-### TC-4: Bootstrap briefing contains "mode=local" in Config line
+### TC-2: Data persists across DomainStore instances
 
-**Given**: A valid `local-only` config
-**When**: The bootstrap `main()` is invoked via subprocess (to reproduce the real hook path)
-**Then**: The JSON output's `additionalContext` contains the string `"mode=local"` as part of
-  the `Config:` status line (format: `Config:      mode=local endpoint=(none)`)
+**Given**: A record was written by one DomainStore instance
+**When**: A fresh DomainStore instance for the same domain calls `get` and `list`
+**Then**: The record is returned correctly — local JSON is the durable store
 
 ```bash
 python3 - <<'PYEOF'
-import sys, os, json, subprocess, tempfile
-os.environ["HOME"] = "${WG_TMP}"
+import sys, os, json
+from pathlib import Path
 
-# Write config
-config_dir = os.path.join("${WG_TMP}")
-os.makedirs(config_dir, exist_ok=True)
-config_path = os.path.join(config_dir, "config.json")
-with open(config_path, "w") as f:
-    json.dump({"mode": "local-only", "setup_complete": True}, f)
+os.environ["HOME"] = "${WG_TMP}"
+sys.path.insert(0, "${WG_SCRIPTS}")
+
+import _paths
+_paths._LOCAL_ROOT = Path("${WG_TMP}") / ".something-wicked" / "wicked-garden" / "local"
+
+import _domain_store
+_domain_store._LOCAL_ROOT = _paths._LOCAL_ROOT
+
+from _domain_store import DomainStore
+
+# Instance 1: write
+ds1 = DomainStore("wicked-crew", hook_mode=True)
+ds1.create("projects", {
+    "id": "tc2-project",
+    "name": "tc2-project",
+    "current_phase": "clarify",
+})
+
+# Instance 2: read (fresh object, same domain)
+ds2 = DomainStore("wicked-crew", hook_mode=True)
+
+got = ds2.get("projects", "tc2-project")
+assert got is not None, "get() returned None on second instance"
+assert got["name"] == "tc2-project", f"name mismatch: {got}"
+assert got["current_phase"] == "clarify", f"phase mismatch: {got}"
+
+all_projects = ds2.list("projects")
+assert any(p.get("id") == "tc2-project" for p in all_projects), (
+    f"project not in list: {[p.get('id') for p in all_projects]}"
+)
+
+print(f"TC-2 PASS: Data persisted across DomainStore instances ({len(all_projects)} projects in list)")
+PYEOF
+```
+
+---
+
+### TC-3: DomainStore update and delete work in local mode
+
+**Given**: A record exists in local JSON storage
+**When**: `update` patches a field, then `delete` soft-deletes the record
+**Then**:
+  - `update` returns the merged record with the new field value
+  - `get` after `delete` returns `None` (soft-delete hides the record)
+  - `list` after `delete` excludes the record
+
+```bash
+python3 - <<'PYEOF'
+import sys, os
+from pathlib import Path
+
+os.environ["HOME"] = "${WG_TMP}"
+sys.path.insert(0, "${WG_SCRIPTS}")
+
+import _paths
+_paths._LOCAL_ROOT = Path("${WG_TMP}") / ".something-wicked" / "wicked-garden" / "local"
+
+import _domain_store
+_domain_store._LOCAL_ROOT = _paths._LOCAL_ROOT
+
+from _domain_store import DomainStore
+
+ds = DomainStore("wicked-kanban", hook_mode=True)
+
+ds.create("tasks", {"id": "tc3-task", "title": "Original title", "status": "pending"})
+
+# Update
+updated = ds.update("tasks", "tc3-task", {"status": "in_progress"})
+assert updated is not None, "update() returned None"
+assert updated["status"] == "in_progress", f"status not updated: {updated}"
+assert updated["title"] == "Original title", f"title clobbered: {updated}"
+
+# Delete
+deleted = ds.delete("tasks", "tc3-task")
+assert deleted is True, "delete() returned False"
+
+# get() after delete must return None
+gone = ds.get("tasks", "tc3-task")
+assert gone is None, f"get() after delete should return None, got: {gone}"
+
+# list() after delete must exclude the record
+tasks = ds.list("tasks")
+assert not any(t.get("id") == "tc3-task" for t in tasks), (
+    f"deleted task still in list: {tasks}"
+)
+
+print("TC-3 PASS: update and soft-delete work correctly in local mode")
+PYEOF
+```
+
+---
+
+### TC-4: Bootstrap briefing contains "mode=local" in additionalContext
+
+**Given**: Config file under HOME contains `"mode": "local-only"` and `"setup_complete": true`
+**When**: `bootstrap.py` is invoked as a subprocess (reproduces the real hook path)
+**Then**: The JSON output's `additionalContext` contains the string `"mode=local"`
+
+```bash
+python3 - <<'PYEOF'
+import sys, os, json, subprocess
+from pathlib import Path
+
+home = Path("${WG_TMP}")
+os.makedirs(home, exist_ok=True)
+
+# Write a minimal local-only config
+config_path = home / "config.json"
+config_path.write_text(json.dumps({"mode": "local-only", "setup_complete": True}))
 
 bootstrap = os.path.join("${CLAUDE_PLUGIN_ROOT}", "hooks", "scripts", "bootstrap.py")
 result = subprocess.run(
@@ -211,263 +213,71 @@ result = subprocess.run(
     input="{}",
     capture_output=True,
     text=True,
-    env={**os.environ, "HOME": "${WG_TMP}", "CLAUDE_SESSION_ID": "tc4-test-session"},
+    env={**os.environ, "HOME": str(home), "CLAUDE_SESSION_ID": "tc4-test-session"},
     timeout=15,
 )
 
-assert result.returncode == 0, f"bootstrap exited {result.returncode}\nstderr: {result.stderr}"
+assert result.returncode == 0, (
+    f"bootstrap exited {result.returncode}\nstderr: {result.stderr}"
+)
 
 output = json.loads(result.stdout)
 ctx = output.get("hookSpecificOutput", {}).get("additionalContext", "")
 
 assert "mode=local" in ctx, (
-    f"'mode=local' not found in briefing.\nContext: {ctx[:400]}"
+    f"'mode=local' not found in briefing.\nContext snippet: {ctx[:400]}"
 )
 
+matching = [l for l in ctx.splitlines() if "mode=local" in l]
 print("TC-4 PASS: Bootstrap briefing contains mode=local")
-print(f"  Relevant line: {[l for l in ctx.splitlines() if 'mode=local' in l]}")
+print(f"  Relevant line: {matching}")
 PYEOF
 ```
 
 ---
 
-### TC-5: Migration runs on first boot — JSON files appear in SQLite
+### TC-5: DomainStore search filters by query token
 
-**Given**: A JSON file exists in the local file tree at `local/wicked-crew/projects/my-project.json`
-**When**: `_migrate_local.py` is run against that directory
-**Then**: The record appears in SQLite when queried via SqliteStore
+**Given**: Two records in local JSON storage with distinct content
+**When**: `search("memories", "authentication")` is called
+**Then**: Only the record containing "authentication" is returned
 
 ```bash
 python3 - <<'PYEOF'
-import sys, os, json, subprocess
+import sys, os
+from pathlib import Path
+
 os.environ["HOME"] = "${WG_TMP}"
 sys.path.insert(0, "${WG_SCRIPTS}")
 
-# Plant a legacy JSON record
-source_dir = os.path.join("${WG_LOCAL}", "wicked-crew", "projects")
-os.makedirs(source_dir, exist_ok=True)
-record = {
-    "id": "my-project",
-    "name": "my-project",
-    "current_phase": "clarify",
-    "created_at": "2026-01-01T00:00:00+00:00",
-}
-with open(os.path.join(source_dir, "my-project.json"), "w") as f:
-    json.dump(record, f)
+import _paths
+_paths._LOCAL_ROOT = Path("${WG_TMP}") / ".something-wicked" / "wicked-garden" / "local"
 
-# Run migration
-migrate_script = os.path.join("${WG_SCRIPTS}", "_migrate_local.py")
-result = subprocess.run(
-    [sys.executable, migrate_script,
-     "--db", "${WG_DB}",
-     "--root", "${WG_LOCAL}"],
-    capture_output=True,
-    text=True,
-    timeout=15,
-)
-assert result.returncode == 0, f"migrate exited {result.returncode}\nstderr: {result.stderr}"
+import _domain_store
+_domain_store._LOCAL_ROOT = _paths._LOCAL_ROOT
 
-stats = json.loads(result.stdout)
-assert stats["inserted"] >= 1, f"expected at least 1 insert, got: {stats}"
-assert stats["errors"] == 0, f"migration errors: {stats}"
+from _domain_store import DomainStore
 
-# Verify record appears via StorageManager (brain-backed)
-from _storage import StorageManager
-sm = StorageManager("wicked-crew")
-got = sm.get("projects", "my-project")
+ds = DomainStore("wicked-mem", hook_mode=True)
 
-assert got is not None, "migrated record not found after migration"
-assert got["name"] == "my-project", f"name mismatch: {got}"
+ds.create("memories", {
+    "id": "tc5-auth",
+    "title": "Authentication flow",
+    "content": "Describes JWT authentication and token refresh logic",
+})
+ds.create("memories", {
+    "id": "tc5-deploy",
+    "title": "Deployment checklist",
+    "content": "Steps for deploying to production environment",
+})
 
-print(f"TC-5 PASS: Migration moved JSON to storage (stats={stats})")
-print(f"  Retrieved: name={got['name']}, phase={got['current_phase']}")
-PYEOF
-```
+results = ds.search("memories", "authentication")
+ids = [r.get("id") for r in results]
 
----
+assert "tc5-auth" in ids, f"auth record not in results: {ids}"
+assert "tc5-deploy" not in ids, f"deploy record incorrectly matched: {ids}"
 
-### TC-6: Migration is idempotent — running twice does not duplicate records
-
-**Given**: TC-5 has already run (record is in SQLite)
-**When**: `_migrate_local.py` is run a second time against the same directory
-**Then**: `inserted == 0` and `skipped >= 1` (INSERT OR IGNORE fires)
-
-```bash
-python3 - <<'PYEOF'
-import sys, os, json, subprocess
-os.environ["HOME"] = "${WG_TMP}"
-sys.path.insert(0, "${WG_SCRIPTS}")
-
-migrate_script = os.path.join("${WG_SCRIPTS}", "_migrate_local.py")
-result = subprocess.run(
-    [sys.executable, migrate_script,
-     "--db", "${WG_DB}",
-     "--root", "${WG_LOCAL}"],
-    capture_output=True,
-    text=True,
-    timeout=15,
-)
-assert result.returncode == 0, f"second migrate exited {result.returncode}"
-
-stats = json.loads(result.stdout)
-assert stats["inserted"] == 0, f"expected 0 inserts on second run, got {stats['inserted']}"
-assert stats["skipped"] >= 1, f"expected at least 1 skip, got {stats['skipped']}"
-
-from _storage import StorageManager
-sm = StorageManager("wicked-crew")
-items = sm.list("projects")
-assert len(items) == 1, f"expected 1 record, found {len(items)}: {items}"
-
-print(f"TC-6 PASS: Migration is idempotent (stats={stats})")
-PYEOF
-```
-
----
-
-### TC-7: Concurrent brain API writes do not error
-
-**Given**: A running brain server at localhost:4242
-**When**: Two threads concurrently index distinct chunks via the brain API
-**Then**: Both writes succeed and both chunks are searchable
-
-```bash
-python3 - <<'PYEOF'
-import json, threading, urllib.request
-
-API = "http://localhost:4242/api"
-errors = []
-
-def brain_post(action, params):
-    data = json.dumps({"action": action, "params": params}).encode()
-    req = urllib.request.Request(API, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
-
-def index_chunk(chunk_id, content):
-    try:
-        brain_post("index", {
-            "id": chunk_id, "path": chunk_id,
-            "content": content, "brain_id": "wicked-brain"
-        })
-    except Exception as exc:
-        errors.append(f"{chunk_id}: {exc}")
-
-t1 = threading.Thread(target=index_chunk, args=("concurrent-a", "Thread A content about authentication"))
-t2 = threading.Thread(target=index_chunk, args=("concurrent-b", "Thread B content about authorization"))
-t1.start(); t2.start()
-t1.join(); t2.join()
-
-assert errors == [], f"Errors raised during concurrent writes: {errors}"
-
-print(f"TC-7 PASS: Concurrent brain API writes completed without error")
-PYEOF
-```
-
----
-
-### TC-8: No _queue.jsonl accumulation in local-only mode
-
-**Given**: StorageManager is in `"local-only"` mode
-**When**: create, update, and delete are called
-**Then**: `_queue.jsonl` is never created or appended to
-
-```bash
-python3 - <<'PYEOF'
-import sys, os, json
-os.environ["HOME"] = "${WG_TMP}"
-sys.path.insert(0, "${WG_SCRIPTS}")
-
-import _control_plane as _cp_mod
-_cp_mod.load_config = lambda: {"mode": "local-only", "setup_complete": True}
-
-import importlib, _storage
-importlib.reload(_storage)
-from _storage import StorageManager, _QUEUE_FILE
-
-# Ensure any leftover queue from other tests doesn't interfere
-if _QUEUE_FILE.exists():
-    _QUEUE_FILE.unlink()
-
-sm = StorageManager("wicked-mem")
-assert sm._mode == "local", f"expected local (normalized from local-only), got {sm._mode}"
-
-sm.create("memories", {"id": "tc8-id", "title": "queue test", "content": "no queue"})
-sm.update("memories", "tc8-id", {"title": "updated"})
-sm.delete("memories", "tc8-id")
-
-assert not _QUEUE_FILE.exists(), (
-    f"_queue.jsonl was created at {_QUEUE_FILE} — local-only mode must not enqueue writes"
-)
-
-print("TC-8 PASS: No _queue.jsonl created in local-only mode")
-PYEOF
-```
-
----
-
-### TC-9: Regression — wicked-crew project creation works in local-only mode
-
-**Given**: StorageManager is in `"local-only"` mode and no control plane is running
-**When**: `create_project` is called via phase_manager
-**Then**:
-  - StorageManager persists the project in SQLite (not in JSON files)
-  - The project can be retrieved by `sm.get("projects", project_name)`
-  - The local project directory and `project.md` are created on disk
-
-```bash
-python3 - <<'PYEOF'
-import sys, os, json
-os.environ["HOME"] = "${WG_TMP}"
-sys.path.insert(0, "${WG_SCRIPTS}")
-sys.path.insert(0, os.path.join("${WG_SCRIPTS}", "crew"))
-
-import _control_plane as _cp_mod
-_cp_mod.load_config = lambda: {"mode": "local-only", "setup_complete": True}
-
-import importlib, _storage
-importlib.reload(_storage)
-
-# Override the crew project directory to land inside the sandbox
-import crew.phase_manager as pm
-_orig_get_dir = pm.get_project_dir
-pm.get_project_dir = lambda name: (
-    _storage._LOCAL_ROOT.parent / "wicked-crew" / "projects" / name
-)
-
-# Reset the module-level StorageManager so it uses our patched config
-pm._sm = _storage.StorageManager("wicked-crew")
-
-project_name = "tc9-local-only-crew"
-state, project_dir = pm.create_project(
-    project_name,
-    description="Regression: crew project creation in local-only mode",
-)
-
-# Verify project is in SQLite
-saved = pm._sm.get("projects", project_name)
-assert saved is not None, "project not found in SQLite after create_project"
-assert saved.get("name") == project_name, f"name mismatch: {saved.get('name')}"
-
-# Verify project directory and markdown file exist
-assert project_dir.exists(), f"project directory not created: {project_dir}"
-project_md = project_dir / "project.md"
-assert project_md.exists(), f"project.md not written: {project_md}"
-
-# Verify no JSON fallback file was written to the old flat path
-legacy_json = (
-    _storage._LOCAL_ROOT / "wicked-crew" / "projects" / f"{project_name}.json"
-)
-# legacy path is acceptable as a local write (StorageManager._local_write is still
-# called for local-only mode via the sqlite path), so we only check SQLite is the
-# source of truth
-items = pm._sm.list("projects")
-assert any(p.get("name") == project_name for p in items), (
-    f"project not in sm.list: {[p.get('name') for p in items]}"
-)
-
-print(f"TC-9 PASS: wicked-crew create_project works in local-only mode")
-print(f"  project: {project_name}, phase: {state.current_phase}")
-print(f"  dir    : {project_dir}")
+print(f"TC-5 PASS: search() filters by query token (matched {len(results)} record(s))")
 PYEOF
 ```
 
@@ -483,36 +293,28 @@ echo "Sandbox removed."
 
 ## Expected Outcome
 
-All nine test cases pass with `PASS` in their output and exit code 0.
+All five test cases pass with `PASS` in their output and exit code 0.
 
 | TC | Description | Key Assertion |
 |----|-------------|---------------|
-| TC-1 | Brain API index + search | Chunk indexed via API is searchable; health check passes |
-| TC-2 | StorageManager never calls CP | `ControlPlaneClient.request` call log is empty after 5 CRUD ops |
-| TC-3 | Session state after bootstrap | `cp_available=False`, `fallback_mode=True` (local fallback when CP not running) |
-| TC-4 | Briefing contains "mode=local" | Subprocess bootstrap produces `Config: mode=local endpoint=(none)` in `additionalContext` |
-| TC-5 | Migration JSON to storage on first boot | Planted JSON record appears in storage after migration run |
-| TC-6 | Migration is idempotent | Second run: `inserted=0`, `skipped>=1` |
-| TC-7 | Concurrent brain API writes | Two threads index concurrently via brain API without errors |
-| TC-8 | No _queue.jsonl accumulation | Queue file does not exist after create/update/delete cycle |
-| TC-9 | wicked-crew regression | `create_project` stores in SQLite, project directory and project.md written |
+| TC-1 | DomainStore creates local JSON | File written to expected path with correct content |
+| TC-2 | Data persists across instances | Fresh DomainStore instance reads what the first wrote |
+| TC-3 | Update and delete | Patched fields merge; soft-delete hides record from get/list |
+| TC-4 | Bootstrap reflects local mode | `mode=local` present in `additionalContext` |
+| TC-5 | Search filters by token | Only matching record returned, non-matching excluded |
 
 ## Success Criteria
 
-- [ ] TC-1: Brain API index and search pass
-- [ ] TC-2: No HTTP calls to ControlPlaneClient in local-only mode
-- [ ] TC-3: Session state has `cp_available=False` and `fallback_mode=True` after local mode bootstrap (local fallback when CP not running)
-- [ ] TC-4: Bootstrap briefing includes `Config: mode=local endpoint=(none)` in additionalContext
-- [ ] TC-5: JSON migration inserts planted record into storage
-- [ ] TC-6: Re-running migration skips already-present records (INSERT OR IGNORE)
-- [ ] TC-7: Concurrent brain API writes complete without errors
-- [ ] TC-8: `_queue.jsonl` is not created or appended in local-only mode
-- [ ] TC-9: `create_project` works end-to-end without a control plane
+- [ ] TC-1: `DomainStore.create` writes a JSON file to the local storage path
+- [ ] TC-2: A second `DomainStore` instance reads records written by the first
+- [ ] TC-3: `update` merges diff and `delete` soft-deletes (hidden from get/list)
+- [ ] TC-4: Bootstrap subprocess outputs `mode=local` in `additionalContext`
+- [ ] TC-5: `search()` returns only records whose content matches the query token
 
 ## Value Demonstrated
 
-`local-only` mode makes wicked-garden fully self-contained for individuals and air-gapped
-environments. No network server to install, no Docker, no Node — just a SQLite file in
-`~/.something-wicked/wicked-garden/local/`. Existing JSON data migrates automatically
-on first boot. All wicked-garden features (crew, kanban, mem, search) continue to work
-with the same StorageManager API — the mode switch is transparent to domain scripts.
+`DomainStore` makes wicked-garden fully self-contained for individuals and air-gapped
+environments. No network server to install, no Docker, no Node — just JSON files under
+`~/.something-wicked/wicked-garden/local/`. All wicked-garden features (crew, kanban,
+mem, search) use the same `DomainStore` API. External integrations (Linear, Jira, Notion)
+are optional; the plugin works identically without them.

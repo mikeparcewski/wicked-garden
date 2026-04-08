@@ -1,71 +1,82 @@
 ---
 name: orchestrator-no-inline-work
-title: Orchestrator No Inline Work
-description: Verify orchestrator.md enforces delegation-only and pre_tool.py warns on direct file writes during build/review phases
+title: Execution Orchestrator Delegation Enforcement
+description: Verify execution-orchestrator.md delegates specialist work via Task() and pre_tool.py fails open on file writes
 type: workflow
 difficulty: intermediate
 estimated_minutes: 8
 ---
 
-# Orchestrator No Inline Work
+# Execution Orchestrator Delegation Enforcement
 
-This scenario validates that the orchestrator agent:
-1. Does NOT perform inline analysis, implementation, or review work
-2. Always delegates to subagents via Task() for non-trivial work
-3. Has a clear "Allowed Inline Operations" list
-4. Pre-tool hook warns when orchestrator attempts direct file writes outside the allowlist during build/review phases
+This scenario validates that the execution orchestrator agent:
+1. Delegates specialist work (risk assessment, code review) to subagents via Task()
+2. Uses wicked-* ecosystem tools before falling back to manual analysis
+3. Does not inline qualitative analysis that should be done by a specialist
+4. Pre-tool hook fails open on direct file writes (never denies)
 
 ## Setup
 
 No special setup needed.
 
 ```bash
-grep -q "Allowed Inline Operations" "${CLAUDE_PLUGIN_ROOT}/agents/crew/orchestrator.md" && echo "Orchestrator-only pattern enforced"
+test -f "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "execution-orchestrator.md found"
 ```
 
 ## Steps
 
-### 1. Orchestrator.md no longer contains inline fallback work section
+### 1. execution-orchestrator.md exists at the expected path
 
 ```bash
-grep -c "inline fallback work" "${CLAUDE_PLUGIN_ROOT}/agents/crew/orchestrator.md"
+test -f "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: file found"
 ```
 
-Expected: `0` (the inline fallback work section has been removed)
+Expected: `PASS: file found`
 
-### 2. Orchestrator.md contains delegation-only instruction
+### 2. execution-orchestrator.md contains Task() dispatch for risk assessment
 
 ```bash
-grep -q "NEVER perform" "${CLAUDE_PLUGIN_ROOT}/agents/crew/orchestrator.md" && echo "PASS: NEVER perform found"
+grep -q "Task(" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: Task() dispatch found"
 ```
 
-Expected: `PASS: NEVER perform found`
+Expected: `PASS: Task() dispatch found`
 
-### 3. Orchestrator.md has Allowed Inline Operations section
+### 3. execution-orchestrator.md references wicked-garden ecosystem tools first
 
 ```bash
-grep -q "Allowed Inline Operations" "${CLAUDE_PLUGIN_ROOT}/agents/crew/orchestrator.md" && echo "PASS: Allowed Inline Operations section found"
+grep -q "wicked-garden" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: wicked-garden ecosystem reference found"
 ```
 
-Expected: `PASS: Allowed Inline Operations section found`
+Expected: `PASS: wicked-garden ecosystem reference found`
 
-### 4. Allowed operations include task lifecycle tools
+### 4. execution-orchestrator.md instructs running actual test suites (not grep-only)
 
 ```bash
-grep -A 10 "Allowed Inline Operations" "${CLAUDE_PLUGIN_ROOT}/agents/crew/orchestrator.md" | grep -q "TaskCreate\|TaskUpdate\|TaskList" && echo "PASS: Task lifecycle tools listed"
+grep -q "exit code" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: exit code instruction found"
 ```
 
-Expected: `PASS: Task lifecycle tools listed`
+Expected: `PASS: exit code instruction found`
 
-### 5. Allowed operations include phase_manager.py and status.md
+### 5. execution-orchestrator.md defines APPROVE/CONDITIONAL/REJECT gate decisions
 
 ```bash
-grep -A 15 "Allowed Inline Operations" "${CLAUDE_PLUGIN_ROOT}/agents/crew/orchestrator.md" | grep -q "phase_manager\|status.md" && echo "PASS: Phase state access listed"
+grep -q "APPROVE" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && \
+grep -q "CONDITIONAL" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && \
+grep -q "REJECT" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && \
+echo "PASS: All three gate decisions defined"
 ```
 
-Expected: `PASS: Phase state access listed`
+Expected: `PASS: All three gate decisions defined`
 
-### 6. Pre-tool hook warns on file writes during build phase
+### 6. execution-orchestrator.md delegates risk validation to a subagent
+
+```bash
+grep -q "wicked-garden:qe:risk-assessor" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: risk-assessor subagent delegation found"
+```
+
+Expected: `PASS: risk-assessor subagent delegation found`
+
+### 7. Pre-tool hook fails open (allows) on file writes
 
 ```bash
 # Simulate a Write hook call to a non-allowlisted path during build phase
@@ -74,7 +85,7 @@ echo '{"tool_name": "Write", "tool_input": {"file_path": "/tmp/test_output.py", 
   python3 -c "
 import json, sys
 data = json.load(sys.stdin)
-# Hook should allow (fail open) but may include a systemMessage warning
+# Hook should allow (fail open) — never deny writes
 decision = data.get('hookSpecificOutput', {}).get('permissionDecision', '')
 print('decision:', decision)
 assert decision == 'allow', f'Expected allow (fail open), got: {decision}'
@@ -84,7 +95,7 @@ print('PASS: pre_tool allows writes (fail open)')
 
 Expected: `PASS: pre_tool allows writes (fail open)`
 
-### 7. Pre-tool hook allows writes to .something-wicked/ paths
+### 8. Pre-tool hook allows writes to .something-wicked/ paths
 
 ```bash
 echo '{"tool_name": "Write", "tool_input": {"file_path": "/home/user/.something-wicked/wicked-garden/local/wicked-crew/projects/test/status.md", "content": "status: ok"}}' | \
@@ -101,42 +112,36 @@ print('PASS: allowlisted path allowed')
 
 Expected: `PASS: allowlisted path allowed`
 
-### 8. Fallback delegation instruction uses Task() not inline prose
-
-```bash
-grep -A 5 "NEVER perform" "${CLAUDE_PLUGIN_ROOT}/agents/crew/orchestrator.md" | grep -q "Task()" && echo "PASS: Task() dispatch referenced in fallback instruction"
-```
-
-Expected: `PASS: Task() dispatch referenced in fallback instruction`
-
 ## Expected Outcome
 
-### orchestrator.md changes
-- "inline fallback work" section removed (lines 79-83 content replaced)
-- New instruction: dispatch to fallback agents (facilitator, researcher, implementer, reviewer) via Task() when no specialist available
-- "NEVER perform analysis, implementation, or review work directly" stated explicitly
-- "Allowed Inline Operations" section added listing: read project state, call phase_manager.py, call specialist_discovery.py, use TaskCreate/TaskUpdate/TaskList, write status.md
+### execution-orchestrator.md structure
+- File exists at `agents/crew/execution-orchestrator.md`
+- Uses `Task()` dispatch to delegate specialist work (risk-assessor subagent)
+- References wicked-garden ecosystem tools before manual analysis
+- Instructions require running actual test suites and capturing exit codes
+- Gate decisions are APPROVE, CONDITIONAL, and REJECT — explicitly defined
 
-### pre_tool.py changes
-- Write/Edit handler checks for active crew project in build or review phase
-- If orchestrator context detected AND file path is NOT allowlisted, emits systemMessage warning
-- Allowlist: paths containing `.something-wicked/` OR paths ending in `status.md`
-- Always fail open (permissionDecision: "allow") — never deny
+### pre_tool.py behavior
+- Always fails open (permissionDecision: "allow") — never denies on any write
+- .something-wicked/ paths are always allowed
 
 ## Success Criteria
 
-### orchestrator.md
-- [ ] No mention of "inline fallback work" (section removed)
-- [ ] "NEVER perform analysis, implementation, or review work directly" present
-- [ ] "Allowed Inline Operations" section present with task lifecycle tools
-- [ ] Fallback instruction references Task() dispatch to facilitator/researcher/implementer/reviewer
+### execution-orchestrator.md
+- [ ] File exists at expected path
+- [ ] `Task()` dispatch present (delegates risk validation to wicked-garden:qe:risk-assessor)
+- [ ] wicked-garden ecosystem tools referenced (use ecosystem before manual analysis)
+- [ ] Exit code instruction present (test suites must be run, not just file-grepped)
+- [ ] APPROVE, CONDITIONAL, and REJECT gate decisions all defined
 
 ### pre_tool.py
-- [ ] Write/Edit handler calls orchestrator context detection
-- [ ] Non-allowlisted writes in build/review phase emit systemMessage warning
+- [ ] Non-allowlisted writes return permissionDecision: "allow" (fail open)
 - [ ] .something-wicked/ paths are always allowed
-- [ ] Always fails open (never denies on orchestrator check)
 
 ## Value Demonstrated
 
-The orchestrator accumulating inline work defeats the purpose of fresh-dispatch architecture: context bloats, retries are dirty, and the orchestrator becomes entangled with implementation state. Enforcing delegation-only keeps the orchestrator lean and stateless, enabling clean phase retries and true parallel build dispatch.
+The execution orchestrator enforces quality gates by delegating specialist verification
+(risk assessment, code review) to domain subagents via Task() rather than performing all
+analysis inline. This keeps the gate result objective, reproducible, and free from
+context contamination across runs. Pre-tool failing open ensures gate enforcement never
+blocks legitimate writes by the agents it oversees.
