@@ -1,5 +1,57 @@
 # Changelog
 
+## [4.0.2] - 2026-04-08
+
+### Features
+- feat: agentic context synthesis — complexity-gated smaht exploration (b8dcf31)
+- feat: automatic brain lifecycle — setup pipeline + incremental reindex + full bootstrap (72e02b5)
+- feat: wicked-brain as unified knowledge layer (v4.0.0) (#372) (a76a29b)
+- feat: brain dependency check, crew graph-mode requirements, wicked-search plugin scaffold (ba0a6ca)
+- feat: two-tier agent-level gate enforcement for crew workflows (#364-#370) (da3d71b)
+- feat: graph-based requirements — filesystem-as-graph for atomic, traceable requirement nodes (bb8bcbf)
+- feat: auto-generate search tags on mem:store for better keyword recall (d872dbb)
+- feat: add 3-tier memory with auto-consolidation (0a9985f)
+- feat: add Operate phase to crew workflow for SDLC feedback loop (f965e1d)
+- feat: wire consensus protocol into crew gate decisions for high-complexity work (d262cde)
+- feat: search/memory/knowledge scoring, knowledge graph, impact analysis, council consensus (83072c9)
+- feat(crew): workflow hardening — traceability, artifact states, verification, project isolation (c05df50)
+
+### Bug Fixes
+- fix: warn on unknown TaskUpdate status and log sync exceptions (#378, #379) (0d78f34)
+- fix(smaht): domain adapter intermittently fails fast-path timeout (#374) (2ecb046)
+- fix(smaht): filter unnamed tasks.created events from briefings (#373) (4d8a6dd)
+- fix: stop false-positive onboarding directive when brain has indexed content (b1773df)
+- fix: smarter FTS5 fallback and strip table rows, CLI flag lists (2983a31)
+- fix: strip chunk-IDs, table separators; penalize empty snippets (de14b66)
+- fix: improve brain FTS5 keyword extraction and source priority (a1b60a5)
+- fix: strip orphan file-path values from brain FTS snippets (ec00fd7)
+- fix: correct ASCII logo to spell wicked-garden with hyphen (94278be)
+- fix: resolve all validation issues from plugin review + skill review (41657aa)
+- fix: sync marketplace.json version to 3.8.0 (329e02b)
+- fix: sync marketplace.json version to 3.4.1 (699ba3e)
+- fix: 3 bugs found by E2E scenario execution (d09257e)
+
+### Documentation
+- docs: add ASCII art logo to README (04d092e)
+- docs: update plugin description and README for marketplace submission (e40bb2d)
+
+### Tests
+- test: add E2E scenarios for all v3.4.0 modules (10 new, 2 updated) (5d735cd)
+
+### Refactoring
+- refactor: simplify new code from #359, #360, #361 (64361d1)
+
+### Chores
+- release: wicked-garden v4.0.1 — automatic brain lifecycle (3162006)
+- release: wicked-garden v3.8.0 — two-tier gate enforcement (40fc85c)
+- release: wicked-garden v3.6.1 — auto-generate search tags for better recall (b5f96d1)
+- release: wicked-garden v3.6.0 — consensus gates, operate phase, 3-tier memory (783a960)
+- Merge branch 'feat/360-tiered-memory' (51bf311)
+- merge: resolve conflicts between consensus gates (#361) and operate phase (#359) (6099e13)
+- release: wicked-garden v3.5.0 — comprehensive documentation update (248cf6e)
+- release: wicked-garden v3.4.1 — E2E scenarios + bug fixes (90f1ea0)
+- release: wicked-garden v3.4.0 — cross-phase intelligence and workflow hardening (796c32e)
+
 ## [3.3.0] - 2026-04-03
 
 ### Features
