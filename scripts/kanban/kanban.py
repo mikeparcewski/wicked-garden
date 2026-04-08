@@ -661,8 +661,9 @@ class KanbanStore:
         }
 
         try:
+            shim = Path(plugin_root) / "scripts" / "_python.sh"
             subprocess.run(
-                ["python3", f"{plugin_root}/scripts/mem/store.py"],
+                ["sh", str(shim), f"{plugin_root}/scripts/mem/store.py"],
                 input=json.dumps(payload),
                 text=True,
                 timeout=5,
