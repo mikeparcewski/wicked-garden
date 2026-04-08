@@ -31,12 +31,7 @@
 
 ### Error Components
 
-1. **Code**: Machine-readable error identifier
-2. **Message**: Human-readable description
-3. **Details**: Specific field-level errors
-4. **Request ID**: For tracing/debugging
-5. **Timestamp**: When error occurred
-6. **Path/Method**: Where error occurred
+`code` (machine-readable), `message` (human-readable), `details` (field-level), `request_id` (tracing), `timestamp`, `path`/`method`.
 
 ## HTTP Status Codes
 

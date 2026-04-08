@@ -255,56 +255,12 @@ For tickets in any tracking system.
 
 ## Anti-Patterns
 
-### The Throat-Clear
+### Anti-Patterns (avoid these)
 
-```
-// BAD: Warm-up before content
-Before we dive into the details, it's worth taking
-a moment to establish some context about why this
-matters and how we arrived at this point...
-
-// GOOD: Just start
-The auth system needs replacement by Q2.
-```
-
-### The False Balance
-
-```
-// BAD: Equal weight to unequal options
-Option A has some advantages. However, Option B
-also has some advantages. Both have tradeoffs.
-
-// GOOD: Make a call
-Option A wins on cost and time. Option B's flexibility
-advantage doesn't justify the 3x cost.
-```
-
-### The Buried Lede
-
-```
-// BAD: Point at the end
-We analyzed Q3 data, consulted stakeholders,
-reviewed industry trends, and considered three
-approaches. After careful deliberation, we
-recommend migrating to the new platform.
-
-// GOOD: Point at the start
-We recommend migrating to the new platform.
-Q3 data, stakeholder input, and industry trends
-all support this decision.
-```
-
-### The Infinite Scroll
-
-```
-// BAD: Everything in one section
-[Page after page with no structure]
-
-// GOOD: Chunked with clear navigation
-## Summary (read this first)
-## Details (if you need them)
-## Appendix (reference only)
-```
+- **Throat-Clear** — warming up before getting to the point. Just start.
+- **False Balance** — treating unequal options as equal. Make a call.
+- **Buried Lede** — putting the conclusion at the end. Lead with it.
+- **Infinite Scroll** — no structure. Chunk into Summary / Details / Appendix.
 
 ---
 

@@ -93,54 +93,10 @@ Request (300ms total)
 
 ### Mitigation Strategies
 
-**1. Set Timeouts**
-```javascript
-const results = await Promise.all([
-  Promise.race([service1(), timeout(200)]),
-  Promise.race([service2(), timeout(200)]),
-  Promise.race([service3(), timeout(200)]),
-  // ...
-]);
-```
-
-**2. Implement Circuit Breakers**
-```javascript
-const results = await Promise.all([
-  circuitBreaker.call(service1),
-  circuitBreaker.call(service2),
-  circuitBreaker.call(service3),
-  // ...
-]);
-```
-
-**3. Graceful Degradation**
-```javascript
-const results = await Promise.allSettled([
-  service1(),
-  service2(),
-  service3(),
-]);
-
-// Use partial results if some services fail
-const successfulResults = results
-  .filter(r => r.status === 'fulfilled')
-  .map(r => r.value);
-```
-
-**4. Reduce Fan-Out**
-```javascript
-// BAD: Query each service individually
-const [posts, comments, likes, shares, views] = await Promise.all([
-  getPostsByUser(userId),
-  getCommentsByUser(userId),
-  getLikesByUser(userId),
-  getSharesByUser(userId),
-  getViewsByUser(userId),
-]);
-
-// BETTER: Single aggregated service
-const userActivity = await getUserActivity(userId); // Returns all in one call
-```
+1. **Set Timeouts** — wrap each parallel call in `Promise.race([service(), timeout(200)])` to cap latency
+2. **Implement Circuit Breakers** — fail fast when a downstream is consistently slow or erroring
+3. **Graceful Degradation** — use `Promise.allSettled` and proceed with partial results on failure
+4. **Reduce Fan-Out** — combine related calls into a single aggregated endpoint where possible
 
 ## Circular Dependency Detection
 
@@ -198,79 +154,9 @@ Trace ID: abc123
 
 ### Mitigation Strategies
 
-**1. Add Request ID Tracking**
-```javascript
-async function callService(serviceName, requestId, depth = 0) {
-  // Prevent infinite loops
-  if (depth > 10) {
-    throw new Error('Max call depth exceeded - possible circular dependency');
-  }
-
-  return await service.call(serviceName, { requestId, depth: depth + 1 });
-}
-```
-
-**2. Detect Cycles**
-```javascript
-const callChain = new Set();
-
-async function callService(serviceName, requestId) {
-  const key = `${serviceName}:${requestId}`;
-
-  if (callChain.has(key)) {
-    throw new Error(`Circular dependency detected: ${serviceName} called twice in same request`);
-  }
-
-  callChain.add(key);
-  try {
-    return await service.call(serviceName, { requestId });
-  } finally {
-    callChain.delete(key);
-  }
-}
-```
-
-**3. Refactor to Remove Cycle**
-
-```javascript
-// BAD: Circular dependency
-// user-service → auth-service → user-service
-
-// Service A (user-service)
-async function getUser(id) {
-  const authStatus = await authService.checkAuth(id); // Calls auth-service
-  return { ...user, authStatus };
-}
-
-// Service B (auth-service)
-async function checkAuth(userId) {
-  const user = await userService.getUser(userId); // Calls user-service CIRCULAR!
-  return user.isActive;
-}
-
-// GOOD: Break the cycle
-// Extract shared logic to new service or use events
-
-// Service A (user-service)
-async function getUser(id) {
-  return user; // Just return user, no auth check
-}
-
-// Service B (auth-service)
-async function checkAuth(userId) {
-  const isActive = await db.query('SELECT is_active FROM users WHERE id = ?', [userId]);
-  return isActive; // Query database directly, no service call
-}
-
-// Service C (api-gateway)
-async function getUserWithAuth(id) {
-  const [user, authStatus] = await Promise.all([
-    userService.getUser(id),
-    authService.checkAuth(id)
-  ]);
-  return { ...user, authStatus };
-}
-```
+1. **Add Request ID Tracking** — pass `depth` counter and throw when depth > 10 to prevent infinite loops
+2. **Detect Cycles at Runtime** — maintain a `Set` of `${serviceName}:${requestId}` keys in the call chain; throw on duplicate
+3. **Refactor to Remove the Cycle** — extract shared logic into a third service or query the database directly instead of calling back into the originating service
 
 ## Dependency Health Monitoring
 
@@ -330,39 +216,16 @@ function calculateDependencyHealth(service) {
 
 ## Service Dependency Map
 
-Visualize service dependencies from traces.
-
-### Graph Representation
-
-```
-┌─────────────┐
-│ API Gateway │ (entry point)
-└──────┬──────┘
-       │
-   ┌───┴────┬─────────┐
-   │        │         │
-   ▼        ▼         ▼
-┌──────┐ ┌────┐  ┌─────────┐
-│ User │ │Auth│  │ Product │
-│ Svc  │ │Svc │  │ Service │
-└───┬──┘ └─┬──┘  └────┬────┘
-    │      │          │
-    ▼      ▼          ▼
-┌─────────────────────┐
-│     Database        │ (leaf node)
-└─────────────────────┘
-```
-
-### Analysis
+Key node types in a dependency graph:
 
 - **Entry Points**: Services with no upstream callers
 - **Leaf Nodes**: Services with no downstream calls (typically databases, caches)
 - **Hub Services**: Services with many connections (potential single point of failure)
-- **Isolated Services**: Services called infrequently or by single caller
+- **Isolated Services**: Called infrequently or by a single caller
 
 ### Impact Analysis
 
-```markdown
+```
 If Database fails:
 - Direct impact: User Service, Auth Service, Product Service
 - Indirect impact: API Gateway (all requests fail)

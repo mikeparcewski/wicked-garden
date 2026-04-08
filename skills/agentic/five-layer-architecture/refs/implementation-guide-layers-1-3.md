@@ -4,19 +4,10 @@ Step-by-step guide to implementing Layer 1 (Cognition), Layer 2 (Context), and L
 
 ## Starting Point: Choose Your Foundation
 
-Before building layers, choose your base framework:
+**Framework-Based** (LangGraph, ADK, CrewAI, AutoGen) — layers 1-4 partially implemented, faster to prototype.
+**From Scratch** (LLM API directly) — full control, more work, better for custom requirements.
 
-**Option A: Framework-Based** (LangGraph, ADK, CrewAI, AutoGen)
-- Layers 1-4 partially implemented
-- Focus on customizing and extending
-- Faster to prototype
-
-**Option B: From Scratch** (Build on LLM API directly)
-- Full control over all layers
-- More implementation work
-- Better for custom requirements
-
-This guide covers building from scratch. Framework-based approaches follow similar principles but use framework abstractions.
+This guide covers building from scratch.
 
 ## Phase 1: Layer 1 - Cognition
 
@@ -63,47 +54,11 @@ class Agent:
 
 ### Step 1.3: Add Reasoning Patterns
 
-```python
-class ReActAgent(Agent):
-    async def solve(self, task):
-        messages = [
-            {"role": "system", "content": self.instructions},
-            {"role": "user", "content": f"Task: {task}\n\nThink step by step."}
-        ]
-
-        max_iterations = 10
-        for i in range(max_iterations):
-            # Reason
-            response = await self.llm.generate(messages)
-
-            # Check if done
-            if self.is_complete(response["content"]):
-                return self.extract_answer(response["content"])
-
-            # Act and observe
-            action = self.extract_action(response["content"])
-            observation = await self.execute_action(action)
-
-            # Add to conversation
-            messages.append({"role": "assistant", "content": response["content"]})
-            messages.append({"role": "user", "content": f"Observation: {observation}"})
-
-        raise MaxIterationsError()
-```
+Extend `Agent` to a `ReActAgent`: run a Reason→Act→Observe loop (max 10 iterations), appending each `assistant` response and `Observation:` message to the conversation until `is_complete()` returns true or `MaxIterationsError` is raised.
 
 ### Testing Layer 1
 
-```python
-# Test basic reasoning
-agent = Agent(
-    name="assistant",
-    instructions="You are a helpful assistant.",
-    llm_client=LLMClient(api_key=os.getenv("ANTHROPIC_API_KEY"))
-)
-
-result = await agent.process("What is 2+2?")
-assert "4" in result
-```
+Instantiate `Agent` with a test `LLMClient` and assert the response contains the expected value (e.g., call `agent.process("What is 2+2?")` and assert `"4" in result`).
 
 ## Phase 2: Layer 2 - Context
 
@@ -211,15 +166,7 @@ class ContextAwareAgent(Agent):
 
 ### Testing Layer 2
 
-```python
-# Test memory retrieval
-memory = VectorMemory()
-memory.store("The user prefers Python")
-memory.store("The user works on web applications")
-
-results = memory.search("What language does the user like?")
-assert "Python" in results[0]
-```
+Store a few documents in `VectorMemory`, then call `memory.search(query)` and assert the expected document is in the results.
 
 ## Phase 3: Layer 3 - Interaction
 
@@ -336,17 +283,4 @@ class ToolUsingAgent(ContextAwareAgent):
 
 ### Testing Layer 3
 
-```python
-# Test tool execution
-agent = ToolUsingAgent(
-    name="assistant",
-    instructions="You can use tools. To use a tool, output: USE_TOOL: {json}",
-    llm_client=llm,
-    session_manager=sessions,
-    memory=memory,
-    tools=registry
-)
-
-result = await agent.process("What is 15 * 23?", session_id="test")
-assert "345" in result
-```
+Instantiate `ToolUsingAgent` with the `calculate` tool registered. Call `agent.process("What is 15 * 23?", session_id="test")` and assert `"345" in result`.

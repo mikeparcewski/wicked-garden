@@ -270,60 +270,6 @@ class TwoFactorAuth:
 
 **Policy Text**: "Log all access to cardholder data and regularly review logs"
 
-**Control Mapping**:
-- **Comprehensive Logging**: All access logged
-- **Log Protection**: Prevent tampering
-- **Daily Review**: Regular log examination
-- **Log Retention**: 1 year (3 months immediately available)
+**Control Mapping**: Comprehensive logging of all access; tamper-proof log storage; daily review; 1-year retention (3 months immediately available); SIEM integration.
 
-**Implementation**:
-```python
-# Cardholder data access logging
-def log_card_access(user_id, card_id, action):
-    log_entry = {
-        'timestamp': datetime.now().isoformat(),
-        'user_id': user_id,
-        'resource_id': card_id,
-        'resource_type': 'cardholder_data',
-        'action': action,
-        'ip_address': get_client_ip(),
-        'user_agent': get_user_agent()
-    }
-
-    # Write to tamper-proof log
-    audit_log.append(log_entry)
-
-    # Send to SIEM
-    siem.send_event(log_entry)
-
-# Log review automation
-def review_logs_daily():
-    yesterday = datetime.now() - timedelta(days=1)
-
-    suspicious_patterns = [
-        # Multiple failed access attempts
-        audit_log.query(
-            action='card_access',
-            status='failure',
-            count_threshold=5,
-            time_range=yesterday
-        ),
-
-        # Access outside business hours
-        audit_log.query(
-            time_range=yesterday,
-            hour_range=(22, 6)  # 10pm - 6am
-        ),
-
-        # Bulk data access
-        audit_log.query(
-            action='card_access',
-            count_threshold=50,
-            time_window='1_hour'
-        )
-    ]
-
-    for pattern in suspicious_patterns:
-        if pattern.matches:
-            alert_security_team(pattern)
-```
+**Automated Review Patterns**: Alert on 5+ failed access attempts in 5 minutes, access outside business hours (10pm–6am), or 50+ records accessed within 1 hour.

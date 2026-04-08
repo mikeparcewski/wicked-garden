@@ -280,22 +280,4 @@ class ProductionAgenticSystem:
 
 ## Testing the Complete System
 
-```python
-async def test_system():
-    system = ProductionAgenticSystem()
-
-    # Test basic request
-    response = await system.process_request(
-        request="What is the weather like?",
-        session_id="test-session",
-        user_id="user-123"
-    )
-
-    print(f"Response: {response}")
-
-    # Check resource usage
-    stats = system.resources.get_stats()
-    print(f"Resources used: {stats}")
-
-asyncio.run(test_system())
-```
+Instantiate `ProductionAgenticSystem()`, call `process_request(request="...", session_id="test-session", user_id="user-123")`, then inspect `system.resources.get_stats()` to verify token/cost tracking.

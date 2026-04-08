@@ -4,18 +4,7 @@ Template for system overview, architecture style, components, data architecture,
 
 ## File Structure
 
-```
-phases/design/
-├── architecture.md          # Main document (use this template)
-├── decisions/               # ADRs
-│   ├── 001-architecture-style.md
-│   ├── 002-tech-stack.md
-│   └── 003-data-storage.md
-└── diagrams/
-    ├── system-context.mmd
-    ├── container-diagram.mmd
-    └── deployment.mmd
-```
+`phases/design/architecture.md` — main doc (this template); `decisions/` — ADRs (001-architecture-style, 002-tech-stack, 003-data-storage); `diagrams/` — system-context.mmd, container-diagram.mmd, deployment.mmd
 
 ## Main Document Template
 
@@ -301,18 +290,7 @@ See [ADR-002: Technology Stack](decisions/002-tech-stack.md)
 
 ### Reliability
 
-**Targets**:
-- Availability: 99.9% (43 min downtime/month)
-- RTO: 4 hours
-- RPO: 1 hour
-
-**High Availability**:
-- Multi-AZ deployment
-- Database replication (primary + 1 read replica)
-- Daily automated backups (30-day retention)
-
-**Disaster Recovery**:
-- Database snapshots every 6 hours
-- Infrastructure as Code in Git
-- Runbook for restore procedures
+**Targets**: Availability 99.9% (43 min/month); RTO 4h; RPO 1h
+**HA**: Multi-AZ; DB replication (primary + 1 read replica); daily backups (30-day retention)
+**DR**: DB snapshots every 6h; IaC in Git; restore runbook
 ```

@@ -236,37 +236,9 @@ AC2: Given validation error
 
 ## Anti-Pattern 9: No Prioritization
 
-### Bad Example
-```
-AC1: User can log in
-AC2: User can change theme color
-AC3: User can export data to CSV
-AC4: User can enable dark mode
-```
+**Problem**: All criteria treated equally — unclear what's critical vs nice-to-have, hard to make trade-off decisions.
 
-**Problems**:
-- All criteria treated equally
-- Unclear what's critical vs nice-to-have
-- Hard to make trade-off decisions
-
-### Good Example
-```
-AC1 [P0]: Given valid credentials
-          When user logs in
-          Then user gains access to system
-
-AC2 [P1]: Given logged-in user
-          When user requests data export
-          Then CSV file is generated and downloaded
-
-AC3 [P2]: Given logged-in user
-          When user toggles theme
-          Then UI switches between light and dark mode
-
-AC4 [P2]: Given user in settings
-          When user selects accent color
-          Then UI applies selected color to interactive elements
-```
+**Fix**: Add `[P0]`/`[P1]`/`[P2]` labels to each criterion. Login = P0, data export = P1, theme toggle = P2.
 
 ## Anti-Pattern 10: Ambiguous Pronouns and References
 
@@ -312,10 +284,4 @@ AC3: Given user submits form with valid data
 
 ## Summary
 
-Good acceptance criteria are:
-- **Specific**: Clear context, action, outcome
-- **Testable**: Observable and verifiable
-- **Behavioral**: What happens, not how it's built
-- **Independent**: One testable thing per criterion
-- **Prioritized**: Criticality indicated
-- **Complete**: Given/When/Then format
+Good ACs are: **Specific** (clear Given/When/Then), **Testable** (observable outcome), **Behavioral** (what, not how), **Independent** (one thing per criterion), **Prioritized** (P0/P1/P2 indicated).

@@ -277,36 +277,7 @@ Status: Incident resolved, monitoring 5% stage
 
 ### Post-Rollout Review
 
-After 100% launch:
-
-```
-## Rollout Review: Checkout v2
-
-**Summary**: Successful canary rollout over 6 weeks
-
-**Timeline**:
-- Planned: 6 weeks
-- Actual: 7 weeks (1 rollback, 1 week fix)
-
-**Issues**:
-1. Stage 3 (10%): Conversion drop due to payment processor timeout
-   Resolution: Increased timeout, retested, successful re-rollout
-
-**Wins**:
-1. Caught issue at 10% (not 50% or 100%)
-2. Rollback executed smoothly (<5 min)
-3. Monitoring detected issue within 1 hour
-
-**Learnings**:
-1. Need integration tests for payment timeouts (added)
-2. Should include payment processor metrics in dashboard (done)
-3. 7 days per stage was good balance of speed and safety
-
-**Final Impact**:
-- Conversion: +12% lift
-- Revenue: +$150k/month
-- Worth the cautious approach
-```
+After 100% launch, document: planned vs. actual timeline, issues encountered and their resolutions, wins (what the gradual rollout caught), learnings (what to do differently), and final business impact (conversion/revenue lift).
 
 ### Rollout Playbook Updates
 

@@ -258,52 +258,14 @@ Layers not listed for a change type should be marked N-A (with justification) in
 
 ### Layer Execution Details
 
-**Layer 1 — Unit tests**:
-1. Read implementation files and identify testable units (functions, methods, classes).
-2. Generate unit tests: `/wicked-garden:qe:automate --framework {detected framework}`.
-3. Run tests and collect pass/fail results.
-4. Store results in `phases/test/unit-results.md`.
-
-**Layer 2 — Integration / Contract tests**:
-1. Identify API boundaries: endpoints, service interfaces, data contracts.
-2. Validate request/response schemas against OpenAPI/JSON Schema definitions.
-3. Test error responses (4xx, 5xx) match documented contract.
-4. Capture request/response payloads as evidence artifacts (type: `api_request`, `api_response`).
-5. Run `validate_test_evidence(artifacts, 'api')` for each api test task.
-6. Store results in `phases/test/integration-results.md`.
-
-**Layer 3 — Visual / Functional tests**:
-1. Take screenshots of each changed UI element → `phases/test/evidence/{name}-screenshot.png`.
-2. Verify interactive flows complete without errors (form submit, navigation, state transitions).
-3. Run accessibility check: `/wicked-garden:product:a11y` on changed components.
-4. Attach screenshot evidence via kanban add-artifact (type: `image`).
-5. Run `validate_test_evidence(artifacts, 'ui')` for each ui test task.
-6. Store results in `phases/test/visual-results.md`.
-
-**Layer 4 — Security tests**:
-1. Test unauthenticated requests return 401/403.
-2. Test authorization: user A cannot access user B's resources.
-3. Test input validation: malformed/adversarial input is rejected.
-4. Review for OWASP top 10 patterns (injection, XSS, SSRF).
-5. Store results in `phases/test/security-results.md`.
-
-**Layer 5 — Scenario / E2E tests (PRIMARY VERIFICATION)**:
-1. **Detect E2E infrastructure**: Check for Playwright (`playwright.config.*`), Cypress (`cypress.config.*`), or live endpoints (`curl -sf localhost:*/health`).
-2. **Run product-level tests in priority order**:
-   - If Playwright/Cypress: run E2E suite, capture screenshots to `phases/test/evidence/screenshots/`.
-   - If live endpoints: curl/fetch verification of API contracts, save payloads to `phases/test/evidence/payloads/`.
-   - If scenarios available: `/wicked-garden:qe:acceptance` or `/wicked-garden:qe:run --json`.
-   - At least ONE of the above must execute.
-3. Collect all required evidence per test task description.
-4. Run `validate_test_evidence()` before marking each test task complete.
-5. Store results in `phases/test/scenario-results.md`.
-6. **Save execution trace**: Write step-by-step log with timestamps to `phases/test/evidence/traces/`.
-
-**Layer 6 — Regression tests**:
-1. Run the project's full existing test suite (pytest, jest, go test, cargo test, etc.).
-2. Verify no tests were silently removed or weakened.
-3. Check coverage delta does not decrease from baseline.
-4. Store results in `phases/test/regression-results.md`.
+| Layer | Steps | Output |
+|---|---|---|
+| 1 — Unit | Identify testable units; run `/wicked-garden:qe:automate`; collect pass/fail | `phases/test/unit-results.md` |
+| 2 — Integration | Validate schemas against OpenAPI; test 4xx/5xx contracts; capture payloads; run `validate_test_evidence(artifacts, 'api')` | `phases/test/integration-results.md` |
+| 3 — Visual | Screenshot changed UI; verify flows; run `/wicked-garden:product:a11y`; run `validate_test_evidence(artifacts, 'ui')` | `phases/test/visual-results.md` |
+| 4 — Security | Auth boundary (401/403); authz isolation; input fuzzing; OWASP top 10 review | `phases/test/security-results.md` |
+| 5 — Scenario (PRIMARY) | Detect Playwright/Cypress/live endpoints; run E2E suite or curl verification or `/wicked-garden:qe:acceptance`; save traces to `phases/test/evidence/traces/` | `phases/test/scenario-results.md` |
+| 6 — Regression | Run full existing test suite; verify no tests removed; check coverage delta ≥ baseline | `phases/test/regression-results.md` |
 
 ### Output: Test Requirement Matrix
 
@@ -330,22 +292,9 @@ All applicable types must be PASS for the test phase gate to clear.
 
 The QE strategy phase uses this taxonomy to build a **test requirement matrix** for the project.
 
-### How the Phase Uses the Taxonomy
-
-1. **Signal analysis** — `smart_decisioning.py` identifies change signals (new endpoint, schema
-   change, UI work, etc.) from the project description and code diff.
-2. **Matrix construction** — The test-strategist agent maps each detected signal to required test
-   types using the change-type selection matrix above.
-3. **Evidence planning** — For each required type, the agent defines the specific evidence artifact
-   and the command or tool that produces it.
-4. **Gate assignment** — Each test type is assigned to the appropriate crew phase:
-   - `unit`, `configuration` → build phase gate
-   - `integration`, `data/state` → build + test phase gate
-   - `scenario`, `visual`, `copy/accuracy` → test phase gate
-   - `security`, `performance` → test phase gate (or dedicated phase if signals are strong)
-   - `regression` → test phase gate (full suite)
-5. **Test phase execution** — The test phase dispatches agents per the **Testing Pyramid Execution
-   Layers** section above. Crew's `execute.md` references this taxonomy for layer definitions,
-   agent routing, and parallel dispatch rules.
-6. **Gate reviewer routing** — Strategy gates at complexity 3+ route to a specialist subagent.
-   Complexity 6-7 or any security signal escalates to council.
+1. **Signal analysis** — `smart_decisioning.py` identifies change signals (new endpoint, schema change, UI work, etc.)
+2. **Matrix construction** — test-strategist maps signals to required test types using the change-type selection matrix
+3. **Evidence planning** — for each required type, define the specific artifact and the command/tool that produces it
+4. **Gate assignment**: `unit`/`configuration` → build gate; `integration`/`data/state` → build+test gate; `scenario`/`visual`/`copy` → test gate; `security`/`performance` → test gate; `regression` → test gate
+5. **Test phase execution** — dispatches agents per the Testing Pyramid Execution Layers section; `execute.md` references this taxonomy for layer definitions and parallel dispatch
+6. **Gate reviewer routing** — complexity 3+ routes to a specialist subagent; complexity 6-7 or any security signal escalates to council
