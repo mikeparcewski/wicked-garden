@@ -42,7 +42,7 @@ These run in the background via lifecycle hooks. You don't invoke them — they 
 
 | What happens | How it works |
 |-------------|-------------|
-| **Every prompt gets project context** | `smaht` assembles memory, search results, project state, and event history before Claude responds — 3-tier routing keeps it fast for simple prompts |
+| **Every prompt gets project context** | `smaht` assembles brain knowledge, memory, project state, and event history before Claude responds — 4-tier routing (hot/fast/slow/synthesize) keeps it fast for simple prompts and thorough for complex ones |
 | **Decisions persist across sessions** | `mem` stores what you decided and surfaces it when relevant — search "auth" and find the JWT decision from three months ago via auto-generated synonym tags |
 | **Working memory consolidates over time** | Session noise drops away, important patterns get promoted to durable knowledge. 3 tiers: working (transient) → episodic (sprint-level) → semantic (permanent) |
 | **Tasks sync to a kanban board** | Claude's task tools auto-sync to the kanban via hooks — no manual tracking |
@@ -59,14 +59,14 @@ Wicked Garden fixes that with three layers:
 
 1. **Enforced workflow** (`crew`) — Signal analysis detects what your project needs, scores complexity across 7 dimensions, assembles the right specialists, and runs gated phases. Quality gates reject work that doesn't meet the bar. Consensus review at complexity 5+ brings multiple specialist perspectives before advancement.
 2. **Cross-session memory** (`mem`) — Decisions, patterns, and gotchas persist and surface automatically. Auto-generated search tags mean "auth" finds the "JWT session token" decision. Working memories consolidate into durable knowledge over time.
-3. **Context assembly** (`smaht`) — Every prompt is enriched with memory, search results, project state, and brainstorm outcomes. Three-tier routing (hot/fast/slow) keeps simple prompts fast and complex ones thorough.
+3. **Context assembly** (`smaht`) — Every prompt is enriched with brain knowledge, memory, project state, and event history. Four-tier routing (hot/fast/slow/synthesize) keeps simple prompts fast and complex ones thorough. wicked-brain is an optional but strongly recommended companion plugin that serves as the primary knowledge layer.
 
 ## How It Works
 
 ```
 You type a prompt
        |
-   [smaht assembles context: mem + search + kanban + crew state]
+   [smaht assembles context: brain + mem + events + domain state]
        |
    Claude responds with full project context
        |
@@ -94,7 +94,7 @@ Every domain works independently. Install the plugin, use any command.
 | Domain | What It Does | Key Commands |
 |--------|-------------|--------------|
 | **crew** | Signal-driven workflow engine with 8 phases, consensus gates, and operate-phase feedback loops | `crew:start`, `crew:execute`, `crew:just-finish`, `crew:retro` |
-| **smaht** | Automatic context assembly on every prompt. 3-tier routing keeps simple prompts fast. | `smaht:onboard`, `smaht:collaborate`, `smaht:briefing` |
+| **smaht** | Automatic context assembly on every prompt. 4-tier routing (hot/fast/slow/synthesize) keeps simple prompts fast and complex ones thorough. wicked-brain is the primary knowledge source. | `smaht:onboard`, `smaht:collaborate`, `smaht:briefing` |
 | **mem** | 3-tier persistent memory (working → episodic → semantic) with auto-consolidation and tag-based search | `mem:store`, `mem:recall`, `mem:consolidate` |
 | **search** | Structural code intelligence — symbols, blast radius, data lineage, service maps | `search:code`, `search:lineage`, `search:blast-radius`, `search:service-map` |
 | **jam** | AI brainstorming with dynamic focus groups and multi-model council sessions | `jam:brainstorm`, `jam:quick`, `jam:council` |
@@ -158,6 +158,8 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | [Cross-Phase Intelligence](docs/cross-phase-intelligence.md) | Traceability links, artifact states, verification protocol, knowledge graph |
 
 ## Changelog
+
+**v4.0** — wicked-brain as unified knowledge layer: brain adapter replaces search as the primary context source, FTS5 index queried on every prompt. smaht v2 pipeline: 4-tier routing (hot/fast/slow/synthesize), intent-based adapter fan-out, budget enforcer, history condenser. Agentic synthesis skill for complex/risky prompts. Automatic brain lifecycle — setup pipeline, incremental reindex, bootstrap directives.
 
 **v3.6** — Consensus-backed gate decisions for high-complexity work (multi-perspective specialist review), Operate phase closing the SDLC feedback loop (incidents, feedback, retro), 3-tier memory with auto-consolidation (working → episodic → semantic), auto-generated search tags for better keyword recall.
 

@@ -58,8 +58,8 @@ wicked-garden/
 │   │   └── refs/            # 200-300 line detailed docs (loaded on demand)
 │   └── refs/                # refs/ at domain level for single-skill domains
 ├── hooks/
-│   ├── hooks.json           # Event bindings (7 lifecycle hooks)
-│   └── scripts/             # 6 Python hook scripts (stdlib-only)
+│   ├── hooks.json           # Event bindings (12 lifecycle hook events)
+│   └── scripts/             # 11 Python hook scripts (stdlib-only)
 ├── scripts/{domain}/        # Domain APIs and utilities
 ├── scenarios/{domain}/      # Acceptance test scenarios (*.md)
 └── .claude/                 # Dev tools (wg-*), NOT distributed
@@ -112,13 +112,24 @@ Storage paths: `~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.j
 
 ### Context Assembly (smaht domain)
 
-The "brain" of the plugin. Intercepts every prompt via UserPromptSubmit hook and routes through three tiers:
+The "brain" of the plugin. Intercepts every prompt via UserPromptSubmit hook and routes through four tiers:
 
 - **HOT path** (<100ms): Continuation/confirmation responses → session state only
-- **FAST path** (<1s): Short prompt + high confidence intent → 2-5 adapters by intent type
-- **SLOW path** (2-5s): Complex/ambiguous/novel → all 6 adapters + history condenser
+- **FAST path** (<1s): Pattern-based adapter fan-out by intent type
+- **SLOW path** (2-5s): Full adapter fan-out for complex/ambiguous/novel prompts + history condenser
+- **SYNTHESIZE path**: Agentic synthesis via `wicked-garden:smaht:synthesize` skill for complex+risky prompts — triggers before orchestrator
 
-Six adapters query domain scripts directly: mem, search, kanban, crew, jam, context7.
+Six adapters query domain scripts directly: `domain`, `brain`, `events`, `context7`, `tools`, `delegation`.
+
+**Brain adapter** (`scripts/smaht/adapters/brain_adapter.py`) is the primary knowledge source — queries the wicked-brain FTS5 index. When brain is unavailable, returns empty and agents fall back to Grep/Glob.
+
+**Budget enforcer** source priority: `mem=10, search=9, brain=8, kanban=7, crew=6, context7=4, jam=3, tools=2, delegation=1`
+
+**Adapter fan-out by intent** (fast path): DEBUGGING: domain, brain, delegation · IMPLEMENTATION: domain, brain, context7, tools, delegation · PLANNING: domain, brain, events, delegation · RESEARCH: domain, brain, events, context7, tools, delegation · REVIEW: domain, brain, events, delegation · GENERAL: domain, delegation
+
+**Router** (`scripts/smaht/v2/router.py`): intent classification with tiebreak (leading-verb wins on tied scores); `code review` explicitly maps to REVIEW. Synthesize skill args format: JSON string — parse with `json.loads(args)`.
+
+**wicked-brain**: Optional but strongly recommended companion plugin. When installed, brain server runs at `localhost:4242` (configurable via `WICKED_BRAIN_PORT`) and bootstrap emits directives to run `ingest → retag → compile` if brain is empty. When not installed, brain adapter returns empty.
 
 ### Crew Workflow System
 
