@@ -385,8 +385,19 @@ def _score_complexity_and_risk(prompt: str, state) -> tuple[float, bool]:
     return min(complexity, 1.0), is_risky
 
 
-def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, state) -> str:
-    """Build the synthesis skill invocation directive for complex/risky prompts."""
+def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, state,
+                               context_briefing: str = "") -> str:
+    """Build the synthesis skill invocation directive for complex/risky prompts.
+
+    Args:
+        prompt: The user's original prompt.
+        complexity: Float 0-1 hook scoring.
+        is_risky: Whether high-risk keywords were detected.
+        state: Current session state.
+        context_briefing: Optional orchestrator briefing from SLOW-path pre-run.
+            When provided, the synthesize skill skips cold exploration and uses
+            this as its starting context. Capped at 2000 chars to avoid bloat.
+    """
     # Compact recent turns summary for the skill
     turns_summary = ""
     try:
@@ -416,6 +427,8 @@ def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, s
     }
     if turns_summary:
         args_dict["turns"] = turns_summary[:300]
+    if context_briefing:
+        args_dict["context_briefing"] = context_briefing[:2000]
 
     args_str = _json.dumps(args_dict)
 
@@ -757,6 +770,7 @@ def main():
     if not onboarding_directive:
         complexity, is_risky = _score_complexity_and_risk(prompt, state)
         _should_synthesize = False
+        _is_slow_path = False  # tracks whether Router classified this as SLOW
         try:
             from router import Router
             _r = Router(session_topics=list(getattr(state, "topics", None) or [])).route(prompt)
@@ -780,10 +794,11 @@ def main():
             # - Risky keywords (need verification regardless of length)
             # - Inline heuristics exceed threshold AND > 8 words
             _low_confidence = (_r.analysis.confidence < 0.60) and (complexity >= 0.40)
+            _is_slow_path = (_r.path.value == "slow")
             _should_synthesize = (
                 not _is_near_hot
                 and (
-                    (_r.path.value == "slow" and _has_technical)
+                    (_is_slow_path and _has_technical)
                     or is_risky
                     or _low_confidence
                     or (complexity >= _SYNTHESIS_THRESHOLD and _word_count > 8)
@@ -795,7 +810,26 @@ def main():
             _should_synthesize = (complexity >= _SYNTHESIS_THRESHOLD) or is_risky
 
         if _should_synthesize:
-            synthesis_directive = _build_synthesis_directive(prompt, complexity, is_risky, state)
+            # For SLOW-path prompts, run the orchestrator first so the synthesize
+            # skill receives adapter context (brain, kanban, domain events) rather
+            # than starting cold. Fail open: if orchestrator errors, synthesize
+            # without context (original behavior).
+            _context_briefing = ""
+            if _is_slow_path:
+                try:
+                    from orchestrator import Orchestrator
+                    _orch = Orchestrator(session_id=session_id)
+                    _orch_result = _gather_context_sync(_orch, prompt)
+                    if _orch_result and _orch_result.briefing:
+                        _context_briefing = _orch_result.briefing
+                        _log("smaht", "debug", "synthesis.orchestrator_prefetch",
+                             detail={"briefing_len": len(_context_briefing)})
+                except Exception:
+                    pass  # fail open — synthesize without context
+
+            synthesis_directive = _build_synthesis_directive(
+                prompt, complexity, is_risky, state, context_briefing=_context_briefing
+            )
             _log("smaht", "debug", "synthesis.triggered",
                  detail={"complexity": complexity, "risk": is_risky, "turn": turn_count})
             merged = (
