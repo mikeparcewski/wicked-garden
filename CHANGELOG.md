@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.0] - 2026-04-08
+
+### Features
+- feat(smaht): thread orchestrator output into synthesize directive for SLOW-path prompts (#393) (c37aaf3)
+
+### Bug Fixes
+- fix(smaht): tighten synthesize gate + add scope validation step (#391) (#392) (ff8da7f)
+
+### Chores
+- release: wicked-garden v4.0.4 — kanban fixes, scenario cleanup, refs trimming (5180834)
+
 ## [4.0.4] - 2026-04-08
 
 ### Bug Fixes
