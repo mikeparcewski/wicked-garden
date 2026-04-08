@@ -60,7 +60,7 @@ _DOMAIN_QUERIES = [
         "project_key": "project_id",
         "title_fn": lambda r: f"[{r.get('swimlane', '?')}] {r.get('name', '')}",
         "summary_fn": lambda r: (r.get("description") or r.get("name") or "")[:200],
-        "boost_fn": lambda r: 0.2 if r.get("swimlane") in ("doing", "in_progress") else 0.0,
+        "boost_fn": lambda r: 0.2 if r.get("swimlane") == "in_progress" else 0.0,
     },
     {
         "domain_name": "wicked-crew",
