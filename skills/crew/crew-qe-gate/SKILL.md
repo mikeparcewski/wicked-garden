@@ -30,25 +30,25 @@ Quality is how we deliver fast. Don't wait for QE phase—analyze early.
 
 | Command | Purpose |
 |---------|---------|
-| `/wicked-garden:qe:analyze` | Run QE gate analysis |
-| `/wicked-garden:qe:analyze --gate value` | Value Gate |
-| `/wicked-garden:qe:analyze --gate strategy` | Strategy Gate (default) |
-| `/wicked-garden:qe:analyze --gate execution` | Execution Gate |
+| `/wicked-garden:qe:check` | Run QE gate analysis |
+| `/wicked-garden:qe:check --gate value` | Value Gate |
+| `/wicked-garden:qe:check --gate strategy` | Strategy Gate (default) |
+| `/wicked-garden:qe:check --gate execution` | Execution Gate |
 
 ## Usage
 
 ```bash
 # Default Strategy Gate
-/wicked-garden:qe:analyze src/auth
+/wicked-garden:qe:check src/auth
 
 # Value Gate on requirements
-/wicked-garden:qe:analyze outcome.md --gate value
+/wicked-garden:qe:check outcome.md --gate value
 
 # Execution Gate after build
-/wicked-garden:qe:analyze src/auth --gate execution
+/wicked-garden:qe:check src/auth --gate execution
 
 # Quick triage
-/wicked-garden:qe:analyze --rigor quick
+/wicked-garden:qe:check --rigor quick
 ```
 
 ## Output

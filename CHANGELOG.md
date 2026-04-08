@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.0.3] - 2026-04-08
+
+### Bug Fixes
+- fix(kanban): route hook task ops through KanbanStore (#381, #382, #383) (#388) (490cfe6)
+- fix(kanban): remove dead 'doing' swimlane from domain_adapter boost_fn (#385) (#386) (6cd8863)
+- fix(kanban): use _python.sh shim in _trigger_mem_write (#384) (#387) (c98efcb)
+
+### Documentation
+- docs: update CLAUDE.md and README for brain-first architecture and smaht v2 pipeline (9da1d3d)
+
+### Tests
+- test(smaht): add end-to-end scenario for synthesize skill slow-path (#375) (#380) (0c52366)
+
+### Chores
+- release: wicked-garden v4.0.2 — smaht pipeline hardening + docs overhaul (99ff94c)
+
 ## [4.0.2] - 2026-04-08
 
 ### Features
