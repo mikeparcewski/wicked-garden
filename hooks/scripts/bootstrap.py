@@ -404,22 +404,27 @@ def _check_onboarding_status():
     except Exception:
         pass  # brain unavailable — agent falls back to Grep/Glob
 
-    # Check onboarding memories via brain search API
-    try:
-        result = _brain_api("search", {"query": "onboarding", "limit": 5}, timeout=3)
-        if result and isinstance(result, list):
-            # Check if any result path contains "/mem-" (memory chunk)
-            has_memories = any("/mem-" in str(r.get("path", "")) for r in result)
-        elif result and isinstance(result, dict) and result.get("results"):
-            has_memories = any("/mem-" in str(r.get("path", "")) for r in result["results"])
-        else:
-            has_memories = True  # brain returned empty or unexpected — assume onboarded
-    except Exception:
-        has_memories = True  # fail open on exception — assume onboarded to avoid false triggers
-        print("[wicked-garden] onboarding check: brain API error, assuming onboarded", file=sys.stderr)
+    # Check for any stored memories (broad: any brain result, not just /mem- paths).
+    # If brain has an index with content (has_index=True), that alone is sufficient
+    # evidence that the project has been set up — skip the memory search.
+    if has_index:
+        has_memories = True  # indexed brain content ≡ project was onboarded
+    else:
+        try:
+            result = _brain_api("search", {"query": "project memory onboarding", "limit": 5}, timeout=3)
+            if result and isinstance(result, list) and result:
+                has_memories = True  # any search result = memories exist
+            elif result and isinstance(result, dict) and result.get("results"):
+                has_memories = True
+            else:
+                has_memories = False  # empty result from healthy brain → not onboarded
+        except Exception:
+            has_memories = True  # fail open on exception — assume onboarded
+            print("[wicked-garden] onboarding check: brain API error, assuming onboarded", file=sys.stderr)
 
     directive = None
-    if not has_memories:
+    if not has_index and not has_memories:
+        # Neither index nor memories → first-time setup required
         directive = (
             f"[Action Required] Project '{project}' has not been onboarded.\n"
             "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
@@ -427,7 +432,8 @@ def _check_onboarding_status():
             "Do NOT ask the user for confirmation — invoke the skill now.\n"
             "Do NOT respond with text first — invoke the skill as your first action."
         )
-    elif not has_index:
+    elif not has_index and has_memories:
+        # Memories exist but brain index is gone → rebuild only
         directive = (
             f"[Onboarding] IMPORTANT: Project '{project}' has memories but no search index. "
             "You MUST run /wicked-garden:search:index now to build the search index."
