@@ -1,7 +1,7 @@
 ---
 name: crew-detection
 title: Crew Project Detection During Prompts
-description: Verify crew hints fire for complex prompts, are suppressed when a project is active, and re-fire at complexity=3
+description: Verify crew hints fire for complex prompts, are suppressed when a project is active, and require complexity >= 3
 type: testing
 difficulty: beginner
 estimated_minutes: 8
@@ -10,8 +10,9 @@ estimated_minutes: 8
 # Crew Project Detection During Prompts
 
 This scenario verifies that the crew hint fires when no active project exists and a prompt
-scores complexity >= 2, is suppressed when an active project is in the workspace, and re-fires
-at complexity=3 even after the once-per-session gate has been set.
+scores complexity >= 3 (Router._estimate_complexity 0-3 scale), is suppressed when an active
+project is in the workspace, and does NOT re-fire at complexity=3 when crew_hint_shown=True
+(the once-per-session gate is not bypassed by high complexity — that was the old behaviour).
 
 ## Setup
 
@@ -21,7 +22,11 @@ export TMPDIR=$(mktemp -d)
 
 ## Steps
 
-### 1. Crew hint fires on complex prompt with no active project
+### 1. Crew hint fires on complexity=3 prompt with no active project
+
+The crew hint gate requires `Router._estimate_complexity(prompt) >= 3`. The 0-3 scale awards:
++1 for >80 words, +1 for migration/architecture/refactor keywords, +1 for plan/design/strategy keywords.
+A prompt must score all three to trigger the hint.
 
 ```bash
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
@@ -33,7 +38,7 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 }
 EOF
 
-echo '{"prompt": "I need to design and implement a new authentication system with OAuth2 providers, database schema migrations, and changes to three API services", "session_id": "sess-1"}' \
+echo '{"prompt": "Help me plan and architect a complete migration of our monolith to microservices — first design the service boundaries, then implement the first service with full testing and after that build the full data migration pipeline with rollback support", "session_id": "sess-1"}' \
   | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
   | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
 ```
@@ -59,7 +64,10 @@ echo '{"prompt": "I need to design and implement a new authentication system wit
 
 **Expected**: `NO_HINT`
 
-### 3. Crew hint re-fires at complexity=3 even when crew_hint_shown=True
+### 3. Crew hint suppressed when crew_hint_shown=True (once per session)
+
+The hint gate checks `crew_hint_shown` and does NOT re-fire at any complexity level.
+Once shown, crew_hint_shown=True suppresses all subsequent hints.
 
 ```bash
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
@@ -76,7 +84,7 @@ echo '{"prompt": "Help me plan and architect a complete migration of our monolit
   | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
 ```
 
-**Expected**: `HINT_FOUND` (re-fired despite crew_hint_shown=True)
+**Expected**: `NO_HINT` (suppressed by crew_hint_shown=True — once per session, no re-fire)
 
 ### 4. Low-complexity prompt does not trigger hint
 
@@ -120,7 +128,10 @@ else:
 
 **Expected**: `FLAG_SET`
 
-### 6. Regression guard: hint fires at most once per prompt turn
+### 6. Regression guard: hint never appears when crew_hint_shown=True
+
+With crew_hint_shown=True in session state, `crew:start` must never appear in output —
+the once-per-session gate is respected regardless of complexity.
 
 ```bash
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
@@ -132,25 +143,26 @@ output=$(echo '{"prompt": "Help me plan and architect a complete migration of ou
   | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print(ctx.count('crew:start'))")
 
 echo "Hint count in output: ${output}"
-[ "${output}" -le 1 ] && echo "SINGLE_HINT_OK" || echo "SPAM_DETECTED"
+[ "${output}" -eq 0 ] && echo "NO_SPAM_OK" || echo "SPAM_DETECTED"
 ```
 
-**Expected**: `SINGLE_HINT_OK`
+**Expected**: `NO_SPAM_OK` (0 crew:start occurrences — gate suppresses all hints once shown)
 
 ## Expected Outcome
 
-The crew hint appears precisely when needed: high-complexity prompts with no active project.
-It is capped at one per prompt turn and respects the workspace-scoped active project detection.
-The re-fire at complexity=3 gives a second nudge for genuinely large requests without spamming.
+The crew hint appears precisely when needed: prompts scoring complexity=3 (all three heuristics:
+>80 words, migration/architecture/refactor keywords, plan/design/strategy keywords) with no active
+project. The hint is gated once per session — crew_hint_shown=True suppresses all subsequent
+hints regardless of complexity. There is no re-fire mechanism.
 
 ## Success Criteria
 
-- [ ] Crew hint present for complex prompt with active_project_id=null
+- [ ] Crew hint present for complexity=3 prompt with active_project_id=null and crew_hint_shown=False
 - [ ] Crew hint absent when active_project_id is set to a project name
-- [ ] Crew hint re-fires at complexity=3 even when crew_hint_shown=True
+- [ ] Crew hint absent when crew_hint_shown=True (no re-fire at any complexity level)
 - [ ] Low-complexity ("fix a typo") prompts produce no hint
 - [ ] crew_hint_shown flag written to session state after first hint
-- [ ] Hint appears at most once per prompt turn (no duplicates)
+- [ ] No crew:start appears in output when crew_hint_shown=True (0 occurrences, not just <=1)
 - [ ] active_project_id (not cp_project_id) is the gate field used
 
 ## Value Demonstrated

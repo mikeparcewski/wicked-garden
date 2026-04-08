@@ -82,7 +82,7 @@ echo "PASS: SessionStart hook script runs without errors"
 ```bash
 PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
 MISSING=0
-for SKILL in agent-browser runtime-exec issue-reporting wickedizer; do
+for SKILL in runtime-exec wickedizer multi-model integration-discovery; do
   if [ -d "$PLUGIN_DIR/skills/$SKILL" ] || [ -f "$PLUGIN_DIR/skills/$SKILL/SKILL.md" ]; then
     echo "  Found: $SKILL"
   else
@@ -153,7 +153,7 @@ echo "PASS: specialist.json valid with multiple specialists"
 - [ ] SessionStart hook fires without errors (no failure notification in Claude Code)
 - [ ] Hook completes within 2 seconds (no timeout)
 - [ ] No setup message, nag, or prompt displayed on session start
-- [ ] Root-level skills discoverable via `/wicked-garden:help`: agent-browser, multi-model, integration-discovery, issue-reporting, runtime-exec, wickedizer
+- [ ] Root-level skills discoverable via `/wicked-garden:help`: multi-model, integration-discovery, runtime-exec, wickedizer
 - [ ] Skills load correctly when queried (frontmatter and content accessible)
 - [ ] Hooks fire silently on session start with no error notifications
 
