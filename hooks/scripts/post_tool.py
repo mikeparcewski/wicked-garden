@@ -108,24 +108,31 @@ def _save_kanban_sync_state(sync_data: dict) -> None:
 
 
 def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
-    """Sync TaskCreate/TaskUpdate/TodoWrite to kanban via DomainStore."""
+    """Sync TaskCreate/TaskUpdate/TodoWrite to kanban via KanbanStore.
+
+    Routes all task operations through KanbanStore so the task index is kept
+    consistent and activity records use the correct "type" field schema.
+    Falls back gracefully — always returns {"continue": True}.
+    """
     try:
-        from _domain_store import DomainStore
-        sm = DomainStore("wicked-kanban", hook_mode=True)
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "kanban"))
+        from kanban import KanbanStore
+        ks = KanbanStore()
         state = _load_kanban_sync_state()
 
-        # Ensure project exists
+        # Ensure project exists — use KanbanStore.create_project() so default
+        # swimlanes and an empty index are provisioned atomically (#381).
         project_id = state.get("project_id")
         if not project_id:
             repo_path = os.environ.get("PWD", os.getcwd())
             repo_name = Path(repo_path).name or "Claude Tasks"
-            project = sm.create("projects", {
-                "name": f"{repo_name} Tasks",
-                "description": f"Tasks for {repo_path}",
-                "repo_path": repo_path,
-            })
+            project = ks.create_project(
+                name=f"{repo_name} Tasks",
+                description=f"Tasks for {repo_path}",
+                repo_path=repo_path,
+            )
             if project:
-                project_id = project.get("id") or project.get("data", {}).get("id")
+                project_id = project.get("id")
                 state["project_id"] = project_id
 
         if not project_id:
@@ -139,33 +146,28 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
             metadata = tool_input.get("metadata") or {}
             initiative_name = metadata.get("initiative") or _parse_crew_initiative(subject) or "Issues"
 
-            task = sm.create("tasks", {
-                "project_id": project_id,
-                "name": subject,
-                "swimlane": "todo",
-                "priority": metadata.get("priority") or _infer_priority(subject + " " + description),
-                "description": description or tool_input.get("activeForm", ""),
-                "initiative_name": initiative_name,
-                "metadata": {
+            # Route through KanbanStore so index is updated and _log_activity()
+            # records use the correct "type" field (#381, #383).
+            task = ks.create_task(
+                project_id,
+                subject,
+                swimlane="todo",
+                priority=metadata.get("priority") or _infer_priority(subject + " " + description),
+                description=description or tool_input.get("activeForm", ""),
+                metadata={
                     "source": "TaskCreate",
+                    "initiative_name": initiative_name,
                     "session_id": _get_session_id(),
                 },
-            })
+            )
             if task:
-                task_id = task.get("id") or task.get("data", {}).get("id")
+                # Store the short task_id — KanbanStore.update_task() takes
+                # (project_id, task_id) where task_id is the short form (#381).
+                short_id = task.get("task_id") or task.get("id", "").split(":")[-1]
                 state.setdefault("task_map", {})[subject] = {
-                    "kanban_id": task_id,
+                    "kanban_id": short_id,
                     "initiative_name": initiative_name,
                 }
-                # Log activity for the new task
-                if task_id:
-                    sm.create("activity", {
-                        "project_id": project_id,
-                        "task_id": task_id,
-                        "action": "created",
-                        "details": {"from": None, "to": "todo"},
-                        "source": "hook:post_tool",
-                    })
 
             # Enrichment nudge
             hints = []
@@ -184,7 +186,7 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
             status = tool_input.get("status")
             subject = tool_input.get("subject", "")
 
-            # Resolve kanban task ID
+            # Resolve kanban task ID from session-state task_map
             task_map = state.get("task_map", {})
             entry = task_map.get(task_id_input) or task_map.get(subject)
             kanban_id = None
@@ -193,9 +195,24 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
             elif isinstance(entry, str):
                 kanban_id = entry
 
+            # #382: cross-session fallback — task_map is ephemeral; if the task
+            # was created in a prior session the map entry will be absent.
+            # Fall back to a name-based scan of KanbanStore before giving up.
+            if not kanban_id and subject:
+                try:
+                    for t in ks.list_tasks(project_id):
+                        if t.get("name") == subject:
+                            kanban_id = t.get("task_id") or t.get("id", "").split(":")[-1]
+                            # Re-register in session state for subsequent lookups
+                            state.setdefault("task_map", {})[subject] = {
+                                "kanban_id": kanban_id,
+                            }
+                            break
+                except Exception:
+                    pass
+
             if kanban_id and status:
                 swimlane_map = {"pending": "todo", "in_progress": "in_progress", "completed": "done"}
-                old_swimlane = None  # previous swimlane unknown from hook context
                 swimlane = swimlane_map.get(status)
                 if swimlane is None:
                     print(f"[wicked-kanban] Unknown status: {status!r}. Valid: pending, in_progress, completed", file=sys.stderr)
@@ -207,15 +224,9 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
                 if tool_input.get("description"):
                     updates["description"] = tool_input["description"]
                 if updates:
-                    sm.update("tasks", kanban_id, updates)
-                    # Log activity for the status change
-                    sm.create("activity", {
-                        "project_id": project_id,
-                        "task_id": kanban_id,
-                        "action": "status_change",
-                        "details": {"from": old_swimlane, "to": swimlane},
-                        "source": "hook:post_tool",
-                    })
+                    # Route through KanbanStore so index is updated and
+                    # _log_activity() uses the correct "type" field (#381, #383).
+                    ks.update_task(project_id, kanban_id, **updates)
 
         elif tool_name == "TodoWrite":
             todos = tool_input.get("todos", [])
@@ -230,39 +241,22 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
                 existing = task_map.get(content)
                 existing_id = existing.get("kanban_id") if isinstance(existing, dict) else existing
                 if existing_id:
-                    sm.update("tasks", existing_id, {"swimlane": swimlane})
-                    # Log activity for TodoWrite status change
-                    sm.create("activity", {
-                        "project_id": project_id,
-                        "task_id": existing_id,
-                        "action": "status_change",
-                        "details": {"from": None, "to": swimlane},
-                        "source": "hook:post_tool",
-                    })
+                    # Route through KanbanStore (#381, #383)
+                    ks.update_task(project_id, existing_id, swimlane=swimlane)
                 else:
-                    task = sm.create("tasks", {
-                        "project_id": project_id,
-                        "name": content,
-                        "swimlane": swimlane,
-                        "priority": _infer_priority(content),
-                        "initiative_name": "Issues",
-                        "metadata": {"source": "TodoWrite"},
-                    })
+                    task = ks.create_task(
+                        project_id,
+                        content,
+                        swimlane=swimlane,
+                        priority=_infer_priority(content),
+                        metadata={"source": "TodoWrite"},
+                    )
                     if task:
-                        tid = task.get("id") or task.get("data", {}).get("id")
+                        short_id = task.get("task_id") or task.get("id", "").split(":")[-1]
                         state.setdefault("task_map", {})[content] = {
-                            "kanban_id": tid,
+                            "kanban_id": short_id,
                             "initiative_name": "Issues",
                         }
-                        # Log activity for new TodoWrite task
-                        if tid:
-                            sm.create("activity", {
-                                "project_id": project_id,
-                                "task_id": tid,
-                                "action": "created",
-                                "details": {"from": None, "to": swimlane},
-                                "source": "hook:post_tool",
-                            })
                 synced += 1
 
         _save_kanban_sync_state(state)
