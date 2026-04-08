@@ -141,13 +141,17 @@ def _clean_snippet(raw: str) -> str:
     text = text.replace("…", " ").replace("...", " ")
 
     # Patterns that indicate frontmatter / metadata noise — skip these lines
-    _yaml_key = _re.compile(r'^[a-z][a-z_]+:\s*')        # snake_case key: value
-    _bare_float = _re.compile(r'^\d+\.\d+$')              # e.g. "0.7"
-    _timestamp = _re.compile(r'^\d{4}-\d{2}-\d{2}')       # ISO date
-    _tag_list = _re.compile(r'^- [a-z][\w\-]*$')          # bare tag list items
-    _uuid_like = _re.compile(r'^[a-f0-9\-]{8,}$')         # UUIDs
-    # YAML values that are bare file paths (stripped of their key, leftover orphans)
-    _file_path = _re.compile(r'^[\w/.\- ]+\.(md|py|js|ts|jsx|tsx|json|yaml|yml|sh|txt)$')
+    _yaml_key   = _re.compile(r'^[a-z][a-z_]+:\s*')        # snake_case key: value
+    _bare_float = _re.compile(r'^\d+\.\d+$')               # e.g. "0.7"
+    _timestamp  = _re.compile(r'^\d{4}-\d{2}-\d{2}')       # ISO date
+    _tag_list   = _re.compile(r'^- [a-z][\w\-]*$')         # bare YAML tag list items
+    _uuid_like  = _re.compile(r'^[a-f0-9\-]{8,}$')         # UUIDs
+    # Leftover path values after their YAML key was stripped
+    _file_path  = _re.compile(r'^[\w/.\- ]+\.(md|py|js|ts|jsx|tsx|json|yaml|yml|sh|txt)$')
+    # chunk-ID paths: "source-name/chunk-NNN" or bare "chunk-NNN"
+    _chunk_id   = _re.compile(r'(^|/)chunk-\d+')
+    # Markdown table separators: |---|---|---| and raw table pipe rows with no words
+    _table_sep  = _re.compile(r'^\|[\s\-|]+\|$')
 
     lines = []
     for line in text.split("\n"):
@@ -159,7 +163,9 @@ def _clean_snippet(raw: str) -> str:
                 or _timestamp.match(stripped)
                 or _tag_list.match(stripped)
                 or _uuid_like.match(stripped)
-                or _file_path.match(stripped)):
+                or _file_path.match(stripped)
+                or _chunk_id.search(stripped)
+                or _table_sep.match(stripped)):
             continue
         lines.append(stripped)
 
@@ -196,7 +202,10 @@ async def query(prompt: str) -> List[ContextItem]:
 
         clean_snippet = _clean_snippet(snippet)
         kw_score = _keyword_score(score_against, f"{source_file} {clean_snippet}")
-        relevance = min(0.3 + kw_score, 1.0)
+        # Items with no readable snippet get a relevance floor of 0.2 so they
+        # rank below items that survived cleaning and only appear if budget allows.
+        base = 0.2 if not clean_snippet else 0.3
+        relevance = min(base + kw_score, 1.0)
 
         # Keep only the highest-scoring chunk per source file
         existing = best_by_source.get(source_file)
