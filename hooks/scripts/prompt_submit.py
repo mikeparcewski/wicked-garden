@@ -320,7 +320,7 @@ def _suggest_discovery(prompt: str, state) -> str | None:
 # Complexity + risk scoring (inline, no API calls, no external imports)
 # ---------------------------------------------------------------------------
 
-_SYNTHESIS_THRESHOLD = 0.25  # complexity >= this OR is_risky → trigger synthesis
+_SYNTHESIS_THRESHOLD = 0.40  # complexity >= this OR is_risky → trigger synthesis
 
 _DEEP_WORK_SIGNALS = frozenset({
     "implement", "architecture", "design", "refactor", "migrate",
@@ -406,18 +406,18 @@ def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, s
     except Exception:
         pass
 
-    # Encode args for the skill (simple key=value pairs)
+    # Encode args as JSON so the skill can unambiguously parse all fields,
+    # including turns_summary which is itself pipe-separated internally.
     import json as _json
-    args_parts = [
-        f"complexity={complexity:.2f}",
-        f"risk={'true' if is_risky else 'false'}",
-    ]
+    args_dict = {
+        "complexity": round(complexity, 2),
+        "risk": is_risky,
+        "prompt": prompt[:500],
+    }
     if turns_summary:
-        args_parts.append(f"turns={turns_summary[:300]}")
-    # Prompt last (may contain special chars)
-    args_parts.append(f"prompt={prompt[:500]}")
+        args_dict["turns"] = turns_summary[:300]
 
-    args_str = " | ".join(args_parts)
+    args_str = _json.dumps(args_dict)
 
     return (
         "[Context Assembly] This prompt requires deep context synthesis.\n"
@@ -775,10 +775,11 @@ def main():
 
             # Synthesize when:
             # - Router says compound/ambiguous (slow) AND has real content (not near-HOT)
-            # - Low confidence AND long enough to have real intent (> 8 words)
+            # - Low confidence AND meaningful inline complexity (>= 0.40) — word count alone
+            #   is not a reliable signal; a long but simple clarification should not fire
             # - Risky keywords (need verification regardless of length)
             # - Inline heuristics exceed threshold AND > 8 words
-            _low_confidence = (_r.analysis.confidence < 0.60) and (_word_count > 8)
+            _low_confidence = (_r.analysis.confidence < 0.60) and (complexity >= 0.40)
             _should_synthesize = (
                 not _is_near_hot
                 and (

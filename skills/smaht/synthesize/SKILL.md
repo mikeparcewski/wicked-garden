@@ -17,11 +17,11 @@ You received this skill because the hook determined this prompt needs deep conte
 
 ## Arguments (from hook)
 
-Parse from the `args` string:
+Args are passed as a JSON string. Parse with `json.loads(args)`:
 - `prompt`: the user's original prompt
 - `complexity`: float 0–1 (hook scoring)
 - `risk`: bool — high-risk keywords detected
-- `turns`: recent session turns summary (condensed)
+- `turns`: recent session turns summary (condensed, may be absent on first turn)
 
 ## Budget (based on complexity + risk)
 
@@ -31,6 +31,27 @@ Parse from the `args` string:
 | 0.5–0.7   | no   | 1      | 3              |
 | > 0.7     | any  | 2      | 4              |
 | any       | yes  | 2      | 3              |
+
+## Step 0: Scope Validation
+
+Before running the full synthesis loop, validate that this prompt actually warrants agentic synthesis. Parse `complexity` and `risk` from the skill args (both provided as JSON fields).
+
+Run these 3 quick checks against the user's prompt:
+
+1. **Novel / complex intent** — Is the prompt asking for something genuinely new or complex (not a clarification, follow-up, or simple yes/no)? Short rephrasing of the prior turn, confirmations ("is this right?", "looks good?"), and single-word continuations ("yes", "proceed") do NOT pass this check.
+2. **Cross-domain or multi-step reasoning** — Does answering require synthesizing knowledge across multiple systems, domains, or layers? Single-file questions or direct factual lookups do NOT pass this check.
+3. **Risk flag** — Is `risk` true (destructive/production-affecting keywords detected by the hook)?
+
+**Decision**:
+- **0 of 3 pass** → Exit early. Output exactly:
+
+  ```
+  [Scope Check: LOW — routing to fast path]
+  ```
+
+  Then stop. Do NOT produce a context briefing or proceed to Step 1.
+
+- **1 or more pass** → Proceed to Step 1 below.
 
 ## Step 1: Facilitator — What do I need to know?
 
@@ -58,6 +79,7 @@ curl -s -X POST http://localhost:4242/api \
   -H "Content-Type: application/json" \
   -d '{"action":"search","params":{"query":"QUERY_TERMS","limit":5}}'
 ```
+If curl fails (brain server not running), fall back to Grep/Glob on the project files directly.
 
 **Recent events** (what changed recently):
 ```bash
@@ -66,7 +88,7 @@ curl -s -X POST http://localhost:4242/api \
   -d '{"action":"search","params":{"query":"QUERY_TERMS event created","limit":3}}'
 ```
 
-Each agent returns: what it found (or "nothing relevant").
+Each agent returns: what it found (or "nothing relevant — brain unavailable, searched files directly").
 
 ## Step 3: Facilitator — Is this sufficient?
 
