@@ -58,11 +58,16 @@ def _query_brain(prompt: str) -> list:
     """Query brain FTS5 index with automatic recall fallback.
 
     FTS5 uses AND — more terms = fewer results. Try 3 terms first (higher
-    precision); if < 2 results, retry with 2 terms to widen recall.
+    precision); if < 2 results, try two 2-term combinations and pick the
+    one with more results:
+      - first + third (drop middle — often the most generic term)
+      - first + second (standard narrowing)
     """
-    query = _extract_keywords(prompt, limit=3)
-    if not query:
+    keywords = _extract_keywords(prompt, limit=3).split()
+    if not keywords:
         return []
+
+    query = " ".join(keywords)
 
     try:
         port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
@@ -82,11 +87,17 @@ def _query_brain(prompt: str) -> list:
                 return json.loads(resp.read().decode("utf-8")).get("results", [])
 
         results = _search(query)
-        if len(results) < 2:
-            # Widen: drop to 2 terms for better recall
-            fallback = _extract_keywords(prompt, limit=2)
-            if fallback != query:
-                results = _search(fallback)
+        if len(results) < 2 and len(keywords) >= 3:
+            # Try dropping the middle keyword (often the least specific)
+            alt_a = f"{keywords[0]} {keywords[2]}"  # first + third
+            alt_b = f"{keywords[0]} {keywords[1]}"  # first + second
+            ra = _search(alt_a)
+            rb = _search(alt_b)
+            # Prefer whichever returns more results (wider recall)
+            results = ra if len(ra) >= len(rb) else rb
+        elif len(results) < 2 and len(keywords) == 2:
+            # Already at 2 terms; nothing further to try
+            pass
         return results
     except Exception:
         return []
@@ -145,13 +156,14 @@ def _clean_snippet(raw: str) -> str:
     _bare_float = _re.compile(r'^\d+\.\d+$')               # e.g. "0.7"
     _timestamp  = _re.compile(r'^\d{4}-\d{2}-\d{2}')       # ISO date
     _tag_list   = _re.compile(r'^- [a-z][\w\-]*$')         # bare YAML tag list items
+    _flag_list  = _re.compile(r'^- --[\w\-]+')             # CLI flag list items: - --flag
     _uuid_like  = _re.compile(r'^[a-f0-9\-]{8,}$')         # UUIDs
     # Leftover path values after their YAML key was stripped
     _file_path  = _re.compile(r'^[\w/.\- ]+\.(md|py|js|ts|jsx|tsx|json|yaml|yml|sh|txt)$')
     # chunk-ID paths: "source-name/chunk-NNN" or bare "chunk-NNN"
     _chunk_id   = _re.compile(r'(^|/)chunk-\d+')
-    # Markdown table separators: |---|---|---| and raw table pipe rows with no words
-    _table_sep  = _re.compile(r'^\|[\s\-|]+\|$')
+    # Markdown table rows: any line starting with | (data rows and separators)
+    _table_row  = _re.compile(r'^\|')
 
     lines = []
     for line in text.split("\n"):
@@ -162,10 +174,11 @@ def _clean_snippet(raw: str) -> str:
                 or _bare_float.match(stripped)
                 or _timestamp.match(stripped)
                 or _tag_list.match(stripped)
+                or _flag_list.match(stripped)
                 or _uuid_like.match(stripped)
                 or _file_path.match(stripped)
                 or _chunk_id.search(stripped)
-                or _table_sep.match(stripped)):
+                or _table_row.match(stripped)):
             continue
         lines.append(stripped)
 
