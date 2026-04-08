@@ -111,15 +111,39 @@ async def query(prompt: str) -> List[ContextItem]:
         payload = event.get("payload", "")
         project_id = event.get("project_id", "")
 
+        # Parse payload if it's a JSON string
+        payload_dict: dict = {}
+        if payload and isinstance(payload, str):
+            try:
+                import json as _json
+                payload_dict = _json.loads(payload)
+            except Exception:
+                pass
+
+        # Filter: skip tasks.created events that have no meaningful name.
+        # Bare UUID record_id entries without a name add noise to briefings.
+        if action == "tasks.created":
+            task_name = payload_dict.get("name", "") if payload_dict else ""
+            if not task_name or not task_name.strip():
+                continue
+
         # Build title and summary
         title = f"{domain}.{action}"
         summary_parts = []
-        if record_id:
-            summary_parts.append(record_id)
-        if project_id:
-            summary_parts.append(f"project: {project_id}")
-        if payload and isinstance(payload, str) and len(payload) < 200:
-            summary_parts.append(payload)
+
+        # For tasks.created, surface the task name instead of the raw UUID
+        if action == "tasks.created" and payload_dict.get("name"):
+            task_name = payload_dict["name"].strip()
+            title = f"{domain}.{action}: {task_name}"
+            summary_parts.append(task_name)
+        else:
+            if record_id:
+                summary_parts.append(record_id)
+            if project_id:
+                summary_parts.append(f"project: {project_id}")
+            if payload and isinstance(payload, str) and len(payload) < 200:
+                summary_parts.append(payload)
+
         summary = " | ".join(summary_parts) if summary_parts else action
 
         # Score: base + action boost + keyword match + recency
@@ -141,7 +165,11 @@ async def query(prompt: str) -> List[ContextItem]:
             source="events",
             title=title,
             summary=summary,
-            excerpt=f"[{ts[:10]}] {title}: {record_id}" if record_id else f"[{ts[:10]}] {title}",
+            excerpt=(
+                f"[{ts[:10]}] {title}"
+                if (action == "tasks.created" and payload_dict.get("name"))
+                else (f"[{ts[:10]}] {title}: {record_id}" if record_id else f"[{ts[:10]}] {title}")
+            ),
             relevance=relevance,
             age_days=age,
             metadata={
