@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.2.2] - 2026-04-09
+
+### Bug Fixes
+- fix(qe): teach agents to discover tools instead of hardcoding them (9cb0de1)
+
+### Chores
+- release: wicked-garden v4.2.1 — non-skippable test phase (e236829)
+
 ## [4.2.1] - 2026-04-09
 
 ### Bug Fixes
