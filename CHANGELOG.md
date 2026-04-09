@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.2.1] - 2026-04-09
+
+### Bug Fixes
+- fix(crew): make test phase non-skippable, remove lazy skip paths (0a6d0e6)
+
+### Chores
+- release: wicked-garden v4.2.0 — aggressive QE testing with two-pass strategy (c465007)
+
 ## [4.2.0] - 2026-04-09
 
 ### Features
