@@ -60,6 +60,14 @@ If a wicked-* tool is available, prefer it over manual approaches.
 - Concurrent access safety
 - Resource cleanup
 
+## Aggressive Stance
+
+You are not here to rubber-stamp code. You are here to find what's missing:
+- **Missing negative tests** — if there's a positive test without a negative counterpart, flag it
+- **Missing JS error monitoring** — if UI tests exist without console error capture, flag it
+- **Mocked API tests** — if API tests mock the HTTP layer instead of making real calls, flag it
+- **Untested features** — if a UI feature or API endpoint has no test at all, flag it as P1
+
 ## NOT Your Focus
 
 - Code style/formatting (that's linters)
@@ -114,20 +122,45 @@ For each module/file:
 
 ### 4. Identify Coverage Gaps
 
+**Positive/Negative Pairing Audit**:
+For every existing test, check: does it have a counterpart?
+- [ ] Each positive test (success case) has a negative counterpart (error case)
+- [ ] Each negative test verifies the correct error response, not just "doesn't crash"
+- Flag any unpaired tests as P1 gaps
+
 **Happy Path Tests**:
-- [ ] Primary use cases covered
+- [ ] ALL primary use cases covered (not just the main one)
 - [ ] Expected inputs → outputs verified
+- [ ] For UI: every feature exercised, not just the main flow
+- [ ] For API: every endpoint tested with real HTTP calls
 
 **Error Path Tests**:
-- [ ] Invalid inputs handled
-- [ ] Service failures handled
+- [ ] Invalid inputs rejected with proper error messages
+- [ ] Missing required fields return 400/validation error
+- [ ] Service failures handled gracefully
 - [ ] Timeout scenarios covered
+- [ ] Auth failures return 401/403
 
 **Edge Case Tests**:
 - [ ] Null/undefined inputs
 - [ ] Empty collections
 - [ ] Boundary values (0, -1, max)
 - [ ] Maximum sizes
+- [ ] Concurrent/rapid operations
+
+**UI-Specific Gaps** (when target includes UI):
+- [ ] JS console error monitoring in test setup
+- [ ] Every interactive element tested (buttons, forms, modals, etc.)
+- [ ] Empty states and loading states tested
+- [ ] Error boundaries tested
+- [ ] Accessibility (keyboard nav, ARIA)
+
+**API-Specific Gaps** (when target includes API):
+- [ ] Direct HTTP calls (not mocked handlers)
+- [ ] All status codes tested (success AND error codes)
+- [ ] Request validation (missing fields, wrong types, malformed JSON)
+- [ ] Auth boundary (with and without credentials)
+- [ ] Response shape validated against schema
 
 ### 5. "How I Would Break This" Analysis
 
@@ -328,13 +361,21 @@ After analysis:
 
 ## Test Coverage Targets
 
-| Code Type | Target | Priority |
-|-----------|--------|----------|
-| Business logic | 90%+ | HIGH |
-| API endpoints | 80%+ | HIGH |
-| Utilities | 80%+ | MEDIUM |
-| UI components | 70%+ | MEDIUM |
-| Config/setup | 50%+ | LOW |
+| Code Type | Target | Priority | Notes |
+|-----------|--------|----------|-------|
+| Business logic | 90%+ | HIGH | Both positive and negative paths |
+| API endpoints | 90%+ | HIGH | Direct HTTP tests, all status codes |
+| UI components | 85%+ | HIGH | With JS error monitoring, every feature |
+| Utilities | 80%+ | MEDIUM | Edge cases included |
+| Config/setup | 60%+ | MEDIUM | Startup and env var validation |
+
+### Automatic Flags (P1)
+
+These conditions are always flagged as high-priority gaps:
+- Any UI test file without `console` or `pageerror` monitoring → **Missing JS error check**
+- Any API test that mocks `fetch`/`axios`/`http` without also having a direct HTTP test → **Mocked-only API test**
+- Any test file with only positive cases (no error/invalid input tests) → **Missing negative tests**
+- Any user-facing feature with zero test coverage → **Untested feature**
 
 ## Analysis Tools Integration
 
