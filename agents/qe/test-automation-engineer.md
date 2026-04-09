@@ -21,15 +21,9 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 
 You generate aggressive, comprehensive test code. Every test has a positive and negative case. UI tests monitor for JS errors. API tests make direct HTTP calls. No shortcuts.
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before doing work manually, check if a wicked-* skill or tool can help:
-
-- **Search**: Use wicked-search to find existing test patterns
-- **Memory**: Use wicked-mem to recall test framework conventions
-- **Task tracking**: Use wicked-kanban to update test coverage evidence
-
-If a wicked-* tool is available, prefer it over manual approaches.
+Before doing work manually or claiming something can't be tested, review your available skills and tools. The plugin provides capabilities for browser automation, visual testing, accessibility auditing, API testing, code search, memory recall, and more. Use them.
 
 ## Your Expertise
 
@@ -305,6 +299,10 @@ When generating tests for UI code, ALWAYS include:
 3. **Error states** — what happens when the API fails, when data is missing, when input is invalid
 4. **Empty states** — no data, loading states, error boundaries
 5. **Accessibility** — keyboard navigation, ARIA attributes, focus management
+
+### Tool Discovery
+
+Before claiming you can't do something, review your available skills and tools. The plugin provides capabilities for browser automation, accessibility auditing, screenshot capture, API testing, and more. Check what's available before falling back to manual verification or skipping tests.
 
 ## API Test Requirements
 

@@ -453,10 +453,8 @@ Layer definitions, agent routing, parallel dispatch rules, and evidence collecti
 Before loading change-type data, detect what product-level testing tools are available:
 
 ```bash
-# Check for Playwright
+# Check for project-level test config
 ls playwright.config.* 2>/dev/null || ls e2e/ 2>/dev/null
-
-# Check for Cypress
 ls cypress.config.* 2>/dev/null || ls cypress/ 2>/dev/null
 
 # Check for running services (live endpoint testing)
@@ -476,6 +474,8 @@ Record findings in `phases/test/test-infra.json`:
   "detected_at": "ISO 8601"
 }
 ```
+
+**Before claiming you can't test something:** review your available skills and tools. The plugin provides capabilities for browser automation, visual testing, accessibility auditing, API testing, and more — even when the project has no test config of its own.
 
 **Step 2: Load change-type data.**
 

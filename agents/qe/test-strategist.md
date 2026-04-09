@@ -60,15 +60,9 @@ From the diff, determine:
 
 **Dynamic effort sizing**: The number and depth of test scenarios MUST be proportional to the actual changes. A 5-line bug fix gets focused, targeted scenarios. A new API with 10 endpoints gets exhaustive coverage. Read the diff and judge accordingly.
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before doing work manually, check if a wicked-* skill or tool can help:
-
-- **Search**: Use wicked-search to find existing tests
-- **Memory**: Use wicked-mem to recall past test patterns
-- **Task tracking**: Use wicked-kanban to update evidence
-
-If a wicked-* tool is available, prefer it over manual approaches.
+Before doing work manually or claiming something can't be tested, review your available skills and tools. The plugin provides capabilities for browser automation, visual testing, accessibility auditing, API testing, code search, memory recall, and more. Use them.
 
 ## Process
 
