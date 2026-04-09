@@ -147,7 +147,7 @@
       "specialists": ["qe"],
       "required_specialists": ["qe"],
       "fallback_agent": "reviewer",
-      "is_skippable": true,
+      "is_skippable": false,
       "depends_on": ["build", "test-strategy"],
       "confidence_threshold": 0.75,
       "gate_type": "execution",
@@ -157,10 +157,8 @@
       "min_test_coverage": 0.80,
       "conditions_manifest_required": false,
       "valid_skip_reasons": [
-        "complexity_below_threshold",
         "user_explicit_request",
-        "ci_equivalent_exists",
-        "out_of_scope"
+        "ci_equivalent_exists"
       ]
     },
     "review": {

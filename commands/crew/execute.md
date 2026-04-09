@@ -434,6 +434,8 @@ For each phase, follow this pattern:
 
 **Run at the start of the test phase, before dispatching any QE agents.**
 
+**THE TEST PHASE IS NEVER OPTIONAL.** Do not skip it. Do not suggest the user test manually. Do not claim "visual verification" replaces automated testing. If the change touches UI, test every feature and check for JS errors. If the change touches APIs, test every endpoint directly. The test phase exists to catch bugs — skipping it means shipping bugs.
+
 **CRITICAL: The test phase tests like a product owner, not a unit test runner.** The primary goal is verifying the product works end-to-end from a user's perspective. Unit test suites run as regression baseline only — they are NOT the primary verification.
 
 **Testing priority order** (highest to lowest):

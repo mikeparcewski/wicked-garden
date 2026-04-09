@@ -283,7 +283,7 @@ If skipping a skippable phase, always use phase_manager which documents the skip
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} skip --phase {phase} --reason "{specific reason}" --approved-by "just-finish"
 ```
 
-**Testing default**: test-strategy and test phases should be INCLUDED for all projects with complexity >= 2. Only skip if complexity <= 1 AND the user explicitly requests it OR the fast-pass criteria are met. When in doubt, include testing — it's cheaper to run a lightweight test plan than to ship untested code.
+**Testing is mandatory.** The test phase is non-skippable (`is_skippable: false` in phases.json). Do not skip it, do not suggest manual verification as a replacement, do not claim visual-only changes don't need testing. UI changes require JS error checking and feature verification. API changes require direct endpoint testing. Both require positive and negative scenarios. The only valid skip reasons are `user_explicit_request` and `ci_equivalent_exists`.
 
 ### 6. Progress Reporting
 
