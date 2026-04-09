@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.2.0] - 2026-04-09
+
+### Features
+- feat(qe): aggressive two-pass testing with mandatory positive+negative scenarios (2243446)
+
+### Bug Fixes
+- fix: cross-platform python resolution, path corrections, refs trimming (b94bb0d)
+
+### Chores
+- chore(search): add graph-analysis ref extracted from unified-search SKILL.md (0fc084f)
+- release: wicked-garden v4.1.0 — smaht synthesize pipeline improvements (8a3b1c9)
+
 ## [4.1.0] - 2026-04-08
 
 ### Features
