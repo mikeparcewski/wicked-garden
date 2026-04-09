@@ -7,6 +7,13 @@ description: |
 
   Use when: crew phase approval at complexity >= 5, gate review,
   independent quality audit of phase artifacts
+
+  <example>
+  Context: A crew project at complexity 6 has completed the design phase and is awaiting gate approval.
+  user: "Approve the design phase"
+  assistant: "I'll dispatch the independent-reviewer to audit the design artifacts before advancing."
+  <commentary>High complexity (>=5) triggers cold-context independent review before phase advancement.</commentary>
+  </example>
 when_to_use: "Automatically spawned by crew:approve for complexity >= 5 projects. Do not invoke directly."
 model: sonnet
 effort: medium

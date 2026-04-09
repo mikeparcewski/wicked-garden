@@ -48,11 +48,11 @@ Router triggers **slow path** when:
 
 | Source | Plugin | Content |
 |--------|--------|---------|
-| mem | wicked-mem | Memories, decisions, learnings |
-| jam | jam | Brainstorm sessions, perspectives |
-| kanban | wicked-kanban | Tasks, artifacts, projects |
-| search | wicked-search | Code symbols, documentation |
-| crew | wicked-crew | Project phase, outcomes, constraints |
+| mem | wicked-garden | Memories, decisions, learnings |
+| jam | wicked-garden | Brainstorm sessions, perspectives |
+| kanban | wicked-garden | Tasks, artifacts, projects |
+| search | wicked-garden | Code symbols, documentation |
+| crew | wicked-garden | Project phase, outcomes, constraints |
 | context7 | wicked-garden | External documentation (optional) |
 
 ## Intent Types

@@ -45,7 +45,7 @@ done
 **If none found**: Recommend Playwright installation (see below).
 
 **Pattern**: This follows the integration-discovery CLI detection pattern.
-See [integration-discovery refs/cli-detection.md](../integration-discovery/refs/cli-detection.md) for the full decision policy.
+See [integration-discovery refs/cli-detection.md](../../integration-discovery/refs/cli-detection.md) for the full decision policy.
 
 ## Priority Order
 

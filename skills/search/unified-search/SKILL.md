@@ -80,55 +80,11 @@ Use `/wicked-garden:search:search` for:
 
 ## Architecture
 
-All search commands query the **knowledge graph** via the brain API:
-
-```bash
-curl -s -X POST http://localhost:4242/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"...","limit":10}}'
-```
-
-### Knowledge Domain Sources
-
-| Source | Verbs | Purpose |
-|--------|-------|---------|
-| `graph` | search, traverse, hotspots, impact, stats, list, get | Symbol graph queries |
-| `symbols` | list, categories, ingest | Symbol catalog |
-| `lineage` | search | Data flow tracing |
-| `code` | content | Source code retrieval |
-| `projects` | list | Multi-project isolation |
-| `refs` | ingest | Cross-reference ingestion |
+All search commands query the **knowledge graph** via the wicked-brain server. The brain must be running for search to function — it auto-starts via the brain lifecycle hooks.
 
 ## Graph Analysis
 
-### Traverse
-BFS traversal from a symbol, returning full node/edge objects:
-```bash
-curl -s -X POST http://localhost:4242/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"<symbol-id>","limit":10}}'
-```
-- `--depth`: 1-3 (default 1, max 3)
-- `--direction`: `both`, `in`, `out`
-- Returns root node, connected nodes, and typed edges
-
-### Hotspots
-Rank symbols by total connectivity (in-degree + out-degree):
-```bash
-curl -s -X POST http://localhost:4242/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"hotspots","limit":10}}'
-```
-- Supports `--layer` and `--type` filters
-- Default limit: 20, sorted by total_count descending
-
-### Multi-Project
-All queries support project-scoped isolation via the brain API:
-```bash
-curl -s -X POST http://localhost:4242/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"search","params":{"query":"hotspots","project":"my-app","limit":10}}'
-```
+Advanced traversal, hotspot detection, and multi-project isolation are available when wicked-brain is installed. See [refs/graph-analysis.md](refs/graph-analysis.md) for the full API reference including traverse, hotspots, and project-scoped queries.
 
 ## Cross-Reference Detection
 

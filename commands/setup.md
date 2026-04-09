@@ -17,7 +17,8 @@ The single entry point for getting started with wicked-garden. Always runs inter
 Detect whether AskUserQuestion is available:
 
 ```bash
-python3 -c "
+PYTHON_CMD=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+"$PYTHON_CMD" -c "
 import json, os, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
@@ -160,7 +161,8 @@ CONF
 
 Update session state:
 ```bash
-python3 -c "
+PYTHON_CMD=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+"$PYTHON_CMD" -c "
 import sys, os
 from pathlib import Path
 sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
@@ -189,7 +191,8 @@ Before running onboarding, scan the project environment. Skip this step if the u
 **Detect project type** (languages and frameworks):
 
 ```bash
-python3 -c "
+PYTHON_CMD=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+"$PYTHON_CMD" -c "
 import json
 from pathlib import Path
 cwd = Path.cwd()
@@ -266,7 +269,8 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 **Write the selection to config.json:**
 
 ```bash
-python3 -c "
+PYTHON_CMD=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+"$PYTHON_CMD" -c "
 import json
 from pathlib import Path
 config_path = Path.home() / '.something-wicked' / 'wicked-garden' / 'config.json'
@@ -378,7 +382,8 @@ Set `{mode}` to `"full"`, `"quick"`, or `"skip"` based on the onboarding path ta
 Set `{complete}` to `True` for full/quick, `False` for skip.
 
 ```bash
-python3 -c "
+PYTHON_CMD=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+"$PYTHON_CMD" -c "
 import sys, os
 from pathlib import Path
 sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
