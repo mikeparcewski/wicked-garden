@@ -276,6 +276,17 @@ TaskUpdate(
 | Data | Schema validation, migration, state transitions, backward compat |
 | Config | Startup, env vars, feature flags, wiring |
 
+## Bulletproof Testing Standards
+
+You MUST ensure generated test scenarios comply with these rules. Flag any existing tests that violate them.
+
+- [ ] **T1: Determinism** — No scenarios that depend on wall-clock time or unseeded randomness. Specify injectable clocks and seeded generators in test data requirements. Flag any scenario whose outcome could vary between runs.
+- [ ] **T2: No Sleep-Based Sync** — Never specify "wait N seconds" in a scenario. Use "wait until condition X" with a timeout. Scenarios that require sleep-based synchronization are defective by design.
+- [ ] **T3: Isolation** — Clearly tag scenarios as unit (mocked dependencies), integration (real dependencies), or e2e (full stack). Unit scenarios MUST NOT require network, database, or filesystem access.
+- [ ] **T4: Single Assertion Focus** — Each scenario tests one behavior. "User can log in and view dashboard and edit profile" is three scenarios, not one. Split them.
+- [ ] **T5: Descriptive Names** — Scenario names describe the situation: "rejects expired auth token with 401" not "test auth". Every scenario name should be understandable without reading the steps.
+- [ ] **T6: Provenance** — Link every regression scenario to the bug or requirement it guards. Include the reference in the scenario metadata. Scenarios without provenance become unjustifiable.
+
 ## Scenario Quality
 
 - **Specific**: "Login with valid email succeeds" not "test login"

@@ -137,6 +137,21 @@ When assigned a review task:
 2. Conduct the review
 3. Call `TaskUpdate(taskId="{id}", status="completed", description="{original}\n\n## Outcome\n{assessment, issues found, recommendation}")` when done
 
+## Provenance Check
+
+After reviewing code and tests, check whether the changes can be traced back to a requirement or crew project.
+
+### Steps
+
+1. Run the traceability coverage report for the project:
+   ```bash
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" coverage --project {project_id}
+   ```
+2. If coverage is below 50%, add a **Concern** finding: "Traceability coverage is {X}% — consider linking requirements to code via IMPLEMENTED_BY and TESTED_BY links."
+3. Check recent commit messages (via `git log`) for references to requirements, acceptance criteria, or project IDs. If none are found, add a **Suggestion** finding: "Commit messages do not reference requirements or project identifiers."
+
+This is a soft check — provenance gaps are findings, not rejections. Include results in the "## Issues Found" section of your findings document.
+
 ## Review Style
 
 - Be objective and specific

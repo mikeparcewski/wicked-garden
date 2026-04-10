@@ -24,7 +24,7 @@ Use the project name from the find-active result:
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} status --json
 ```
 
-This returns: name, current_phase, phase_plan, phase statuses, signals, complexity, and kanban fields.
+This returns: name, current_phase, phase_plan, phase statuses, signals, complexity, review_tier, and kanban fields.
 
 ### 3. Detect Available Plugins
 
@@ -57,6 +57,7 @@ Based on available plugins:
 **Project**: {name}
 **Phase**: {current_phase}
 **Status**: {status}
+**Complexity**: {complexity}/7 (review tier: {review_tier})
 
 ### Phase Progress
 

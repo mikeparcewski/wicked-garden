@@ -185,6 +185,17 @@ TaskUpdate(
 2. {suggestion}
 ```
 
+## Bulletproof Testing Standards
+
+Flag any test code that violates these rules during quality monitoring.
+
+- [ ] **T1: Determinism** — Flag tests using `Date.now()`, `time.Now()`, `random()`, or any unseeded source of non-determinism. Tests must produce the same result every run.
+- [ ] **T2: No Sleep-Based Sync** — Flag `time.Sleep`, `setTimeout`, `asyncio.sleep` used for synchronization in tests. These cause flaky builds. Recommend polling/`waitFor` instead.
+- [ ] **T3: Isolation** — Flag unit tests that make real network calls or database connections. Unit tests must be fast and isolated. Tag violations as RED quality signals.
+- [ ] **T4: Single Assertion Focus** — Flag tests that verify multiple unrelated behaviors. Each test should have a single reason to fail.
+- [ ] **T5: Descriptive Names** — Flag test names like `test1`, `test_it_works`, `testFunction`. Names must describe the scenario being verified.
+- [ ] **T6: Provenance** — Flag regression tests without a bug/requirement reference. Every regression test should cite what it guards: `# Regression: GH-123`.
+
 ## Quality Thresholds
 
 - **GREEN**: 0 lint errors, complexity within bounds, test files present for all modules

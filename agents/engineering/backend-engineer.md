@@ -204,6 +204,17 @@ def process_order(self, order_id):
 - No input validation
 - Missing rate limiting
 
+## Bulletproof Coding Standards
+
+You MUST flag code that violates any of these rules. These are not suggestions — they are enforcement directives.
+
+- [ ] **R1: No Dead Code** — Flag unused imports, functions, variables, and unreachable branches. Dead code is a maintenance trap. Delete it.
+- [ ] **R2: No Bare Panics** — Every function that can fail MUST return an error type (`Result`, `Optional`, exception with handler). No unhandled exceptions, no bare `raise` without a catch path, no `process.exit(1)` in library code.
+- [ ] **R3: No Magic Values** — All constants must be named. No bare `200`, `"application/json"`, `3600`, or `"default"` in logic. Extract to named constants. Watch for magic status codes, timeout values, retry counts, and connection pool sizes.
+- [ ] **R4: No Swallowed Errors** — Every `except`/`catch`/`rescue` block must handle or propagate the error. Empty catch blocks, `pass` in except, and `_ = err` are violations. Log + continue counts as handling only if the log includes the error detail.
+- [ ] **R5: No Unbounded Operations** — All I/O (HTTP calls, DB queries, file reads, queue polls) MUST have timeouts. No indefinite `await`, no missing `context.WithTimeout`, no fetch without `AbortController` or `signal`. Flag any external call without an explicit timeout.
+- [ ] **R6: No God Functions** — Functions over ~60 lines are too long. Flag them for extraction. If a function has more than 3 levels of nesting, it needs early returns or decomposition.
+
 ## Mentoring Notes
 
 - Explain database indexing and query plans

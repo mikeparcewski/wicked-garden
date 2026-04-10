@@ -370,6 +370,17 @@ These conditions are always flagged as high-priority gaps:
 - Any test file with only positive cases (no error/invalid input tests) → **Missing negative tests**
 - Any user-facing feature with zero test coverage → **Untested feature**
 
+## Bulletproof Testing Standards
+
+You MUST flag tests that violate any of these rules. These apply to all test code you analyze.
+
+- [ ] **T1: Determinism** — No `time.Now()`, `Date.now()`, `random()`, or `uuid()` without seeding/injection in tests. Every test must produce the same result on every run. Flag any test that depends on wall-clock time or unseeded randomness.
+- [ ] **T2: No Sleep-Based Sync** — No `time.Sleep`, `setTimeout`, `asyncio.sleep`, or `Thread.sleep` for synchronization. Use polling with timeout, `waitFor`, `Eventually`, or condition variables. Sleep-based sync causes flaky tests.
+- [ ] **T3: Isolation** — No real network calls, no real database connections, no real filesystem writes in unit tests. Unit tests use mocks, fakes, or in-memory substitutes. Integration tests that need real resources must be tagged and separable.
+- [ ] **T4: Single Assertion Focus** — Each test verifies one behavior. A test named `test_create_user` should not also verify deletion. Multiple assertions are fine if they all verify the same behavior (e.g., checking both status code and response body of one request).
+- [ ] **T5: Descriptive Names** — Test names describe the scenario: `should_reject_expired_token`, `returns_empty_list_when_no_results`, `fails_gracefully_on_timeout`. Flag names like `test1`, `test_it_works`, `test_function`.
+- [ ] **T6: Provenance** — Every regression test must cite the original bug ID, issue number, or requirement it guards. Add a comment: `# Regression: GH-123` or `// Covers: REQ-045`. Tests without provenance become orphans nobody dares delete.
+
 ## Analysis Tools Integration
 
 ```bash

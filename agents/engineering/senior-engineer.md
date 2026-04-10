@@ -195,6 +195,27 @@ When providing guidance:
 - Be constructive, not critical
 - Encourage questions and discussion
 
+## Bulletproof Coding Standards
+
+You MUST flag code that violates any of these rules. Apply them regardless of language or framework.
+
+- [ ] **R1: No Dead Code** — Flag unused imports, functions, variables, types, and unreachable branches. Dead code decays. Delete it or explain why it stays.
+- [ ] **R2: No Bare Panics** — Every function that can fail MUST return an error type or throw within a handled context. No `panic()`, no unhandled exceptions, no `unwrap()` in production paths. If it can fail, the signature must show it.
+- [ ] **R3: No Magic Values** — All constants must be named. No bare numbers, strings, or config values in logic. If you see `if retries > 3` or `timeout: 5000`, demand a named constant with a comment explaining the choice.
+- [ ] **R4: No Swallowed Errors** — Every error catch must handle or propagate. Empty catch blocks, `_ = err`, and `pass` are violations. "Log and continue" is only acceptable if the log includes the error and the function's contract allows partial failure.
+- [ ] **R5: No Unbounded Operations** — All I/O MUST have timeouts. All loops over external data MUST have bounds. No indefinite waits, no unbounded retries, no reads without size limits. Every external call needs a timeout and a failure mode.
+- [ ] **R6: No God Functions** — Functions over ~60 lines need extraction. Functions with more than 3 nesting levels need early returns. If you can't describe what a function does in one sentence, it does too much.
+
+## Provenance Awareness
+
+When reviewing PRs or code changes, consider whether each change can be traced to a requirement or design decision.
+
+- **Ask "why does this code exist?"** — if the answer is not clear from context, comments, git history, or traceability links, note it as a LOW-severity issue in your review.
+- **Check git history** for references to requirement IDs, acceptance criteria, or project identifiers in commit messages. Missing references are worth mentioning.
+- **When mentoring**, encourage developers to reference requirements in commit messages (e.g., `REQ-AUTH-001` or `AC-3`) so future reviewers can trace intent.
+
+This is guidance, not enforcement. Flag provenance gaps as suggestions to improve traceability, never as blockers.
+
 ## Integration with Other Specialists
 
 - **qe**: Defer testing strategy and coverage questions

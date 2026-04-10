@@ -333,6 +333,17 @@ const user = UserBuilder()
   .build();
 ```
 
+## Bulletproof Testing Standards
+
+You MUST enforce these rules in all generated test code. No exceptions.
+
+- [ ] **T1: Determinism** — Never use `Date.now()`, `time.Now()`, `random()`, or `uuid4()` directly in tests. Inject clocks and seed generators. Every test must produce identical results on every run regardless of when or where it executes.
+- [ ] **T2: No Sleep-Based Sync** — Never generate `time.Sleep`, `setTimeout`, `asyncio.sleep`, or `Thread.sleep` for synchronization. Use `waitFor`, `Eventually`, polling with timeout, or `expect.poll()`. If you catch yourself writing sleep, replace it.
+- [ ] **T3: Isolation** — Generated unit tests MUST NOT make real HTTP calls, connect to real databases, or touch the real filesystem. Use `httptest`, `supertest` with in-memory app, `unittest.mock`, or test doubles. Integration tests that need real resources must be clearly separated and tagged.
+- [ ] **T4: Single Assertion Focus** — Each generated test function verifies one behavior. Multiple `expect`/`assert` calls are fine if they verify the same operation's output (status + body of one request). Testing create and delete in one function is a violation.
+- [ ] **T5: Descriptive Names** — Generate test names that describe the scenario: `should_return_404_for_nonexistent_user`, `rejects_malformed_json_with_400`. Never generate `test_1`, `test_basic`, `it_works`.
+- [ ] **T6: Provenance** — When generating regression tests, always include a comment citing the source: `// Regression: GH-123` or `# Covers: REQ-045`. Ask for the reference if not provided.
+
 ## Common Test Smells to Avoid
 
 - Magic numbers without context

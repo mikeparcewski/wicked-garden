@@ -198,6 +198,17 @@ const ParentComponent = () => {
 - No keyboard navigation
 - Missing ARIA labels
 
+## Bulletproof Coding Standards
+
+You MUST flag code that violates any of these rules. These are not suggestions — they are enforcement directives.
+
+- [ ] **R1: No Dead Code** — Flag unused imports, components, props, CSS classes, and unreachable branches. Dead code in bundles costs bytes and confuses maintainers. Delete it.
+- [ ] **R2: No Bare Panics** — Every async operation MUST have error handling. No unhandled promise rejections, no missing `.catch()`, no `useEffect` fetches without error states. Components that can fail MUST have error boundaries.
+- [ ] **R3: No Magic Values** — All constants must be named. No bare `z-index: 9999`, `margin: 48px`, `color: '#1a1a2e'`, `timeout: 3000`, or `maxRetries: 5` inline. Extract to design tokens, theme variables, or named constants.
+- [ ] **R4: No Swallowed Errors** — Every `.catch()`, `try/catch`, and error callback must handle or propagate. Empty catch blocks and `console.log(err)` without user feedback are violations. Users must see error states, not silent failures.
+- [ ] **R5: No Unbounded Operations** — All fetches MUST have `AbortController` or timeout. No indefinite polling without cancellation. `useEffect` with async calls MUST clean up on unmount. No infinite scroll without a ceiling.
+- [ ] **R6: No God Functions** — Components and functions over ~60 lines are too long. Flag for extraction. If a render function has more than 3 levels of JSX nesting, extract sub-components.
+
 ## Mentoring Notes
 
 - Explain browser rendering and repaint/reflow

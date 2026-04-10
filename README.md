@@ -47,7 +47,7 @@ These run in the background via lifecycle hooks. You don't invoke them — they 
 | **Working memory consolidates over time** | Session noise drops away, important patterns get promoted to durable knowledge. 3 tiers: working (transient) → episodic (sprint-level) → semantic (permanent) |
 | **Tasks sync to a kanban board** | Claude's task tools auto-sync to the kanban via hooks — no manual tracking |
 | **Complexity shapes the workflow** | 7-dimension scoring (impact, reversibility, novelty, test complexity, documentation, coordination, operational) — a config change gets 2 phases, a migration gets 7 |
-| **Quality gates enforce standards** | Gates actually reject work. High-complexity gates require multi-perspective consensus from specialist proposers. Bad coverage blocks advancement. |
+| **Quality gates enforce standards** | Gates actually reject work. Review tier (minimal/standard/full) adapts automatically from complexity score. High-complexity gates require multi-perspective consensus. 3+ gate failures trigger swarm crisis response. |
 | **Traceability links deliverables across phases** | Requirements → designs → code → tests → evidence → gate approvals. After deploy, incidents link back to the requirements that caused them. |
 | **Session teardown captures learnings** | Stop hook prompts memory storage, consolidates working memories, and persists session metadata for next time |
 
@@ -93,7 +93,7 @@ Every domain works independently. Install the plugin, use any command.
 
 | Domain | What It Does | Key Commands |
 |--------|-------------|--------------|
-| **crew** | Signal-driven workflow engine with 8 phases, consensus gates, and operate-phase feedback loops | `crew:start`, `crew:execute`, `crew:just-finish`, `crew:retro` |
+| **crew** | Signal-driven workflow engine with 8 phases, consensus gates, tiered review (minimal/standard/full), swarm crisis response, and operate-phase feedback loops | `crew:start`, `crew:execute`, `crew:swarm`, `crew:retro` |
 | **smaht** | Automatic context assembly on every prompt. 4-tier routing (hot/fast/slow/synthesize) keeps simple prompts fast and complex ones thorough. wicked-brain is the primary knowledge source. | `smaht:onboard`, `smaht:collaborate`, `smaht:briefing` |
 | **mem** | 3-tier persistent memory (working → episodic → semantic) with auto-consolidation and tag-based search | `mem:store`, `mem:recall`, `mem:consolidate` |
 | **search** | Structural code intelligence — symbols, blast radius, data lineage, service maps | `search:code`, `search:lineage`, `search:blast-radius`, `search:service-map` |
@@ -104,10 +104,10 @@ Every domain works independently. Install the plugin, use any command.
 
 | Discipline | What It Brings |
 |-----------|---------------|
-| **Engineering** | Code review with scope creep detection, architecture analysis, systematic debugging, implementation planning with parallel risk assessment |
+| **Engineering** | Code review with scope creep detection and bulletproof standards (R1-R6), architecture analysis, systematic debugging, provenance-aware reviews |
 | **Product** | Requirements elicitation, stakeholder alignment (maps power/interest), multi-dimensional strategy (ROI + market + competitive), UX flows, WCAG accessibility audits, wireframes |
 | **Platform** | Security review (OWASP), compliance evidence collection (SOC2/HIPAA/GDPR/PCI per control), incident triage with deployment correlation, infrastructure review |
-| **Quality** | Test scenarios mapped to CLI tools, test code generation matching project conventions, acceptance testing with evidence gates, agent manipulation detection in tests |
+| **Quality** | Test scenarios mapped to CLI tools with bulletproof testing standards (T1-T6), test code generation matching project conventions, acceptance testing with SHA-256 evidence checksums, agent manipulation detection |
 | **Data** | DuckDB SQL on CSV/Excel (10GB+), pipeline review (silent data loss, idempotency), ML review (data leakage, production readiness), analytics architecture |
 | **Delivery** | A/B test design with sample size calculation, progressive rollouts with automatic rollback triggers, multi-perspective stakeholder reports, cost optimization |
 | **Agentic** | Agent architecture design, 5-layer validation, safety audit (guardrails, prompt injection, PII), framework comparison |
@@ -134,7 +134,7 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | Enforced quality gates | No — suggestions, often skipped | Yes — hooks deny advancement when evidence is missing |
 | Runtime integration discovery | No — hardcoded tool references | Yes — auto-detect MCP servers, CLI tools, external LLMs |
 | Multi-model perspectives | No — Claude only | Yes — council pipes to Codex, Gemini, Copilot |
-| Signal-driven complexity scoring | No — fixed workflow | Yes — 7-dimension analysis adapts phases to the work |
+| Signal-driven complexity scoring | No — fixed workflow | Yes — 7-dimension analysis adapts phases and review tier to the work |
 | Session teardown with learning capture | No — session just ends | Yes — stop hook prompts memory storage, consolidates knowledge |
 | Cross-phase traceability | No — deliverables are disconnected | Yes — requirements → designs → code → tests → evidence → incidents |
 

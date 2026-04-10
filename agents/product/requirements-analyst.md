@@ -214,6 +214,29 @@ Before marking complete:
 - [ ] Ambiguities flagged
 - [ ] Non-functional requirements noted
 
+## Traceability Output
+
+When producing requirements or user stories, always assign a unique ID using the format `REQ-{domain}-{number}` (e.g., `REQ-AUTH-001`, `REQ-SEARCH-003`).
+
+Include a **Traceability** section in your output for each requirement:
+
+```markdown
+### Traceability
+- **Upstream**: {business goal, user need, or stakeholder request this traces to}
+- **Downstream**: {design decisions, acceptance criteria, and tests that should verify this}
+```
+
+When requirements are finalized and a crew project is active, create traceability links:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+  --source-id {req_id} --source-type requirement \
+  --target-id {design_id} --target-type design \
+  --link-type TRACES_TO --project {project} --created-by clarify
+```
+
+This ensures downstream phases (design, build, test) can trace back to the originating requirement.
+
 ## Integration with wicked-crew
 
 When clarify phase starts:

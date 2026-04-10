@@ -135,11 +135,14 @@ Six adapters query domain scripts directly: `domain`, `brain`, `events`, `contex
 
 Dynamic multi-phase workflows with signal-based specialist routing:
 
-1. `smart_decisioning.py` analyzes project description → detects signals → maps to specialists → scores complexity (0-7)
+1. `smart_decisioning.py` analyzes project description → detects signals → maps to specialists → scores complexity (0-7) → determines review tier (minimal/standard/full)
 2. `phases.json` defines phase catalog with triggers, complexity ranges, gates, dependencies
 3. Phase selection: non-skippable always included, then signal-matched, then complexity-based
 4. Checkpoints at clarify/design/build can re-analyze and inject missing phases
 5. Specialists engage via `enhances` declarations in `specialist.json`
+6. Swarm detection: `detect_swarm_trigger()` monitors for 3+ BLOCK/REJECT gate findings → recommends Quality Coalition
+
+Review tiers map from complexity: 0-2 → minimal (advisory gates), 3-5 → standard (enforced gates), 6-7 → full (multi-reviewer). Security/compliance signals override to full regardless of complexity.
 
 Fallback agents (facilitator, researcher, implementer, reviewer) handle phases when specialist agents aren't matched.
 
@@ -158,6 +161,14 @@ Quality gates are hard enforcement mechanisms, not advisory:
 - **Non-skippable test-strategy**: `skip_complexity_threshold: 3` prevents skipping at complexity >= 3
 - **Rollback**: `CREW_GATE_ENFORCEMENT=legacy` env var bypasses all enforcement
 - **Cross-session learning**: crew agents store learnings in wicked-mem at project completion and gate failures
+
+### Bulletproof Standards
+
+Engineering agents enforce R1-R6 coding rules (no dead code, no bare panics, no magic values, no swallowed errors, no unbounded ops, no god functions). QE agents enforce T1-T6 testing rules (determinism, no sleep-based sync, isolation, single assertion focus, descriptive names, provenance). Rules are adapted per agent focus.
+
+### Provenance Awareness
+
+Review agents (crew reviewer, senior-engineer) check traceability coverage via `scripts/crew/traceability.py coverage`. Requirements analyst assigns `REQ-{domain}-{number}` IDs and creates traceability links. Provenance gaps are findings, not blockers. Existing verification_protocol.py check #6 validates requirement → design → code → test chains.
 
 ### On-Demand Personas (v2.6.0+)
 

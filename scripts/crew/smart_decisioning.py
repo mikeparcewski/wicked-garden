@@ -139,6 +139,11 @@ SIGNAL_KEYWORDS = {
         "dall-e", "imagen", "stable diffusion", "flux",
         "asset", "creative", "artwork",
     ],
+    "swarm": [
+        "block", "reject", "crisis", "regression", "broken",
+        "failing", "critical bug", "gate failure", "blocked",
+        "quality crisis", "build broken", "test failure",
+    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -164,6 +169,7 @@ SIGNAL_TO_SPECIALISTS = {
     "novelty": {"jam", "engineering"},
     "quality": {"qe"},
     "imagery": {"design"},
+    "swarm": {"qe", "engineering"},
 }
 
 # Built-in fallback agents for unavailable specialists
@@ -696,6 +702,7 @@ class SignalAnalysis:
     normalized_dimensions: Dict[str, float] = field(default_factory=dict)  # 8-dim normalized score
     weighted_risk_index: float = 0.0                # Single composite [0.0, 1.0]
     routing_lane: str = "standard"                  # Routing lane string value
+    review_tier: str = "standard"                    # minimal, standard, full
 
 
 # ---------------------------------------------------------------------------
@@ -1509,6 +1516,139 @@ def _log_decision(analysis: 'SignalAnalysis', input_length: int) -> None:
         pass  # Best-effort logging, never block analysis
 
 
+# ---------------------------------------------------------------------------
+# Review tier mapping (Issue #397)
+# ---------------------------------------------------------------------------
+
+_SECURITY_COMPLIANCE_SIGNALS = {"security", "compliance"}
+_PRODUCTION_FACING_SIGNALS = {"infrastructure", "performance", "operational"}
+
+
+def determine_review_tier(
+    complexity_score: int,
+    signals: List[str],
+    risk_dimensions: RiskDimensions,
+) -> str:
+    """Map complexity score + signals to a review tier.
+
+    Tiers control gate strictness:
+    - minimal (0-2): Self-review only, gates advisory
+    - standard (3-5): Default reviewer + specialist, gates enforce min_gate_score
+    - full (6-7): Multi-reviewer + external review, strict gates + conditions manifest
+
+    Overrides:
+    - Any security/compliance signal forces "full" regardless of complexity
+    - Any production-facing signal forces at least "standard"
+    """
+    # Base tier from complexity
+    if complexity_score <= 2:
+        tier = "minimal"
+    elif complexity_score <= 5:
+        tier = "standard"
+    else:
+        tier = "full"
+
+    signal_set = set(signals)
+
+    # Override: security/compliance always forces full review
+    if signal_set & _SECURITY_COMPLIANCE_SIGNALS:
+        tier = "full"
+    # Override: production-facing forces at least standard
+    elif tier == "minimal" and signal_set & _PRODUCTION_FACING_SIGNALS:
+        tier = "standard"
+
+    return tier
+
+
+# ---------------------------------------------------------------------------
+# Swarm formation detection (Issue #395)
+# ---------------------------------------------------------------------------
+
+# Domain keywords used to map gate block reasons to specialist domains
+_DOMAIN_KEYWORDS_FOR_SWARM = {
+    "engineering": ["code", "implementation", "build", "compile", "syntax", "logic"],
+    "qe": ["test", "coverage", "quality", "regression", "assertion", "validation"],
+    "platform": ["deploy", "infra", "security", "pipeline", "ci/cd", "config"],
+    "product": ["requirement", "acceptance", "criteria", "scope", "spec"],
+    "data": ["data", "schema", "migration", "query", "etl"],
+    "design": ["ui", "ux", "accessibility", "layout", "design"],
+}
+
+
+def detect_swarm_trigger(gate_results: List[dict]) -> Optional[dict]:
+    """Detect whether accumulated gate failures warrant a swarm response.
+
+    Analyzes a project's gate history for BLOCK/REJECT findings. If 3+ are
+    detected across recent gates, returns a swarm recommendation. Otherwise
+    returns None.
+
+    Args:
+        gate_results: List of gate result dicts, each with at minimum:
+            - verdict: str ("PASS", "CONDITIONAL", "BLOCK", "REJECT")
+            - phase: str (which phase the gate belongs to)
+            - reason: str (human-readable explanation, optional)
+            - domain: str (which domain area, optional)
+
+    Returns:
+        Swarm recommendation dict or None.
+    """
+    if not gate_results:
+        return None
+
+    # Count BLOCK/REJECT findings
+    block_results = [
+        g for g in gate_results
+        if g.get("verdict", "").upper() in ("BLOCK", "REJECT")
+    ]
+
+    if len(block_results) < 3:
+        return None
+
+    # Determine which specialist domains are relevant based on gate reasons
+    coalition_specialists: List[str] = []
+    seen_specialists: set = set()
+    affected_phases: List[str] = []
+
+    for gate in block_results:
+        phase = gate.get("phase", "unknown")
+        if phase not in affected_phases:
+            affected_phases.append(phase)
+
+        # Check explicit domain field first
+        domain = gate.get("domain", "")
+        if domain and domain not in seen_specialists:
+            seen_specialists.add(domain)
+            coalition_specialists.append(domain)
+
+        # Infer domains from reason text
+        reason = (gate.get("reason") or "").lower()
+        for specialist, keywords in _DOMAIN_KEYWORDS_FOR_SWARM.items():
+            if specialist not in seen_specialists:
+                if any(kw in reason for kw in keywords):
+                    seen_specialists.add(specialist)
+                    coalition_specialists.append(specialist)
+
+    # Always include qe and engineering in a swarm — they're the baseline
+    for base in ("qe", "engineering"):
+        if base not in seen_specialists:
+            coalition_specialists.append(base)
+
+    phases_str = ", ".join(affected_phases[:5])
+    return {
+        "formation": "swarm",
+        "coalition_specialists": coalition_specialists,
+        "priority": "crisis",
+        "block_count": len(block_results),
+        "affected_phases": affected_phases,
+        "reason": (
+            f"Quality coalition triggered: {len(block_results)} BLOCK/REJECT "
+            f"findings detected across gates ({phases_str}). "
+            f"Concentrating {len(coalition_specialists)} specialists to resolve "
+            f"before other work proceeds."
+        ),
+    }
+
+
 def analyze_input(
     text: str,
     plugin_dir: Optional[Path] = None,
@@ -1897,6 +2037,7 @@ def analyze_input(
         normalized_dimensions=_norm_dims,
         weighted_risk_index=_wri,
         routing_lane=_routing_lane.value,
+        review_tier=determine_review_tier(complexity, signals, risk_dims),
     )
 
     # Decision observability logging (best-effort)
@@ -1995,7 +2136,7 @@ def main():
         if analysis.signal_confidences:
             for cat, conf in sorted(analysis.signal_confidences.items(), key=lambda x: -x[1]):
                 print(f"  {cat}: {conf:.1%}")
-        print(f"\nComplexity score: {analysis.complexity_score}/7")
+        print(f"\nComplexity score: {analysis.complexity_score}/7 (review tier: {analysis.review_tier})")
 
         if args.show_breakdown or True:  # Always show breakdown now
             print(f"  Breakdown:")
