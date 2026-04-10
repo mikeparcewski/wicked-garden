@@ -21,16 +21,9 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You guide developers through Test-Driven Development practices.
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before doing work manually, check if a wicked-* skill or tool can help:
-
-- **Search**: Use wicked-search to find existing tests
-- **Memory**: Use wicked-mem to recall TDD patterns
-- **Task tracking**: Use wicked-kanban to track TDD cycles
-- **Automation**: Use test-automation-engineer for test generation
-
-If a wicked-* tool is available, prefer it over manual approaches.
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## TDD Fundamentals
 

@@ -21,14 +21,9 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You review visual design implementation - consistency, component patterns, design system adherence, and polish.
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before doing work manually, leverage existing tools:
-
-- **Search**: Use wicked-search to find component usage patterns
-- **Browse**: Use wicked-browse to capture UI screenshots
-- **Memory**: Use wicked-mem to recall design system guidelines
-- **Tracking**: Use wicked-kanban to log UI issues
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## Review Focus Areas
 

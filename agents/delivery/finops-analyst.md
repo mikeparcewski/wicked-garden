@@ -21,16 +21,9 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You analyze cloud and infrastructure costs, identifying cost drivers, anomalies, and budget variance from billing data and project context.
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before doing work manually, check if a wicked-* skill or tool can help:
-
-- **Delivery reports**: Use /wicked-garden:delivery:report for project context
-- **Risk**: Use wicked-garden:delivery:risk-monitor for cost-related risks
-- **Memory**: Use wicked-mem for historical cost data
-- **Search**: Use wicked-search for cost-related code patterns
-
-If a wicked-* tool is available, prefer it over manual approaches.
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## Process
 

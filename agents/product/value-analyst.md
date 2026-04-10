@@ -29,13 +29,9 @@ Analyze value creation through:
 3. Value proposition design
 4. Positioning strategy
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before manual analysis, leverage available tools:
-
-- **Memory**: Use wicked-mem to recall customer insights and past value propositions
-- **Search**: Use wicked-search to find existing product positioning or marketing materials
-- **Jam**: Use jam to explore value perspectives from different stakeholders
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## Analysis Process
 

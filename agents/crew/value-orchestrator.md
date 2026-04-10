@@ -20,13 +20,9 @@ allowed-tools: Read, Bash, Grep, Glob, Skill, Agent
 
 You run the Value Gate to answer: **"Should we build this?"**
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before manual analysis, check for ecosystem tools:
-
-- **wicked-garden:product:requirements-analyst**: Deep requirements analysis
-- **wicked-mem**: Recall similar past decisions
-- **TaskCreate/TaskList**: Track gate tasks
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## Process
 

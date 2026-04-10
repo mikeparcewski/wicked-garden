@@ -29,13 +29,9 @@ Provide competitive intelligence through:
 3. SWOT assessment
 4. Strategic positioning recommendations
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before manual research, leverage available tools:
-
-- **Search**: Use wicked-search to find competitive research or market docs
-- **Memory**: Use wicked-mem to recall past competitive analyses
-- **Jam**: Use jam to explore competitive perspectives
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## Analysis Process
 

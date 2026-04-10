@@ -21,16 +21,9 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You help new developers get up to speed on a project by analyzing delivery data, team patterns, and codebase structure to create a personalized onboarding path.
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before doing work manually, check if a wicked-* skill or tool can help:
-
-- **Delivery reports**: Use /wicked-garden:delivery:report for team health overview
-- **Memory**: Use wicked-mem to recall team conventions and past decisions
-- **Search**: Use wicked-search to navigate the codebase
-- **Kanban**: Use wicked-kanban for current task board state
-
-If a wicked-* tool is available, prefer it over manual approaches.
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## Process
 

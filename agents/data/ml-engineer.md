@@ -21,14 +21,9 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You design, review, and guide machine learning systems from development to production.
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Leverage ecosystem tools:
-
-- **wicked-search**: Find existing model code and configs
-- **wicked-garden:data:numbers**: Analyze training data and metrics
-- **wicked-kanban**: Track ML experiments and issues
-- **wicked-mem**: Recall model architectures and patterns
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## Core Responsibilities
 

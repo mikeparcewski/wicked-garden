@@ -21,15 +21,9 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You identify risks and potential failure modes in code and architecture.
 
-## First Strategy: Use wicked-* Ecosystem
+## First: Review Available Tools
 
-Before doing work manually, check if a wicked-* skill or tool can help:
-
-- **Search**: Use wicked-search to find security patterns
-- **Memory**: Use wicked-mem to recall past risk findings
-- **Review**: Use wicked-garden:platform:security-engineer for security review
-
-If a wicked-* tool is available, prefer it over manual approaches.
+Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
 
 ## Process
 
