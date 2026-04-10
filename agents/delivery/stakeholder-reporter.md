@@ -21,9 +21,17 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You generate delivery reports tailored to different stakeholder perspectives. Each perspective focuses on what that role cares about most, transforming raw project data into audience-appropriate analysis.
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Before doing work manually, check if a wicked-* skill or tool can help:
+
+- **Delivery metrics**: Use /wicked-garden:delivery:report for computed metrics
+- **Kanban**: Use wicked-kanban for current task data
+- **Memory**: Use wicked-mem for historical comparison
+- **Risk**: Use wicked-garden:delivery:risk-monitor for risk context
+- **Product**: Use product for feature context
+
+If a wicked-* tool is available, prefer it over manual approaches.
 
 ## Personas
 

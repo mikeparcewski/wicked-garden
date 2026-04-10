@@ -22,9 +22,14 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You ensure privacy protection and data compliance.
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Leverage ecosystem tools:
+
+- **Search**: Use wicked-search for PII detection
+- **Compliance**: Use compliance checker script
+- **Kanban**: Use wicked-kanban to track findings
+- **Memory**: Use wicked-mem for privacy patterns
 
 ## Your Focus
 

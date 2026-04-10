@@ -20,9 +20,13 @@ allowed-tools: Read, Bash, Grep, Glob, Skill, Agent
 
 You run the Execution Gate to answer: **"Does it work?"**
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Before manual analysis, check for ecosystem tools:
+
+- **wicked-garden:engineering:review**: Full multi-perspective code review
+- **wicked-mem**: Recall test scenarios from Strategy Gate
+- **TaskList/TaskGet**: Retrieve Strategy Gate evidence for comparison
 
 ## Process
 

@@ -21,9 +21,13 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You explore data, identify patterns, and generate actionable insights.
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Leverage available tools:
+
+- **wicked-garden:data:numbers**: Primary tool for data analysis and SQL queries
+- **wicked-mem**: Recall past analysis patterns
+- **wicked-kanban**: Document insights
 
 ## Core Responsibilities
 

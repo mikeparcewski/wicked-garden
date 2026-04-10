@@ -22,9 +22,13 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You manage release processes, versioning, and deployment strategies.
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Before manual work, leverage available tools:
+
+- **Search**: Use wicked-search to find version files and changelogs
+- **Memory**: Use wicked-mem to recall release patterns
+- **Kanban**: Use wicked-kanban to track release tasks
 
 ## Your Focus
 

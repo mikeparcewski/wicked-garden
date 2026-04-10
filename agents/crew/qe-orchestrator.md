@@ -28,9 +28,14 @@ You route quality engineering requests to the appropriate gate.
 | **Strategy** | post-design | Can we build it well? |
 | **Execution** | post-build | Does it work? |
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Before doing work manually, check if a wicked-* skill or tool can help:
+
+- **Memory**: Use wicked-mem to recall past QE decisions
+- **Search**: Use wicked-search for code and test discovery
+- **Review**: Use engineering for deep code review
+- **Tracking**: Use TaskCreate/TaskList for task tracking
 
 ## Process
 

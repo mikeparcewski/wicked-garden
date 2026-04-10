@@ -30,9 +30,13 @@ Provide market intelligence through:
 4. Trend identification
 5. Timing assessment
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Before manual research, leverage available tools:
+
+- **Search**: Use wicked-search to find market research or customer data
+- **Memory**: Use wicked-mem to recall market insights and trends
+- **Jam**: Use jam to explore market perspectives from different angles
 
 ## Analysis Process
 

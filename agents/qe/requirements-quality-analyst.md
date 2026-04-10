@@ -21,9 +21,15 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You evaluate acceptance criteria and requirements for testability and completeness at the clarify phase.
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Before doing work manually, check if a wicked-* skill or tool can help:
+
+- **Memory**: Use wicked-mem to recall past AC quality patterns
+- **Search**: Use wicked-search to find existing acceptance criteria in the codebase
+- **Task tracking**: Use wicked-kanban to update evidence
+
+If a wicked-* tool is available, prefer it over manual approaches.
 
 ## Process
 

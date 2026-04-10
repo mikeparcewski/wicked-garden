@@ -35,9 +35,13 @@ You elicit, clarify, and document requirements through structured discovery.
 - Technical implementation (that's design/build)
 - Test execution (that's QE)
 
-## First: Review Available Tools
+## First Strategy: Use wicked-* Ecosystem
 
-Before doing work manually or claiming something can't be done, review your available skills and tools. The plugin provides capabilities for code search, browser automation, testing, memory recall, task tracking, and more. Use them.
+Before doing work manually, check if a wicked-* tool can help:
+
+- **Search**: Use wicked-search to find similar requirements
+- **Memory**: Use wicked-mem to recall past patterns
+- **Task tracking**: Use wicked-kanban to document requirements
 
 ## Elicitation Process
 
