@@ -70,32 +70,38 @@ _EVENT_TYPE_PROCEDURES: dict = {
 # Kanban event_type reader — fail-silent, never crashes the hook
 # ---------------------------------------------------------------------------
 
-def _get_active_task_event_type() -> "str | None":
-    """Read the event_type of the active kanban task, if any.
+def _get_active_task_event_type(active_project_id: "str | None") -> "str | None":
+    """Read the event_type of the most-recently-updated in-progress kanban task.
+
+    Takes the project_id from the already-loaded session state to avoid a
+    second SessionState.load() call. Uses raw storage reads to skip the
+    comment-join overhead that list_tasks() performs.
 
     Returns the event_type string or None if not determinable.
     Fails silently — never blocks the hook.
     """
-    try:
-        from _session import SessionState
-        state = SessionState.load()
-        active_project_id = state.active_project_id
-        if not active_project_id:
-            return None
-
-        from kanban.kanban import KanbanStore
-        store = KanbanStore()
-
-        # Get in_progress tasks for this project
-        tasks = store.list_tasks(active_project_id, swimlane="in_progress")
-        if not tasks:
-            return None
-
-        # Return event_type from most recent task (last updated)
-        most_recent = max(tasks, key=lambda t: t.get("updated_at", ""), default=None)
-        if most_recent:
-            return most_recent.get("event_type")
+    if not active_project_id:
         return None
+    try:
+        from _domain_store import DomainStore
+
+        sm = DomainStore("wicked-kanban")
+        index = sm.get("indexes", active_project_id) or {}
+        task_ids = index.get("by_swimlane", {}).get("in_progress", [])
+        if not task_ids:
+            return None
+
+        best_updated = ""
+        best_event_type = None
+        for task_id in task_ids:
+            task = sm.get("tasks", f"{active_project_id}:{task_id}")
+            if not task:
+                continue
+            updated = task.get("updated_at", "")
+            if updated > best_updated:
+                best_updated = updated
+                best_event_type = task.get("event_type")
+        return best_event_type
     except Exception:
         return None
 
@@ -274,10 +280,12 @@ def _handle_start(payload: dict) -> "str | None":
     _log("subagent", "normal", "subagent.start",
          detail={"agent": agent_name, "agent_id": agent_id})
 
-    # Track in session state
+    # Track in session state — load once and reuse for procedure injection below
+    active_project_id = None
     try:
         from _session import SessionState
         state = SessionState.load()
+        active_project_id = state.active_project_id
         active_agents = state.active_subagents or {}
         active_agents[agent_id or agent_name] = {
             "name": agent_name,
@@ -302,8 +310,8 @@ def _handle_start(payload: dict) -> "str | None":
         "session_id": _get_session_id(),
     })
 
-    # Get active task event_type for procedure injection
-    return _get_active_task_event_type()
+    # Get active task event_type for procedure injection (reuses project_id from above)
+    return _get_active_task_event_type(active_project_id)
 
 
 # ---------------------------------------------------------------------------
@@ -392,19 +400,14 @@ def main():
     # Always succeed — lifecycle tracking should never block
     output = {"continue": True}
 
-    # Inject tool-discovery reminder for all agents on start
     if phase == "start":
-        # Base tool-discovery message (always present)
         tool_discovery = (
             "[Tool Discovery] Before claiming you cannot do something, "
             "review your available skills and tools. You have capabilities for "
             "browser automation, visual testing, accessibility auditing, "
             "API testing, code search, memory, and more. Use them."
         )
-
-        # Procedure injection based on active task event_type
         procedure_bundle = _EVENT_TYPE_PROCEDURES.get(event_type, "") if event_type else ""
-
         if procedure_bundle:
             output["systemMessage"] = f"{tool_discovery}\n\n{procedure_bundle}"
         else:

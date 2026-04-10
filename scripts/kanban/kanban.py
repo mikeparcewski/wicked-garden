@@ -111,10 +111,10 @@ class KanbanStore:
 
         # Emit to EventStore asynchronously (fire-and-forget) for task lifecycle events
         if activity_type in ("task_created", "task_updated", "task_deleted"):
-            self._emit_event_async(project_id, activity_type, record, kwargs)
+            self._emit_event_async(project_id, activity_type, kwargs)
 
     def _emit_event_async(self, project_id: str, activity_type: str,
-                          activity_record: dict, task_kwargs: dict) -> None:
+                          task_kwargs: dict) -> None:
         """Fire-and-forget EventStore emit. Runs in background thread."""
         import threading
 
@@ -123,13 +123,11 @@ class KanbanStore:
                 from _event_store import EventStore
                 EventStore.ensure_schema()
 
-                # Build event payload including chain_id and event_type if present
                 payload = {
                     "activity_type": activity_type,
                     "task_id": task_kwargs.get("task_id", ""),
                     "task_name": task_kwargs.get("task_name", ""),
                 }
-                # Propagate chain_id and event_type if present in kwargs
                 if "chain_id" in task_kwargs:
                     payload["chain_id"] = task_kwargs["chain_id"]
                 if "event_type" in task_kwargs:
@@ -138,7 +136,7 @@ class KanbanStore:
                 EventStore.append(
                     domain="kanban",
                     action=f"tasks.{activity_type.replace('task_', '')}",
-                    record_id=task_kwargs.get("task_id", activity_record.get("id", "")),
+                    record_id=task_kwargs.get("task_id", ""),
                     project_id=project_id,
                     payload=payload,
                 )

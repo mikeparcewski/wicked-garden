@@ -9,6 +9,7 @@ This adapter complements brain_adapter (which queries memories) by providing
 the broader activity timeline that memories alone don't capture.
 """
 
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -160,25 +161,18 @@ async def query(prompt: str) -> List[ContextItem]:
         payload_dict: dict = {}
         if payload and isinstance(payload, str):
             try:
-                import json as _json
-                payload_dict = _json.loads(payload)
+                payload_dict = json.loads(payload)
             except Exception:
                 pass
-
-        # Filter: skip tasks.created events that have no meaningful name.
-        # Bare UUID record_id entries without a name add noise to briefings.
-        if action == "tasks.created":
-            task_name = payload_dict.get("name", "") if payload_dict else ""
-            if not task_name or not task_name.strip():
-                continue
 
         # Build title and summary
         title = f"{domain}.{action}"
         summary_parts = []
 
-        # For tasks.created, surface the task name instead of the raw UUID
-        if action == "tasks.created" and payload_dict.get("name"):
-            task_name = payload_dict["name"].strip()
+        if action == "tasks.created":
+            task_name = payload_dict.get("name", "").strip()
+            if not task_name:
+                continue  # skip bare UUID entries — no meaningful name
             title = f"{domain}.{action}: {task_name}"
             summary_parts.append(task_name)
         else:
@@ -218,7 +212,7 @@ async def query(prompt: str) -> List[ContextItem]:
             summary=summary,
             excerpt=(
                 f"[{ts[:10]}] {title}"
-                if (action == "tasks.created" and payload_dict.get("name"))
+                if action == "tasks.created"
                 else (f"[{ts[:10]}] {title}: {record_id}" if record_id else f"[{ts[:10]}] {title}")
             ),
             relevance=relevance,
