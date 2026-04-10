@@ -321,7 +321,18 @@ def main():
         print(f"[wicked-garden] subagent_lifecycle error: {e}", file=sys.stderr)
 
     # Always succeed — lifecycle tracking should never block
-    print(json.dumps({"continue": True}))
+    output = {"continue": True}
+
+    # Inject tool-discovery reminder for all agents on start
+    if phase == "start":
+        output["systemMessage"] = (
+            "[Tool Discovery] Before claiming you cannot do something, "
+            "review your available skills and tools. You have capabilities for "
+            "browser automation, visual testing, accessibility auditing, "
+            "API testing, code search, memory, and more. Use them."
+        )
+
+    print(json.dumps(output))
 
 
 if __name__ == "__main__":
