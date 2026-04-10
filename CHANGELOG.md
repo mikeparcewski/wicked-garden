@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.2.3] - 2026-04-10
+
+### Features
+- feat(hooks): centralized tool-discovery injection via SubagentStart hook (41b8dca)
+
+### Refactoring
+- refactor(agents): replace hardcoded tool references with generic discovery (6445458)
+
+### Chores
+- Revert "refactor(agents): replace hardcoded tool references with generic discovery" (694a27f)
+- release: wicked-garden v4.2.2 — agents discover tools instead of hardcoding (640931d)
+
 ## [4.2.2] - 2026-04-09
 
 ### Bug Fixes
