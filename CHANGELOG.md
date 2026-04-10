@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.4.0] - 2026-04-10
+
+### Features
+- feat(kanban): dual-purpose event queue with chain causality tracking (aee44a8)
+
+### Chores
+- release: wicked-garden v4.3.0 — bulletproof standards, review tiers, swarm, provenance (ddd9e22)
+
 ## [4.3.0] - 2026-04-10
 
 ### Features
