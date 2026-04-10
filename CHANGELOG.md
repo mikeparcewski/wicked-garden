@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.3.0] - 2026-04-10
+
+### Features
+- feat: bulletproof standards, review tiers, swarm detection, provenance awareness (1011561)
+
+### Chores
+- release: wicked-garden v4.2.3 — centralized tool-discovery via SubagentStart hook (4ef539c)
+
 ## [4.2.3] - 2026-04-10
 
 ### Features
