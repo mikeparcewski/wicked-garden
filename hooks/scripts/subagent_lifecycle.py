@@ -35,6 +35,71 @@ _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve(
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
 
+# Map from kanban event_type to procedure bundle injected at SubagentStart
+_EVENT_TYPE_PROCEDURES: dict = {
+    "coding-task": (
+        "[Bulletproof Coding Standards] R1: No dead code. R2: No bare panics — "
+        "all errors handled and logged. R3: No magic values — use named constants. "
+        "R4: No swallowed errors — propagate or log with context. "
+        "R5: No unbounded ops — all loops/queries have limits. "
+        "R6: No god functions — max 50 lines, single responsibility."
+    ),
+    "gate-finding": (
+        "[Gate Finding Protocol] Document the finding with: what was observed, "
+        "what standard was violated, severity (BLOCK/WARN/INFO), and suggested fix. "
+        "Reference the specific requirement or quality rule that applies."
+    ),
+    "phase-transition": (
+        "[Phase Transition Protocol] Verify all gate conditions are met before "
+        "advancing. Write a transition summary: what was completed, what evidence "
+        "exists, what the next phase expects as input."
+    ),
+    "subtask": (
+        "[Subtask Execution] You are executing a subtask. Scope is narrow — "
+        "complete exactly what was assigned. Report back with structured output: "
+        "what was done, what evidence exists, any blockers found."
+    ),
+    "procedure-trigger": (
+        "[Procedure Execution] Follow the procedure exactly as specified. "
+        "Do not improvise or skip steps. Record each step's outcome."
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# Kanban event_type reader — fail-silent, never crashes the hook
+# ---------------------------------------------------------------------------
+
+def _get_active_task_event_type() -> "str | None":
+    """Read the event_type of the active kanban task, if any.
+
+    Returns the event_type string or None if not determinable.
+    Fails silently — never blocks the hook.
+    """
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        active_project_id = state.active_project_id
+        if not active_project_id:
+            return None
+
+        from kanban.kanban import KanbanStore
+        store = KanbanStore()
+
+        # Get in_progress tasks for this project
+        tasks = store.list_tasks(active_project_id, swimlane="in_progress")
+        if not tasks:
+            return None
+
+        # Return event_type from most recent task (last updated)
+        most_recent = max(tasks, key=lambda t: t.get("updated_at", ""), default=None)
+        if most_recent:
+            return most_recent.get("event_type")
+        return None
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
 # ---------------------------------------------------------------------------
@@ -201,8 +266,8 @@ def _record_specialist_engagement(domain: str, agent_name: str) -> None:
 # Handler: SubagentStart
 # ---------------------------------------------------------------------------
 
-def _handle_start(payload: dict) -> None:
-    """Track a subagent starting."""
+def _handle_start(payload: dict) -> "str | None":
+    """Track a subagent starting. Returns active event_type if any."""
     agent_name = payload.get("agent_name", payload.get("subagent_type", "unknown"))
     agent_id = payload.get("agent_id", "")
 
@@ -236,6 +301,9 @@ def _handle_start(payload: dict) -> None:
         "timestamp": _now_iso(),
         "session_id": _get_session_id(),
     })
+
+    # Get active task event_type for procedure injection
+    return _get_active_task_event_type()
 
 
 # ---------------------------------------------------------------------------
@@ -309,9 +377,10 @@ def main():
     except Exception:
         payload = {}
 
+    event_type = None
     try:
         if phase == "start":
-            _handle_start(payload)
+            event_type = _handle_start(payload)
         elif phase == "stop":
             _handle_stop(payload)
         else:
@@ -325,12 +394,21 @@ def main():
 
     # Inject tool-discovery reminder for all agents on start
     if phase == "start":
-        output["systemMessage"] = (
+        # Base tool-discovery message (always present)
+        tool_discovery = (
             "[Tool Discovery] Before claiming you cannot do something, "
             "review your available skills and tools. You have capabilities for "
             "browser automation, visual testing, accessibility auditing, "
             "API testing, code search, memory, and more. Use them."
         )
+
+        # Procedure injection based on active task event_type
+        procedure_bundle = _EVENT_TYPE_PROCEDURES.get(event_type, "") if event_type else ""
+
+        if procedure_bundle:
+            output["systemMessage"] = f"{tool_discovery}\n\n{procedure_bundle}"
+        else:
+            output["systemMessage"] = tool_discovery
 
     print(json.dumps(output))
 

@@ -12,6 +12,7 @@ Create a task on the kanban board.
 - `task_name` (required): The task name/description
 - `project` (optional): Project to add task to (default: most recent or "Claude Tasks")
 - `priority` (optional): P0 (Critical), P1 (High), P2 (Normal), P3 (Low)
+- `metadata` (optional): JSON string of arbitrary metadata (e.g. `'{"type":"jam-session"}'`)
 
 ## Instructions
 
@@ -31,7 +32,7 @@ Create a task on the kanban board.
 
 5. Create the task:
    ```bash
-   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/_run.py scripts/kanban/kanban.py create-task PROJECT_ID "TASK_NAME" --priority P2
+   cd ${CLAUDE_PLUGIN_ROOT} && uv run python scripts/_run.py scripts/kanban/kanban.py create-task PROJECT_ID "TASK_NAME" --priority P2 --metadata '{"type":"task"}'
    ```
 
 ## Example Usage

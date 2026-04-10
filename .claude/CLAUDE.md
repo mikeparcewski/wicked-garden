@@ -135,7 +135,7 @@ Six adapters query domain scripts directly: `domain`, `brain`, `events`, `contex
 
 Dynamic multi-phase workflows with signal-based specialist routing:
 
-1. `smart_decisioning.py` analyzes project description → detects signals → maps to specialists → scores complexity (0-7) → determines review tier (minimal/standard/full)
+1. `smart_decisioning.py` analyzes project description → detects signals → maps to specialists → scores complexity (0-7) → determines review tier (minimal/standard/full) → generates root `chain_id` (`{uuid8}.root`)
 2. `phases.json` defines phase catalog with triggers, complexity ranges, gates, dependencies
 3. Phase selection: non-skippable always included, then signal-matched, then complexity-based
 4. Checkpoints at clarify/design/build can re-analyze and inject missing phases
@@ -255,6 +255,21 @@ TaskUpdate(taskId, status="completed")    # AFTER finishing work
 ```
 
 Status vocabulary: `pending`, `in_progress`, `completed` (not todo/done). Kanban's PostToolUse hook syncs these automatically.
+
+### Kanban as Dual-Purpose Event Queue (v4.4.0+)
+
+Kanban tasks carry optional agent-coordination fields:
+
+- **`chain_id`**: Dotted causality hierarchy — `{project}.root` at crew start, `{project}.{phase}` per phase, `{project}.{phase}.{gate}` per gate finding. Enables cross-domain causality tracing without a graph DB.
+- **`event_type`**: `task` (default, human-visible) | `gate-finding` | `phase-transition` | `procedure-trigger` | `coding-task` | `subtask`
+- **`source_agent`**: Agent that created the task
+- **`phase`**: Crew phase the task belongs to
+
+Board view hides machine events by default (`event_type=task` only). Pass `--agent-view` to `list-tasks` to expose all event types.
+
+**Procedure injection**: SubagentStart hook reads the active task's `event_type` and injects the matching standards bundle (e.g. `coding-task` → R1-R6 bulletproof standards, `gate-finding` → Gate Finding Protocol).
+
+**Chain-aware smaht scoring**: Events matching `SessionState.active_chain_id` score 0.8+ in the events adapter (vs flat 0.1 baseline). Gate findings and phase transitions get additional event-type boosts (0.35-0.4).
 
 ## Skill Design
 

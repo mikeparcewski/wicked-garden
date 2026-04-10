@@ -35,7 +35,17 @@ _HIGH_VALUE_ACTIONS = {
     "projects.created": 0.25,
     "sessions.created": 0.2,  # Jam sessions
     "memories.created": 0.15,
-    "tasks.": 0.1,        # Kanban changes
+    "tasks.": 0.1,        # Kanban changes (base; event_type may boost further)
+}
+
+# Event type boosts (for kanban events carrying event_type in payload)
+_EVENT_TYPE_BOOSTS = {
+    "gate-finding": 0.4,
+    "phase-transition": 0.35,
+    "procedure-trigger": 0.3,
+    "coding-task": 0.2,
+    "subtask": 0.15,
+    "task": 0.0,  # regular tasks get no extra boost
 }
 
 
@@ -80,6 +90,39 @@ def _action_boost(action: str) -> float:
     return 0.0
 
 
+def _chain_boost(payload_dict: dict, active_chain_id: "str | None") -> float:
+    """Score boost when event belongs to the active chain.
+
+    Chain-matched events score 0.65 base boost (combined with 0.15 base → 0.8 total).
+    Partial chain prefix match (parent chain) scores 0.45.
+    No chain match: 0.0.
+    """
+    if not active_chain_id:
+        return 0.0
+    event_chain = payload_dict.get("chain_id", "")
+    if not event_chain:
+        return 0.0
+    if event_chain == active_chain_id:
+        return 0.65
+    # Parent chain match: active is a.b.c, event is a.b → partial match
+    if active_chain_id.startswith(event_chain + "."):
+        return 0.45
+    # Child chain match: active is a.b, event is a.b.c → also relevant
+    if event_chain.startswith(active_chain_id + "."):
+        return 0.50
+    return 0.0
+
+
+def _get_active_chain_id() -> "str | None":
+    """Read active chain_id from session state."""
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        return getattr(state, "active_chain_id", None)
+    except Exception:
+        return None
+
+
 def _age_days(ts_str: str) -> float:
     """Calculate age in days from ISO timestamp."""
     try:
@@ -99,6 +142,8 @@ async def query(prompt: str) -> List[ContextItem]:
     events = await run_in_thread(_query_events, prompt)
     if not events:
         return []
+
+    active_chain_id = await run_in_thread(_get_active_chain_id)
 
     items: list[ContextItem] = []
     prompt_lower = prompt.lower()
@@ -146,9 +191,11 @@ async def query(prompt: str) -> List[ContextItem]:
 
         summary = " | ".join(summary_parts) if summary_parts else action
 
-        # Score: base + action boost + keyword match + recency
+        # Score: base + action boost + event_type boost + keyword match + recency + chain
         base = 0.15
         action_score = _action_boost(action)
+        event_type_val = payload_dict.get("event_type", "task")
+        event_type_score = _EVENT_TYPE_BOOSTS.get(event_type_val, 0.0)
         keyword_score = 0.0
         search_text = f"{title} {summary} {record_id} {project_id}".lower()
         for word in prompt_lower.split():
@@ -158,7 +205,11 @@ async def query(prompt: str) -> List[ContextItem]:
         age = _age_days(ts)
         recency_boost = max(0.0, 0.15 - (age / 30) * 0.15)  # 0.15 for today, 0 for 30d ago
 
-        relevance = min(base + action_score + keyword_score + recency_boost, 1.0)
+        chain_score = _chain_boost(payload_dict, active_chain_id)
+        relevance = min(
+            base + action_score + event_type_score + keyword_score + recency_boost + chain_score,
+            1.0,
+        )
 
         items.append(ContextItem(
             id=event.get("event_id", ""),
@@ -177,6 +228,7 @@ async def query(prompt: str) -> List[ContextItem]:
                 "action": action,
                 "project_id": project_id,
                 "event_ts": ts,
+                "chain_id": payload_dict.get("chain_id", ""),
             },
         ))
 

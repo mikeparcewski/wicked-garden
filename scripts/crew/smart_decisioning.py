@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import sys
+import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -703,6 +704,7 @@ class SignalAnalysis:
     weighted_risk_index: float = 0.0                # Single composite [0.0, 1.0]
     routing_lane: str = "standard"                  # Routing lane string value
     review_tier: str = "standard"                    # minimal, standard, full
+    chain_id: Optional[str] = field(default=None)   # Root chain ID for this crew project
 
 
 # ---------------------------------------------------------------------------
@@ -2039,6 +2041,9 @@ def analyze_input(
         routing_lane=_routing_lane.value,
         review_tier=determine_review_tier(complexity, signals, risk_dims),
     )
+
+    # Generate root chain_id for causality tracking
+    analysis.chain_id = f"{uuid.uuid4().hex[:8]}.root"
 
     # Decision observability logging (best-effort)
     _log_decision(analysis, len(text))

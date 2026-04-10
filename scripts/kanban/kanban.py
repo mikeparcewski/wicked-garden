@@ -109,6 +109,45 @@ class KanbanStore:
         }
         self._sm.create("activity", record)
 
+        # Emit to EventStore asynchronously (fire-and-forget) for task lifecycle events
+        if activity_type in ("task_created", "task_updated", "task_deleted"):
+            self._emit_event_async(project_id, activity_type, record, kwargs)
+
+    def _emit_event_async(self, project_id: str, activity_type: str,
+                          activity_record: dict, task_kwargs: dict) -> None:
+        """Fire-and-forget EventStore emit. Runs in background thread."""
+        import threading
+
+        def _emit():
+            try:
+                from _event_store import EventStore
+                EventStore.ensure_schema()
+
+                # Build event payload including chain_id and event_type if present
+                payload = {
+                    "activity_type": activity_type,
+                    "task_id": task_kwargs.get("task_id", ""),
+                    "task_name": task_kwargs.get("task_name", ""),
+                }
+                # Propagate chain_id and event_type if present in kwargs
+                if "chain_id" in task_kwargs:
+                    payload["chain_id"] = task_kwargs["chain_id"]
+                if "event_type" in task_kwargs:
+                    payload["event_type"] = task_kwargs["event_type"]
+
+                EventStore.append(
+                    domain="kanban",
+                    action=f"tasks.{activity_type.replace('task_', '')}",
+                    record_id=task_kwargs.get("task_id", activity_record.get("id", "")),
+                    project_id=project_id,
+                    payload=payload,
+                )
+            except Exception:
+                pass  # EventStore is optional — fail silently
+
+        t = threading.Thread(target=_emit, daemon=True)
+        t.start()
+
     # ==================== Task Index ====================
 
     def _load_index(self, project_id: str) -> Dict:
@@ -357,8 +396,8 @@ class KanbanStore:
         return task
 
     def list_tasks(self, project_id: str, swimlane: str = None,
-                   initiative_id: str = None) -> List[Dict]:
-        """List tasks, optionally filtered by swimlane or initiative."""
+                   initiative_id: str = None, event_type: str = None) -> List[Dict]:
+        """List tasks, optionally filtered by swimlane, initiative, or event_type."""
         index = self._load_index(project_id)
 
         if swimlane:
@@ -373,6 +412,9 @@ class KanbanStore:
             task = self.get_task(project_id, task_id)
             if task:
                 tasks.append(task)
+
+        if event_type:
+            tasks = [t for t in tasks if t.get("event_type") == event_type]
 
         return sorted(tasks, key=lambda t: t.get("order", 0))
 
@@ -402,6 +444,10 @@ class KanbanStore:
             "commits": [],
             "artifacts": [],
             "metadata": kwargs.get("metadata"),
+            "chain_id": kwargs.get("chain_id"),
+            "event_type": kwargs.get("event_type", "task"),
+            "source_agent": kwargs.get("source_agent"),
+            "phase": kwargs.get("phase"),
             "created_at": get_utc_timestamp(),
             "created_by": kwargs.get("created_by", "claude"),
             "updated_at": get_utc_timestamp()
@@ -412,7 +458,12 @@ class KanbanStore:
         task_for_index = dict(task)
         task_for_index["id"] = task_id
         self._index_add_task(project_id, task_for_index)
-        self._log_activity(project_id, "task_created", task_id=task_id, task_name=name)
+        self._log_activity(
+            project_id, "task_created",
+            task_id=task_id, task_name=name,
+            chain_id=kwargs.get("chain_id"),
+            event_type=kwargs.get("event_type", "task"),
+        )
 
         return task
 
@@ -428,7 +479,8 @@ class KanbanStore:
 
         allowed = {
             'name', 'description', 'swimlane', 'order', 'priority',
-            'initiative_id', 'assigned_to', 'depends_on', 'metadata'
+            'initiative_id', 'assigned_to', 'depends_on', 'metadata',
+            'chain_id', 'event_type', 'source_agent', 'phase'
         }
         diff = {}
         for key, value in updates.items():
@@ -900,6 +952,11 @@ def main():
     list_tasks.add_argument('project_id', help='Project ID')
     list_tasks.add_argument('--swimlane', '-s', help='Filter by swimlane')
     list_tasks.add_argument('--initiative', '-i', help='Filter by initiative')
+    list_tasks.add_argument('--event-type', dest='event_type',
+        choices=['task', 'gate-finding', 'phase-transition', 'procedure-trigger', 'coding-task', 'subtask'],
+        help='Filter by event type (default: shows all)')
+    list_tasks.add_argument('--agent-view', action='store_true',
+        help='Show machine events (gate-findings, phase-transitions, etc). Default hides them.')
 
     # get-task
     get_task = subparsers.add_parser('get-task', help='Get task details')
@@ -917,6 +974,12 @@ def main():
     create_task.add_argument('--description', '-d', help='Description')
     create_task.add_argument('--initiative', help='Initiative ID')
     create_task.add_argument('--depends', nargs='+', help='Task IDs this task depends on')
+    create_task.add_argument('--chain-id', dest='chain_id', help='Causality chain ID (dotted hierarchy)')
+    create_task.add_argument('--event-type', dest='event_type', default='task',
+        choices=['task', 'gate-finding', 'phase-transition', 'procedure-trigger', 'coding-task', 'subtask'],
+        help='Event type for machine consumption')
+    create_task.add_argument('--source-agent', dest='source_agent', help='Agent that created this task')
+    create_task.add_argument('--phase', dest='phase', help='Crew phase this task belongs to')
 
     # update-task
     update_task = subparsers.add_parser('update-task', help='Update a task')
@@ -930,6 +993,12 @@ def main():
     update_task.add_argument('--depends', nargs='+', help='Task IDs this task depends on')
     update_task.add_argument('--add-depends', nargs='+', help='Add task IDs to depends_on')
     update_task.add_argument('--remove-depends', nargs='+', help='Remove task IDs from depends_on')
+    update_task.add_argument('--chain-id', dest='chain_id', help='Set/update chain ID')
+    update_task.add_argument('--event-type', dest='event_type',
+        choices=['task', 'gate-finding', 'phase-transition', 'procedure-trigger', 'coding-task', 'subtask'],
+        help='Set event type')
+    update_task.add_argument('--source-agent', dest='source_agent', help='Set source agent')
+    update_task.add_argument('--phase', dest='phase', help='Set crew phase')
 
     # add-comment
     add_comment = subparsers.add_parser('add-comment', help='Add comment to task')
@@ -1034,7 +1103,11 @@ def main():
         result = store.create_project(args.name, args.description, args.repo)
 
     elif args.command == 'list-tasks':
-        result = store.list_tasks(args.project_id, args.swimlane, args.initiative)
+        result = store.list_tasks(args.project_id, args.swimlane, args.initiative,
+                                  event_type=args.event_type)
+        # Default: hide machine events from human board view
+        if not args.agent_view and not args.event_type:
+            result = [t for t in result if t.get("event_type", "task") == "task"]
 
     elif args.command == 'get-task':
         if args.with_status:
@@ -1050,7 +1123,11 @@ def main():
         result = store.create_task(
             args.project_id, args.name, args.swimlane,
             priority=args.priority, description=args.description,
-            initiative_id=args.initiative, depends_on=depends_on
+            initiative_id=args.initiative, depends_on=depends_on,
+            chain_id=args.chain_id,
+            event_type=args.event_type,
+            source_agent=args.source_agent,
+            phase=args.phase,
         )
         if not result:
             print("Failed to create task", file=sys.stderr)
@@ -1070,6 +1147,11 @@ def main():
             updates['initiative_id'] = args.initiative
         if args.depends:
             updates['depends_on'] = args.depends
+
+        for field in ('chain_id', 'event_type', 'source_agent', 'phase'):
+            val = getattr(args, field, None)
+            if val is not None:
+                updates[field] = val
 
         # Handle add/remove depends_on
         if args.add_depends or args.remove_depends:
