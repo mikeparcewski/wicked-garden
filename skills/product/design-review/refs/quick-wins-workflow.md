@@ -7,9 +7,9 @@ How to plan, execute, measure, and communicate quick win sessions.
 ### 1. Identify (15 minutes)
 ```bash
 # Run searches to find issues
-wicked-search "#[0-9a-fA-F]{3,6}" --type css
-wicked-search "(padding|margin):\s*[0-9]+" --type css
-wicked-search "outline:\s*none" --type css
+wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css
+wicked-garden:search "(padding|margin):\s*[0-9]+" --type css
+wicked-garden:search "outline:\s*none" --type css
 ```
 
 ### 2. Prioritize (10 minutes)
@@ -176,9 +176,9 @@ Quick wins aren't always the answer:
 **Automated finding:**
 ```bash
 # Find quick win opportunities
-wicked-search "#[0-9a-fA-F]{3,6}" --type css
-wicked-search "outline:\s*none" --type css
-wicked-search "(padding|margin):\s*[0-9]+" --type css
+wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css
+wicked-garden:search "outline:\s*none" --type css
+wicked-garden:search "(padding|margin):\s*[0-9]+" --type css
 ```
 
 **Contrast checking:**

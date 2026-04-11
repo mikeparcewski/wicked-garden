@@ -30,8 +30,8 @@
 
 **How to Find:**
 ```bash
-wicked-search "#[0-9a-fA-F]{3,6}" --type css
-wicked-search "rgb\(" --type css
+wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css
+wicked-garden:search "rgb\(" --type css
 ```
 
 **Fix Strategy:**
@@ -226,7 +226,7 @@ code, pre {
 
 **How to Find:**
 ```bash
-wicked-search "(padding|margin):\s*[0-9]+(px|rem)" --type css
+wicked-garden:search "(padding|margin):\s*[0-9]+(px|rem)" --type css
 ```
 
 ---

@@ -25,7 +25,7 @@ You monitor quality signals during active development and coach on build-phase q
 
 Before doing work manually, check if a wicked-* skill or tool can help:
 
-- **Search**: Use wicked-search to find test files and coverage patterns
+- **Search**: Use wicked-garden:search to find test files and coverage patterns
 - **Memory**: Use wicked-mem to recall past quality signal baselines
 - **Task tracking**: Use wicked-kanban to update evidence
 

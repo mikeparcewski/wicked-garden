@@ -56,7 +56,7 @@ Detailed patterns for discovering integrations by capability category.
 - Link errors to code
 - Track release health
 
-**Fallback**: Search logs via wicked-search
+**Fallback**: Search logs via wicked-garden:search
 
 ---
 
@@ -113,7 +113,7 @@ Detailed patterns for discovering integrations by capability category.
 - Link code to docs
 - Export content
 
-**Fallback**: Use wicked-search for local doc search
+**Fallback**: Use wicked-garden:search for local doc search
 
 ---
 

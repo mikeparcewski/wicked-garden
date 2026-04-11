@@ -128,5 +128,5 @@ Typography violations:
 - **screenshot skill**: Capture visuals for before/after comparison
 - **accessibility skill**: Color contrast overlaps with a11y
 - **product/design-review**: Shares criteria; this provides the checklist structure
-- **wicked-search**: `wicked-search "#[0-9a-fA-F]{3,6}"` finds hardcoded colors
+- **wicked-garden:search**: `wicked-garden:search "#[0-9a-fA-F]{3,6}"` finds hardcoded colors
 - **imagery/review skill**: For comprehensive image analysis with quality gates (brand, accessibility, production, sensitivity), see the `imagery/review` skill

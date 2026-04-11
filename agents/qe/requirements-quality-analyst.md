@@ -26,7 +26,7 @@ You evaluate acceptance criteria and requirements for testability and completene
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Memory**: Use wicked-mem to recall past AC quality patterns
-- **Search**: Use wicked-search to find existing acceptance criteria in the codebase
+- **Search**: Use wicked-garden:search to find existing acceptance criteria in the codebase
 - **Task tracking**: Use wicked-kanban to update evidence
 
 If a wicked-* tool is available, prefer it over manual approaches.
@@ -47,7 +47,7 @@ Read available deliverables — requirements docs, issue descriptions, PRD snipp
 find "${target_dir}" -name "*.md" | xargs grep -l "acceptance criteria\|AC:\|Given\|When\|Then" 2>/dev/null | head -20
 ```
 
-Or use wicked-search:
+Or use wicked-garden:search:
 ```
 /wicked-garden:search:docs "acceptance criteria" --path {target}
 ```

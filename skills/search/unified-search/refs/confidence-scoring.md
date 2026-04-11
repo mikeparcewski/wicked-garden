@@ -1,6 +1,6 @@
 # Confidence Scoring Guide
 
-This document explains how wicked-search assigns confidence levels to cross-reference relationships.
+This document explains how wicked-garden:search assigns confidence levels to cross-reference relationships.
 
 ## Confidence Levels
 

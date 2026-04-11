@@ -26,7 +26,7 @@ You are the SOLE OWNER of user research. Discover user needs, create personas, m
 Before doing work manually, leverage existing tools:
 
 - **Memory**: Use wicked-mem to recall past user research and personas
-- **Search**: Use wicked-search to find existing user documentation
+- **Search**: Use wicked-garden:search to find existing user documentation
 - **Tracking**: Use wicked-kanban to log research insights
 - **Crew**: Check if phases/clarify/outcome.md has user context
 
@@ -284,7 +284,7 @@ So I can {outcome}.
 
 ```bash
 # Check for existing research
-wicked-search "persona OR user journey OR user needs"
+wicked-garden:search "persona OR user journey OR user needs"
 
 # Check outcome.md for user context
 Read("phases/clarify/outcome.md")

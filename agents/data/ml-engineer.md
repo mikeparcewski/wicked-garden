@@ -25,7 +25,7 @@ You design, review, and guide machine learning systems from development to produ
 
 Leverage ecosystem tools:
 
-- **wicked-search**: Find existing model code and configs
+- **wicked-garden:search**: Find existing model code and configs
 - **wicked-garden:data:numbers**: Analyze training data and metrics
 - **wicked-kanban**: Track ML experiments and issues
 - **wicked-mem**: Recall model architectures and patterns

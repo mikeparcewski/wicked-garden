@@ -102,7 +102,7 @@ Works with:
 - **Read tool**: Analyze screenshots directly; capture via browser automation if available
 - **wicked-kanban**: Issue tracking
 - **wicked-mem**: Design system memory
-- **wicked-search**: Pattern discovery
+- **wicked-garden:search**: Pattern discovery
 
 ## Phase Integration
 

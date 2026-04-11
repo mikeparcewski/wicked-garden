@@ -184,7 +184,7 @@ async def build_package(task: str, project: str = None, files: list = None,
     """Build a structured context package for a subagent.
 
     This is the core function — assembles task-scoped context from
-    wicked-mem (decisions, constraints) and wicked-search (code context),
+    wicked-mem (decisions, constraints) and wicked-garden:search (code context),
     plus session state from the history condenser.
 
     Args:

@@ -31,14 +31,14 @@ If you typed an old command name, here are the new equivalents:
 ## Search
 | Old | New |
 |-----|-----|
-| `/wicked-search:code` | `/wicked-garden:search:code` |
-| `/wicked-search:docs` | `/wicked-garden:search:docs` |
-| `/wicked-search:blast-radius` | `/wicked-garden:search:blast-radius` |
-| `/wicked-search:lineage` | `/wicked-garden:search:lineage` |
-| `/wicked-search:index` | `/wicked-garden:search:index` |
-| `/wicked-search:refs` | `/wicked-garden:search:refs` |
-| `/wicked-search:impact` | `/wicked-garden:search:impact` |
-| `/wicked-search:scout` | `/wicked-garden:search:scout` |
+| `/wicked-garden:search:code` | `/wicked-garden:search:code` |
+| `/wicked-garden:search:docs` | `/wicked-garden:search:docs` |
+| `/wicked-garden:search:blast-radius` | `/wicked-garden:search:blast-radius` |
+| `/wicked-garden:search:lineage` | `/wicked-garden:search:lineage` |
+| `/wicked-garden:search:index` | `/wicked-garden:search:index` |
+| `/wicked-garden:search:refs` | `/wicked-garden:search:refs` |
+| `/wicked-garden:search:impact` | `/wicked-garden:search:impact` |
+| `/wicked-garden:search:scout` | `/wicked-garden:search:scout` |
 
 ## Memory
 | Old | New |

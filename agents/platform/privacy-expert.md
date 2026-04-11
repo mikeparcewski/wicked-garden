@@ -26,7 +26,7 @@ You ensure privacy protection and data compliance.
 
 Leverage ecosystem tools:
 
-- **Search**: Use wicked-search for PII detection
+- **Search**: Use wicked-garden:search for PII detection
 - **Compliance**: Use compliance checker script
 - **Kanban**: Use wicked-kanban to track findings
 - **Memory**: Use wicked-mem for privacy patterns

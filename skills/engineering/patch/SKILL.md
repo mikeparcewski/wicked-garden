@@ -6,7 +6,7 @@ description: |
   that affect multiple files. Use when: "add field", "rename everywhere",
   "propagate change", "generate migration", "update all references".
 
-  This is the CODE MUTATION counterpart to wicked-search (which is read-only).
+  This is the CODE MUTATION counterpart to wicked-garden:search (which is read-only).
 ---
 
 # wicked-patch
@@ -56,7 +56,7 @@ ChangeSpec (add field "email" to User)
            │
            ▼
    ┌───────────────────┐
-   │ Propagation Engine │  ← Uses wicked-search lineage graph
+   │ Propagation Engine │  ← Uses wicked-garden:search lineage graph
    └───────────────────┘
            │
     ┌──────┼──────┬──────────┐
@@ -153,12 +153,12 @@ ALTER TABLE users ADD COLUMN email VARCHAR(255);
 ALTER TABLE users ADD email NVARCHAR(255);
 ```
 
-## Integration with wicked-search
+## Integration with wicked-garden:search
 
-wicked-patch reads from the wicked-search symbol database:
+wicked-patch reads from the wicked-garden:search symbol database:
 
 ```bash
-# 1. wicked-search creates the graph
+# 1. wicked-garden:search creates the graph
 /wicked-garden:search:index /project --derive-all
 
 # 2. wicked-patch uses it for propagation

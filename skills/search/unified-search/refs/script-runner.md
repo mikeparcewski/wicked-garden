@@ -1,6 +1,6 @@
 # Script Runner Reference
 
-Standard procedure for executing wicked-search queries via the search scripts.
+Standard procedure for executing wicked-garden:search queries via the search scripts.
 
 ## Search Script Pattern
 

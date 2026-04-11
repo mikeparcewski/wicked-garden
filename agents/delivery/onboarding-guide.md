@@ -27,7 +27,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Delivery reports**: Use /wicked-garden:delivery:report for team health overview
 - **Memory**: Use wicked-mem to recall team conventions and past decisions
-- **Search**: Use wicked-search to navigate the codebase
+- **Search**: Use wicked-garden:search to navigate the codebase
 - **Kanban**: Use wicked-kanban for current task board state
 
 If a wicked-* tool is available, prefer it over manual approaches.
@@ -55,7 +55,7 @@ Collect available project data:
 /wicked-garden:mem:recall "onboarding"
 ```
 
-**From codebase** (if wicked-search installed):
+**From codebase** (if wicked-garden:search installed):
 ```
 /wicked-garden:search:docs README
 /wicked-garden:search:code "TODO|FIXME|HACK"

@@ -28,7 +28,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Delivery reports**: Use /wicked-garden:delivery:report for project context
 - **Risk**: Use wicked-garden:delivery:risk-monitor for cost-related risks
 - **Memory**: Use wicked-mem for historical cost data
-- **Search**: Use wicked-search for cost-related code patterns
+- **Search**: Use wicked-garden:search for cost-related code patterns
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

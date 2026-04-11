@@ -103,7 +103,7 @@ Read project metadata from `package.json` or `pyproject.toml` for README generat
 
 ## Integration
 
-Use **wicked-search** to find code to document.
+Use **wicked-garden:search** to find code to document.
 Use **wicked-mem** to learn and maintain project doc style.
 
 ## Events

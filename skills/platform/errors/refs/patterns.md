@@ -106,7 +106,7 @@ Error message never seen before (or not in last 30 days).
 2. **Find related code changes**
    - Git log around first occurrence time
    - Deployment records
-   - PR/commit analysis via wicked-search
+   - PR/commit analysis via wicked-garden:search
 
 3. **Review stack trace for new code**
    - Files/functions in the trace

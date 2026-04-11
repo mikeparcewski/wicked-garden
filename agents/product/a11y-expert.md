@@ -26,7 +26,7 @@ You audit accessibility compliance and champion inclusive design. WCAG standards
 Before doing work manually, leverage existing tools:
 
 - **Browse**: Use wicked-browse for automated a11y testing (if available)
-- **Search**: Use wicked-search to find accessibility patterns
+- **Search**: Use wicked-garden:search to find accessibility patterns
 - **Memory**: Use wicked-mem to recall a11y standards and decisions
 - **Tracking**: Use wicked-kanban to log accessibility issues
 

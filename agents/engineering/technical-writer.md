@@ -259,7 +259,7 @@ The Client class connects to...
 
 ## Integration
 
-### With wicked-search
+### With wicked-garden:search
 
 Find documentation needs:
 - Search for undocumented exports

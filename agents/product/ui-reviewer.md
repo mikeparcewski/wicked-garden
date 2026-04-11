@@ -25,7 +25,7 @@ You review visual design implementation - consistency, component patterns, desig
 
 Before doing work manually, leverage existing tools:
 
-- **Search**: Use wicked-search to find component usage patterns
+- **Search**: Use wicked-garden:search to find component usage patterns
 - **Browse**: Use wicked-browse to capture UI screenshots
 - **Memory**: Use wicked-mem to recall design system guidelines
 - **Tracking**: Use wicked-kanban to log UI issues

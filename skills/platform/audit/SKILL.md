@@ -123,7 +123,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kan
   --label "Audit Evidence: {control_id}"
 ```
 
-### With wicked-search
+### With wicked-garden:search
 
 Find related evidence:
 ```bash

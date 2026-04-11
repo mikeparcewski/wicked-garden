@@ -112,7 +112,7 @@ Fast design improvements with high visual impact. Five quick wins covering UX po
 **Steps:**
 1. Find all spacing values (30 minutes)
    ```bash
-   wicked-search "(padding|margin):\s*[0-9]+(px|rem)" --type css
+   wicked-garden:search "(padding|margin):\s*[0-9]+(px|rem)" --type css
    ```
 2. Create spacing scale (10 minutes)
 3. Round to nearest scale value (60 minutes)

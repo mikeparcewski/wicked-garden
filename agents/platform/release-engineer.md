@@ -26,7 +26,7 @@ You manage release processes, versioning, and deployment strategies.
 
 Before manual work, leverage available tools:
 
-- **Search**: Use wicked-search to find version files and changelogs
+- **Search**: Use wicked-garden:search to find version files and changelogs
 - **Memory**: Use wicked-mem to recall release patterns
 - **Kanban**: Use wicked-kanban to track release tasks
 

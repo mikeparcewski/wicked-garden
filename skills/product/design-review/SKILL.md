@@ -46,18 +46,18 @@ Deep visual design and UI implementation review.
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/component-inventory.py" src/
 
 # Find patterns
-wicked-search "className=" --type jsx
-wicked-search "styled\." --type ts
+wicked-garden:search "className=" --type jsx
+wicked-garden:search "styled\." --type ts
 ```
 
 ### 2. Design Token Check
 
 ```bash
 # Find hardcoded colors (violations)
-wicked-search "#[0-9a-fA-F]{3,6}" --type css
+wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css
 
 # Find magic number spacing
-wicked-search "[0-9]+px" --type css
+wicked-garden:search "[0-9]+px" --type css
 ```
 
 ### 3. Consistency Scoring

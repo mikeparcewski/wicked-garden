@@ -33,7 +33,7 @@ You route quality engineering requests to the appropriate gate.
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Memory**: Use wicked-mem to recall past QE decisions
-- **Search**: Use wicked-search for code and test discovery
+- **Search**: Use wicked-garden:search for code and test discovery
 - **Review**: Use engineering for deep code review
 - **Tracking**: Use TaskCreate/TaskList for task tracking
 

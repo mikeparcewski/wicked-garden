@@ -18,7 +18,7 @@ Quick wins are design improvements that:
 
 ```bash
 # Find all hardcoded colors
-wicked-search "#[0-9a-fA-F]{3,6}" --type css -A 2
+wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css -A 2
 
 # Create design tokens
 ```

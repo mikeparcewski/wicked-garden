@@ -26,7 +26,7 @@ You identify and recommend actionable cost optimization opportunities for cloud 
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Cost data**: Use wicked-garden:delivery:finops-analyst for current cost analysis
-- **Search**: Use wicked-search to find infrastructure code patterns
+- **Search**: Use wicked-garden:search to find infrastructure code patterns
 - **Memory**: Use wicked-mem for past optimization results
 - **Risk**: Use wicked-garden:delivery:risk-monitor to assess optimization risks
 

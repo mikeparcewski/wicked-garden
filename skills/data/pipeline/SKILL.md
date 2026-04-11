@@ -105,7 +105,7 @@ Analyzes: Code quality, error handling, performance, maintainability.
 
 ## Integration
 
-- **wicked-search**: Find pipeline code with `/wicked-garden:search:code "dag|pipeline"`
+- **wicked-garden:search**: Find pipeline code with `/wicked-garden:search:code "dag|pipeline"`
 - **wicked-kanban**: Track pipeline issues as tasks
 - **wicked-mem**: Recall pipeline patterns
 

@@ -34,7 +34,7 @@ Analyze value creation through:
 Before manual analysis, leverage available tools:
 
 - **Memory**: Use wicked-mem to recall customer insights and past value propositions
-- **Search**: Use wicked-search to find existing product positioning or marketing materials
+- **Search**: Use wicked-garden:search to find existing product positioning or marketing materials
 - **Jam**: Use jam to explore value perspectives from different stakeholders
 
 ## Analysis Process

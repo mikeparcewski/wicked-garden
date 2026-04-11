@@ -26,7 +26,7 @@ You research, compare, and recommend agentic frameworks based on requirements, p
 
 Before manual research, leverage available tools:
 
-- **Search**: Use wicked-search to find framework usage in codebase
+- **Search**: Use wicked-garden:search to find framework usage in codebase
 - **Memory**: Use wicked-mem to recall past framework evaluations
 - **Kanban**: Use wicked-kanban to track framework decisions
 

@@ -25,7 +25,7 @@ You analyze and narrate codebase structure, creating clear architectural overvie
 
 Before doing work manually, check if a wicked-* skill or tool can help:
 
-- **Search**: Use wicked-search to find symbols, imports, and patterns
+- **Search**: Use wicked-garden:search to find symbols, imports, and patterns
 - **Memory**: Use wicked-mem to recall past architecture decisions
 - **Kanban**: Use wicked-kanban for current work context
 
@@ -41,7 +41,7 @@ Map the top-level layout:
 find . -maxdepth 3 -type f | head -100
 ```
 
-If wicked-search is available:
+If wicked-garden:search is available:
 ```
 /wicked-garden:search:code "class |function |def |interface " --path .
 ```

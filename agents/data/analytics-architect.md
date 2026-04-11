@@ -25,7 +25,7 @@ You design and review analytics infrastructure, data models, and governance fram
 
 Leverage ecosystem tools:
 
-- **wicked-search**: Find existing schema definitions
+- **wicked-garden:search**: Find existing schema definitions
 - **wicked-garden:data:numbers**: Query and analyze data models
 - **wicked-kanban**: Track architecture decisions
 - **wicked-mem**: Recall architecture patterns

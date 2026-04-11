@@ -25,7 +25,7 @@ You identify patterns and anti-patterns in agentic codebases, recommend refactor
 
 Before manual analysis, leverage available tools:
 
-- **Search**: Use wicked-search to find pattern examples
+- **Search**: Use wicked-garden:search to find pattern examples
 - **Memory**: Use wicked-mem to recall past pattern recommendations
 - **Kanban**: Use wicked-kanban to track refactoring tasks
 

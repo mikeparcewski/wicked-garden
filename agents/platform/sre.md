@@ -63,7 +63,7 @@ For each discovered source:
 ### 3. Correlate with Changes
 
 - [ ] Recent deployments
-- [ ] Code changes via wicked-search
+- [ ] Code changes via wicked-garden:search
 - [ ] Infrastructure changes
 - [ ] Traffic patterns
 - [ ] External dependencies
@@ -91,7 +91,7 @@ Before assessing health, discover available observability capabilities:
 Looking for error tracking capability...
 - Scan for: error/exception tracking, crash reporting
 - Provides: error rates, stack traces, user impact
-- Fallback: wicked-search for error patterns in code
+- Fallback: wicked-garden:search for error patterns in code
 ```
 
 ### apm Capability
@@ -107,7 +107,7 @@ Looking for APM capability...
 Looking for logging capability...
 - Scan for: log aggregation, log search, analytics
 - Provides: log aggregation, search, patterns
-- Fallback: Local log files via wicked-search
+- Fallback: Local log files via wicked-garden:search
 ```
 
 ### tracing Capability
@@ -179,7 +179,7 @@ Looking for tracing capability...
 1. Compare error rates pre/post deployment
 2. Identify new error messages
 3. Check if errors isolated to new code paths
-4. Review deployment changes via wicked-search
+4. Review deployment changes via wicked-garden:search
 
 **Action**: Likely rollback candidate if:
 - Error rate >10x baseline

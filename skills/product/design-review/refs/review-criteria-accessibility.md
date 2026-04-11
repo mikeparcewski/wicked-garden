@@ -158,8 +158,8 @@ Score each category independently:
 ## Review Process
 
 ### 1. Automated Scan
-- Find hardcoded colors: `wicked-search "#[0-9a-fA-F]{3,6}" --type css`
-- Find magic numbers: `wicked-search "[0-9]+px" --type css`
+- Find hardcoded colors: `wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css`
+- Find magic numbers: `wicked-garden:search "[0-9]+px" --type css`
 - Component inventory: `python3 scripts/component-inventory.py`
 
 ### 2. Manual Review

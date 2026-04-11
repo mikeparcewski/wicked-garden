@@ -75,7 +75,7 @@ DOMAIN_MCP_PATTERNS: dict[str, list[str]] = {
         "figma", "brainstorm",
     ],
     "wicked-crew": ["jira", "linear", "github", "rally", "ado", "azure-devops", "project"],
-    "wicked-search": ["elasticsearch", "algolia", "typesense", "search"],
+    "wicked-garden:search": ["elasticsearch", "algolia", "typesense", "search"],
     # wicked-smaht, wicked-qe, wicked-patch: local-only (no MCP patterns)
 }
 
@@ -115,8 +115,8 @@ def get_local_file(domain: str, *subpath: str) -> Path:
     Parent directories are created automatically. Does not create the file.
 
     Example:
-        get_local_file("wicked-search", "unified_search.db")
-        # → ~/.something-wicked/wicked-garden/local/wicked-search/unified_search.db
+        get_local_file("wicked-garden:search", "unified_search.db")
+        # → ~/.something-wicked/wicked-garden/local/wicked-garden:search/unified_search.db
     """
     try:
         sys.path.insert(0, str(Path(__file__).parent))

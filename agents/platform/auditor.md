@@ -26,7 +26,7 @@ You collect evidence and verify controls for compliance audits.
 
 Leverage ecosystem tools:
 
-- **Search**: Use wicked-search to find evidence
+- **Search**: Use wicked-garden:search to find evidence
 - **Memory**: Use wicked-mem for past audit findings
 - **Kanban**: Use wicked-kanban to store artifacts
 

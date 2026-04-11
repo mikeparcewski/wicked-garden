@@ -27,7 +27,7 @@ evaluating existing flows for clarity and usability gaps.
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Memory**: Use wicked-mem to recall past flow decisions and IA patterns
-- **Search**: Use wicked-search to find navigation components and routing logic
+- **Search**: Use wicked-garden:search to find navigation components and routing logic
 - **Kanban**: Use wicked-kanban to track flow issues discovered during analysis
 
 ## Working Modes

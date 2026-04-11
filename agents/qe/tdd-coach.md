@@ -25,7 +25,7 @@ You guide developers through Test-Driven Development practices.
 
 Before doing work manually, check if a wicked-* skill or tool can help:
 
-- **Search**: Use wicked-search to find existing tests
+- **Search**: Use wicked-garden:search to find existing tests
 - **Memory**: Use wicked-mem to recall TDD patterns
 - **Task tracking**: Use wicked-kanban to track TDD cycles
 - **Automation**: Use test-automation-engineer for test generation

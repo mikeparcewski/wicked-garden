@@ -76,8 +76,8 @@ def get_local_file(domain: str, *subpath: str) -> Path:
     Parent directories are created automatically. Does not create the file.
 
     Example:
-        get_local_file("wicked-search", "unified_search.db")
-        # → ~/.something-wicked/wicked-garden/projects/{slug}/wicked-search/unified_search.db
+        get_local_file("wicked-garden:search", "unified_search.db")
+        # → ~/.something-wicked/wicked-garden/projects/{slug}/wicked-garden:search/unified_search.db
     """
     p = _LOCAL_ROOT / domain
     for part in subpath:

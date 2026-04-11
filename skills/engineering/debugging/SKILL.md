@@ -86,7 +86,7 @@ Debugging can leverage available integrations by capability:
 | **Observability** | `newrelic`, `dynatrace`, `telemetry` | APM data, traces, metrics |
 | **Logging** | `splunk`, `elastic`, `cloudwatch` | Log aggregation, search |
 
-Discover available integrations via capability detection. Fall back to local log analysis via wicked-search when none available.
+Discover available integrations via capability detection. Fall back to local log analysis via wicked-garden:search when none available.
 
 ## Notes
 

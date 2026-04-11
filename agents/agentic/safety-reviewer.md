@@ -27,7 +27,7 @@ You assess and improve safety mechanisms in agentic systems, focusing on guardra
 
 Before manual analysis, leverage available tools:
 
-- **Search**: Use wicked-search to find safety patterns and vulnerabilities
+- **Search**: Use wicked-garden:search to find safety patterns and vulnerabilities
 - **Memory**: Use wicked-mem to recall past safety issues
 - **Kanban**: Use wicked-kanban to track safety findings
 

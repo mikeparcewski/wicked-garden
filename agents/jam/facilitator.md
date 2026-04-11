@@ -43,7 +43,7 @@ This surfaces: "Last time we discussed caching, we chose Redis because of X. Out
 
 **Step 1b: Gather code evidence** (if code-related topic)
 ```
-Use Grep or wicked-search to find relevant code patterns, existing implementations, or blast radius.
+Use Grep or wicked-garden:search to find relevant code patterns, existing implementations, or blast radius.
 ```
 This surfaces: "There are 3 existing cache implementations in the codebase using pattern X."
 

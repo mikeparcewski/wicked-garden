@@ -111,7 +111,7 @@ gh search prs --author=@me --state=open
 ## Integration with Other Tools
 
 Works well with:
-- **wicked-search**: Find code patterns, then use gh to create issues
+- **wicked-garden:search**: Find code patterns, then use gh to create issues
 - **wicked-kanban**: Track PR status alongside tasks
 
 ## References

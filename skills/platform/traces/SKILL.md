@@ -75,7 +75,7 @@ Common bottleneck types:
 
 ### 6. Correlate with Code
 
-Use wicked-search to find:
+Use wicked-garden:search to find:
 - Database queries in slow services
 - External API calls
 - Synchronous operations that could be async
@@ -89,7 +89,7 @@ Use wicked-search to find:
 | **apm** | Performance monitoring with distributed tracing | Traces with performance context |
 | **telemetry** | Unified observability with traces and metrics | Unified traces and metrics |
 
-**Fallback**: Analyze code for call patterns via wicked-search (database calls, HTTP clients, async operations).
+**Fallback**: Analyze code for call patterns via wicked-garden:search (database calls, HTTP clients, async operations).
 
 ## Output Format
 

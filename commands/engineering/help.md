@@ -58,6 +58,6 @@ Senior engineering perspective — architecture analysis, code review, debugging
 
 - **wicked-crew**: Specialist routing for engineering phases
 - **qe**: Test strategy and quality gates
-- **wicked-search**: Code symbol and blast radius analysis
+- **search** (built-in): Code symbol and blast radius analysis
 - **platform**: Security and infrastructure concerns
 ```

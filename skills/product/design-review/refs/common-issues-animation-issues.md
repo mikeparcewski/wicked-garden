@@ -140,19 +140,19 @@
 
 ```bash
 # Colors
-wicked-search "#[0-9a-fA-F]{3,6}" --type css
+wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css
 
 # Spacing
-wicked-search "(padding|margin):\s*[0-9]+(px|rem)" --type css
+wicked-garden:search "(padding|margin):\s*[0-9]+(px|rem)" --type css
 
 # Typography
-wicked-search "font-size:\s*[0-9]+(px|rem)" --type css
+wicked-garden:search "font-size:\s*[0-9]+(px|rem)" --type css
 
 # Breakpoints
-wicked-search "@media.*min-width" --type css
+wicked-garden:search "@media.*min-width" --type css
 
 # Focus removal (danger!)
-wicked-search "outline:\s*(none|0)" --type css
+wicked-garden:search "outline:\s*(none|0)" --type css
 ```
 
 ---

@@ -123,7 +123,7 @@ glab mr merge 123 --squash --remove-source-branch
 ## Integration
 
 Works with:
-- **wicked-search**: Find code, create issues via glab
+- **wicked-garden:search**: Find code, create issues via glab
 - **wicked-kanban**: Track MR status alongside tasks
 
 ## References

@@ -26,7 +26,7 @@ You design and optimize cloud infrastructure and Infrastructure-as-Code.
 
 Before manual work, leverage available tools:
 
-- **Search**: Use wicked-search to find IaC configurations
+- **Search**: Use wicked-garden:search to find IaC configurations
 - **Memory**: Use wicked-mem to recall infrastructure patterns
 - **Kanban**: Use wicked-kanban to track infrastructure tasks
 

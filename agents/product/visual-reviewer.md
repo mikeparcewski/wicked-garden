@@ -27,7 +27,7 @@ system adherence, visual consistency, spacing, typography, and color correctness
 
 Before manual analysis, leverage existing tools:
 
-- **Search**: Use wicked-search to find hardcoded values: `wicked-search "#[0-9a-fA-F]{3,6}"`
+- **Search**: Use wicked-garden:search to find hardcoded values: `wicked-garden:search "#[0-9a-fA-F]{3,6}"`
 - **Memory**: Use wicked-mem to recall the project's design tokens and system
 - **Screenshot**: Read PNG/JPG files directly to review rendered output
 
@@ -46,13 +46,13 @@ If no design system exists, note it and review for internal consistency.
 
 ```bash
 # Hardcoded colors
-wicked-search "#[0-9a-fA-F]{3,6}" --type css
+wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css
 
 # Magic number spacing
-wicked-search "[0-9]+px" --type css
+wicked-garden:search "[0-9]+px" --type css
 
 # Inline styles (often bypasses design system)
-wicked-search "style={{" --type tsx
+wicked-garden:search "style={{" --type tsx
 ```
 
 ### 3. Evaluate Against Checklist

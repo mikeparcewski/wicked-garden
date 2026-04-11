@@ -34,13 +34,13 @@ This guide explains how to evaluate design consistency and provide actionable sc
 
 ```bash
 # Find hardcoded colors
-wicked-search "#[0-9a-fA-F]{3,6}" --type css --output-mode count
+wicked-garden:search "#[0-9a-fA-F]{3,6}" --type css --output-mode count
 
 # Find RGB values
-wicked-search "rgb\(" --type css --output-mode count
+wicked-garden:search "rgb\(" --type css --output-mode count
 
 # Find design token usage
-wicked-search "var\(--color" --type css --output-mode count
+wicked-garden:search "var\(--color" --type css --output-mode count
 ```
 
 **Calculation:**
@@ -78,13 +78,13 @@ Extract to design tokens."
 
 ```bash
 # Find custom font sizes
-wicked-search "font-size:\s*[0-9]+(px|rem)" --type css
+wicked-garden:search "font-size:\s*[0-9]+(px|rem)" --type css
 
 # Find type scale usage
-wicked-search "var\(--font-size" --type css --output-mode count
+wicked-garden:search "var\(--font-size" --type css --output-mode count
 
 # Find font family declarations
-wicked-search "font-family:" --type css
+wicked-garden:search "font-family:" --type css
 ```
 
 **Calculation:**
@@ -115,10 +115,10 @@ Type Scale Usage % = (Scale Uses / Total Font Declarations) * 100
 
 ```bash
 # Find magic number spacing
-wicked-search "(padding|margin):\s*[0-9]+(px|rem)" --type css
+wicked-garden:search "(padding|margin):\s*[0-9]+(px|rem)" --type css
 
 # Find spacing scale usage
-wicked-search "var\(--space" --type css --output-mode count
+wicked-garden:search "var\(--space" --type css --output-mode count
 ```
 
 **Calculation:**
@@ -195,10 +195,10 @@ State Coverage % = (Implemented States / Required States) * 100
 
 ```bash
 # Find media queries
-wicked-search "@media" --type css
+wicked-garden:search "@media" --type css
 
 # Check for consistent breakpoints
-wicked-search "min-width:\s*[0-9]+(px|em|rem)" --type css
+wicked-garden:search "min-width:\s*[0-9]+(px|em|rem)" --type css
 ```
 
 **Breakpoint Consistency:**

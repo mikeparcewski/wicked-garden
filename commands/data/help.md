@@ -47,6 +47,6 @@ Data analysis and ontology recommendations for CSV, Excel, and structured datase
 ## Integration
 
 - **wicked-crew**: Specialist routing for data engineering phases
-- **wicked-search**: Lineage tracing through data pipelines
+- **search** (built-in): Lineage tracing through data pipelines
 - **wicked-mem**: Stores analysis results and data decisions
 ```

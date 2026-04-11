@@ -28,7 +28,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Quality risks**: Use qe risk assessor for technical risks
 - **Task tracking**: Use wicked-kanban for risk tracking
 - **Memory**: Use wicked-mem to recall past risk patterns
-- **Search**: Use wicked-search to find risk indicators
+- **Search**: Use wicked-garden:search to find risk indicators
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

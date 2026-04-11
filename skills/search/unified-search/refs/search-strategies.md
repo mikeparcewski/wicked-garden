@@ -24,7 +24,7 @@ When understanding a feature:
 /wicked-garden:search:docs "user registration"
 
 # 2. Read the relevant doc section
-cat $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-search/extracted/requirements_docx.txt
+cat $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-garden:search/extracted/requirements_docx.txt
 
 # 3. Find implementing code
 /wicked-garden:search:impl "User Registration"

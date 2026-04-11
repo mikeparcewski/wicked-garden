@@ -71,9 +71,9 @@ Use the Read tool on a screenshot file, or capture via browser automation if ava
 ### 4. Code Review
 ```bash
 # Find potential issues
-wicked-search "<div.*onclick" --type html  # Non-semantic buttons
-wicked-search "<img(?!.*alt)" --type html  # Missing alt
-wicked-search "aria-" --type html          # ARIA usage
+wicked-garden:search "<div.*onclick" --type html  # Non-semantic buttons
+wicked-garden:search "<img(?!.*alt)" --type html  # Missing alt
+wicked-garden:search "aria-" --type html          # ARIA usage
 ```
 
 ## Common Quick Fixes
