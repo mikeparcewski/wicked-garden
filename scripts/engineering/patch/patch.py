@@ -93,8 +93,10 @@ def _resolve_symbol_id(symbol_id: str, db_path: Optional[Path]) -> str:
     if not symbol_id or symbol_id.startswith("/") or "::" in symbol_id:
         return symbol_id
 
-    # Try brain symbols API
-    result = _brain_api("symbols", {"name": symbol_id, "limit": 1})
+    # Try brain symbols API — fetch up to 10 to find one with a real file_path
+    # (FTS results often have file_path=null for chunk-indexed entries; LSP-indexed
+    # entries have the actual path and appear later in the result list)
+    result = _brain_api("symbols", {"name": symbol_id, "limit": 10})
     for r in result.get("results", []):
         if r.get("file_path"):
             return r["id"]  # format: "file_path::SymbolName"
