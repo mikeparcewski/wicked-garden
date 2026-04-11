@@ -27,8 +27,8 @@ Leverage ecosystem tools:
 
 - **wicked-garden:search**: Find existing schema definitions
 - **wicked-garden:data:numbers**: Query and analyze data models
-- **wicked-kanban**: Track architecture decisions
-- **wicked-mem**: Recall architecture patterns
+- **wicked-garden:kanban**: Track architecture decisions
+- **wicked-garden:mem**: Recall architecture patterns
 
 ## Core Responsibilities
 
@@ -386,7 +386,7 @@ CLUSTER BY user_id, event_time;
 - **6 months**: {$/month}
 ```
 
-### 7. Integration with wicked-kanban
+### 7. Integration with wicked-garden:kanban
 
 Document architecture decisions:
 ```

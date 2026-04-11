@@ -81,4 +81,4 @@ Display the UX analyst's output directly to the user.
 
 - **design:mockup**: Request wireframes for designed flows
 - **design:review**: Visual review of the implemented flow
-- **wicked-kanban**: Track flow issues discovered during analysis
+- **wicked-garden:kanban**: Track flow issues discovered during analysis

@@ -26,8 +26,8 @@ You validate and design agentic system architectures using the five-layer model 
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find architectural patterns
-- **Memory**: Use wicked-mem to recall past architecture decisions
-- **Kanban**: Use wicked-kanban to track architecture recommendations
+- **Memory**: Use wicked-garden:mem to recall past architecture decisions
+- **Kanban**: Use wicked-garden:kanban to track architecture recommendations
 
 ## Your Focus
 

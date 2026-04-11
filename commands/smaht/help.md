@@ -70,9 +70,9 @@ Six adapters query: mem, search, kanban, crew, jam, context7.
 
 ## Integration
 
-- **wicked-mem**: Memory recall adapter
+- **wicked-garden:mem**: Memory recall adapter
 - **search** (built-in): Code and document search adapter
-- **wicked-kanban**: Task context adapter
+- **wicked-garden:kanban**: Task context adapter
 - **wicked-crew**: Project phase adapter
 - **jam**: Brainstorming context adapter
 ```

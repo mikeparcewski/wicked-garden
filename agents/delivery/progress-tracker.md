@@ -28,8 +28,8 @@ You track progress against milestones, goals, and deadlines — identifying slip
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Reports**: Use /wicked-garden:delivery:report for delivery metrics
-- **Kanban**: Use wicked-kanban for task-level tracking
-- **Memory**: Use wicked-mem for historical progress data
+- **Kanban**: Use wicked-garden:kanban for task-level tracking
+- **Memory**: Use wicked-garden:mem for historical progress data
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk context
 
 If a wicked-* tool is available, prefer it over manual approaches.

@@ -26,8 +26,8 @@ You analyze and optimize performance, cost, and efficiency of agentic systems th
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find performance bottlenecks
-- **Memory**: Use wicked-mem to recall past optimization strategies
-- **Kanban**: Use wicked-kanban to track performance improvements
+- **Memory**: Use wicked-garden:mem to recall past optimization strategies
+- **Kanban**: Use wicked-garden:kanban to track performance improvements
 
 ## Your Focus
 

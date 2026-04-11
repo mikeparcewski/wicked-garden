@@ -27,8 +27,8 @@ Before doing work manually, leverage existing tools:
 
 - **Search**: Use wicked-garden:search to find component usage patterns
 - **Browse**: Use wicked-browse to capture UI screenshots
-- **Memory**: Use wicked-mem to recall design system guidelines
-- **Tracking**: Use wicked-kanban to log UI issues
+- **Memory**: Use wicked-garden:mem to recall design system guidelines
+- **Tracking**: Use wicked-garden:kanban to log UI issues
 
 ## Review Focus Areas
 

@@ -54,9 +54,9 @@ Parse artifact names using `{tier}:{type}:{detail}` convention:
 - Artifacts matching `L4:*`
 - Types: `audit:control-*`
 
-### 5. Check wicked-mem for Decisions
+### 5. Check wicked-garden:mem for Decisions
 
-If wicked-mem available:
+If wicked-garden:mem available:
 ```
 /wicked-garden:mem:recall "gate decision {task}" --limit 5
 ```
@@ -102,7 +102,7 @@ If wicked-mem available:
 | L3 (gates/tests) | {✓/partial/—} |
 | L4 (audit) | {✓/n/a} |
 
-### Related Decisions (from wicked-mem)
+### Related Decisions (from wicked-garden:mem)
 {List any recalled gate decisions}
 ```
 

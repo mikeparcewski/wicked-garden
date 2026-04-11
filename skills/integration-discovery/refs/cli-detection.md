@@ -236,7 +236,7 @@ Please choose (number or name):
 
 ---
 
-## Storing Preferences in wicked-mem
+## Storing Preferences in wicked-garden:mem
 
 After the first tool selection decision, store the preference so future decisions are consistent.
 

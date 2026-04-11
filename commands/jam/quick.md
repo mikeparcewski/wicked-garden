@@ -20,5 +20,5 @@ Kanban tracking (skip silently if kanban unavailable):
 2. After synthesis: /wicked-garden:kanban:comment {task_id} 'Synthesis: {summary}'
 3. On decision: /wicked-garden:kanban:comment {task_id} 'Decision: {decision_record}'
 
-kanban = process, wicked-mem = outcome.")
+kanban = process, wicked-garden:mem = outcome.")
 ```

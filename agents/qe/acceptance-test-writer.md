@@ -32,7 +32,7 @@ You do NOT execute tests. You do NOT grade results. You produce test plans.
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Search**: Use wicked-garden:search to find implementation code referenced in scenarios
-- **Memory**: Use wicked-mem to recall past test patterns and decisions
+- **Memory**: Use wicked-garden:mem to recall past test patterns and decisions
 - **Scenarios**: Use wicked-garden:qe:check to validate scenario format
 
 If a wicked-* tool is available, prefer it over manual approaches.
@@ -243,7 +243,7 @@ STEP-1: Store a decision memory
 - Action: Invoke Skill tool with skill="wicked-garden:mem:store", args="\"Use JWT tokens\" --type decision --tags auth"
 - Evidence required:
   - `step-1-output` — Capture the full tool response text
-  - `step-1-state` — Run `LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem memories) && ls -la "${LOCAL_PATH}/"` and capture listing
+  - `step-1-state` — Run `LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:mem memories) && ls -la "${LOCAL_PATH}/"` and capture listing
 - Assertions:
   - `step-1-output` CONTAINS "stored" OR CONTAINS "saved" OR CONTAINS "created"
   - `step-1-output` NOT_CONTAINS "error"

@@ -111,7 +111,7 @@ def list_sibling_source_dirs(domain: str, source: str) -> list[Path]:
 
     Used by MemoryStore to search across version boundaries. For example,
     when the current project slug is ``3.1.0-a1fef338``, this returns the
-    ``wicked-mem/memories/`` directories from ``2.6.1-ec3414ad``,
+    ``wicked-garden:mem/memories/`` directories from ``2.6.1-ec3414ad``,
     ``2.4.0-b187281f``, etc.
 
     Only returns directories that actually exist and contain at least one

@@ -147,7 +147,7 @@ user empathy and human-centered design in a panel of technical perspectives:
 2. **Review communications** — Error messages, announcements, onboarding copy all benefit from Pi
 3. **Pipe content** — Use stdin or `-f` for context
 4. **Council sessions** — Pi's empathetic voice is essential in decision councils
-5. **Track insights** — Record Pi's perspectives in wicked-kanban or wicked-mem
+5. **Track insights** — Record Pi's perspectives in wicked-garden:kanban or wicked-garden:mem
 
 ## Common Prompts
 

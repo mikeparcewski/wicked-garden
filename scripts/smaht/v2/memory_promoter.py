@@ -2,7 +2,7 @@
 """
 wicked-smaht v2: Memory Promotion Pipeline
 
-Promotes high-value facts from session-local storage to wicked-mem
+Promotes high-value facts from session-local storage to wicked-garden:mem
 for cross-session persistence. Uses type-based filtering and
 idempotent operations to avoid duplicate promotions.
 
@@ -38,7 +38,7 @@ if str(_V2_DIR) not in sys.path:
 from fact_extractor import Fact, FactExtractor
 
 
-# Fact types eligible for promotion to wicked-mem
+# Fact types eligible for promotion to wicked-garden:mem
 PROMOTABLE_TYPES = {"decision", "discovery"}
 
 # Minimum content length for promotion
@@ -77,7 +77,7 @@ def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="ep
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
         lines = ["---"]
-        lines.append("source: wicked-mem")
+        lines.append("source: wicked-garden:mem")
         lines.append(f"memory_type: {mem_type}")
         lines.append(f"memory_tier: {tier}")
         lines.append(f"title: {title}")
@@ -122,7 +122,7 @@ def _run_mem_store(title: str, content: str, mem_type: str = "episodic") -> bool
 
 
 class MemoryPromoter:
-    """Promotes session facts to wicked-mem for cross-session persistence."""
+    """Promotes session facts to wicked-garden:mem for cross-session persistence."""
 
     def __init__(self, session_dir: Path, fact_extractor: FactExtractor):
         self.session_dir = session_dir
@@ -168,7 +168,7 @@ class MemoryPromoter:
         return candidates
 
     def promote(self, dry_run: bool = False) -> dict:
-        """Promote eligible facts to wicked-mem.
+        """Promote eligible facts to wicked-garden:mem.
 
         Args:
             dry_run: If True, return candidates without promoting.

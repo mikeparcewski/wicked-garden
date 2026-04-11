@@ -96,8 +96,8 @@ See [examples](refs/examples.md) for schema format.
 | Plugin | Enhancement |
 |--------|-------------|
 | wicked-garden:data:numbers | Use for SQL-based profiling of large files |
-| wicked-kanban | Document quality issues as tasks |
-| wicked-mem | Store quality patterns across sessions |
+| wicked-garden:kanban | Document quality issues as tasks |
+| wicked-garden:mem | Store quality patterns across sessions |
 
 ## Large Files
 

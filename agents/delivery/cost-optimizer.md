@@ -27,7 +27,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Cost data**: Use wicked-garden:delivery:finops-analyst for current cost analysis
 - **Search**: Use wicked-garden:search to find infrastructure code patterns
-- **Memory**: Use wicked-mem for past optimization results
+- **Memory**: Use wicked-garden:mem for past optimization results
 - **Risk**: Use wicked-garden:delivery:risk-monitor to assess optimization risks
 
 If a wicked-* tool is available, prefer it over manual approaches.

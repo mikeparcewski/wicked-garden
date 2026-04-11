@@ -75,6 +75,6 @@ Return in under 15 seconds with a short findings list.
 
 ## Integration
 
-- **wicked-kanban**: Issues are tracked by the reviewer agent
-- **wicked-mem**: Design token patterns stored for future reviews
+- **wicked-garden:kanban**: Issues are tracked by the reviewer agent
+- **wicked-garden:mem**: Design token patterns stored for future reviews
 - **engineering**: Coordinate fixes with code review

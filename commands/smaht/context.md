@@ -42,7 +42,7 @@ The context package provides structured fields:
 - **decisions**: Prior decisions relevant to this task
 - **files**: File paths in scope
 - **project_state**: Phase, complexity, deliverables
-- **memories**: Relevant memories from wicked-mem
+- **memories**: Relevant memories from wicked-garden:mem
 - **ecosystem**: Installed plugins, available skills (with `--dispatch`)
 
 ### Report

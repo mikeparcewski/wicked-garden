@@ -45,9 +45,9 @@ These canonical paths are passed to executor and reviewer agents so all three ag
 Parse `$ARGUMENTS`:
 
 - **Scenario target**: File path, directory, or glob pattern
-  - Single file: `plugins/wicked-mem/scenarios/01-decision-recall.md`
-  - Directory: `plugins/wicked-mem/scenarios/` (runs all `.md` except README)
-  - Plugin shorthand: `wicked-mem` (finds scenarios dir automatically)
+  - Single file: `plugins/wicked-garden:mem/scenarios/01-decision-recall.md`
+  - Directory: `plugins/wicked-garden:mem/scenarios/` (runs all `.md` except README)
+  - Plugin shorthand: `wicked-garden:mem` (finds scenarios dir automatically)
 - **Phase control**:
   - `--phase all` (default): Run full Write → Execute → Review pipeline
   - `--phase write`: Only generate test plan (for review before execution)
@@ -332,10 +332,10 @@ When running multiple scenarios, aggregate results:
 
 ```bash
 # Full pipeline for one scenario
-/wicked-garden:qe:acceptance plugins/wicked-mem/scenarios/01-decision-recall.md
+/wicked-garden:qe:acceptance plugins/wicked-garden:mem/scenarios/01-decision-recall.md
 
 # Generate test plan only (review before running)
-/wicked-garden:qe:acceptance wicked-mem/01-decision-recall --phase write
+/wicked-garden:qe:acceptance wicked-garden:mem/01-decision-recall --phase write
 
 # Execute with existing plan
 /wicked-garden:qe:acceptance --phase execute --plan /tmp/test-plan.md
@@ -354,7 +354,7 @@ When running multiple scenarios, aggregate results:
 
 - **wicked-crew**: Use during QE phases for evidence-gated quality gates
 - **wicked-scenarios**: Executor delegates E2E CLI steps to `/wicked-garden:qe:run --json` for machine-readable execution artifacts. Writer understands wicked-scenarios format natively.
-- **wicked-kanban**: Track acceptance failures as tasks. When invoked with `--kanban` (or auto-detected when crew is active), creates a kanban project with one task per test plan step, stores evidence inline in kanban artifacts.
+- **wicked-garden:kanban**: Track acceptance failures as tasks. When invoked with `--kanban` (or auto-detected when crew is active), creates a kanban project with one task per test plan step, stores evidence inline in kanban artifacts.
 - **/wg-test**: Delegates to `/wicked-garden:qe:acceptance` as the primary acceptance pipeline. Falls back to `/wicked-garden:qe:run` directly if QE is not installed.
 
 ### Degradation Behavior

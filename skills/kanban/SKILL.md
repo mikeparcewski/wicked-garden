@@ -2,7 +2,7 @@
 name: task-management
 description: |
   Persistent task management through kanban boards with cross-session tracking.
-  Provides guidance for using wicked-kanban for CRUD operations, dependencies,
+  Provides guidance for using wicked-garden:kanban for CRUD operations, dependencies,
   priorities, and sprint management.
 
   Use when: "track tasks", "create a task", "add a todo", "manage tasks",
@@ -107,7 +107,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kan
 
 Filter board-status: `/wicked-garden:kanban:board-status --board-type jam`
 
-Reaching a terminal column on jam or collaboration boards auto-writes a wicked-mem record (`decision` or `finding`). Crew and issues boards do not trigger mem writes.
+Reaching a terminal column on jam or collaboration boards auto-writes a wicked-garden:mem record (`decision` or `finding`). Crew and issues boards do not trigger mem writes.
 
 See `refs/scoped-boards.md` for full column schemas, provisioning rules, and CLI examples.
 
@@ -137,7 +137,7 @@ Access the visual kanban board at `http://localhost:18888`. The web UI provides:
 
 The server auto-starts with the Claude Code session. To start manually:
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run wicked-kanban
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run wicked-garden:kanban
 ```
 
 ## Workflow Example
@@ -165,7 +165,7 @@ See `refs/workflow-patterns.md` for complete workflow examples (feature dev, bug
 
 - **`refs/api-reference.md`** — Core script commands (projects, tasks, initiatives, search)
 - **`refs/api-advanced.md`** — Advanced features (sprints, artifacts, data model)
-- **`refs/scoped-boards.md`** — Full column schemas, provisioning, wicked-mem triggers
+- **`refs/scoped-boards.md`** — Full column schemas, provisioning, wicked-garden:mem triggers
 - **`refs/workflow-patterns.md`** — Common workflow examples (feature dev, bug fix, session resume)
 - **`refs/advanced-patterns.md`** — Sprint planning, dependency graphs, priority filtering
 - **`examples/feature-workflow.md`** — End-to-end feature development workflow example

@@ -26,8 +26,8 @@ You review design artifacts and code structure to assess testability before impl
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Search**: Use wicked-garden:search to find existing interfaces and dependency patterns
-- **Memory**: Use wicked-mem to recall past testability findings
-- **Task tracking**: Use wicked-kanban to update evidence
+- **Memory**: Use wicked-garden:mem to recall past testability findings
+- **Task tracking**: Use wicked-garden:kanban to update evidence
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

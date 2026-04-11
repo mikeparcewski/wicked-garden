@@ -1,5 +1,5 @@
 ---
-description: Setup instructions and usage for wicked-kanban
+description: Setup instructions and usage for wicked-garden:kanban
 ---
 
 # /wicked-garden:kanban:help
@@ -8,7 +8,7 @@ AI-native kanban that serves as the **source of truth** for task management.
 
 ## How It Works
 
-wicked-kanban automatically captures all task activity:
+wicked-garden:kanban automatically captures all task activity:
 
 - **TaskCreate/TaskUpdate** → Synced to kanban via hooks
 - **Git commits** → Linked to active task
@@ -58,7 +58,7 @@ uv run python scripts/_run.py scripts/kanban/kanban.py search "query"
 ## Data Structure
 
 ```
-{SM_LOCAL_ROOT}/wicked-kanban/
+{SM_LOCAL_ROOT}/wicked-garden:kanban/
 ├── config.json              # Repo → project mappings
 ├── active_context.json      # Current task/session
 └── projects/
@@ -72,7 +72,7 @@ uv run python scripts/_run.py scripts/kanban/kanban.py search "query"
 
 Data paths are resolved dynamically by DomainStore. To find the local root:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-kanban
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:kanban
 ```
 
 ## Configuration

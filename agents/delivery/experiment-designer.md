@@ -26,8 +26,8 @@ You design statistically rigorous experiments for feature validation.
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Product**: Use product to understand feature context
-- **Memory**: Use wicked-mem to recall past experiment patterns
-- **Task tracking**: Use wicked-kanban to store experiment plans
+- **Memory**: Use wicked-garden:mem to recall past experiment patterns
+- **Task tracking**: Use wicked-garden:kanban to store experiment plans
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

@@ -34,8 +34,8 @@ Provide strategic business analysis through:
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find similar projects or past ROI analyses
-- **Memory**: Use wicked-mem to recall strategic decisions and outcomes
-- **Kanban**: Use wicked-kanban to track business justification as evidence
+- **Memory**: Use wicked-garden:mem to recall strategic decisions and outcomes
+- **Kanban**: Use wicked-garden:kanban to track business justification as evidence
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

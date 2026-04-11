@@ -23,13 +23,13 @@ You search the memory store and return concise, relevant results.
 
 ## Your Task
 
-Given a query, search `{SM_LOCAL_ROOT}/wicked-mem/` for relevant memories.
+Given a query, search `{SM_LOCAL_ROOT}/wicked-garden:mem/` for relevant memories.
 
 ## Search Strategy
 
 1. Resolve the local path first:
    ```bash
-   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem)
+   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:mem)
    ```
 
 2. Use ripgrep patterns for flexible matching:

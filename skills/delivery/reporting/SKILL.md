@@ -82,7 +82,7 @@ For detailed persona configuration, see [refs/personas.md](refs/personas.md).
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
 | data | Data sampling, SQL queries | Cannot process data |
-| wicked-mem | Cross-session insights | Session-only memory |
+| wicked-garden:mem | Cross-session insights | Session-only memory |
 
 For detailed integration patterns, caching strategy, and storage layout, see [refs/integration.md](refs/integration.md).
 

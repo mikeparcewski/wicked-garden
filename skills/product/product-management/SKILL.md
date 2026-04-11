@@ -76,9 +76,9 @@ Good requirements are:
 
 Works with:
 - **wicked-crew**: Auto-triggered during clarify phase
-- **wicked-kanban**: Stores requirements and acceptance criteria
+- **wicked-garden:kanban**: Stores requirements and acceptance criteria
 - **qe**: Acceptance criteria feed test scenarios
-- **wicked-mem**: Cross-project requirements patterns
+- **wicked-garden:mem**: Cross-project requirements patterns
 
 ## Example Flow
 
@@ -113,7 +113,7 @@ Product management can leverage available integrations by capability:
 | **Project management** | `jira`, `linear`, `github` | Existing tickets/context |
 | **Customer feedback** | `zendesk`, `intercom` | Support ticket insights |
 
-Discover available integrations via capability detection. Use wicked-kanban when no project management integration available.
+Discover available integrations via capability detection. Use wicked-garden:kanban when no project management integration available.
 
 ## Progressive Disclosure
 

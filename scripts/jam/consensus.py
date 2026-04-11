@@ -350,7 +350,7 @@ def synthesize(
 # ---------------------------------------------------------------------------
 
 def format_for_memory(result: ConsensusResult) -> dict:
-    """Format consensus result for storage in wicked-mem.
+    """Format consensus result for storage in wicked-garden:mem.
 
     Returns dict suitable for memory.create() with:
     - content: decision summary

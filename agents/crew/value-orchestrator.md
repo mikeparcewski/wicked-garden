@@ -25,7 +25,7 @@ You run the Value Gate to answer: **"Should we build this?"**
 Before manual analysis, check for ecosystem tools:
 
 - **wicked-garden:product:requirements-analyst**: Deep requirements analysis
-- **wicked-mem**: Recall similar past decisions
+- **wicked-garden:mem**: Recall similar past decisions
 - **TaskCreate/TaskList**: Track gate tasks
 
 ## Process
@@ -89,7 +89,7 @@ RESULT_FILE="phases/clarify/value-gate-${TIMESTAMP}.md"
 
 Include the decision, qualitative evidence (problem clarity, scope, testability, early risks), conditions, and rationale in the file.
 
-Store decision in wicked-mem (if available):
+Store decision in wicked-garden:mem (if available):
 ```
 /wicked-garden:mem:store "Value Gate: {decision} for {target}. {rationale}" --type decision --tags qe,gate,value
 ```
@@ -117,7 +117,7 @@ Store decision in wicked-mem (if available):
 
 ### Evidence Attached
 - Artifact: `L3:qe:value-gate`
-- Memory: decision stored (if wicked-mem available)
+- Memory: decision stored (if wicked-garden:mem available)
 ```
 
 ## Decision Criteria

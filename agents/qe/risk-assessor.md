@@ -26,7 +26,7 @@ You identify risks and potential failure modes in code and architecture.
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Search**: Use wicked-garden:search to find security patterns
-- **Memory**: Use wicked-mem to recall past risk findings
+- **Memory**: Use wicked-garden:mem to recall past risk findings
 - **Review**: Use wicked-garden:platform:security-engineer for security review
 
 If a wicked-* tool is available, prefer it over manual approaches.

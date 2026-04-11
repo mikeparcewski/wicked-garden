@@ -18,7 +18,7 @@ Detailed patterns for discovering integrations by capability category.
 - Link code to issues
 - Track progress
 
-**Fallback**: Use wicked-kanban for local task management
+**Fallback**: Use wicked-garden:kanban for local task management
 
 ---
 

@@ -61,7 +61,7 @@ Dynamic multi-phase workflow engine with signal-based specialist routing. Crew a
 ## Integration
 
 - **All specialist plugins**: Routed to automatically via signal analysis
-- **wicked-kanban**: Task tracking synced via hooks
-- **wicked-mem**: Context and decisions persisted across phases
+- **wicked-garden:kanban**: Task tracking synced via hooks
+- **wicked-garden:mem**: Context and decisions persisted across phases
 - **wicked-smaht**: Context assembly for each phase
 ```

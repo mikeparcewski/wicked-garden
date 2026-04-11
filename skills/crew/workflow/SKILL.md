@@ -157,8 +157,8 @@ crew:phase:approved:success
 
 | Plugin | Enhancement | Fallback |
 |--------|-------------|----------|
-| wicked-kanban | Persistent task board | TodoWrite |
-| wicked-mem | Cross-session learning | Project files |
+| wicked-garden:kanban | Persistent task board | TodoWrite |
+| wicked-garden:mem | Cross-session learning | Project files |
 
 See [Integration Details](refs/integration.md) for usage patterns.
 

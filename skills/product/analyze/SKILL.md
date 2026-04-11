@@ -65,7 +65,7 @@ See [refs/algorithms.md](refs/algorithms.md) for detailed scoring.
 
 1. **Load Feedback Data**:
    ```bash
-   LOCAL_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product)
+   LOCAL_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:product)
    ```
    Then use the **Glob** tool to find feedback files:
    ```
@@ -140,7 +140,7 @@ if event.type == "product:requirements:started":
     emit_signal("voice:analysis:ready", analysis)
 ```
 
-### With wicked-kanban (Link to Tasks)
+### With wicked-garden:kanban (Link to Tasks)
 
 ```python
 # Tag themes with related task IDs via kanban domain API
@@ -150,7 +150,7 @@ theme.related_tasks = tasks
 
 ## Storage
 
-Analysis results stored at: `{local_root}/wicked-product/voice/analysis/{theme}/{date}.md` (resolve via `resolve_path.py wicked-product`)
+Analysis results stored at: `{local_root}/wicked-garden:product/voice/analysis/{theme}/{date}.md` (resolve via `resolve_path.py wicked-garden:product`)
 
 ## Rules
 

@@ -38,7 +38,7 @@ Read from voice data store or recent listen results:
 
 ```bash
 # Resolve product storage root
-PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-product)
+PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:product)
 
 # Check for aggregated feedback
 ls ${PRODUCT_ROOT}/voice/feedback/
@@ -169,8 +169,8 @@ Run `/wicked-garden:product:synthesize` to generate actionable recommendations.
 
 - **wicked-garden:product:listen**: Run first to aggregate feedback
 - **wicked-garden:product:synthesize**: Run after to generate recommendations
-- **wicked-kanban**: Track insights as tasks
-- **wicked-mem**: Store analysis for future reference
+- **wicked-garden:kanban**: Track insights as tasks
+- **wicked-garden:mem**: Store analysis for future reference
 
 ## Example
 

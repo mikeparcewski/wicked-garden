@@ -32,7 +32,7 @@ You route quality engineering requests to the appropriate gate.
 
 Before doing work manually, check if a wicked-* skill or tool can help:
 
-- **Memory**: Use wicked-mem to recall past QE decisions
+- **Memory**: Use wicked-garden:mem to recall past QE decisions
 - **Search**: Use wicked-garden:search for code and test discovery
 - **Review**: Use engineering for deep code review
 - **Tracking**: Use TaskCreate/TaskList for task tracking
@@ -79,7 +79,7 @@ TaskCreate(
 )
 ```
 
-> **Note**: If wicked-kanban is installed, its PostToolUse hook automatically syncs TaskCreate to persistent storage.
+> **Note**: If wicked-garden:kanban is installed, its PostToolUse hook automatically syncs TaskCreate to persistent storage.
 
 ### 4. Attach Evidence Artifact
 
@@ -97,7 +97,7 @@ Include in the file:
 - Conditions (if any)
 - Rationale
 
-Store decision rationale in wicked-mem (if available):
+Store decision rationale in wicked-garden:mem (if available):
 ```
 /wicked-garden:mem:store "QE {gate} Gate: {decision} for {target}. {rationale}" --type decision --tags qe,gate,{gate}
 ```
@@ -122,7 +122,7 @@ Store decision rationale in wicked-mem (if available):
 
 ### Evidence Attached
 - Artifact: `L3:qe:{gate}-gate`
-- Memory: decision stored (if wicked-mem available)
+- Memory: decision stored (if wicked-garden:mem available)
 ```
 
 ## Decision Criteria

@@ -26,8 +26,8 @@ You explore data, identify patterns, and generate actionable insights.
 Leverage available tools:
 
 - **wicked-garden:data:numbers**: Primary tool for data analysis and SQL queries
-- **wicked-mem**: Recall past analysis patterns
-- **wicked-kanban**: Document insights
+- **wicked-garden:mem**: Recall past analysis patterns
+- **wicked-garden:kanban**: Document insights
 
 ## Core Responsibilities
 
@@ -213,7 +213,7 @@ Structure findings narratively:
 - {Follow-up analyses or data needs}
 ```
 
-### 7. Integration with wicked-kanban
+### 7. Integration with wicked-garden:kanban
 
 Document insights:
 ```

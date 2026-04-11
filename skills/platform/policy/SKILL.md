@@ -115,7 +115,7 @@ Recommend:
 
 ## Integration
 
-### With wicked-kanban
+### With wicked-garden:kanban
 
 Create remediation tasks:
 ```bash
@@ -125,7 +125,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kan
   --priority {P0|P1|P2}
 ```
 
-### With wicked-mem
+### With wicked-garden:mem
 
 Store interpretations:
 ```bash

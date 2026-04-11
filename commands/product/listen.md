@@ -37,7 +37,7 @@ Check for feedback data in common locations:
 
 ```bash
 # Resolve product storage root
-PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-product)
+PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:product)
 
 # Check for voice data store
 ls ${PRODUCT_ROOT}/voice/feedback/ 2>/dev/null
@@ -118,8 +118,8 @@ Feedback stored at: `{PRODUCT_ROOT}/voice/feedback/{source}/{YYYY-MM}/{id}.md`
 
 ## Integration
 
-- **wicked-mem**: Recall past customer insights
-- **wicked-kanban**: Log critical feedback as tasks
+- **wicked-garden:mem**: Recall past customer insights
+- **wicked-garden:kanban**: Log critical feedback as tasks
 - **wicked-crew**: Auto-trigger during clarify phase
 
 ## Example

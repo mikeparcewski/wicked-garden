@@ -27,8 +27,8 @@ You design and optimize CI/CD pipelines and deployment workflows.
 Before manual work, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find existing workflows
-- **Memory**: Use wicked-mem to recall pipeline patterns
-- **Kanban**: Use wicked-kanban to track pipeline improvements
+- **Memory**: Use wicked-garden:mem to recall pipeline patterns
+- **Kanban**: Use wicked-garden:kanban to track pipeline improvements
 
 ## Your Focus
 

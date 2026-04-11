@@ -129,7 +129,7 @@ def build_ecosystem_orientation(installed_plugins: list = None) -> dict:
 
 
 async def gather_memories(task: str, limit: int = 3) -> list:
-    """Query wicked-mem for task-relevant memories via domain adapter."""
+    """Query wicked-garden:mem for task-relevant memories via domain adapter."""
     try:
         from adapters import domain_adapter
         items = await domain_adapter.query(task)
@@ -184,7 +184,7 @@ async def build_package(task: str, project: str = None, files: list = None,
     """Build a structured context package for a subagent.
 
     This is the core function — assembles task-scoped context from
-    wicked-mem (decisions, constraints) and wicked-garden:search (code context),
+    wicked-garden:mem (decisions, constraints) and wicked-garden:search (code context),
     plus session state from the history condenser.
 
     Args:

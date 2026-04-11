@@ -126,8 +126,8 @@ Format the agent's output into the standard elicitation report structure.
 ## Integration
 
 Automatically updates:
-- **wicked-kanban**: Stores requirements as comments
-- **wicked-mem**: Learns requirements patterns
+- **wicked-garden:kanban**: Stores requirements as comments
+- **wicked-garden:mem**: Learns requirements patterns
 - **Event**: Emits `[product:requirements:elicited:success]`
 
 ## Example

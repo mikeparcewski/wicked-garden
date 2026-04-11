@@ -29,8 +29,8 @@ Before manual work, leverage available tools:
 
 - **wicked-garden:data:numbers**: For data profiling and SQL queries
 - **wicked-garden:search**: Find existing pipeline code
-- **wicked-kanban**: Track data quality issues
-- **wicked-mem**: Recall past pipeline patterns
+- **wicked-garden:kanban**: Track data quality issues
+- **wicked-garden:mem**: Recall past pipeline patterns
 
 ## Core Responsibilities
 
@@ -163,7 +163,7 @@ WHERE execution_time > 60
 ORDER BY execution_time DESC;
 ```
 
-### 5. Integration with wicked-kanban
+### 5. Integration with wicked-garden:kanban
 
 Document findings:
 ```

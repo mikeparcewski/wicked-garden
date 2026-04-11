@@ -112,7 +112,7 @@ Cannot auto-fix parameter descriptions, behavior changes, or examples (requires 
 ## Integration
 
 Use **wicked-garden:search** to find docs. **wicked-crew** auto-checks after build.
-**wicked-kanban** creates tasks for updates. Git hooks check on commit.
+**wicked-garden:kanban** creates tasks for updates. Git hooks check on commit.
 
 ## Events
 

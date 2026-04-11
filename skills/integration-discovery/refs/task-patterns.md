@@ -32,13 +32,13 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Compliance check | Agent | wicked-garden:platform:compliance-officer |
 | Privacy review | Agent | wicked-garden:platform:privacy-expert |
 | Test scenarios | Agent | wicked-garden:qe:test-strategist |
-| Store findings | Skill | wicked-mem |
+| Store findings | Skill | wicked-garden:mem |
 
 **Recommended flow**:
 1. Spawn security-engineer for primary audit
 2. Add compliance-officer if regulatory concerns
 3. Generate test scenarios for findings
-4. Store critical findings in wicked-mem
+4. Store critical findings in wicked-garden:mem
 
 ---
 
@@ -50,13 +50,13 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 |------|-----------------|---------|
 | Solution design | Agent | wicked-garden:engineering:solution-architect |
 | Data modeling | Agent | wicked-garden:data:data-architect |
-| Store decisions | Skill | wicked-mem |
+| Store decisions | Skill | wicked-garden:mem |
 | Document design | Agent | wicked-garden:engineering:technical-writer |
 
 **Recommended flow**:
 1. Spawn solution-architect for high-level design
 2. Add data-architect if persistence involved
-3. Store decisions in wicked-mem
+3. Store decisions in wicked-garden:mem
 4. Document via technical-writer
 
 ---
@@ -91,7 +91,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Design guidance | Agent | wicked-garden:engineering:solution-architect |
 | Implementation | Agent | wicked-garden:engineering:senior-engineer |
 | Test strategy | Agent | wicked-garden:qe:test-strategist |
-| Track progress | MCP/Skill | atlassian, wicked-kanban |
+| Track progress | MCP/Skill | atlassian, wicked-garden:kanban |
 
 **Recommended flow**:
 1. Clarify requirements with requirements-analyst if vague
@@ -148,13 +148,13 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Error context | MCP | sentry, datadog |
 | Log analysis | Agent | wicked-garden:platform:sre |
 | Communication | MCP | slack, teams |
-| Post-mortem | Skill | wicked-mem |
+| Post-mortem | Skill | wicked-garden:mem |
 
 **Recommended flow**:
 1. Spawn incident-responder immediately
 2. Pull context from observability MCP
 3. Communicate status via chat MCP
-4. Store learnings in wicked-mem
+4. Store learnings in wicked-garden:mem
 
 ---
 

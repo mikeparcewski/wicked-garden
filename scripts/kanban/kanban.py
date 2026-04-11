@@ -53,7 +53,7 @@ BOARD_SCHEMAS: dict = {
     ],
 }
 
-# Terminal swimlane IDs that trigger wicked-mem writes
+# Terminal swimlane IDs that trigger wicked-garden:mem writes
 MEM_TRIGGERS: dict = {
     "jam:decision_made": {"mem_type": "decision", "source": "kanban:jam"},
     "collab:complete":   {"mem_type": "finding",  "source": "kanban:collaboration"},
@@ -498,7 +498,7 @@ class KanbanStore:
                                     old_swimlane, new_swimlane,
                                     old_initiative, new_initiative)
 
-        # Trigger wicked-mem write at terminal columns (jam:decision_made, collab:complete)
+        # Trigger wicked-garden:mem write at terminal columns (jam:decision_made, collab:complete)
         if new_swimlane != old_swimlane and new_swimlane in MEM_TRIGGERS:
             self._trigger_mem_write(project_id, task, MEM_TRIGGERS[new_swimlane])
 

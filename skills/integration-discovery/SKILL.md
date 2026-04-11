@@ -88,8 +88,8 @@ Task: "Implement user authentication"
 |------|------------|----------------|
 | Security review | wicked-garden:platform:security-engineer | Use for auth review |
 | Test strategy | wicked-garden:qe:test-strategist | Use for test planning |
-| Store decisions | wicked-mem | Store auth decisions |
-| Track work | MCP:atlassian or wicked-kanban | Track implementation |
+| Store decisions | wicked-garden:mem | Store auth decisions |
+| Track work | MCP:atlassian or wicked-garden:kanban | Track implementation |
 ```
 
 ### Step 4: Return Recommendations
@@ -105,7 +105,7 @@ Output a clear recommendation the main agent can act on:
 
 **Available but optional**:
 - wicked-garden:qe:test-strategist - If test planning needed
-- wicked-mem - Store decisions for future reference
+- wicked-garden:mem - Store decisions for future reference
 
 **Not available** (consider installing):
 - No analytics MCP found - can't check auth failure metrics
@@ -119,7 +119,7 @@ Quick mappings for common tasks (see refs/task-patterns.md for full list):
 |-----------|---------------------|
 | Code review | engineering agents, github MCP |
 | Security audit | platform agents, qe |
-| Architecture design | engineering agents, wicked-mem |
+| Architecture design | engineering agents, wicked-garden:mem |
 | Bug investigation | engineering agents, error tracking MCP |
 | Feature planning | product agents, project management MCP |
 | Documentation | engineering agents, confluence MCP |

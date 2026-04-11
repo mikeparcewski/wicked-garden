@@ -34,7 +34,7 @@ When asked to analyze customer perspective:
 
 1. **Discover Sources** - Check available feedback:
    ```bash
-   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product voice/feedback)
+   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:product voice/feedback)
    ls "${LOCAL_PATH}/"
    ```
 
@@ -99,10 +99,10 @@ When asked to analyze customer perspective:
 
 ## Integration Awareness
 
-If wicked-mem is available, recall past customer insights:
+If wicked-garden:mem is available, recall past customer insights:
 ```bash
-# Check for wicked-mem
-if [ -d ~/.claude/plugins/wicked-mem ]; then
+# Check for wicked-garden:mem
+if [ -d ~/.claude/plugins/wicked-garden:mem ]; then
   # Recall related customer feedback patterns
 fi
 ```

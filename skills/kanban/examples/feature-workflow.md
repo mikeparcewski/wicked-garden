@@ -1,6 +1,6 @@
 # Example: Feature Development Workflow
 
-> **Note**: Tool names below use short `kanban__` prefix. Actual MCP tool names depend on your server configuration (e.g., `mcp__wicked-kanban__save_project`).
+> **Note**: Tool names below use short `kanban__` prefix. Actual MCP tool names depend on your server configuration (e.g., `mcp__wicked-garden:kanban__save_project`).
 
 Complete example of managing a feature from start to finish.
 

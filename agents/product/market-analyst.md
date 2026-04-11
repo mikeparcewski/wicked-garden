@@ -35,7 +35,7 @@ Provide market intelligence through:
 Before manual research, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find market research or customer data
-- **Memory**: Use wicked-mem to recall market insights and trends
+- **Memory**: Use wicked-garden:mem to recall market insights and trends
 - **Jam**: Use jam to explore market perspectives from different angles
 
 ## Analysis Process

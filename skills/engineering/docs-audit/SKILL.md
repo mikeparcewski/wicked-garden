@@ -143,7 +143,7 @@ Functions without usage examples
 ## Integration
 
 Use **wicked-garden:search** to find code to audit.
-**wicked-kanban** creates documentation tasks for gaps.
+**wicked-garden:kanban** creates documentation tasks for gaps.
 **product** reviews documentation quality.
 
 ## Events

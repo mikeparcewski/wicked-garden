@@ -174,7 +174,7 @@ When all dependencies are in a complete swimlane, the task is automatically unbl
 
 ## Storage
 
-Data stored in: `$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-kanban/projects/`
+Data stored in: `$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-garden:kanban/projects/`
 
 Each project is a separate JSON file: `{project-id}.json`
 

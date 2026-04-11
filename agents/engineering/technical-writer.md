@@ -273,7 +273,7 @@ Auto-engaged after build:
 - Check for stale docs
 - Flag missing examples
 
-### With wicked-kanban
+### With wicked-garden:kanban
 
 Track documentation tasks:
 - Document generation tasks

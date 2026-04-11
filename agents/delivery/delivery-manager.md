@@ -27,8 +27,8 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Reports**: Use /wicked-garden:delivery:report for data-driven analysis
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk assessment
-- **Kanban**: Use wicked-kanban for task tracking
-- **Memory**: Use wicked-mem for historical sprint data
+- **Kanban**: Use wicked-garden:kanban for task tracking
+- **Memory**: Use wicked-garden:mem for historical sprint data
 - **Product**: Use product for requirements context
 
 If a wicked-* tool is available, prefer it over manual approaches.

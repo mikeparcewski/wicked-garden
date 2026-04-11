@@ -37,7 +37,7 @@ def resolve_tool(domain: str, hook_mode: bool = False) -> Optional[str]:
     """Return the external tool name to use for *domain*, or None for local.
 
     Args:
-        domain:    Plugin domain, e.g. "wicked-kanban", "wicked-mem".
+        domain:    Plugin domain, e.g. "wicked-kanban", "wicked-garden:mem".
         hook_mode: When True, skip discovery and return None immediately so
                    hook scripts stay within the 5-second timing budget.
 
@@ -297,7 +297,7 @@ def _store_preference(domain: str, tool: str) -> None:
         title = f"Tool preference: {domain} → {tool}"
 
         lines = ["---"]
-        lines.append("source: wicked-mem")
+        lines.append("source: wicked-garden:mem")
         lines.append("memory_type: preference")
         lines.append("memory_tier: semantic")
         lines.append(f"title: {title}")

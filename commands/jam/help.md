@@ -65,7 +65,7 @@ AI-powered brainstorming with dynamic focus groups.
 
 ## Integration
 
-- **wicked-mem**: Recalls prior context, stores insights
+- **wicked-garden:mem**: Recalls prior context, stores insights
 - **wicked-crew**: Called during clarify phase
 
 ## Tips

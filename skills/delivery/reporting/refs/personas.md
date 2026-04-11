@@ -50,7 +50,7 @@ Requires:
 - **data**: Data sampling, schema detection, SQL queries
 
 Optional:
-- **wicked-mem**: Memory storage for cross-session insights
+- **wicked-garden:mem**: Memory storage for cross-session insights
 
 ## Workflow
 
@@ -60,5 +60,5 @@ Optional:
 4. **Persona Selection**: Generate personas via utils skill
 5. **Analysis**: Run persona-specific queries
 6. **Report Generation**: Create markdown reports per perspective
-7. **Caching**: Store results in wicked-mem
+7. **Caching**: Store results in wicked-garden:mem
 8. **Output**: Write reports with manifest

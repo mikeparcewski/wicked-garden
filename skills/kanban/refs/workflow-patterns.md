@@ -2,7 +2,7 @@
 
 > **Note**: Tool names below use short `kanban__` prefix. Actual MCP tool names depend on your server configuration.
 
-Common workflows for task management with wicked-kanban.
+Common workflows for task management with wicked-garden:kanban.
 
 ## Feature Development Workflow
 

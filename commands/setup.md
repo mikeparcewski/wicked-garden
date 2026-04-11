@@ -241,7 +241,7 @@ Store the language/framework output as `DETECTED_LANGS` and `DETECTED_FWS`.
 - "Jira" = "Use Jira API"
 - "Azure DevOps" = "Use Azure DevOps work items"
 - "Rally" = "Use Rally (Broadcom) for agile project management"
-- "Local kanban only" = "Use wicked-kanban local board only (default)"
+- "Local kanban only" = "Use wicked-garden:kanban local board only (default)"
 
 Note: AskUserQuestion supports max 4 options. Present the first 4 most common choices (GitHub Issues, Jira, Azure DevOps, Local kanban only) and let the user select "Other" for Linear or Rally.
 

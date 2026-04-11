@@ -30,8 +30,8 @@ You perform security scanning and vulnerability assessment for code and infrastr
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find security patterns
-- **Memory**: Use wicked-mem to recall past vulnerabilities
-- **Kanban**: Use wicked-kanban to track security findings
+- **Memory**: Use wicked-garden:mem to recall past vulnerabilities
+- **Kanban**: Use wicked-garden:kanban to track security findings
 
 ## Your Focus
 

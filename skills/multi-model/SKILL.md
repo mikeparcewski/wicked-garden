@@ -4,7 +4,7 @@ description: |
   Multi-model AI collaboration: discover installed LLM CLIs and orchestrate
   council sessions, cross-model reviews, and diverse perspective gathering.
   Detects codex, copilot, gemini, opencode, and pi CLIs at runtime via PATH discovery.
-  Decisions stored in wicked-mem. Transcripts persisted via jam scripts.
+  Decisions stored in wicked-garden:mem. Transcripts persisted via jam scripts.
 
   Use when:
   - Running multi-model analysis or design review
@@ -102,7 +102,7 @@ Council responses are persisted as transcript entries:
 - Synthesis appended as `entry_type: synthesis`
 - Retrievable via `/jam:transcript` and `/jam:thinking`
 
-### Manual (via wicked-mem)
+### Manual (via wicked-garden:mem)
 
 Store decisions with full attribution:
 

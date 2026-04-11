@@ -26,9 +26,9 @@ You help new developers get up to speed on a project by analyzing delivery data,
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Delivery reports**: Use /wicked-garden:delivery:report for team health overview
-- **Memory**: Use wicked-mem to recall team conventions and past decisions
+- **Memory**: Use wicked-garden:mem to recall team conventions and past decisions
 - **Search**: Use wicked-garden:search to navigate the codebase
-- **Kanban**: Use wicked-kanban for current task board state
+- **Kanban**: Use wicked-garden:kanban for current task board state
 
 If a wicked-* tool is available, prefer it over manual approaches.
 
@@ -43,12 +43,12 @@ Collect available project data:
 /wicked-garden:delivery:report {data_file}
 ```
 
-**From kanban** (if wicked-kanban installed):
+**From kanban** (if wicked-garden:kanban installed):
 ```
 /wicked-garden:kanban:board-status
 ```
 
-**From memory** (if wicked-mem installed):
+**From memory** (if wicked-garden:mem installed):
 ```
 /wicked-garden:mem:recall "team conventions"
 /wicked-garden:mem:recall "architecture decisions"

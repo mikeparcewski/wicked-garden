@@ -49,9 +49,9 @@ TaskList()  # filter by subject: (?i)^{phase}[\s:-].*{project-name}
 TaskGet(taskId="{id}")
 ```
 
-**Automatic sync**: If wicked-kanban is installed, its PostToolUse hook automatically syncs all TaskCreate/TaskUpdate fields to persistent kanban storage. No explicit kanban calls needed.
+**Automatic sync**: If wicked-garden:kanban is installed, its PostToolUse hook automatically syncs all TaskCreate/TaskUpdate fields to persistent kanban storage. No explicit kanban calls needed.
 
-## wicked-mem
+## wicked-garden:mem
 
 **When available**: Cross-session learning
 
@@ -79,9 +79,9 @@ TaskGet(taskId="{id}")
 
 ## Detection Pattern
 
-Crew uses Claude's native task tools (TaskCreate, TaskUpdate, TaskList, TaskGet) directly — no plugin detection needed for task management. Utility plugins like wicked-kanban enhance this automatically via hooks.
+Crew uses Claude's native task tools (TaskCreate, TaskUpdate, TaskList, TaskGet) directly — no plugin detection needed for task management. Utility plugins like wicked-garden:kanban enhance this automatically via hooks.
 
-For optional utility plugins (wicked-mem), use graceful degradation:
+For optional utility plugins (wicked-garden:mem), use graceful degradation:
 
 ```python
 # Check if a utility plugin command is available
@@ -90,7 +90,7 @@ For optional utility plugins (wicked-mem), use graceful degradation:
 
 ```
 # In markdown commands, use conditional phrasing:
-# "If wicked-mem is available:" → /wicked-garden:mem:store ...
+# "If wicked-garden:mem is available:" → /wicked-garden:mem:store ...
 # Otherwise, skip the step (no fallback needed)
 ```
 

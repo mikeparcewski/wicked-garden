@@ -46,7 +46,7 @@ Use the Write tool to create the file at `$HOME/.wicked-brain/memories/{tier}/me
 
 ```markdown
 ---
-source: wicked-mem
+source: wicked-garden:mem
 memory_type: {type}
 memory_tier: {tier}
 title: "{title}"

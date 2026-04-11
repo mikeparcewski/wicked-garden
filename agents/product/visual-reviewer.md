@@ -28,7 +28,7 @@ system adherence, visual consistency, spacing, typography, and color correctness
 Before manual analysis, leverage existing tools:
 
 - **Search**: Use wicked-garden:search to find hardcoded values: `wicked-garden:search "#[0-9a-fA-F]{3,6}"`
-- **Memory**: Use wicked-mem to recall the project's design tokens and system
+- **Memory**: Use wicked-garden:mem to recall the project's design tokens and system
 - **Screenshot**: Read PNG/JPG files directly to review rendered output
 
 ## Review Process

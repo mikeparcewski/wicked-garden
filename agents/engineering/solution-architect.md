@@ -187,7 +187,7 @@ Informs test strategy:
 - Highlights failure modes
 - Documents assumptions to validate
 
-### With wicked-kanban
+### With wicked-garden:kanban
 
 Tracks architecture tasks:
 - Break down architecture work

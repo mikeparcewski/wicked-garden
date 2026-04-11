@@ -97,7 +97,7 @@ Uses DuckDB to query files directly. See [refs/examples.md](refs/examples.md) fo
 
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
-| wicked-mem | Store analysis insights | Session-only memory |
+| wicked-garden:mem | Store analysis insights | Session-only memory |
 | delivery | Data source for reports | Works standalone |
 
 ## Reference

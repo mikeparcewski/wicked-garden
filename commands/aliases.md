@@ -43,11 +43,11 @@ If you typed an old command name, here are the new equivalents:
 ## Memory
 | Old | New |
 |-----|-----|
-| `/wicked-mem:store` | `/wicked-garden:mem:store` |
-| `/wicked-mem:recall` | `/wicked-garden:mem:recall` |
-| `/wicked-mem:forget` | `/wicked-garden:mem:forget` |
-| `/wicked-mem:review` | `/wicked-garden:mem:review` |
-| `/wicked-mem:stats` | `/wicked-garden:mem:stats` |
+| `/wicked-garden:mem:store` | `/wicked-garden:mem:store` |
+| `/wicked-garden:mem:recall` | `/wicked-garden:mem:recall` |
+| `/wicked-garden:mem:forget` | `/wicked-garden:mem:forget` |
+| `/wicked-garden:mem:review` | `/wicked-garden:mem:review` |
+| `/wicked-garden:mem:stats` | `/wicked-garden:mem:stats` |
 
 ## Platform
 | Old | New |
@@ -61,12 +61,12 @@ If you typed an old command name, here are the new equivalents:
 ## Product
 | Old | New |
 |-----|-----|
-| `/wicked-product:elicit` | `/wicked-garden:product:elicit` |
-| `/wicked-product:listen` | `/wicked-garden:product:listen` |
-| `/wicked-product:analyze` | `/wicked-garden:product:analyze` |
-| `/wicked-product:synthesize` | `/wicked-garden:product:synthesize` |
-| `/wicked-product:ux-review` | `/wicked-garden:product:ux-review` |
-| `/wicked-product:strategy` | `/wicked-garden:product:strategy` |
+| `/wicked-garden:product:elicit` | `/wicked-garden:product:elicit` |
+| `/wicked-garden:product:listen` | `/wicked-garden:product:listen` |
+| `/wicked-garden:product:analyze` | `/wicked-garden:product:analyze` |
+| `/wicked-garden:product:synthesize` | `/wicked-garden:product:synthesize` |
+| `/wicked-garden:product:ux-review` | `/wicked-garden:product:ux-review` |
+| `/wicked-garden:product:strategy` | `/wicked-garden:product:strategy` |
 
 ## QE
 | Old | New |
@@ -100,9 +100,9 @@ If you typed an old command name, here are the new equivalents:
 ## Kanban
 | Old | New |
 |-----|-----|
-| `/wicked-kanban:board-status` | `/wicked-garden:kanban:board-status` |
-| `/wicked-kanban:new-task` | `/wicked-garden:kanban:new-task` |
-| `/wicked-kanban:comment` | `/wicked-garden:kanban:comment` |
+| `/wicked-garden:kanban:board-status` | `/wicked-garden:kanban:board-status` |
+| `/wicked-garden:kanban:new-task` | `/wicked-garden:kanban:new-task` |
+| `/wicked-garden:kanban:comment` | `/wicked-garden:kanban:comment` |
 
 ## Agentic
 | Old | New |

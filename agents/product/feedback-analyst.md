@@ -73,7 +73,7 @@ When asked to analyze feedback:
 1. **Scope the Data**:
    ```bash
    # Resolve local path
-   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-product voice/feedback)
+   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:product voice/feedback)
 
    # Check available feedback
    ls -la "${LOCAL_PATH}/"

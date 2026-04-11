@@ -45,7 +45,7 @@ _DOMAIN_DIRS = {
     "smaht": "wicked-smaht",
     "crew": "wicked-crew",
     "kanban": "wicked-kanban",
-    "mem": "wicked-mem",
+    "mem": "wicked-garden:mem",
     "search": "wicked-garden:search",
     "delivery": "wicked-delivery",
     "jam": "wicked-jam",

@@ -34,7 +34,7 @@ Guide structured brainstorming through:
 
 Before assembling personas, gather real evidence from the ecosystem:
 
-**Step 1a: Recall past decisions** (if wicked-mem available)
+**Step 1a: Recall past decisions** (if wicked-garden:mem available)
 ```
 Task(subagent_type="wicked-garden:mem:memory-recaller",
      prompt="Search for past decisions related to: {topic}. Return decisions, outcomes, and any gotchas.")
@@ -47,7 +47,7 @@ Use Grep or wicked-garden:search to find relevant code patterns, existing implem
 ```
 This surfaces: "There are 3 existing cache implementations in the codebase using pattern X."
 
-**Step 1c: Check past brainstorm outcomes** (if wicked-mem available)
+**Step 1c: Check past brainstorm outcomes** (if wicked-garden:mem available)
 ```
 Task(subagent_type="wicked-garden:mem:memory-recaller",
      prompt="Search for brainstorm outcomes and decision results tagged with 'jam,outcome'. Return what worked and what didn't.")
@@ -230,7 +230,7 @@ Skip this step if no external CLIs are available. This is graceful enhancement, 
 
 After synthesis, automatically store a structured decision record:
 
-1. **Check if wicked-mem is available** (graceful degradation)
+1. **Check if wicked-garden:mem is available** (graceful degradation)
 2. **If available**: Store via `/wicked-garden:mem:store` with:
    - **content**: "Decision: {topic}\nChosen: {recommended option from synthesis}\nRationale: {key reasoning}\nAlternatives considered: {other options}\nConfidence: {HIGH/MEDIUM/LOW}\nEvidence used: {summary of evidence brief}\nPersonas: {list of personas}"
    - **type**: decision
@@ -277,4 +277,4 @@ Put synthesis FIRST (context efficiency):
 - **Build, don't repeat**: Each round adds value
 - **Synthesis matters**: Don't just summarize, distill insights
 - **Evidence over opinions**: When evidence is available, personas cite it — "Based on the existing Redis implementation..." not "I think Redis might work"
-- **Always store decisions**: After synthesis, store the decision record (wicked-mem if available, inline if not)
+- **Always store decisions**: After synthesis, store the decision record (wicked-garden:mem if available, inline if not)

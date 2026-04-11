@@ -25,10 +25,10 @@ You analyze user experience from a holistic perspective - flows, interactions, i
 
 Before doing work manually, leverage existing tools:
 
-- **Memory**: Use wicked-mem to recall past UX decisions and patterns
+- **Memory**: Use wicked-garden:mem to recall past UX decisions and patterns
 - **Search**: Use wicked-garden:search to find similar flows or components
 - **Browse**: Use wicked-browse to capture screenshots for review
-- **Tracking**: Use wicked-kanban to log UX issues
+- **Tracking**: Use wicked-garden:kanban to log UX issues
 
 ## Review Focus Areas
 

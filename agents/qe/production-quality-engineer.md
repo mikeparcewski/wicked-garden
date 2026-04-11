@@ -26,9 +26,9 @@ rather than infrastructure operations. Coordinate with platform SRE for infra co
 
 Before doing work manually, check if a wicked-* skill or tool can help:
 
-- **Memory**: Use wicked-mem to recall SLO baselines and past incident patterns
+- **Memory**: Use wicked-garden:mem to recall SLO baselines and past incident patterns
 - **Search**: Use wicked-garden:search to find monitoring configuration and runbooks
-- **Task tracking**: Use wicked-kanban to update evidence
+- **Task tracking**: Use wicked-garden:kanban to update evidence
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

@@ -100,7 +100,7 @@ Include recalled learnings in the project context. They inform signal analysis, 
    - `package.json`, `pyproject.toml`, `Cargo.toml` for tech stack
    - `.claude-plugin/plugin.json` if it's a plugin project
 
-2. **Query memories** (if wicked-mem available):
+2. **Query memories** (if wicked-garden:mem available):
    ```
    /wicked-garden:mem:recall "project type and quality dimensions for this codebase" --limit 5
    /wicked-garden:mem:recall --tags onboarding --limit 10

@@ -293,8 +293,8 @@ Run `/wicked-garden:product:strategy {target} --focus all` for complete analysis
 
 - **wicked-garden:product:elicit**: Feed requirements into strategy
 - **wicked-crew**: Strategic analysis in clarify phase
-- **wicked-kanban**: Track strategic decisions
-- **wicked-mem**: Store decisions for future reference
+- **wicked-garden:kanban**: Track strategic decisions
+- **wicked-garden:mem**: Store decisions for future reference
 
 ## Example
 

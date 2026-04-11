@@ -16,7 +16,7 @@ Cross-AI context requires external coordination.
 
 ```
 ┌─────────────────────────────────────────┐
-│  Shared Context (wicked-kanban)         │  ← All AIs can reference
+│  Shared Context (wicked-garden:kanban)         │  ← All AIs can reference
 ├─────────────────────────────────────────┤
 │  Per-AI Session State                   │  ← CLI-specific memory
 ├─────────────────────────────────────────┤
@@ -26,7 +26,7 @@ Cross-AI context requires external coordination.
 
 ## Strategy 1: Kanban as Shared Memory
 
-Use a wicked-kanban task as the source of truth all AIs reference.
+Use a wicked-garden:kanban task as the source of truth all AIs reference.
 
 ### Setup
 

@@ -111,7 +111,7 @@ def _check_session_outcome() -> list:
 # ---------------------------------------------------------------------------
 
 def _run_memory_promotion(session_id: str) -> list:
-    """Promote high-value facts from the smaht session to wicked-mem.
+    """Promote high-value facts from the smaht session to wicked-garden:mem.
 
     Returns a list of message strings (empty when nothing was promoted or on
     any error). Always fails open — exceptions are caught and logged to stderr.

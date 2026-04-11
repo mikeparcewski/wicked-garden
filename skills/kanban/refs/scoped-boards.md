@@ -1,6 +1,6 @@
 # Kanban Scoped Boards
 
-Deep reference for the scoped-board system: column schemas, swimlane provisioning, backward compatibility, wicked-mem triggers, and CLI examples.
+Deep reference for the scoped-board system: column schemas, swimlane provisioning, backward compatibility, wicked-garden:mem triggers, and CLI examples.
 
 ---
 
@@ -110,7 +110,7 @@ No data migration is required. The inference runs on every read.
 
 ---
 
-## wicked-mem Integration
+## wicked-garden:mem Integration
 
 When a task is moved to a terminal column on certain board types, a memory record is written via `_trigger_mem_write()` inside `update_task()`.
 
@@ -173,7 +173,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TA
 # Synthesize
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane jam:synthesized
 
-# Reach decision — triggers wicked-mem write
+# Reach decision — triggers wicked-garden:mem write
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane jam:decision_made
 ```
 
@@ -183,7 +183,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TA
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane collab:setup
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane collab:in_progress
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane collab:review
-# Triggers wicked-mem write
+# Triggers wicked-garden:mem write
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py update-task PROJECT_ID TASK_ID --swimlane collab:complete
 ```
 

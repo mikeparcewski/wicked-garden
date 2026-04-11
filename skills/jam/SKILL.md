@@ -4,7 +4,7 @@ description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
   This skill should be used when the user wants to brainstorm, explore ideas,
   get feedback on concepts, or run a focus group discussion.
-  Sessions are tracked in kanban (process) and stored in wicked-mem (outcome).
+  Sessions are tracked in kanban (process) and stored in wicked-garden:mem (outcome).
 
   Use when: "brainstorm this", "explore ideas", "get different perspectives",
   "focus group", "what do you think about", "pros and cons"
@@ -122,7 +122,7 @@ Bad synthesis:
 
 ## Integration
 
-### With wicked-mem
+### With wicked-garden:mem
 
 At session start:
 ```python
@@ -136,7 +136,7 @@ if user_approves:
     mem_store(insights, type="decision", tags=[topic])  # via /wicked-garden:mem:store
 ```
 
-### With wicked-kanban
+### With wicked-garden:kanban
 
 Sessions are tracked in kanban for process visibility:
 
@@ -155,7 +155,7 @@ Sessions are tracked in kanban for process visibility:
 ```
 
 Wrap all kanban calls in graceful degradation — if kanban unavailable, skip silently.
-Kanban tracks process; wicked-mem stores outcomes. Both can coexist.
+Kanban tracks process; wicked-garden:mem stores outcomes. Both can coexist.
 
 ### With wicked-crew
 

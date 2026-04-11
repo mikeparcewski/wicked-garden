@@ -5,7 +5,7 @@ argument-hint: "<topic> [--personas list] [--rounds n] [--converge fast]"
 
 # /wicked-garden:jam:brainstorm
 
-Start a full brainstorm with evidence-backed perspectives. The facilitator gathers evidence from the ecosystem (past decisions, code context, brainstorm outcomes) before assembling personas, so they argue from data — not just opinions. After synthesis, a structured decision record is automatically stored in wicked-mem for organizational memory.
+Start a full brainstorm with evidence-backed perspectives. The facilitator gathers evidence from the ecosystem (past decisions, code context, brainstorm outcomes) before assembling personas, so they argue from data — not just opinions. After synthesis, a structured decision record is automatically stored in wicked-garden:mem for organizational memory.
 
 ## Convergence Modes
 
@@ -30,5 +30,5 @@ Kanban tracking (skip silently if kanban unavailable):
 3. After synthesis: /wicked-garden:kanban:comment {task_id} 'Synthesis: {summary}'
 4. On decision: /wicked-garden:kanban:comment {task_id} 'Decision: {decision_record}'
 
-Continue storing outcomes in wicked-mem as before (kanban = process, mem = outcome).")
+Continue storing outcomes in wicked-garden:mem as before (kanban = process, mem = outcome).")
 ```

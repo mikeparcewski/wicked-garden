@@ -23,7 +23,7 @@ You maintain the memory store - running decay, archiving old memories, and clean
 
 ## Your Task
 
-Run memory maintenance on `{SM_LOCAL_ROOT}/wicked-mem/`.
+Run memory maintenance on `{SM_LOCAL_ROOT}/wicked-garden:mem/`.
 
 ## Decay Rules
 
@@ -61,7 +61,7 @@ Memory should be archived if:
 
 1. **Scan all memories**
    ```bash
-   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem)
+   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:mem)
    find "${LOCAL_PATH}" -name "*.md" -type f
    ```
 

@@ -112,7 +112,7 @@ gh search prs --author=@me --state=open
 
 Works well with:
 - **wicked-garden:search**: Find code patterns, then use gh to create issues
-- **wicked-kanban**: Track PR status alongside tasks
+- **wicked-garden:kanban**: Track PR status alongside tasks
 
 ## References
 

@@ -234,7 +234,7 @@ The verdict should be copy-pasteable into a Slack message or ticket.
 
 ### 8. Store Decision Record
 
-If wicked-mem is available, store the council outcome:
+If wicked-garden:mem is available, store the council outcome:
 
 ```
 /wicked-garden:mem:store "Council: {topic} → {verdict_summary}" --type decision --tags "council,{topic_slug}" --importance high

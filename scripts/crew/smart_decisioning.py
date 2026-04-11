@@ -698,7 +698,7 @@ class SignalAnalysis:
     archetype_adjustments_applied: Dict = field(default_factory=dict)  # What adjustments were made
     flags: Dict[str, bool] = field(default_factory=dict)
     overrides_applied: Dict = field(default_factory=dict)
-    memory_payload: Optional[Dict] = field(default=None)  # For caller to store via /wicked-mem:store
+    memory_payload: Optional[Dict] = field(default=None)  # For caller to store via /wicked-garden:mem:store
     # Normalized scoring model fields (Issue #201 — additive, backward-compatible)
     normalized_dimensions: Dict[str, float] = field(default_factory=dict)  # 8-dim normalized score
     weighted_risk_index: float = 0.0                # Single composite [0.0, 1.0]
@@ -1444,7 +1444,7 @@ def _log_decision(analysis: 'SignalAnalysis', input_length: int) -> None:
 
     Every call stores to local JSON storage.
     Significant decisions get a memory_payload attached to the SignalAnalysis
-    for the CALLER (a Claude command) to store via /wicked-mem:store using
+    for the CALLER (a Claude command) to store via /wicked-garden:mem:store using
     Claude's native tool system — scripts never call other plugins directly.
     """
     try:

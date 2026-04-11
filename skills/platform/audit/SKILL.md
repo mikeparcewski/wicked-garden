@@ -113,7 +113,7 @@ Create report with:
 
 ## Integration
 
-### With wicked-kanban
+### With wicked-garden:kanban
 
 Store evidence as artifacts:
 ```bash

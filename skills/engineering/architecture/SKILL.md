@@ -81,7 +81,7 @@ Architecture informs test strategy:
 - Failure modes
 - Performance targets
 
-### With wicked-kanban
+### With wicked-garden:kanban
 
 Track work with ADR links:
 ```bash

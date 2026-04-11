@@ -91,7 +91,7 @@ See [refs/journey-mapping.md](refs/journey-mapping.md) for stage analysis.
 
 ## Synthesis Process
 
-1. Load theme and sentiment analysis from the product voice analysis directory (resolved via `resolve_path.py wicked-product`)
+1. Load theme and sentiment analysis from the product voice analysis directory (resolved via `resolve_path.py wicked-garden:product`)
 2. Sort themes by priority score, filter by threshold
 3. Generate recommendations: theme → action, score by impact/effort
 4. Map to customer journey stages, identify friction points
@@ -100,8 +100,8 @@ See [refs/journey-mapping.md](refs/journey-mapping.md) for stage analysis.
 ## Integration
 
 **wicked-crew**: Auto-inject synthesis into `product:requirements:started` events
-**wicked-mem**: Store high-priority insights as decision memories
-**wicked-kanban**: Link recommendations to roadmap tasks
+**wicked-garden:mem**: Store high-priority insights as decision memories
+**wicked-garden:kanban**: Link recommendations to roadmap tasks
 
 ## Rules
 

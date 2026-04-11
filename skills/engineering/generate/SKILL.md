@@ -104,7 +104,7 @@ Read project metadata from `package.json` or `pyproject.toml` for README generat
 ## Integration
 
 Use **wicked-garden:search** to find code to document.
-Use **wicked-mem** to learn and maintain project doc style.
+Use **wicked-garden:mem** to learn and maintain project doc style.
 
 ## Events
 

@@ -125,7 +125,7 @@ GEMINI_REVIEW=$(cat docs/payment-design.md | gemini "Architecture critique")
 2. **Use for long docs** — Leverage Gemini's context window for large inputs
 3. **Be specific** — Focused prompts yield more actionable output
 4. **Compare perspectives** — Pair Gemini broad analysis with Codex code-specific review
-5. **Track decisions** — Use wicked-kanban and wicked-mem for team visibility
+5. **Track decisions** — Use wicked-garden:kanban and wicked-garden:mem for team visibility
 
 ## Session Management
 

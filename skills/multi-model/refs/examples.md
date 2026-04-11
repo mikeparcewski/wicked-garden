@@ -207,7 +207,7 @@ and architectural issues. Be specific and actionable."
 [Final decision and rationale]
 ```
 
-## Storing Decisions in wicked-mem
+## Storing Decisions in wicked-garden:mem
 
 After synthesis, persist the decision:
 

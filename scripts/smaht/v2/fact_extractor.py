@@ -215,7 +215,7 @@ class FactExtractor:
         return self.facts[-n:]
 
     def get_promotable_facts(self) -> list[Fact]:
-        """Get facts suitable for promotion to wicked-mem.
+        """Get facts suitable for promotion to wicked-garden:mem.
 
         Criteria: decisions and discoveries are the most valuable for
         cross-session persistence. Artifacts and problems solved are

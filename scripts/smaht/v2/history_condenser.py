@@ -63,7 +63,7 @@ class SessionSummary:
     Beyond topics/decisions/preferences, tracks working state:
     current task, active constraints, file scope, and open questions.
     This is the L2 cache between the rolling turn buffer (L1) and
-    long-term memory in wicked-mem (L3).
+    long-term memory in wicked-garden:mem (L3).
     """
     topics: list[str] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
@@ -561,10 +561,10 @@ class HistoryCondenser:
         return state
 
     def promote_to_memory(self, dry_run: bool = False) -> dict:
-        """Promote high-value facts to wicked-mem.
+        """Promote high-value facts to wicked-garden:mem.
 
         Called on session end or on demand to push decisions/discoveries
-        to wicked-mem for cross-session persistence.
+        to wicked-garden:mem for cross-session persistence.
         """
         if not self.fact_extractor:
             return {"status": "fact_extractor_not_available"}
@@ -620,7 +620,7 @@ class HistoryCondenser:
 
         self._atomic_write(meta_path, json.dumps(meta, indent=2))
 
-        # Promote facts to wicked-mem on session end
+        # Promote facts to wicked-garden:mem on session end
         try:
             self.promote_to_memory()
         except Exception:

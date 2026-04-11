@@ -13,9 +13,9 @@ How to maintain audit trails for multi-AI conversations. Essential for complianc
 
 ```
 ┌─────────────────────────────────────────┐
-│  wicked-mem (long-term decisions)       │  ← Persist important decisions
+│  wicked-garden:mem (long-term decisions)       │  ← Persist important decisions
 ├─────────────────────────────────────────┤
-│  wicked-kanban (conversation tracking)  │  ← Track active discussions
+│  wicked-garden:kanban (conversation tracking)  │  ← Track active discussions
 ├─────────────────────────────────────────┤
 │  Local logs (session artifacts)         │  ← Raw AI outputs
 └─────────────────────────────────────────┘
@@ -65,7 +65,7 @@ jq -n \
 
 ## Level 2: Kanban Task Tracking
 
-Use wicked-kanban for active conversations that need team visibility.
+Use wicked-garden:kanban for active conversations that need team visibility.
 
 ### Creating an Auditable Task
 
@@ -117,9 +117,9 @@ Model: ${MODEL} | Logged by: $(whoami)"
 }
 ```
 
-## Level 3: Decision Persistence (wicked-mem)
+## Level 3: Decision Persistence (wicked-garden:mem)
 
-For decisions that matter long-term, persist to wicked-mem.
+For decisions that matter long-term, persist to wicked-garden:mem.
 
 ### What to Store
 
@@ -239,7 +239,7 @@ Change ticket: JIRA-456" \
 | Need | Solution |
 |------|----------|
 | Raw AI outputs | Local file logging |
-| Team visibility | wicked-kanban comments |
-| Long-term decisions | wicked-mem storage |
+| Team visibility | wicked-garden:kanban comments |
+| Long-term decisions | wicked-garden:mem storage |
 | Formal compliance | Audit record template |
 | Cross-reference | Link task ID in all artifacts |

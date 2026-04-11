@@ -65,7 +65,7 @@ Reports and cache stored in:
 
 Cache stored via wicked-garden:mem
 ```
-.something-wicked/wicked-garden/local/wicked-mem/namespaces/delivery/
+.something-wicked/wicked-garden/local/wicked-garden:mem/namespaces/delivery/
 ├── index.json
 └── data/
     ├── analysis:{hash}:{persona}.json

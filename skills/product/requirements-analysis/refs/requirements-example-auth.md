@@ -238,7 +238,7 @@ Build a secure authentication system supporting email/password login with passwo
 - **Source Document**: outcome.md
 - **Design Phase**: phases/design/auth-architecture.md
 - **Test Scenarios**: phases/qe/auth-test-scenarios.md
-- **Kanban**: wicked-kanban tasks tagged "auth"
+- **Kanban**: wicked-garden:kanban tasks tagged "auth"
 - **Memory**: Tags: auth, security, user-management
 
 ## Appendices

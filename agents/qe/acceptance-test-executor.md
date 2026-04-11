@@ -59,7 +59,7 @@ Delegate CLI execution to `/wicked-garden:qe:run --json`. The executor STILL fol
 
 **c) Step 3 — Execute prerequisites**: Run prerequisite checks from the test plan and capture their evidence (same as normal flow). Prerequisites are about the test environment, not CLI tool execution — they run inline regardless of delegation.
 
-**d) Extract scenario file path** from the test plan's `Source` field (e.g., `plugins/wicked-mem/scenarios/decision-recall.md`). If not present, check if the test plan's step actions reference a scenario file.
+**d) Extract scenario file path** from the test plan's `Source` field (e.g., `plugins/wicked-garden:mem/scenarios/decision-recall.md`). If not present, check if the test plan's step actions reference a scenario file.
 
 **e) Step 4 — Execute test steps via delegation** (replaces normal Step 4):
 
@@ -372,7 +372,7 @@ Evidence:
 ### For Bash Commands
 
 ```
-Action: Run bash command: `LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-mem) && ls -la "${LOCAL_PATH}/"`
+Action: Run bash command: `LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:mem) && ls -la "${LOCAL_PATH}/"`
 Evidence:
   stdout: {stdout text}
   stderr: {stderr text}

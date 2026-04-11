@@ -16,7 +16,7 @@ import sys, os
 from pathlib import Path
 sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
 from _domain_store import DomainStore
-ds = DomainStore('wicked-kanban')
+ds = DomainStore('wicked-garden:kanban')
 projects = ds.list('projects')
 tasks = ds.list('tasks')
 print(f'Projects: {len(projects) if projects else 0}')
@@ -43,7 +43,7 @@ uv run python scripts/_run.py scripts/kanban/kanban.py search "query"
 ## Data Location
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-kanban
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:kanban
 ```
 
 ## Notes

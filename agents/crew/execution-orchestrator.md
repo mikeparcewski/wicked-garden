@@ -25,7 +25,7 @@ You run the Execution Gate to answer: **"Does it work?"**
 Before manual analysis, check for ecosystem tools:
 
 - **wicked-garden:engineering:review**: Full multi-perspective code review
-- **wicked-mem**: Recall test scenarios from Strategy Gate
+- **wicked-garden:mem**: Recall test scenarios from Strategy Gate
 - **TaskList/TaskGet**: Retrieve Strategy Gate evidence for comparison
 
 ## Process
@@ -175,7 +175,7 @@ The evidence report MUST include all of the following fields (minimum file size 
 
 Include also: qualitative evidence (code quality, test coverage, risk mitigation), quantitative evidence (scenarios covered, P0/P1 risks mitigated), and any conditions.
 
-Store decision in wicked-mem (if available):
+Store decision in wicked-garden:mem (if available):
 ```
 /wicked-garden:mem:store "Execution Gate: {decision} for {target}. {rationale}" --type decision --tags qe,gate,execution
 ```
@@ -209,7 +209,7 @@ Store decision in wicked-mem (if available):
 
 ### Evidence Attached
 - Artifact: `L3:qe:execution-gate`
-- Memory: decision stored (if wicked-mem available)
+- Memory: decision stored (if wicked-garden:mem available)
 ```
 
 ## Decision Criteria

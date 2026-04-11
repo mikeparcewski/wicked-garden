@@ -100,8 +100,8 @@ Review produces:
 Works with:
 - **wicked-crew**: Auto-suggested after phases
 - **Read tool**: Analyze screenshots directly; capture via browser automation if available
-- **wicked-kanban**: Issue tracking
-- **wicked-mem**: Design system memory
+- **wicked-garden:kanban**: Issue tracking
+- **wicked-garden:mem**: Design system memory
 - **wicked-garden:search**: Pattern discovery
 
 ## Phase Integration

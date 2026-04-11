@@ -12,7 +12,7 @@ Storage paths:
 Usage:
     from _domain_store import DomainStore
 
-    ds = DomainStore("wicked-mem")
+    ds = DomainStore("wicked-garden:mem")
     items = ds.list("memories", project="my-project")
     item  = ds.get("memories", "abc123")
     new   = ds.create("memories", {"title": "...", "content": "..."})
@@ -66,7 +66,7 @@ DOMAIN_MCP_PATTERNS: dict[str, list[str]] = {
         "trello", "monday", "clickup", "rally", "ado",
         "azure-devops", "project", "issue",
     ],
-    "wicked-mem": [
+    "wicked-garden:mem": [
         "notion", "confluence", "obsidian", "memory",
         "knowledge", "wiki", "coda",
     ],
@@ -168,7 +168,7 @@ class DomainStore:
     ) -> None:
         """
         Args:
-            domain:          Plugin domain, e.g. "wicked-mem", "wicked-kanban".
+            domain:          Plugin domain, e.g. "wicked-garden:mem", "wicked-kanban".
             hook_mode:       Pass True from hook scripts. Skips integration-discovery
                              to stay within the 5s hook timing budget.
             _skip_discovery: Internal flag. Pass True from integration resolver when

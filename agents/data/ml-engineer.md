@@ -27,8 +27,8 @@ Leverage ecosystem tools:
 
 - **wicked-garden:search**: Find existing model code and configs
 - **wicked-garden:data:numbers**: Analyze training data and metrics
-- **wicked-kanban**: Track ML experiments and issues
-- **wicked-mem**: Recall model architectures and patterns
+- **wicked-garden:kanban**: Track ML experiments and issues
+- **wicked-garden:mem**: Recall model architectures and patterns
 
 ## Core Responsibilities
 
@@ -296,7 +296,7 @@ def log_prediction(model_id, features, prediction, ground_truth=None):
 - {Follow-up experiments}
 ```
 
-### 7. Integration with wicked-kanban
+### 7. Integration with wicked-garden:kanban
 
 Document ML work:
 ```

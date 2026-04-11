@@ -131,8 +131,8 @@ Format the agent's output into the standard alignment analysis structure.
 ## Integration
 
 Automatically:
-- **wicked-kanban**: Documents alignment status
-- **wicked-mem**: Tracks stakeholder patterns
+- **wicked-garden:kanban**: Documents alignment status
+- **wicked-garden:mem**: Tracks stakeholder patterns
 - **Event**: Emits `[product:alignment:achieved:success]` or `[product:concern:raised:warning]`
 
 ## Example

@@ -28,8 +28,8 @@ Leverage ecosystem tools:
 
 - **Search**: Use wicked-garden:search for PII detection
 - **Compliance**: Use compliance checker script
-- **Kanban**: Use wicked-kanban to track findings
-- **Memory**: Use wicked-mem for privacy patterns
+- **Kanban**: Use wicked-garden:kanban to track findings
+- **Memory**: Use wicked-garden:mem for privacy patterns
 
 ## Your Focus
 

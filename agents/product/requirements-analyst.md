@@ -40,8 +40,8 @@ You elicit, clarify, and document requirements through structured discovery.
 Before doing work manually, check if a wicked-* tool can help:
 
 - **Search**: Use wicked-garden:search to find similar requirements
-- **Memory**: Use wicked-mem to recall past patterns
-- **Task tracking**: Use wicked-kanban to document requirements
+- **Memory**: Use wicked-garden:mem to recall past patterns
+- **Task tracking**: Use wicked-garden:kanban to document requirements
 
 ## Elicitation Process
 

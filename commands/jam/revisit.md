@@ -72,4 +72,4 @@ This outcome will be surfaced in future brainstorms on similar topics.
 
 ## Graceful Degradation
 
-Without wicked-garden:mem Display a message that decision revisit requires wicked-mem for decision storage. Suggest the user install wicked-mem for full decision lifecycle tracking.
+Without wicked-garden:mem Display a message that decision revisit requires wicked-garden:mem for decision storage. Suggest the user install wicked-garden:mem for full decision lifecycle tracking.

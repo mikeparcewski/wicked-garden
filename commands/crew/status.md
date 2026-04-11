@@ -45,7 +45,7 @@ done
 Based on available plugins:
 - **Level 4**: All specialized plugins available
 - **Level 3**: Some specialized plugins (jam/scout/lens)
-- **Level 2**: Only wicked-mem
+- **Level 2**: Only wicked-garden:mem
 - **Level 1**: Standalone (no optional plugins)
 
 ### 5. Display Status

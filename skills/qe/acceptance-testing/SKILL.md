@@ -49,7 +49,7 @@ Writer ──→ Test Plan ──→ Executor ──→ Evidence ──→ Revie
 /wicked-garden:qe:acceptance scenario.md --phase write
 
 # Run all scenarios for a plugin
-/wicked-garden:qe:acceptance wicked-mem --all
+/wicked-garden:qe:acceptance wicked-garden:mem --all
 ```
 
 ## Scenario Formats Supported

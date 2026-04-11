@@ -106,8 +106,8 @@ After exploration, ask specific questions:
 /wicked-garden:data:numbers data.csv
 ```
 
-**wicked-kanban** - Document insights as tasks
-**wicked-mem** - Store analysis patterns for reuse
+**wicked-garden:kanban** - Document insights as tasks
+**wicked-garden:mem** - Store analysis patterns for reuse
 
 ## Best Practices
 

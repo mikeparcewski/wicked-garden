@@ -3,7 +3,7 @@
 PreCompact hook — wicked-garden structured WIP snapshot before context compression.
 
 Three jobs:
-1. Save structured WIP state to wicked-mem (decisions, constraints, file scope, etc.)
+1. Save structured WIP state to wicked-garden:mem (decisions, constraints, file scope, etc.)
 2. Write a fast-retrieval JSON snapshot for the briefing system
 3. Prompt Claude to store any additional memories before context is lost
 
@@ -76,7 +76,7 @@ def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="ep
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
         lines = ["---"]
-        lines.append("source: wicked-mem")
+        lines.append("source: wicked-garden:mem")
         lines.append(f"memory_type: {mem_type}")
         lines.append(f"memory_tier: {tier}")
         lines.append(f"title: {title}")
@@ -146,7 +146,7 @@ def _build_wip_markdown(session_state_dict, condensed_history):
 
 
 def _save_wip_state(session_id, project):
-    """Save structured WIP state to wicked-mem and a JSON snapshot file."""
+    """Save structured WIP state to wicked-garden:mem and a JSON snapshot file."""
     try:
         from _session import SessionState
         state = SessionState.load()

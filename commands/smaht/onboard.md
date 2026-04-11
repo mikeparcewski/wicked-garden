@@ -11,7 +11,7 @@ Intelligent onboarding that builds understanding of a codebase using parallel wo
 
 - `path` (optional): Directory to onboard. Default: current working directory
 - `--skip-index`: Skip indexing (use existing index or scout-only mode)
-- `--resume`: Resume a previous onboarding session (recalls prior discoveries from wicked-mem)
+- `--resume`: Resume a previous onboarding session (recalls prior discoveries from wicked-garden:mem)
 
 ## Instructions
 
@@ -311,7 +311,7 @@ After the report, offer to go deeper:
 
 If wicked-brain is unavailable, skip Phase 1 indexing and Phase 3 validation. Exploration still works via Glob/Grep.
 
-If wicked-mem is unavailable, skip memory storage. Report is still generated but not persisted.
+If wicked-garden:mem is unavailable, skip memory storage. Report is still generated but not persisted.
 
 ## Examples
 

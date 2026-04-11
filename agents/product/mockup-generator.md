@@ -26,7 +26,7 @@ HTML/CSS previews for stakeholder review, or annotated specs for developer hando
 
 ## First Strategy: Use wicked-* Ecosystem
 
-- **Memory**: Use wicked-mem to recall existing design tokens and component library
+- **Memory**: Use wicked-garden:mem to recall existing design tokens and component library
 - **Search**: Use wicked-garden:search to find existing similar components before designing new ones
 - **Screenshot**: Read existing UI screenshots to match current visual style
 

@@ -49,7 +49,7 @@ Given a task summary or conversation context, identify and store learnings.
 
 ## Memory Format
 
-Store memories as markdown in `{SM_LOCAL_ROOT}/wicked-mem/`:
+Store memories as markdown in `{SM_LOCAL_ROOT}/wicked-garden:mem/`:
 
 ```markdown
 ---
@@ -84,11 +84,11 @@ source: hook
 
 ## Storage Locations
 
-- Global preferences: `{SM_LOCAL_ROOT}/wicked-mem/core/preferences/`
-- Global learnings: `{SM_LOCAL_ROOT}/wicked-mem/core/learnings/`
-- Project episodic: `{SM_LOCAL_ROOT}/wicked-mem/projects/{project}/episodic/`
-- Project decisions: `{SM_LOCAL_ROOT}/wicked-mem/projects/{project}/decisions/`
-- Project procedural: `{SM_LOCAL_ROOT}/wicked-mem/projects/{project}/procedural/`
+- Global preferences: `{SM_LOCAL_ROOT}/wicked-garden:mem/core/preferences/`
+- Global learnings: `{SM_LOCAL_ROOT}/wicked-garden:mem/core/learnings/`
+- Project episodic: `{SM_LOCAL_ROOT}/wicked-garden:mem/projects/{project}/episodic/`
+- Project decisions: `{SM_LOCAL_ROOT}/wicked-garden:mem/projects/{project}/decisions/`
+- Project procedural: `{SM_LOCAL_ROOT}/wicked-garden:mem/projects/{project}/procedural/`
 
 ## Rules
 

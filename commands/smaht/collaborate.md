@@ -44,7 +44,7 @@ If no CLIs are detected: inform the user and offer to install. For each missing 
 
 ### Step 2: Recall Preferences (if any)
 
-Check wicked-mem for stored AI collaboration preferences:
+Check wicked-garden:mem for stored AI collaboration preferences:
 
 ```bash
 /wicked-garden:mem:recall "ai cli preferences"
@@ -66,7 +66,7 @@ Use stored preferences to weight or order models (e.g., "use gemini for long doc
    opencode run "$PROMPT" -f "$FILE" -m openai/gpt-4o  # if detected
    cat "$FILE" | pi exec "$PROMPT"    # if detected
    ```
-4. Create a wicked-kanban task to track the review:
+4. Create a wicked-garden:kanban task to track the review:
    ```bash
    /wicked-garden:kanban:new-task "Multi-model review: ${FILE}" --priority P1
    ```
@@ -114,7 +114,7 @@ After gathering all perspectives, present synthesis:
 
 ### Step 5: Persist (optional)
 
-Offer to store the decision in wicked-mem:
+Offer to store the decision in wicked-garden:mem:
 
 ```bash
 /wicked-garden:mem:store "[topic]: [decision summary].

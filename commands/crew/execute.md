@@ -144,7 +144,7 @@ Use the Explore agent or direct tool calls to gather context about the project b
    - `package.json`, `pyproject.toml`, `Cargo.toml` for tech stack detection
    - `.claude-plugin/plugin.json` if it's a plugin project
 
-2. **Query memories** (if wicked-mem available):
+2. **Query memories** (if wicked-garden:mem available):
    ```
    /wicked-garden:mem:recall "project type and quality dimensions for {project-name}" --limit 5
    /wicked-garden:mem:recall --tags onboarding --limit 10
@@ -278,7 +278,7 @@ When new signals are detected OR complexity increases at a checkpoint, check if 
 
 #### Memory Payload Storage
 
-When `smart_decisioning.py --json` output includes a `memory_payload` field (non-null), the analysis was deemed significant and should be persisted to wicked-mem. **The script only returns the payload — this command is responsible for storing it** via Claude's native tool system:
+When `smart_decisioning.py --json` output includes a `memory_payload` field (non-null), the analysis was deemed significant and should be persisted to wicked-garden:mem. **The script only returns the payload — this command is responsible for storing it** via Claude's native tool system:
 
 ```
 /wicked-garden:mem:store "{memory_payload.content}" --type {memory_payload.type} --tags "{memory_payload.tags}" --importance {memory_payload.importance}

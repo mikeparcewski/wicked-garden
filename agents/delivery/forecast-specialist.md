@@ -27,7 +27,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Cost data**: Use wicked-garden:delivery:finops-analyst for current cost analysis
 - **Progress**: Use wicked-garden:delivery:progress-tracker for timeline data
-- **Memory**: Use wicked-mem for historical data points
+- **Memory**: Use wicked-garden:mem for historical data points
 - **Delivery**: Use /wicked-garden:delivery:report for project metrics
 
 If a wicked-* tool is available, prefer it over manual approaches.

@@ -147,7 +147,7 @@ Each model response becomes one entry:
 
 Synthesis is appended as `entry_type: synthesis`, `persona_name: Council`.
 
-### Decision Records (via wicked-mem)
+### Decision Records (via wicked-garden:mem)
 
 ```bash
 /wicked-garden:mem:store "Auth: JWT with 15min/7day expiry.

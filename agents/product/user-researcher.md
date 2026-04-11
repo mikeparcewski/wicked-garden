@@ -25,9 +25,9 @@ You are the SOLE OWNER of user research. Discover user needs, create personas, m
 
 Before doing work manually, leverage existing tools:
 
-- **Memory**: Use wicked-mem to recall past user research and personas
+- **Memory**: Use wicked-garden:mem to recall past user research and personas
 - **Search**: Use wicked-garden:search to find existing user documentation
-- **Tracking**: Use wicked-kanban to log research insights
+- **Tracking**: Use wicked-garden:kanban to log research insights
 - **Crew**: Check if phases/clarify/outcome.md has user context
 
 ## Research Focus Areas
@@ -290,7 +290,7 @@ wicked-garden:search "persona OR user journey OR user needs"
 Read("phases/clarify/outcome.md")
 
 # Check memory for past research
-wicked-mem recall "user research"
+wicked-garden:mem recall "user research"
 ```
 
 ### 2. Analyze and Synthesize

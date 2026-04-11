@@ -56,12 +56,12 @@ Conditions that must hold before test execution begins:
 ## Prerequisites
 
 ### PRE-1: Plugin is installed
-- **Check**: `ls plugins/wicked-mem/.claude-plugin/plugin.json`
+- **Check**: `ls plugins/wicked-garden:mem/.claude-plugin/plugin.json`
 - **Evidence**: `pre-1-check` — file listing output
 - **Assert**: `pre-1-check` EXISTS
 
 ### PRE-2: Clean state
-- **Check**: `rm -rf $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-mem/memories/ 2>/dev/null; echo "clean"`
+- **Check**: `rm -rf $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-garden:mem/memories/ 2>/dev/null; echo "clean"`
 - **Evidence**: `pre-2-check` — command output
 - **Assert**: `pre-2-check` CONTAINS "clean"
 ```
@@ -214,9 +214,9 @@ Complete registry of all evidence IDs:
 # Test Plan: decision-recall
 
 ## Metadata
-- **Source**: plugins/wicked-mem/scenarios/01-decision-recall.md
+- **Source**: plugins/wicked-garden:mem/scenarios/01-decision-recall.md
 - **Generated**: 2024-01-15T10:30:00Z
-- **Implementation files**: plugins/wicked-mem/commands/store.md, ~/.wicked-brain/memories/
+- **Implementation files**: plugins/wicked-garden:mem/commands/store.md, ~/.wicked-brain/memories/
 - **Scenario format**: plugin-acceptance
 
 ## Specification Notes
@@ -225,7 +225,7 @@ No specification issues found.
 ## Prerequisites
 
 ### PRE-1: Clean memory state
-- **Check**: Run `rm -rf $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-mem/memories/ 2>/dev/null; echo "clean"`
+- **Check**: Run `rm -rf $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-garden:mem/memories/ 2>/dev/null; echo "clean"`
 - **Evidence**: `pre-1-check` — command output
 - **Assert**: `pre-1-check` CONTAINS "clean"
 
@@ -235,7 +235,7 @@ No specification issues found.
 - **Action**: Invoke Skill: wicked-garden:mem:store, args: "Use JWT for auth tokens" --type decision --tags "auth,security"
 - **Evidence required**:
   - `step-1-output` — Full Skill tool response text
-  - `step-1-state` — Run `ls $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-mem/memories/*.json 2>/dev/null | wc -l`
+  - `step-1-state` — Run `ls $(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" <domain>)/wicked-garden:mem/memories/*.json 2>/dev/null | wc -l`
 - **Assertions**:
   - `step-1-output` CONTAINS "stored" OR CONTAINS "saved" OR CONTAINS "created"
   - `step-1-output` NOT_CONTAINS "error"

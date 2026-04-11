@@ -129,7 +129,7 @@ Payback Period = Investment / Annual Benefit
 
 ## Integration
 
-### With wicked-mem
+### With wicked-garden:mem
 
 Store strategic insights:
 ```
@@ -148,7 +148,7 @@ Called during clarify phase for value assessment:
 - Provides business perspective
 - Informs go/no-go decisions
 
-### With wicked-kanban
+### With wicked-garden:kanban
 
 Attach analysis as evidence:
 ```bash

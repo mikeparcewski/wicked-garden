@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-mem Help
+# wicked-garden:mem Help
 
 Brain-backed persistent memory across sessions — store decisions, recall context, and manage institutional knowledge.
 
