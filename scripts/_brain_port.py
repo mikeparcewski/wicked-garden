@@ -25,7 +25,10 @@ def resolve_port() -> int:
     # 1. Explicit env var override
     env_port = os.environ.get("WICKED_BRAIN_PORT")
     if env_port:
-        return int(env_port)
+        try:
+            return int(env_port)
+        except ValueError:
+            pass  # Invalid value — fall through to config discovery
 
     brain_root = Path.home() / ".wicked-brain"
 

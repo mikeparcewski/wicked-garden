@@ -22,7 +22,7 @@ Parse the arguments from: $ARGUMENTS
 Invoke the brain memory skill:
 
 ```
-Skill(skill="wicked-brain-memory", args="recall {query} --filter_type {type} --filter_tier {tier} --limit {limit}")
+Skill(skill="wicked-brain-memory", args="recall {query} --type {type} --tier {tier} --limit {limit}")
 ```
 
 Pass through all arguments. Brain handles FTS search, tier weighting (semantic 1.3x, episodic 1.0x, working 0.8x), and synonym expansion.

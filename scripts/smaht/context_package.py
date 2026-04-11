@@ -150,7 +150,12 @@ async def gather_memories(task: str, limit: int = 3) -> list:
 
 
 async def gather_code_context(task: str, files: list = None, limit: int = 5) -> list:
-    """Query brain for relevant code symbols via domain adapter."""
+    """Query domain adapter for relevant code context.
+
+    Source-agnostic: returns items from any adapter (brain, domain, etc.).
+    The former source=="search" filter was removed because no adapter emits
+    source="search" — items come from brain/domain adapters instead.
+    """
     try:
         from adapters import domain_adapter
         items = await domain_adapter.query(task)

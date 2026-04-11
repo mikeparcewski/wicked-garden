@@ -35,9 +35,8 @@ from pathlib import Path
 from typing import Optional, List
 from datetime import datetime
 
-# Add parent to path for imports, and scripts root for shared modules
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # scripts/
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # scripts/engineering/
+# Add patch dir for local imports (generators, safety) and scripts root for shared modules (_brain_port)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # scripts/ — for _brain_port
 sys.path.insert(0, str(Path(__file__).parent))                # scripts/engineering/patch/
 
 from generators import (
@@ -77,6 +76,7 @@ def _brain_api(action: str, params: dict, port: Optional[int] = None) -> dict:
             from _brain_port import resolve_port
             port = resolve_port()
         except ImportError:
+            print("warning: _brain_port not found, falling back to port 4242", file=sys.stderr)
             port = 4242
     try:
         payload = json.dumps({"action": action, "params": params}).encode()

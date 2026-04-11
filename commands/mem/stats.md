@@ -11,13 +11,24 @@ Show memory statistics from the brain API.
 
 ### Step 1: Get memory stats from brain
 
-```bash
-curl -s -X POST http://localhost:{port}/api \
-  -H "Content-Type: application/json" \
-  -d '{"action":"memory_stats","params":{}}'
+Invoke the brain stats skill:
+
+```
+Skill(skill="wicked-brain-stats", args="")
 ```
 
-Read the port from `~/.wicked-brain/_meta/config.json` (`server_port` field).
+If `wicked-brain-stats` is unavailable, fall back to reading the port via Python and calling the API:
+
+```python
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+  scripts/_brain_port.py
+```
+
+Then call:
+```
+POST http://localhost:{port}/api
+{"action":"memory_stats","params":{}}
+```
 
 ### Step 2: Display
 
@@ -27,4 +38,4 @@ Show the memory breakdown:
 - **By age**: recent (< 7d) / active (7-30d) / aging (30-90d) / stale (> 90d)
 - **Total memories**
 
-If brain API is unreachable, suggest starting the server.
+If brain API is unreachable, suggest starting the server with `npx wicked-brain-server`.

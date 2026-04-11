@@ -1,5 +1,25 @@
 # Changelog
 
+## [4.6.0] - 2026-04-11
+
+### Features
+- feat(patch): auto-discover brain port from project brain configs (b756271)
+- feat(patch): wire brain symbols/dependents API for plan command (4234718)
+- feat: make wicked-brain mandatory — boot gate, prompt gate, adapter warning (f9d8573)
+
+### Bug Fixes
+- fix: clean stale wicked-search references, dead code, and review findings (ed25602)
+- fix(patch): add scripts/ root to sys.path so _brain_port is importable (658a7de)
+- fix(patch): fetch up to 10 symbols results to find file_path-backed entry (380486b)
+
+### Refactoring
+- refactor(mem): convert commands to thin passthroughs to wicked-brain skills (9f59c5d)
+- refactor: rename all legacy plugin names to wicked-garden:{domain} (46dfa75)
+- refactor: rename all wicked-search refs to wicked-garden:search (bcefad6)
+- refactor: centralize brain port resolution via _brain_port.py (c373079)
+- refactor(patch): remove wicked-search dependency, require --db explicitly (9bc9e99)
+- refactor: remove wicked-search, clean stale references, relocate tests (d854e3a)
+
 ## [4.5.0] - 2026-04-10
 
 ### Refactoring

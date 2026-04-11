@@ -602,7 +602,7 @@ def _check_brain_dependency():
             import urllib.request
             import urllib.error
 
-            # Default wicked-brain API port; read from env if overridden
+            # Resolve brain port: env var → project brain config → root config → 4242
             port = resolve_port()
             url = f"http://localhost:{port}/api"
             req = urllib.request.Request(
