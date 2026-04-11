@@ -115,3 +115,12 @@ COVERAGE_SUMMARY.md
 # Working directories
 experiments/
 phases/
+
+# wicked-brain index and server metadata
+.brain.db
+.brain.db-shm
+.brain.db-wal
+_meta/
+
+# Agent worktrees (ephemeral, created per-session)
+.claude/worktrees/
