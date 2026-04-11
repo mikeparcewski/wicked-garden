@@ -7,7 +7,7 @@ Detailed patterns for discovering and integrating with observability capabilitie
 ### Step 1: List Available Servers
 
 ```bash
-ListMcpResourcesTool
+# (check IDE MCP server list for available integrations)
 ```
 
 Returns list of available MCP servers with names and descriptions.

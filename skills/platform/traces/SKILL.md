@@ -27,8 +27,7 @@ Analyze distributed traces for performance investigation and service dependency 
 Use capability-based discovery:
 
 ```bash
-# List available MCP servers
-ListMcpResourcesTool
+# Discover available integrations via capability detection
 
 # Scan for tracing capabilities by analyzing server descriptions:
 # - tracing capability: Dedicated distributed tracing systems

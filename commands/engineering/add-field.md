@@ -23,7 +23,7 @@ Add a field to an entity/class and propagate to all affected files.
 Run the patch CLI:
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py add-field "<symbol_id>" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" add-field "<symbol_id>" \
   --name "<name>" \
   --type "<type>" \
   [--column "<column>"] \

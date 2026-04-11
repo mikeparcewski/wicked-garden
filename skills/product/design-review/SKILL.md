@@ -6,7 +6,7 @@ description: |
 
   Use when: "design critique", "polish the UI", "design system adherence",
   "responsive design", "visual polish", "review the design",
-  "visual polish"
+  "UI inconsistency"
 ---
 
 # Design Review Skill

@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.5.0] - 2026-04-10
+
+### Refactoring
+- refactor: simplify event queue code — remove dead branches, reduce I/O (7c099a6)
+
+### Chores
+- release: wicked-garden v4.4.0 — kanban event queue, chain causality, procedure injection (cf6d09c)
+
 ## [4.4.0] - 2026-04-10
 
 ### Features

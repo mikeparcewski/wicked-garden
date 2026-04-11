@@ -189,11 +189,11 @@ PYEOF
 
 ---
 
-### TC-4: Bootstrap briefing contains "mode=local" in additionalContext
+### TC-4: Bootstrap briefing contains "Storage: local" in additionalContext
 
 **Given**: Config file under HOME contains `"mode": "local-only"` and `"setup_complete": true`
 **When**: `bootstrap.py` is invoked as a subprocess (reproduces the real hook path)
-**Then**: The JSON output's `additionalContext` contains the string `"mode=local"`
+**Then**: The JSON output's `additionalContext` contains the string `"Storage:"` and `"local"`
 
 ```bash
 python3 - <<'PYEOF'
@@ -224,12 +224,12 @@ assert result.returncode == 0, (
 output = json.loads(result.stdout)
 ctx = output.get("hookSpecificOutput", {}).get("additionalContext", "")
 
-assert "mode=local" in ctx, (
-    f"'mode=local' not found in briefing.\nContext snippet: {ctx[:400]}"
+assert "Storage:" in ctx and "local" in ctx, (
+    f"'Storage:.*local' not found in briefing.\nContext snippet: {ctx[:400]}"
 )
 
-matching = [l for l in ctx.splitlines() if "mode=local" in l]
-print("TC-4 PASS: Bootstrap briefing contains mode=local")
+matching = [l for l in ctx.splitlines() if "Storage:" in l]
+print("TC-4 PASS: Bootstrap briefing contains Storage: local")
 print(f"  Relevant line: {matching}")
 PYEOF
 ```
@@ -300,7 +300,7 @@ All five test cases pass with `PASS` in their output and exit code 0.
 | TC-1 | DomainStore creates local JSON | File written to expected path with correct content |
 | TC-2 | Data persists across instances | Fresh DomainStore instance reads what the first wrote |
 | TC-3 | Update and delete | Patched fields merge; soft-delete hides record from get/list |
-| TC-4 | Bootstrap reflects local mode | `mode=local` present in `additionalContext` |
+| TC-4 | Bootstrap reflects local mode | `Storage: local` present in `additionalContext` |
 | TC-5 | Search filters by token | Only matching record returned, non-matching excluded |
 
 ## Success Criteria
@@ -308,7 +308,7 @@ All five test cases pass with `PASS` in their output and exit code 0.
 - [ ] TC-1: `DomainStore.create` writes a JSON file to the local storage path
 - [ ] TC-2: A second `DomainStore` instance reads records written by the first
 - [ ] TC-3: `update` merges diff and `delete` soft-deletes (hidden from get/list)
-- [ ] TC-4: Bootstrap subprocess outputs `mode=local` in `additionalContext`
+- [ ] TC-4: Bootstrap subprocess outputs `Storage: local` in `additionalContext`
 - [ ] TC-5: `search()` returns only records whose content matches the query token
 
 ## Value Demonstrated

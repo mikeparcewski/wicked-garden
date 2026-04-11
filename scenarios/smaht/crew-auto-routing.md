@@ -58,8 +58,10 @@ Import `_estimate_complexity` directly and assert it scores a maximally-complex 
 python3 -c "
 import sys, os
 from pathlib import Path
-sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'hooks/scripts'))
-from prompt_submit import _estimate_complexity
+plugin_root = Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve()
+sys.path.insert(0, str(plugin_root / 'scripts'))
+sys.path.insert(0, str(plugin_root / 'scripts' / 'smaht' / 'v2'))
+from smaht.v2.router import Router
 
 prompt = (
     'Help me plan and architect a complete migration of our monolith to microservices. '
@@ -67,7 +69,7 @@ prompt = (
     'and after that build the full data migration pipeline with rollback support across '
     'multiple systems including the authentication, billing, and notification pipelines.'
 )
-score = _estimate_complexity(prompt)
+score = Router()._estimate_complexity(prompt)
 print(f'score={score}')
 print('PASS' if score >= 3 else f'FAIL (expected >= 3, got {score})')
 "

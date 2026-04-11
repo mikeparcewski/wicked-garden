@@ -9,15 +9,15 @@ estimated_minutes: 5
 
 # Human-Claude Collaboration
 
-Test that humans and Claude can collaborate on the same kanban board through the shared Control Plane.
+Test that humans and Claude can collaborate on the same kanban board through shared local state.
 
 ## Setup
 
-Understand that wicked-kanban data is served by the Control Plane (CP), which allows both humans (via the CP dashboard) and Claude (via slash commands and native task tools) to access the same data.
+Wicked-kanban data is stored locally at `~/.something-wicked/wicked-garden/`. Both Claude (via slash commands and native task tools) and any tool that reads those JSON files can access the same data.
 
-Verify the CP is accessible:
-```
-/wicked-garden:kanban:start-api
+Verify the kanban script is accessible:
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" list-projects
 ```
 
 ## Steps
@@ -39,14 +39,14 @@ Verify the CP is accessible:
    /wicked-garden:kanban:comment PROJECT_ID TASK_ID_1 "Started implementation, estimated 2 hours. Using the adapter pattern for extensibility."
    ```
 
-4. **Human can access the same board via CP dashboard**
-   The Control Plane serves the board at `http://localhost:18889`. Humans can:
+4. **Human can access the same board via web UI**
+   The kanban web UI is available at `http://localhost:18888`. Humans can:
    - View the board visually in their browser
    - See task status, comments, and activity
    - Update tasks through the dashboard interface
 
 5. **Simulate human updating a task**
-   In a real scenario, a human would use the CP dashboard. For this test, use the slash command to simulate:
+   In a real scenario, a human would use the web UI. For this test, use the slash command to simulate:
    Use `TaskUpdate` to move the first task to `in_progress`.
 
 6. **Claude sees the updated status**
@@ -70,19 +70,18 @@ Verify the CP is accessible:
 ## Expected Outcomes
 
 - Both human and Claude can create, view, and modify the same board
-- Changes made by either party are visible to the other via board-status
+- Changes are immediately visible via board-status
 - Comments provide context for collaborators
-- The Control Plane serves as the single source of truth
-- No conflicts or data corruption when both access the board
+- Local JSON storage is the single source of truth
 
 ## Success Criteria
 
 - [ ] Tasks created via slash commands are visible on the board
 - [ ] Board status reflects changes from all parties
 - [ ] Comments provide collaboration context
-- [ ] CP dashboard is accessible for human interaction
+- [ ] Web UI at localhost:18888 is accessible for human interaction
 - [ ] Status changes sync correctly between interfaces
 
 ## Value Demonstrated
 
-The Control Plane architecture allows humans and Claude to collaborate naturally. Humans can use the CP dashboard for visual interaction while Claude uses efficient slash commands and native task tools. Both see the same state because the CP is the single source of truth. This enables workflows where Claude does the heavy lifting while humans review and adjust priorities.
+Local-first persistence allows humans and Claude to collaborate naturally. Humans can use the web UI for visual interaction while Claude uses efficient slash commands and native task tools. Both see the same state because the local JSON store is the single source of truth.

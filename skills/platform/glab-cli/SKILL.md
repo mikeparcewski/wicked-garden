@@ -40,13 +40,13 @@ Get actionable errors from failed pipelines.
 
 ```bash
 # Diagnose most recent failure
-python3 scripts/glab_ops.py diagnose
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" diagnose
 
 # Specific project
-python3 scripts/glab_ops.py diagnose --project group/project
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" diagnose --project group/project
 
 # With suggested fixes
-python3 scripts/glab_ops.py diagnose --suggest-fixes
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" diagnose --suggest-fixes
 ```
 
 **Output:** Job failures, error excerpts, timing info.
@@ -57,13 +57,13 @@ Merge request management at scale.
 
 ```bash
 # List MRs needing review
-python3 scripts/glab_ops.py mr-review-queue
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" mr-review-queue
 
 # MRs ready to merge (approved + passing)
-python3 scripts/glab_ops.py mr-merge-ready --dry-run
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" mr-merge-ready --dry-run
 
 # MR health check
-python3 scripts/glab_ops.py mr-status 123
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" mr-status 123
 ```
 
 ### 3. Release Automation
@@ -72,13 +72,13 @@ Create releases with changelogs.
 
 ```bash
 # Preview release
-python3 scripts/glab_ops.py release --dry-run
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" release --dry-run
 
 # Create minor release
-python3 scripts/glab_ops.py release --bump minor
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" release --bump minor
 
 # With custom notes
-python3 scripts/glab_ops.py release --notes "Breaking: API v2"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/glab-cli/scripts/glab_ops.py" release --notes "Breaking: API v2"
 ```
 
 ## Quick Patterns

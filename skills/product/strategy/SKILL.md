@@ -32,7 +32,7 @@ Multi-perspective business analysis to guide technical investment decisions.
 
 Best for: Major investments, strategic decisions, go/no-go evaluations
 
-### ROI Calculator (`/wicked-garden:product:roi`)
+### ROI Analysis
 
 - Cost vs benefit analysis
 - Payback period
@@ -41,7 +41,7 @@ Best for: Major investments, strategic decisions, go/no-go evaluations
 
 Best for: Budget justification, fast approvals, comparative costs
 
-### Value Scoring (`/wicked-garden:product:value`)
+### Value Scoring
 
 - Value proposition strength
 - Differentiation assessment
@@ -193,4 +193,4 @@ kanban.py add-comment "Strategy" {task_id} "{analysis_summary}"
 - Consider alternatives
 - Provide clear recommendation with reasoning
 
-Use `ListMcpResourcesTool` to discover available analytics/market integrations. Fall back to qualitative analysis when no data sources available.
+Discover available analytics/market integrations via capability detection. Fall back to qualitative analysis when no data sources available.

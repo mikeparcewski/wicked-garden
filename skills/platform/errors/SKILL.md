@@ -28,8 +28,7 @@ Aggregate and analyze errors from discovered error tracking sources with pattern
 Use capability-based discovery:
 
 ```bash
-# List available MCP servers
-ListMcpResourcesTool
+# Discover available integrations via capability detection
 
 # Scan for error tracking capabilities by analyzing server descriptions:
 # - error-tracking capability: Dedicated exception/error tracking

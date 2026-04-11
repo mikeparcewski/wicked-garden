@@ -168,3 +168,4 @@ See `refs/workflow-patterns.md` for complete workflow examples (feature dev, bug
 - **`refs/scoped-boards.md`** — Full column schemas, provisioning, wicked-mem triggers
 - **`refs/workflow-patterns.md`** — Common workflow examples (feature dev, bug fix, session resume)
 - **`refs/advanced-patterns.md`** — Sprint planning, dependency graphs, priority filtering
+- **`examples/feature-workflow.md`** — End-to-end feature development workflow example

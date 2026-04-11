@@ -14,7 +14,7 @@ through design (testability) and into production (monitoring), alongside the exi
 
 ## Scenario 1: Quality Signal Routing
 
-Validates that `smart_decisioning.py` detects quality-related prompts and routes to `wicked-qe`.
+Validates that `smart_decisioning.py` detects quality-related prompts and routes to `qe`.
 
 ### Setup
 
@@ -32,7 +32,7 @@ from smart_decisioning import SIGNAL_KEYWORDS, SIGNAL_TO_SPECIALISTS
 
 assert 'quality' in SIGNAL_KEYWORDS, 'quality key missing from SIGNAL_KEYWORDS'
 assert 'quality' in SIGNAL_TO_SPECIALISTS, 'quality key missing from SIGNAL_TO_SPECIALISTS'
-assert 'wicked-qe' in SIGNAL_TO_SPECIALISTS['quality'], 'wicked-qe not in quality specialists'
+assert 'qe' in SIGNAL_TO_SPECIALISTS['quality'], 'qe not in quality specialists'
 
 quality_keywords = SIGNAL_KEYWORDS['quality']
 required = ['tdd', 'slo', 'acceptance criteria', 'testability', 'quality gate', 'shift-left']
@@ -86,7 +86,7 @@ for prompt in quality_prompts:
 ### Success Criteria
 
 - [ ] `quality` key present in `SIGNAL_KEYWORDS` with 15+ keywords
-- [ ] `quality` key present in `SIGNAL_TO_SPECIALISTS` mapping to `wicked-qe`
+- [ ] `quality` key present in `SIGNAL_TO_SPECIALISTS` mapping to `qe`
 - [ ] Quality-related prompts (TDD, SLO, acceptance criteria, rollback) trigger signal match
 
 ---
@@ -219,7 +219,7 @@ PASS: persona registered — Testability Reviewer
 PASS: persona registered — Production Quality Engineer
 ```
 
-#### 2. Verify phases.json has wicked-qe in clarify and design
+#### 2. Verify phases.json has qe in clarify and design
 
 ```bash
 python3 -c "
@@ -232,23 +232,23 @@ data = json.loads((Path(plugin_root) / '.claude-plugin/phases.json').read_text()
 for phase_name in ['clarify', 'design']:
     phase = data['phases'][phase_name]
     specialists = phase['specialists']
-    assert 'wicked-qe' in specialists, f'wicked-qe missing from {phase_name} specialists: {specialists}'
-    print(f'PASS: wicked-qe in {phase_name} specialists: {specialists}')
+    assert 'qe' in specialists, f'qe missing from {phase_name} specialists: {specialists}'
+    print(f'PASS: qe in {phase_name} specialists: {specialists}')
 "
 ```
 
 **Expected**:
 ```
-PASS: wicked-qe in clarify specialists: ['wicked-product', 'wicked-jam', 'wicked-qe']
-PASS: wicked-qe in design specialists: ['wicked-engineering', 'wicked-agentic', 'wicked-product', 'wicked-qe']
+PASS: qe in clarify specialists: ['product', 'jam', 'qe']
+PASS: qe in design specialists: ['engineering', 'agentic', 'product', 'qe']
 ```
 
 ### Success Criteria
 
 - [ ] `specialist.json` QE `enhances` includes both `clarify` and `design`
 - [ ] 3 new personas registered: Requirements Quality Analyst, Testability Reviewer, Production Quality Engineer
-- [ ] `phases.json` clarify phase `specialists` includes `wicked-qe`
-- [ ] `phases.json` design phase `specialists` includes `wicked-qe`
+- [ ] `phases.json` clarify phase `specialists` includes `qe`
+- [ ] `phases.json` design phase `specialists` includes `qe`
 
 ## Value Demonstrated
 

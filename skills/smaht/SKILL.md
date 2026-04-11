@@ -89,3 +89,8 @@ Router triggers **slow path** when:
 Context is gathered automatically via hooks:
 - **SessionStart**: Initial session context
 - **UserPromptSubmit**: Per-turn context injection
+
+## Sub-Skills
+
+- [discovery/SKILL.md](discovery/SKILL.md) — Integration discovery and adapter configuration
+- [synthesize/SKILL.md](synthesize/SKILL.md) — Agentic synthesis for complex/risky prompts

@@ -157,7 +157,7 @@ Accessibility auditing can leverage available integrations by capability:
 | **Browser testing** | `playwright`, `puppeteer` | Screenshots, DOM snapshots |
 | **Performance** | `lighthouse` | Combined a11y + performance audit |
 
-Run `ListMcpResourcesTool` to discover available integrations. Fall back to local contrast-check.py when none available.
+Discover available integrations via capability detection. Fall back to local contrast-check.py when none available.
 
 ## Resources
 

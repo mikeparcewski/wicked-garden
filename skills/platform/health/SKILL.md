@@ -28,8 +28,7 @@ Aggregate system health from discovered observability sources with deployment co
 Use capability-based discovery to find available integrations:
 
 ```bash
-# List all MCP servers
-ListMcpResourcesTool
+# Discover available integrations via capability detection
 
 # Scan for capabilities by analyzing server descriptions and resources:
 # - error-tracking capability: Exception/error tracking and reporting

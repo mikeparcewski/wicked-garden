@@ -88,7 +88,7 @@ Find test files and identify untested modules:
 /wicked-garden:search:code "test|spec|describe" --path {target}
 ```
 
-Or manually:
+Or:
 ```bash
 # Find source files without corresponding test files
 find "${target_dir}/src" -name "*.py" | while read f; do
@@ -108,19 +108,9 @@ fi
 
 ### 5. Coach TDD Rhythm
 
-Assess whether TDD practices are being followed:
+**Green signals**: Test files co-located, tests written alongside impl, focused test functions, descriptive names.
 
-**Green signals**:
-- Test files co-located with source files
-- Tests written before or alongside implementation
-- Small, focused test functions
-- Descriptive test names (describe behavior, not implementation)
-
-**Red signals**:
-- Large source files with no corresponding test file
-- Test file exists but fewer tests than public functions
-- Test names like `test_function_1`, `test_it_works`
-- All tests in a single monolithic test file
+**Red signals**: Large source files with no test file, fewer tests than public functions, names like `test_it_works`, monolithic test file.
 
 ### 6. Update Task with Findings
 
@@ -182,15 +172,12 @@ TaskUpdate(
 
 ### Recommendations
 1. {priority fix}
-2. {suggestion}
 ```
 
 ## Bulletproof Testing Standards
 
-Flag any test code that violates these rules during quality monitoring.
-
-- [ ] **T1: Determinism** — Flag tests using `Date.now()`, `time.Now()`, `random()`, or any unseeded source of non-determinism. Tests must produce the same result every run.
-- [ ] **T2: No Sleep-Based Sync** — Flag `time.Sleep`, `setTimeout`, `asyncio.sleep` used for synchronization in tests. These cause flaky builds. Recommend polling/`waitFor` instead.
+- [ ] **T1: Determinism** — Flag tests using `Date.now()`, `time.Now()`, `random()`, or any unseeded source of non-determinism.
+- [ ] **T2: No Sleep-Based Sync** — Flag `time.Sleep`, `asyncio.sleep` for synchronization. Use polling/`waitFor` instead.
 - [ ] **T3: Isolation** — Flag unit tests that make real network calls or database connections. Unit tests must be fast and isolated. Tag violations as RED quality signals.
 - [ ] **T4: Single Assertion Focus** — Flag tests that verify multiple unrelated behaviors. Each test should have a single reason to fail.
 - [ ] **T5: Descriptive Names** — Flag test names like `test1`, `test_it_works`, `testFunction`. Names must describe the scenario being verified.
@@ -198,6 +185,8 @@ Flag any test code that violates these rules during quality monitoring.
 
 ## Quality Thresholds
 
-- **GREEN**: 0 lint errors, complexity within bounds, test files present for all modules
-- **YELLOW**: Minor warnings, 1-2 complexity hotspots, some untested modules
-- **RED**: Lint errors blocking CI, complexity > 15 in critical paths, large untested surface area
+| Status | Lint | Complexity | Coverage |
+|--------|------|------------|----------|
+| GREEN | 0 errors | All within bounds | Test files present |
+| YELLOW | Warnings only | 1-2 hotspots | Some untested modules |
+| RED | Errors blocking CI | CC > 15 in critical paths | Large untested surface |

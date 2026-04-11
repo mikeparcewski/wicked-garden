@@ -17,7 +17,7 @@ Remove a field and all its usages from the codebase.
 ## Instructions
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py remove "<symbol_id>" --field "<field_name>" [--verbose]
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" remove "<symbol_id>" --field "<field_name>" [--verbose]
 ```
 
 ## Examples

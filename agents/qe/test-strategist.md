@@ -120,6 +120,27 @@ If the result has `"available": true` and scenarios exist:
 
 If `"available": false`, skip this step silently.
 
+### 4.7. Render-Only AC Escalation (UI change types)
+
+Before generating scenarios, scan acceptance criteria for render-only patterns. **If an AC can be fully verified without performing any user interaction, flag it with CONDITIONAL.**
+
+Render-only patterns to detect:
+- "View X renders at route Y"
+- "Page loads without errors"
+- "Navigation to X works"
+- "Screen shows Y"
+- Any AC that maps entirely to `navigate + screenshot` with no user action
+
+For each match, emit:
+```
+CONDITIONAL: AC "{ac_text}" appears to be a render-only check, not a workflow test.
+A workflow test must: (1) perform a user interaction, (2) assert a state change, (3) verify the outcome.
+Is this intentional (smoke test), or should it specify a user workflow?
+Blocking design phase advancement until author confirms intent.
+```
+
+If confirmed as intentional smoke test, mark as `type: smoke` and proceed. If intent is a workflow, request the AC to be rewritten with an interaction + outcome before generating scenarios.
+
 ### 5. Generate Scenarios
 
 **MANDATORY RULE: Every scenario MUST have both a positive (expected behavior works) and negative (invalid/error case handled) counterpart.** No exceptions. If you can't think of a negative case, think harder.

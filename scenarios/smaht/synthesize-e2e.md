@@ -136,9 +136,10 @@ print('---')
 assert '[Context Assembly]' in directive, 'Missing [Context Assembly] header'
 assert \"skill='wicked-garden:smaht:synthesize'\" in directive, 'Missing skill reference'
 assert 'args=' in directive, 'Missing args parameter'
-assert 'complexity=' in directive, 'Missing complexity in args'
-assert 'risk=' in directive, 'Missing risk in args'
-assert 'prompt=' in directive, 'Missing prompt in args'
+# Args are now JSON-encoded — check for JSON key names
+assert '"complexity"' in directive, 'Missing complexity in args'
+assert '"risk"' in directive, 'Missing risk in args'
+assert '"prompt"' in directive, 'Missing prompt in args'
 assert 'BEFORE answering' in directive, 'Missing pre-answer instruction'
 assert 'CONTEXT BRIEFING' in directive, 'Missing CONTEXT BRIEFING reference'
 print('PASS: synthesis directive has all required fields')
@@ -146,7 +147,7 @@ print('PASS: synthesis directive has all required fields')
 ```
 
 **Expected**: Directive contains `[Context Assembly]` header, `skill='wicked-garden:smaht:synthesize'`
-invocation, and `args` string with `complexity=`, `risk=`, and `prompt=` key-value pairs.
+invocation, and `args` JSON string with `complexity`, `risk`, and `prompt` fields.
 
 ### Step 4: Verify args are parseable by the skill
 
@@ -173,25 +174,21 @@ assert m, 'Could not find args= in directive'
 args_str = m.group(1)
 print(f'args_str: {args_str[:120]}...')
 
-# The skill parses key=value pairs separated by ' | '
-parts = dict(
-    part.split('=', 1)
-    for part in args_str.split(' | ')
-    if '=' in part
-)
+# Args are JSON-encoded — parse with json.loads per SKILL.md
+parts = json.loads(args_str)
 print(f'Parsed keys: {list(parts.keys())}')
 
 assert 'complexity' in parts, 'Missing complexity key'
 assert 'risk' in parts, 'Missing risk key'
 assert 'prompt' in parts, 'Missing prompt key'
-assert float(parts['complexity']) >= 0.0, 'complexity not a float'
-assert parts['risk'] in ('true', 'false'), 'risk not true/false'
+assert isinstance(parts['complexity'], float), 'complexity not a float'
+assert isinstance(parts['risk'], bool), 'risk not a bool'
 assert len(parts['prompt']) > 10, 'prompt too short'
-print('PASS: skill args are parseable as key=value pairs separated by |')
+print('PASS: skill args are parseable as JSON with json.loads()')
 "
 ```
 
-**Expected**: The `args` string is parseable as pipe-delimited `key=value` pairs. The skill's
+**Expected**: The `args` string is parseable as JSON via `json.loads()`. The skill's
 Step 1 reads these to get `prompt`, `complexity`, `risk`, and optionally `turns`.
 
 ### Step 5: Validate CONTEXT BRIEFING output structure

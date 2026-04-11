@@ -35,13 +35,13 @@ Don't wade through logs - get the actual errors.
 
 ```bash
 # Get actionable error summary
-python3 scripts/gh_ops.py diagnose
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" diagnose
 
 # Specific repo
-python3 scripts/gh_ops.py diagnose --repo owner/repo
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" diagnose --repo owner/repo
 
 # With suggested fixes
-python3 scripts/gh_ops.py diagnose --suggest-fixes
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" diagnose --suggest-fixes
 ```
 
 **Output:** Structured error summary with job timelines, extracted failures, and fix suggestions based on common patterns.
@@ -52,13 +52,13 @@ Bulk PR management that scales.
 
 ```bash
 # List PRs needing review across your repos
-python3 scripts/gh_ops.py pr-review-queue
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" pr-review-queue
 
 # Merge all approved PRs (with safety checks)
-python3 scripts/gh_ops.py pr-merge-ready --dry-run
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" pr-merge-ready --dry-run
 
 # PR health check (conflicts, checks, reviews)
-python3 scripts/gh_ops.py pr-status 123
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" pr-status 123
 ```
 
 ### 3. Release Automation
@@ -67,13 +67,13 @@ Generate releases with proper changelogs.
 
 ```bash
 # Create release from unreleased commits
-python3 scripts/gh_ops.py release --bump minor
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" release --bump minor
 
 # Preview changelog without releasing
-python3 scripts/gh_ops.py release --dry-run
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" release --dry-run
 
 # Release with custom notes
-python3 scripts/gh_ops.py release --notes "Breaking: API v2"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" release --notes "Breaking: API v2"
 ```
 
 ### 4. Repo Health
@@ -81,7 +81,7 @@ python3 scripts/gh_ops.py release --notes "Breaking: API v2"
 Quick health check for repositories.
 
 ```bash
-python3 scripts/gh_ops.py health
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" health
 ```
 
 **Checks:** Branch protection, required reviews, CI status, security advisories, dependency alerts.

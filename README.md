@@ -21,6 +21,20 @@ Claude analyzes the request, detects security and architecture signals, assemble
 claude plugins add mikeparcewski/wicked-garden
 ```
 
+## Quick Start
+
+```bash
+claude plugins add mikeparcewski/wicked-garden
+```
+
+Then start a project:
+
+```bash
+/wicked-garden:crew:start "add OAuth login with role-based access"
+```
+
+No configuration required. The plugin detects your stack, assembles specialists, and runs enforced phases.
+
 ## What You Do
 
 Commands you run when you need them. No setup required.
@@ -84,6 +98,8 @@ Signal Analysis → Phase Selection → Specialist Routing → Quality Gates →
 A config change? Complexity 1, two phases, done in minutes.
 A cross-cutting migration? Full pipeline, every specialist engaged.
 **The system adapts to the work. You don't configure it.**
+
+## Commands
 
 ## 14 Domains
 

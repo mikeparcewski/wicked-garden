@@ -9,7 +9,6 @@ description: |
   "trace hook execution", "validate contracts", "plugin diagnostics",
   "check logs", "query metrics", "view traces", "system monitoring",
   "datadog", "newrelic", "prometheus", "grafana", "splunk", "cloudwatch"
-user-invocable: false
 ---
 
 # Observability Skill

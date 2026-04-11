@@ -17,13 +17,13 @@ Design experiments with statistical rigor.
 
 ```bash
 # Design experiment from hypothesis
-/wicked-garden:delivery:design "Blue CTA increases clicks by 10%"
+/wicked-garden:delivery:experiment "Blue CTA increases clicks by 10%"
 
 # Design with context file
-/wicked-garden:delivery:design feature-spec.md
+/wicked-garden:delivery:experiment feature-spec.md
 
 # Discover available tools
-/wicked-garden:delivery:design --discover
+/wicked-garden:delivery:experiment --discover
 ```
 
 ## What This Skill Does
@@ -173,5 +173,5 @@ Asks "Do I have analytics capability?" not "Do I have Amplitude?"
 ## See Also
 
 - [statistics.md](refs/statistics.md) - Statistical concepts and formulas
-- `/wicked-garden:delivery:analyze` - Analyze experiment results
+- `/wicked-garden:delivery:report` - Analyze experiment results
 - `/wicked-garden:delivery:rollout` - Plan feature rollout

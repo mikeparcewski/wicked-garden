@@ -223,6 +223,27 @@ def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
                     updates["name"] = subject
                 if tool_input.get("description"):
                     updates["description"] = tool_input["description"]
+                # Sync dependency links from TaskUpdate addBlockedBy/addBlocks
+                add_blocked_by = tool_input.get("addBlockedBy") or []
+                add_blocks = tool_input.get("addBlocks") or []
+                if add_blocked_by or add_blocks:
+                    try:
+                        task_map = state.get("task_map", {})
+                        existing_task = ks.get_task(project_id, kanban_id) or {}
+                        current_deps = list(existing_task.get("depends_on", []))
+                        # addBlockedBy = this task depends on those IDs
+                        for dep_id in add_blocked_by:
+                            kanban_dep = None
+                            entry = task_map.get(dep_id)
+                            if isinstance(entry, dict):
+                                kanban_dep = entry.get("kanban_id")
+                            elif isinstance(entry, str):
+                                kanban_dep = entry
+                            if kanban_dep and kanban_dep not in current_deps:
+                                current_deps.append(kanban_dep)
+                        updates["depends_on"] = current_deps
+                    except Exception:
+                        pass
                 if updates:
                     # Route through KanbanStore so index is updated and
                     # _log_activity() uses the correct "type" field (#381, #383).

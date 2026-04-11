@@ -8,16 +8,16 @@
   ],
 
   "summary": {
-    "commands": 146,
-    "agents": 80,
-    "skills": 80,
-    "hooks": 7,
+    "commands": 154,
+    "agents": 81,
+    "skills": 84,
+    "hooks": 12,
     "specialists": 8
   },
 
   "agents_by_domain": {
     "agentic":     ["architect", "framework-researcher", "pattern-advisor", "performance-analyst", "safety-reviewer"],
-    "crew":        ["execution-orchestrator", "facilitator", "implementer", "qe-orchestrator", "researcher", "reviewer", "value-orchestrator"],
+    "crew":        ["execution-orchestrator", "facilitator", "implementer", "independent-reviewer", "qe-orchestrator", "researcher", "reviewer", "value-orchestrator"],
     "data":        ["analytics-architect", "data-analyst", "data-engineer", "ml-engineer"],
     "delivery":    ["codebase-narrator", "cost-optimizer", "delivery-manager", "experiment-designer", "finops-analyst", "forecast-specialist", "onboarding-guide", "progress-tracker", "risk-monitor", "rollout-manager", "stakeholder-reporter"],
     "engineering": ["api-documentarian", "backend-engineer", "data-architect", "debugger", "frontend-engineer", "senior-engineer", "solution-architect", "system-designer", "technical-writer"],
@@ -43,7 +43,7 @@
     "multi-model":           ["multi-model"],
     "persona":               ["persona"],
     "platform":              ["audit", "compliance", "errors", "gh-cli", "github-actions", "gitlab-ci", "glab-cli", "health", "observability", "policy", "prereq-doctor", "traces"],
-    "product":               ["acceptance-criteria", "accessibility", "analyze", "design-review", "imagery", "listen", "mockup", "product-management", "requirements-analysis", "screenshot", "strategy", "synthesize", "ux-flow", "ux-review", "visual-review"],
+    "product":               ["acceptance-criteria", "accessibility", "analyze", "design-review", "imagery", "listen", "mockup", "product-management", "requirements-analysis", "requirements-graph", "requirements-migrate", "requirements-navigate", "screenshot", "strategy", "synthesize", "ux-flow", "ux-review", "visual-review"],
     "qe":                    ["acceptance-testing", "agent-browser", "qe-strategy", "scenarios"],
     "runtime-exec":          ["runtime-exec"],
     "search":                ["graph-export", "unified-search"],
@@ -56,9 +56,14 @@
     "UserPromptSubmit",
     "PreToolUse",
     "PostToolUse",
+    "PostToolUseFailure",
     "TaskCompleted",
     "SubagentStart",
-    "Stop"
+    "SubagentStop",
+    "Stop",
+    "Notification",
+    "PermissionRequest",
+    "PreCompact"
   ],
 
   "specialists": [

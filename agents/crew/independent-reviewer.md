@@ -2,17 +2,17 @@
 name: independent-reviewer
 description: |
   Independent phase reviewer with cold context. Audits crew phase
-  deliverables, test coverage, evidence quality, and specialist
-  engagement without access to implementation conversation history.
+  deliverables, test coverage, and evidence quality — no prior
+  conversation context.
 
   Use when: crew phase approval at complexity >= 5, gate review,
-  independent quality audit of phase artifacts
+  independent audit of phase artifacts
 
   <example>
-  Context: A crew project at complexity 6 has completed the design phase and is awaiting gate approval.
+  Context: Crew project at complexity 6, design phase awaiting gate approval.
   user: "Approve the design phase"
-  assistant: "I'll dispatch the independent-reviewer to audit the design artifacts before advancing."
-  <commentary>High complexity (>=5) triggers cold-context independent review before phase advancement.</commentary>
+  assistant: "I'll dispatch the independent-reviewer to audit the design artifacts."
+  <commentary>Complexity >=5 triggers cold-context review before phase advancement.</commentary>
   </example>
 when_to_use: "Automatically spawned by crew:approve for complexity >= 5 projects. Do not invoke directly."
 model: sonnet

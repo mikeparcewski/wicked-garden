@@ -16,7 +16,7 @@ Show what would be affected by a change without generating patches.
 ## Instructions
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py plan "<symbol_id>" --change "<change_type>" [--json]
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" plan "<symbol_id>" --change "<change_type>" [--json]
 ```
 
 ## Examples

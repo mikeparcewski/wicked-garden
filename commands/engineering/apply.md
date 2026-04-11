@@ -14,7 +14,7 @@ Apply patches from a saved JSON file.
 ## Instructions
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py apply "<patches_file>" [--dry-run]
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" apply "<patches_file>" [--dry-run]
 ```
 
 ## Workflow

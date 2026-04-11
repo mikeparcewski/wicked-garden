@@ -18,7 +18,7 @@ Rename a field/symbol across all usages in the codebase.
 ## Instructions
 
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}/scripts && python3 patch.py rename "<symbol_id>" --old "<old_name>" --new "<new_name>" [--verbose]
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" rename "<symbol_id>" --old "<old_name>" --new "<new_name>" [--verbose]
 ```
 
 ## Examples

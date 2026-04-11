@@ -161,7 +161,7 @@ Compliance checking can leverage available integrations by capability:
 | **Secrets** | `vault`, `secrets` | Credential management audit |
 | **SBOM** | `trivy`, `sbom`, `cyclonedx` | Supply chain compliance |
 
-Run `ListMcpResourcesTool` to discover available integrations. Fall back to local compliance_checker.py when none available.
+Discover available integrations via capability detection. Fall back to local compliance_checker.py when none available.
 
 ## Quality Standards
 

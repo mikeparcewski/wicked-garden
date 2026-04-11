@@ -113,7 +113,7 @@ Product management can leverage available integrations by capability:
 | **Project management** | `jira`, `linear`, `github` | Existing tickets/context |
 | **Customer feedback** | `zendesk`, `intercom` | Support ticket insights |
 
-Run `ListMcpResourcesTool` to discover available integrations. Use wicked-kanban when no project management MCP available.
+Discover available integrations via capability detection. Use wicked-kanban when no project management integration available.
 
 ## Progressive Disclosure
 

@@ -94,7 +94,7 @@ EOF
 
 1. **Aggregate Feedback**
    ```bash
-   /wicked-garden:product:listen feedback/
+   /wicked-garden:product:listen --capability feedback
    ```
 
    **Expected**: Should scan all feedback sources and report:
