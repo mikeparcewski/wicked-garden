@@ -42,13 +42,13 @@ def get_project_id(store: KanbanStore) -> str | None:
 
 
 def cmd_lookup(name: str) -> dict:
-    """Look up a crew initiative by name via StorageManager."""
+    """Look up a crew initiative by name via DomainStore."""
     store = get_store()
     project_id = get_project_id(store)
     if not project_id:
         return {"found": False, "reason": "no_kanban_project"}
 
-    # Query initiatives through StorageManager (CP-first, local fallback)
+    # Query initiatives through DomainStore (local JSON storage)
     try:
         initiatives = _sm.list("initiatives", project_id=project_id)
         for init in initiatives:
@@ -91,7 +91,7 @@ def cmd_create(name: str, board_type: str = "crew") -> dict:
             "already_existed": True,
         }
 
-    # Create via KanbanStore (which uses StorageManager internally)
+    # Create via KanbanStore (which uses DomainStore internally)
     initiative = store.create_initiative(
         project_id,
         name=name,

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-scripts/qe/registry_store.py — Persist an artifact registry to StorageManager.
+scripts/qe/registry_store.py — Persist an artifact registry to DomainStore.
 
-Reads a registry JSON file from disk and stores it in StorageManager("wicked-qe")
-as a CP-first backup. If StorageManager is unavailable the write falls back to
-local JSON files automatically.
+Reads a registry JSON file from disk and stores it in DomainStore("wicked-qe")
+using local JSON storage.
 
 This script is stdlib-only (no external deps) so it is safe to call from any
 context, including agent steps that may not have uv available.
@@ -16,7 +15,7 @@ Exit codes:
     0  — Registry stored successfully (or no-op on empty/invalid registry)
     1  — Unrecoverable error (file not found, parse error)
 
-The script always exits 0 on StorageManager errors (fail-open pattern).
+The script always exits 0 on DomainStore errors (fail-open pattern).
 """
 
 import argparse
@@ -27,7 +26,7 @@ from pathlib import Path
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Persist a QE artifact registry to StorageManager"
+        description="Persist a QE artifact registry to DomainStore"
     )
     parser.add_argument(
         "--scenario-slug",
@@ -105,7 +104,7 @@ def main() -> int:
     except Exception as exc:
         # Fail open — the file-based registry written by the executor is still valid
         print(
-            f"[qe/registry_store] StorageManager error (non-fatal): {exc}",
+            f"[qe/registry_store] DomainStore error (non-fatal): {exc}",
             file=sys.stderr,
         )
 

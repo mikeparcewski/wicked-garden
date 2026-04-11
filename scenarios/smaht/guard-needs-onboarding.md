@@ -24,7 +24,6 @@ export TEST_HOME=$(mktemp -d)
 mkdir -p "${TEST_HOME}/.something-wicked/wicked-garden"
 cat > "${TEST_HOME}/.something-wicked/wicked-garden/config.json" <<'EOF'
 {
-  "endpoint": "http://localhost:18889",
   "mode": "local",
   "setup_complete": true
 }

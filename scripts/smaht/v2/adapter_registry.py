@@ -37,7 +37,7 @@ class AdapterRegistry:
         "brain":      "adapters.brain_adapter",
         "events":     "adapters.events_adapter",
         "context7":   "adapters.context7_adapter",
-        "tools":      "adapters.startah_adapter",
+        "tools":      "adapters.tools_adapter",
         "delegation": "adapters.delegation_adapter",
     }
 

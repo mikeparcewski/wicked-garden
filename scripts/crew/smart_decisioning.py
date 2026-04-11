@@ -1440,9 +1440,9 @@ def _apply_context(
 
 
 def _log_decision(analysis: 'SignalAnalysis', input_length: int) -> None:
-    """Log decision via StorageManager and build memory_payload for significant decisions.
+    """Log decision via DomainStore and build memory_payload for significant decisions.
 
-    Every call stores to the control plane (falls back to local JSON).
+    Every call stores to local JSON storage.
     Significant decisions get a memory_payload attached to the SignalAnalysis
     for the CALLER (a Claude command) to store via /wicked-mem:store using
     Claude's native tool system — scripts never call other plugins directly.
@@ -1467,7 +1467,7 @@ def _log_decision(analysis: 'SignalAnalysis', input_length: int) -> None:
             "confidence": analysis.confidence,
         }
 
-        # Store decision via control plane (falls back to local JSON)
+        # Store decision via DomainStore (local JSON storage)
         _sm.create("decisions", entry)
 
         # Build memory_payload for significant decisions (caller stores via tool system)

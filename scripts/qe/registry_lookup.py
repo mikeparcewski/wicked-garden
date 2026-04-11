@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-scripts/qe/registry_lookup.py — Retrieve a QE artifact registry from StorageManager.
+scripts/qe/registry_lookup.py — Retrieve a QE artifact registry from DomainStore.
 
-Looks up a registry by scenario slug in StorageManager("wicked-qe") and writes
+Looks up a registry by scenario slug in DomainStore("wicked-qe") and writes
 the result to the given output path. Used as a fallback when the file-based
 registry is missing (e.g. after a session restart or storage migration).
 
@@ -13,7 +13,7 @@ Usage:
 
 Exit codes:
     0  — Registry found and written to output path
-    1  — Registry not found in StorageManager (or StorageManager error)
+    1  — Registry not found in DomainStore (or DomainStore error)
 """
 
 import argparse
@@ -24,7 +24,7 @@ from pathlib import Path
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Retrieve a QE artifact registry from StorageManager"
+        description="Retrieve a QE artifact registry from DomainStore"
     )
     parser.add_argument(
         "--scenario-slug",
@@ -70,7 +70,7 @@ def main() -> int:
 
     except Exception as exc:
         print(
-            f"[qe/registry_lookup] StorageManager error: {exc}",
+            f"[qe/registry_lookup] DomainStore error: {exc}",
             file=sys.stderr,
         )
         return 1

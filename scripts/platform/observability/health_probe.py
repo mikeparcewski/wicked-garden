@@ -596,7 +596,7 @@ def build_report(
 
 
 def persist_report(report: dict[str, Any]) -> str | None:
-    """Persist the report via StorageManager. Returns the record ID on success."""
+    """Persist the report via DomainStore. Returns the record ID on success."""
     try:
         # Upsert: try update first, fall back to create
         record = dict(report)

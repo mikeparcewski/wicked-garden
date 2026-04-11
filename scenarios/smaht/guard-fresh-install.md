@@ -121,7 +121,6 @@ should read the sentinel and skip the config.json I/O entirely, letting the prom
 mkdir -p "${TEST_HOME}/.something-wicked/wicked-garden"
 cat > "${TEST_HOME}/.something-wicked/wicked-garden/config.json" <<'EOF'
 {
-  "endpoint": "http://localhost:18889",
   "mode": "local",
   "setup_complete": true
 }

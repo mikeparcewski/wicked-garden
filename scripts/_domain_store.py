@@ -2,15 +2,12 @@
 """
 _domain_store.py — DomainStore: per-domain local JSON storage with integration-discovery routing.
 
-Replaces StorageManager as the standard storage interface for domain scripts.
+The standard storage interface for all domain scripts.
 Local JSON is the canonical store. External tools (Linear MCP, Jira MCP, Notion MCP, etc.)
 are resolved via integration-discovery and used when configured and authenticated.
 
-Storage paths (unchanged from StorageManager):
+Storage paths:
     Local:  ~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json
-
-CRUD API is identical to StorageManager — callers can swap the import with no other
-changes required.
 
 Usage:
     from _domain_store import DomainStore
@@ -147,7 +144,7 @@ class DomainStore:
         2. If no cache: run _init_routing() to discover + resolve external tool
         3. Store result back to SessionState for the session lifetime
 
-    CRUD API (same surface as StorageManager):
+    CRUD API:
         list(source, **params)       -> list[dict]
         get(source, id)              -> dict | None
         create(source, payload)      -> dict
@@ -459,7 +456,7 @@ class DomainStore:
 
     # ------------------------------------------------------------------
     # Private: local file operations
-    # (adapted from StorageManager._local_* methods, _storage.py lines 590-651)
+    # (local file operations)
     # ------------------------------------------------------------------
 
     def _local_dir(self, source: str) -> Path:

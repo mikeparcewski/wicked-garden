@@ -345,7 +345,7 @@ def run_assertion(descriptor: dict) -> dict:
 
 
 def append_result(record: dict) -> None:
-    """Persist a single assertion result via StorageManager."""
+    """Persist a single assertion result via DomainStore."""
     try:
         _sm.create("assertions", record)
     except Exception as exc:

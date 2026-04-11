@@ -192,7 +192,7 @@ def _lookup_cheatsheet(lib_name: str) -> Optional[ContextItem]:
     """Check local cheatsheet store for a cached library cheatsheet.
 
     Invokes cheatsheet_store.py get via subprocess so the hot path does not
-    import StorageManager directly (keeps this adapter import-clean).
+    import DomainStore directly (keeps this adapter import-clean).
 
     Returns a ContextItem with relevance=0.85 when found, None otherwise.
     """

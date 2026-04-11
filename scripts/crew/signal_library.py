@@ -8,7 +8,7 @@ not installed.
 
 Storage:
 - Default signals: scripts/data/default_signals.jsonl (code-shipped)
-- User signals: StorageManager("wicked-crew").list/create("signals") (CP-first, local fallback)
+- User signals: DomainStore("wicked-crew").list/create("signals") (local JSON storage)
 
 Usage:
   signal_library.py detect "project description text"
@@ -95,7 +95,7 @@ class SignalLibrary:
         self._load_jsonl(DEFAULT_SIGNALS_PATH, source="default")
 
     def _load_user_libraries(self):
-        """Load user signals from StorageManager (CP-first, local fallback)."""
+        """Load user signals from DomainStore (local JSON storage)."""
         try:
             records = _sm.list("signals")
             for i, entry in enumerate(records):
@@ -178,7 +178,7 @@ def get_library() -> SignalLibrary:
 
 def save_user_signal(category: str, text: str, weight: float = 1.0,
                      library_name: str = "custom") -> str:
-    """Save a signal definition via StorageManager (CP-first, local fallback)."""
+    """Save a signal definition via DomainStore (local JSON storage)."""
     entry = {"category": category, "text": text, "weight": weight,
              "library": library_name}
     result = _sm.create("signals", entry)

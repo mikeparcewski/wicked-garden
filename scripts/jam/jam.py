@@ -2,8 +2,8 @@
 """
 wicked-jam query CLI -- exposes session data for cross-plugin access.
 
-All data flows through StorageManager("wicked-jam") which routes to the
-Control Plane when available and falls back to local JSON files.
+All data flows through DomainStore("wicked-jam") which routes to MCP
+integrations when available and falls back to local JSON files.
 
 Usage:
     jam.py list-sessions [--query Q] [--limit N] [--json] [--project P]

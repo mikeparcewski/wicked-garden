@@ -21,7 +21,7 @@ Each entry schema:
     }
 
 Existing entries for the session are loaded, new entries are appended,
-then the whole transcript is saved back via StorageManager.
+then the whole transcript is saved back via DomainStore.
 """
 
 import argparse

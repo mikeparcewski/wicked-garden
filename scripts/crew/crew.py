@@ -42,7 +42,7 @@ def find_active_project(workspace: str = "") -> dict:
     """Find the most recently updated active (non-archived, non-complete) project
     scoped to the given workspace.
 
-    Uses StorageManager (CP-first, local fallback). Returns project data
+    Uses DomainStore (local JSON storage). Returns project data
     and local directory path. Only returns projects whose ``workspace``
     field matches the current workspace.
     """

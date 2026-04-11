@@ -445,7 +445,7 @@ def get_project_dir(project_name: str) -> Path:
 
 
 def load_project_state(project_name: str) -> Optional[ProjectState]:
-    """Load project state from StorageManager."""
+    """Load project state from DomainStore."""
     if not project_name or not is_safe_project_name(project_name):
         return None
 
@@ -586,7 +586,7 @@ def _sanitize_for_json(obj):
 
 
 def save_project_state(state: ProjectState) -> None:
-    """Save project state via StorageManager."""
+    """Save project state via DomainStore."""
     logger.info(f"Saving project state: {state.name} (phase: {state.current_phase})")
 
     # Convert phases dict to list-of-dicts with name field (CP expects array format)
@@ -1350,7 +1350,7 @@ def create_project(
     description: str = "",
     initial_data: Optional[Dict[str, Any]] = None,
 ) -> Tuple[ProjectState, Path]:
-    """Create a new project with StorageManager persistence and local directory.
+    """Create a new project with DomainStore persistence and local directory.
 
     Args:
         name: Project name (kebab-case, validated)

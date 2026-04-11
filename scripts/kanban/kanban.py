@@ -1,8 +1,8 @@
 """
-Wicked Kanban - StorageManager-backed kanban board.
+Wicked Kanban - DomainStore-backed kanban board.
 
-All data flows through StorageManager("wicked-kanban") which routes to the
-Control Plane when available and falls back to local JSON files.
+All data flows through DomainStore("wicked-kanban") which routes to MCP
+integrations when available and falls back to local JSON files.
 
 Sources:
     projects     — project metadata
@@ -85,7 +85,7 @@ def get_date_str() -> str:
 
 
 class KanbanStore:
-    """StorageManager-backed kanban storage."""
+    """DomainStore-backed kanban storage."""
 
     DEFAULT_SWIMLANES = [
         {"id": "todo", "name": "To Do", "order": 0, "is_complete": False},
