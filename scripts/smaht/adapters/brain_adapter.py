@@ -5,8 +5,8 @@ Queries the wicked-brain FTS5 index for code and document context
 relevant to the current prompt. Returns ContextItems tagged with
 source="brain" so the slow path briefing formatter labels them correctly.
 
-This replaces the old search adapter — brain is the unified knowledge layer.
-When brain is unavailable, returns empty (agent falls back to Grep/Glob).
+wicked-brain is a required dependency — context assembly is degraded without it.
+When brain is unreachable, this adapter logs a warning to stderr and returns empty.
 """
 
 import json
@@ -99,7 +99,12 @@ def _query_brain(prompt: str) -> list:
             # Already at 2 terms; nothing further to try
             pass
         return results
-    except Exception:
+    except Exception as _e:
+        print(
+            f"smaht: brain adapter unreachable (port {os.environ.get('WICKED_BRAIN_PORT', '4242')})"
+            f" — context assembly degraded: {type(_e).__name__}",
+            file=sys.stderr,
+        )
         return []
 
 

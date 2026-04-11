@@ -371,7 +371,7 @@ def _check_search_staleness():
             return None  # Brain is healthy
 
     except Exception:
-        return None  # Brain unavailable — not an error, agent uses Grep/Glob
+        return "Brain server is not reachable — start wicked-brain to enable context assembly"
 
 
 def _check_onboarding_status():
@@ -402,7 +402,7 @@ def _check_onboarding_status():
             if stats.get("total", 0) > 0:
                 has_index = True
     except Exception:
-        pass  # brain unavailable — agent falls back to Grep/Glob
+        pass  # brain unavailable — covered by _check_brain_dependency directive
 
     # Check for any stored memories (broad: any brain result, not just /mem- paths).
     # If brain has an index with content (has_index=True), that alone is sufficient
@@ -587,8 +587,10 @@ def _check_brain_dependency():
 
         if not brain_installed:
             note = (
-                "[wicked-brain] Not installed. Install for enhanced code intelligence "
-                "and memory: claude plugin install wicked-brain --scope project"
+                "[wicked-brain] REQUIRED but not installed.\n"
+                "Install now: claude plugin install wicked-brain --scope project\n"
+                "wicked-brain provides the memory, search, and context assembly that "
+                "wicked-garden depends on — it cannot function without it."
             )
             return False, note
 
@@ -859,12 +861,22 @@ def main():
         if state is not None:
             state.update(dangerous_mode=dangerous_mode)
 
-        # 7d. Check wicked-brain dependency
+        # 7d. Check wicked-brain dependency (required, not optional)
         brain_available, brain_note = _check_brain_dependency()
         if state is not None and brain_available is not None:
             state.update(brain_available=brain_available)
         if brain_note:
-            mode_notes.append(brain_note)
+            if brain_available is False:
+                # Not installed — escalate to imperative directive
+                mode_notes.insert(0, (
+                    "[Action Required] wicked-brain is not installed.\n"
+                    "You MUST tell the user to install it immediately:\n"
+                    "  claude plugin install wicked-brain --scope project\n"
+                    "wicked-garden cannot function without wicked-brain. "
+                    "Do NOT proceed with other tasks until brain is installed."
+                ))
+            else:
+                mode_notes.append(brain_note)
 
         # 7e. Brain auto-init and auto-ingest
         #     If brain is installed but has no content for this project, emit

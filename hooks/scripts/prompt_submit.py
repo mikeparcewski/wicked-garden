@@ -519,6 +519,43 @@ def _check_setup_gate(prompt: str) -> str | None:
     return None
 
 
+def _check_brain_gate(prompt: str) -> None:
+    """Warn if wicked-brain server is not reachable.
+
+    Probes the brain API with a 1s timeout. If unreachable, prints a directive
+    to stderr — this feeds back to the model via the hook error channel but does
+    NOT hard-block (sys.exit(2)) since brain is a server process that may be
+    starting up or temporarily unavailable.
+
+    Exempted on setup/help commands (brain not needed before setup completes).
+    """
+    stripped = prompt.strip().lower()
+    if stripped.startswith(_GUARD_PASS_PREFIXES):
+        return
+
+    try:
+        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        payload = json.dumps({"action": "stats", "params": {}}).encode("utf-8")
+        import urllib.request
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=1) as _resp:
+            pass  # Brain is running — no action needed
+    except Exception:
+        print(
+            "[wicked-brain] Brain server is not running on port "
+            f"{os.environ.get('WICKED_BRAIN_PORT', '4242')}.\n"
+            "wicked-garden requires wicked-brain for context assembly and memory.\n"
+            "Start the brain server, then continue. "
+            "If not installed: claude plugin install wicked-brain --scope project",
+            file=sys.stderr,
+        )
+
+
 def _check_onboarding_gate(prompt: str) -> str | None:
     """Check if the current project needs onboarding.
 
@@ -702,6 +739,11 @@ def main():
     # Setup gate — hard-block (sys.exit(2)) if no config.
     # MUST run before HOT continuations so setup can never be bypassed.
     _check_setup_gate(prompt)
+
+    # Brain gate — soft directive if brain server is not reachable.
+    # Runs after setup gate (brain irrelevant before setup completes).
+    # Does NOT hard-block — brain server may be starting up; user can start it.
+    _check_brain_gate(prompt)
 
     # Onboarding gate — inject directive if project hasn't been onboarded.
     # Checked after setup gate but before HOT path so continuations during
