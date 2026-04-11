@@ -26,6 +26,12 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
+def _resolve_brain_port():
+    try:
+        from _brain_port import resolve_port
+        return resolve_port()
+    except Exception:
+        return int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
 
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
@@ -155,7 +161,7 @@ def _brain_api(action, params=None, timeout=3):
     """Call brain API. Returns parsed JSON or None."""
     try:
         import urllib.request
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        port = _resolve_brain_port()
         payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
         req = urllib.request.Request(
             f"http://localhost:{port}/api",

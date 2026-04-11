@@ -70,7 +70,8 @@ def _query_brain(prompt: str) -> list:
     query = " ".join(keywords)
 
     try:
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        from _brain_port import resolve_port as _resolve_port
+        port = _resolve_port()
 
         def _search(q: str) -> list:
             payload = json.dumps({
@@ -101,7 +102,7 @@ def _query_brain(prompt: str) -> list:
         return results
     except Exception as _e:
         print(
-            f"smaht: brain adapter unreachable (port {os.environ.get('WICKED_BRAIN_PORT', '4242')})"
+            f"smaht: brain adapter unreachable (port {port})"
             f" — context assembly degraded: {type(_e).__name__}",
             file=sys.stderr,
         )

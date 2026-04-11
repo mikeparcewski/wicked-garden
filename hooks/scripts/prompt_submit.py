@@ -36,6 +36,13 @@ _V2_DIR = _SCRIPTS_DIR / "smaht" / "v2"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 sys.path.insert(0, str(_V2_DIR))
 
+def _resolve_brain_port():
+    try:
+        from _brain_port import resolve_port
+        return resolve_port()
+    except Exception:
+        return int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+
 
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
@@ -81,7 +88,7 @@ def _brain_api(action, params=None, timeout=3):
     """Call brain API. Returns parsed JSON or None."""
     try:
         import urllib.request
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        port = _resolve_brain_port()
         payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
         req = urllib.request.Request(
             f"http://localhost:{port}/api",
@@ -534,7 +541,7 @@ def _check_brain_gate(prompt: str) -> None:
         return
 
     try:
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        port = _resolve_brain_port()
         payload = json.dumps({"action": "stats", "params": {}}).encode("utf-8")
         import urllib.request
         req = urllib.request.Request(
@@ -548,7 +555,7 @@ def _check_brain_gate(prompt: str) -> None:
     except Exception:
         print(
             "[wicked-brain] Brain server is not running on port "
-            f"{os.environ.get('WICKED_BRAIN_PORT', '4242')}.\n"
+            f"{_resolve_brain_port()}.\n"
             "wicked-garden requires wicked-brain for context assembly and memory.\n"
             "Start the brain server, then continue. "
             "If not installed: claude plugin install wicked-brain --scope project",

@@ -123,8 +123,8 @@ def _brain_api(action, params=None, timeout=3):
     """Call brain API. Returns parsed JSON or None."""
     try:
         import urllib.request
-        import os as _os
-        port = int(_os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        from _brain_port import resolve_port
+        port = resolve_port()
         payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
         req = urllib.request.Request(
             f"http://localhost:{port}/api",

@@ -29,6 +29,7 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
+from _brain_port import resolve_port
 
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
@@ -323,7 +324,7 @@ def _brain_api(action, params=None, timeout=3):
     """Call brain API. Returns parsed JSON or None."""
     try:
         import urllib.request
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        port = resolve_port()
         payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
         req = urllib.request.Request(
             f"http://localhost:{port}/api",
@@ -356,7 +357,7 @@ def _check_search_staleness():
     """
     try:
         import urllib.request
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        port = resolve_port()
         req = urllib.request.Request(
             f"http://localhost:{port}/api",
             data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),
@@ -390,7 +391,7 @@ def _check_onboarding_status():
     try:
         import urllib.request
         import urllib.error
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        port = resolve_port()
         req = urllib.request.Request(
             f"http://localhost:{port}/api",
             data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),
@@ -602,7 +603,7 @@ def _check_brain_dependency():
             import urllib.error
 
             # Default wicked-brain API port; read from env if overridden
-            port = int(os.environ.get("WICKED_BRAIN_PORT", "7777"))
+            port = resolve_port()
             url = f"http://localhost:{port}/api"
             req = urllib.request.Request(
                 url,
@@ -884,7 +885,7 @@ def main():
         if brain_available:
             try:
                 import urllib.request
-                port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+                port = resolve_port()
                 req = urllib.request.Request(
                     f"http://localhost:{port}/api",
                     data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),

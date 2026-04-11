@@ -32,6 +32,13 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
+def _resolve_brain_port():
+    try:
+        from _brain_port import resolve_port
+        return resolve_port()
+    except Exception:
+        return int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+
 
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
@@ -502,7 +509,7 @@ def _brain_reindex_file(file_path: str) -> None:
         safe = re.sub(r"-+", "-", safe).strip("-")
         chunk_id = f"chunks/extracted/{safe}/chunk-001.md"
 
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+        port = _resolve_brain_port()
         payload = json.dumps({
             "action": "index",
             "params": {
