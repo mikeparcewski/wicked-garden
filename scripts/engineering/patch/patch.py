@@ -65,11 +65,47 @@ def _parse_version(v: str) -> tuple:
     return (0, 0, 0)
 
 
-def _brain_api(action: str, params: dict) -> dict:
-    """Call wicked-brain API. Returns empty dict on failure."""
+def _discover_brain_port() -> int:
+    """Discover the brain server port for the current project.
+
+    Checks in order:
+    1. WICKED_BRAIN_PORT env var (explicit override)
+    2. Project brain config: ~/.wicked-brain/projects/*/_meta/config.json
+       where source_path matches the current working directory
+    3. Default: 4242 (root brain)
+    """
     import os
+    env_port = os.environ.get("WICKED_BRAIN_PORT")
+    if env_port:
+        return int(env_port)
+
+    # Auto-discover: find a project brain whose source_path matches cwd
+    brain_root = Path.home() / ".wicked-brain" / "projects"
+    cwd = Path.cwd().resolve()
+    if brain_root.is_dir():
+        for project_dir in brain_root.iterdir():
+            config_path = project_dir / "_meta" / "config.json"
+            if config_path.is_file():
+                try:
+                    with open(config_path) as f:
+                        cfg = json.load(f)
+                    source = cfg.get("source_path", "")
+                    if source and cwd == Path(source).resolve():
+                        return int(cfg.get("server_port", 4242))
+                except Exception:
+                    pass
+
+    return 4242
+
+
+def _brain_api(action: str, params: dict, port: Optional[int] = None) -> dict:
+    """Call wicked-brain API. Returns empty dict on failure.
+
+    Port is auto-discovered from project brain configs unless overridden.
+    """
     import urllib.request
-    port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+    if port is None:
+        port = _discover_brain_port()
     try:
         payload = json.dumps({"action": action, "params": params}).encode()
         req = urllib.request.Request(
