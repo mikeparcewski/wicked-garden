@@ -2,21 +2,22 @@
 """
 wicked-patch CLI - Language-agnostic code generation and change propagation.
 
-Generates patches for code changes and propagates them across all affected files
-using the symbol graph from wicked-search.
+Generates patches for code changes and propagates them across all affected files.
+Requires a symbol database (--db). Brain-backed symbol resolution is tracked in
+mikeparcewski/wicked-brain#23 and will remove the --db requirement once landed.
 
 Usage:
     # Plan what would be affected
-    patch plan SYMBOL_ID --change add_field
+    patch plan SYMBOL_ID --change add_field --db symbols.db
 
     # Add a field to an entity/class
-    patch add-field SYMBOL_ID --name email --type String --column EMAIL
+    patch add-field SYMBOL_ID --name email --type String --column EMAIL --db symbols.db
 
     # Rename a field across all usages
-    patch rename SYMBOL_ID --old status --new providerStatus
+    patch rename SYMBOL_ID --old status --new providerStatus --db symbols.db
 
     # Remove a field everywhere
-    patch remove SYMBOL_ID --field deprecated_field
+    patch remove SYMBOL_ID --field deprecated_field --db symbols.db
 
     # Apply generated patches
     patch apply patches.json
@@ -35,7 +36,6 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from _domain_store import get_local_file
 from generators import (
     ChangeSpec,
     ChangeType,
@@ -62,66 +62,24 @@ def _parse_version(v: str) -> tuple:
     return (0, 0, 0)
 
 
-def _discover_search_script() -> Optional[Path]:
-    """Find wicked-search's unified_search.py via sibling path or cache."""
-    # Local repo sibling path (preferred)
-    local = Path(__file__).parent.parent.parent / "wicked-search" / "scripts" / "unified_search.py"
-    if local.exists():
-        return local
+def get_default_db_path() -> Optional[Path]:
+    """Return None — symbol graph is provided by wicked-brain (see mikeparcewski/wicked-brain#23).
 
-    # Cache discovery via CLAUDE_PLUGIN_ROOT environment variable
-    import os
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
-    if plugin_root:
-        cache_base = Path(plugin_root).parent / "wicked-search"
-        if cache_base.exists():
-            script = cache_base / "scripts" / "unified_search.py"
-            if script.exists():
-                return script
-
+    Patch commands require a symbol database. Once wicked-brain exposes a
+    symbol graph API, this will query brain instead of a local SQLite file.
+    Pass --db explicitly to use a local database file in the meantime.
+    """
     return None
 
 
-def get_default_db_path() -> Path:
-    """Get the default wicked-search database path via its CLI.
-
-    Falls back to the most recently modified .db file in the wicked-search
-    storage directory when the primary lookup returns a non-existent path.
-    """
-    # Try discovering via wicked-search's db-path subcommand
-    search_script = _discover_search_script()
-    if search_script:
-        try:
-            import subprocess
-            result = subprocess.run(
-                [sys.executable, str(search_script), "db-path", "--json"],
-                capture_output=True, text=True, timeout=3.0
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                data = json.loads(result.stdout)
-                db_path = data.get("db_path")
-                if db_path and data.get("exists", False):
-                    return Path(db_path)
-        except Exception:
-            pass  # fail open: falls back to default path
-
-    # Fallback: default path via _paths (unified root with legacy fallback)
-    default_path = get_local_file("wicked-search", "unified_search.db")
-    if default_path.exists():
-        return default_path
-
-    return default_path
-
-
-def _resolve_symbol_id(symbol_id: str, db_path: Path) -> str:
+def _resolve_symbol_id(symbol_id: str, db_path: Optional[Path]) -> str:
     """Resolve a relative symbol ID against the indexed project path.
 
     When a symbol ID doesn't start with '/', it's treated as a relative path.
-    The function queries the database for symbols whose ID ends with the
-    given relative ID, returning the first match.  If no match is found or
-    the ID is already absolute, it is returned unchanged.
+    Requires a db_path to a local SQLite symbol database. Full brain-backed
+    resolution is tracked in mikeparcewski/wicked-brain#23.
     """
-    if not symbol_id or symbol_id.startswith("/"):
+    if not symbol_id or symbol_id.startswith("/") or db_path is None:
         return symbol_id
 
     try:
@@ -129,7 +87,6 @@ def _resolve_symbol_id(symbol_id: str, db_path: Path) -> str:
         conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        # Look for a symbol whose ID ends with the relative path
         cursor.execute(
             "SELECT id FROM symbols WHERE id LIKE ? LIMIT 1",
             (f"%/{symbol_id}",),
@@ -139,9 +96,35 @@ def _resolve_symbol_id(symbol_id: str, db_path: Path) -> str:
         if row:
             return row["id"]
     except Exception:
-        pass  # fail open: symbol not found
+        pass
 
     return symbol_id
+
+
+_BRAIN_ISSUE = "mikeparcewski/wicked-brain#23"
+
+
+def _require_db(args_db: Optional[str]) -> Optional[Path]:
+    """Resolve db_path from --db flag or return None with an informative error.
+
+    Returns the Path if usable, or prints an error and returns None.
+    Brain-backed symbol resolution is tracked in mikeparcewski/wicked-brain#23.
+    """
+    if args_db:
+        p = Path(args_db)
+        if not p.exists():
+            print(f"Error: Database not found at {p}", file=sys.stderr)
+            return None
+        return p
+
+    print(
+        "Error: patch commands require a symbol database.\n"
+        "  wicked-brain will provide this once the symbol graph API lands.\n"
+        f"  Track progress: {_BRAIN_ISSUE}\n"
+        "  Workaround: pass --db <path-to-symbol.db> explicitly.",
+        file=sys.stderr,
+    )
+    return None
 
 
 def _assess_risk(plan: PropagationPlan, change_type: str = "") -> dict:
@@ -320,11 +303,8 @@ def format_patches(patch_set: PatchSet, verbose: bool = False) -> str:
 
 def cmd_plan(args):
     """Show propagation plan without generating patches."""
-    db_path = Path(args.db) if args.db else get_default_db_path()
-
-    if not db_path.exists():
-        print(f"Error: Database not found at {db_path}", file=sys.stderr)
-        print("Run '/wicked-search:index' first to build the symbol graph.", file=sys.stderr)
+    db_path = _require_db(args.db)
+    if db_path is None:
         return 1
 
     resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
@@ -367,10 +347,8 @@ def cmd_plan(args):
 
 def cmd_add_field(args):
     """Add a field and propagate to all affected files."""
-    db_path = Path(args.db) if args.db else get_default_db_path()
-
-    if not db_path.exists():
-        print(f"Error: Database not found at {db_path}", file=sys.stderr)
+    db_path = _require_db(args.db)
+    if db_path is None:
         return 1
 
     resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
@@ -419,10 +397,8 @@ def cmd_add_field(args):
 
 def cmd_rename(args):
     """Rename a field across all usages."""
-    db_path = Path(args.db) if args.db else get_default_db_path()
-
-    if not db_path.exists():
-        print(f"Error: Database not found at {db_path}", file=sys.stderr)
+    db_path = _require_db(args.db)
+    if db_path is None:
         return 1
 
     resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
@@ -458,10 +434,8 @@ def cmd_rename(args):
 
 def cmd_remove(args):
     """Remove a field and all its usages."""
-    db_path = Path(args.db) if args.db else get_default_db_path()
-
-    if not db_path.exists():
-        print(f"Error: Database not found at {db_path}", file=sys.stderr)
+    db_path = _require_db(args.db)
+    if db_path is None:
         return 1
 
     resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
@@ -534,7 +508,7 @@ def cmd_apply(args):
         patches=patches,
     )
 
-    db_path = Path(args.db) if args.db else get_default_db_path()
+    db_path = Path(args.db) if args.db else None
 
     return apply_patches_interactive(
         patch_set, db_path,
@@ -581,7 +555,7 @@ def save_patches(patch_set: PatchSet, output_path: str):
 
 def apply_patches_interactive(
     patch_set: PatchSet,
-    db_path: Path,
+    db_path: Optional[Path],
     force: bool = False,
     skip_git: bool = False,
 ) -> int:
@@ -590,7 +564,7 @@ def apply_patches_interactive(
 
     Args:
         patch_set: Patches to apply
-        db_path: Path to symbol database (for freshness check)
+        db_path: Path to symbol database for freshness check, or None to skip it
         force: Skip freshness check
         skip_git: Skip git clean check
     """
@@ -663,7 +637,7 @@ Examples:
 """,
     )
 
-    parser.add_argument("--db", help="Path to wicked-search database")
+    parser.add_argument("--db", help="Path to symbol database (required until wicked-brain#23 lands)")
     parser.add_argument("--version", action="version", version="wicked-patch 1.0.0")
 
     subparsers = parser.add_subparsers(dest="command", help="Command")

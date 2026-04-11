@@ -1,13 +1,12 @@
 """
-Code generators for wicked-search.
+Code generators for wicked-patch.
 
-Generators are the symmetric counterpart to adapters:
-- Adapters: parse code -> extract symbols
-- Generators: change spec + symbols -> generate patches
+Generators are the code-production side of the patch pipeline:
+- Input: change spec + affected symbols
+- Output: concrete patches per file
 
-This module provides language-agnostic code generation that uses
-the symbol graph and lineage paths to propagate changes across
-all affected files automatically.
+Uses the symbol graph (from --db or wicked-brain once available) to
+propagate changes across all affected files automatically.
 """
 
 from .base import (
