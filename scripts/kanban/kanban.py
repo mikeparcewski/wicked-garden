@@ -24,7 +24,7 @@ from typing import Any, Optional, List, Dict
 
 # Resolve _domain_store from the parent scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _domain_store import DomainStore as StorageManager
+from _domain_store import DomainStore
 
 
 BOARD_SCHEMAS: dict = {
@@ -94,7 +94,7 @@ class KanbanStore:
     ]
 
     def __init__(self):
-        self._sm = StorageManager("wicked-kanban")
+        self._store = DomainStore("wicked-kanban")
 
     # ==================== Activity Log ====================
 
@@ -107,7 +107,7 @@ class KanbanStore:
             "type": activity_type,
             **kwargs
         }
-        self._sm.create("activity", record)
+        self._store.create("activity", record)
 
         # Emit to EventStore asynchronously (fire-and-forget) for task lifecycle events
         if activity_type in ("task_created", "task_updated", "task_deleted"):
@@ -150,7 +150,7 @@ class KanbanStore:
 
     def _load_index(self, project_id: str) -> Dict:
         """Load task index, create if missing."""
-        index = self._sm.get("indexes", project_id)
+        index = self._store.get("indexes", project_id)
         if not index:
             index = {"id": project_id, "by_swimlane": {}, "by_initiative": {}, "all": []}
         return index
@@ -158,11 +158,11 @@ class KanbanStore:
     def _save_index(self, project_id: str, index: Dict):
         """Save task index."""
         index["id"] = project_id
-        existing = self._sm.get("indexes", project_id)
+        existing = self._store.get("indexes", project_id)
         if existing:
-            self._sm.update("indexes", project_id, index)
+            self._store.update("indexes", project_id, index)
         else:
-            self._sm.create("indexes", index)
+            self._store.create("indexes", index)
 
     def _index_add_task(self, project_id: str, task: Dict):
         """Add task to index."""
@@ -239,7 +239,7 @@ class KanbanStore:
 
     def list_projects(self) -> List[Dict]:
         """List all projects (metadata only)."""
-        projects = self._sm.list("projects")
+        projects = self._store.list("projects")
         for project in projects:
             pid = project.get("id", "")
             index = self._load_index(pid)
@@ -252,7 +252,7 @@ class KanbanStore:
 
     def get_project(self, project_id: str) -> Optional[Dict]:
         """Get project metadata."""
-        return self._sm.get("projects", project_id)
+        return self._store.get("projects", project_id)
 
     def create_project(self, name: str, description: str = None,
                        repo_path: str = None) -> Dict:
@@ -269,10 +269,10 @@ class KanbanStore:
             "created_by": "claude",
             "archived": False
         }
-        self._sm.create("projects", project)
+        self._store.create("projects", project)
 
         # Default swimlanes
-        self._sm.create("swimlanes", {
+        self._store.create("swimlanes", {
             "id": project_id,
             "lanes": self.DEFAULT_SWIMLANES,
         })
@@ -298,7 +298,7 @@ class KanbanStore:
                 diff[key] = value
 
         diff["updated_at"] = get_utc_timestamp()
-        result = self._sm.update("projects", project_id, diff)
+        result = self._store.update("projects", project_id, diff)
         self._log_activity(project_id, "project_updated", updates=list(updates.keys()))
         return result
 
@@ -307,13 +307,13 @@ class KanbanStore:
         project = self.get_project(project_id)
         if not project:
             return False
-        return self._sm.delete("projects", project_id)
+        return self._store.delete("projects", project_id)
 
     # ==================== Swimlanes ====================
 
     def get_swimlanes(self, project_id: str) -> List[Dict]:
         """Get swimlanes for a project."""
-        record = self._sm.get("swimlanes", project_id)
+        record = self._store.get("swimlanes", project_id)
         if record:
             return record.get("lanes", [])
         return []
@@ -335,7 +335,7 @@ class KanbanStore:
 
         swimlanes.append(swimlane)
         swimlanes.sort(key=lambda s: s.get("order", 0))
-        self._sm.update("swimlanes", project_id, {"lanes": swimlanes})
+        self._store.update("swimlanes", project_id, {"lanes": swimlanes})
         return swimlane
 
     def update_swimlane(self, project_id: str, swimlane_id: str, **updates) -> Optional[Dict]:
@@ -349,7 +349,7 @@ class KanbanStore:
                     if key in allowed:
                         swimlane[key] = value
                 swimlanes.sort(key=lambda s: s.get("order", 0))
-                self._sm.update("swimlanes", project_id, {"lanes": swimlanes})
+                self._store.update("swimlanes", project_id, {"lanes": swimlanes})
                 return swimlane
         return None
 
@@ -372,11 +372,11 @@ class KanbanStore:
     def get_task(self, project_id: str, task_id: str) -> Optional[Dict]:
         """Get a single task by ID, including comments from the activity log."""
         task_id = self._strip_composite_id(project_id, task_id)
-        task = self._sm.get("tasks", f"{project_id}:{task_id}")
+        task = self._store.get("tasks", f"{project_id}:{task_id}")
         if task is None:
             return None
         # Attach comments sourced from the activity log
-        raw_comments = self._sm.list(
+        raw_comments = self._store.list(
             "activity", project_id=project_id, task_id=task_id, type="comment"
         )
         task["comments"] = sorted(
@@ -451,7 +451,7 @@ class KanbanStore:
             "updated_at": get_utc_timestamp()
         }
 
-        self._sm.create("tasks", task)
+        self._store.create("tasks", task)
         # Keep backward compat: index uses short task_id
         task_for_index = dict(task)
         task_for_index["id"] = task_id
@@ -488,7 +488,7 @@ class KanbanStore:
 
         diff["updated_at"] = get_utc_timestamp()
         task["updated_at"] = diff["updated_at"]
-        self._sm.update("tasks", f"{project_id}:{task_id}", diff)
+        self._store.update("tasks", f"{project_id}:{task_id}", diff)
 
         # Update index if swimlane or initiative changed
         new_swimlane = task.get("swimlane")
@@ -512,7 +512,7 @@ class KanbanStore:
         if not task:
             return False
 
-        self._sm.delete("tasks", f"{project_id}:{task_id}")
+        self._store.delete("tasks", f"{project_id}:{task_id}")
         self._index_remove_task(project_id, task_id)
         self._log_activity(project_id, "task_deleted", task_id=task_id)
         return True
@@ -567,7 +567,7 @@ class KanbanStore:
         commits = task.get("commits", [])
         if commit_hash not in commits:
             commits.append(commit_hash)
-            self._sm.update("tasks", f"{project_id}:{task_id}", {
+            self._store.update("tasks", f"{project_id}:{task_id}", {
                 "commits": commits,
                 "updated_at": get_utc_timestamp(),
             })
@@ -597,7 +597,7 @@ class KanbanStore:
 
         task.setdefault("artifacts", []).append(artifact)
         task["updated_at"] = get_utc_timestamp()
-        self._sm.update("tasks", f"{project_id}:{task_id}", {
+        self._store.update("tasks", f"{project_id}:{task_id}", {
             "artifacts": task["artifacts"],
             "updated_at": task["updated_at"],
         })
@@ -651,12 +651,12 @@ class KanbanStore:
 
     def list_initiatives(self, project_id: str) -> List[Dict]:
         """List all initiatives in a project."""
-        initiatives = self._sm.list("initiatives", project_id=project_id)
+        initiatives = self._store.list("initiatives", project_id=project_id)
         return sorted(initiatives, key=lambda i: i.get("created_at", ""))
 
     def get_initiative(self, project_id: str, initiative_id: str) -> Optional[Dict]:
         """Get a single initiative."""
-        return self._sm.get("initiatives", f"{project_id}:{initiative_id}")
+        return self._store.get("initiatives", f"{project_id}:{initiative_id}")
 
     def _provision_swimlanes(self, project_id: str, board_type: str):
         """Append board-type swimlanes that don't already exist (additive, idempotent)."""
@@ -693,7 +693,7 @@ class KanbanStore:
             "created_by": kwargs.get("created_by", "claude")
         }
 
-        self._sm.create("initiatives", initiative)
+        self._store.create("initiatives", initiative)
         self._provision_swimlanes(project_id, board_type)
         self._log_activity(project_id, "initiative_created",
                            initiative_id=initiative_id, initiative_name=name)
@@ -715,7 +715,7 @@ class KanbanStore:
 
         diff["updated_at"] = get_utc_timestamp()
         initiative["updated_at"] = diff["updated_at"]
-        self._sm.update("initiatives", f"{project_id}:{initiative_id}", diff)
+        self._store.update("initiatives", f"{project_id}:{initiative_id}", diff)
         return initiative
 
     def _trigger_mem_write(self, project_id: str, task: dict, trigger: dict):
@@ -763,7 +763,7 @@ class KanbanStore:
         if not initiative:
             return False
 
-        self._sm.delete("initiatives", f"{project_id}:{initiative_id}")
+        self._store.delete("initiatives", f"{project_id}:{initiative_id}")
 
         # Clear initiative_id from tasks
         index = self._load_index(project_id)
@@ -771,7 +771,7 @@ class KanbanStore:
         for tid in task_ids:
             task = self.get_task(project_id, tid)
             if task:
-                self._sm.update("tasks", f"{project_id}:{tid}", {"initiative_id": None})
+                self._store.update("tasks", f"{project_id}:{tid}", {"initiative_id": None})
 
         # Update index
         if initiative_id in index.get("by_initiative", {}):
@@ -850,24 +850,24 @@ class KanbanStore:
         params = {"project_id": project_id}
         if date_str:
             params["date"] = date_str
-        entries = self._sm.list("activity", **params)
+        entries = self._store.list("activity", **params)
         return entries[:limit]
 
     # ==================== Config ====================
 
     def get_config(self) -> Dict:
         """Get global config."""
-        config = self._sm.get("config", "global")
+        config = self._store.get("config", "global")
         return config or {}
 
     def save_config(self, config: Dict):
         """Save global config."""
         config["id"] = "global"
-        existing = self._sm.get("config", "global")
+        existing = self._store.get("config", "global")
         if existing:
-            self._sm.update("config", "global", config)
+            self._store.update("config", "global", config)
         else:
-            self._sm.create("config", config)
+            self._store.create("config", config)
 
     def get_project_for_repo(self, repo_path: str) -> Optional[str]:
         """Get project ID for a repo path."""
@@ -884,7 +884,7 @@ class KanbanStore:
 
     def get_active_context(self) -> Dict:
         """Get current session context."""
-        ctx = self._sm.get("config", "active_context")
+        ctx = self._store.get("config", "active_context")
         return ctx or {}
 
     def set_active_context(self, **updates):
@@ -893,11 +893,11 @@ class KanbanStore:
         ctx.update(updates)
         ctx["id"] = "active_context"
         ctx["updated_at"] = get_utc_timestamp()
-        existing = self._sm.get("config", "active_context")
+        existing = self._store.get("config", "active_context")
         if existing:
-            self._sm.update("config", "active_context", ctx)
+            self._store.update("config", "active_context", ctx)
         else:
-            self._sm.create("config", ctx)
+            self._store.create("config", ctx)
 
     def get_active_task(self) -> Optional[Dict]:
         """Get the currently active task."""

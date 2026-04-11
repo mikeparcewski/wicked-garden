@@ -151,7 +151,7 @@ Use the Explore agent or direct tool calls to gather context about the project b
    ```
    Onboarding memories (tech stack, architecture, flows, gaps) plus past quality decisions inform archetype detection.
 
-3. **Analyze codebase structure** (if wicked-search available):
+3. **Analyze codebase structure** :
    - `/wicked-garden:search:scout` for common patterns (component library? API routes? data pipelines?)
    - `/wicked-garden:search:blast-radius` on files being changed to understand impact scope
 

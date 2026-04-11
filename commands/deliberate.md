@@ -42,7 +42,7 @@ Extract title, body, and any discussion context. If not a GH issue, use the raw 
   git log --oneline -20
   ```
 
-**Search for affected areas** (if wicked-search available):
+**Search for affected areas** :
 - Extract key references from the description
 - Use `/wicked-garden:search:code` for symbol search
 - If `--deep` flag: use `/wicked-garden:search:blast-radius` on key symbols

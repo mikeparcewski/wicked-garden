@@ -137,7 +137,7 @@ class FreshnessChecker:
         Check if the symbol graph is fresh enough.
 
         Args:
-            db_path: Path to the wicked-search database
+            db_path: Path to the symbol database
             max_age_hours: Maximum age in hours before considered stale
 
         Returns:
@@ -183,7 +183,7 @@ class FreshnessChecker:
                 return SafetyCheckResult(
                     passed=False,
                     message=f"Symbol graph is stale ({age_hours:.1f}h old). "
-                            f"Run /wicked-search:index or use --force",
+                            f"Run /wicked-garden:search:index or use --force",
                     details={
                         "index_time": index_time.isoformat(),
                         "age_hours": age_hours,

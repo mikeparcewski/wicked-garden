@@ -11,7 +11,7 @@ Display usage information and examples.
 Show the following help information:
 
 ```markdown
-# wicked-search Help
+# wicked-garden:search Help
 
 Structural code search, document search, lineage tracing, and codebase intelligence powered by the brain knowledge layer.
 

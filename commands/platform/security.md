@@ -44,7 +44,7 @@ Return Format:
 
 ### 3. Scan for Common Issues
 
-Use wicked-search to find patterns:
+Use wicked-garden:search to find patterns:
 
 ```bash
 # Secrets detection

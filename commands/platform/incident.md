@@ -59,7 +59,7 @@ Check for available sources:
 
 ### 4. Correlate with Changes
 
-Use wicked-search and git:
+Use wicked-garden:search and git:
 ```bash
 # Recent deployments
 git log --oneline --since="2 hours ago"

@@ -108,7 +108,7 @@ Include recalled learnings in the project context. They inform signal analysis, 
    Onboarding memories contain foundational knowledge: tech stack, architecture pattern,
    entry points, key flows, and quality signals. Use these to inform archetype detection.
 
-3. **Analyze codebase structure** (if wicked-search available):
+3. **Analyze codebase structure** :
    - `/wicked-garden:search:scout` for pattern detection (component library? API routes? data pipelines? content templates?)
 
 4. **Explore codebase for affected files** (pre-analysis for smart decisioning):

@@ -47,7 +47,7 @@ Return Format:
 
 ### 3. Scan for Sensitive Data
 
-Use wicked-search to identify sensitive data handling:
+Use wicked-garden:search to identify sensitive data handling:
 
 ```bash
 # PII patterns

@@ -1,5 +1,5 @@
 """
-Propagation Engine for wicked-search.
+Propagation Engine for symbol graph traversal.
 
 Orchestrates code generation across multiple files using the lineage graph.
 When a change is made to a symbol, this engine:
@@ -143,7 +143,7 @@ class PropagationEngine:
         Initialize the engine.
 
         Args:
-            db_path: Path to the wicked-search SQLite database
+            db_path: Path to the symbol graph SQLite database
         """
         self.db_path = db_path
         self._conn: Optional[sqlite3.Connection] = None

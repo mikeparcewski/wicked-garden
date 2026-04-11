@@ -31,12 +31,11 @@ This returns: name, current_phase, phase_plan, phase statuses, signals, complexi
 Check which plugins are installed:
 
 ```bash
-# Check for each plugin
-for plugin in wicked-jam wicked-search wicked-product wicked-mem wicked-kanban; do
-  if claude mcp list 2>/dev/null | grep -q "$plugin"; then
-    echo "$plugin: available"
+# Check for wicked-brain (required companion plugin)
+if curl -s --connect-timeout 1 -X POST http://localhost:4242/api -H "Content-Type: application/json" -d '{"action":"health"}' 2>/dev/null | grep -q '"ok"'; then
+    echo "wicked-brain: available"
   else
-    echo "$plugin: not installed"
+    echo "wicked-brain: not running"
   fi
 done
 ```
@@ -73,11 +72,12 @@ Based on available plugins:
 
 | Plugin | Status | Used In |
 |--------|--------|---------|
-| jam | {available/not installed} | clarify |
-| wicked-search | {available/not installed} | design |
-| product | {available/not installed} | qe, review |
-| wicked-mem | {available/not installed} | all phases |
-| wicked-kanban | {available/not installed} | build |
+| jam | built-in | clarify |
+| search | built-in | design |
+| product | built-in | qe, review |
+| mem | built-in | all phases |
+| kanban | built-in | build |
+| wicked-brain | {running/not running} | context assembly |
 
 ### Next Steps
 

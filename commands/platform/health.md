@@ -56,7 +56,7 @@ Return Format:
 ### 3. Fallback to Code Analysis
 
 If no observability sources available:
-- Use wicked-search to find error patterns in code
+- Use wicked-garden:search to find error patterns in code
 - Check recent commits for deployment correlation
 - Analyze logging statements for potential issues
 

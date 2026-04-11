@@ -23,8 +23,8 @@ Output: A structured JSON context package with typed fields:
 }
 
 The --dispatch flag adds ecosystem orientation: which plugins are installed,
-what skills/tools are available, and conciseness guidance. This replaces the
-SubagentStart hook that was removed (hooks caused subagent exits).
+what skills/tools are available, and conciseness guidance. This supplements
+the SubagentStart hook with richer context for dispatched subagents.
 """
 
 import argparse
@@ -150,14 +150,12 @@ async def gather_memories(task: str, limit: int = 3) -> list:
 
 
 async def gather_code_context(task: str, files: list = None, limit: int = 5) -> list:
-    """Query wicked-search for relevant code symbols via domain adapter."""
+    """Query brain for relevant code symbols via domain adapter."""
     try:
         from adapters import domain_adapter
         items = await domain_adapter.query(task)
         results = []
         for item in items:
-            if getattr(item, "source", "") != "search":
-                continue
             results.append({
                 "title": getattr(item, "title", ""),
                 "file": getattr(item, "metadata", {}).get("file", ""),

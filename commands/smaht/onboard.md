@@ -302,13 +302,14 @@ After the report, offer to go deeper:
 
 ## Graceful Degradation
 
-| Plugin | Available | Fallback |
-|--------|-----------|----------|
-| wicked-search | Index + validate | Scout-only mode (Glob/Grep) |
-| wicked-mem | Store/recall discoveries | No persistence between sessions |
-| delivery | Learning paths | Generic next steps |
+| Component | Available | Fallback |
+|-----------|-----------|----------|
+| wicked-brain | FTS5 search + LSP symbols | Scout-only mode (Glob/Grep) |
+| search | Index + validate (built-in) | Scout-only mode (Glob/Grep) |
+| mem | Store/recall discoveries (built-in) | No persistence between sessions |
+| delivery | Learning paths (built-in) | Generic next steps |
 
-If wicked-search is unavailable, skip Phase 1 indexing and Phase 3 validation. Exploration still works via Glob/Grep.
+If wicked-brain is unavailable, skip Phase 1 indexing and Phase 3 validation. Exploration still works via Glob/Grep.
 
 If wicked-mem is unavailable, skip memory storage. Report is still generated but not persisted.
 

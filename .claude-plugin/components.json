@@ -46,7 +46,7 @@
     "product":               ["acceptance-criteria", "accessibility", "analyze", "design-review", "imagery", "listen", "mockup", "product-management", "requirements-analysis", "requirements-graph", "requirements-migrate", "requirements-navigate", "screenshot", "strategy", "synthesize", "ux-flow", "ux-review", "visual-review"],
     "qe":                    ["acceptance-testing", "agent-browser", "qe-strategy", "scenarios"],
     "runtime-exec":          ["runtime-exec"],
-    "search":                ["graph-export", "unified-search"],
+    "search":                ["unified-search"],
     "smaht":                 ["discovery", "smaht"],
     "wickedizer":            ["wickedizer"]
   },
