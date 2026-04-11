@@ -36,8 +36,9 @@ from typing import Optional, List
 from datetime import datetime
 
 # Add parent to path for imports, and scripts root for shared modules
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # scripts/
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # scripts/engineering/
+sys.path.insert(0, str(Path(__file__).parent))                # scripts/engineering/patch/
 
 from generators import (
     ChangeSpec,
