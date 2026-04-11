@@ -3,11 +3,14 @@
 wicked-patch CLI - Language-agnostic code generation and change propagation.
 
 Generates patches for code changes and propagates them across all affected files.
-Requires a symbol database (--db). Brain-backed symbol resolution is tracked in
-mikeparcewski/wicked-brain#23 and will remove the --db requirement once landed.
+Symbol resolution uses wicked-brain's symbols/dependents API. Patch generation
+(add-field, rename, remove) additionally requires --db for symbol-level graph traversal.
 
 Usage:
-    # Plan what would be affected
+    # Plan what would be affected (brain-backed, no --db needed)
+    patch plan SYMBOL_ID --change add_field
+
+    # Plan with full symbol graph (requires local DB)
     patch plan SYMBOL_ID --change add_field --db symbols.db
 
     # Add a field to an entity/class
@@ -62,54 +65,63 @@ def _parse_version(v: str) -> tuple:
     return (0, 0, 0)
 
 
-def get_default_db_path() -> Optional[Path]:
-    """Return None — symbol graph is provided by wicked-brain (see mikeparcewski/wicked-brain#23).
-
-    Patch commands require a symbol database. Once wicked-brain exposes a
-    symbol graph API, this will query brain instead of a local SQLite file.
-    Pass --db explicitly to use a local database file in the meantime.
-    """
-    return None
+def _brain_api(action: str, params: dict) -> dict:
+    """Call wicked-brain API. Returns empty dict on failure."""
+    import os
+    import urllib.request
+    port = int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
+    try:
+        payload = json.dumps({"action": action, "params": params}).encode()
+        req = urllib.request.Request(
+            f"http://localhost:{port}/api",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            return json.loads(resp.read().decode())
+    except Exception:
+        return {}
 
 
 def _resolve_symbol_id(symbol_id: str, db_path: Optional[Path]) -> str:
-    """Resolve a relative symbol ID against the indexed project path.
+    """Resolve a partial symbol name to a full ID.
 
-    When a symbol ID doesn't start with '/', it's treated as a relative path.
-    Requires a db_path to a local SQLite symbol database. Full brain-backed
-    resolution is tracked in mikeparcewski/wicked-brain#23.
+    Tries brain's symbols API first (returns file_path::Name when LSP data
+    is available), then falls back to local SQLite if db_path is provided.
     """
-    if not symbol_id or symbol_id.startswith("/") or db_path is None:
+    if not symbol_id or symbol_id.startswith("/") or "::" in symbol_id:
         return symbol_id
 
-    try:
-        import sqlite3
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id FROM symbols WHERE id LIKE ? LIMIT 1",
-            (f"%/{symbol_id}",),
-        )
-        row = cursor.fetchone()
-        conn.close()
-        if row:
-            return row["id"]
-    except Exception:
-        pass
+    # Try brain symbols API
+    result = _brain_api("symbols", {"name": symbol_id, "limit": 1})
+    for r in result.get("results", []):
+        if r.get("file_path"):
+            return r["id"]  # format: "file_path::SymbolName"
+
+    # SQLite fallback
+    if db_path:
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM symbols WHERE id LIKE ? LIMIT 1",
+                (f"%/{symbol_id}",),
+            )
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                return row["id"]
+        except Exception:
+            pass
 
     return symbol_id
 
 
-_BRAIN_ISSUE = "mikeparcewski/wicked-brain#23"
-
-
 def _require_db(args_db: Optional[str]) -> Optional[Path]:
-    """Resolve db_path from --db flag or return None with an informative error.
-
-    Returns the Path if usable, or prints an error and returns None.
-    Brain-backed symbol resolution is tracked in mikeparcewski/wicked-brain#23.
-    """
+    """Resolve db_path from --db flag or return None with an informative error."""
     if args_db:
         p = Path(args_db)
         if not p.exists():
@@ -118,10 +130,9 @@ def _require_db(args_db: Optional[str]) -> Optional[Path]:
         return p
 
     print(
-        "Error: patch commands require a symbol database.\n"
-        "  wicked-brain will provide this once the symbol graph API lands.\n"
-        f"  Track progress: {_BRAIN_ISSUE}\n"
-        "  Workaround: pass --db <path-to-symbol.db> explicitly.",
+        "Error: patch generation requires a local symbol database.\n"
+        "  Pass --db <path-to-symbol.db> to use a local SQLite symbol graph.\n"
+        "  The 'plan' command works without --db using wicked-brain's symbol API.",
         file=sys.stderr,
     )
     return None
@@ -301,10 +312,70 @@ def format_patches(patch_set: PatchSet, verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
+def _cmd_plan_brain(args) -> int:
+    """Show a brain-backed propagation plan (file-level, no local DB needed)."""
+    # Strip path prefix if user passed a full symbol ID
+    symbol_name = args.symbol_id.split("::")[-1] if "::" in args.symbol_id else args.symbol_id
+
+    sym_result = _brain_api("symbols", {"name": symbol_name, "limit": 5})
+    symbols = sym_result.get("results", [])
+
+    dep_result = _brain_api("dependents", {"name": symbol_name})
+    dep_files = dep_result.get("files", [])
+
+    if not symbols and not dep_files:
+        print(f"Error: '{symbol_name}' not found in brain index.", file=sys.stderr)
+        print("Index the codebase first, or pass --db <symbol.db> for local SQLite planning.", file=sys.stderr)
+        return 1
+
+    source = symbols[0] if symbols else {"name": symbol_name, "type": "unknown", "file_path": None}
+    change_type = args.change if args.change else "modify_field"
+
+    print("=" * 60)
+    print("PROPAGATION PLAN  [brain-backed, file-level]")
+    print("=" * 60)
+    print()
+    print(f"Source: {source.get('name', symbol_name)}")
+    print(f"  Type: {source.get('type', 'unknown')}")
+    file_path = source.get("file_path")
+    print(f"  File: {file_path or '(chunk-indexed — run ingest with LSP for exact location)'}")
+    print()
+
+    if dep_files:
+        print(f"Dependent Files ({len(dep_files)}):")
+        for f in dep_files[:15]:
+            print(f"  - {f}")
+        if len(dep_files) > 15:
+            print(f"  ... and {len(dep_files) - 15} more")
+    else:
+        print("No dependent files found in brain index.")
+    print()
+    print("Note: Pass --db <symbol.db> for symbol-level graph traversal and patch generation.")
+    print("=" * 60)
+
+    if args.json:
+        print("\n" + json.dumps({
+            "source": {
+                "name": source.get("name", symbol_name),
+                "type": source.get("type", "unknown"),
+                "file": file_path,
+            },
+            "change_type": change_type,
+            "files_affected": dep_files,
+            "planning_source": "brain",
+        }, indent=2))
+
+    return 0
+
+
 def cmd_plan(args):
     """Show propagation plan without generating patches."""
-    db_path = _require_db(args.db)
-    if db_path is None:
+    if not args.db:
+        return _cmd_plan_brain(args)
+
+    db_path = Path(args.db)
+    if not db_path.exists():
+        print(f"Error: Database not found at {db_path}", file=sys.stderr)
         return 1
 
     resolved_id = _resolve_symbol_id(args.symbol_id, db_path)
