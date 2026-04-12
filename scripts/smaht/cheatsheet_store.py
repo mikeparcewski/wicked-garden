@@ -174,7 +174,7 @@ def cmd_remove(args):
                 _sm.delete("cheatsheets", rec_id)
                 removed += 1
             except Exception:
-                pass
+                pass  # fail open
     print(json.dumps({"success": True, "library": args.library, "removed": removed}))
 
 

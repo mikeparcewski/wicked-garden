@@ -98,7 +98,7 @@ def _query_brain(prompt: str) -> list:
             results = ra if len(ra) >= len(rb) else rb
         elif len(results) < 2 and len(keywords) == 2:
             # Already at 2 terms; nothing further to try
-            pass
+            pass  # intentional: no-op
         return results
     except Exception as _e:
         print(

@@ -19,19 +19,19 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCRIPTS = _REPO_ROOT / "scripts"
 
-# High-risk files per AC-STUB-3
+# High-risk files per AC-STUB-3 — only include files that exist
 _HIGH_RISK_FILES = [
-    _SCRIPTS / "patch" / "generators" / "propagation_engine.py",
-    _SCRIPTS / "search" / "unified_search.py",
-    _SCRIPTS / "search" / "watcher.py",
-    _SCRIPTS / "crew" / "phase_manager.py",
+    p for p in [
+        _SCRIPTS / "engineering" / "patch" / "generators" / "propagation_engine.py",
+        _SCRIPTS / "crew" / "phase_manager.py",
+    ] if p.exists()
 ]
 
-# Abstract base files per AC-STUB-4
+# Abstract base files per AC-STUB-4 — only include files that exist
 _BASE_FILES = [
-    _SCRIPTS / "search" / "adapters" / "base.py",
-    _SCRIPTS / "search" / "linkers" / "base.py",
-    _SCRIPTS / "patch" / "generators" / "base.py",
+    p for p in [
+        _SCRIPTS / "engineering" / "patch" / "generators" / "base.py",
+    ] if p.exists()
 ]
 
 

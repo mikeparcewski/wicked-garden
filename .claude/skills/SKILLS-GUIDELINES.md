@@ -30,19 +30,19 @@ This is non-negotiable for wicked-garden. Users should never be forced to instal
 #### Implementation Pattern
 
 ```python
-# Check for optional dependency via StorageManager
-from _storage import StorageManager
+# Check for optional dependency via DomainStore
+from _domain_store import DomainStore
 
-storage = StorageManager("my-domain")
+store = DomainStore("my-domain")
 
-# Use with fallback — StorageManager handles CP-first with local JSON fallback
-cached = storage.get("cache-key")
+# Use with fallback — DomainStore handles local JSON with optional integration routing
+cached = store.list("cache-source", limit=1)
 if cached:
-    return cached
+    return cached[0]
 
 # Always have standalone path
 result = compute_result()
-storage.set("cache-key", result)
+store.create("cache-source", result)
 return result
 ```
 

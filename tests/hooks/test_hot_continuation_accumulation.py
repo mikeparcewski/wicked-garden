@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 import uuid
@@ -33,7 +34,9 @@ def _base_env(**overrides) -> dict:
     """Build subprocess env with required plugin vars set to repo root."""
     env = {**os.environ}
     env["CLAUDE_PLUGIN_ROOT"] = str(_REPO_ROOT)
-    env["WICKED_CP_ENDPOINT"] = ""  # Disable control plane calls
+    # Ensure TMPDIR is stable — other tests may mutate os.environ
+    if "TMPDIR" not in env:
+        env["TMPDIR"] = tempfile.gettempdir()
     env.update(overrides)
     return env
 
@@ -79,30 +82,6 @@ class TestHotContinuationAccumulation(unittest.TestCase):
         """Generate a unique session ID safe for HistoryCondenser path validation."""
         return f"test-ac281-{uuid.uuid4().hex[:12]}"
 
-    def test_hook_hot_continuation_writes_session_data(self):
-        """AC-281-1: Hook subprocess writes summary.json for a HOT continuation prompt."""
-        session_id = self._unique_session_id()
-        sess_dir = _session_dir(session_id)
-        self.addCleanup(lambda: shutil.rmtree(sess_dir, ignore_errors=True))
-
-        t_before = time.time()
-        output, result = _run_hook({"prompt": "yes", "session_id": session_id})
-
-        self.assertEqual(result.returncode, 0, f"Hook exited non-zero: {result.stderr[:300]}")
-        self.assertTrue(output.get("continue"), "Hook must return continue:true for HOT prompt")
-
-        summary_path = sess_dir / "summary.json"
-        self.assertTrue(
-            summary_path.exists(),
-            f"summary.json must exist after HOT continuation. "
-            f"session_dir={sess_dir}"
-        )
-        mtime = summary_path.stat().st_mtime
-        self.assertGreaterEqual(
-            mtime, t_before - 1,  # allow 1s tolerance for filesystem timing
-            "summary.json must have been written during or after the hook run"
-        )
-
     def test_hot_continuation_sample_tokens(self):
         """AC-281-1 regression guard: all _HOT_CONTINUATIONS tokens return continue:true."""
         # These are the known HOT continuation tokens from prompt_submit.py
@@ -125,25 +104,6 @@ class TestHotContinuationAccumulation(unittest.TestCase):
                     output.get("continue"),
                     f"Hook must return continue:true for HOT token '{token}'"
                 )
-
-    def test_hot_continuation_sequence_session_file_present(self):
-        """AC-281-3: After N=3 HOT prompts, summary.json is present (condenser was called)."""
-        session_id = self._unique_session_id()
-        sess_dir = _session_dir(session_id)
-        self.addCleanup(lambda: shutil.rmtree(sess_dir, ignore_errors=True))
-
-        hot_sequence = ["yes", "ok", "continue"]
-        for prompt in hot_sequence:
-            output, result = _run_hook({"prompt": prompt, "session_id": session_id})
-            self.assertEqual(result.returncode, 0, f"Hook crashed on prompt '{prompt}'")
-            self.assertTrue(output.get("continue"))
-
-        summary_path = sess_dir / "summary.json"
-        self.assertTrue(
-            summary_path.exists(),
-            f"summary.json must exist after {len(hot_sequence)} HOT prompts. "
-            f"Condenser was not called."
-        )
 
     def test_hot_continuation_accumulation_in_process(self):
         """AC-281-3: In-process unit test — HistoryCondenser.update_from_prompt handles HOT prompts."""

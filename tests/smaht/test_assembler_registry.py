@@ -258,10 +258,10 @@ class TestSlowPathAdapterSet(unittest.TestCase):
             is_continuation=False,
         )
 
-    def test_slow_path_requests_all_five_adapter_names(self):
-        """AC-3.3 / S-ASM-5: SlowPath calls registry.get() with all 5 known adapter names."""
-        from slow_path import SlowPathAssembler
-        from adapter_registry import AdapterRegistry
+    def test_slow_path_requests_intent_specific_adapters(self):
+        """AC-3.3 / S-ASM-5: SlowPath calls registry.get() with intent-specific adapter names."""
+        from slow_path import SlowPathAssembler, SLOW_ADAPTER_RULES
+        from router import IntentType
 
         mock_registry = MagicMock()
         mock_registry.get.return_value = {}
@@ -272,13 +272,7 @@ class TestSlowPathAdapterSet(unittest.TestCase):
 
         analysis = self._make_analysis()
 
-        # slow_path.py accesses AdapterRegistry.KNOWN_ADAPTERS as a class attribute.
-        # Patch the class but preserve KNOWN_ADAPTERS so the key list is correct.
-        mock_registry_class = MagicMock()
-        mock_registry_class.return_value = mock_registry
-        mock_registry_class.KNOWN_ADAPTERS = AdapterRegistry.KNOWN_ADAPTERS
-
-        with patch("slow_path.AdapterRegistry", mock_registry_class):
+        with patch("slow_path.AdapterRegistry", return_value=mock_registry):
             assembler = SlowPathAssembler()
             asyncio.run(assembler.assemble("complex planning prompt", analysis, mock_condenser))
 
@@ -288,11 +282,13 @@ class TestSlowPathAdapterSet(unittest.TestCase):
             names = call_args[0][0]
             all_requested.extend(names)
 
-        for name in AdapterRegistry.KNOWN_ADAPTERS.keys():
+        # Verify the PLANNING intent gets its specific adapters
+        expected = SLOW_ADAPTER_RULES[IntentType.PLANNING]
+        for name in expected:
             self.assertIn(
                 name,
                 all_requested,
-                f"SlowPath must request '{name}' from registry",
+                f"SlowPath PLANNING must request '{name}' from registry",
             )
 
     def test_slow_path_result_adapter_timings_is_dict(self):
@@ -314,13 +310,13 @@ class TestSlowPathAdapterSet(unittest.TestCase):
 
         self.assertIsInstance(result.adapter_timings, dict)
 
-    def test_slow_path_uses_known_adapters_class_attr(self):
-        """Gap G-4: slow_path uses AdapterRegistry.KNOWN_ADAPTERS as class attribute."""
+    def test_slow_path_uses_adapter_registry(self):
+        """Gap G-4: slow_path uses AdapterRegistry for adapter loading."""
         src = (_V2_DIR / "slow_path.py").read_text()
         self.assertIn(
-            "AdapterRegistry.KNOWN_ADAPTERS",
+            "AdapterRegistry",
             src,
-            "slow_path must reference AdapterRegistry.KNOWN_ADAPTERS (class attribute, not instance)",
+            "slow_path must import and use AdapterRegistry",
         )
 
 

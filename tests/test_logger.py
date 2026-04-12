@@ -265,7 +265,7 @@ class TestTmpDirFallback(unittest.TestCase):
 
     # S03-A + S03-B: TMPDIR unset falls back to /tmp
     def test_tmpdir_unset_falls_back_to_tmp(self):
-        """When TMPDIR is unset, log file is written under /tmp."""
+        """When TMPDIR is unset, log file is written under tempfile.gettempdir()."""
         env = {
             "CLAUDE_SESSION_ID": "test-session-tmpfallback",
             "WICKED_LOG_LEVEL": "normal",
@@ -276,7 +276,8 @@ class TestTmpDirFallback(unittest.TestCase):
         with patch.dict(os.environ, env_clean, clear=True):
             logger = _fresh_logger()
             logger.log("bootstrap", "normal", "onboarding.status", ok=True)
-        expected = Path("/tmp") / "wicked-ops-test-session-tmpfallback.jsonl"
+        # Use tempfile.gettempdir() which matches _logger.py behavior (not hardcoded /tmp)
+        expected = Path(tempfile.gettempdir()) / "wicked-ops-test-session-tmpfallback.jsonl"
         self._tmp_files_to_clean.append(str(expected))
         self.assertTrue(expected.exists(), f"Expected log file at {expected}")
 

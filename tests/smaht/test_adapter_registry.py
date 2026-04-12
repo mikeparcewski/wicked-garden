@@ -68,7 +68,7 @@ class TestAdapterRegistryLoad(unittest.TestCase):
 
         available = registry.available()
         self.assertEqual(set(available), set(AdapterRegistry.KNOWN_ADAPTERS.keys()))
-        self.assertEqual(len(available), 5)
+        self.assertEqual(len(available), len(AdapterRegistry.KNOWN_ADAPTERS))
 
     def test_registry_graceful_degradation_on_single_import_error(self):
         """S-REG-2 / AC-3.4: One adapter import fails — remaining 4 load. Missing absent from get()."""
@@ -92,9 +92,9 @@ class TestAdapterRegistryLoad(unittest.TestCase):
                 registry = AdapterRegistry()
                 stderr_output = mock_stderr.getvalue()
 
-        # 4 remaining adapters loaded
+        # All remaining adapters loaded (total - 1)
         available = registry.available()
-        self.assertEqual(len(available), 4)
+        self.assertEqual(len(available), len(AdapterRegistry.KNOWN_ADAPTERS) - 1)
         self.assertNotIn(failing_name, available)
 
         # get() silently omits missing
@@ -183,9 +183,10 @@ class TestAdapterRegistryLoad(unittest.TestCase):
         # Access as class attribute (not instance attribute)
         adapters = AdapterRegistry.KNOWN_ADAPTERS
         self.assertIsInstance(adapters, dict)
-        self.assertEqual(len(adapters), 5)
+        self.assertEqual(len(adapters), 6)
         self.assertIn("domain", adapters)
-        self.assertIn("mem", adapters)
+        self.assertIn("brain", adapters)
+        self.assertIn("events", adapters)
         self.assertIn("context7", adapters)
         self.assertIn("tools", adapters)
         self.assertIn("delegation", adapters)

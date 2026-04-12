@@ -14,8 +14,9 @@ import unittest
 from pathlib import Path
 
 # Add scripts/ to path so we can import phase_manager
-SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-CREW_SCRIPTS_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS_DIR = _REPO_ROOT / "scripts"
+CREW_SCRIPTS_DIR = SCRIPTS_DIR / "crew"
 sys.path.insert(0, str(SCRIPTS_DIR))
 sys.path.insert(0, str(CREW_SCRIPTS_DIR))
 
@@ -283,7 +284,8 @@ class TestPhasesJsonStructure(unittest.TestCase):
                 # Verify recognized reason values
                 known_reasons = {
                     "complexity_below_threshold", "user_explicit_request",
-                    "ci_equivalent_exists", "out_of_scope", "legacy"
+                    "ci_equivalent_exists", "out_of_scope", "legacy",
+                    "no_production_deployment", "internal_tooling",
                 }
                 for reason in reasons:
                     self.assertIn(reason, known_reasons,

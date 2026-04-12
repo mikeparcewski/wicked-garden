@@ -390,6 +390,86 @@ OPERATIONAL_SIGNALS = [
     ("environment variable*", 1, "environment configuration"),
 ]
 
+# Scope/effort signals — how much needs to be built (not how risky it is)
+SCOPE_EFFORT_SIGNALS = [
+    ("from scratch", 2, "built from scratch"),
+    ("greenfield", 2, "greenfield build"),
+    ("build entire", 2, "building entire system"),
+    ("complete implementation", 2, "complete implementation"),
+    ("new system", 2, "new system"),
+    ("full stack", 2, "full-stack build"),
+    ("end to end", 1, "end-to-end scope"),
+    ("multiple command*", 1, "multiple commands"),
+    ("error code*", 1, "error code system"),
+    ("cross-platform", 1, "cross-platform support"),
+    ("idempoten*", 1, "idempotency handling"),
+    ("retry", 1, "retry logic"),
+    ("ttl", 1, "TTL management"),
+    ("sweep", 1, "sweep/cleanup process"),
+    ("multi-pattern", 1, "multiple integration patterns"),
+    ("schema design", 1, "schema design"),
+    ("command line", 1, "CLI implementation"),
+    ("entire module", 2, "entire module"),
+    ("new package", 2, "new package"),
+    ("new library", 2, "new library"),
+    ("scaffold*", 1, "scaffolding needed"),
+]
+
+# Integration surface signals — how many external boundaries the work touches
+INTEGRATION_SURFACE_SIGNALS = [
+    ("api integrat*", 2, "API integration"),
+    ("third-party", 2, "third-party integration"),
+    ("3rd party", 2, "third-party integration"),
+    ("external service*", 2, "external service dependency"),
+    ("webhook*", 1, "webhook integration"),
+    ("oauth", 2, "OAuth integration"),
+    ("sdk integrat*", 2, "SDK integration"),
+    ("import from", 1, "cross-module import"),
+    ("consume*", 1, "service consumer"),
+    ("downstream", 1, "downstream dependency"),
+    ("upstream", 1, "upstream dependency"),
+    ("message queue", 2, "message queue integration"),
+    ("event bus", 2, "event bus integration"),
+    ("publish event*", 1, "event publishing"),
+    ("subscribe", 1, "event subscription"),
+    ("file system", 1, "filesystem integration"),
+    ("network call*", 1, "network calls"),
+    ("http client", 1, "HTTP client usage"),
+    ("database connect*", 1, "database connection"),
+    ("multiple datasource*", 2, "multiple data sources"),
+]
+
+# State complexity signals — persistence, concurrency, ordering, consistency
+STATE_COMPLEXITY_SIGNALS = [
+    ("wal mode", 3, "WAL mode"),
+    ("write-ahead log", 3, "write-ahead log"),
+    ("at-least-once", 3, "at-least-once delivery"),
+    ("exactly-once", 3, "exactly-once delivery"),
+    ("at-most-once", 2, "at-most-once delivery"),
+    ("delivery guarantee*", 3, "delivery guarantees"),
+    ("cursor-poll", 2, "cursor-poll pattern"),
+    ("cursor poll", 2, "cursor-poll pattern"),
+    ("eventual consist*", 2, "eventual consistency"),
+    ("strong consist*", 3, "strong consistency"),
+    ("concurren*", 2, "concurrency handling"),
+    ("race condition*", 2, "race condition risk"),
+    ("lock*", 1, "locking mechanism"),
+    ("mutex", 2, "mutex synchronization"),
+    ("transaction*", 2, "transactional semantics"),
+    ("ordering guarantee*", 2, "ordering guarantees"),
+    ("fifo", 2, "FIFO ordering"),
+    ("deduplicat*", 2, "deduplication"),
+    ("persist*", 1, "persistent state"),
+    ("state machine", 2, "state machine"),
+    ("sqlite", 1, "SQLite storage"),
+    ("durable", 2, "durable storage"),
+    ("journal*", 1, "journaling"),
+    ("checkpoint*", 1, "checkpointing"),
+    ("graceful degradat*", 2, "graceful degradation"),
+    ("fail-open", 1, "fail-open semantics"),
+    ("fail-close", 1, "fail-close semantics"),
+]
+
 # ---------------------------------------------------------------------------
 # Project Archetype Detection
 # ---------------------------------------------------------------------------
@@ -460,6 +540,12 @@ ARCHETYPE_KEYWORDS = {
         "websocket", "real-time", "realtime", "streaming", "push",
         "event-driven", "pubsub", "message queue", "kafka", "rabbitmq",
         "socket", "live update",
+    ],
+    "greenfield": [
+        "greenfield", "from scratch", "build entire", "new system",
+        "new package", "new library", "new module", "scaffold",
+        "bootstrap", "ground up", "clean slate", "fresh start",
+        "net new", "brand new", "new project",
     ],
 }
 
@@ -543,6 +629,13 @@ ARCHETYPE_ADJUSTMENTS = {
         "description": "Text-as-code: commands/agents/skills/hooks are behavioral programs — "
                        "instruction changes affect crew routing, gate enforcement, and QE coverage",
     },
+    "greenfield": {
+        "impact_bonus": 1,
+        "inject_signals": {"architecture": 0.3},
+        "min_complexity": 4,
+        "description": "Greenfield: building from scratch requires design, testing, and documentation "
+                       "even when risk dimensions are low — scope/effort dominates complexity",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -612,6 +705,21 @@ _COMPILED_OPERATIONAL = [
     for kw, weight, label in OPERATIONAL_SIGNALS
 ]
 
+_COMPILED_SCOPE_EFFORT = [
+    (re.compile(_make_pattern(kw), re.IGNORECASE), weight, label)
+    for kw, weight, label in SCOPE_EFFORT_SIGNALS
+]
+
+_COMPILED_INTEGRATION_SURFACE = [
+    (re.compile(_make_pattern(kw), re.IGNORECASE), weight, label)
+    for kw, weight, label in INTEGRATION_SURFACE_SIGNALS
+]
+
+_COMPILED_STATE_COMPLEXITY = [
+    (re.compile(_make_pattern(kw), re.IGNORECASE), weight, label)
+    for kw, weight, label in STATE_COMPLEXITY_SIGNALS
+]
+
 _COMPILED_ARCHETYPE_PATTERNS: Dict[str, List[re.Pattern]] = {}
 for _arch, _keywords in ARCHETYPE_KEYWORDS.items():
     _COMPILED_ARCHETYPE_PATTERNS[_arch] = [
@@ -636,6 +744,9 @@ class RiskDimensions:
     - documentation: API docs, user guides, ADR requirements
     - coordination_cost: cross-domain deps, specialist handoffs, review requirements
     - operational: deployment, migration, rollback operational needs
+    - scope_effort: how much needs to be built (not how risky it is)
+    - integration_surface: how many external boundaries the work touches
+    - state_complexity: persistence, concurrency, ordering, consistency
     """
     impact: int = 0
     reversibility: int = 0
@@ -644,6 +755,9 @@ class RiskDimensions:
     documentation: int = 0
     coordination_cost: int = 0
     operational: int = 0
+    scope_effort: int = 0
+    integration_surface: int = 0
+    state_complexity: int = 0
     explanation: List[str] = field(default_factory=list)
 
 
@@ -714,7 +828,7 @@ class SignalAnalysis:
 
 @dataclass
 class NormalizedScore:
-    """8-dimension normalized risk score, each field in [0.0, 1.0].
+    """11-dimension normalized score, each field in [0.0, 1.0].
 
     Derived from the existing keyword-based RiskDimensions and detected signals.
     This is a DERIVED representation — it does not replace the 0-7 complexity score
@@ -729,6 +843,9 @@ class NormalizedScore:
     - compliance_exposure: regulatory/audit surface area
     - ux_surface: user-facing change exposure
     - team_coordination: multi-team involvement
+    - scope_effort: how much needs to be built (0=trivial, 1=massive greenfield)
+    - integration_surface: external boundary count (0=self-contained, 1=many integrations)
+    - state_complexity: persistence/concurrency/ordering (0=stateless, 1=complex state)
     """
     impact: float = 0.0
     reversibility: float = 0.0
@@ -738,19 +855,28 @@ class NormalizedScore:
     compliance_exposure: float = 0.0
     ux_surface: float = 0.0
     team_coordination: float = 0.0
+    scope_effort: float = 0.0
+    integration_surface: float = 0.0
+    state_complexity: float = 0.0
 
 
 # Dimension weights for weighted risk index computation.
 # Must sum to <= 1.0. Used in compute_weighted_index().
+# The three new dimensions (scope_effort, integration_surface, state_complexity)
+# share weight carved from the existing pool so existing routing thresholds
+# remain stable. Total weight budget: ~1.0.
 DIMENSION_WEIGHTS: Dict[str, float] = {
-    "impact": 0.24,
-    "reversibility": 0.24,
-    "novelty": 0.18,
-    "coupling": 0.10,
-    "data_risk": 0.06,
+    "impact": 0.20,
+    "reversibility": 0.20,
+    "novelty": 0.15,
+    "coupling": 0.08,
+    "data_risk": 0.05,
     "compliance_exposure": 0.05,
     "ux_surface": 0.03,
     "team_coordination": 0.03,
+    "scope_effort": 0.08,
+    "integration_surface": 0.07,
+    "state_complexity": 0.06,
 }
 
 
@@ -813,6 +939,11 @@ def compute_normalized_score(
         # Team coordination: stakeholder-coordination indicator (0 or 1)
         team_coordination = min(1.0, coordination / 1.0)
 
+        # New dimensions: map 0-3 risk dimension scores to 0-1
+        _scope_effort = risk_dims.scope_effort / 3.0
+        _integration_surface = risk_dims.integration_surface / 3.0
+        _state_complexity = risk_dims.state_complexity / 3.0
+
         return NormalizedScore(
             impact=round(impact, 4),
             reversibility=round(reversibility, 4),
@@ -822,6 +953,9 @@ def compute_normalized_score(
             compliance_exposure=round(compliance_exposure, 4),
             ux_surface=round(ux_surface, 4),
             team_coordination=round(team_coordination, 4),
+            scope_effort=round(_scope_effort, 4),
+            integration_surface=round(_integration_surface, 4),
+            state_complexity=round(_state_complexity, 4),
         )
     except Exception:
         # Fail open: return all-zero score rather than blocking analysis
@@ -1144,6 +1278,64 @@ def assess_operational(text: str) -> Tuple[int, List[str]]:
     return (min(score, 3), reasons)
 
 
+def assess_scope_effort(text: str) -> Tuple[int, List[str]]:
+    """Compute scope_effort dimension from text (0-3).
+
+    Detects how much needs to be built — component count, build-from-scratch
+    indicators, and breadth signals. Captures effort/size independently of risk.
+    Returns (score 0-3, list of explanation strings).
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    for compiled, weight, label in _COMPILED_SCOPE_EFFORT:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+
+    return (min(score, 3), reasons)
+
+
+def assess_integration_surface(text: str) -> Tuple[int, List[str]]:
+    """Compute integration_surface dimension from text (0-3).
+
+    Detects how many external boundaries the work touches — APIs, services,
+    databases, message queues, event buses. Higher = more integration points.
+    Returns (score 0-3, list of explanation strings).
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    for compiled, weight, label in _COMPILED_INTEGRATION_SURFACE:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+
+    return (min(score, 3), reasons)
+
+
+def assess_state_complexity(text: str) -> Tuple[int, List[str]]:
+    """Compute state_complexity dimension from text (0-3).
+
+    Detects persistence, concurrency, ordering guarantees, and consistency
+    models. These are correctness-critical properties that require careful
+    design and testing regardless of blast radius or reversibility.
+    Returns (score 0-3, list of explanation strings).
+    """
+    score = 0
+    reasons = []
+    text_lower = text.lower()
+
+    for compiled, weight, label in _COMPILED_STATE_COMPLEXITY:
+        if compiled.search(text_lower):
+            score += weight
+            reasons.append(f"+{weight} {label}")
+
+    return (min(score, 3), reasons)
+
+
 def detect_archetype(text: str) -> Dict[str, float]:
     """Detect project archetype from text description.
 
@@ -1178,6 +1370,9 @@ def compute_composite(
     documentation: int = 0,
     coordination_cost: int = 0,
     operational: int = 0,
+    scope_effort: int = 0,
+    integration_surface: int = 0,
+    state_complexity: int = 0,
 ) -> Tuple[int, Dict[str, int]]:
     """Derive 0-7 composite from risk dimensions + text factors.
 
@@ -1194,9 +1389,12 @@ def compute_composite(
     - documentation (0-3): API docs, user guides, ADR needs (Issue #254)
     - coordination_cost (0-3): cross-domain deps, specialist handoffs (Issue #254)
     - operational (0-3): deployment, migration, rollback needs (Issue #254)
+    - scope_effort (0-3): how much needs to be built, not how risky
+    - integration_surface (0-3): external boundary count
+    - state_complexity (0-3): persistence, concurrency, ordering guarantees
 
-    New dimensions are weighted at 0.25 each so that even if all four saturate (3*4=12),
-    the total contribution is capped to preserve the 0-7 scale and backward compatibility.
+    All weighted dimensions use 0.25 multiplier so that even if all seven saturate
+    (3*7=21), the weighted contribution caps at ~5.25 before the final clamp to 7.
     """
     # Multiplicative risk premium: rev*nov*0.22 → capped at 2
     # 3*3*0.22=1.98→2, 2*2*0.22=0.88→1, 3*0*0.22=0→0 (degeneracy fix)
@@ -1209,15 +1407,6 @@ def compute_composite(
     # Coordination: stakeholder mentions (legacy 0-1 component, preserved)
     coordination = 1 if any(kw in text.lower() for kw in STAKEHOLDER_KEYWORDS) else 0
 
-    # New dimensions (Issue #254) — weighted at 0.25 each so combined contribution
-    # to composite is proportional but never dominates existing dimensions.
-    # Each new dimension contributes up to 0.75 points (3 * 0.25 = 0.75).
-    # Four dimensions combined max = 3.0 points before capping to 7.
-    test_complexity_contrib = round(test_complexity * 0.25)
-    documentation_contrib = round(documentation * 0.25)
-    coordination_cost_contrib = round(coordination_cost * 0.25)
-    operational_contrib = round(operational * 0.25)
-
     breakdown = {
         "impact": impact,
         "risk_premium": risk_premium,
@@ -1227,6 +1416,9 @@ def compute_composite(
         "documentation": documentation,
         "coordination_cost": coordination_cost,
         "operational": operational,
+        "scope_effort": scope_effort,
+        "integration_surface": integration_surface,
+        "state_complexity": state_complexity,
     }
 
     # Apply per-component overrides (V2-4: editable complexity)
@@ -1235,11 +1427,17 @@ def compute_composite(
             if key in breakdown:
                 breakdown[key] = value
 
-    # Recompute contributions after potential overrides
+    # Recompute contributions after potential overrides.
+    # All weighted dimensions use 0.25 multiplier — each contributes up to
+    # 0.75 points (3 * 0.25 = 0.75). Seven weighted dimensions combined max
+    # = 5.25 points before capping to 7.
     _tc = breakdown["test_complexity"]
     _dc = breakdown["documentation"]
     _cc = breakdown["coordination_cost"]
     _oc = breakdown["operational"]
+    _se = breakdown["scope_effort"]
+    _is = breakdown["integration_surface"]
+    _sc = breakdown["state_complexity"]
 
     base_total = (
         breakdown["impact"]
@@ -1250,6 +1448,9 @@ def compute_composite(
         + round(_dc * 0.25)
         + round(_cc * 0.25)
         + round(_oc * 0.25)
+        + round(_se * 0.25)
+        + round(_is * 0.25)
+        + round(_sc * 0.25)
     )
 
     total = min(base_total, 7)
@@ -1828,6 +2029,9 @@ def analyze_input(
     documentation, doc_reasons = assess_documentation(text)
     coordination_cost, coord_reasons = assess_coordination_cost(text)
     operational, op_reasons = assess_operational(text)
+    scope_effort, se_reasons = assess_scope_effort(text)
+    integration_surface, is_reasons = assess_integration_surface(text)
+    state_complexity, sc_reasons = assess_state_complexity(text)
 
     # Apply dimension hints as floors (agent semantic scoring)
     # Each keyword-derived score is floored to the agent-provided hint.
@@ -1839,12 +2043,17 @@ def analyze_input(
         "documentation": ("documentation", doc_reasons),
         "coordination_cost": ("coordination_cost", coord_reasons),
         "operational": ("operational", op_reasons),
+        "scope_effort": ("scope_effort", se_reasons),
+        "integration_surface": ("integration_surface", is_reasons),
+        "state_complexity": ("state_complexity", sc_reasons),
     }
     if dimension_hints:
         _locals = {
             "impact": impact, "reversibility": reversibility, "novelty": novelty,
             "test_complexity": test_complexity, "documentation": documentation,
             "coordination_cost": coordination_cost, "operational": operational,
+            "scope_effort": scope_effort, "integration_surface": integration_surface,
+            "state_complexity": state_complexity,
         }
         for dim_key, (var_name, reasons_list) in _DIMENSION_KEYS.items():
             hint_val = dimension_hints.get(dim_key)
@@ -1861,6 +2070,9 @@ def analyze_input(
         documentation = _locals["documentation"]
         coordination_cost = _locals["coordination_cost"]
         operational = _locals["operational"]
+        scope_effort = _locals["scope_effort"]
+        integration_surface = _locals["integration_surface"]
+        state_complexity = _locals["state_complexity"]
         archetype_adj_applied["dimension_hints_applied"] = {
             k: v for k, v in dimension_hints.items()
             if k in _DIMENSION_KEYS and v is not None
@@ -1882,6 +2094,12 @@ def analyze_input(
         explanation.append(f"Coordination cost ({coordination_cost}/3): {'; '.join(coord_reasons[:2])}")
     if op_reasons:
         explanation.append(f"Operational ({operational}/3): {'; '.join(op_reasons[:2])}")
+    if se_reasons:
+        explanation.append(f"Scope/effort ({scope_effort}/3): {'; '.join(se_reasons[:2])}")
+    if is_reasons:
+        explanation.append(f"Integration surface ({integration_surface}/3): {'; '.join(is_reasons[:2])}")
+    if sc_reasons:
+        explanation.append(f"State complexity ({state_complexity}/3): {'; '.join(sc_reasons[:2])}")
 
     risk_dims = RiskDimensions(
         impact=impact,
@@ -1891,6 +2109,9 @@ def analyze_input(
         documentation=documentation,
         coordination_cost=coordination_cost,
         operational=operational,
+        scope_effort=scope_effort,
+        integration_surface=integration_surface,
+        state_complexity=state_complexity,
         explanation=explanation,
     )
 
@@ -1902,6 +2123,9 @@ def analyze_input(
         documentation=documentation,
         coordination_cost=coordination_cost,
         operational=operational,
+        scope_effort=scope_effort,
+        integration_surface=integration_surface,
+        state_complexity=state_complexity,
     )
 
     # Apply MAXIMUM minimum complexity floor from ALL detected archetypes
@@ -1960,7 +2184,7 @@ def analyze_input(
                 logger.info("Incident history detected — +1 complexity bonus applied")
     except Exception:
         # Fail open — incident history is best-effort
-        pass
+        pass  # intentional: no-op
 
     # Dimension-driven flags
     flags: Dict[str, bool] = {}
@@ -2007,11 +2231,11 @@ def analyze_input(
     _wri = compute_weighted_index(norm_score)
     _routing_lane = determine_routing_lane(norm_score)
     _norm_dims = {dim: getattr(norm_score, dim) for dim in DIMENSION_WEIGHTS}
-    # Add new dimensions (Issue #254) to normalized_dimensions output
-    _norm_dims["test_complexity"] = round(breakdown.get("test_complexity", 0) / 3.0, 4)
-    _norm_dims["documentation"] = round(breakdown.get("documentation", 0) / 3.0, 4)
-    _norm_dims["coordination_cost"] = round(breakdown.get("coordination_cost", 0) / 3.0, 4)
-    _norm_dims["operational"] = round(breakdown.get("operational", 0) / 3.0, 4)
+    # Add weighted dimensions to normalized_dimensions output
+    for _dim_name in ("test_complexity", "documentation", "coordination_cost",
+                      "operational", "scope_effort", "integration_surface",
+                      "state_complexity"):
+        _norm_dims[_dim_name] = round(breakdown.get(_dim_name, 0) / 3.0, 4)
 
     logger.debug(
         f"Normalized scoring: WRI={_wri:.4f}, lane={_routing_lane.value}, "

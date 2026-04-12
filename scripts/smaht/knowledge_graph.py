@@ -297,7 +297,7 @@ class KnowledgeGraph:
             try:
                 d["metadata"] = json.loads(d["metadata"])
             except (json.JSONDecodeError, TypeError):
-                pass
+                pass  # fail open
         return d
 
 

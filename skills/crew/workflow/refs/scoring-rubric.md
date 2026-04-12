@@ -21,6 +21,9 @@ The composite score combines 8 components. Final score is clamped to [0, 7].
 | documentation | 0-3 | Documentation need signals (weighted at 0.25) |
 | coordination_cost | 0-3 | Coordination signals (weighted at 0.25) |
 | operational | 0-3 | Operational signals (weighted at 0.25) |
+| scope_effort | 0-3 | Build-from-scratch, component count, breadth signals (weighted at 0.25) |
+| integration_surface | 0-3 | External boundary count — APIs, services, queues (weighted at 0.25) |
+| state_complexity | 0-3 | Persistence, concurrency, ordering guarantees (weighted at 0.25) |
 
 ### Formula
 
@@ -36,10 +39,13 @@ coordination:
   any of [team, manager, lead, stakeholder, customer, user] in text → 1
   otherwise → 0
 
-test_complexity_contrib = round(test_complexity × 0.25)
-documentation_contrib   = round(documentation × 0.25)
-coordination_cost_contrib = round(coordination_cost × 0.25)
-operational_contrib     = round(operational × 0.25)
+test_complexity_contrib     = round(test_complexity × 0.25)
+documentation_contrib       = round(documentation × 0.25)
+coordination_cost_contrib   = round(coordination_cost × 0.25)
+operational_contrib         = round(operational × 0.25)
+scope_effort_contrib        = round(scope_effort × 0.25)
+integration_surface_contrib = round(integration_surface × 0.25)
+state_complexity_contrib    = round(state_complexity × 0.25)
 
 total = impact
       + risk_premium
@@ -49,6 +55,9 @@ total = impact
       + documentation_contrib
       + coordination_cost_contrib
       + operational_contrib
+      + scope_effort_contrib
+      + integration_surface_contrib
+      + state_complexity_contrib
 
 composite = min(total, 7)
 ```
@@ -67,13 +76,18 @@ reversibility=3 and novelty=3 under additive models.
 | 3 | 0 | 0 (3×0×0.22=0→0) |
 | 1 | 1 | 0 (1×1×0.22=0.22→0) |
 
-### New Dimension Weighting Rationale
+### Weighted Dimension Rationale
 
-The 4 new dimensions (Issue #254) are weighted at 0.25 each. This means:
+The 7 weighted dimensions are each multiplied by 0.25. This means:
 - Each dimension contributes a maximum of round(3 × 0.25) = 1 point
-- All 4 dimensions saturated = 4 points before capping
+- All 7 dimensions saturated = 7 points before capping
 - The composite is still clamped to 7, preserving backward compatibility with
   existing complexity-based routing thresholds
+
+The three newest dimensions (scope_effort, integration_surface, state_complexity)
+capture effort and correctness complexity that the original risk-focused dimensions
+miss. Greenfield projects score low on reversibility and coordination but high on
+scope/effort and state complexity — these dimensions correct that blind spot.
 
 ### Score Interpretation
 
@@ -97,7 +111,7 @@ If no archetypes detected: `final_complexity = composite`
 
 ---
 
-## Normalized Risk Score (8 Dimensions)
+## Normalized Score (11 Dimensions)
 
 A separate representation in [0.0, 1.0] per dimension. Derived from the
 existing keyword-based dimensions and detected signals. Does not replace
@@ -115,6 +129,9 @@ the composite score — provides a finer-grained view.
 | compliance_exposure | compliance signal confidence | signal_confidences.get("compliance", 0.0) |
 | ux_surface | ux signal confidence | signal_confidences.get("ux", 0.0) |
 | team_coordination | stakeholder coordination indicator | min(1.0, coordination / 1.0) |
+| scope_effort | RiskDimensions.scope_effort | scope_effort / 3.0 |
+| integration_surface | RiskDimensions.integration_surface | integration_surface / 3.0 |
+| state_complexity | RiskDimensions.state_complexity | state_complexity / 3.0 |
 
 All output values rounded to 4 decimal places. On any computation error,
 return all-zero score (fail open).
@@ -122,7 +139,7 @@ return all-zero score (fail open).
 ### Weighted Risk Index (WRI)
 
 ```
-weight_sum = Σ(all dimension weights)    # = 0.93 with current weights
+weight_sum = Σ(all dimension weights)    # = 1.00 with current weights
 total = Σ(dimension_value × weight)      # for each of 8 dimensions
 WRI = round(total / weight_sum, 4)       # normalized by weight_sum
 ```
@@ -167,7 +184,8 @@ routing) continues using the overridden value.
 
 Individual breakdown components can be overridden before final computation:
 `impact`, `risk_premium`, `scope`, `coordination`, `test_complexity`,
-`documentation`, `coordination_cost`, `operational`. Only recognized component
+`documentation`, `coordination_cost`, `operational`, `scope_effort`,
+`integration_surface`, `state_complexity`. Only recognized component
 names are accepted.
 
 ### Force/Skip Signals (user-supplied)

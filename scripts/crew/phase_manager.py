@@ -1459,7 +1459,7 @@ def create_project(
             tags=["project-lifecycle"],
         )
     except Exception:
-        pass
+        pass  # fail open
 
     return (state, project_dir)
 

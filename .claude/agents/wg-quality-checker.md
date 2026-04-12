@@ -81,7 +81,7 @@ skills/my-skill/
 
 ### 4. Check Graceful Degradation
 
-The plugin MUST work without the control plane. Enhanced features activate when it is available.
+The plugin MUST work standalone with no external dependencies. Enhanced features activate when optional integrations (MCP tools, brain server) are available.
 
 **README Integration Table Check**:
 ```bash

@@ -36,7 +36,6 @@ def _base_env(**overrides) -> dict:
     """Build subprocess env with required plugin vars set to repo root."""
     env = {**os.environ}
     env["CLAUDE_PLUGIN_ROOT"] = str(_REPO_ROOT)
-    env["WICKED_CP_ENDPOINT"] = ""  # Disable control plane calls
     env.update(overrides)
     return env
 

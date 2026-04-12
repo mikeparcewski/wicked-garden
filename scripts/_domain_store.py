@@ -328,7 +328,7 @@ class DomainStore:
                 state = SessionState.load()
                 project_id = getattr(state, "active_project", None)
             except Exception:
-                pass
+                pass  # fail open
 
             # Emit safe metadata only — strip sensitive fields from payload
             safe_payload = None

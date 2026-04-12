@@ -149,7 +149,7 @@ def discover_schemas(plugin_filter: str | None = None) -> list[dict]:
         try:
             _default_plugin = json.loads(_plugin_json.read_text()).get("name", _default_plugin)
         except Exception:
-            pass
+            pass  # fail open
 
     for schema_path in sorted(SCHEMAS_DIR.rglob("*.json")):
         parts = schema_path.relative_to(SCHEMAS_DIR).parts

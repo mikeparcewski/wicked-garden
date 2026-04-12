@@ -177,7 +177,7 @@ def _check_mem_preference(domain: str) -> Optional[str]:
                                 if tool:
                                     return tool
                 except Exception:
-                    pass
+                    pass  # fail open
         return None
     except Exception:
         # Brain may be unavailable — always fail gracefully

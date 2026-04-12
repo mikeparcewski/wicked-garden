@@ -163,7 +163,7 @@ async def query(prompt: str) -> List[ContextItem]:
             try:
                 payload_dict = json.loads(payload)
             except Exception:
-                pass
+                pass  # fail open
 
         # Build title and summary
         title = f"{domain}.{action}"

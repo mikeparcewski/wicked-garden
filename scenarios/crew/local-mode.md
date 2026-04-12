@@ -14,8 +14,8 @@ Validates that wicked-garden is fully self-contained when no external integratio
 configured. The plugin must work with nothing but Python and a local filesystem.
 
 Core storage layer: `DomainStore` (`scripts/_domain_store.py`) writes JSON files under
-`~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json`. No control plane,
-no SQLite migrations, no brain server required.
+`~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json`. No external
+services, no SQLite migrations, no brain server required.
 
 ## Setup
 
@@ -36,7 +36,7 @@ echo "Sandbox ready: $WG_TMP"
 
 ### TC-1: DomainStore creates local JSON files without any external dependencies
 
-**Given**: No external MCP tools configured, no brain server, no control plane
+**Given**: No external MCP tools configured, no brain server, no external services
 **When**: `DomainStore.create` is called for the `wicked-mem` domain
 **Then**:
   - The JSON file is written to `$WG_TMP/.something-wicked/wicked-garden/local/wicked-mem/memories/{id}.json`

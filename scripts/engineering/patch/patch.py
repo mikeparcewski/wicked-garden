@@ -125,7 +125,7 @@ def _resolve_symbol_id(symbol_id: str, db_path: Optional[Path]) -> str:
             if row:
                 return row["id"]
         except Exception:
-            pass
+            pass  # fail open
 
     return symbol_id
 

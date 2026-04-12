@@ -21,7 +21,8 @@ import pytest
 # Path setup so we can import the adapters package directly
 # ---------------------------------------------------------------------------
 
-_SCRIPTS_ROOT = Path(__file__).resolve().parents[1]  # scripts/
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SCRIPTS_ROOT = _REPO_ROOT / "scripts"
 _SMAHT_DIR = _SCRIPTS_ROOT / "smaht"
 
 sys.path.insert(0, str(_SCRIPTS_ROOT))

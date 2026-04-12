@@ -304,7 +304,7 @@ def _detect_test_runner(cwd: Optional[str] = None) -> Optional[List[str]]:
             if scripts.get("test") and "no test specified" not in scripts["test"]:
                 return ["npm", "test"]
         except Exception:
-            pass
+            pass  # fail open
 
     # Python projects
     if (root / "pyproject.toml").is_file() or (root / "setup.py").is_file():
@@ -492,7 +492,7 @@ def _detect_linter() -> Optional[List[str]]:
             if pkg.get("scripts", {}).get("lint"):
                 return ["npm", "run", "lint"]
         except Exception:
-            pass
+            pass  # fail open
 
     return None
 

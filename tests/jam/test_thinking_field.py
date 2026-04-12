@@ -20,11 +20,12 @@ import pytest
 # Path setup
 # ---------------------------------------------------------------------------
 
-JAM_DIR = Path(__file__).resolve().parent
-SCRIPTS_DIR = JAM_DIR.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_SCRIPTS_DIR = _REPO_ROOT / "scripts"
+_JAM_DIR = _SCRIPTS_DIR / "jam"
 
-sys.path.insert(0, str(JAM_DIR))
-sys.path.insert(0, str(SCRIPTS_DIR))
+sys.path.insert(0, str(_JAM_DIR))
+sys.path.insert(0, str(_SCRIPTS_DIR))
 
 
 # ---------------------------------------------------------------------------
@@ -64,10 +65,16 @@ def stub_storage(monkeypatch):
 @pytest.fixture
 def jam():
     """Import jam module fresh (with stubbed _domain_store)."""
+    import importlib.util
     # Remove cached module so the fixture-level stub takes effect
-    if "jam" in sys.modules:
-        del sys.modules["jam"]
-    import jam as _jam
+    for key in list(sys.modules):
+        if key == "jam" or key.startswith("jam."):
+            del sys.modules[key]
+    # Import by file path to avoid tests/jam/ package shadowing scripts/jam/jam.py
+    spec = importlib.util.spec_from_file_location("jam", str(_JAM_DIR / "jam.py"))
+    _jam = importlib.util.module_from_spec(spec)
+    sys.modules["jam"] = _jam
+    spec.loader.exec_module(_jam)
     return _jam
 
 

@@ -47,9 +47,9 @@ def resolve_port() -> int:
                         if source and cwd == Path(source).resolve():
                             return int(cfg.get("server_port", _DEFAULT_PORT))
                     except Exception:
-                        pass
+                        pass  # fail open
         except Exception:
-            pass
+            pass  # fail open
 
     # 3. Root brain config
     root_config = brain_root / "_meta" / "config.json"
@@ -59,7 +59,7 @@ def resolve_port() -> int:
                 cfg = json.load(f)
             return int(cfg.get("server_port", _DEFAULT_PORT))
         except Exception:
-            pass
+            pass  # fail open
 
     # 4. Fallback
     return _DEFAULT_PORT

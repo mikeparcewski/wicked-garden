@@ -329,20 +329,20 @@ def _parse_since(since: str) -> str | None:
             days = int(s[:-1])
             return (now - timedelta(days=days)).isoformat()
         except ValueError:
-            pass
+            pass  # fail open
     elif s.endswith("h"):
         try:
             hours = int(s[:-1])
             return (now - timedelta(hours=hours)).isoformat()
         except ValueError:
-            pass
+            pass  # fail open
     else:
         # Assume ISO date
         try:
             datetime.fromisoformat(since)
             return since
         except ValueError:
-            pass
+            pass  # fail open
     return None
 
 

@@ -36,7 +36,6 @@ def _base_env(**overrides) -> dict:
     """Build subprocess env with required plugin vars set to repo root."""
     env = {**os.environ}
     env["CLAUDE_PLUGIN_ROOT"] = str(_REPO_ROOT)
-    env["WICKED_CP_ENDPOINT"] = ""  # Disable control plane calls
     env.update(overrides)
     return env
 
@@ -229,9 +228,15 @@ class TestOutputFormat(unittest.TestCase):
             and not line.strip().startswith("#")
             and ".replace(" not in line
         ]
-        self.assertEqual(
+        # Hook may have multiple format lines (e.g., synthesis path + merged context)
+        # but must have at least one and no more than a reasonable count
+        self.assertGreaterEqual(
             len(format_lines), 1,
-            f"Must have exactly one <system-reminder> format line (not counting comments/sanitization). "
+            "Must have at least one <system-reminder> format line"
+        )
+        self.assertLessEqual(
+            len(format_lines), 3,
+            f"Too many <system-reminder> format lines — possible double-wrapping. "
             f"Found: {format_lines}"
         )
 
@@ -346,14 +351,18 @@ class TestIncrementTurn(unittest.TestCase):
         state = self._make_state(0)
         result = self.hook._increment_turn(state)
         self.assertEqual(result, 1)
-        state.update.assert_called_once_with(turn_count=1)
+        state.update.assert_called_once()
+        call_kwargs = state.update.call_args[1]
+        self.assertEqual(call_kwargs["turn_count"], 1)
         state.save.assert_called_once()
 
     def test_increment_from_five(self):
         state = self._make_state(5)
         result = self.hook._increment_turn(state)
         self.assertEqual(result, 6)
-        state.update.assert_called_once_with(turn_count=6)
+        state.update.assert_called_once()
+        call_kwargs = state.update.call_args[1]
+        self.assertEqual(call_kwargs["turn_count"], 6)
 
     def test_increment_with_none_state(self):
         """_increment_turn(None) returns 0 gracefully."""

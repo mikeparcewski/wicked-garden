@@ -68,14 +68,49 @@ Task(
 )
 ```
 
-### 5. Complete Gate Task
+### 5. Persist Gate Result
 
-After the orchestrator returns, mark the gate task as completed:
+After the orchestrator returns, write the gate result to the project phase directory so that `phase_manager.py` can validate it during approval.
+
+**5a. Resolve the project directory:**
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project_name} current
+```
+
+This returns the current phase and project directory path.
+
+**5b. Write `gate-result.json`:**
+
+Write a JSON file to `{project_dir}/phases/{current_phase}/gate-result.json` with this schema:
+
+```json
+{
+  "result": "APPROVE|CONDITIONAL|REJECT",
+  "gate": "{gate type}",
+  "phase": "{current phase}",
+  "reviewer": "wicked-garden:crew:qe-orchestrator",
+  "score": 0.0-1.0,
+  "findings": ["list of key findings"],
+  "conditions": [{"id": "C-1", "description": "..."}],
+  "timestamp": "ISO 8601"
+}
+```
+
+- `result`: Extract from the orchestrator's decision (APPROVE, CONDITIONAL, or REJECT)
+- `score`: Map the orchestrator's confidence/quality assessment to 0.0-1.0. Use 0.8 for clean APPROVE, 0.6 for CONDITIONAL, 0.3 for REJECT as defaults if no explicit score
+- `reviewer`: Always `"wicked-garden:crew:qe-orchestrator"` (never use auto-approve names)
+- `conditions`: Only include for CONDITIONAL results — list each condition with an `id` and `description`
+- `findings`: Brief list of key observations from the gate analysis
+
+### 6. Complete Gate Task
+
+After writing the gate result, mark the gate task as completed:
 ```
 TaskUpdate(taskId={task_id from Step 3}, status="completed")
 ```
 
-### 6. Format Output
+### 7. Format Output
 
 Display the result from orchestrator:
 
@@ -97,7 +132,7 @@ Display the result from orchestrator:
 To view full evidence: `/wicked-garden:crew:evidence`
 ```
 
-### 7. Handle Decisions
+### 8. Handle Decisions
 
 Based on the decision:
 
@@ -129,7 +164,7 @@ Blockers found:
 Must fix before proceeding.
 ```
 
-### 8. Show Evidence Summary
+### 9. Show Evidence Summary
 
 After displaying the gate result, show attached evidence:
 

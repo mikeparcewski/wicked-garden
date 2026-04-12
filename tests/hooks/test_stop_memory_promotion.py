@@ -153,8 +153,6 @@ class TestStopHookMemoryPromotion(unittest.TestCase):
             "CLAUDE_PLUGIN_ROOT": str(_REPO_ROOT),
             "CLAUDE_SESSION_ID": session_id,
             "TMPDIR": str(tmpdir),
-            # Prevent any real control plane calls
-            "WICKED_CP_ENDPOINT": "",
         }
         return subprocess.run(
             [sys.executable, str(_STOP_PY)],

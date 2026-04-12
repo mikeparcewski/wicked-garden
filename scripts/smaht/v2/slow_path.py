@@ -103,7 +103,7 @@ class SlowPathAssembler:
         try:
             active_constraints = condenser.summary.active_constraints[-3:]
         except Exception:
-            pass
+            pass  # fail open
 
         # Intelligent selection: pick highest-relevance items within budget
         reserved = 80  # situation line only — history/last_turn excluded from output
