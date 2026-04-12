@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.7.0] - 2026-04-12
+
+### Features
+- feat(crew): add scope_effort, integration_surface, state_complexity dimensions + greenfield archetype (2476d08)
+
+### Chores
+- chore: add brain/worktree gitignore entries, remove CP health check from wg-test (5493bfa)
+- release: wicked-garden v4.6.0 — brain port resolution, mem passthroughs, library cleanup (06aaf12)
+
 ## [4.6.0] - 2026-04-11
 
 ### Features
