@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.8.0] - 2026-04-12
+
+### Features
+- feat: wicked-bus integration — emit events, poll-on-invoke consumers, auto-advance (71b8f27)
+
+### Chores
+- release: wicked-garden v4.7.0 — scoring dimensions, gate persistence, test suite cleanup (18f5b5e)
+
 ## [4.7.0] - 2026-04-12
 
 ### Features
