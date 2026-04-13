@@ -1,0 +1,46 @@
+{
+  "_comment": "Consumer registry — max 8 active consumers. Review gate for additions.",
+  "max_consumers": 8,
+  "consumers": [
+    {
+      "id": "crew:gate-reject-rework",
+      "event_filter": "wicked.gate.decided",
+      "domain": "crew",
+      "description": "Creates kanban rework task when gate returns REJECT",
+      "module": "scripts/crew/_bus_consumers.py",
+      "added": "2026-04-13"
+    },
+    {
+      "id": "crew:auto-advance",
+      "event_filter": "wicked.gate.decided",
+      "domain": "crew",
+      "description": "Auto-advances phase for complexity ≤ 2 projects with auto_advance=true",
+      "module": "scripts/crew/_bus_consumers.py",
+      "added": "2026-04-13"
+    },
+    {
+      "id": "smaht:brain-consolidated",
+      "event_filter": "wicked.brain.consolidated",
+      "domain": "smaht",
+      "description": "Invalidates smaht brain adapter cache when brain consolidates",
+      "module": "scripts/smaht/_bus_consumers.py",
+      "added": "2026-04-13"
+    },
+    {
+      "id": "smaht:brain-config-updated",
+      "event_filter": "wicked.config.updated",
+      "domain": "smaht",
+      "description": "Clears brain port cache when brain config changes",
+      "module": "scripts/smaht/_bus_consumers.py",
+      "added": "2026-04-13"
+    },
+    {
+      "id": "smaht:brain-initialized",
+      "event_filter": "wicked.brain.initialized",
+      "domain": "smaht",
+      "description": "Auto-configures smaht brain adapter when brain is first created",
+      "module": "scripts/smaht/_bus_consumers.py",
+      "added": "2026-04-13"
+    }
+  ]
+}

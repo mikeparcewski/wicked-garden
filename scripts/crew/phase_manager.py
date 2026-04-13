@@ -1205,6 +1205,27 @@ def approve_phase(
                     else:
                         raise ValueError(score_error)
 
+    # Emit gate decision to wicked-bus
+    if gate_result:
+        try:
+            from _bus import emit_event
+            gate_decision = gate_result.get("result", "UNKNOWN")
+            emit_event("wicked.gate.decided", {
+                "project_id": state.name,
+                "phase": phase,
+                "result": gate_decision,
+                "score": gate_result.get("score"),
+                "reviewer": gate_result.get("reviewer"),
+            }, chain_id=getattr(state, "chain_id", None))
+            if gate_decision == "REJECT":
+                emit_event("wicked.gate.blocked", {
+                    "project_id": state.name,
+                    "phase": phase,
+                    "blocking_reason": gate_result.get("result"),
+                }, chain_id=getattr(state, "chain_id", None))
+        except Exception:
+            pass  # fail open
+
     # Emit warnings to stderr (stdout is for structured output)
     for w in warnings:
         logger.warning(f"[approve] {w}")
@@ -1248,6 +1269,19 @@ def approve_phase(
         )
     except Exception:
         pass  # fire-and-forget
+
+    # Emit to wicked-bus (additive — does not replace EventStore)
+    try:
+        from _bus import emit_event
+        emit_event("wicked.phase.transitioned", {
+            "project_id": state.name,
+            "phase_from": phase,
+            "phase_to": phase_order[phase_order.index(phase) + 1] if phase in phase_order and phase_order.index(phase) < len(phase_order) - 1 else None,
+            "approver": approver,
+            "gate_result": gate_result.get("result") if gate_result else None,
+        }, chain_id=getattr(state, "chain_id", None))
+    except Exception:
+        pass  # fail open
 
     # Checkpoint enforcement: re-validate phase plan after checkpoint phases
     injected, reanalysis_warnings = _run_checkpoint_reanalysis(state, phase)
@@ -1458,6 +1492,16 @@ def create_project(
             payload={"name": name, "description": description, "complexity_score": state.complexity_score},
             tags=["project-lifecycle"],
         )
+    except Exception:
+        pass  # fail open
+
+    # Emit to wicked-bus
+    try:
+        from _bus import emit_event
+        emit_event("wicked.project.created", {
+            "project_id": name,
+            "complexity_score": state.complexity_score,
+        }, chain_id=getattr(state, "chain_id", None))
     except Exception:
         pass  # fail open
 

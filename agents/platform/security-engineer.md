@@ -281,3 +281,10 @@ TaskUpdate(
 - Use `/wicked-garden:platform:github-actions` for secure pipeline design
 - Use `/wicked-garden:platform:gh-cli` for security advisory management
 - Use `/wicked-garden:platform:gitlab-ci` for GitLab security features
+
+## Bus Events
+
+After completing a security review, emit findings to wicked-bus (skip silently if unavailable):
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.security.finding_raised '{"severity":"{CRITICAL|HIGH|MEDIUM|LOW}","category":"{CWE category}","finding_count":{N}}' 2>/dev/null || true
+```

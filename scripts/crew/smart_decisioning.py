@@ -2272,6 +2272,19 @@ def analyze_input(
     # Decision observability logging (best-effort)
     _log_decision(analysis, len(text))
 
+    # Emit complexity scoring to wicked-bus
+    try:
+        from _bus import emit_event
+        emit_event("wicked.project.complexity_scored", {
+            "complexity_score": analysis.complexity_score,
+            "primary_archetype": analysis.primary_archetype,
+            "signal_count": len(analysis.signals),
+            "review_tier": analysis.review_tier,
+            "routing_lane": analysis.routing_lane,
+        }, chain_id=analysis.chain_id)
+    except Exception:
+        pass  # fail open
+
     return analysis
 
 

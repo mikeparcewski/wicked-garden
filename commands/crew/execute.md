@@ -8,6 +8,22 @@ Execute work for the current phase with adaptive role selection.
 
 ## Instructions
 
+### 0. Poll Bus Events (poll-on-invoke)
+
+Check for pending bus events before starting work. This enables side-effect consumers
+(e.g., auto-creating rework tasks from gate REJECT events). Silently skips if bus is unavailable.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts'); sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
+from _bus_consumers import process_pending_events
+actions = process_pending_events()
+for a in actions: print(f'[bus] {a}')
+" 2>/dev/null || true
+```
+
+If any actions are reported, briefly mention them to the user before proceeding.
+
 ### 1. Load Project State
 
 Load current project state via phase_manager:

@@ -194,6 +194,18 @@ EventStore.append(
 
 If event emission fails, skip silently — it is supplementary, not required.
 
+Also emit to wicked-bus (additive — both EventStore and bus):
+
+At session start:
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.session.started '{"session_id":"{session_id}","topic":"{topic}","persona_count":{N}}' 2>/dev/null || true
+```
+
+After synthesis:
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.session.synthesized '{"session_id":"{session_id}","topic":"{topic}","insight_count":{N},"duration_secs":{D}}' 2>/dev/null || true
+```
+
 ### 4. Synthesis
 
 After rounds complete, synthesize:

@@ -168,6 +168,11 @@ Each model's response becomes one entry:
 
 If `save_transcript.py` is unavailable, skip transcript storage silently.
 
+After synthesis, emit to wicked-bus:
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.council.voted '{"session_id":"{session_id}","topic":"{topic}","models_count":{N},"agreement_ratio":{R}}' 2>/dev/null || true
+```
+
 ### 7. Synthesize Three-Stage Output
 
 #### Stage 1: Independent Responses
