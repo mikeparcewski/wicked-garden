@@ -569,22 +569,47 @@ def _check_brain_dependency():
             settings_candidates.append(Path(config_dir_env) / "settings.json")
 
         brain_installed = False
+
+        # Check 1: enabledPlugins in settings.json (plugin-style install)
         for settings_path in settings_candidates:
             try:
                 if not settings_path.exists():
                     continue
                 settings = json.loads(settings_path.read_text(encoding="utf-8"))
                 enabled = settings.get("enabledPlugins", {})
-                # enabledPlugins is a dict keyed by plugin name
                 if isinstance(enabled, dict) and "wicked-brain" in enabled:
                     brain_installed = True
                     break
-                # Some versions may store it as a list
                 if isinstance(enabled, list) and "wicked-brain" in enabled:
                     brain_installed = True
                     break
             except (json.JSONDecodeError, OSError):
-                continue  # Malformed or unreadable — skip this candidate
+                continue
+
+        # Check 2: loose skill installs at ~/.claude/skills/wicked-brain-*
+        # Users can install wicked-brain skills directly without the plugin wrapper.
+        if not brain_installed:
+            try:
+                skills_dir = Path.home() / ".claude" / "skills"
+                if skills_dir.exists():
+                    for entry in skills_dir.iterdir():
+                        if entry.is_dir() and entry.name.startswith("wicked-brain"):
+                            brain_installed = True
+                            break
+            except OSError:
+                pass  # fail open
+
+        # Check 3: CLAUDE_CONFIG_DIR skills directory
+        if not brain_installed and config_dir_env:
+            try:
+                alt_skills_dir = Path(config_dir_env) / "skills"
+                if alt_skills_dir.exists():
+                    for entry in alt_skills_dir.iterdir():
+                        if entry.is_dir() and entry.name.startswith("wicked-brain"):
+                            brain_installed = True
+                            break
+            except OSError:
+                pass  # fail open
 
         if not brain_installed:
             note = (
