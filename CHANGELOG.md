@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.8.1] - 2026-04-14
+
+### Bug Fixes
+- fix(bootstrap): detect wicked-brain loose-skill installs (a4948c2)
+
+### Chores
+- release: wicked-garden v4.8.0 — wicked-bus integration (9e0dc90)
+
 ## [4.8.0] - 2026-04-12
 
 ### Features
