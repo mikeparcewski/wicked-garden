@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.9.0] - 2026-04-15
+
+### Features
+- feat(smaht,mem): bus-based fact promotion + wicked-garden:mem cleanup (8bb0272)
+
+### Chores
+- release: wicked-garden v4.8.1 — bootstrap fix for brain loose-skill detection (4579d83)
+
 ## [4.8.1] - 2026-04-14
 
 ### Bug Fixes
