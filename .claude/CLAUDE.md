@@ -160,7 +160,7 @@ Quality gates are hard enforcement mechanisms, not advisory:
 - **Structured skip reasons**: `valid_skip_reasons` per phase; free-text rejected
 - **Non-skippable test-strategy**: `skip_complexity_threshold: 3` prevents skipping at complexity >= 3
 - **Rollback**: `CREW_GATE_ENFORCEMENT=legacy` env var bypasses all enforcement
-- **Cross-session learning**: crew agents store learnings in wicked-mem at project completion and gate failures
+- **Cross-session learning**: crew agents store learnings in wicked-garden:mem at project completion and gate failures
 
 ### Bulletproof Standards
 
@@ -302,7 +302,7 @@ Skills use **progressive disclosure** for context efficiency:
 - **DO NOT** directly edit or write to any `MEMORY.md` file with Write or Edit tools
 - **DO** use `/wicked-garden:mem:store` for all memory persistence (decisions, patterns, gotchas)
 - **DO** use `/wicked-garden:mem:recall` to retrieve past context
-- wicked-mem is the source of truth; MEMORY.md is auto-generated from the memory store
+- wicked-garden:mem is the source of truth; MEMORY.md is auto-generated from the memory store
 
 ## Delegation-First Execution
 
@@ -352,3 +352,33 @@ This applies to ALL commands that use `AskUserQuestion`: setup, delivery/setup, 
 - Quote temp paths: `"${TMPDIR:-/tmp}/..."` (Codex catches unquoted)
 - Python scripts: use `tempfile.gettempdir()` instead of hardcoding `/tmp` — Windows has no `/tmp`
 - Script invocation: use `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh"` — never bare `python3` (not available on Windows)
+
+## wicked-brain
+
+Digital brain: **wicked-garden** | 9,352 indexed items | 9,352 chunks, 0 wiki articles, 0 memories | server port 4243
+
+**Domain expertise:** review, integration, requirements, architecture, analysis, evidence, context, patterns, quality, documentation, scenarios, agents, acceptance, system, criteria, structure
+
+**Knowledge gaps:** none recorded yet (fresh ingest — gaps will be logged as `search_miss` entries on unanswered queries)
+
+**Linked brains:** none (sibling `wicked-bus` brain lives at `~/.wicked-brain/projects/wicked-bus` on port 4242 but is not linked)
+
+### How to use
+
+- **Search/explore**: use `wicked-brain:search` — replaces Grep, Glob, and Agent(Explore) for any open-ended search
+- **Answer questions**: use `wicked-brain:query` — replaces Agent(Explore) for conceptual questions
+- **Surface context**: call `wicked-brain:agent` (context) at the start of any new topic
+- **Capture learnings**: call `wicked-brain:agent` (session-teardown) at session end
+- **Store a decision/pattern/gotcha**: call `wicked-brain:memory` (store mode)
+- **Available agents**: consolidate, context, session-teardown, onboard (via `wicked-brain:agent`)
+
+### Rules (follow strictly)
+
+- **ALWAYS check the brain BEFORE using Grep, Glob, Read, or Agent(Explore)** — for any find, search, explore, explain, or "what is/how does" request
+- Use `wicked-brain:search` for finding content ("find X", "where is Y", "look for Z")
+- Use `wicked-brain:query` for questions ("what does X do", "how does Y work", "explain Z")
+- Use `wicked-brain:agent` (context) when starting a new topic or unfamiliar area
+- Only fall back to Grep/Glob for **exact pattern matching** after the brain returns no results
+- Do NOT read brain files directly — always go through skills and agents
+- Always pass `session_id` with search/query calls for access tracking
+- Capture non-obvious decisions, patterns, and gotchas with `wicked-brain:memory`

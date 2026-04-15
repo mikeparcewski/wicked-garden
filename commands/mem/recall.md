@@ -1,19 +1,19 @@
 ---
 description: Recall memories matching a query
-argument-hint: "[query] [--tags tag1,tag2] [--type episodic|decision|procedural|preference] [--tier working|episodic|semantic]"
+argument-hint: "[query] [--tags tag1,tag2] [--type decision|pattern|preference|gotcha|discovery] [--tier working|episodic|semantic]"
 ---
 
 # /wicked-garden:mem:recall
 
-Recall memories matching search criteria. Delegates to wicked-brain:memory.
+Recall memories matching search criteria. Thin wrapper over `wicked-brain-memory`.
 
 ## Arguments
 
 Parse the arguments from: $ARGUMENTS
 
 - `query` (optional): Free-text search query
-- `--type`: Filter by memory type (episodic, decision, procedural, preference)
-- `--tier`: Filter by consolidation tier (working, episodic, semantic)
+- `--type`: Filter by memory type (`decision`, `pattern` / `procedural`, `preference`, `gotcha`, `discovery`). Brain normalizes `procedural` → `pattern`.
+- `--tier`: Filter by consolidation tier (`working`, `episodic`, `semantic`)
 - `--tags`: Comma-separated tags to filter by
 - `--limit`: Maximum results (default: 10)
 

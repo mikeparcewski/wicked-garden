@@ -22,7 +22,7 @@ This is non-negotiable for wicked-garden. Users should never be forced to instal
 │  - Basic commands                                            │
 ├─────────────────────────────────────────────────────────────┤
 │                    ENHANCED (When available)                 │
-│  + wicked-mem → Cross-session memory                         │
+│  + wicked-brain → Cross-session memory (FTS5 index + chunks) │
 │  + wicked-kanban → Visual task tracking                      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -55,7 +55,7 @@ Every plugin README should include an Integration table:
 
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
-| wicked-mem | Cross-session insights | Session-only memory |
+| wicked-brain | Cross-session insights | Session-only memory |
 | wicked-kanban | Visual task board | TodoWrite fallback |
 ```
 
@@ -74,7 +74,7 @@ description: |
   - Secondary use case
 
   Enhanced with:
-  - wicked-mem: Stores learnings across sessions
+  - wicked-brain: Stores learnings across sessions
 ---
 ```
 
@@ -232,7 +232,7 @@ description: |
   - Secondary trigger
 
   Enhanced with:
-  - wicked-mem: Stores learnings across sessions
+  - wicked-brain: Stores learnings across sessions
 ---
 ```
 

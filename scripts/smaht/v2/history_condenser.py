@@ -13,7 +13,6 @@ Storage (via get_local_path from _domain_store):
 ├── turns.jsonl        # Recent turns (rolling buffer)
 ├── facts.jsonl        # Structured facts (via FactExtractor)
 ├── lanes.jsonl        # Parallel work lanes (via LaneTracker)
-├── promoted.json      # Promotion tracking (via MemoryPromoter)
 └── condensed.md       # Last condensed output (cache)
 """
 
@@ -36,7 +35,7 @@ if str(_SCRIPTS_ROOT) not in sys.path:
 
 from _domain_store import get_local_path
 
-# Also add the v2 directory for sibling imports (fact_extractor, lane_tracker, memory_promoter)
+# Also add the v2 directory for sibling imports (fact_extractor, lane_tracker)
 _V2_DIR = Path(__file__).resolve().parent
 if str(_V2_DIR) not in sys.path:
     sys.path.insert(0, str(_V2_DIR))
@@ -136,9 +135,6 @@ class HistoryCondenser:
             self.lane_tracker = LaneTracker(self.session_dir)
         except ImportError:
             self.lane_tracker = None
-
-        # Memory promoter is initialized lazily
-        self._memory_promoter = None
 
     def _load_summary(self) -> SessionSummary:
         """Load session summary from disk."""
@@ -559,25 +555,6 @@ class HistoryCondenser:
             state["lanes"] = self.lane_tracker.get_state()
 
         return state
-
-    def promote_to_memory(self, dry_run: bool = False) -> dict:
-        """Promote high-value facts to wicked-garden:mem.
-
-        Called on session end or on demand to push decisions/discoveries
-        to wicked-garden:mem for cross-session persistence.
-        """
-        if not self.fact_extractor:
-            return {"status": "fact_extractor_not_available"}
-
-        try:
-            from memory_promoter import MemoryPromoter
-            if self._memory_promoter is None:
-                self._memory_promoter = MemoryPromoter(self.session_dir, self.fact_extractor)
-            return self._memory_promoter.promote(dry_run=dry_run)
-        except ImportError:
-            return {"status": "memory_promoter_not_available"}
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
 
     def persist_session_meta(self):
         """Persist session metadata for cross-session recall.

@@ -12,8 +12,12 @@ Components:
 - history_condenser.py: Progressive compression
 - fact_extractor.py: Structured fact extraction (facts.jsonl)
 - lane_tracker.py: Multi-lane parallel work tracking
-- memory_promoter.py: Session-to-memory promotion pipeline
 - briefing.py: Output formatting
+
+Cross-session memory promotion is handled by the wicked-brain auto-memorize
+subscriber: stop.py emits `wicked.fact.extracted` events on wicked-bus, and
+brain's own subscriber applies the promotion policy and writes memories. No
+wicked-garden-side promoter pipeline lives here anymore.
 """
 
 __version__ = "2.1.0"

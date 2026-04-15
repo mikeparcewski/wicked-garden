@@ -107,49 +107,69 @@ def _check_session_outcome() -> list:
 
 
 # ---------------------------------------------------------------------------
-# Step 2b: Automatic memory promotion via MemoryPromoter
+# Step 2b: Session-end fact emission → wicked-brain auto-memorize
 # ---------------------------------------------------------------------------
+#
+# wicked-garden no longer runs a promoter pipeline. Session facts extracted by
+# smaht's FactExtractor are emitted as `wicked.fact.extracted` events on
+# wicked-bus, and wicked-brain's auto-memorize subscriber applies its own
+# promotion policy (type filter, length gate, content-hash dedup) and writes
+# memories. Brain owns dedup via content hash, so no local tracking file is
+# needed.
+
+# Fact types eligible for emission — mirrors brain's auto-memorize policy.
+# Brain will re-check these; this pre-filter keeps bus traffic sensible.
+_EMITTABLE_FACT_TYPES = frozenset({"decision", "discovery"})
+_MIN_FACT_CONTENT_LENGTH = 15
+
 
 def _run_memory_promotion(session_id: str) -> list:
-    """Promote high-value facts from the smaht session to wicked-garden:mem.
+    """Emit high-value session facts as wicked.fact.extracted events on wicked-bus.
 
-    Returns a list of message strings (empty when nothing was promoted or on
-    any error). Always fails open — exceptions are caught and logged to stderr.
+    Brain's auto-memorize subscriber picks them up asynchronously and writes
+    memories. Returns a list of message strings (empty when nothing was emitted
+    or the bus is unavailable). Always fails open — exceptions are caught and
+    logged to stderr.
     """
     try:
         smaht_dir = _session_dir("wicked-smaht")
         if not smaht_dir.exists():
-            # No smaht session this run — nothing to promote
             if os.environ.get("WICKED_DEBUG"):
-                print(f"[wicked-garden] memory promotion: no smaht session at {smaht_dir}", file=sys.stderr)
+                print(f"[wicked-garden] fact emit: no smaht session at {smaht_dir}", file=sys.stderr)
             return []
 
-        # Add smaht/v2 to sys.path so FactExtractor / MemoryPromoter are importable.
-        # This mirrors the pattern used in _persist_smaht_session_meta().
+        # Add smaht/v2 + scripts root so FactExtractor + _bus are importable.
         sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
         sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
         from fact_extractor import FactExtractor
-        from memory_promoter import MemoryPromoter
+        from _bus import emit_event
 
         fact_extractor = FactExtractor(smaht_dir)
-        promoter = MemoryPromoter(smaht_dir, fact_extractor)
-        result = promoter.promote()
+        emitted = 0
+        for fact in fact_extractor.facts:
+            if fact.type not in _EMITTABLE_FACT_TYPES:
+                continue
+            if len(fact.content) < _MIN_FACT_CONTENT_LENGTH:
+                continue
+            emit_event(
+                "wicked.fact.extracted",
+                {
+                    "type": fact.type,
+                    "content": fact.content,
+                    "entities": list(fact.entities)[:5] if fact.entities else [],
+                    "source": fact.source or "smaht",
+                    "session_id": session_id,
+                },
+            )
+            emitted += 1
 
-        status = result.get("status", "")
-        promoted = result.get("promoted", 0)
-
-        if status == "no_candidates" or promoted == 0:
+        if emitted == 0:
             return []
-
-        failed = result.get("failed", 0)
-        msg = f"[Memory] Auto-extracted {promoted} memory/memories from this session."
-        if failed:
-            msg += f" ({failed} failed — review with /wicked-garden:mem:recall)"
-        return [msg]
+        return [f"[Memory] Emitted {emitted} fact event(s); wicked-brain will auto-memorize eligible ones."]
 
     except Exception as e:
-        print(f"[wicked-garden] memory promotion error: {e}", file=sys.stderr)
+        print(f"[wicked-garden] fact emit error: {e}", file=sys.stderr)
         return []
 
 

@@ -132,6 +132,12 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.phase",
         "description": "Phase auto-advanced for low-complexity project (audit trail)",
     },
+    # Smaht domain — fact_extractor.py → brain auto-memorize subscriber
+    "wicked.fact.extracted": {
+        "domain": "smaht",
+        "subdomain": "facts",
+        "description": "Structured fact extracted from conversation (consumed by wicked-brain auto-memorize)",
+    },
 }
 
 # Payload deny-list — these fields must NEVER appear in bus payloads.
@@ -141,6 +147,17 @@ _PAYLOAD_DENY_LIST = frozenset({
     "memory_content", "file_content", "source_code", "prompt",
     "password", "secret", "token", "api_key", "credential",
 })
+
+# Per-event-type allow-list overrides — explicit exceptions where a normally
+# denied key is part of the event's contract. Event types listed here get their
+# named fields passed through the deny-list unchanged. Keep this list short and
+# justified: every entry is a deliberate carve-out auditable at review time.
+#
+# wicked.fact.extracted — content is the whole point of the event. The brain
+# auto-memorize subscriber requires payload.content to produce a memory.
+_PAYLOAD_ALLOW_OVERRIDES: Dict[str, frozenset] = {
+    "wicked.fact.extracted": frozenset({"content"}),
+}
 
 # ---------------------------------------------------------------------------
 # Availability cache — 60s TTL, reset on failure
@@ -234,9 +251,16 @@ def _build_cmd(*args: str) -> List[str]:
     return ["npx", "wicked-bus", *args]
 
 
-def _sanitize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Remove denied fields from payload. Never send content to the bus."""
-    return {k: v for k, v in payload.items() if k not in _PAYLOAD_DENY_LIST}
+def _sanitize_payload(payload: Dict[str, Any], event_type: str = "") -> Dict[str, Any]:
+    """Remove denied fields from payload. Never send content to the bus.
+
+    Per-event allow overrides (see _PAYLOAD_ALLOW_OVERRIDES) let specific event
+    types pass named denied fields through — these are explicit, audited carve-outs
+    for events whose contract requires a denied key (e.g. wicked.fact.extracted
+    must ship content to the brain auto-memorize subscriber).
+    """
+    allow = _PAYLOAD_ALLOW_OVERRIDES.get(event_type, frozenset())
+    return {k: v for k, v in payload.items() if k not in _PAYLOAD_DENY_LIST or k in allow}
 
 
 # ---------------------------------------------------------------------------
@@ -264,7 +288,7 @@ def emit_event(
     if event_def is None:
         return  # Unknown event type — fail silently
 
-    safe_payload = _sanitize_payload(payload)
+    safe_payload = _sanitize_payload(payload, event_type)
 
     cmd = _build_cmd(
         "emit",

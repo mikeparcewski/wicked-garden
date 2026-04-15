@@ -1,56 +1,44 @@
 ---
 description: Store a new memory
-argument-hint: "<content>" [--type episodic|decision|procedural|preference] [--tier working|episodic|semantic] [--tags tag1,tag2]
+argument-hint: "<content>" [--type decision|pattern|preference|gotcha|discovery] [--tier working|episodic|semantic] [--importance low|medium|high] [--tags tag1,tag2]
 ---
 
 # /wicked-garden:mem:store
 
-Store a memory for persistence across sessions. Delegates to wicked-brain:memory.
+Store a memory for persistence across sessions. Thin wrapper over `wicked-brain-memory` — brain owns the taxonomy, tier derivation, and TTL defaults.
 
 ## Arguments
 
 Parse the arguments from: $ARGUMENTS
 
 - `content` (required): The memory content to store (first quoted string)
-- `--type`: Memory type - episodic (default), decision, procedural, preference, gotcha, discovery, pattern
-- `--tier`: Consolidation tier - working, episodic (default), semantic
+- `--type`: Memory type — `decision`, `pattern` (alias: `procedural`), `preference`, `gotcha`, `discovery`
+- `--tier`: Explicit consolidation tier — `working`, `episodic`, `semantic`. If omitted, brain derives from `--importance` and type defaults.
+- `--importance`: `low` | `medium` | `high`. Brain maps `high` → `semantic`, `low` → `working`, `medium` → `episodic` when `--tier` is not passed.
 - `--tags`: Comma-separated tags for categorization
-- `--importance`: low, medium (default), high
 
 ## Execution
 
-Invoke the brain memory skill:
+Pass all arguments through to the brain skill unchanged:
 
 ```
-Skill(skill="wicked-brain-memory", args="store {content} --type {type} --tier {tier} --tags {tags}")
+Skill(skill="wicked-brain-memory", args="store {content} --type {type} --tier {tier} --importance {importance} --tags {tags}")
 ```
 
-Pass through all arguments. If `--type` maps to a brain type differently:
-- `procedural` in garden = `pattern` in brain
-- All others pass through directly
-
-If `--importance high`, add `--tier semantic` unless tier was explicitly set.
-
-## Memory Type Guidelines
-
-| Type | Use When | TTL | Auto Tier |
-|------|----------|-----|-----------|
-| `episodic` | Recording what happened, debugging sessions, test results | 90 days | episodic |
-| `decision` | Architectural choices, technology selections, trade-offs | Permanent | semantic |
-| `procedural` | How-to knowledge, patterns, workflows | Permanent | episodic |
-| `preference` | User/project preferences, coding style | Permanent | semantic |
-| `gotcha` | Pitfalls, traps, things to watch out for | 30 days | episodic |
-| `discovery` | New learnings, findings | 14 days | working |
+Brain handles type normalization (including `procedural` → `pattern`), importance→tier derivation, per-type TTL defaults, entity enrichment, and FTS indexing.
 
 ## Examples
 
 ```bash
-# Store a decision
+# Store a decision (brain auto-tiers decisions to semantic)
 /wicked-garden:mem:store "Chose PostgreSQL for transaction support" --type decision --tags database,architecture
 
-# Store a debugging session outcome
-/wicked-garden:mem:store "Fixed auth bug: JWT was expiring too early" --type episodic --tags auth,bugfix
+# Store a debugging outcome as a discovery
+/wicked-garden:mem:store "Fixed auth bug: JWT was expiring too early" --type discovery --tags auth,bugfix
 
-# Store a learned pattern
-/wicked-garden:mem:store "Use early returns for validation, then happy path" --type procedural --tags code-style
+# Store a reusable pattern
+/wicked-garden:mem:store "Use early returns for validation, then happy path" --type pattern --tags code-style
+
+# Force semantic tier for a high-importance gotcha
+/wicked-garden:mem:store "Never call datetime() on ISO-Z strings in SQLite" --type gotcha --importance high
 ```
