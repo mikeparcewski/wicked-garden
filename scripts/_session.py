@@ -226,6 +226,21 @@ class SessionState:
     turn_start_ts: str = ""
     turn_tool_count: int = 0
 
+    # Pull-model context assembly (Issue #416).
+    # Phase: bootstrap (turns 1-2, mandatory pull), calibrating (turns 3-8),
+    # cruising (turns 9+, minimal directive). Transition driven by turn count.
+    pull_phase: str = "bootstrap"  # bootstrap | calibrating | cruising
+    # Count of brain:query/search pulls the model made this session.
+    pull_count: int = 0
+    # Turns where the model answered without pulling and was NOT corrected.
+    unpulled_ok: int = 0
+    # Turns where the model was corrected after not pulling.
+    corrections: int = 0
+    # Turn number when phase was regressed to mandatory pull due to corrections.
+    # 0 means no regression active. When set, mandatory pull lasts for 3 turns
+    # from this turn number, then resumes normal phase progression.
+    pull_regress_at: int = 0
+
     # PostToolUse hook latency profiling (Issue #312).
     # Cumulative milliseconds spent in the post_tool.py main() function.
     post_tool_total_ms: int = 0

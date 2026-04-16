@@ -1,5 +1,10 @@
 # Changelog
 
+## [4.10.0] - 2026-04-16
+
+### Chores
+- release: wicked-garden v4.9.0 — bus-based fact promotion + mem cleanup (15b1da8)
+
 ## [4.9.0] - 2026-04-15
 
 ### Features

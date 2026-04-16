@@ -942,17 +942,26 @@ def _handle_read(tool_input: dict, tool_response=None) -> dict:
 # ---------------------------------------------------------------------------
 
 def _handle_skill(tool_input: dict) -> dict:
-    """Reset memory_compliance_escalations when a mem:store skill call succeeds.
+    """Handle Skill PostToolUse: mem:store compliance reset + pull-model tracking.
 
-    The TaskCompleted hook increments memory_compliance_escalations on every
-    deliverable task completion. After 3 completions the [ESCALATION] prefix
-    fires indefinitely. Resetting the counter here — triggered by any Skill
-    invocation whose skill name matches *:mem:store — breaks the cycle.
-
-    We reset on the Skill call regardless of whether the inner bash command
-    succeeded: if the user invoked mem:store we treat that as intent to comply.
+    1. Reset memory_compliance_escalations when a mem:store skill call succeeds.
+    2. Track wicked-brain:query/search calls for pull-model calibration (Issue #416).
     """
     skill = (tool_input.get("skill") or "").lower()
+
+    # Pull-model tracking (Issue #416): increment pull_count when the model
+    # calls wicked-brain:query or wicked-brain:search. This feeds the
+    # calibration stats shown in the next turn's pull directive.
+    _PULL_SKILLS = ("wicked-brain:query", "wicked-brain:search")
+    if any(s in skill for s in _PULL_SKILLS):
+        try:
+            from _session import SessionState
+            state = SessionState.load()
+            state.update(pull_count=(state.pull_count or 0) + 1)
+        except Exception:
+            pass  # fail open
+
+    # Memory compliance reset
     if ":mem:store" not in skill and skill != "mem:store":
         return {"continue": True}
     try:

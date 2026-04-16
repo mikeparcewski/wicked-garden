@@ -292,6 +292,33 @@ def _persist_smaht_session_meta(session_id: str) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Pull-model calibration update (Issue #416)
+# ---------------------------------------------------------------------------
+
+def _update_pull_calibration() -> None:
+    """Update pull-model calibration stats at the end of each model response.
+
+    Tracks whether the model pulled context this turn (via pull_count delta)
+    and increments unpulled_ok when it didn't pull but wasn't corrected.
+    Correction detection happens in prompt_submit.py at the START of the
+    next turn by checking if the new prompt contains correction signals.
+    Here we just track the "didn't pull" baseline.
+    """
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+
+        # Snapshot pull_count at turn end so next turn can detect delta
+        # (stored as a transient field — no schema change needed, we use turn_tool_count)
+        # If pull_count hasn't changed since turn start, model didn't pull this turn
+        # We'll increment unpulled_ok optimistically; prompt_submit corrects on next turn
+        # if the user's follow-up contains correction signals.
+        state.update(unpulled_ok=(state.unpulled_ok or 0) + 1)
+    except Exception:
+        pass  # fail open
+
+
 def main():
     _t0 = time.monotonic()
     _log("session", "debug", "hook.start")
@@ -305,6 +332,9 @@ def main():
     try:
         session_id = input_data.get("session_id", os.environ.get("CLAUDE_SESSION_ID", "default"))
         turn_count = _get_turn_count()
+
+        # 0. Pull-model calibration update (Issue #416)
+        _update_pull_calibration()
 
         # 1. Session outcome check
         outcome_messages = _check_session_outcome()

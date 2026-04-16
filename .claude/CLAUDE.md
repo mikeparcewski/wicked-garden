@@ -367,10 +367,19 @@ Digital brain: **wicked-garden** | 9,352 indexed items | 9,352 chunks, 0 wiki ar
 
 - **Search/explore**: use `wicked-brain:search` — replaces Grep, Glob, and Agent(Explore) for any open-ended search
 - **Answer questions**: use `wicked-brain:query` — replaces Agent(Explore) for conceptual questions
+- **Wiki catalog**: use `wicked-brain:read` at depth 0/1 to browse wiki articles progressively
 - **Surface context**: call `wicked-brain:agent` (context) at the start of any new topic
 - **Capture learnings**: call `wicked-brain:agent` (session-teardown) at session end
 - **Store a decision/pattern/gotcha**: call `wicked-brain:memory` (store mode)
 - **Available agents**: consolidate, context, session-teardown, onboard (via `wicked-brain:agent`)
+
+### Search result source types
+
+Brain search/query results include `source_type` and `path` fields. Use these to decide depth:
+
+- **`wiki`** — Synthesized knowledge articles. High-value. Read deeper with `wicked-brain:read {path} depth=2`.
+- **`chunk`** — Raw indexed source content. The excerpt in the search result is usually sufficient.
+- **`memory`** — Experiential learnings (decisions, patterns, gotchas). Compact; excerpt is usually enough.
 
 ### Rules (follow strictly)
 
@@ -378,6 +387,7 @@ Digital brain: **wicked-garden** | 9,352 indexed items | 9,352 chunks, 0 wiki ar
 - Use `wicked-brain:search` for finding content ("find X", "where is Y", "look for Z")
 - Use `wicked-brain:query` for questions ("what does X do", "how does Y work", "explain Z")
 - Use `wicked-brain:agent` (context) when starting a new topic or unfamiliar area
+- When search results include `source_type: wiki`, follow up with `wicked-brain:read` at depth 1-2 for the full synthesized article
 - Only fall back to Grep/Glob for **exact pattern matching** after the brain returns no results
 - Do NOT read brain files directly — always go through skills and agents
 - Always pass `session_id` with search/query calls for access tracking

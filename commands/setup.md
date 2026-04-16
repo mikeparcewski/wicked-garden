@@ -338,7 +338,15 @@ Skill(skill="wicked-brain-compile")
 ```
 Show: "Generating knowledge articles..."
 
-**Step E — Store onboarding memory** as a brain chunk:
+**Step E — Configure brain instructions** (write source_type guidance + wiki stats into CLAUDE.md):
+```
+Skill(skill="wicked-brain-configure")
+```
+Show: "Configuring brain instructions..."
+
+This writes/updates the `## wicked-brain` section in the project's CLAUDE.md with current brain stats, source_type guidance (wiki/chunk/memory), and wiki article count. Must run AFTER compile so the wiki count is accurate.
+
+**Step F — Store onboarding memory** as a brain chunk:
 
 Store an enriched onboarding memory with detected context from Step 5.0:
 

@@ -402,9 +402,11 @@ def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, s
         is_risky: Whether high-risk keywords were detected.
         state: Current session state.
         context_briefing: Optional orchestrator briefing from SLOW-path pre-run.
-            When provided, the synthesize skill skips cold exploration and uses
-            this as its starting context. Capped at 2000 chars to avoid bloat.
+            When provided, written to a temp file and passed as a path reference
+            so the briefing content doesn't accumulate in conversation history.
     """
+    import tempfile as _tempfile
+
     # Compact recent turns summary for the skill
     turns_summary = ""
     try:
@@ -424,8 +426,9 @@ def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, s
     except Exception:
         pass
 
-    # Encode args as JSON so the skill can unambiguously parse all fields,
-    # including turns_summary which is itself pipe-separated internally.
+    # Encode args as JSON so the skill can unambiguously parse all fields.
+    # Context briefing is written to a temp file (not inlined) to prevent
+    # accumulation in conversation history (Issue #416).
     import json as _json
     args_dict = {
         "complexity": round(complexity, 2),
@@ -434,10 +437,30 @@ def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, s
     }
     if turns_summary:
         args_dict["turns"] = turns_summary[:300]
+
+    # Write context briefing to temp file instead of inlining
+    briefing_path = ""
     if context_briefing:
-        args_dict["context_briefing"] = context_briefing[:2000]
+        try:
+            tmpdir = _tempfile.gettempdir()
+            session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
+            briefing_file = Path(tmpdir) / f"wg-synthesis-{session_id}.md"
+            briefing_file.write_text(context_briefing, encoding="utf-8")
+            briefing_path = str(briefing_file)
+            args_dict["context_briefing_path"] = briefing_path
+        except Exception:
+            # Fallback: inline a truncated version if file write fails
+            args_dict["context_briefing"] = context_briefing[:800]
 
     args_str = _json.dumps(args_dict)
+
+    # Build the directive — tell the model to read the briefing file if available
+    read_hint = ""
+    if briefing_path:
+        read_hint = (
+            f"\n\nPre-gathered context is available at: {briefing_path}\n"
+            "Read it with the Read tool BEFORE invoking the synthesis skill."
+        )
 
     return (
         "[Context Assembly] This prompt requires deep context synthesis.\n"
@@ -445,6 +468,7 @@ def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, s
         f"  Skill(skill='wicked-garden:smaht:synthesize', args='{args_str}')\n\n"
         "Read the CONTEXT BRIEFING it produces. Use it to ground your response. "
         "Answer the original prompt only after the briefing is complete."
+        f"{read_hint}"
     )
 
 
@@ -606,6 +630,134 @@ def _check_onboarding_gate(prompt: str) -> str | None:
 
     return None
 
+
+
+# ---------------------------------------------------------------------------
+# Pull-model directive builder (Issue #416)
+# ---------------------------------------------------------------------------
+
+_CORRECTION_SIGNALS = frozenset({
+    "no,", "no ", "wrong", "that's not", "that isn't", "incorrect",
+    "actually,", "actually ", "not what i", "i meant", "i said",
+    "try again", "redo", "you missed", "you forgot", "you ignored",
+})
+
+
+_REGRESS_DURATION = 3  # mandatory pull lasts this many turns after regression
+
+
+def _detect_correction(prompt: str, turn_count: int, state) -> None:
+    """Check if the user's prompt is correcting the model's last response.
+
+    If so, decrement unpulled_ok, increment corrections, and trigger phase
+    regression to mandatory pull when the model has been overconfident.
+    Regression lasts for _REGRESS_DURATION turns, then normal phase resumes.
+    """
+    if not state or not prompt.strip():
+        return
+    lower = prompt.strip().lower()
+    if not any(lower.startswith(s) or s in lower for s in _CORRECTION_SIGNALS):
+        return
+    try:
+        corrections = (state.corrections or 0) + 1
+        unpulled_ok = max((state.unpulled_ok or 0) - 1, 0)
+        updates = {"corrections": corrections, "unpulled_ok": unpulled_ok}
+
+        # Trigger phase regression: force mandatory pull for the next few turns.
+        # Activates when: past bootstrap (turn > 2) and not already in regression.
+        regress_at = getattr(state, "pull_regress_at", 0) or 0
+        already_regressed = regress_at > 0 and (turn_count - regress_at) < _REGRESS_DURATION
+        if turn_count > 2 and not already_regressed:
+            updates["pull_regress_at"] = turn_count
+
+        state.update(**updates)
+    except Exception:
+        pass
+
+
+def _resolve_pull_phase(turn_count: int, state=None) -> str:
+    """Determine the pull phase based on turn count and regression state.
+
+    If a correction triggered regression, override to 'bootstrap' (mandatory pull)
+    for _REGRESS_DURATION turns from the regression point.
+    """
+    # Check for active regression
+    regress_at = getattr(state, "pull_regress_at", 0) if state else 0
+    if regress_at and (turn_count - regress_at) < _REGRESS_DURATION:
+        return "bootstrap"
+
+    if turn_count <= 2:
+        return "bootstrap"
+    elif turn_count <= 8:
+        return "calibrating"
+    return "cruising"
+
+
+def _build_pull_directive(turn_count: int, state) -> str:
+    """Build the tiny pull-model directive for context-on-demand.
+
+    Returns a short directive string (~60-150 chars) that tells the model
+    to pull context via wicked-brain:query/search when uncertain, instead of
+    us pushing a full briefing every turn.
+
+    Three phases:
+      bootstrap (turns 1-2):   Mandatory pull, model must query before responding.
+      calibrating (turns 3-8): Optional pull with calibration hints.
+      cruising (turns 9+):     Minimal directive, model pulls only when uncertain.
+    """
+    phase = _resolve_pull_phase(turn_count, state)
+
+    # Update phase in session state
+    try:
+        if state:
+            state.update(pull_phase=phase)
+    except Exception:
+        pass
+
+    # Calibration stats from session state (safe defaults if missing)
+    cal_ok = getattr(state, "unpulled_ok", 0) if state else 0
+    cal_miss = getattr(state, "corrections", 0) if state else 0
+
+    # Probe brain for wiki article count (bootstrap only, <100ms)
+    _wiki_count = 0
+    if phase == "bootstrap":
+        try:
+            result = _brain_api("wiki_list", {}, timeout=1)
+            if result and "articles" in result:
+                _wiki_count = len(result["articles"])
+        except Exception:
+            pass  # fail open
+
+    if phase == "bootstrap":
+        wiki_line = ""
+        if _wiki_count:
+            wiki_line = (
+                f"\n{_wiki_count} wiki articles available. "
+                "Use wicked-brain:search to find relevant ones "
+                "(results include source_type: wiki/chunk/memory — "
+                "wiki hits are synthesized knowledge, worth reading deeper with wicked-brain:read)."
+            )
+        return (
+            f"<wg id=\"ctx\" t={turn_count} phase=\"bootstrap\">\n"
+            "New session. You MUST gather project context before responding.\n"
+            "Tools: wicked-brain:query (questions) | wicked-brain:search (find) | "
+            f"wicked-brain:read (depth 0=stats, 1=overview, 2=full)"
+            f"{wiki_line}\n"
+            "</wg>"
+        )
+    elif phase == "calibrating":
+        return (
+            f"<wg id=\"ctx\" t={turn_count} phase=\"calibrating\" cal=\"{cal_ok}/{cal_miss}\">\n"
+            "Context: wicked-brain:query | Search: wicked-brain:search\n"
+            "Search results carry source_type — drill into wiki hits with wicked-brain:read.\n"
+            "</wg>"
+        )
+    else:  # cruising
+        return (
+            f"<wg id=\"ctx\" t={turn_count} phase=\"cruising\" cal=\"{cal_ok}/{cal_miss}\">\n"
+            "Context: wicked-brain:query\n"
+            "</wg>"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -810,6 +962,10 @@ def main():
 
     turn_count = _increment_turn(state)
 
+    # Pull-model correction detection (Issue #416): check if user is correcting
+    # the model, which means it was overconfident on the previous turn.
+    _detect_correction(prompt, turn_count, state)
+
     # Session goal capture on turns 1-2
     _capture_session_goal(prompt, turn_count, project, session_id)
 
@@ -897,45 +1053,39 @@ def main():
             return
 
     try:
-        # Delegate all routing and context assembly to smaht v2 Orchestrator.
-        # The Orchestrator handles HOT/FAST/SLOW routing, adapter queries,
-        # history condenser updates, and budget enforcement.
-        from orchestrator import Orchestrator
-        orchestrator = Orchestrator(session_id=session_id)
-        result = _gather_context_sync(orchestrator, prompt)
-        briefing = result.briefing
-        path = result.path_used
+        # --- Pull-model context assembly (Issue #416) ---
+        # Instead of pushing a full orchestrator briefing (~1200 chars) every turn,
+        # inject a tiny pull directive (~60-150 chars) that tells the model to
+        # fetch context on demand via wicked-brain:query/search.
+        #
+        # The orchestrator is still available for the synthesis skill path
+        # (complex/risky prompts — see synthesis gate above).
 
-        _log("smaht", "verbose", "prompt.routed",
-             detail={"path": path, "turn": turn_count,
-                     "word_count": len(prompt.split()),
-                     "latency_ms": result.latency_ms,
-                     "sources": result.sources_queried})
+        # Build the pull directive
+        pull_directive = _build_pull_directive(turn_count, state)
 
         # Feed context pressure tracker with this turn's byte contribution
         try:
-            from context_pressure import PressureTracker, PressureLevel
-            pressure_tracker = PressureTracker(session_id)
-            pressure_tracker.increment_turn(
+            from context_pressure import PressureTracker
+            PressureTracker(session_id).increment_turn(
                 prompt_bytes=len(prompt.encode("utf-8")),
-                briefing_bytes=len(briefing.encode("utf-8")) if briefing else 0,
+                briefing_bytes=len(pull_directive.encode("utf-8")),
             )
+        except Exception:
+            pass  # fail open
+
+        # Update history condenser with this turn's prompt
+        try:
+            from history_condenser import HistoryCondenser
+            HistoryCondenser(session_id).update_from_prompt(prompt)
         except Exception:
             pass  # fail open
 
         # WIP recovery: inject working state after context compaction
         wip_block = _build_wip_recovery_block(session_id, project)
 
-        if not briefing and not onboarding_directive and not wip_block:
-            print(json.dumps({"continue": True}))
-            return
-
         # Build output: single <system-reminder> block with all context parts
-        header = (
-            f"<!-- wicked-garden | path={path} "
-            f"| turn={turn_count} -->"
-        )
-        all_parts = [header]
+        all_parts = []
 
         # WIP recovery block goes first so it's the first thing the model sees
         if wip_block:
@@ -945,62 +1095,31 @@ def main():
         if onboarding_directive:
             all_parts.append(onboarding_directive)
 
-        if briefing:
-            sanitized = briefing.replace("</system-reminder>", "")
-            # Directive framing: makes the briefing authoritative rather than supplementary.
-            # Claude should ground its response in this context, not supplement it with guesses.
-            all_parts.append(
-                "Ground your response in this project context. "
-                "Do not assume or infer beyond what is stated here.\n"
-            )
-            all_parts.append(sanitized)
+        # Pull directive — the core of the new architecture
+        all_parts.append(pull_directive)
 
         # Periodic memory storage nudge (every 10 turns)
         _STORAGE_NUDGE_INTERVAL = 10
         if turn_count > 0 and turn_count % _STORAGE_NUDGE_INTERVAL == 0:
             all_parts.append(
-                "[Memory] Checkpoint: If recent work produced any decisions, gotchas, "
-                "or reusable patterns, store them now with /wicked-garden:mem:store."
+                "[Memory] Checkpoint: store decisions/gotchas with /wicked-garden:mem:store."
             )
 
-        # Crew routing suggestion: SLOW + high complexity, once per session
-        if path == "slow" and "/crew:" not in prompt:
-            try:
-                from router import Router
-                _complexity = Router()._estimate_complexity(prompt)
-            except Exception:
-                _complexity = 0
-            _is_crew_eligible = _complexity >= 3
-            if _is_crew_eligible:
-                _active_project = getattr(state, "active_project_id", None) if state else None
-                _hint_shown = getattr(state, "crew_hint_shown", False) if state else False
-                if not _active_project and not _hint_shown:
-                    _brief = prompt.strip()[:60].rstrip().rstrip(",.")
-                    all_parts.append(
-                        "[Suggestion] This request looks like a structured multi-phase project. "
-                        "Consider starting a crew workflow:\n\n"
-                        f"/wicked-garden:crew:start \"{_brief}...\"\n\n"
-                        "Reply with the command above to start, or continue inline if you prefer."
-                    )
-                    try:
-                        if state:
-                            state.update(crew_hint_shown=True)
-                    except Exception:
-                        pass
-
-        # Jam suggestion: on FAST or SLOW path when ambiguity signals present
-        if path in ("fast", "slow"):
-            jam_hint = _suggest_jam(prompt, state)
-            if jam_hint:
-                all_parts.append(jam_hint)
+        # Jam suggestion: when ambiguity signals present
+        jam_hint = _suggest_jam(prompt, state)
+        if jam_hint:
+            all_parts.append(jam_hint)
 
         # Discovery hints: suggest commands based on prompt intent (Issue #322)
-        if path in ("fast", "slow"):
-            discovery_hint = _suggest_discovery(prompt, state)
-            if discovery_hint:
-                all_parts.append(discovery_hint)
+        discovery_hint = _suggest_discovery(prompt, state)
+        if discovery_hint:
+            all_parts.append(discovery_hint)
 
         merged_context = f"<system-reminder>\n{chr(10).join(all_parts)}\n</system-reminder>"
+
+        _log("smaht", "debug", "prompt.pull_directive",
+             detail={"phase": _resolve_pull_phase(turn_count, state), "turn": turn_count,
+                     "directive_bytes": len(pull_directive.encode("utf-8"))})
 
         output = {
             "hookSpecificOutput": {
