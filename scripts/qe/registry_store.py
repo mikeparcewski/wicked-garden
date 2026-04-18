@@ -108,6 +108,45 @@ def main() -> int:
             file=sys.stderr,
         )
 
+    # Emit scenario run event to wicked-bus (additive — fire-and-forget, fail-open).
+    # Result is derived from registry completeness: no missing items = pass, else fail.
+    try:
+        from _bus import emit_event
+        from _session import SessionState
+
+        completeness = registry_data.get("completeness") or {}
+        missing = completeness.get("missing") or []
+        required_count = completeness.get("required_count") or 0
+        captured_count = completeness.get("captured_count") or 0
+
+        result = "pass" if not missing else "fail"
+        # coverage_delta: ratio of captured-to-required as a simple proxy (0.0-1.0).
+        # No prior-run comparison is available at this layer, so delta is reported
+        # as the current completion ratio. Consumers that track diffs should compute
+        # deltas from successive events.
+        if required_count > 0:
+            coverage_delta = round(captured_count / required_count, 3)
+        else:
+            coverage_delta = 0.0
+
+        try:
+            state = SessionState.load()
+            chain_id = getattr(state, "active_chain_id", None) or ""
+        except Exception:
+            chain_id = ""
+
+        emit_event(
+            "wicked.scenario.run",
+            {
+                "scenario_id": args.scenario_slug,
+                "result": result,
+                "coverage_delta": coverage_delta,
+            },
+            chain_id=chain_id,
+        )
+    except Exception:
+        pass  # fail open — bus emit must never break the caller
+
     return 0
 
 
