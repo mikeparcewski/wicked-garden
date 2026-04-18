@@ -147,6 +147,28 @@ def main() -> int:
     except Exception:
         pass  # fail open — bus emit must never break the caller
 
+    # Measure test coverage delta and emit `wicked.coverage.changed` when
+    # non-zero. Strictly additive: a missing coverage report, malformed
+    # output, or DomainStore failure is a silent no-op. The tracker itself
+    # is fail-open by contract, but we still wrap defensively so the
+    # registry_store contract (exit 0) holds under any future change.
+    try:
+        # Ensure the sibling qe/ directory is importable when registry_store
+        # is invoked as a script (Path[0] is the script's own directory in
+        # that case, but add it explicitly for robustness under module
+        # execution paths too).
+        _qe_dir = str(Path(__file__).resolve().parent)
+        if _qe_dir not in sys.path:
+            sys.path.insert(0, _qe_dir)
+        from coverage_tracker import track_and_emit  # type: ignore
+
+        # scenario_slug is the best project-id proxy we have at this
+        # layer; it keeps the coverage record keyed to the scenario run
+        # so repeat runs for the same scenario produce clean deltas.
+        track_and_emit(project_id=args.scenario_slug, chain_id=chain_id or None)
+    except Exception:
+        pass  # fail open — coverage tracking must never break registry_store
+
     return 0
 
 
