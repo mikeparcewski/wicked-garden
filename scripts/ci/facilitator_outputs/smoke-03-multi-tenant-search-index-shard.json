@@ -1,0 +1,202 @@
+{
+  "project_slug": "multi-tenant-search-index-shard",
+  "mode": "propose",
+  "summary": "Split the shared search index into per-tenant physical shards, route queries at the gateway by tenant identity, migrate existing documents, and make the old shared path unreachable post-cutover. Cross-tenant leakage incidents this quarter make this a security-adjacent refactor; UX is unchanged but SLOs must hold and a rollback is required for perf regressions on small tenants.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "LOW",    "why": "Once the shared-index path is removed and tenants are re-sharded, reverting requires re-joining indices or restoring from backup — not a config flip."},
+    "blast_radius":       {"reading": "HIGH",   "why": "Every tenant's search queries flow through the new gateway routing; a mis-sharded query is a cross-tenant leak on a surface that already had two incidents this quarter."},
+    "compliance_scope":   {"reading": "MEDIUM", "why": "Tenant isolation is a baseline SOC2/enterprise-contract expectation; this isn't GDPR/HIPAA territory but the leak history makes tenant data sensitivity non-negligible."},
+    "user_facing_impact": {"reading": "MEDIUM", "why": "UX is unchanged but latency SLOs must hold; a small tenant with a tiny shard could regress on cold-cache queries and that is user-visible."},
+    "novelty":            {"reading": "MEDIUM", "why": "Per-tenant sharding is a known pattern industry-wide but this is the first time in this codebase; gateway routing + authz check between identity and shard selection is new internal machinery."},
+    "scope_effort":       {"reading": "HIGH",   "why": "Data migration for all existing tenants' docs, gateway rewrite, authz check, shared-path removal, tenant metrics isolation, rollback scripts — many components."},
+    "state_complexity":   {"reading": "HIGH",   "why": "Index data, per-tenant metrics, and migration cutover state must stay consistent; dual-write or dual-read windows need explicit plans."},
+    "operational_risk":   {"reading": "HIGH",   "why": "Search is latency-critical and tenant-isolation-critical; a bad shard route or a migration-window perf regression is a runtime incident."},
+    "coordination_cost":  {"reading": "HIGH",   "why": "Search + platform + data + product teams affected; release windows, tenant notifications, and rollback criteria need explicit sign-off."}
+  },
+  "specialists": [
+    {"name": "solution-architect",   "why": "Picks the shard topology and routing design, names the trade-offs between per-tenant indices vs. routing-aliases vs. virtual shards."},
+    {"name": "data-engineer",        "why": "Owns the document migration, dual-write / dual-read window, and cutover plan."},
+    {"name": "migration-engineer",   "why": "Designs the rollback path, verifies migrated-doc counts against source, and lays out the failure-recovery runbook."},
+    {"name": "security-engineer",    "why": "Two prior cross-tenant leakage incidents make authz-between-identity-and-shard a mandatory design review topic."},
+    {"name": "backend-engineer",     "why": "Implements the gateway routing, shard-selection authz check, and tenant metrics isolation."},
+    {"name": "test-strategist",      "why": "Designs the tenant-isolation adversarial test suite, perf-regression suite for small tenants, and migration-parity tests."},
+    {"name": "sre",                  "why": "Owns latency SLOs during cutover, alert thresholds, and the rollback trigger."},
+    {"name": "release-engineer",     "why": "Coordinates the staged cutover across tenant cohorts and the communication plan."}
+  ],
+  "phases": [
+    {"name": "clarify",       "why": "Name the tenant cohorts, define per-tenant SLO targets, and pin down what constitutes cross-tenant leakage in the adversarial test plan.",      "primary": ["product-manager", "solution-architect"]},
+    {"name": "design",        "why": "Pick the shard topology, gateway routing contract, authz check, migration plan, and rollback design.",                                           "primary": ["solution-architect", "security-engineer", "data-engineer"]},
+    {"name": "test-strategy", "why": "Adversarial tenant-isolation scenarios + perf-regression suite + migration-parity tests MUST exist before build; rigor_tier=full requires this.", "primary": ["test-strategist", "security-engineer"]},
+    {"name": "build",         "why": "Implement gateway routing, authz check, tenant metrics isolation, migration scripts, rollback scripts; includes a migration sub-phase.",          "primary": ["backend-engineer", "data-engineer", "migration-engineer"]},
+    {"name": "test",          "why": "Execute adversarial isolation, perf-regression, migration-parity, and rollback-drill scenarios against a staging fleet.",                        "primary": ["test-strategist", "security-engineer", "sre"]},
+    {"name": "review",        "why": "Multi-reviewer sign-off: architecture, security, SRE + release. Full-rigor gates require ≥2 reviewers and compliance-traceability evidence.",    "primary": ["solution-architect", "security-engineer", "sre"]}
+  ],
+  "rigor_tier": "full",
+  "rigor_why": "Low reversibility, HIGH blast_radius, HIGH operational + state + coordination, plus a documented leakage history make this unambiguously full rigor — auto_proceed is ignored, acceptance requires security-scan + migration-rollback-plan + performance-baseline evidence.",
+  "complexity": 7,
+  "complexity_why": "Cross-cutting change touching data, gateway, authz, and ops simultaneously, with a compliance-adjacent leakage history and an SLO guarantee — sits at the top of the scale.",
+  "open_questions": [
+    "What's the hard SLO delta (e.g., p95 latency) at which we auto-rollback vs. continue cutover?",
+    "Dual-write window vs. atomic cutover per tenant — product's preference for migration-visible disruption?",
+    "Small-tenant shard-cold-start mitigation: warm-up queries, shared-cache tier, or accepted regression during migration?",
+    "Do we retire the shared-index code path by feature flag or by delete-in-same-release?"
+  ],
+  "evidence_required": ["unit-results", "integration-results", "migration-rollback-plan", "security-scan", "performance-baseline", "compliance-traceability"],
+  "test_types": ["unit", "integration", "api", "performance", "security", "migration"],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Clarify tenant cohorts, SLO targets, and cross-tenant leakage definition",
+      "phase": "clarify",
+      "specialist": "product-manager",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.clarify",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "clarify",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Design shard topology + gateway routing + authz check (ADR + security review)",
+      "phase": "design",
+      "specialist": "solution-architect",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.design",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Design migration + rollback plan (data engineer + migration engineer)",
+      "phase": "design",
+      "specialist": "data-engineer",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.design",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["migration-rollback-plan"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Write test strategy: tenant-isolation adversarial, perf-regression, migration-parity",
+      "phase": "test-strategy",
+      "specialist": "test-strategist",
+      "blockedBy": ["t2", "t3"],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.test-strategy",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test-strategy",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t5",
+      "title": "Implement gateway routing + shard-selection authz check + tenant metrics isolation",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.build",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit", "integration"],
+        "evidence_required": ["unit-results", "integration-results"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t6",
+      "title": "Implement migration scripts + rollback scripts + cutover runner",
+      "phase": "build",
+      "specialist": "migration-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.build",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["integration", "migration"],
+        "evidence_required": ["integration-results", "migration-rollback-plan"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t7",
+      "title": "Execute adversarial tenant-isolation + perf-regression + migration-parity + rollback-drill",
+      "phase": "test",
+      "specialist": "test-strategist",
+      "blockedBy": ["t4", "t5", "t6"],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.test",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["integration", "api", "performance", "security", "migration"],
+        "evidence_required": ["integration-results", "performance-baseline", "security-scan"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t8",
+      "title": "Security-engineer review: cross-tenant leakage adversarial coverage sign-off",
+      "phase": "review",
+      "specialist": "security-engineer",
+      "blockedBy": ["t7"],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.review",
+        "event_type": "gate-finding",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["security-scan", "compliance-traceability"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t9",
+      "title": "SRE + release-engineer review: SLO, rollout cohort plan, rollback trigger sign-off",
+      "phase": "review",
+      "specialist": "sre",
+      "blockedBy": ["t7"],
+      "metadata": {
+        "chain_id": "multi-tenant-search-index-shard.review",
+        "event_type": "gate-finding",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["performance-baseline", "migration-rollback-plan"],
+        "rigor_tier": "full"
+      }
+    }
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "project_slug": "webhook-retry-queue",
+  "mode": "propose",
+  "summary": "Replace inline webhook delivery with a durable async retry queue: persist outbound messages, a worker drains the queue with exponential backoff up to 24 hours, terminal failures land in a dead-letter with an operator alert. At-least-once guarantee, restart-survival, and a staged enterprise rollout behind a flag.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "MEDIUM", "why": "The feature flag gates the cutover so a rollback path exists, but once messages are durable the schema and retry bookkeeping are hard to revert without data loss."},
+    "blast_radius":       {"reading": "HIGH",   "why": "Every outbound webhook flows through the new path once enabled; a retry storm or DLQ outage hits every subscribed tenant."},
+    "compliance_scope":   {"reading": "LOW",    "why": "Webhook payloads may carry tenant data but there's no new regulated surface — this is a delivery-mechanism change."},
+    "user_facing_impact": {"reading": "MEDIUM","why": "Enterprise subscribers see changed delivery semantics (eventually-delivered vs. dropped); developer UX unchanged."},
+    "novelty":            {"reading": "MEDIUM","why": "Durable retry queues are well-known patterns but this is the first one in this codebase; idempotency + DLQ semantics are new surface area."},
+    "scope_effort":       {"reading": "MEDIUM","why": "New persistence table, worker loop, retry policy, DLQ, alerting, gateway flag — several components but each is small."},
+    "state_complexity":   {"reading": "HIGH",   "why": "Durable outbox + at-least-once delivery + 24h backoff state = real persistence discipline; ordering and dedup must be explicit."},
+    "operational_risk":   {"reading": "HIGH",   "why": "Retry storms on a broken subscriber, thundering herd after a bulk enqueue, DLQ growth — all production-runtime behaviors that need guard rails."},
+    "coordination_cost":  {"reading": "MEDIUM","why": "Backend + SRE + release-engineering need to agree on rollout + alerting; not cross-org but not a solo effort either."}
+  },
+  "specialists": [
+    {"name": "solution-architect",   "why": "Picks the persistence + worker topology and names the trade-offs (outbox table vs. queue service vs. sidecar)."},
+    {"name": "backend-engineer",     "why": "Implements the outbox, worker loop, retry policy, and DLQ."},
+    {"name": "test-strategist",      "why": "Designs retry-policy and DLQ scenarios before code — happy path, 5xx burst, subscriber flap, 24h expiry."},
+    {"name": "sre",                  "why": "Owns alert thresholds, DLQ size SLO, retry-storm runbook, feature-flag rollout safety."},
+    {"name": "release-engineer",     "why": "Runs the enterprise-10 canary behind the feature flag and coordinates revert."}
+  ],
+  "phases": [
+    {"name": "design",        "why": "Pick outbox shape, retry/backoff policy, and DLQ alert thresholds; document trade-offs.",                                "primary": ["solution-architect", "backend-engineer"]},
+    {"name": "test-strategy", "why": "Define retry + DLQ test cases and failure-injection plan BEFORE build, given state_complexity is high.",                  "primary": ["test-strategist"]},
+    {"name": "build",         "why": "Implement outbox persistence, worker, retry policy, DLQ, feature flag, alert plumbing.",                                   "primary": ["backend-engineer"]},
+    {"name": "test",          "why": "Execute unit + integration + failure-injection scenarios against a real Postgres + fake subscriber rig.",                  "primary": ["test-strategist", "backend-engineer"]},
+    {"name": "review",        "why": "SRE + senior engineer sign off on retry semantics, DLQ alerting, and the rollout flag before enterprise-10 enablement.",   "primary": ["sre", "backend-engineer"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "State + operational risk are HIGH but there's a feature flag and a 10-account canary, so standard rigor with a mandatory test-strategy phase is appropriate; full rigor would demand compliance + security review that isn't warranted for a delivery mechanism change.",
+  "complexity": 5,
+  "complexity_why": "Durable state + at-least-once + DLQ + staged rollout puts this squarely in feature-with-coordination territory, a bit above mid-scale CRUD.",
+  "open_questions": [
+    "What is the at-least-once dedup key on the subscriber side — message id or a caller-provided idempotency header?",
+    "Does the DLQ alert page the on-call or only post to a channel? SLO target for DLQ age?",
+    "Should the worker be per-tenant (throughput isolation) or global (simpler) on day one?"
+  ],
+  "evidence_required": ["unit-results", "integration-results", "performance-baseline"],
+  "test_types": ["unit", "integration", "performance"],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Design outbox + worker topology (ADR)",
+      "phase": "design",
+      "specialist": "solution-architect",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "webhook-retry-queue.design",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Write test strategy: retry, DLQ, subscriber-flap, 24h expiry scenarios",
+      "phase": "test-strategy",
+      "specialist": "test-strategist",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "webhook-retry-queue.test-strategy",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test-strategy",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Implement outbox table + enqueue API",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "webhook-retry-queue.build",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit"],
+        "evidence_required": ["unit-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Implement worker loop + exponential backoff + DLQ handoff",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "webhook-retry-queue.build",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit", "integration"],
+        "evidence_required": ["unit-results", "integration-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t5",
+      "title": "Wire feature flag + enterprise-10 allowlist + DLQ alert",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t4"],
+      "metadata": {
+        "chain_id": "webhook-retry-queue.build",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["integration"],
+        "evidence_required": ["integration-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t6",
+      "title": "Execute retry + DLQ + subscriber-flap + perf-baseline scenarios",
+      "phase": "test",
+      "specialist": "test-strategist",
+      "blockedBy": ["t5", "t2"],
+      "metadata": {
+        "chain_id": "webhook-retry-queue.test",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["integration", "performance"],
+        "evidence_required": ["integration-results", "performance-baseline"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t7",
+      "title": "Review: retry semantics + alerting + rollout plan sign-off",
+      "phase": "review",
+      "specialist": "sre",
+      "blockedBy": ["t6"],
+      "metadata": {
+        "chain_id": "webhook-retry-queue.review",
+        "event_type": "gate-finding",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    }
+  ]
+}
