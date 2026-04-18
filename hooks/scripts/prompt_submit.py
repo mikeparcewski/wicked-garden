@@ -587,6 +587,45 @@ def _check_brain_gate(prompt: str) -> None:
         )
 
 
+def _consume_facilitator_reeval(state) -> str | None:
+    """v6 Gate 3 (#428): emit facilitator re-eval directive if flag is set.
+
+    Reads ``state.facilitator_reeval_due`` and ``state.facilitator_reeval_chain``.
+    When set, returns a systemMessage directive instructing Claude to invoke
+    ``wicked-garden:crew:propose-process`` in re-evaluation mode on that chain
+    BEFORE addressing the user's prompt.
+
+    Clears the flag immediately (idempotent — fires exactly once per completion).
+    Hooks cannot run the skill themselves (stdlib-only); this function just
+    surfaces the directive.
+
+    Fail-open: returns None on any error.
+    """
+    if state is None:
+        return None
+    try:
+        if not getattr(state, "facilitator_reeval_due", False):
+            return None
+        chain_id = getattr(state, "facilitator_reeval_chain", None) or "unknown"
+        # Clear flag BEFORE returning so a handler failure still produces a
+        # single-shot emission — not an infinite loop.
+        state.update(facilitator_reeval_due=False, facilitator_reeval_chain=None)
+        return (
+            f"[Facilitator re-evaluation due] Chain `{chain_id}` had a task completion — "
+            f"before addressing the user's prompt, invoke "
+            f"`wicked-garden:crew:propose-process` in re-evaluation mode on this chain. "
+            f"Update the process-plan.md and emit any task mutations "
+            f"(prune, augment, re-tier) as TaskUpdate/TaskCreate calls with reasoning."
+        )
+    except Exception:
+        # Best-effort clear on error to avoid repeating directive in a tight loop
+        try:
+            state.update(facilitator_reeval_due=False, facilitator_reeval_chain=None)
+        except Exception:
+            pass
+        return None
+
+
 def _check_onboarding_gate(prompt: str) -> str | None:
     """Check if the current project needs onboarding.
 
@@ -910,6 +949,18 @@ def main():
     # an active setup wizard ("yes", "ok") still pass through quickly.
     onboarding_directive = _check_onboarding_gate(prompt)
 
+    # v6 Gate 3 (#428) — facilitator re-evaluation directive.
+    # Load session state here (cheap — single JSON read) so we can check the
+    # flag set by task_completed.py. Idempotent: the consumer clears the flag
+    # so a subsequent turn doesn't re-fire.
+    facilitator_reeval_directive = None
+    try:
+        from _session import SessionState
+        _preload_state = SessionState.load()
+        facilitator_reeval_directive = _consume_facilitator_reeval(_preload_state)
+    except Exception:
+        pass
+
     # ---------------------------------------------------------------------------
     # HOT fast-exit: known continuation tokens bypass all imports and the
     # Orchestrator entirely.  Keeps HOT path p95 well under 100ms SLO.
@@ -941,13 +992,20 @@ def main():
         except Exception:
             pass  # fail open — accumulation is best-effort on HOT path
 
-        # Even on HOT path, inject onboarding directive if needed so the model
-        # cannot bypass the gate via continuation tokens.
+        # Even on HOT path, inject onboarding directive + facilitator re-eval
+        # directive so the gate + re-eval can never be bypassed via continuation
+        # tokens. Re-eval must fire before the user's acknowledgement drives
+        # the next step on a facilitator-owned chain.
+        hot_parts = []
+        if facilitator_reeval_directive:
+            hot_parts.append(facilitator_reeval_directive)
         if onboarding_directive:
+            hot_parts.append(onboarding_directive)
+        if hot_parts:
             print(json.dumps({
                 "hookSpecificOutput": {
                     "hookEventName": "UserPromptSubmit",
-                    "additionalContext": onboarding_directive,
+                    "additionalContext": "\n\n".join(hot_parts),
                 },
                 "continue": True,
             }))
@@ -1038,10 +1096,15 @@ def main():
             )
             _log("smaht", "debug", "synthesis.triggered",
                  detail={"complexity": complexity, "risk": is_risky, "turn": turn_count})
+            # v6 Gate 3 (#428): prepend facilitator re-eval directive if pending,
+            # so synthesis-path prompts still honour the re-eval signal.
+            _synth_reeval_prefix = (
+                f"{facilitator_reeval_directive}\n\n" if facilitator_reeval_directive else ""
+            )
             merged = (
                 f"<system-reminder>\n"
                 f"<!-- wicked-garden | path=synthesis | turn={turn_count} -->\n"
-                f"{synthesis_directive}\n"
+                f"{_synth_reeval_prefix}{synthesis_directive}\n"
                 f"</system-reminder>"
             )
             print(json.dumps({
@@ -1087,6 +1150,12 @@ def main():
 
         # Build output: single <system-reminder> block with all context parts
         all_parts = []
+
+        # v6 Gate 3 (#428): facilitator re-evaluation directive has highest
+        # priority — a completed facilitator-owned task must re-plan before
+        # the model addresses the user's prompt.
+        if facilitator_reeval_directive:
+            all_parts.append(facilitator_reeval_directive)
 
         # WIP recovery block goes first so it's the first thing the model sees
         if wip_block:

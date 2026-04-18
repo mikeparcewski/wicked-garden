@@ -243,6 +243,12 @@ class SessionState:
     # Per-handler cumulative milliseconds: {"Read": 42, "Write|Edit": 15, ...}
     post_tool_handler_ms: dict | None = None
 
+    # v6 facilitator re-evaluation (Gate 3, epic #428).
+    # task_completed.py sets these when a task with metadata.chain_id completes.
+    # prompt_submit.py reads on the next turn, emits a re-eval directive, then clears.
+    facilitator_reeval_due: bool = False
+    facilitator_reeval_chain: str | None = None  # chain_id needing re-eval
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

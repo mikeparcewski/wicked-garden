@@ -85,6 +85,37 @@ def _infer_mem_type(subject: str) -> str:
     return "procedural"
 
 
+def _read_task_chain_id(session_id: str, task_id: str) -> "str | None":
+    """Read ``metadata.chain_id`` from the native task JSON file.
+
+    File path: ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/{task_id}.json``.
+
+    Fail-open: returns None on any error (missing file, bad JSON, absent metadata,
+    absent chain_id). This is deliberately permissive so task completion is never
+    blocked by a facilitator-re-eval signal error.
+    """
+    if not session_id or not task_id:
+        return None
+    try:
+        config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+        base = Path(config_dir) if config_dir else Path.home() / ".claude"
+        task_file = base / "tasks" / session_id / f"{task_id}.json"
+        if not task_file.is_file():
+            return None
+        data = json.loads(task_file.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
+        metadata = data.get("metadata")
+        if not isinstance(metadata, dict):
+            return None
+        chain_id = metadata.get("chain_id")
+        if isinstance(chain_id, str) and chain_id.strip():
+            return chain_id
+        return None
+    except Exception:
+        return None
+
+
 def main():
     _t0 = time.monotonic()
 
@@ -98,8 +129,14 @@ def main():
     try:
         subject = input_data.get("subject", "")
         task_id = input_data.get("task_id", "")
+        session_id = input_data.get("session_id", os.environ.get("CLAUDE_SESSION_ID", ""))
 
         _log("task", "debug", "hook.start")
+
+        # Look up metadata.chain_id from the native task file (fail-open).
+        # Gate 3 (v6): surface re-eval signal so prompt_submit.py can tell Claude
+        # to invoke propose-process in re-evaluation mode on the next turn.
+        chain_id = _read_task_chain_id(session_id, task_id)
 
         # Load session state, increment counters, and read escalation level
         escalations = 0
@@ -115,6 +152,16 @@ def main():
                 (state.memory_compliance_escalations or 0) + 1
             )
             escalations = state.memory_compliance_escalations
+
+            # v6 facilitator re-evaluation signal (Gate 3, epic #428).
+            # Set flag when the completed task carries a chain_id. prompt_submit.py
+            # consumes this on the next UserPromptSubmit, emits a systemMessage
+            # directive, and clears the flag. Fail-open: a missing chain_id is
+            # a no-op (most native tasks don't have metadata).
+            if chain_id:
+                state.facilitator_reeval_due = True
+                state.facilitator_reeval_chain = chain_id
+
             state.save()
         except Exception as e:
             print(f"[wicked-garden] task_completed session state error: {e}", file=sys.stderr)

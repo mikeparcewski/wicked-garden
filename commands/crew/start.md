@@ -7,6 +7,215 @@ argument-hint: "<project description>"
 
 Create a new project and begin the clarify phase.
 
+## Router (v6 facilitator vs legacy rule engine)
+
+**Read the `WG_FACILITATOR` env var** (default: `new` on the `feat/v6-rebuild` branch).
+
+```bash
+# Detect the routing mode — defaults to "new" on this branch.
+WG_FACILITATOR="${WG_FACILITATOR:-new}"
+echo "[crew:start] router mode: ${WG_FACILITATOR}"
+```
+
+- **`WG_FACILITATOR=new`** (default): run the **Facilitator Path** (Section A below). The
+  `wicked-garden:crew:propose-process` skill produces the full task chain + process-plan.md.
+- **`WG_FACILITATOR=legacy`**: run the **Legacy Rule Engine Path** (Section B below,
+  starting at "Parse Arguments"). Same behavior as before Gate 3.
+
+**Fail-open**: if the facilitator path errors (skill invocation fails, JSON parse fails,
+plan write fails), emit a single stderr warning of the form
+`[crew:start] facilitator failed: <reason> — falling back to legacy` and continue with
+Section B. Do NOT silently swallow; the operator needs to know.
+
+---
+
+## Section A — Facilitator Path (WG_FACILITATOR=new)
+
+### A.1 Parse Arguments
+
+Extract the project description from `$ARGUMENTS`. If empty, ask the user for one and
+STOP. Do not proceed with an empty description.
+
+Flag parsing (same as legacy path): `--force`, `--quick`, `--no-auto-finish`,
+`--consensus-threshold=N`. These are recorded on the project but **do not short-circuit
+the facilitator** — the facilitator itself decides rigor and phase scope. Flags only
+influence downstream behavior (e.g. `--force` suppresses the complexity confirmation
+even if open_questions are emitted at low rigor).
+
+### A.2 Generate Project Slug
+
+Use the same three-stage theme-aware slug algorithm as legacy (theme prefix + key
+concepts + assembly), truncated to 64 characters on a word boundary. The slug feeds
+into `chain_id` as `{slug}.root`.
+
+### A.3 Check for Existing Project
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
+```
+
+Same four-option prompt as legacy (Resume / Rename / Cancel / Switch). Identical
+semantics — see Section B.3 for details.
+
+### A.4 Create Project Shell
+
+Create the project via `phase_manager` so the DomainStore record and project dir exist
+before the facilitator writes `process-plan.md`:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {slug} create \
+  --description "{description}" \
+  --json
+```
+
+Parse the JSON response for `project_dir`. This path is where `process-plan.md` will
+land in step A.7.
+
+### A.5 Invoke the Facilitator Skill
+
+Invoke the new `wicked-garden:crew:propose-process` skill with the description. The
+skill is a rubric (Tier-1/2/3 progressive disclosure) that reasons over the 9 factors
+and emits a full plan.
+
+```
+Skill(
+  skill="wicked-garden:crew:propose-process",
+  args={
+    "description": "{description}",
+    "mode": "propose",
+    "project_slug": "{slug}",
+    "output": "json"
+  }
+)
+```
+
+The skill returns a single JSON object matching
+`skills/crew/propose-process/refs/output-schema.md` — with `project_slug`, `summary`,
+`factors`, `specialists`, `phases`, `rigor_tier`, `complexity`, `open_questions`,
+`tasks[]`. Each task carries full metadata (chain_id, event_type, source_agent:
+"facilitator", phase, test_required, test_types, evidence_required, rigor_tier).
+
+**Failure modes (fail-open)**:
+
+- Skill not available → log warning, fall back to Section B.
+- Skill returns non-JSON or invalid JSON → log warning with first 200 chars of output,
+  fall back to Section B.
+- Required fields missing (`tasks`, `phases`, `rigor_tier`) → log warning, fall back to
+  Section B.
+
+### A.6 Open Questions Gate
+
+If `open_questions` is non-empty AND `rigor_tier == "full"` AND `--force` was NOT passed:
+STOP and surface the questions to the user as a numbered plain-text list. Do NOT create
+tasks yet. Store the facilitator's draft plan to `${project_dir}/process-plan.draft.md`
+for resumption. The user's answers feed a follow-up invocation with
+`mode: "propose"` + their answers appended to the description.
+
+For `standard` or `minimal` rigor, questions are surfaced but do NOT block task creation
+— they're included in `process-plan.md` for the clarify phase to answer.
+
+### A.7 Persist `process-plan.md`
+
+Render the returned JSON into the Markdown template at
+`skills/crew/propose-process/refs/plan-template.md`. Write to
+`${project_dir}/process-plan.md` using the Write tool.
+
+Also persist the raw JSON alongside for audit at
+`${project_dir}/process-plan.json` so re-evaluation runs can diff cleanly.
+
+### A.8 Emit the Task Chain
+
+For each task in the JSON's `tasks[]` array, issue one `TaskCreate` call:
+
+```
+TaskCreate(
+  subject="<task.title>",
+  description="<optional longer description if present>",
+  blockedBy=<task.blockedBy>,
+  metadata={
+    "chain_id": "<task.metadata.chain_id>",     # e.g. "{slug}.root"
+    "event_type": "<task.metadata.event_type>", # "task" | "coding-task" | ...
+    "source_agent": "facilitator",              # always
+    "phase": "<task.metadata.phase>",
+    "test_required": <bool>,
+    "test_types": [...],
+    "evidence_required": [...],
+    "rigor_tier": "<minimal|standard|full>"
+  }
+)
+```
+
+Use **parallel TaskCreate calls** when the chain has multiple tasks with no
+inter-dependencies within a phase. `blockedBy` captures the DAG, so downstream
+tasks wait on upstream ones regardless of creation order.
+
+### A.9 Persist Plan Metadata on Project
+
+Store the facilitator-derived fields on the crew project record so `status` /
+`execute` / downstream commands can read them without re-invoking the skill:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {slug} update \
+  --data '{"phase_plan": ["clarify","design","build","test","review"], "phase_plan_mode": "facilitator", "complexity_score": <N>, "rigor_tier": "<tier>", "facilitator_version": "propose-process-v1", "initiative": "{slug}"}' \
+  --json
+```
+
+### A.10 Store Decision in wicked-brain
+
+Record the planning decision as a memory so future runs can surface it as a prior:
+
+```
+Skill(
+  skill="wicked-brain:memory",
+  args={"action": "store", "type": "decision",
+        "title": "crew:start facilitator plan for {slug}",
+        "content": "<summary from JSON + factor readings + rigor_tier + specialist list>",
+        "tags": ["crew", "facilitator", "process-plan", "{slug}"],
+        "importance": 6}
+)
+```
+
+Fail-open: if the brain is unavailable, skip silently. The plan file is the system
+of record; brain storage is an enhancement.
+
+### A.11 Report to User
+
+Summarize the facilitator's decision in a short markdown report:
+
+```markdown
+## Project Created: {slug}
+
+**Rigor**: {standard | minimal | full} — {rigor_why}
+**Complexity**: {N}/7 — {complexity_why}
+
+### Factors (facilitator reading)
+- Reversibility: {LOW/MED/HIGH} — {why}
+- Blast radius: {LOW/MED/HIGH} — {why}
+- ... (rest of 9 factors)
+
+### Specialists
+{bulleted list with one-sentence why per pick}
+
+### Phases
+{ordered list of phases with one-sentence why}
+
+### Task chain
+{count} tasks created. See `process-plan.md` for the full table.
+
+### Next step
+Run `/wicked-garden:crew:execute` to begin the first phase (`{first_phase}`).
+```
+
+Then exit. Do NOT fall through to Section B.
+
+---
+
+## Section B — Legacy Rule Engine Path (WG_FACILITATOR=legacy)
+
+The sections below are the pre-Gate-3 behavior, preserved verbatim as the rollback
+escape hatch. Enter this section only when `WG_FACILITATOR=legacy` OR when Section A
+falls back.
+
 ## Instructions
 
 ### 1. Parse Arguments
