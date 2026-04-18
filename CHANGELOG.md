@@ -1,5 +1,34 @@
 # Changelog
 
+## [5.1.0] - 2026-04-18
+
+### Features
+- **feat(bus): finish phase-1 crew emit points (#407, #421)** — `wicked.rework.triggered` now fires alongside `wicked.gate.blocked` on REJECT with an iteration counter persisted to `phases/{phase}/rework-iterations.json`. `wicked.project.completed` fires on final-phase approval with `duration_secs`, `final_phase`, `chain_id`.
+- **feat(bus): consumer budget enforcement (#414, #421)** — `scripts/_bus.py` now loads and counts `_bus_consumers.json` at registration time, logging an error above `max_consumers`. `health_probe.py` Check 6 surfaces registered/max and flags a warning when over budget.
+- **feat(bus): platform + qe emit points (#412, #420)** — `wicked.scenario.run` wired in `scripts/qe/registry_store.py` with `result` derived from registry `completeness.missing` and `coverage_delta` from `captured_count / required_count`. Platform security/compliance and `coverage.changed` deferred — those paths live in agent/command markdown, no Python call site exists in v5.1.0.
+- **feat(qe): scenario scaffold consumer (#410, #418)** — new `qe:scenario-scaffold` consumer fires on `wicked.phase.transitioned` when build completes (`phase_to ∈ {test-strategy, review}`). Writes an idempotent scaffold at `scripts/qe/scenarios/{project_id}/scenarios-scaffold.md` with Happy Path / Edge Cases / Error Conditions stubs. Path-traversal guarded; atomic `.tmp` + `replace` write. Wired into `/wicked-garden:qe:scenarios` poll-on-invoke.
+- **feat(jam): bus emit points + synthesis-trigger consumer (#409, #419)** — 4 emits wired via `agents/jam/facilitator.md` + `agents/jam/council.md` prompt directives: `session.started`, `persona.contributed` (Round 1 only), `session.synthesized`, `council.voted`. New `jam:synthesis-trigger` consumer (`scripts/jam/_bus_consumers.py`) emits `wicked.session.synthesis_ready` when all Round 1 personas contribute or after 120 s timeout. `wicked.session.synthesis_ready` added to `BUS_EVENT_MAP` and catalog doc.
+
+### Closed Issues
+- #406 (event catalog doc — already shipped in 4.x)
+- #407 (crew emit points — completed in this release)
+- #408 (kanban rework consumer — obsolete under v5.0.0's reviewer-agent-emits-direct model)
+- #409 (jam emit + synthesis)
+- #410 (QE scaffold consumer)
+- #411 (brain → smaht consumers — already shipped in 4.x)
+- #412 (platform + qe emit points — scenario.run shipped; others deferred, no call sites)
+- #413 (auto-advance with audit trail — already shipped in 4.x)
+- #414 (consumer budget enforcement)
+
+### Consumer Registry
+6/8 consumers registered after this release:
+- `crew:auto-advance`, `smaht:brain-consolidated`, `smaht:brain-config-updated`, `smaht:brain-initialized`, `qe:scenario-scaffold`, `jam:synthesis-trigger`
+
+### Deferred for Future Releases
+- Platform security-finding and compliance events (#412) — need a Python persistence path before they have anywhere to emit from
+- QE `coverage.changed` event — needs a coverage tracker in `scripts/qe/`
+- Delivery emit points — `scripts/delivery/` doesn't exist; delivery is currently agent/command-only
+
 ## [5.0.0] - 2026-04-17
 
 ### Breaking Changes
