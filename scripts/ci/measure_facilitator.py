@@ -187,6 +187,29 @@ def _strip_comment(line: str) -> str:
     return "".join(out)
 
 
+def _split_flow_items(text: str) -> list[str]:
+    """Split `foo, "bar, baz", qux` respecting quoted commas."""
+    items: list[str] = []
+    buf: list[str] = []
+    in_quote: str | None = None
+    for ch in text:
+        if in_quote:
+            buf.append(ch)
+            if ch == in_quote:
+                in_quote = None
+        elif ch in ('"', "'"):
+            in_quote = ch
+            buf.append(ch)
+        elif ch == ",":
+            items.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        items.append("".join(buf).strip())
+    return [i for i in items if i]
+
+
 def _scalar(text: str) -> Any:
     """Coerce a YAML scalar to Python."""
     t = text.strip()
@@ -194,6 +217,15 @@ def _scalar(text: str) -> Any:
         return t[1:-1]
     if t.startswith("'") and t.endswith("'"):
         return t[1:-1]
+    # Inline flow lists — `[]` or `[foo, bar, "baz"]`
+    if t.startswith("[") and t.endswith("]"):
+        inner = t[1:-1].strip()
+        if not inner:
+            return []
+        return [_scalar(item) for item in _split_flow_items(inner)]
+    # Inline flow dicts — `{}` (empty only; not needed beyond that here)
+    if t == "{}":
+        return {}
     if t.lower() in {"true", "yes"}:
         return True
     if t.lower() in {"false", "no"}:
