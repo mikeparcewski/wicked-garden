@@ -18,7 +18,6 @@
     "brainstorming",
     "personas",
     "code-intelligence",
-    "kanban",
     "agentic"
   ],
   "_future_userConfig": {
@@ -74,7 +73,7 @@
     "_comment": "Issue #348: channels field is not yet supported in plugin.json schema. When Claude Code adds channel support, move these declarations to a top-level channels block. Channels formalize external service connections with discovery and auth.",
     "jira": {
       "type": "rest-api",
-      "description": "Jira issue tracker for bi-directional sync with kanban domain",
+      "description": "Jira issue tracker for bi-directional sync with native Claude Code tasks",
       "auth": "oauth2",
       "capabilities": [
         "read-issues",
@@ -84,7 +83,7 @@
     },
     "linear": {
       "type": "rest-api",
-      "description": "Linear issue tracker for bi-directional sync with kanban domain",
+      "description": "Linear issue tracker for bi-directional sync with native Claude Code tasks",
       "auth": "api-key",
       "capabilities": [
         "read-issues",

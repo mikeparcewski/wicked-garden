@@ -3,7 +3,7 @@
 
   "domains": [
     "agentic", "crew", "data", "delivery", "engineering",
-    "jam", "kanban", "mem", "persona", "platform",
+    "jam", "mem", "persona", "platform",
     "product", "qe", "search", "smaht"
   ],
 
@@ -38,7 +38,6 @@
     "engineering":           ["architecture", "backend", "debugging", "docs-audit", "engineering", "frontend", "generate", "integration", "patch", "sync", "system-design"],
     "integration-discovery": ["integration-discovery"],
     "jam":                   ["jam"],
-    "kanban":                ["kanban"],
     "mem":                   ["mem"],
     "multi-model":           ["multi-model"],
     "persona":               ["persona"],
