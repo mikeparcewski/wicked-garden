@@ -35,7 +35,7 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find similar projects or past ROI analyses
 - **Memory**: Use wicked-garden:mem to recall strategic decisions and outcomes
-- **Kanban**: Use wicked-garden:kanban to track business justification as evidence
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track business justification as evidence (see scripts/_event_schema.py).
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

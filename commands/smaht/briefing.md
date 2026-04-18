@@ -15,13 +15,13 @@ If this briefing is requested after a context compaction event, check for WIP st
 
 1. Check for WIP snapshot file at the session's history condenser directory (`wip_snapshot.json`)
 2. If no snapshot, query `HistoryCondenser(session_id).get_session_state()` for live working state
-3. Query kanban for in-progress tasks: `kanban.py list-tasks --status in_progress --json`
+3. Read native tasks for in-progress items: list task JSON under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` and filter by `status == "in_progress"`.
 4. Present recovered WIP state at the top of the briefing output:
    - **Current task**: what the user was working on
    - **Recent decisions**: choices already made (do NOT re-ask)
    - **Active files**: files in scope for the current work
    - **Open questions**: unresolved items that still need answers
-   - **In-progress tasks**: kanban items currently being worked
+   - **In-progress tasks**: native tasks currently being worked (filter `metadata.event_type=="task"` for human-visible items)
 5. Add: "Context was compacted. Review this state before proceeding. Do NOT repeat completed work."
 
 If no compaction occurred (normal briefing request), skip this step entirely.
@@ -42,7 +42,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
   --json
 ```
 
-This returns events from ALL domains in one timeline — mem decisions, crew phase transitions, kanban task changes, jam outcomes.
+This returns events from ALL domains in one timeline — mem decisions, crew phase transitions, native task changes, jam outcomes.
 
 ### 2b. Fallback (if event log is empty or unavailable)
 
@@ -50,10 +50,7 @@ If the event log returns no results (new install, events.db not yet populated), 
 
 **Memory:** `/wicked-garden:mem:recall "recent decisions and learnings" --limit 10`
 
-**Kanban:**
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/kanban/kanban.py list-projects --json
-```
+**Native tasks:** read task JSON under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` and summarize counts by `status` and `metadata.event_type`.
 
 **Crew:**
 ```bash
@@ -76,7 +73,7 @@ Group events from the timeline by type:
 |---------------------|-----------------|
 | `memories.created`, `memories.updated` | Recent Decisions |
 | `projects.created`, `phases.*` | Active Work (crew) |
-| `tasks.created`, `tasks.updated` | Active Work (kanban) |
+| `tasks.created`, `tasks.updated` | Active Work (tasks) |
 | `sessions.created`, `*.migrated` | Brainstorm Outcomes |
 | Everything else | Other Activity |
 
@@ -92,7 +89,7 @@ Group events from the timeline by type:
 
 ### Active Work
 **Crew**: {project name} — phase: {current}, next: {next step}
-**Kanban**: {N tasks in progress}, {M tasks completed since last session}
+**Tasks**: {N in progress}, {M completed since last session}
 
 ### Brainstorm Outcomes
 {jam session decisions made in the window}

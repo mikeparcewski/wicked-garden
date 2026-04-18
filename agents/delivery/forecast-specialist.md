@@ -183,7 +183,7 @@ Test how changes in assumptions affect forecasts:
 | Scope +20% | +{n} items | +${amount}/mo | +{n} sprints |
 | Optimization | -{%} cost | -${amount}/mo | No change |
 
-### 8. Update Kanban and Memory
+### 8. Update Task and Memory
 
 Store forecast:
 TaskUpdate(

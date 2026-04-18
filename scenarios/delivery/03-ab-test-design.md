@@ -253,7 +253,7 @@ For product teams running multiple experiments per quarter, this discipline comp
 
 ## Integration Notes
 
-**With wicked-kanban**: Stores experiment design as task comments for tracking
+**With native tasks**: Stores experiment design via TaskUpdate description appends on the active task
 **With wicked-mem**: Recalls past experiment patterns and learnings
 **With wicked-product**: Uses product context for hypothesis formation
 **Standalone**: Works with provided context documents

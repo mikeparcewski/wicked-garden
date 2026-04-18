@@ -97,13 +97,6 @@ If you typed an old command name, here are the new equivalents:
 | `/wicked-jam:perspectives` | `/wicked-garden:jam:perspectives` |
 | `/wicked-jam:council` | `/wicked-garden:jam:council` |
 
-## Kanban
-| Old | New |
-|-----|-----|
-| `/wicked-garden:kanban:board-status` | `/wicked-garden:kanban:board-status` |
-| `/wicked-garden:kanban:new-task` | `/wicked-garden:kanban:new-task` |
-| `/wicked-garden:kanban:comment` | `/wicked-garden:kanban:comment` |
-
 ## Agentic
 | Old | New |
 |-----|-----|

@@ -13,7 +13,7 @@ Show the following help information:
 ```markdown
 # wicked-smaht Help
 
-Intelligent context assembly — intercepts prompts and gathers relevant context from memory, search, kanban, crew, and more.
+Intelligent context assembly — intercepts prompts and gathers relevant context from memory, search, crew, and more.
 
 ## Commands
 
@@ -66,13 +66,12 @@ Smaht routes prompts through three tiers:
 | **FAST** | <1s | Short prompt, high confidence intent |
 | **SLOW** | 2-5s | Complex, ambiguous, or novel prompts |
 
-Six adapters query: mem, search, kanban, crew, jam, context7.
+Adapters query: mem, search, crew, jam, context7.
 
 ## Integration
 
 - **wicked-garden:mem**: Memory recall adapter
 - **search** (built-in): Code and document search adapter
-- **wicked-garden:kanban**: Task context adapter
 - **wicked-crew**: Project phase adapter
 - **jam**: Brainstorming context adapter
 ```

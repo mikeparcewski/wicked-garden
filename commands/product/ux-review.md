@@ -236,7 +236,7 @@ Provide:
 #### Medium
 1. {improvement opportunity}
 
-### Kanban Tasks Created
+### Tasks Created
 - {task ID}: {issue summary}
 ```
 
@@ -264,7 +264,7 @@ Run full review with `/wicked-garden:product:ux-review {target} --focus all` for
 
 ## Integration
 
-- **wicked-garden:kanban**: Track issues as tasks
+- **Native tasks**: Track issues via TaskCreate/TaskUpdate with `metadata.event_type="task"`
 - **wicked-garden:mem**: Recall design system patterns
 - **wicked-crew**: Auto-suggest during build/review phases
 - **engineering**: Coordinate with code review
@@ -322,7 +322,7 @@ Claude: I'll perform an accessibility audit of the LoginForm component.
 #### High
 1. Increase error message contrast ratio
 
-### Kanban Tasks Created
+### Tasks Created
 - task-a11y-001: Fix LoginForm keyboard accessibility
 - task-a11y-002: Fix LoginForm contrast issues
 ```

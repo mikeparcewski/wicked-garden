@@ -143,7 +143,7 @@ Functions without usage examples
 ## Integration
 
 Use **wicked-garden:search** to find code to audit.
-**wicked-garden:kanban** creates documentation tasks for gaps.
+Native TaskCreate (with `metadata.event_type="task"`) tracks documentation tasks for gaps.
 **product** reviews documentation quality.
 
 ## Events

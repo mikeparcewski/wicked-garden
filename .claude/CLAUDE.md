@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository **is** the **wicked-garden** plugin — an AI-Native SDLC delivered as a single Claude Code plugin. 14 domain areas cover the full software development lifecycle: ideation, requirements, architecture, implementation, testing, delivery, operations, persistent memory/learning, and on-demand persona invocation.
+This repository **is** the **wicked-garden** plugin — an AI-Native SDLC delivered as a single Claude Code plugin. 13 domain areas cover the full software development lifecycle: ideation, requirements, architecture, implementation, testing, delivery, operations, persistent memory/learning, and on-demand persona invocation.
 
 The `.claude/` directory contains **development tools** (prefixed `wg-`) for building and maintaining the plugin. These tools are NOT distributed to marketplace users — they only work when checked out in this repo.
 
@@ -80,10 +80,12 @@ Agent subagent_type uses colons: `wicked-garden:{domain}:{agent-name}`
 
 ### Domain Organization
 
-**14 domains**, each with its own commands, agents, skills, scripts, and scenarios:
+**13 domains**, each with its own commands, agents, skills, scripts, and scenarios:
 
-**Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
+**Workflow & Intelligence**: crew, smaht, mem, search, jam
 **Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic, persona
+
+Task tracking uses Claude Code's native `TaskCreate`/`TaskUpdate` with enriched `metadata` — no separate kanban domain. The PreToolUse validator in `hooks/scripts/pre_tool.py` enforces the envelope per `scripts/_event_schema.py`.
 
 Specialists define personas in `.claude-plugin/specialist.json`. Crew discovers them at runtime and routes based on signal analysis.
 
@@ -123,7 +125,7 @@ Six adapters query domain scripts directly: `domain`, `brain`, `events`, `contex
 
 **Brain adapter** (`scripts/smaht/adapters/brain_adapter.py`) is the primary knowledge source — queries the wicked-brain FTS5 index. When brain is unavailable, returns empty and agents fall back to Grep/Glob.
 
-**Budget enforcer** source priority: `mem=10, search=9, brain=8, kanban=7, crew=6, context7=4, jam=3, tools=2, delegation=1`
+**Budget enforcer** source priority: `mem=10, search=9, brain=8, crew=6, context7=4, jam=3, tools=2, delegation=1`
 
 **Adapter fan-out by intent** (fast path): DEBUGGING: domain, brain, delegation · IMPLEMENTATION: domain, brain, context7, tools, delegation · PLANNING: domain, brain, events, delegation · RESEARCH: domain, brain, events, context7, tools, delegation · REVIEW: domain, brain, events, delegation · GENERAL: domain, delegation
 
@@ -209,7 +211,7 @@ This resolves `python3`, `python`, or `py -3` — whichever is available on the 
 
 **Command/agent scripts**: Use `_python.sh` shim; `cd && uv run python` if has dependencies.
 ```bash
-# stdlib-only (crew, kanban, mem, patch)
+# stdlib-only (crew, mem, patch)
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" ${project} ${action}
 
 # via _run.py wrapper (auto-help on argparse errors)
@@ -254,20 +256,22 @@ TaskUpdate(taskId, status="in_progress")  # BEFORE starting work
 TaskUpdate(taskId, status="completed")    # AFTER finishing work
 ```
 
-Status vocabulary: `pending`, `in_progress`, `completed` (not todo/done). Kanban's PostToolUse hook syncs these automatically.
+Status vocabulary: `pending`, `in_progress`, `completed`. Native tasks persist to `${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json`; wicked-garden hooks only validate and read — they do not mirror or shadow the store.
 
-### Kanban as Dual-Purpose Event Queue (v4.4.0+)
+### Native Tasks as Dual-Purpose Event Queue
 
-Kanban tasks carry optional agent-coordination fields:
+Tasks carry agent-coordination fields in the `metadata` dict passed to `TaskCreate` / `TaskUpdate`. The schema lives in `scripts/_event_schema.py`; the PreToolUse validator in `hooks/scripts/pre_tool.py` enforces it.
 
-- **`chain_id`**: Dotted causality hierarchy — `{project}.root` at crew start, `{project}.{phase}` per phase, `{project}.{phase}.{gate}` per gate finding. Enables cross-domain causality tracing without a graph DB.
-- **`event_type`**: `task` (default, human-visible) | `gate-finding` | `phase-transition` | `procedure-trigger` | `coding-task` | `subtask`
-- **`source_agent`**: Agent that created the task
-- **`phase`**: Crew phase the task belongs to
+- **`chain_id`**: Dotted causality hierarchy — `{project}.root` at crew start, `{project}.{phase}` per phase, `{project}.{phase}.{gate}` per gate finding. Format: `^{slug}(\.(root|{phase}))(\.{gate})?$`.
+- **`event_type`**: `task` (default) | `coding-task` | `gate-finding` | `phase-transition` | `procedure-trigger` | `subtask`
+- **`source_agent`**: Agent that authored the event. Banned values: `just-finish-auto`, `fast-pass`, anything starting with `auto-approve-`.
+- **`phase`**: Crew phase name — must be a key in `.claude-plugin/phases.json`.
 
-Board view hides machine events by default (`event_type=task` only). Pass `--agent-view` to `list-tasks` to expose all event types.
+`gate-finding` additionally requires `verdict` (APPROVE | CONDITIONAL | REJECT), `min_score`, `score`; CONDITIONAL requires `conditions_manifest_path`.
 
-**Procedure injection**: SubagentStart hook reads the active task's `event_type` and injects the matching standards bundle (e.g. `coding-task` → R1-R6 bulletproof standards, `gate-finding` → Gate Finding Protocol).
+**Enforcement mode**: `WG_TASK_METADATA=warn|strict|off` (default: `warn`). Warn emits a deprecation `systemMessage` on violations; strict denies via `permissionDecision: "deny"`. Mirrors the `CREW_GATE_ENFORCEMENT=legacy` rollback pattern.
+
+**Procedure injection**: SubagentStart hook reads the most-recently-modified in-progress task at `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` and injects the procedure bundle keyed on `metadata.event_type` (e.g. `coding-task` → R1-R6 bulletproof standards, `gate-finding` → Gate Finding Protocol).
 
 **Chain-aware smaht scoring**: Events matching `SessionState.active_chain_id` score 0.8+ in the events adapter (vs flat 0.1 baseline). Gate findings and phase transitions get additional event-type boosts (0.35-0.4).
 

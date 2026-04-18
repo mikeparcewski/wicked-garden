@@ -148,11 +148,11 @@ Called during clarify phase for value assessment:
 - Provides business perspective
 - Informs go/no-go decisions
 
-### With wicked-garden:kanban
+### With native tasks
 
-Attach analysis as evidence:
-```bash
-kanban.py add-comment "Strategy" {task_id} "{analysis_summary}"
+Attach analysis as evidence by appending to the task description:
+```
+TaskUpdate(taskId={task_id}, description="{previous}\n\n## Strategy Analysis\n{analysis_summary}")
 ```
 
 ## Output Structure

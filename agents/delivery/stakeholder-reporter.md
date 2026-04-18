@@ -26,7 +26,7 @@ You generate delivery reports tailored to different stakeholder perspectives. Ea
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Delivery metrics**: Use /wicked-garden:delivery:report for computed metrics
-- **Kanban**: Use wicked-garden:kanban for current task data
+- **Tasks**: Inspect native tasks (TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`) for current task data.
 - **Memory**: Use wicked-garden:mem for historical comparison
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk context
 - **Product**: Use product for feature context
@@ -93,10 +93,8 @@ Accept data from multiple sources:
 - Parse column headers to identify fields
 - Map to standard fields: id, title, status, priority, assignee, labels, dates
 
-**Kanban board**:
-```
-/wicked-garden:kanban:board-status
-```
+**Active tasks**:
+Read native tasks under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` — each entry carries a `metadata` dict with `event_type`, `chain_id`, `source_agent`, `phase`. Filter by `metadata.event_type=="task"` for human-visible items.
 
 **Verbal description**:
 - Extract tasks, statuses, blockers from prose

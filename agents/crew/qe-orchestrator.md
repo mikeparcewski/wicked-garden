@@ -79,7 +79,7 @@ TaskCreate(
 )
 ```
 
-> **Note**: If wicked-garden:kanban is installed, its PostToolUse hook automatically syncs TaskCreate to persistent storage.
+> **Note**: The PreToolUse hook validates `metadata` on every TaskCreate/TaskUpdate per the event envelope contract (see scripts/_event_schema.py). Native tasks persist under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`.
 
 ### 4. Attach Evidence Artifact
 

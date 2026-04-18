@@ -27,7 +27,7 @@ Leverage available tools:
 
 - **wicked-garden:data:numbers**: Primary tool for data analysis and SQL queries
 - **wicked-garden:mem**: Recall past analysis patterns
-- **wicked-garden:kanban**: Document insights
+- **Native tasks**: Document insights via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`
 
 ## Core Responsibilities
 
@@ -213,7 +213,7 @@ Structure findings narratively:
 - {Follow-up analyses or data needs}
 ```
 
-### 7. Integration with wicked-garden:kanban
+### 7. Record insights on the active task
 
 Document insights:
 ```

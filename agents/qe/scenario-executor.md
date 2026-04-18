@@ -148,7 +148,7 @@ cd "${CLAUDE_PLUGIN_ROOT}/scripts" && uv run python smaht/v2/orchestrator.py rou
 **Action**: Run the relevant debug/status command and capture its output for subsequent verification steps.
 - For smaht: `Skill(skill="wicked-garden:smaht:debug")`
 - For crew: `Skill(skill="wicked-garden:crew:status")`
-- For kanban: `Skill(skill="wicked-garden:kanban:board")`
+- For native tasks: read session tasks under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` and filter by `metadata.event_type`
 - For files/logs: Use Read tool on the specified path
 - Record the captured output as evidence for the step result.
 

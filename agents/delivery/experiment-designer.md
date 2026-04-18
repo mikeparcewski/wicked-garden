@@ -27,7 +27,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Product**: Use product to understand feature context
 - **Memory**: Use wicked-garden:mem to recall past experiment patterns
-- **Task tracking**: Use wicked-garden:kanban to store experiment plans
+- **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to store experiment plans (see scripts/_event_schema.py).
 
 If a wicked-* tool is available, prefer it over manual approaches.
 
@@ -149,7 +149,7 @@ secondary_metric_achieved {variant, user_id, value}
 - Maximum acceptable risk
 - Resource constraints
 
-### 9. Update Kanban
+### 9. Update Task
 
 Store experiment design:
 TaskUpdate(

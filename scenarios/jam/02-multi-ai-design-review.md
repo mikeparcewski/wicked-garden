@@ -1,7 +1,7 @@
 ---
 name: multi-ai-design-review
 title: Multi-AI Architecture Review
-description: Demonstrates using multiple AI models to review a design document with wicked-kanban as shared context
+description: Demonstrates using multiple AI models to review a design document with a native task as shared context
 type: workflow
 difficulty: advanced
 estimated_minutes: 20
@@ -9,7 +9,7 @@ estimated_minutes: 20
 
 # Multi-AI Architecture Review
 
-Tests the complete workflow of conducting a design review with multiple AI models (Claude, Gemini, Codex, OpenCode) using wicked-kanban as a shared context layer.
+Tests the complete workflow of conducting a design review with multiple AI models (Claude, Gemini, Codex, OpenCode) using a native task as a shared context layer.
 
 ## Setup
 
@@ -17,9 +17,6 @@ Prerequisites:
 ```bash
 # Ensure AI CLI tools are installed (if available)
 which gemini codex opencode
-
-# Install wicked-kanban if not already installed
-claude plugin install wicked-kanban@wicked-garden
 
 # Create a test design document
 mkdir -p /tmp/design-review-test
@@ -58,14 +55,23 @@ EOF
 
 ## Steps
 
-1. **Create a kanban task for the review**
+1. **Create a native task for the review**
 
-   In Claude Code conversation:
+   In Claude Code conversation, invoke:
    ```
-   /wicked-garden:kanban:new-task "Design Review: Payment Integration" --priority P0
+   TaskCreate(
+     subject="Design Review: Payment Integration",
+     metadata={
+       "event_type": "task",
+       "chain_id": "payment-integration-review.root",
+       "source_agent": "multi-model-review",
+       "priority": "P0",
+       "initiative": "payment-integration-review"
+     }
+   )
    ```
 
-   Expected: Task created with unique ID (e.g., PROJ-001).
+   Expected: Task created with a unique id. PreToolUse validates the metadata per scripts/_event_schema.py.
 
 2. **Add design document to task description**
 
@@ -136,12 +142,9 @@ EOF
 
    Expected: OpenCode returns analysis output.
 
-7. **Add all AI perspectives to kanban task**
+7. **Append all AI perspectives to the task description**
 
-   In Claude Code conversation:
-   ```
-   Add all AI perspectives (Claude, Gemini, Codex, OpenCode) as comments on the kanban task.
-   ```
+   In Claude Code conversation, run TaskUpdate(taskId, description="{previous}\n\n## Claude\n...\n\n## Gemini\n...\n\n## Codex\n...\n\n## OpenCode\n...") so the single task description is the source of truth.
 
 8. **Synthesize findings and identify consensus**
 
@@ -156,19 +159,16 @@ EOF
 
 9. **Verify task contains all perspectives**
 
-   ```bash
-   # View the kanban board to confirm task is updated
-   /wicked-garden:kanban:board-status
-   ```
+   Read the native task JSON under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` to confirm the description contains all AI perspectives.
 
-   Expected: Task shows multiple comments with AI perspectives.
+   Expected: Task description shows appended sections for each AI.
 
 ## Expected Outcome
 
-- Kanban task created successfully
-- Design document added to task context
+- Native task created successfully (metadata validated by PreToolUse)
+- Design document added to task description
 - Multiple AI perspectives captured (Claude always available, others if installed)
-- All perspectives recorded as task comments or in task description
+- All perspectives appended to the task description via TaskUpdate
 - Synthesis identifies:
   - Consensus issues (e.g., need for idempotency keys, webhook signature verification)
   - Unique insights (e.g., circuit breaker pattern, repository abstraction)
@@ -177,13 +177,13 @@ EOF
 
 ## Success Criteria
 
-- [ ] Kanban task created for design review
+- [ ] Native task created for design review
 - [ ] Design document accessible to all AI models
 - [ ] Claude provides detailed analysis
 - [ ] If Gemini available: Gemini analysis captured
 - [ ] If Codex available: Codex analysis captured
 - [ ] If OpenCode available: OpenCode analysis captured
-- [ ] All AI perspectives recorded in kanban task
+- [ ] All AI perspectives appended to the task description
 - [ ] Synthesis identifies at least 2 consensus issues
 - [ ] Synthesis identifies at least 1 unique insight per model
 - [ ] Action items prioritized based on multi-model agreement
@@ -191,7 +191,7 @@ EOF
 
 ## Value Demonstrated
 
-This scenario proves wicked-garden enables **multi-model collaboration** for higher-quality design decisions. By using wicked-kanban as shared context, teams can:
+This scenario proves wicked-garden enables **multi-model collaboration** for higher-quality design decisions. By using a native task description as shared context, teams can:
 - Get diverse AI perspectives on critical architecture decisions
 - Identify high-confidence issues through consensus
 - Catch blind spots unique to individual models

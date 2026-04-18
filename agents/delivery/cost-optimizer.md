@@ -188,7 +188,7 @@ For each approved optimization:
 - {tagging/alerting/policy recommendation}
 ```
 
-### 7. Update Kanban
+### 7. Update Task
 
 Store optimization findings:
 TaskUpdate(

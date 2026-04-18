@@ -241,9 +241,9 @@ Store the language/framework output as `DETECTED_LANGS` and `DETECTED_FWS`.
 - "Jira" = "Use Jira API"
 - "Azure DevOps" = "Use Azure DevOps work items"
 - "Rally" = "Use Rally (Broadcom) for agile project management"
-- "Local kanban only" = "Use wicked-garden:kanban local board only (default)"
+- "Local tasks only" = "Use Claude Code's native tasks only (default)"
 
-Note: AskUserQuestion supports max 4 options. Present the first 4 most common choices (GitHub Issues, Jira, Azure DevOps, Local kanban only) and let the user select "Other" for Linear or Rally.
+Note: AskUserQuestion supports max 4 options. Present the first 4 most common choices (GitHub Issues, Jira, Azure DevOps, Local tasks only) and let the user select "Other" for Linear or Rally.
 
 **PLAIN_TEXT mode**: Write default "local" without asking (dangerous mode sessions should not block on preferences).
 
@@ -261,7 +261,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 - If `status` is `"available"` and `via` is `"cli"`: Show "**{cli}** CLI found at {cli_path}." and continue.
 - If `status` is `"missing"`: Ask the user if you can install it:
   - Show: "**{name}** is not installed. Install with: `{install_cmd}`?"
-  - **INTERACTIVE mode**: Use AskUserQuestion with header "{name}", options: "Install now (Recommended)" = "Run: {install_cmd}", "Skip" = "Use local kanban instead".
+  - **INTERACTIVE mode**: Use AskUserQuestion with header "{name}", options: "Install now (Recommended)" = "Run: {install_cmd}", "Skip" = "Use local native tasks instead".
   - **PLAIN_TEXT mode**: Ask in plain text and STOP.
   - If user approves: Run `{install_cmd}` via Bash. If the result has `post_install`, run that too. Then re-check with `prereq_doctor.py check {selection}` to verify.
   - If user declines: Override selection to `local` and continue.

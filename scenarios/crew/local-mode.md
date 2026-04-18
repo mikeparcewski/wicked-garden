@@ -159,7 +159,7 @@ _domain_store._LOCAL_ROOT = _paths._LOCAL_ROOT
 
 from _domain_store import DomainStore
 
-ds = DomainStore("wicked-kanban", hook_mode=True)
+ds = DomainStore("wicked-garden:mem", hook_mode=True)
 
 ds.create("tasks", {"id": "tc3-task", "title": "Original title", "status": "pending"})
 
@@ -315,6 +315,6 @@ All five test cases pass with `PASS` in their output and exit code 0.
 
 `DomainStore` makes wicked-garden fully self-contained for individuals and air-gapped
 environments. No network server to install, no Docker, no Node — just JSON files under
-`~/.something-wicked/wicked-garden/local/`. All wicked-garden features (crew, kanban,
+`~/.something-wicked/wicked-garden/local/`. All wicked-garden features (crew,
 mem, search) use the same `DomainStore` API. External integrations (Linear, Jira, Notion)
 are optional; the plugin works identically without them.

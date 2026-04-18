@@ -28,7 +28,7 @@ You track progress against milestones, goals, and deadlines — identifying slip
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Reports**: Use /wicked-garden:delivery:report for delivery metrics
-- **Kanban**: Use wicked-garden:kanban for task-level tracking
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` for native task-level tracking (see scripts/_event_schema.py).
 - **Memory**: Use wicked-garden:mem for historical progress data
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk context
 
@@ -55,10 +55,8 @@ Rate: {completion_%}
 
 ### 2. Gather Progress Data
 
-**From kanban**:
-```
-/wicked-garden:kanban:board-status
-```
+**From native tasks**:
+Read session tasks under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` — each entry carries a `metadata` dict with `event_type`, `chain_id`, `source_agent`, `phase`.
 
 **From data exports**:
 ```
@@ -156,7 +154,7 @@ Detect and categorize slippage:
 2. {action}: {expected_impact}
 ```
 
-### 7. Update Kanban
+### 7. Update Task
 
 Store progress snapshot:
 TaskUpdate(

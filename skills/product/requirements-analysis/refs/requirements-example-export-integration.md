@@ -54,13 +54,21 @@ Enable managers to export report data to CSV for offline analysis in Excel.
 
 ## Integration Points
 
-### With Wicked Kanban
-Store requirements as tasks:
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" \
-  add-task "Requirements" "US-AUTH-001" \
-  --tags "auth,p0" \
-  --description "$(cat requirements.md)"
+### With native tasks
+Store requirements as native tasks:
+```
+TaskCreate(
+  subject="US-AUTH-001",
+  description="$(cat requirements.md)",
+  metadata={
+    "event_type": "task",
+    "chain_id": "auth.clarify",
+    "source_agent": "requirements-analyst",
+    "phase": "clarify",
+    "priority": "P0",
+    "initiative": "auth"
+  }
+)
 ```
 
 ### With Wicked Mem

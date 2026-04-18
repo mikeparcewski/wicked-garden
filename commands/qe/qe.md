@@ -375,6 +375,6 @@ Scenario **execution** happens in quality gates (via `code-analyzer` in executio
 QE reviews integrate with:
 - **wicked-crew**: Quality gates in delivery phases
 - **wicked-scenarios**: E2E scenario discovery and execution (optional)
-- **wicked-garden:kanban**: Track QE findings as tasks
+- **Native tasks**: Track QE findings via TaskCreate/TaskUpdate with `metadata={event_type:"gate-finding", chain_id:"{project}.{phase}.{gate}", source_agent:"qe-orchestrator", phase, verdict, min_score, score}`
 - **product**: Requirements and UX expertise
 - **platform**: Deployment and release expertise

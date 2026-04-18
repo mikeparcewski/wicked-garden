@@ -2,7 +2,7 @@
 name: context-assembly
 description: |
   Fires automatically on every user prompt via UserPromptSubmit hook — no manual invocation needed.
-  Always-on context assembly: gathers relevant context from mem, jam, kanban, search, and crew
+  Always-on context assembly: gathers relevant context from mem, jam, search, and crew
   before each response using a tiered hot/fast/slow path strategy (<100ms to ~525ms).
 
   Use when: "context briefing", "gather background", "what do we know about",
@@ -51,7 +51,6 @@ Router triggers **slow path** when:
 | brain | wicked-brain (required) | Code, docs, wiki — FTS5 search |
 | mem | wicked-garden | Memories, decisions, learnings |
 | jam | wicked-garden | Brainstorm sessions, perspectives |
-| kanban | wicked-garden | Tasks, artifacts, projects |
 | crew | wicked-garden | Project phase, outcomes, constraints |
 | context7 | wicked-garden | External documentation (optional) |
 

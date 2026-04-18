@@ -26,7 +26,7 @@ You identify, track, and escalate delivery risks across project lifecycle.
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Quality risks**: Use qe risk assessor for technical risks
-- **Task tracking**: Use wicked-garden:kanban for risk tracking
+- **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` for native risk tracking (see scripts/_event_schema.py).
 - **Memory**: Use wicked-garden:mem to recall past risk patterns
 - **Search**: Use wicked-garden:search to find risk indicators
 
@@ -51,10 +51,7 @@ Find warning signs:
 /wicked-garden:search:code "TODO|FIXME|HACK|blocked|delayed" --path .
 ```
 
-Check kanban for blockers:
-```
-/wicked-garden:kanban:board-status
-```
+Inspect the session's active tasks for blockers (native tasks live under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`; filter by metadata.event_type).
 
 Recall past risks:
 ```
@@ -95,7 +92,7 @@ Map dependency chains:
 
 Identify critical path risks.
 
-### 6. Update Kanban
+### 6. Update Task
 
 Add risk assessment:
 TaskUpdate(

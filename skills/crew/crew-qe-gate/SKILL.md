@@ -56,12 +56,12 @@ Quality is how we deliver fast. Don't wait for QE phase—analyze early.
 Analysis produces:
 - **Decision**: APPROVE / CONDITIONAL / REJECT
 - **Evidence**: Qualitative + quantitative findings
-- **Kanban**: Evidence attached to task
+- **Tasks**: Evidence attached to the active task via TaskUpdate description append
 
 ## Integration
 
 Works with:
 - **wicked-crew**: Auto-suggested after phases
-- **wicked-garden:kanban**: Stores evidence
+- **Native tasks**: Stores evidence via TaskUpdate description appends on the active gate task (`metadata.event_type="gate-finding"`)
 - **product**: Deep review delegation
 - **wicked-garden:mem**: Cross-session learning

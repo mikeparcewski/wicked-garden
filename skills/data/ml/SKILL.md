@@ -107,7 +107,7 @@ Generates: Data loading, feature engineering, training config, evaluation framew
 ## Integration
 
 - **wicked-garden:search**: Find model code with `/wicked-garden:search:code "model|classifier"`
-- **wicked-garden:kanban**: Track experiments as tasks
+- **Native tasks**: Track experiments via TaskCreate with `metadata.event_type="task"`
 - **wicked-garden:data:numbers**: Analyze training data
 
 ## Best Practices

@@ -157,9 +157,16 @@ Fast improvements with high impact:
 # Color contrast
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/contrast-check.py" "#666" "#fff"
 
-# Track design debt
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
-  "Design Review" "UI: {issue}" "todo" --priority P2 --tags "design,ui"
+# Track design debt via native TaskCreate
+# TaskCreate(
+#   subject="UI: {issue}",
+#   metadata={
+#     "event_type": "task",
+#     "chain_id": "design-review.root",
+#     "source_agent": "design-review",
+#     "priority": "P2"
+#   }
+# )
 ```
 
 **Collaboration:**

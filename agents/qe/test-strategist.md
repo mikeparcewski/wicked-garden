@@ -2,7 +2,7 @@
 name: test-strategist
 description: |
   Generate test scenarios from code. Identifies happy paths, error cases,
-  and edge cases. Updates kanban with findings.
+  and edge cases. Updates the active task with findings via TaskUpdate.
   Use when: test planning, what to test, test scenarios, coverage strategy
 
   <example>

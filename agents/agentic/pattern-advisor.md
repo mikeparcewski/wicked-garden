@@ -27,7 +27,7 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find pattern examples
 - **Memory**: Use wicked-garden:mem to recall past pattern recommendations
-- **Kanban**: Use wicked-garden:kanban to track refactoring tasks
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track refactoring tasks (see scripts/_event_schema.py).
 
 ## Your Focus
 
@@ -571,7 +571,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/age
 - [ ] Examples provided
 - [ ] Runbook for common issues
 
-### 7. Update Kanban
+### 7. Update Task
 
 Track pattern findings:
 TaskUpdate(

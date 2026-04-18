@@ -354,14 +354,14 @@ When running multiple scenarios, aggregate results:
 
 - **wicked-crew**: Use during QE phases for evidence-gated quality gates
 - **wicked-scenarios**: Executor delegates E2E CLI steps to `/wicked-garden:qe:run --json` for machine-readable execution artifacts. Writer understands wicked-scenarios format natively.
-- **wicked-garden:kanban**: Track acceptance failures as tasks. When invoked with `--kanban` (or auto-detected when crew is active), creates a kanban project with one task per test plan step, stores evidence inline in kanban artifacts.
+- **Native tasks**: Track acceptance failures. When crew is active, emits one TaskCreate per test plan step with `metadata={event_type:"coding-task", chain_id:"{project}.test", source_agent:"qe-acceptance", phase:"test"}`; evidence is appended via TaskUpdate descriptions.
 - **/wg-test**: Delegates to `/wicked-garden:qe:acceptance` as the primary acceptance pipeline. Falls back to `/wicked-garden:qe:run` directly if QE is not installed.
 
 ### Degradation Behavior
 
 | QE | Scenarios | `/wg-test` behavior |
 |----|-----------|--------------------|
-| Yes | Yes | QE acceptance with `scenarios:run --json` backend, kanban tracking. Issue filing via `scenarios:report` when `--issues` flag is passed to `/wg-test`. |
+| Yes | Yes | QE acceptance with `scenarios:run --json` backend, native-task tracking. Issue filing via `scenarios:report` when `--issues` flag is passed to `/wg-test`. |
 | Yes | No | QE acceptance runs bash steps inline (no CLI tool orchestration). Issue filing not available (no `scenarios:report`). |
 | No | Yes | `scenarios:run` directly (exit code PASS/FAIL, no evidence protocol, no independent review). Issue filing not available (report requires structured QE verdicts). |
 | No | No | Error: "Install wicked-qe or wicked-scenarios to enable testing" |

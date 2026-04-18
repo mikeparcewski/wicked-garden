@@ -100,7 +100,7 @@ echo "PASS: root-level skills present on disk"
 
 ```bash
 PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
-DOMAINS=(crew search mem kanban engineering platform)
+DOMAINS=(crew search mem engineering platform)
 MISSING=0
 for DOMAIN in "${DOMAINS[@]}"; do
   CMD_COUNT=$(find "$PLUGIN_DIR/commands/$DOMAIN" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')

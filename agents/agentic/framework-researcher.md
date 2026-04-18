@@ -28,7 +28,7 @@ Before manual research, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find framework usage in codebase
 - **Memory**: Use wicked-garden:mem to recall past framework evaluations
-- **Kanban**: Use wicked-garden:kanban to track framework decisions
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track framework decisions (see scripts/_event_schema.py).
 
 ## Your Focus
 
@@ -344,7 +344,7 @@ From search results, extract:
 - **Production Readiness**: Who's using it in production?
 - **Known Issues**: What are the common pain points?
 
-### 7. Update Kanban
+### 7. Update Task
 
 Track framework decisions:
 

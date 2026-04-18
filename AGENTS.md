@@ -20,7 +20,7 @@
 - When reviewing code or doing analysis, go deep into architectural patterns, agentic design, response validation, and context optimization. Do not produce surface-level checklist findings (e.g., 'no auth', 'no rate limits').
 
 ## Architecture & Design
-- This project uses a prompt-based hooks pattern (not script-based). New hooks should follow the kanban/prompt-based approach. Do not create standalone scripts for hooks unless explicitly asked.
+- This project uses a prompt-based hooks pattern (not script-based). New hooks should follow the existing prompt-based approach. Do not create standalone scripts for hooks unless explicitly asked.
 
 ## Memory Management
 

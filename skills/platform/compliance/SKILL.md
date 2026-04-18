@@ -98,10 +98,12 @@ Output:
 ### With wicked-crew
 Auto-triggered at phase gates
 
-### With wicked-garden:kanban
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-comment \
-  "Compliance Check" "{task_id}" "[compliance] {framework}: {status}"
+### With native tasks
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="{previous}\n\n[compliance] {framework}: {status}"
+)
 ```
 
 ### With wicked-garden:mem

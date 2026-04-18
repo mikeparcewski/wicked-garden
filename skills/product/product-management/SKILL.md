@@ -61,7 +61,7 @@ Elicitation produces:
 - **User Stories**: Persona + capability + benefit
 - **Acceptance Criteria**: Testable scenarios
 - **Open Questions**: Ambiguities to resolve
-- **Kanban Updates**: Traceability
+- **Task Updates**: Traceability via TaskUpdate on the active clarify task
 
 ## Quality Checks
 
@@ -76,7 +76,7 @@ Good requirements are:
 
 Works with:
 - **wicked-crew**: Auto-triggered during clarify phase
-- **wicked-garden:kanban**: Stores requirements and acceptance criteria
+- **Native tasks**: Stores requirements and acceptance criteria via TaskCreate/TaskUpdate with `metadata={event_type:"task", chain_id:"{project}.clarify", source_agent:"requirements-analyst", phase:"clarify"}`
 - **qe**: Acceptance criteria feed test scenarios
 - **wicked-garden:mem**: Cross-project requirements patterns
 
@@ -113,7 +113,7 @@ Product management can leverage available integrations by capability:
 | **Project management** | `jira`, `linear`, `github` | Existing tickets/context |
 | **Customer feedback** | `zendesk`, `intercom` | Support ticket insights |
 
-Discover available integrations via capability detection. Use wicked-garden:kanban when no project management integration available.
+Discover available integrations via capability detection. Use native TaskCreate/TaskUpdate when no project management integration is available.
 
 ## Progressive Disclosure
 

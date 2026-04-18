@@ -25,7 +25,6 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | **delivery** | Multi-perspective delivery reporting and metrics | `/wicked-garden:delivery:help` |
 | **engineering** | Architecture, code review, debugging, docs, planning, and code transformations | `/wicked-garden:engineering:help` |
 | **jam** | AI-powered brainstorming with dynamic focus groups | `/wicked-garden:jam:help` |
-| **kanban** | AI-native task management with automatic sync | `/wicked-garden:kanban:help` |
 | **mem** | Persistent memory — store decisions, recall context | `/wicked-garden:mem:help` |
 | **platform** | Security, infrastructure, compliance, CI/CD, incidents, and plugin diagnostics | `/wicked-garden:platform:help` |
 | **product** | Requirements, customer feedback, strategy, UX, and design review | `/wicked-garden:product:help` |
@@ -66,11 +65,11 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 
 ## How It Works
 
-1. **smaht** assembles context from memory, search, kanban, and crew for every prompt
+1. **smaht** assembles context from memory, search, and crew for every prompt
 2. **crew** orchestrates multi-phase workflows and routes to specialist domains
 3. **Specialist domains** (engineering, platform, product, qe, data, delivery, agentic, jam) provide deep expertise
-4. **Utility domains** (mem, search, kanban, patch, observability) provide tools and infrastructure
-5. **All state** persists across sessions via mem, kanban, and search indexes
+4. **Utility domains** (mem, search, patch, observability) provide tools and infrastructure
+5. **All state** persists across sessions via mem, search indexes, and native tasks
 
 ## Getting Domain Help
 

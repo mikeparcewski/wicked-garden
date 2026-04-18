@@ -250,7 +250,7 @@ This request has low complexity (score 0-1 out of 7). Crew may be heavier than n
 
 ```
 AskUserQuestion(
-  question="This request has low complexity (score: {complexity_score}/7). Crew may be heavier than needed.\n\nRecommended approach: use kanban + direct tools instead.\n\nOptions:\n1. Continue with crew anyway\n2. Switch to kanban (creates a task and proceeds without crew phases)\n3. Cancel\n\n(Pass --force to bypass this check next time)",
+  question="This request has low complexity (score: {complexity_score}/7). Crew may be heavier than needed.\n\nRecommended approach: use native TaskCreate + direct tools instead.\n\nOptions:\n1. Continue with crew anyway\n2. Switch to a single task (TaskCreate and proceed without crew phases)\n3. Cancel\n\n(Pass --force to bypass this check next time)",
   options=["1", "2", "3"]
 )
 ```
@@ -262,11 +262,11 @@ Do NOT use `AskUserQuestion`. Present as plain text and STOP — wait for the us
 ```
 This request has low complexity (score: {complexity_score}/7). Crew may be heavier than needed.
 
-Recommended approach: use kanban + direct tools instead.
+Recommended approach: use native TaskCreate + direct tools instead.
 
 Options:
 1. Continue with crew anyway
-2. Switch to kanban (creates a task and proceeds without crew phases)
+2. Switch to a single task (TaskCreate and proceed without crew phases)
 3. Cancel
 
 (Pass --force to bypass this check next time)
@@ -279,7 +279,7 @@ Do NOT proceed until the user replies with their selection.
 **Handling the selection**:
 
 - **Option 1 (Continue with crew)**: Proceed to Step 6 normally.
-- **Option 2 (Switch to kanban)**: Invoke `Skill(skill="wicked-garden:kanban:task", args="create {description}")` and exit. Do not continue the crew setup.
+- **Option 2 (Switch to a single task)**: Invoke `TaskCreate(subject="{description}", metadata={"event_type":"task","chain_id":"{project-slug}.root","source_agent":"crew:start"})` and exit. Do not continue the crew setup.
 - **Option 3 (Cancel)**: Inform the user the operation was cancelled and exit.
 
 **If `routing_lane == "fast"` AND `--no-auto-finish` WAS passed AND `--quick` was NOT passed AND `--force` was NOT passed**:
@@ -357,45 +357,26 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
   --json
 ```
 
-### 8.5 Kanban Initiative Setup
+### 8.5 Initiative Setup
 
-Every crew project should be tracked as a kanban initiative. This provides visibility in the kanban board and dashboards.
+Every crew project should record an initiative name so tasks created during the project can be grouped under it in native task views.
 
-**Goal**: store both the initiative *name* and *UUID* via phase_manager update so session_start can reconnect without a kanban round-trip.
+**Goal**: store the initiative *name* on the crew project record so session_start can recover it without a round-trip.
 
-1. **Look up existing initiative by name**:
-   ```
-   Skill(skill="wicked-garden:kanban:initiative", args="lookup {project-name}")
-   ```
-   Returns: `{"found": true, "initiative_id": "a1b2c3d4", "project_id": "..."}` or `{"found": false}`.
-
-   If the command fails, skip all kanban steps gracefully — both IDs remain null.
-
-2. **If not found, create the initiative**:
-   ```
-   Skill(skill="wicked-garden:kanban:initiative", args="create {project-name}")
-   ```
-   Returns: `{"initiative_id": "a1b2c3d4", "project_id": "b5c6d7e8"}`.
-
-3. **Ensure "Issues" initiative exists** for this repo:
-   ```
-   Skill(skill="wicked-garden:kanban:initiative", args="ensure-issues")
-   ```
-
-4. **Store both name and UUID** via phase_manager:
+1. **Store initiative name** via phase_manager:
    ```bash
    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {name} update \
-     --data '{"kanban_initiative": "{project-name}", "kanban_initiative_id": "{uuid-from-kanban}"}' \
+     --data '{"initiative": "{project-name}"}' \
      --json
    ```
 
-5. **All crew tasks must include initiative metadata**:
+2. **All crew tasks must include initiative metadata**:
    ```
-   metadata: {"initiative": "{crew-project-name}"}
+   metadata: {"event_type": "task", "chain_id": "{project-name}.root", "source_agent": "crew:execute", "initiative": "{project-name}"}
    ```
-   The PreToolUse hook (`pretool_taskcreate.py`) injects this automatically when an active crew project is detected, so explicit metadata is not required in every TaskCreate call — but including it is safe.
+   The PreToolUse hook (`pretool_taskcreate.py`) injects `initiative` automatically when an active crew project is detected, so explicit metadata is not required in every TaskCreate call — but including it is safe.
 
-This ensures crew project tasks appear grouped under their project initiative on the kanban board, while general fixes/bugs go to "Issues".
+This ensures crew project tasks render grouped under their project initiative, while general fixes/bugs fall under the default "Issues" initiative.
 
 ### 9. Report to User
 

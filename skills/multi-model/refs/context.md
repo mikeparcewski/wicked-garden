@@ -16,7 +16,7 @@ Cross-AI context requires external coordination.
 
 ```
 ┌─────────────────────────────────────────┐
-│  Shared Context (wicked-garden:kanban)         │  ← All AIs can reference
+│  Shared Context (native task)           │  ← All AIs can reference
 ├─────────────────────────────────────────┤
 │  Per-AI Session State                   │  ← CLI-specific memory
 ├─────────────────────────────────────────┤
@@ -24,26 +24,32 @@ Cross-AI context requires external coordination.
 └─────────────────────────────────────────┘
 ```
 
-## Strategy 1: Kanban as Shared Memory
+## Strategy 1: Native Task as Shared Memory
 
-Use a wicked-garden:kanban task as the source of truth all AIs reference.
+Use a native task as the source of truth all AIs reference.
 
 ### Setup
 
-```bash
-# Create the shared context task
-/wicked-garden:kanban:new-task "Design discussion: Auth system" --priority P1
-
-# Add the context document
-# (paste or link the design doc in the task description)
+```
+TaskCreate(
+  subject="Design discussion: Auth system",
+  description="{paste or link the design doc here}",
+  metadata={
+    "event_type": "task",
+    "chain_id": "auth-design.root",
+    "source_agent": "multi-model-context",
+    "priority": "P1",
+    "initiative": "auth-design"
+  }
+)
 ```
 
 ### Cross-AI Workflow
 
 ```bash
-# When querying any AI, reference the kanban task
+# When querying any AI, reference the task description (source of truth)
 CONTEXT=$(cat docs/auth-design.md)
-PRIOR_COMMENTS=$(# fetch prior AI comments from kanban)
+PRIOR_COMMENTS=$(# read the task's description for accumulated AI perspectives)
 
 # Gemini with full context
 echo "$CONTEXT
@@ -250,7 +256,7 @@ Argue against this recommendation. What are the downsides?" | gemini
 
 | Situation | Approach |
 |-----------|----------|
-| Multi-AI on same topic | Kanban task as shared context |
+| Multi-AI on same topic | Native task description as shared context |
 | Deep dive with one AI | Use native session management |
 | Long-running discussion | Context document with summaries |
 | Unbiased second opinion | Start fresh, neutral handoff |

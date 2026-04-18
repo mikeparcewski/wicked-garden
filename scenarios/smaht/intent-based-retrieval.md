@@ -66,7 +66,7 @@ echo "Detected intent: $INTENT"
 echo "PASS: implementation intent detected"
 ```
 
-**Expected**: Intent detected as "implementation" with high confidence. On the fast path, search, mem, kanban, context7, tools, and delegation adapters are selected for task context.
+**Expected**: Intent detected as "implementation" with high confidence. On the fast path, search, mem, context7, tools, and delegation adapters are selected for task context.
 
 ### Step 4: Test research intent detection
 
@@ -126,7 +126,7 @@ rm -f "${TMPDIR:-/tmp}/wicked-scenario-intent-session"
 - Different intents select different adapter sets for context retrieval
 - Debugging queries select search and mem adapters for error context and recent changes
 - Planning queries escalate to slow path for comprehensive context from all adapters
-- Implementation queries select kanban, search, mem, and context7 for task and code context
+- Implementation queries select search, mem, and context7 for task and code context
 - Research queries select search, mem, context7, and tools for broad coverage
 
 ## Processing Modes

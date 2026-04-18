@@ -124,9 +124,8 @@ Check:
 # Search for similar requirements
 /wicked-garden:search:doc "user story" --context requirements
 
-# Store requirements in kanban
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" \
-  add-comment "Requirements" "{task_id}" "{user_stories}"
+# Store requirements on the active clarify task via native TaskUpdate
+# TaskUpdate(taskId="{task_id}", description="{previous}\n\n## Requirements\n{user_stories}")
 
 # Recall past patterns
 /wicked-garden:mem:recall "requirements for {feature_type}"

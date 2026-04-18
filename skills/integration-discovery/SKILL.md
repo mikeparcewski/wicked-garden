@@ -89,7 +89,7 @@ Task: "Implement user authentication"
 | Security review | wicked-garden:platform:security-engineer | Use for auth review |
 | Test strategy | wicked-garden:qe:test-strategist | Use for test planning |
 | Store decisions | wicked-garden:mem | Store auth decisions |
-| Track work | MCP:atlassian or wicked-garden:kanban | Track implementation |
+| Track work | MCP:atlassian or native TaskCreate | Track implementation |
 ```
 
 ### Step 4: Return Recommendations

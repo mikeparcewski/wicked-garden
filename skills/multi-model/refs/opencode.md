@@ -102,15 +102,23 @@ opencode run -m anthropic/claude-3-5-sonnet "$PROMPT" -f "$FILE" > claude_review
 opencode run -m google/gemini-1.5-pro "$PROMPT" -f "$FILE" > gemini_review.md
 ```
 
-## Kanban Integration
+## Native Task Tracking
 
-```bash
+```
 # Create review task
-/wicked-garden:kanban:new-task "Multi-provider review: checkout flow" --priority P1
+TaskCreate(
+  subject="Multi-provider review: checkout flow",
+  metadata={
+    "event_type": "task",
+    "chain_id": "checkout-review.root",
+    "source_agent": "multi-model:opencode",
+    "priority": "P1"
+  }
+)
 
-# Capture GPT-4o perspective
-OPENCODE_REVIEW=$(opencode run -m openai/gpt-4o "Review" -f src/checkout.ts)
-# Add as kanban comment with attribution
+# Capture GPT-4o perspective and append via TaskUpdate
+# OPENCODE_REVIEW=$(opencode run -m openai/gpt-4o "Review" -f src/checkout.ts)
+# TaskUpdate(taskId, description="{previous}\n\nopencode (gpt-4o): ${OPENCODE_REVIEW}")
 ```
 
 ## Command Reference

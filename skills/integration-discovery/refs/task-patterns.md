@@ -91,13 +91,13 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Design guidance | Agent | wicked-garden:engineering:solution-architect |
 | Implementation | Agent | wicked-garden:engineering:senior-engineer |
 | Test strategy | Agent | wicked-garden:qe:test-strategist |
-| Track progress | MCP/Skill | atlassian, wicked-garden:kanban |
+| Track progress | MCP/Native | atlassian, TaskCreate/TaskUpdate |
 
 **Recommended flow**:
 1. Clarify requirements with requirements-analyst if vague
 2. Get design guidance from solution-architect
 3. Plan tests with test-strategist
-4. Track in kanban/issue tracker
+4. Track via native TaskCreate or issue tracker
 
 ---
 

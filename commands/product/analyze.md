@@ -169,7 +169,7 @@ Run `/wicked-garden:product:synthesize` to generate actionable recommendations.
 
 - **wicked-garden:product:listen**: Run first to aggregate feedback
 - **wicked-garden:product:synthesize**: Run after to generate recommendations
-- **wicked-garden:kanban**: Track insights as tasks
+- **Native tasks**: Track insights via TaskCreate with `metadata.event_type="task"`
 - **wicked-garden:mem**: Store analysis for future reference
 
 ## Example

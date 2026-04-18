@@ -162,9 +162,17 @@ Detailed examples for data profiling, schema validation, and quality assessment.
 /wicked-garden:data:data quality new_data.csv
 ```
 
-4. **Document issues** in kanban
-```bash
-/wicked-garden:kanban:new-task "Data Quality: Fix phone format" --priority P1
+4. **Document issues** via native TaskCreate
+```
+TaskCreate(
+  subject="Data Quality: Fix phone format",
+  metadata={
+    "event_type": "task",
+    "chain_id": "data-quality.root",
+    "source_agent": "data-profiler",
+    "priority": "P1"
+  }
+)
 ```
 
 5. **Recommend remediation** with specific actions
@@ -188,7 +196,7 @@ Detailed examples for data profiling, schema validation, and quality assessment.
    - Null rate increase >5%
    - New duplicate patterns
    - Type conformance drops
-4. Track improvement initiatives in kanban
+4. Track improvement initiatives via native TaskCreate
 
 ## SQL Quality Queries
 

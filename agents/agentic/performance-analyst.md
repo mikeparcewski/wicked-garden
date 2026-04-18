@@ -27,7 +27,7 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find performance bottlenecks
 - **Memory**: Use wicked-garden:mem to recall past optimization strategies
-- **Kanban**: Use wicked-garden:kanban to track performance improvements
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track performance improvements (see scripts/_event_schema.py).
 
 ## Your Focus
 
@@ -438,7 +438,7 @@ def summarize_history(history: list[Message], max_tokens: int) -> list[Message]:
 - [ ] Summaries are generated for old context
 - [ ] Context usage is monitored
 
-### 8. Update Kanban
+### 8. Update Task
 
 Track performance findings:
 

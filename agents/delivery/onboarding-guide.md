@@ -28,7 +28,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Delivery reports**: Use /wicked-garden:delivery:report for team health overview
 - **Memory**: Use wicked-garden:mem to recall team conventions and past decisions
 - **Search**: Use wicked-garden:search to navigate the codebase
-- **Kanban**: Use wicked-garden:kanban for current task board state
+- **Tasks**: Inspect native tasks (TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`) for current board state — see scripts/_event_schema.py.
 
 If a wicked-* tool is available, prefer it over manual approaches.
 
@@ -43,10 +43,8 @@ Collect available project data:
 /wicked-garden:delivery:report {data_file}
 ```
 
-**From kanban** (if wicked-garden:kanban installed):
-```
-/wicked-garden:kanban:board-status
-```
+**From native tasks**:
+Read session tasks under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` — filter by `metadata.event_type=="task"` for human-visible items.
 
 **From memory** (if wicked-garden:mem installed):
 ```
@@ -130,7 +128,7 @@ Create a structured plan:
 - [ ] Share onboarding feedback
 ```
 
-### 7. Update Kanban
+### 7. Update Task
 
 Store onboarding progress:
 TaskUpdate(

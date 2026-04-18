@@ -27,7 +27,7 @@ Before doing work manually, leverage existing tools:
 
 - **Memory**: Use wicked-garden:mem to recall past user research and personas
 - **Search**: Use wicked-garden:search to find existing user documentation
-- **Tracking**: Use wicked-garden:kanban to log research insights
+- **Tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to log research insights (see scripts/_event_schema.py).
 - **Crew**: Check if phases/clarify/outcome.md has user context
 
 ## Research Focus Areas

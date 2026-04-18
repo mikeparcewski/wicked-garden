@@ -172,7 +172,7 @@ Score each category independently:
 - List violations with locations
 - Provide fix recommendations
 - Prioritize issues
-- Track in kanban
+- Track via native TaskCreate
 
 ### 4. Create Action Plan
 - Group similar issues

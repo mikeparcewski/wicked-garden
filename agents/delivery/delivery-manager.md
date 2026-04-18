@@ -27,7 +27,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Reports**: Use /wicked-garden:delivery:report for data-driven analysis
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk assessment
-- **Kanban**: Use wicked-garden:kanban for task tracking
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` for native task tracking (see scripts/_event_schema.py).
 - **Memory**: Use wicked-garden:mem for historical sprint data
 - **Product**: Use product for requirements context
 
@@ -44,9 +44,9 @@ Gather delivery data:
 /wicked-garden:delivery:report {data_file}
 ```
 
-**From kanban**:
+**From active tasks** (inspect native task JSON under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`):
 ```
-/wicked-garden:kanban:board-status
+# list current session tasks; filter by metadata.event_type
 ```
 
 **From memory** (historical context):
@@ -97,7 +97,7 @@ capacity_points = available_days × velocity_per_day
 1. Assess impact on sprint goal
 2. Identify what gets deferred
 3. Communicate trade-offs to stakeholders
-4. Update kanban board
+4. Update affected tasks via TaskUpdate
 
 ### 4. Dependency Tracking
 
@@ -144,7 +144,7 @@ Generate specific actions:
 **Next Sprint**:
 1. {action} — {owner} — {context}
 
-### 7. Update Kanban
+### 7. Update Task
 
 Store delivery assessment:
 TaskUpdate(

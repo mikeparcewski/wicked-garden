@@ -8,7 +8,7 @@ This document defines the expected output structure when conducting requirements
 - Consistency across projects
 - Complete traceability
 - Clear handoff to design and QE
-- Integration with wicked-garden:kanban and wicked-garden:mem
+- Integration with native tasks (TaskCreate/TaskUpdate) and wicked-garden:mem
 
 ## Standard Output Structure
 
@@ -152,7 +152,7 @@ This document defines the expected output structure when conducting requirements
 - **Source Document**: {Link to original brief/request}
 - **Design Phase**: {Link to phases/design/}
 - **Test Scenarios**: {Link to phases/qe/}
-- **Kanban**: {Link to wicked-garden:kanban tasks}
+- **Tasks**: {Native task IDs or initiative name}
 - **Memory**: {wicked-garden:mem tags for recall}
 
 ## Appendices
@@ -218,7 +218,7 @@ Requirements should be saved to:
 - `phases/requirements/analysis.md` (in project workflow)
 - `requirements.md` (standalone project)
 - Linked from `outcome.md`
-- Referenced in wicked-garden:kanban tasks
+- Referenced in native task metadata (initiative field)
 
 ## Templates
 

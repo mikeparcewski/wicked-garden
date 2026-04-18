@@ -380,7 +380,7 @@ If user approves (Y or proceeds):
    ```
 
 5. **Log Approval Activity:**
-   Log the approval in the phase status file. Kanban activity is tracked automatically via PostToolUse hooks when tasks are updated.
+   Log the approval in the phase status file. Native TaskUpdate activity is validated by PreToolUse per the event envelope contract (see scripts/_event_schema.py).
 
 ### 6. Phase Progression
 

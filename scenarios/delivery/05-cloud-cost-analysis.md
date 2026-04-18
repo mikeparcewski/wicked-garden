@@ -110,13 +110,9 @@ prompt="Analyze delivery risks for the platform team. Cost context is in /tmp/wi
   - Task 304 depends on Finance team (external)
   - Tasks 301, 302, 308 are unassigned — assign as parallel work while waiting on Finance
 
-### 3. Track Risks in Kanban (if wicked-kanban available)
+### 3. Track Risks on Native Tasks
 
-If wicked-kanban is installed, the risk-monitor agent will update task descriptions with risk assessment findings. Verify the P0 task (304) gets the risk assessment appended:
-
-```
-/wicked-garden:kanban:board-status
-```
+The risk-monitor agent updates task descriptions (via TaskUpdate) with risk assessment findings. Verify the P0 task (304) gets the risk assessment appended by inspecting native task JSON under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`.
 
 **Expected**: Task 304 description updated with risk assessment section showing P0 priority and escalation trigger.
 
@@ -197,7 +193,7 @@ If these are needed, they would be handled by a future `wicked-finops` plugin or
 
 ## Integration Notes
 
-**With wicked-kanban**: Risk findings written to task descriptions for tracking
+**With native tasks**: Risk findings appended to task descriptions via TaskUpdate for tracking
 **With wicked-mem**: Risk patterns stored for recall on similar future projects
 **With wicked-search**: Can search codebase for cost-adjacent signals (hardcoded resource sizes, TODO cost-related comments)
 **Standalone**: Works from verbal description or project export data

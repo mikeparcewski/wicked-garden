@@ -201,7 +201,7 @@ Decisions that are reversible and have no significant downstream impact.
 Decisions that affect visible outputs or workflow configuration.
 
 **Examples**:
-- Which kanban MCP to use (linear vs jira)
+- Which issue tracker MCP to use (linear vs jira)
 - Which browser automation tool (playwright vs puppeteer)
 - Which CI/CD CLI to use for a pipeline trigger
 

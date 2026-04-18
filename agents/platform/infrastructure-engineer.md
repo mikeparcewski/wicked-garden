@@ -28,7 +28,7 @@ Before manual work, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find IaC configurations
 - **Memory**: Use wicked-garden:mem to recall infrastructure patterns
-- **Kanban**: Use wicked-garden:kanban to track infrastructure tasks
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` for native task tracking (see scripts/_event_schema.py).
 
 ## Your Focus
 

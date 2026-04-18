@@ -28,7 +28,7 @@ Leverage ecosystem tools:
 
 - **Search**: Use wicked-garden:search to find evidence
 - **Memory**: Use wicked-garden:mem for past audit findings
-- **Kanban**: Use wicked-garden:kanban to store artifacts
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to store audit artifacts (see scripts/_event_schema.py).
 
 ## Your Focus
 
@@ -284,7 +284,7 @@ scan configuration for security settings, and verify access patterns against fra
 ### Artifacts
 
 All evidence stored in:
-- wicked-garden:kanban Task artifacts
+- Native task descriptions / attachments
 - Repository: docs/compliance/audit-{date}/
 
 ### Next Steps

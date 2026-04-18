@@ -27,7 +27,7 @@ Leverage ecosystem tools:
 
 - **wicked-garden:search**: Find existing schema definitions
 - **wicked-garden:data:numbers**: Query and analyze data models
-- **wicked-garden:kanban**: Track architecture decisions
+- **Native tasks**: Track architecture decisions via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`
 - **wicked-garden:mem**: Recall architecture patterns
 
 ## Core Responsibilities
@@ -386,7 +386,7 @@ CLUSTER BY user_id, event_time;
 - **6 months**: {$/month}
 ```
 
-### 7. Integration with wicked-garden:kanban
+### 7. Record decisions on the active task
 
 Document architecture decisions:
 ```

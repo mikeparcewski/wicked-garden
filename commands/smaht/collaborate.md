@@ -66,9 +66,17 @@ Use stored preferences to weight or order models (e.g., "use gemini for long doc
    opencode run "$PROMPT" -f "$FILE" -m openai/gpt-4o  # if detected
    cat "$FILE" | pi exec "$PROMPT"    # if detected
    ```
-4. Create a wicked-garden:kanban task to track the review:
-   ```bash
-   /wicked-garden:kanban:new-task "Multi-model review: ${FILE}" --priority P1
+4. Create a native task to track the review:
+   ```
+   TaskCreate(
+     subject="Multi-model review: ${FILE}",
+     metadata={
+       "event_type": "task",
+       "chain_id": "multi-model-review.root",
+       "source_agent": "smaht:collaborate",
+       "priority": "P1"
+     }
+   )
    ```
 5. Present each response with model attribution
 6. Synthesize: identify consensus, unique insights, disagreements

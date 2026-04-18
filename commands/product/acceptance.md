@@ -30,14 +30,14 @@ Generate testable acceptance criteria from requirements and design documents.
 - **--feature**: Feature name to focus on
 - **--format**: Output format (gherkin, table, markdown)
 - **--scenarios**: Generate wicked-scenarios format scenario stubs
-- **--output**: Where to save (default: console + kanban)
+- **--output**: Where to save (default: console + native task)
 
 ## Process
 
 1. **Read Input**: Requirements, design documents, or user story references
 2. **Dispatch to Requirements Analyst**: Generate acceptance criteria with scenarios
 3. **Present Results**: Format AC with priority, test data, and QE handoff notes
-4. **Update Kanban**: Store for QE handoff
+4. **Update Task**: Store via TaskUpdate on the active clarify task for QE handoff
 
 ## Instructions
 
@@ -120,7 +120,7 @@ Format the agent's output into the standard acceptance criteria structure.
 ## Integration
 
 Automatically:
-- **wicked-garden:kanban**: Stores AC with traceability
+- **Native tasks**: AC stored via TaskCreate/TaskUpdate with `metadata={event_type:"task", chain_id:"{project}.clarify", source_agent:"requirements-analyst", phase:"clarify", initiative:"{req_id}"}` for traceability
 - **qe**: AC available for test scenario generation
 - **Event**: Emits `[product:acceptance:defined:success]`
 
@@ -152,7 +152,7 @@ Non-Functional (P1):
 AC7: Given 1000 concurrent logins, When load, Then response < 2 sec
 AC8: Given login attempt, When check, Then password encrypted
 
-Stored in kanban: US-001
+Stored on active task (initiative: US-001)
 Ready for QE test scenario generation
 Event emitted: [product:acceptance:defined:success]
 ```

@@ -28,7 +28,7 @@ Before doing work manually, leverage existing tools:
 - **Memory**: Use wicked-garden:mem to recall past UX decisions and patterns
 - **Search**: Use wicked-garden:search to find similar flows or components
 - **Browse**: Use wicked-browse to capture screenshots for review
-- **Tracking**: Use wicked-garden:kanban to log UX issues
+- **Tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to log UX issues as native tasks (see scripts/_event_schema.py).
 
 ## Review Focus Areas
 

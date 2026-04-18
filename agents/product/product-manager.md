@@ -124,4 +124,4 @@ When clarify phase starts:
 - Assess business value and scope
 - Define MVP and success criteria
 - Identify risks and dependencies
-- Update kanban with product decisions
+- Record product decisions via TaskUpdate on the active task (metadata `event_type=task`, `chain_id={project}.clarify`)

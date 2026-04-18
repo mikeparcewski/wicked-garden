@@ -115,7 +115,6 @@ rm -f "${TMPDIR:-/tmp}/wicked-scenario-degrade-session"
 |--------|--------------|------------|
 | wicked-mem | Query memories, promote facts | Skip, session-only facts |
 | wicked-jam | Query brainstorm sessions | Skip |
-| wicked-kanban | Query active tasks | Skip |
 | wicked-search | Query code/docs index | Skip |
 | wicked-crew | Query project phase | Skip |
 
@@ -141,7 +140,6 @@ def query(prompt):
 ## Success Criteria
 
 - [ ] Session starts without wicked-mem installed
-- [ ] Session starts without wicked-kanban installed
 - [ ] Facts extracted to local JSONL (no wicked-mem needed)
 - [ ] Lanes tracked locally
 - [ ] No error messages in Claude terminal

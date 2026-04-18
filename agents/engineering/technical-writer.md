@@ -273,9 +273,9 @@ Auto-engaged after build:
 - Check for stale docs
 - Flag missing examples
 
-### With wicked-garden:kanban
+### With native tasks
 
-Track documentation tasks:
+Track documentation tasks via TaskCreate with `metadata={event_type:"task", chain_id:"{project}.build", source_agent:"technical-writer", phase:"build"}`:
 - Document generation tasks
 - Documentation debt
 - Freshness issues

@@ -27,7 +27,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Search**: Use wicked-garden:search to find symbols, imports, and patterns
 - **Memory**: Use wicked-garden:mem to recall past architecture decisions
-- **Kanban**: Use wicked-garden:kanban for current work context
+- **Tasks**: Inspect native tasks (TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`) for current work context — see scripts/_event_schema.py.
 
 If a wicked-* tool is available, prefer it over manual approaches.
 
