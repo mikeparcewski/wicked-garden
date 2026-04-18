@@ -187,20 +187,4 @@ or content/documentation-heavy scope.
 
 ## Output Structure
 
-Put synthesis first (context efficiency):
-
-```markdown
-## Brainstorm: {Topic}
-
-### Key Insights
-{Most important - read this first}
-
-### Action Items
-{What to do next}
-
-### Open Questions
-{What's unresolved}
-
-### Session Details
-{Personas, rounds, discussion summary}
-```
+Synthesis-first: `## Brainstorm: {Topic}` → `### Key Insights` (read first) → `### Action Items` → `### Open Questions` → `### Session Details` (personas, rounds, summary).

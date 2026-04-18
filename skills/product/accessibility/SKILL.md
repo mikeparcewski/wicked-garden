@@ -196,6 +196,4 @@ Discover available integrations via capability detection. Fall back to local con
 - Post-build phase (crew integration)
 - User-facing features
 
-## Legal Context
-
-**Why it matters:** ADA compliance (US), Section 508 (government), EAA (Europe), 15-20% of users need accessibility, SEO impact (screen readers = search bots)
+**Legal context:** ADA (US), Section 508 (gov), EAA (EU). ~15-20% of users need accessibility; screen readers double as SEO bots.
