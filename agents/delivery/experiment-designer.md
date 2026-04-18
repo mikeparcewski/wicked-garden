@@ -149,6 +149,18 @@ secondary_metric_achieved {variant, user_id, value}
 - Maximum acceptable risk
 - Resource constraints
 
+### 8.5. Emit Experiment Conclusion
+
+**After the experiment concludes and a winner (or inconclusive result) is determined, emit the event** for cross-domain visibility. The `chain_id` is sourced from session state (`SessionState.active_chain_id`) — use the active crew chain if present, otherwise omit.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.experiment.concluded '{"winner":"variant_a","significance":0.95,"chain_id":"{chain_id}"}' 2>/dev/null || true
+```
+
+`winner` must be one of `variant_a`, `variant_b`, or `inconclusive`. `significance` is the observed p-value confidence as a float in `[0.0, 1.0]`.
+
+**Payload rules**: Tier 1 + Tier 2 only. No customer-cohort details, no per-user data, no traffic samples.
+
 ### 9. Update Task
 
 Store experiment design:

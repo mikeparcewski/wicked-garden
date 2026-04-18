@@ -148,6 +148,18 @@ Stage 2:
 - T+checkpoints: Progress updates
 - T+complete: Completion summary
 
+### 8.5. Emit Rollout Decision
+
+**After recording a go/no-go decision (or a pause) for the rollout, emit the event** for cross-domain visibility. The `chain_id` is sourced from session state (`SessionState.active_chain_id`) — use the active crew chain if present, otherwise omit.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.rollout.decided '{"decision":"go","traffic_pct":10,"chain_id":"{chain_id}"}' 2>/dev/null || true
+```
+
+`decision` must be one of `go`, `no-go`, or `paused`. `traffic_pct` is the integer percentage targeted by the decision (0-100).
+
+**Payload rules**: Tier 1 + Tier 2 only. No customer-cohort details, no per-user data, no traffic samples.
+
 ### 9. Update Task
 
 Track rollout progress:
