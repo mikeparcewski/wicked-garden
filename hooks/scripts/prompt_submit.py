@@ -810,27 +810,28 @@ def _build_wip_recovery_block(session_id: str, project: str) -> str:
         _log("smaht", "debug", "wip_recovery.empty")
         return ""
 
-    # --- Source 3: Kanban in-progress tasks (optional, fail gracefully) ---
+    # --- Source 3: Native in-progress tasks (optional, fail gracefully) ---
+    # Reads the same store SubagentStart uses for procedure-bundle lookup.
     in_progress_tasks = []
     try:
-        kanban_script = _SCRIPTS_DIR / "kanban" / "kanban.py"
-        if kanban_script.exists():
-            import subprocess
-            python_shim = _PLUGIN_ROOT / "scripts" / "_python.sh"
-            result = subprocess.run(
-                ["sh", str(python_shim), str(kanban_script), "list-tasks",
-                 "--status", "in_progress", "--json"],
-                capture_output=True, text=True, timeout=3,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                tasks_data = json.loads(result.stdout)
-                if isinstance(tasks_data, list):
-                    in_progress_tasks = [
-                        t.get("subject", t.get("title", "untitled"))
-                        for t in tasks_data[:5]
-                    ]
+        config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+        tasks_base = Path(config_dir) if config_dir else Path.home() / ".claude"
+        session_id = os.environ.get("CLAUDE_SESSION_ID", "")
+        tasks_dir = tasks_base / "tasks" / session_id if session_id else None
+        if tasks_dir and tasks_dir.is_dir():
+            for entry in tasks_dir.iterdir():
+                if entry.name.startswith(".") or entry.suffix != ".json":
+                    continue
+                try:
+                    data = json.loads(entry.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                if isinstance(data, dict) and data.get("status") == "in_progress":
+                    in_progress_tasks.append(data.get("subject") or "untitled")
+                if len(in_progress_tasks) >= 5:
+                    break
     except Exception:
-        pass  # kanban query is best-effort
+        pass  # task query is best-effort
 
     # --- Format recovery block (budget: <1000 chars) ---
     parts = ["## [Recovery] Context was just compacted -- here is your WIP state\n"]
@@ -1016,7 +1017,7 @@ def main():
 
         if _should_synthesize:
             # For SLOW-path prompts, run the orchestrator first so the synthesize
-            # skill receives adapter context (brain, kanban, domain events) rather
+            # skill receives adapter context (brain, domain, events) rather
             # than starting cold. Fail open: if orchestrator errors, synthesize
             # without context (original behavior).
             _context_briefing = ""

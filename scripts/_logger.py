@@ -94,7 +94,7 @@ def log(
     """Write a structured log entry to the session ops JSONL file.
 
     Args:
-        domain: Source domain, e.g. "bootstrap", "smaht", "kanban"
+        domain: Source domain, e.g. "bootstrap", "smaht", "crew"
         level:  Log level — "normal", "verbose", or "debug"
         event:  Dot-separated event name, e.g. "onboarding.status"
         ok:     Outcome indicator (default True)

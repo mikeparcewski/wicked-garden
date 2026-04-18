@@ -35,7 +35,7 @@ _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve(
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
 
-# Map from kanban event_type to procedure bundle injected at SubagentStart
+# Map from task metadata.event_type to procedure bundle injected at SubagentStart
 _EVENT_TYPE_PROCEDURES: dict = {
     "coding-task": (
         "[Bulletproof Coding Standards] R1: No dead code. R2: No bare panics — "

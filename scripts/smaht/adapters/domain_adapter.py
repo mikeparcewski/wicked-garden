@@ -134,7 +134,7 @@ def _query_domain(config: dict, keywords: str, project: str = "") -> list:
 # ---------------------------------------------------------------------------
 
 async def query(prompt: str, project: str = None) -> List[ContextItem]:
-    """Query kanban, crew, and jam via DomainStore for relevant context.
+    """Query crew projects and jam sessions via DomainStore for relevant context.
 
     Args:
         prompt: The user's query/prompt text.

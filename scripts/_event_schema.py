@@ -20,9 +20,9 @@ from __future__ import annotations
 import re
 
 CHAIN_ID_RE = re.compile(
-    r"^[a-z0-9][a-z0-9_-]{0,63}"          # project slug
-    r"(\.(root|[a-z][a-z0-9_-]{0,63}))"   # .root or .{phase}
-    r"(\.[a-z][a-z0-9_-]{0,63})?$"        # optional .{gate}
+    r"^[a-z0-9][a-z0-9_-]{0,63}"             # project slug
+    r"(\.(root|[a-z0-9][a-z0-9_-]{0,63}))"   # .root or .{phase}
+    r"(\.[a-z0-9][a-z0-9_-]{0,63})?$"        # optional .{gate} (uuid8 hex allowed)
 )
 
 VALID_EVENT_TYPES = frozenset({
@@ -112,7 +112,9 @@ def validate_metadata(
         )
 
     spec = SCHEMA[event_type]
-    missing = [f for f in spec["required"] if not metadata.get(f)]
+    # Presence check, not truthiness — score=0 and phase="" are legitimate
+    # "missing" only when the key is absent or explicitly None.
+    missing = [f for f in spec["required"] if metadata.get(f) is None]
     if missing:
         return f"{event_type}: missing required metadata fields {missing}"
 

@@ -63,8 +63,8 @@ PLUGIN_SKILL_MAP = {
         "/wicked-garden:search:blast-radius — analyze what changing a symbol affects",
         "/wicked-garden:search:docs — search documents (PDF, markdown, Office)",
     ],
-    "kanban": [
-        "TaskCreate/TaskUpdate/TaskList/TaskGet — native task tools (kanban syncs automatically)",
+    "tasks": [
+        "TaskCreate/TaskUpdate/TaskList/TaskGet — native Claude Code task tools; metadata validated by PreToolUse",
     ],
     "qe": [
         "/wicked-garden:qe:scenarios — generate test scenarios with edge cases",
