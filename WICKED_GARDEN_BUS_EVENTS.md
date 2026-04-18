@@ -62,6 +62,12 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 | `wicked.experiment.concluded` | `delivery.experiment` | A/B experiment concluded with results |
 | `wicked.rollout.decided` | `delivery.rollout` | Rollout go/no-go decision made |
 
+### Facts
+
+| Event Type | Subdomain | Description |
+|------------|-----------|-------------|
+| `wicked.fact.extracted` | `facts` | Structured fact extracted from conversation (consumed by wicked-brain auto-memorize) |
+
 ### Jam
 
 | Event Type | Subdomain | Description |
@@ -69,6 +75,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 | `wicked.council.voted` | `jam.council` | Council evaluation completed with model votes |
 | `wicked.persona.contributed` | `jam.persona` | Persona contributed a perspective in a brainstorm round |
 | `wicked.session.started` | `jam.session` | Brainstorm or council session started |
+| `wicked.session.synthesis_ready` | `jam.session` | All expected Round 1 personas contributed or timeout elapsed — facilitator may synthesize |
 | `wicked.session.synthesized` | `jam.session` | Session synthesis completed |
 
 ### Platform
