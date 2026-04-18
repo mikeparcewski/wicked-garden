@@ -18,12 +18,15 @@ Usage:
 """
 
 import json
+import logging
 import os
 import shutil
 import subprocess
 import threading
 import time
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("wicked-garden.bus")
 
 # ---------------------------------------------------------------------------
 # Static event catalog — Phase 1 events only (those with wired consumers).
@@ -523,3 +526,88 @@ def mark_processed(event_type: str, chain_id: str) -> None:
     ledger = {k: v for k, v in ledger.items() if v > cutoff}
 
     _save_ledger(ledger)
+
+
+# ---------------------------------------------------------------------------
+# Consumer registry — static manifest at scripts/_bus_consumers.json.
+# Enforces the max_consumers budget at load time. Does not reject duplicates
+# (idempotent), logs an error when the registered count exceeds the budget.
+# ---------------------------------------------------------------------------
+
+_CONSUMERS_MANIFEST = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "_bus_consumers.json",
+)
+
+
+def load_consumer_registry(
+    manifest_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Load the bus consumer registry and validate it against max_consumers.
+
+    Returns a dict with keys:
+        consumers: list of consumer entries (may be empty on error)
+        max_consumers: int budget (defaults to 8 if absent)
+        registered: int count of consumer entries
+        over_budget: bool — True when registered > max_consumers
+        error: optional str — set when the manifest is missing / malformed
+
+    Fail-open: never raises. A malformed or missing manifest logs an error
+    and returns a registry dict with empty consumers so the bus still boots.
+    Idempotent at load time — duplicate consumer ids are not rejected.
+    """
+    path = manifest_path or _CONSUMERS_MANIFEST
+    result: Dict[str, Any] = {
+        "consumers": [],
+        "max_consumers": 8,
+        "registered": 0,
+        "over_budget": False,
+        "error": None,
+    }
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        result["error"] = f"consumer manifest not found: {path}"
+        logger.debug(result["error"])
+        return result
+    except (json.JSONDecodeError, OSError) as exc:
+        result["error"] = f"consumer manifest malformed: {exc}"
+        logger.error("bus consumer registry: %s", result["error"])
+        return result
+
+    if not isinstance(data, dict):
+        result["error"] = "consumer manifest root is not an object"
+        logger.error("bus consumer registry: %s", result["error"])
+        return result
+
+    consumers = data.get("consumers", [])
+    if not isinstance(consumers, list):
+        result["error"] = "consumer manifest 'consumers' is not a list"
+        logger.error("bus consumer registry: %s", result["error"])
+        consumers = []
+
+    max_budget = data.get("max_consumers", 8)
+    try:
+        max_budget = int(max_budget)
+    except (TypeError, ValueError):
+        max_budget = 8
+
+    registered = len(consumers)
+    over_budget = registered > max_budget
+
+    result.update({
+        "consumers": consumers,
+        "max_consumers": max_budget,
+        "registered": registered,
+        "over_budget": over_budget,
+    })
+
+    if over_budget:
+        logger.error(
+            "bus consumer registry over budget: %d consumers registered, max %d. "
+            "Review %s before adding more consumers.",
+            registered, max_budget, path,
+        )
+
+    return result

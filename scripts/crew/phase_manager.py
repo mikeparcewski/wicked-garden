@@ -963,6 +963,37 @@ def _validate_min_gate_score(
     return None
 
 
+def _bump_rework_iteration(project_dir: Path, phase: str) -> int:
+    """Increment the per-phase rework iteration counter and return the new value.
+
+    Persists to phases/<phase>/rework-iterations.json. Fail-open: returns 1 on any
+    read/write error so callers can still emit an event with a plausible count.
+    """
+    iteration_file = project_dir / "phases" / phase / "rework-iterations.json"
+    count = 0
+    try:
+        if iteration_file.exists():
+            data = json.loads(iteration_file.read_text())
+            count = int(data.get("iteration_count", 0))
+    except (json.JSONDecodeError, OSError, ValueError):
+        count = 0  # treat malformed file as fresh
+
+    count += 1
+
+    try:
+        iteration_file.parent.mkdir(parents=True, exist_ok=True)
+        iteration_file.write_text(
+            json.dumps({
+                "iteration_count": count,
+                "updated_at": get_utc_timestamp(),
+            })
+        )
+    except OSError:
+        pass  # fail open: write failure is non-fatal
+
+    return count
+
+
 def _record_gate_override(
     project_dir: Path, phase: str, reason: str, approver: str
 ) -> None:
@@ -1216,6 +1247,21 @@ def approve_phase(
                     "phase": phase,
                     "blocking_reason": gate_result.get("result"),
                 }, chain_id=getattr(state, "chain_id", None))
+                # Rework begins the moment a REJECT verdict is stored.
+                # Bump a per-phase iteration counter (idempotent across reruns)
+                # and fire wicked.rework.triggered alongside the block event.
+                try:
+                    iteration_count = _bump_rework_iteration(
+                        get_project_dir(state.name), phase
+                    )
+                except Exception:
+                    iteration_count = 1  # fail open — still emit with best-effort count
+                emit_event("wicked.rework.triggered", {
+                    "project_id": state.name,
+                    "phase": phase,
+                    "iteration_count": iteration_count,
+                    "chain_id": getattr(state, "chain_id", None),
+                }, chain_id=getattr(state, "chain_id", None))
         except Exception:
             pass  # fail open
 
@@ -1293,7 +1339,28 @@ def approve_phase(
             state.current_phase = next_phase
             return (state, next_phase)
 
-    # No next phase — project is complete
+    # No next phase — project is complete.
+    # Emit wicked.project.completed alongside the final phase transition.
+    try:
+        from _bus import emit_event
+        duration_secs: Optional[float] = None
+        try:
+            created_raw = (state.created_at or "").replace("Z", "+00:00")
+            if created_raw:
+                created_dt = datetime.fromisoformat(created_raw)
+                now_dt = datetime.now(timezone.utc)
+                duration_secs = max(0.0, (now_dt - created_dt).total_seconds())
+        except (ValueError, AttributeError):
+            duration_secs = None  # fail open on malformed timestamps
+        emit_event("wicked.project.completed", {
+            "project_id": state.name,
+            "duration_secs": duration_secs,
+            "chain_id": getattr(state, "chain_id", None),
+            "final_phase": phase,
+        }, chain_id=getattr(state, "chain_id", None))
+    except Exception:
+        pass  # fail open
+
     return (state, None)
 
 
