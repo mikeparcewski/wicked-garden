@@ -8,9 +8,9 @@
   ],
 
   "summary": {
-    "commands": 154,
+    "commands": 147,
     "agents": 69,
-    "skills": 89,
+    "skills": 87,
     "hooks": 12,
     "specialists": 8
   },

@@ -8,7 +8,7 @@
       "name": "wicked-garden",
       "source": "./",
       "description": "AI-Native SDLC \u2014 executable infrastructure, not passive guidance. Hooks enforce workflow gates, assemble context from memory and code search on every prompt, and persist decisions across sessions. 13 domains with 69 specialist agents cover the full lifecycle: facilitator-driven crew workflows with hard quality gates, 3-tier persistent memory with auto-consolidation, structural code intelligence, multi-model brainstorming, and domain experts for security, architecture, QE, product, data, and delivery. Zero external dependencies \u2014 runs standalone with local SQLite storage.",
-      "version": "6.0.0-beta.1"
+      "version": "6.0.0-beta.2"
     }
   ],
   "version": "2.0.0"

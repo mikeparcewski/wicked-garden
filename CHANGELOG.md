@@ -1,5 +1,37 @@
 # Changelog
 
+## [6.0.0-beta.2] - 2026-04-18
+
+**v6 cutover fixes** surfaced during the first live dogfood of `crew:start`
+→ `crew:execute` → `crew:approve`. Three enforcement paths in
+`phase_manager.py` still looked for v5-era artifacts and would either block
+the facilitator's minimal-rigor fast path or silently override its phase
+plan. All three now defer to the facilitator when `phase_plan_mode ==
+"facilitator"`. See issue #435.
+
+### Fixed
+
+- `phase_manager._check_phase_deliverables`: when `phase_plan_mode ==
+  "facilitator"` and `process-plan.md` + parseable `process-plan.json` are
+  present, treat them as satisfying `phases.json` `required_deliverables`.
+  Unblocks approve without stub `complexity.md` / `acceptance-criteria.md`
+  files or `--override-deliverables`. Legacy projects still enforced.
+- `phase_manager._check_gate_run`: when `rigor_tier == "minimal"` and
+  `status.md` contains a `signoff:` block with `result: approved` (or
+  `conditional`), treat the gate as run. Minimal rigor is explicitly
+  fast-pass per the facilitator rubric; this removes the need for
+  `--override-gate` on every approve call.
+- `phase_manager.validate_phase_plan`: when `phase_plan_mode ==
+  "facilitator"`, skip complexity-driven injection of test-strategy/test
+  phases. The facilitator's explicit phase list is authoritative; checkpoint
+  re-analysis no longer silently expands a 3-phase minimal plan into 5.
+
+### Manifests
+
+- `.claude-plugin/components.json` counts corrected to disk reality:
+  `commands: 147` (was 154), `skills: 87` (was 89). Domain list unchanged.
+- `plugin.json` + `marketplace.json` bumped to `6.0.0-beta.2`.
+
 ## [6.0.0-beta.1] - 2026-04-18
 
 **v6 is the rebuild**: the v5 keyword-based rule engine that drove crew

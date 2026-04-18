@@ -263,8 +263,12 @@ def validate_phase_plan(state: 'ProjectState') -> Tuple[List[str], List[str]]:
     if state.complexity_score < _TEST_PHASE_COMPLEXITY_THRESHOLD:
         return ([], [])
 
-    # Honor phase_plan_mode: static — don't mutate locked plans
-    if state.extras.get("phase_plan_mode") == "static":
+    # Honor phase_plan_mode: static and facilitator — don't mutate plans
+    # the facilitator explicitly authored. The facilitator's rubric already
+    # decides whether test-strategy/test phases are warranted (see issue #435
+    # Gap 3; the v6 minimal-rigor 3-phase plan should stay 3 phases even at
+    # complexity >= 2).
+    if state.extras.get("phase_plan_mode") in ("static", "facilitator"):
         return ([], [])
 
     if not state.phase_plan:
@@ -726,6 +730,12 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
     """Check if required deliverables exist and have content for a phase.
 
     Returns list of issues (empty = all deliverables present and non-empty).
+
+    Facilitator-owned plans (phase_plan_mode == "facilitator") use
+    process-plan.md/process-plan.json as their canonical artifact. When present
+    and non-empty, they satisfy the phases.json required_deliverables check —
+    the facilitator's factor readings + task metadata replace the legacy
+    complexity.md / acceptance-criteria.md files. See issue #435.
     """
     phase = resolve_phase(phase)
     issues = []
@@ -735,6 +745,23 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
         return issues
 
     project_dir = get_project_dir(state.name)
+
+    # v6 facilitator-plan short-circuit: if the project's plan is owned by the
+    # facilitator and a non-empty process-plan.md is present, accept it as
+    # satisfying required_deliverables for any phase.
+    if state.extras.get("phase_plan_mode") == "facilitator":
+        plan_md = project_dir / "process-plan.md"
+        plan_json = project_dir / "process-plan.json"
+        if plan_md.exists() and plan_md.stat().st_size > 0:
+            # Also require process-plan.json to be present and parseable —
+            # proves the plan was fully emitted, not just a stub.
+            if plan_json.exists() and plan_json.stat().st_size > 0:
+                try:
+                    json.loads(plan_json.read_text())
+                    return issues
+                except (json.JSONDecodeError, OSError):
+                    pass  # fall through to legacy check
+
     for deliverable in deliverables:
         # Support both string and dict deliverable formats (dict has "file" key)
         deliverable_name = deliverable["file"] if isinstance(deliverable, dict) else deliverable
@@ -764,12 +791,17 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
     return issues
 
 
-def _check_gate_run(project_dir: Path, phase: str) -> bool:
+def _check_gate_run(project_dir: Path, phase: str, rigor_tier: Optional[str] = None) -> bool:
     """Return True if evidence of a valid gate run exists for this phase.
 
     A gate-result.json that exists but cannot be parsed as JSON is treated as
     gate-not-run — malformed output from a crashed gate process should not
     silently allow phase advancement.
+
+    When ``rigor_tier == "minimal"``, a self-signoff block in status.md
+    (``signoff:`` with ``result: approved`` or ``result: conditional``)
+    satisfies the gate — minimal rigor is explicitly fast-pass per the
+    facilitator rubric. See issue #435 (Gap 2).
     """
     phase_dir = project_dir / "phases" / phase
     # Primary: gate result file written by /wicked-crew:gate
@@ -781,13 +813,20 @@ def _check_gate_run(project_dir: Path, phase: str) -> bool:
         except (json.JSONDecodeError, OSError):
             # Malformed or unreadable — treat as gate-not-run
             return False
-    # Secondary: status.md contains gate_status field
+    # Secondary: status.md contains gate_status field, or a signoff block when
+    # the phase is fast-pass (minimal rigor).
     status_md = phase_dir / "status.md"
     if status_md.exists():
         try:
             content = status_md.read_text()
             if "gate_status:" in content or "gate:" in content:
                 return True
+            if rigor_tier == "minimal" and "signoff:" in content:
+                # Accept `result: approved` or `result: conditional` (anywhere
+                # after the signoff header — permissive inline-yaml match).
+                if ("result: approved" in content
+                        or "result: conditional" in content):
+                    return True
         except OSError:
             pass  # fail open: gate read failure returns False
     return False
@@ -1095,7 +1134,8 @@ def approve_phase(
     if gate_required:
         gate_override_allowed = phase_config.get("gate_override_allowed", True)
         project_dir = get_project_dir(state.name)
-        gate_run = _check_gate_run(project_dir, phase)
+        rigor_tier = state.extras.get("rigor_tier")
+        gate_run = _check_gate_run(project_dir, phase, rigor_tier=rigor_tier)
 
         if not gate_run:
             if override_gate and not gate_override_allowed:
