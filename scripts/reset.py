@@ -32,7 +32,6 @@ _DOMAIN_NAMES = {
     "config": "Setup configuration",
     "smaht": "Session history and context cache",
     "crew": "Crew project data",
-    "kanban": "Kanban board and tasks",
     "mem": "Memory store",
     "search": "Search index (SQLite)",
     "delivery": "Delivery metrics and config",
@@ -44,7 +43,6 @@ _DOMAIN_DIRS = {
     "config": None,  # special: global config.json
     "smaht": "wicked-smaht",
     "crew": "wicked-crew",
-    "kanban": "wicked-kanban",
     "mem": "wicked-garden:mem",
     "search": "wicked-garden:search",
     "delivery": "wicked-delivery",

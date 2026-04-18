@@ -2,12 +2,12 @@
 """
 PostToolUse / PostToolUseFailure hook — wicked-garden unified post-tool dispatcher.
 
-Consolidates: kanban todo_sync, crew posttool_task, delivery metrics_refresh,
-mem task_checkpoint, search mark_stale, qe change_tracker,
-agentic detect_framework, observability trace_writer.
+Consolidates: crew posttool_task, delivery metrics_refresh, mem task_checkpoint,
+search mark_stale, qe change_tracker, agentic detect_framework,
+observability trace_writer.
 
 Dispatches by tool_name from hook payload:
-  TaskCreate / TaskUpdate / TodoWrite  → kanban sync + crew state + delivery metrics + mem checkpoint
+  TaskCreate / TaskUpdate / TodoWrite  → mismatch detection on TaskUpdate
   Write / Edit                         → stale file marking + QE change tracking + MEMORY.md guard
   Task                                 → subagent activity tracking
   Read                                 → large-file-read warning + agentic framework detection
@@ -70,233 +70,6 @@ def _sanitize_session_id(raw: str) -> str:
 def _get_session_id() -> str:
     return _sanitize_session_id(os.environ.get("CLAUDE_SESSION_ID", "default"))
 
-
-
-# ---------------------------------------------------------------------------
-# Handler: TaskCreate / TaskUpdate / TodoWrite
-# (kanban sync, crew state update, delivery metrics, mem checkpoint)
-# ---------------------------------------------------------------------------
-
-def _infer_priority(content: str) -> str:
-    lower = content.lower()
-    if any(kw in lower for kw in ["critical", "urgent", "blocker", "hotfix", "security"]):
-        return "P0"
-    if any(kw in lower for kw in ["fix", "bug", "error", "broken", "failing", "important"]):
-        return "P1"
-    if any(kw in lower for kw in ["refactor", "cleanup", "minor", "polish"]):
-        return "P3"
-    return "P2"
-
-
-def _parse_crew_initiative(subject: str):
-    """Extract crew project name from task subject: 'Phase: project-name - description'."""
-    match = re.match(r"^[A-Za-z-]+:\s+([a-zA-Z0-9][a-zA-Z0-9_-]*)\s+-\s+", subject)
-    return match.group(1) if match else None
-
-
-def _load_kanban_sync_state() -> dict:
-    """Load kanban sync state from SessionState (ephemeral, per-session)."""
-    try:
-        from _session import SessionState
-        state = SessionState.load()
-        return state.kanban_sync or {"project_id": None, "task_map": {}, "initiative_id": None, "initiative_map": {}}
-    except Exception:
-        return {"project_id": None, "task_map": {}, "initiative_id": None, "initiative_map": {}}
-
-
-def _save_kanban_sync_state(sync_data: dict) -> None:
-    """Persist kanban sync state to SessionState."""
-    try:
-        from _session import SessionState
-        state = SessionState.load()
-        state.update(kanban_sync=sync_data)
-    except Exception:
-        pass
-
-
-def _handle_task_tools(tool_name: str, tool_input: dict) -> dict:
-    """Sync TaskCreate/TaskUpdate/TodoWrite to kanban via KanbanStore.
-
-    Routes all task operations through KanbanStore so the task index is kept
-    consistent and activity records use the correct "type" field schema.
-    Falls back gracefully — always returns {"continue": True}.
-    """
-    try:
-        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "kanban"))
-        from kanban import KanbanStore
-        ks = KanbanStore()
-        state = _load_kanban_sync_state()
-
-        # Ensure project exists — use KanbanStore.create_project() so default
-        # swimlanes and an empty index are provisioned atomically (#381).
-        project_id = state.get("project_id")
-        if not project_id:
-            repo_path = os.environ.get("PWD", os.getcwd())
-            repo_name = Path(repo_path).name or "Claude Tasks"
-            project = ks.create_project(
-                name=f"{repo_name} Tasks",
-                description=f"Tasks for {repo_path}",
-                repo_path=repo_path,
-            )
-            if project:
-                project_id = project.get("id")
-                state["project_id"] = project_id
-
-        if not project_id:
-            return {"continue": True}
-
-        messages = []
-
-        if tool_name == "TaskCreate":
-            subject = tool_input.get("subject", "")
-            description = tool_input.get("description", "")
-            metadata = tool_input.get("metadata") or {}
-            initiative_name = metadata.get("initiative") or _parse_crew_initiative(subject) or "Issues"
-
-            # Route through KanbanStore so index is updated and _log_activity()
-            # records use the correct "type" field (#381, #383).
-            task = ks.create_task(
-                project_id,
-                subject,
-                swimlane="todo",
-                priority=metadata.get("priority") or _infer_priority(subject + " " + description),
-                description=description or tool_input.get("activeForm", ""),
-                metadata={
-                    "source": "TaskCreate",
-                    "initiative_name": initiative_name,
-                    "session_id": _get_session_id(),
-                },
-            )
-            if task:
-                # Store the short task_id — KanbanStore.update_task() takes
-                # (project_id, task_id) where task_id is the short form (#381).
-                short_id = task.get("task_id") or task.get("id", "").split(":")[-1]
-                state.setdefault("task_map", {})[subject] = {
-                    "kanban_id": short_id,
-                    "initiative_name": initiative_name,
-                }
-
-            # Enrichment nudge
-            hints = []
-            if not description:
-                hints.append("- Add a description: WHY does this task exist?")
-            if not metadata.get("priority"):
-                hints.append("- Set priority via metadata: {\"priority\": \"P0\"} through P3")
-            if hints:
-                messages.append(
-                    "[Kanban] Task synced. Consider enriching it:\n"
-                    + "\n".join(hints)
-                )
-
-        elif tool_name == "TaskUpdate":
-            task_id_input = tool_input.get("taskId", "")
-            status = tool_input.get("status")
-            subject = tool_input.get("subject", "")
-
-            # Resolve kanban task ID from session-state task_map
-            task_map = state.get("task_map", {})
-            entry = task_map.get(task_id_input) or task_map.get(subject)
-            kanban_id = None
-            if isinstance(entry, dict):
-                kanban_id = entry.get("kanban_id")
-            elif isinstance(entry, str):
-                kanban_id = entry
-
-            # #382: cross-session fallback — task_map is ephemeral; if the task
-            # was created in a prior session the map entry will be absent.
-            # Fall back to a name-based scan of KanbanStore before giving up.
-            if not kanban_id and subject:
-                try:
-                    for t in ks.list_tasks(project_id):
-                        if t.get("name") == subject:
-                            kanban_id = t.get("task_id") or t.get("id", "").split(":")[-1]
-                            # Re-register in session state for subsequent lookups
-                            state.setdefault("task_map", {})[subject] = {
-                                "kanban_id": kanban_id,
-                            }
-                            break
-                except Exception:
-                    pass
-
-            if kanban_id and status:
-                swimlane_map = {"pending": "todo", "in_progress": "in_progress", "completed": "done"}
-                swimlane = swimlane_map.get(status)
-                if swimlane is None:
-                    print(f"[wicked-kanban] Unknown status: {status!r}. Valid: pending, in_progress, completed", file=sys.stderr)
-                updates = {}
-                if swimlane:
-                    updates["swimlane"] = swimlane
-                if subject:
-                    updates["name"] = subject
-                if tool_input.get("description"):
-                    updates["description"] = tool_input["description"]
-                # Sync dependency links from TaskUpdate addBlockedBy/addBlocks
-                add_blocked_by = tool_input.get("addBlockedBy") or []
-                add_blocks = tool_input.get("addBlocks") or []
-                if add_blocked_by or add_blocks:
-                    try:
-                        task_map = state.get("task_map", {})
-                        existing_task = ks.get_task(project_id, kanban_id) or {}
-                        current_deps = list(existing_task.get("depends_on", []))
-                        # addBlockedBy = this task depends on those IDs
-                        for dep_id in add_blocked_by:
-                            kanban_dep = None
-                            entry = task_map.get(dep_id)
-                            if isinstance(entry, dict):
-                                kanban_dep = entry.get("kanban_id")
-                            elif isinstance(entry, str):
-                                kanban_dep = entry
-                            if kanban_dep and kanban_dep not in current_deps:
-                                current_deps.append(kanban_dep)
-                        updates["depends_on"] = current_deps
-                    except Exception:
-                        pass
-                if updates:
-                    # Route through KanbanStore so index is updated and
-                    # _log_activity() uses the correct "type" field (#381, #383).
-                    ks.update_task(project_id, kanban_id, **updates)
-
-        elif tool_name == "TodoWrite":
-            todos = tool_input.get("todos", [])
-            synced = 0
-            swimlane_map = {"pending": "todo", "in_progress": "in_progress", "completed": "done"}
-            for todo in todos:
-                content = todo.get("content", "")
-                if not content:
-                    continue
-                swimlane = swimlane_map.get(todo.get("status", "pending"), "todo")
-                task_map = state.get("task_map", {})
-                existing = task_map.get(content)
-                existing_id = existing.get("kanban_id") if isinstance(existing, dict) else existing
-                if existing_id:
-                    # Route through KanbanStore (#381, #383)
-                    ks.update_task(project_id, existing_id, swimlane=swimlane)
-                else:
-                    task = ks.create_task(
-                        project_id,
-                        content,
-                        swimlane=swimlane,
-                        priority=_infer_priority(content),
-                        metadata={"source": "TodoWrite"},
-                    )
-                    if task:
-                        short_id = task.get("task_id") or task.get("id", "").split(":")[-1]
-                        state.setdefault("task_map", {})[content] = {
-                            "kanban_id": short_id,
-                            "initiative_name": "Issues",
-                        }
-                synced += 1
-
-        _save_kanban_sync_state(state)
-
-        result = {"continue": True}
-        if messages:
-            result["systemMessage"] = "\n".join(messages)
-        return result
-
-    except Exception as e:
-        print(f"[wicked-kanban] sync error: {type(e).__name__}: {e}", file=sys.stderr)
-        return {"continue": True}
 
 
 # ---------------------------------------------------------------------------
@@ -1666,22 +1439,14 @@ def main():
         if has_error:
             handler_label = "failure"
             result = _handle_failure(payload)
-        # Task-management tools
+        # Task-management tools — native task store is the source of truth.
+        # PreToolUse validates metadata; PostToolUse only runs the mismatch
+        # detector for TaskUpdate (status/subject/metadata consistency).
         elif tool_name in ("TaskCreate", "TaskUpdate", "TodoWrite"):
             handler_label = "TaskCreate|TaskUpdate|TodoWrite"
-            messages = []
-
-            task_result = _handle_task_tools(tool_name, tool_input)
-            if task_result.get("systemMessage"):
-                messages.append(task_result["systemMessage"])
-
-            # Mismatch detection only for TaskUpdate
             if tool_name == "TaskUpdate":
                 _handle_task_update_mismatch(tool_input)
-
             result = {"continue": True}
-            if messages:
-                result["systemMessage"] = "\n".join(messages)
         # Write / Edit tools (async — quick operations only)
         elif tool_name in ("Write", "Edit"):
             handler_label = "Write|Edit"

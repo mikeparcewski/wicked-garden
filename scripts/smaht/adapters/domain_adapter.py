@@ -1,9 +1,9 @@
 """
 DomainStore adapter for wicked-smaht.
 
-Queries kanban tasks, crew projects, and jam sessions via DomainStore
-directly (local JSON with optional MCP routing). Replaces cp_adapter.py
-which queried the same data via HTTP.
+Queries crew projects and jam sessions via DomainStore directly (local
+JSON with optional MCP routing). Replaces cp_adapter.py which queried
+the same data via HTTP.
 
 Strategy:
 1. Query each domain using DomainStore (local JSON primary store)
@@ -53,15 +53,6 @@ _STOP_WORDS = frozenset({
 # ---------------------------------------------------------------------------
 
 _DOMAIN_QUERIES = [
-    {
-        "domain_name": "wicked-kanban",
-        "source": "tasks",
-        "label": "kanban",
-        "project_key": "project_id",
-        "title_fn": lambda r: f"[{r.get('swimlane', '?')}] {r.get('name', '')}",
-        "summary_fn": lambda r: (r.get("description") or r.get("name") or "")[:200],
-        "boost_fn": lambda r: 0.2 if r.get("swimlane") == "in_progress" else 0.0,
-    },
     {
         "domain_name": "wicked-crew",
         "source": "projects",
@@ -161,8 +152,6 @@ async def query(prompt: str, project: str = None) -> List[ContextItem]:
     now = datetime.now(timezone.utc)
 
     # Query all domains in parallel to avoid serial blocking (issue #374).
-    # Previously a serial for-loop meant a slow first domain (e.g. wicked-kanban
-    # during cold session) would delay every subsequent domain query.
     domain_results = await asyncio.gather(
         *[run_in_thread(_query_domain, config, keywords, project or "")
           for config in _DOMAIN_QUERIES],

@@ -722,7 +722,7 @@ def main() -> int:
     parser.add_argument(
         "--plugin",
         metavar="PLUGIN_NAME",
-        help="Only probe a single plugin (e.g. wicked-kanban).",
+        help="Only probe a single plugin (e.g. wicked-crew).",
     )
     parser.add_argument(
         "--plugins-dir",

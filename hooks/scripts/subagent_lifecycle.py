@@ -89,8 +89,17 @@ def _tasks_dir_for_session(session_id: str) -> "Path | None":
     return tasks_dir if tasks_dir.is_dir() else None
 
 
-def _read_event_type_from_native_tasks(session_id: str) -> "str | None":
-    """Native-task reader. See _get_active_task_event_type."""
+def _get_active_task_event_type(session_id: str) -> "str | None":
+    """Return event_type of the most-recently-modified in-progress native task.
+
+    Reads ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json``,
+    filters to ``status == "in_progress"``, picks the highest mtime, and
+    returns ``metadata.event_type``.
+
+    Fail-silent — never blocks the hook.
+    """
+    if not session_id:
+        return None
     try:
         tasks_dir = _tasks_dir_for_session(session_id)
         if tasks_dir is None:
@@ -116,67 +125,6 @@ def _read_event_type_from_native_tasks(session_id: str) -> "str | None":
         return best_event_type
     except Exception:
         return None
-
-
-def _read_event_type_from_kanban_sidecar() -> "str | None":
-    """Legacy kanban reader — deprecated fallback.
-
-    Kept for one release so procedure injection keeps working while
-    producers (bus consumers, crew agents) migrate to native task
-    metadata. Remove once telemetry shows ≥99% native-task hits.
-    """
-    try:
-        from _session import SessionState
-        from _domain_store import DomainStore
-
-        state = SessionState.load()
-        active_project_id = state.active_project_id
-        if not active_project_id:
-            return None
-
-        sm = DomainStore("wicked-kanban")
-        index = sm.get("indexes", active_project_id) or {}
-        task_ids = index.get("by_swimlane", {}).get("in_progress", [])
-        if not task_ids:
-            return None
-
-        best_updated = ""
-        best_event_type = None
-        for task_id in task_ids:
-            task = sm.get("tasks", f"{active_project_id}:{task_id}")
-            if not task:
-                continue
-            updated = task.get("updated_at", "")
-            if updated > best_updated:
-                best_updated = updated
-                best_event_type = task.get("event_type")
-        return best_event_type
-    except Exception:
-        return None
-
-
-def _get_active_task_event_type(session_id: str) -> "str | None":
-    """Return event_type for procedure-bundle injection at SubagentStart.
-
-    Reads native tasks first, falls back to the legacy kanban sidecar.
-    Telemetry distinguishes the two paths so we can retire the fallback
-    once producers have migrated to TaskCreate(metadata=…).
-
-    Fail-silent — never blocks the hook.
-    """
-    if not session_id:
-        return None
-
-    event_type = _read_event_type_from_native_tasks(session_id)
-    if event_type:
-        _log("subagent", "debug", "event_type.source", detail={"path": "native"})
-        return event_type
-
-    event_type = _read_event_type_from_kanban_sidecar()
-    if event_type:
-        _log("subagent", "info", "event_type.source",
-             detail={"path": "kanban-fallback", "event_type": event_type})
-    return event_type
 
 
 # ---------------------------------------------------------------------------

@@ -74,11 +74,15 @@ def _deny(reason: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _find_active_crew_project():
-    """Return (project_data_dict, project_name, kanban_initiative_name).
+    """Return (project_data_dict, project_name, initiative_name).
 
     Scoped to the current workspace (CLAUDE_PROJECT_NAME or cwd basename).
     Only returns projects whose ``workspace`` field matches.
     Uses DomainStore exclusively — operates local-only in hook mode.
+
+    ``initiative_name`` is the project name (used to tag task metadata
+    with a coarse grouping). Custom display names can be set via the
+    optional ``initiative`` field on project.json.
     """
     workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
     try:
@@ -94,7 +98,7 @@ def _find_active_crew_project():
             phase = p.get("current_phase", "")
             if phase and phase not in ("complete", "done", ""):
                 name = p.get("name", "")
-                initiative = p.get("kanban_initiative") or name
+                initiative = p.get("initiative") or name
                 return p, name, initiative
     except Exception:
         pass

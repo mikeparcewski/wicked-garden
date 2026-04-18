@@ -2,14 +2,14 @@
 """
 SessionStart hook — wicked-garden unified bootstrap.
 
-Consolidates: crew session_start, kanban session_start, mem session_start,
+Consolidates: crew session_start, mem session_start,
 search session_start, smaht session_start.
 
 Flow:
 1. Read config from ~/.something-wicked/wicked-garden/config.json
 2. If missing or setup_complete=false: emit setup instructions, return
 3. Load dynamic agents
-4. Load active crew project + kanban summary
+4. Load active crew project
 5. Run memory decay
 6. Check onboarding status → imperative directive if needed
 7. Assemble session briefing
@@ -302,24 +302,6 @@ def _find_active_crew_project_legacy(workspace: str = ""):
     return None, None
 
 
-def _load_kanban_summary():
-    """Return a short kanban board summary string."""
-    try:
-        from _domain_store import DomainStore
-        ds = DomainStore("wicked-kanban", hook_mode=True)
-        tasks = ds.list("tasks", status="in_progress") or []
-        if not tasks:
-            return None
-        count = len(tasks)
-        names = [t.get("name", "?") for t in tasks[:3]]
-        summary = f"{count} in-progress: {', '.join(names)}"
-        if count > 3:
-            summary += f" (+{count - 3} more)"
-        return summary
-    except Exception:
-        return None
-
-
 def _brain_api(action, params=None, timeout=3):
     """Call brain API. Returns parsed JSON or None."""
     try:
@@ -441,42 +423,6 @@ def _check_onboarding_status():
         )
 
     return has_index, has_memories, directive
-
-
-def _validate_and_repair_kanban_link(project_data, project_name):
-    """Validate that the crew project's kanban initiative still exists.
-
-    Returns (valid, resolved_id).
-    """
-    initiative_name = project_data.get("kanban_initiative") or project_data.get("name")
-    if not initiative_name:
-        return False, None
-
-    try:
-        from _domain_store import DomainStore
-        ds = DomainStore("wicked-kanban", hook_mode=True)
-        initiatives = ds.list("initiatives") or []
-        for init in initiatives:
-            if init.get("name") == initiative_name:
-                resolved_id = init["id"]
-                stored_id = project_data.get("kanban_initiative_id")
-                if resolved_id != stored_id and project_name:
-                    _repair_project_initiative(project_name, resolved_id)
-                return True, resolved_id
-        return False, None
-    except Exception:
-        # On any error, assume valid (don't block session on kanban failure)
-        return True, project_data.get("kanban_initiative_id")
-
-
-def _repair_project_initiative(project_name, initiative_id):
-    """Update project.json with the correct initiative_id via DomainStore."""
-    try:
-        from _domain_store import DomainStore
-        ds = DomainStore("wicked-crew", hook_mode=True)
-        ds.update("projects", project_name, {"kanban_initiative_id": initiative_id})
-    except Exception:
-        pass
 
 
 def _read_config():
@@ -827,10 +773,9 @@ def main():
         if resolutions and state is not None:
             state.update(resolved_capabilities=resolutions)
 
-        # 4 & 5. Load last crew project for this workspace and kanban board summary
+        # 4. Load last crew project for this workspace
         workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
         project_data, project_name = _find_active_crew_project(workspace)
-        kanban_summary = _load_kanban_summary()
 
         # 6. Run memory decay
         decay_summary = _run_memory_decay()
@@ -978,12 +923,6 @@ def main():
             # per-task memory prompts; stop.py reads it for session summary.
             if state is not None:
                 state.update(memory_compliance_required=True)
-
-            # Validate kanban link (side effect: repairs if needed)
-            _validate_and_repair_kanban_link(project_data, project_name)
-
-        if kanban_summary:
-            status_lines.append(f"  Kanban:      {kanban_summary}")
 
         briefing_parts = ["\n".join(status_lines)]
 

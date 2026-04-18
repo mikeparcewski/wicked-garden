@@ -28,7 +28,6 @@ SOURCE_PRIORITY = {
     "mem": 10,       # Highest — past decisions/context
     "search": 9,     # Code context
     "brain": 8,      # Wiki + chunk knowledge — high value, project-specific
-    "kanban": 7,     # Active tasks
     "crew": 6,       # Project state
     "context7": 4,   # External docs
     "jam": 3,        # Brainstorms

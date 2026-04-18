@@ -78,7 +78,6 @@ class SessionState:
     Fields:
         setup_complete: True when config.json has setup_complete == true.
         active_project: Dict summary of the active crew project, or None.
-        kanban_board:   Dict summary of the current kanban board, or None.
         agents_loaded:  Number of agents loaded at bootstrap.
         turn_count:     Number of user prompts in this session (incremented by
                         prompt_submit.py on each UserPromptSubmit hook).
@@ -86,14 +85,9 @@ class SessionState:
 
     setup_complete: bool = False
     active_project: dict | None = None
-    kanban_board: dict | None = None
     agents_loaded: int = 0
     turn_count: int = 0
     session_ended: bool = False
-
-    # Kanban sync: maps Claude TaskCreate subjects → kanban task IDs.
-    # Session-scoped (task IDs are ephemeral).
-    kanban_sync: dict | None = None
 
     # One-time nudge flags (reset per session)
     task_suggest_shown: bool = False
