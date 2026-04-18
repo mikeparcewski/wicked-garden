@@ -132,6 +132,23 @@ the first 200 chars of output. There is no legacy fallback in v6 — the rubric 
 path. If the facilitator cannot produce a plan, the user needs to know so they can
 refine the description or file an issue.
 
+### 5.5. Validate the Facilitator Plan
+
+After the facilitator skill returns its JSON, run the plan validator before doing anything else with the output:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/validate_plan.py" "${project_dir}/process-plan.json"
+```
+
+**If exit non-zero** (validator printed violations to stderr):
+
+1. Copy the draft plan to `${project_dir}/process-plan.draft.json` for debugging.
+2. STOP the command — do not create tasks or advance further.
+3. Show the validator's stderr output to the user verbatim.
+4. Instruct the user: "The facilitator returned a malformed plan. Please file a bug at `/wicked-garden:report-issue` with the above violations and the draft plan at `${project_dir}/process-plan.draft.json`."
+
+**If exit zero**: continue to Step 6.
+
 ### 6. Open Questions Gate
 
 If `open_questions` is non-empty AND `rigor_tier == "full"` AND `--force` was NOT
