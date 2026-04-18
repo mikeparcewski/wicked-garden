@@ -30,9 +30,9 @@ if [[ ! -f ".claude-plugin/plugin.json" ]]; then
   echo "ERROR: Missing .claude-plugin/plugin.json"
 fi
 
-# Validate version is semver
+# Validate version is semver (permits optional pre-release suffix like -beta.1)
 version=$(jq -r '.version' ".claude-plugin/plugin.json")
-if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
   echo "ERROR: Invalid semver version: $version"
 fi
 
