@@ -162,16 +162,30 @@ On `TaskCompleted` or a gate-finding, read `current_chain` + latest evidence. Th
 Emit mutations as follow-up `TaskCreate` / `TaskUpdate`. Do NOT rewrite completed tasks.
 Append an addendum to `process-plan.md` titled "Re-evaluation <timestamp>".
 
-## Yolo mode (`/wicked-garden:crew:just-finish`)
+## Interaction mode — yolo / `/wicked-garden:crew:just-finish`
 
-When `auto_proceed=true`:
+**Interaction mode is orthogonal to phase plan, specialist selection, rigor tier, and
+evidence requirements.** Those are determined by the work itself via this rubric,
+regardless of whether the user wants interactive or autonomous completion.
 
-- Skip user confirmation for initial plan if rigor_tier is `minimal` or `standard`.
-- Auto-approve APPROVE gates; accept CONDITIONAL silently when conditions are
-  self-resolving (spec gaps); escalate only on REJECT with no clear fix.
-- NEVER operate in yolo when rigor_tier is `full` — escalate to user with the plan.
-- Banned `source_agent` values (`just-finish-auto`, `fast-pass`, `auto-approve-*`) are
-  still banned; use `facilitator` for all facilitator-emitted tasks even in yolo.
+Interaction mode controls ONLY whether the user is prompted at gate boundaries:
+
+- **normal** (default): user confirms the plan before task creation; reviewer verdicts
+  at each gate surface to the user for approval.
+- **yolo** / `auto_proceed=true` / `/wicked-garden:crew:just-finish`:
+  - Skip user confirmation on the initial plan when rigor_tier is `minimal` or `standard`.
+  - Auto-approve gates whose reviewer verdict is APPROVE.
+  - Silently accept CONDITIONAL gates when the conditions are self-resolving spec gaps.
+  - Escalate to user on REJECT verdicts with no clear fix, or CONDITIONAL requiring intent changes.
+  - NEVER operate in yolo when rigor_tier is `full` — escalate to user with the plan.
+
+"Just-finish" means **run to the end autonomously**, NOT "skip phases" or "do less
+work." The facilitator already picked the phase plan based on the factors; yolo mode
+does not change it. If the work genuinely needs only build + review, the facilitator
+chose `minimal` rigor — not because yolo was passed.
+
+Banned `source_agent` values (`just-finish-auto`, `fast-pass`, `auto-approve-*`) are
+still banned. Use `facilitator` for all facilitator-emitted tasks even in yolo.
 
 ## Measurement hook
 

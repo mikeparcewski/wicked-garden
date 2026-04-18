@@ -36,11 +36,22 @@ Section B. Do NOT silently swallow; the operator needs to know.
 Extract the project description from `$ARGUMENTS`. If empty, ask the user for one and
 STOP. Do not proceed with an empty description.
 
-Flag parsing (same as legacy path): `--force`, `--quick`, `--no-auto-finish`,
-`--consensus-threshold=N`. These are recorded on the project but **do not short-circuit
-the facilitator** — the facilitator itself decides rigor and phase scope. Flags only
-influence downstream behavior (e.g. `--force` suppresses the complexity confirmation
-even if open_questions are emitted at low rigor).
+**v6 flags (orthogonal axes):**
+
+| Flag | Axis | Effect |
+|---|---|---|
+| `--yolo` / `--just-finish` | interaction mode | Run to completion without user confirmations; auto-approve APPROVE gates; escalate only on REJECT or intent-changing CONDITIONAL. Does **not** change phase plan, rigor, or specialists — the facilitator already chose those. |
+| `--rigor={minimal\|standard\|full}` | override | Override the facilitator's rigor tier (rarely needed). Sanity check: facilitator's selection is usually right. |
+| `--force` | override | Suppress complexity-based stop prompts (e.g. low-complexity → single-task recommendation). |
+| `--consensus-threshold=N` | gate policy | Pass through to gates as in legacy. |
+
+**Removed from v6** (were v5 conflations):
+- `--quick` — was shorthand for "minimal rigor AND yolo mode." These are now orthogonal.
+  Use `--rigor=minimal` for fewer phases, `--yolo` for no user prompts, or both.
+- `--no-auto-finish` — no longer needed. Yolo is opt-IN via `--yolo`, not opt-OUT.
+
+The facilitator decides phase plan + specialists + rigor tier from the work itself.
+Flags only adjust interaction mode or override downstream gate behavior.
 
 ### A.2 Generate Project Slug
 
