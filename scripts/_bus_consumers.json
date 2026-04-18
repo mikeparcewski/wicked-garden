@@ -33,6 +33,14 @@
       "description": "Auto-configures smaht brain adapter when brain is first created",
       "module": "scripts/smaht/_bus_consumers.py",
       "added": "2026-04-13"
+    },
+    {
+      "id": "qe:scenario-scaffold",
+      "event_filter": "wicked.phase.transitioned",
+      "domain": "qe",
+      "description": "Generates scenario scaffolding when build phase completes",
+      "module": "scripts/qe/_bus_consumers.py",
+      "added": "2026-04-18"
     }
   ]
 }

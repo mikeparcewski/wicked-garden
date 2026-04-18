@@ -9,6 +9,25 @@ Generate comprehensive test scenarios for a feature, function, or user story. Co
 
 ## Instructions
 
+### 0. Poll Bus Events (poll-on-invoke)
+
+Check for pending bus events before starting work. The QE consumer reacts to
+`wicked.phase.transitioned` (build → test-strategy | review) and writes a
+scenario scaffold under `scripts/qe/scenarios/{project_id}/`. Silently skips
+if bus is unavailable.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts'); sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/qe')
+from _bus_consumers import process_pending_events
+actions = process_pending_events()
+for a in actions: print(f'[bus] {a}')
+" 2>/dev/null || true
+```
+
+If any actions are reported, briefly mention them to the user before proceeding —
+the scaffold path is the starting point for scenario authoring.
+
 ### 1. Parse the Input
 
 Identify what needs scenarios:
