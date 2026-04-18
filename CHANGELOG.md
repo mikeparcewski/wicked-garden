@@ -1,5 +1,27 @@
 # Changelog
 
+## [5.2.0] - 2026-04-18
+
+### Features
+- **feat(platform): security + compliance bus emits (#422, #426)** — `wicked.security.finding_raised`, `wicked.compliance.passed`, `wicked.compliance.failed` wired via agent-prompt directives (jam pattern) in `security-engineer.md`, `compliance-officer.md`, and `auditor.md`. No Python infrastructure required; directives fail-open via `|| true`, restate Tier 1/2 payload rules with explicit NEVER-list (finding text, remediation, source, audit contents, PII).
+- **feat(delivery): rollout + experiment bus emits (#423, #425)** — `wicked.rollout.decided` and `wicked.experiment.concluded` wired via agent-prompt directives in `rollout-manager.md` and `experiment-designer.md`. Revives scope deferred from #412 (delivery has no Python scripts; prompt directives are the right lever).
+- **feat(qe): coverage tracker + `wicked.coverage.changed` emit (#424, #427)** — new `scripts/qe/coverage_tracker.py` (stdlib-only, ~535 lines): parses Cobertura XML and coverage.py JSON reports, scans standard paths (`coverage.xml`, `coverage.json`, `htmlcov/coverage.xml`, `reports/coverage.*`, `.coverage/coverage.xml`), persists last reading in `DomainStore("wicked-qe")` coverage collection, emits `wicked.coverage.changed` with `{before_pct, after_pct, delta, chain_id}` when `|delta| > 1e-9`. Emit-before-store ordering so transient bus failures don't lose the delta. Path-traversal guarded. Wired into `scripts/qe/registry_store.py` post-`scenario.run` — zero new command surface. CLI flags: `--project-id`, `--chain-id`, `--json`, `--selftest`.
+
+### Closed Issues
+- #422 (platform security + compliance emits)
+- #423 (delivery rollout + experiment emits)
+- #424 (QE coverage tracker)
+
+### Bus Integration State (epic #404)
+
+**All deferred items from v5.1.0 are now shipped.** The wicked-bus phase-2 work originally scoped in #404 is complete:
+- 18 core events in the catalog
+- All wired: crew (7), jam (5 incl. synthesis_ready), qe (3 incl. coverage.changed), platform (3), delivery (2)
+- 6/8 consumers registered (crew:auto-advance, smaht:brain-{consolidated,config-updated,initialized}, qe:scenario-scaffold, jam:synthesis-trigger)
+- Budget enforcement active; health-probe Check 6 surfaces `registered/max`
+
+No deferred items remain. #404 can close.
+
 ## [5.1.0] - 2026-04-18
 
 ### Features
