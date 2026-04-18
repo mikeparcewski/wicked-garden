@@ -284,7 +284,12 @@ TaskUpdate(
 
 ## Bus Events
 
-After completing a security review, emit findings to wicked-bus (skip silently if unavailable):
+**After writing each security finding** (one emit per finding), emit the event for cross-domain visibility:
+
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.security.finding_raised '{"severity":"{CRITICAL|HIGH|MEDIUM|LOW}","category":"{CWE category}","finding_count":{N}}' 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.security.finding_raised '{"severity":"{critical|high|medium|low}","category":"{owasp_top10|secrets|auth|dependency|config}","source_agent":"wicked-garden:platform:security-engineer","chain_id":"{chain_id}"}' 2>/dev/null || true
 ```
+
+`chain_id` comes from session state — use `SessionState.active_chain_id` if available, else empty string. Substitute at emit time.
+
+**Payload rules**: Tier 1 + Tier 2 only — IDs, counts, severities, enums. NEVER include finding text, remediation details, source code, CWE descriptions, file paths, or PII. Fail-open: the `|| true` keeps the agent running when the bus is unavailable.

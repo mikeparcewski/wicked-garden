@@ -317,6 +317,24 @@ TaskUpdate(
 )
 ```
 
+## Bus Events
+
+**After the audit result is finalized** (Overall Status + Certification Readiness determined), emit ONE of the two events below for cross-domain visibility. Emit `wicked.compliance.passed` when Overall Status is `READY`; emit `wicked.compliance.failed` when Overall Status is `NEEDS WORK` or `NOT READY`.
+
+**On pass** (all in-scope controls passing, no P0/P1 gaps):
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.compliance.passed '{"framework":"{soc2|hipaa|gdpr|pci}","checks_passed_count":{N},"chain_id":"{chain_id}"}' 2>/dev/null || true
+```
+
+**On fail** (any failing control or identified gap):
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.compliance.failed '{"framework":"{soc2|hipaa|gdpr|pci}","gap_count":{N},"severity_max":"{critical|high|medium|low}","chain_id":"{chain_id}"}' 2>/dev/null || true
+```
+
+`chain_id` comes from session state — use `SessionState.active_chain_id` if available, else empty string. Substitute at emit time.
+
+**Payload rules**: Tier 1 + Tier 2 only — IDs, counts, severities, enums. NEVER include audit-report contents, evidence file paths, control descriptions, finding text, remediation details, source code, or PII. Fail-open: the `|| true` keeps the agent running when the bus is unavailable.
+
 ## Quality Standards
 
 - Complete control coverage
