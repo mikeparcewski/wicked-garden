@@ -1,5 +1,45 @@
 # Changelog
 
+## [6.0.0-beta.3] - 2026-04-18
+
+**v6 reliability drop** — bundles #430 (shipped in beta.2.1 via #436) plus
+four reliability hardening items surfaced during the first live v6 dogfoods.
+Focus: the v6 happy path should work without surprise in a fresh install
+session.
+
+### Added
+
+- **Critical-skill smoke test (#434)** — `hooks/scripts/bootstrap.py` now
+  checks that `skills/crew/propose-process/SKILL.md` exists on disk at session
+  start. When present, emits a `[Skills]` briefing note telling Claude how to
+  handle "Unknown skill" errors (run `/reload-plugins`). When missing, flags
+  the plugin install as incomplete. Turns a cryptic class of errors into a
+  diagnostic path.
+- **Emission verifier (#432)** — new `scripts/crew/verify_chain_emission.py`
+  + Step 8.5 in `commands/crew/start.md`. After the task chain is emitted,
+  compares native task count (filtered by chain_id) against the plan's
+  `tasks[]`. Mismatches are surfaced with missing-title hints, not silently
+  ignored.
+- **Current-chain helper (#431)** — new `scripts/crew/current_chain.py` reads
+  native tasks by `metadata.chain_id`, summarizes counts by status, and
+  discovers evidence manifests under `phases/*/evidence/`. Wired into the
+  facilitator re-eval directive in `hooks/scripts/prompt_submit.py` so the
+  re-eval call has real data instead of prose "figure it out."
+
+### Changed
+
+- **Brain storage hardening (#433)** — `commands/crew/start.md` Step 10 now
+  retries once, writes a `.pending-brain-store.json` sentinel on failure, and
+  surfaces a WARNING to the user instead of failing silently. Added a new
+  Step 0.5 to `commands/crew/execute.md` that flushes the sentinel on the
+  next crew invocation when the brain becomes reachable.
+
+### Fixed
+
+- Diagnostic for the v6 plugin-cache-stale gotcha that bit the first two live
+  `crew:start` invocations. Not a registry query (hooks can't do that) — just
+  a filesystem check that turns silence into an actionable hint.
+
 ## [6.0.0-beta.2] - 2026-04-18
 
 **v6 cutover fixes** surfaced during the first live dogfood of `crew:start`

@@ -196,6 +196,22 @@ Use **parallel TaskCreate calls** when the chain has multiple tasks with no
 inter-dependencies within a phase. `blockedBy` captures the DAG, so downstream
 tasks wait on upstream ones regardless of creation order.
 
+### 8.5 Verify Emission (issue #432)
+
+After all TaskCreate calls, verify that every plan task has a corresponding
+native task record:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verify_chain_emission.py" \
+  "${project_dir}/process-plan.json" "{slug}.root"
+```
+
+- **Exit 0**: all plan tasks emitted. Continue to Step 9.
+- **Exit 1**: count mismatch. The validator prints the delta + likely-missing
+  titles to stderr. Surface the output to the user, offer to re-emit the
+  missing tasks (you can pick the missing titles straight from the plan JSON),
+  and only advance to Step 9 after the counts match. Do NOT silently ignore.
+
 ### 9. Persist Plan Metadata on Project
 
 Store the facilitator-derived fields on the crew project record so `status` /
@@ -222,8 +238,28 @@ Skill(
 )
 ```
 
-Fail-open: if the brain is unavailable, skip silently. The plan file is the system
-of record; brain storage is an enhancement.
+**Failure handling (issue #433)** — brain storage is best-effort but not silent:
+
+1. If the skill call raises, retry ONCE (most brain failures are transient connection blips).
+2. If the retry also fails, write a sentinel at `${project_dir}/.pending-brain-store.json` with:
+   ```json
+   {
+     "title": "crew:start facilitator plan for {slug}",
+     "type": "decision",
+     "content": "<same content that was passed to the failed call>",
+     "tags": ["crew", "facilitator", "process-plan", "{slug}"],
+     "importance": 6,
+     "queued_at": "<ISO 8601 timestamp>",
+     "attempts": 2
+   }
+   ```
+   A later `/wicked-garden:crew:execute` (or any future crew command) should check
+   for this sentinel and flush it if the brain is now reachable.
+3. Surface a WARNING to the user — do NOT fail silently. Example:
+   > `[crew:start] wicked-brain unreachable after 2 attempts — plan decision queued at .pending-brain-store.json. Future sessions may produce divergent plans until this is flushed.`
+
+The plan file (`process-plan.md` + `process-plan.json`) remains the system of record;
+the sentinel is a recovery mechanism for the brain-as-prior-source path.
 
 ### 11. Report to User
 

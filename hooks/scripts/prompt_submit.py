@@ -560,6 +560,31 @@ def _check_brain_gate(prompt: str) -> None:
         )
 
 
+def _assemble_current_chain(chain_id: str) -> dict | None:
+    """Invoke scripts/crew/current_chain.py to assemble re-eval context.
+
+    Returns the assembled dict (tasks + counts + evidence manifests) or None on
+    any failure. Used by the re-eval directive so Claude has real data to feed
+    into propose-process instead of being told to 'figure it out'. Issue #431.
+    """
+    try:
+        import subprocess
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        if not plugin_root:
+            return None
+        script = Path(plugin_root) / "scripts" / "crew" / "current_chain.py"
+        if not script.exists():
+            return None
+        python_shim = Path(plugin_root) / "scripts" / "_python.sh"
+        cmd = ["sh", str(python_shim), str(script), chain_id]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+        if result.returncode != 0:
+            return None
+        return json.loads(result.stdout)
+    except Exception:
+        return None  # fail-open — directive still fires without the data
+
+
 def _consume_facilitator_reeval(state) -> str | None:
     """v6 Gate 3 (#428): emit facilitator re-eval directive if flag is set.
 
@@ -572,6 +597,10 @@ def _consume_facilitator_reeval(state) -> str | None:
     Hooks cannot run the skill themselves (stdlib-only); this function just
     surfaces the directive.
 
+    Issue #431: augments the directive with a structured ``current_chain`` dict
+    so the re-eval call has real data (task states, counts, evidence) rather
+    than prose "figure it out."
+
     Fail-open: returns None on any error.
     """
     if state is None:
@@ -583,12 +612,31 @@ def _consume_facilitator_reeval(state) -> str | None:
         # Clear flag BEFORE returning so a handler failure still produces a
         # single-shot emission — not an infinite loop.
         state.update(facilitator_reeval_due=False, facilitator_reeval_chain=None)
+
+        # Issue #431: assemble structured current_chain data for the re-eval.
+        chain_data = _assemble_current_chain(chain_id) if chain_id != "unknown" else None
+        chain_block = ""
+        if chain_data:
+            counts = chain_data.get("counts", {})
+            chain_block = (
+                "\n\nCurrent chain snapshot (feed into propose-process `current_chain` arg):\n"
+                f"- tasks: {counts.get('total', 0)} total "
+                f"({counts.get('completed', 0)} completed, "
+                f"{counts.get('in_progress', 0)} in_progress, "
+                f"{counts.get('pending', 0)} pending, "
+                f"{counts.get('blocked', 0)} blocked)\n"
+                f"- evidence manifests discovered: {len(chain_data.get('evidence_manifests', []))}\n"
+                f"- full data available via: `sh ${{CLAUDE_PLUGIN_ROOT}}/scripts/_python.sh "
+                f"${{CLAUDE_PLUGIN_ROOT}}/scripts/crew/current_chain.py {chain_id} --pretty`"
+            )
+
         return (
             f"[Facilitator re-evaluation due] Chain `{chain_id}` had a task completion — "
             f"before addressing the user's prompt, invoke "
             f"`wicked-garden:crew:propose-process` in re-evaluation mode on this chain. "
             f"Update the process-plan.md and emit any task mutations "
             f"(prune, augment, re-tier) as TaskUpdate/TaskCreate calls with reasoning."
+            f"{chain_block}"
         )
     except Exception:
         # Best-effort clear on error to avoid repeating directive in a tight loop

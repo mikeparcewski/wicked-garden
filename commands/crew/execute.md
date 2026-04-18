@@ -24,6 +24,22 @@ for a in actions: print(f'[bus] {a}')
 
 If any actions are reported, briefly mention them to the user before proceeding.
 
+### 0.5 Flush Pending Brain-Store Sentinel (issue #433)
+
+If the current project directory contains `.pending-brain-store.json` (written by
+`crew:start` Step 10 when wicked-brain was unreachable), attempt to flush it now:
+
+1. Read and parse the sentinel JSON.
+2. Invoke `Skill(skill="wicked-brain:memory", args={"action": "store", ...})` with
+   the queued fields.
+3. On success: delete the sentinel, mention to the user
+   `[brain] Flushed queued crew:start decision for {slug}`.
+4. On failure: update `attempts` on the sentinel and leave it in place. Mention
+   `[brain] Sentinel flush attempt {N} failed — will retry next run`. Do NOT block
+   execute.
+
+Silently skip if the sentinel is absent. Fail-open on parse errors.
+
 ### 1. Load Project State
 
 Load current project state via phase_manager:
