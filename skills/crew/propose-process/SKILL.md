@@ -148,30 +148,39 @@ auditability. Metadata schema:
 Use `blockedBy: [<ids>]` for dependencies. The chain is a DAG. Parallel-eligible tasks
 within a phase share a `blockedBy` pointing to the same upstream.
 
-## Re-evaluation mode
+## Phase-boundary gates
 
-On `TaskCompleted` or a gate-finding, read `current_chain` + latest evidence. Then:
+Every phase has one named gate. All six must appear in the plan's task chain as
+`event_type: "gate-finding"` tasks. Reviewer assignment comes from `gate-policy.json`
+(codified per D1) — the facilitator does NOT choose reviewers; `phase_manager.py`
+reads the policy at approve time.
 
-1. **Prune** — pending tasks now satisfied, or whose assumptions the evidence
-   invalidates. One sentence WHY per pruned task.
-2. **Augment** — tasks for emergent concerns (discovered migration, new compliance
-   surface, blocked dependency). One sentence WHY.
-3. **Re-tier** — if evidence sharpens risk, upgrade rigor. NEVER silently downgrade;
-   downgrade requires user confirmation outside yolo mode.
+| Phase | Gate name |
+|-------|-----------|
+| clarify | requirements-quality |
+| design | design-quality |
+| test-strategy | testability |
+| build | code-quality |
+| test | evidence-quality |
+| review | final-audit |
 
-Emit mutations as follow-up `TaskCreate` / `TaskUpdate`. Do NOT rewrite completed tasks.
-Append an addendum to `process-plan.md` titled "Re-evaluation <timestamp>".
+Gate verdicts: **APPROVE** → phase advances. **CONDITIONAL** → conditions written to
+`conditions-manifest.json`, must be cleared before next phase. **REJECT** → phase
+blocked, mandatory rework.
+
+See `refs/gate-policy.md` for the human-readable reviewer matrix.
+
+## Re-evaluation mode (bidirectional, v6)
+
+Phase-start heuristic + phase-end full re-eval with bidirectional mutation (prune / augment / re-tier). Addendum is JSONL (blocks approve when missing or invalid). Full spec + D7 mutation truth table in [`refs/re-evaluation.md`](refs/re-evaluation.md). Schema: [`refs/re-eval-addendum-schema.md`](refs/re-eval-addendum-schema.md).
 
 ## Interaction mode
 
-Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew:just-finish`) is orthogonal to the plan: it ONLY controls whether the user is prompted at gate boundaries. The facilitator picks phases, specialists, rigor, and evidence from the factors regardless of mode. Yolo is REFUSED for `rigor_tier: full`. Banned `source_agent` values (`just-finish-auto`, `fast-pass`, `auto-approve-*`) remain banned — always emit as `facilitator`. Full rules, examples, and the mode-vs-rigor matrix live in [`refs/interaction-mode.md`](refs/interaction-mode.md).
+Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew:just-finish`) is orthogonal to the plan — controls only gate-boundary prompts. Yolo is REFUSED for `rigor_tier: full`. Banned `source_agent` values remain banned. D7 rules apply in all modes (re-tier UP auto, re-tier DOWN defers on user override). Full matrix in [`refs/interaction-mode.md`](refs/interaction-mode.md).
 
 ## Measurement hook
 
-The measurement script (`scripts/ci/measure_facilitator.py`) invokes this rubric in
-dry-run. When `output=json` is passed, emit a single JSON object matching
-`refs/output-schema.md` instead of creating tasks. This is the shape scenarios compare
-against.
+`scripts/ci/measure_facilitator.py` invokes this rubric in dry-run. With `output=json`, emit one JSON object matching `refs/output-schema.md` instead of creating tasks.
 
 ## Navigation
 
@@ -184,3 +193,5 @@ against.
 - [`refs/plan-template.md`](refs/plan-template.md) — `process-plan.md` template
 - [`refs/output-schema.md`](refs/output-schema.md) — JSON shape for measurement
 - [`refs/interaction-mode.md`](refs/interaction-mode.md) — normal vs. yolo, banned values
+- [`refs/gate-policy.md`](refs/gate-policy.md) — human-readable Gate × Rigor reviewer matrix
+- [`refs/re-eval-addendum-schema.md`](refs/re-eval-addendum-schema.md) — JSONL addendum schema

@@ -40,6 +40,38 @@ If the current project directory contains `.pending-brain-store.json` (written b
 
 Silently skip if the sentinel is absent. Fail-open on parse errors.
 
+### 0.6 Phase-Start Gate (AC-11)
+
+**REQUIRED: Run after the bus-events poll (0) and brain-store flush (0.5), before loading project state.**
+
+Before engaging ANY specialist for a new phase, invoke the phase-start heuristic gate to check whether material changes occurred since the last full re-evaluation:
+
+```bash
+# phase_start_gate.check() is called inline by prompt_submit.py when
+# task_completed.py sets phase_start_gate_due=True on phase-transition events.
+# The gate is also available for direct invocation within execute.md:
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys, json
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
+from phase_start_gate import check
+
+# Populate from session state / current_chain snapshot
+state = {
+    'last_reeval_ts': '{last_reeval_ts_from_session}',
+    'last_reeval_task_count': {completed_count_at_last_reeval}
+}
+# chain_snapshot from current_chain.py (fail-open if unavailable)
+chain_snapshot = json.loads(open('/tmp/chain-snapshot.json').read()) if __import__('pathlib').Path('/tmp/chain-snapshot.json').exists() else {}
+
+result = check(state, chain_snapshot)
+print(json.dumps(result))
+"
+```
+
+**On a non-empty `systemMessage` response**: emit the directive verbatim before proceeding. The directive instructs Claude to invoke `wicked-garden:crew:propose-process` in `re-evaluate` mode with the `current_chain` data before engaging specialists. **Do not proceed to Step 1 until re-eval completes** (or the user explicitly bypasses with `--skip-reeval --reason`).
+
+**Fail-open**: if `phase_start_gate.check()` returns `{"ok": true}` with no `systemMessage`, proceed normally. If the script is unavailable or errors, proceed with a stderr warning.
+
 ### 1. Load Project State
 
 Load current project state via phase_manager:

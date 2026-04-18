@@ -59,11 +59,12 @@ logger = logging.getLogger('wicked-crew.phase-manager')
 LEGACY_ALIASES = {"qe": "test-strategy"}
 
 # ---------------------------------------------------------------------------
-# Gate enforcement mode — read once at import
+# Gate enforcement mode
 # ---------------------------------------------------------------------------
-# "strict" (default): all new enforcement checks are active
-# "legacy": all new enforcement checks return early, restoring pre-feature behavior
-GATE_ENFORCEMENT_MODE: str = os.environ.get("CREW_GATE_ENFORCEMENT", "strict")
+# v6.0 is strict-only. Gate enforcement is unconditionally active.
+# The legacy escape hatch was removed in v6.0 (D3 — no backward compat flag).
+# Legacy projects should be upgraded with /wicked-garden:crew:adopt-legacy.
+GATE_ENFORCEMENT_MODE: str = "strict"
 
 # Banned reviewer name patterns (AC-1.4)
 # Exact matches and prefix patterns that indicate auto-approve bypass
@@ -110,6 +111,62 @@ def _get_plugin_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+# ---------------------------------------------------------------------------
+# Gate-policy loader (D1, D4) — codified Gate x Rigor reviewer matrix
+# ---------------------------------------------------------------------------
+
+_GATE_POLICY_CACHE: "dict | None" = None
+
+
+def _load_gate_policy() -> dict:
+    """Load gate-policy.json once; cache for the process lifetime.
+
+    Raises FileNotFoundError if the file is missing (fail-closed per architect §9).
+    Raises json.JSONDecodeError if the file is malformed.
+    """
+    global _GATE_POLICY_CACHE
+    if _GATE_POLICY_CACHE is not None:
+        return _GATE_POLICY_CACHE
+    policy_path = _get_plugin_root() / ".claude-plugin" / "gate-policy.json"
+    if not policy_path.exists():
+        raise FileNotFoundError(
+            f"gate-policy.json not found at {policy_path}. "
+            "This is a configuration error — restore the file from git."
+        )
+    _GATE_POLICY_CACHE = json.loads(policy_path.read_text(encoding="utf-8"))
+    return _GATE_POLICY_CACHE
+
+
+def _resolve_gate_reviewer(gate_name: str, rigor_tier: str) -> dict:
+    """Return the dispatch block for a (gate_name, rigor_tier) pair (D1, D4).
+
+    Args:
+        gate_name:  One of the 6 defined gates (e.g. 'requirements-quality').
+        rigor_tier: One of 'minimal', 'standard', 'full'.
+
+    Returns:
+        dict with keys: reviewers (list), mode (str), fallback (str).
+
+    Raises:
+        ValueError: If gate_name or rigor_tier is unknown.
+        FileNotFoundError: If gate-policy.json is missing (configuration error).
+    """
+    policy = _load_gate_policy()
+    gates = policy.get("gates", {})
+    if gate_name not in gates:
+        raise ValueError(
+            f"Unknown gate '{gate_name}' in gate-policy.json. "
+            f"Known gates: {sorted(gates.keys())}"
+        )
+    tier_map = gates[gate_name]
+    if rigor_tier not in tier_map:
+        raise ValueError(
+            f"Unknown rigor_tier '{rigor_tier}' for gate '{gate_name}'. "
+            f"Valid tiers: {sorted(tier_map.keys())}"
+        )
+    return tier_map[rigor_tier]
+
+
 def load_phases_config() -> dict:
     """Load phase definitions from phases.json in .claude-plugin/."""
     config_path = _get_plugin_root() / ".claude-plugin" / "phases.json"
@@ -141,12 +198,7 @@ def get_min_test_coverage(phase_name: str) -> Optional[float]:
     _DEFAULT_MIN_TEST_COVERAGE only for the canonical test/review phases when
     the field is absent from phases.json, so old configs remain backward
     compatible.
-
-    Always returns None when CREW_GATE_ENFORCEMENT=legacy.
     """
-    if GATE_ENFORCEMENT_MODE == "legacy":
-        return None
-
     phases = load_phases_config()
     phase = phases.get(resolve_phase(phase_name), {})
 
@@ -170,11 +222,7 @@ def get_required_deliverables(phase_name: str) -> List[dict]:
     Legacy string entries (old schema) are promoted to dicts with defaults so
     the function is safe against phases.json files that haven't been migrated.
 
-    Always returns [] when CREW_GATE_ENFORCEMENT=legacy.
     """
-    if GATE_ENFORCEMENT_MODE == "legacy":
-        return []
-
     phases = load_phases_config()
     phase = phases.get(resolve_phase(phase_name), {})
     raw = phase.get("required_deliverables", _DEFAULT_REQUIRED_DELIVERABLES)
@@ -198,12 +246,7 @@ def get_required_specialists(phase_name: str) -> List[str]:
 
     Falls back to an empty list when the field is absent so low-complexity
     phases (which have no required specialists) continue to work unchanged.
-
-    Always returns [] when CREW_GATE_ENFORCEMENT=legacy.
     """
-    if GATE_ENFORCEMENT_MODE == "legacy":
-        return []
-
     phases = load_phases_config()
     phase = phases.get(resolve_phase(phase_name), {})
     return list(phase.get("required_specialists", _DEFAULT_REQUIRED_SPECIALISTS))
@@ -366,19 +409,52 @@ def _check_test_phases_before_review(state: 'ProjectState') -> List[str]:
     return reasons
 
 
-def _run_checkpoint_reanalysis(state: 'ProjectState', phase: str) -> Tuple[List[str], List[str]]:
+_VALID_REANALYSIS_DIRECTIONS = frozenset({"augment", "prune", "re_tier"})
+
+
+def _run_checkpoint_reanalysis(
+    state: "ProjectState",
+    phase: str,
+    direction: "str | None" = None,
+    _reeval_fn=None,
+) -> "Tuple[List[str], List[str]]":
     """At checkpoint phases, re-validate the phase plan and inject missing phases.
+
+    Args:
+        state:      Current project state.
+        phase:      Phase name being approved.
+        direction:  Optional mutation direction hint.  When provided, must be one
+                    of 'augment', 'prune', 're_tier'.  Unknown values raise
+                    ValueError immediately (AC-4 enforcement — silent no-op is
+                    NOT acceptable).
+        _reeval_fn: Optional dependency-injection shim for acceptance tests.
+                    Defaults to None (real facilitator call path); tests can pass
+                    a lambda returning a fixture addendum dict.
 
     Returns:
         (injected_phases, warnings)
+
+    Raises:
+        ValueError: If direction is not in the allowed set.
     """
+    # AC-4: validate direction eagerly before touching any state
+    if direction is not None and direction not in _VALID_REANALYSIS_DIRECTIONS:
+        raise ValueError(
+            f"Invalid re-analysis direction '{direction}'. "
+            f"Valid values: {sorted(_VALID_REANALYSIS_DIRECTIONS)}"
+        )
+
     phases_config = load_phases_config()
     phase_config = phases_config.get(phase, {})
 
     if not phase_config.get("checkpoint", False):
         return ([], [])
 
-    logger.info(f"[checkpoint] Phase '{phase}' is a checkpoint — running phase plan re-validation")
+    logger.info(
+        "[checkpoint] Phase '%s' is a checkpoint — running phase plan re-validation "
+        "(direction=%s)",
+        phase, direction,
+    )
     return validate_phase_plan(state)
 
 
@@ -770,23 +846,22 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
             issues.append(f"Missing deliverable for {phase}: {deliverable_name}")
             continue
 
-        # Content validation (AC-1.5) — skip in legacy mode
-        if GATE_ENFORCEMENT_MODE != "legacy":
-            file_stat = path.stat()
-            min_bytes = deliverable.get("min_bytes", 0) if isinstance(deliverable, dict) else 0
-            if file_stat.st_size == 0:
-                issues.append(f"Empty deliverable for {phase}: {deliverable_name} (0 bytes)")
-            elif min_bytes > 0 and file_stat.st_size < min_bytes:
-                issues.append(
-                    f"Insufficient content in {phase}: {deliverable_name} "
-                    f"({file_stat.st_size} bytes, minimum {min_bytes} required)"
-                )
-            # Evidence reports need substantive content (AC-3.4)
-            elif deliverable_name == "evidence/report.md" and file_stat.st_size < 100:
-                issues.append(
-                    f"Insufficient content in {phase}: {deliverable_name} "
-                    f"({file_stat.st_size} bytes, minimum 100 required for evidence reports)"
-                )
+        # Content validation (AC-1.5)
+        file_stat = path.stat()
+        min_bytes = deliverable.get("min_bytes", 0) if isinstance(deliverable, dict) else 0
+        if file_stat.st_size == 0:
+            issues.append(f"Empty deliverable for {phase}: {deliverable_name} (0 bytes)")
+        elif min_bytes > 0 and file_stat.st_size < min_bytes:
+            issues.append(
+                f"Insufficient content in {phase}: {deliverable_name} "
+                f"({file_stat.st_size} bytes, minimum {min_bytes} required)"
+            )
+        # Evidence reports need substantive content (AC-3.4)
+        elif deliverable_name == "evidence/report.md" and file_stat.st_size < 100:
+            issues.append(
+                f"Insufficient content in {phase}: {deliverable_name} "
+                f"({file_stat.st_size} bytes, minimum 100 required for evidence reports)"
+            )
 
     return issues
 
@@ -891,9 +966,6 @@ def _verify_conditions(
         List of blocking reason strings. Empty list means all conditions verified
         or no manifest exists (legacy project).
     """
-    if GATE_ENFORCEMENT_MODE == "legacy":
-        return []
-
     manifest_path = project_dir / "phases" / prior_phase / "conditions-manifest.json"
     if not manifest_path.exists():
         # No manifest = no conditions to verify (legacy project or APPROVE gate)
@@ -926,9 +998,6 @@ def _validate_gate_reviewer(
     Returns:
         Error message string if reviewer is banned, None if OK.
     """
-    if GATE_ENFORCEMENT_MODE == "legacy":
-        return None
-
     reviewer = gate_result.get("reviewer", "")
     if not reviewer:
         return (
@@ -971,9 +1040,6 @@ def _validate_min_gate_score(
     Returns:
         Error message string if score is below threshold, None if OK.
     """
-    if GATE_ENFORCEMENT_MODE == "legacy":
-        return None
-
     phase_config = phases_config.get(phase, {})
     min_score = phase_config.get("min_gate_score")
     if min_score is None:
@@ -1071,6 +1137,127 @@ def _record_deliverable_override(
         pass  # fail open: write failure is non-fatal
 
 
+# ---------------------------------------------------------------------------
+# Skip-reeval helpers (AC-14, AC-15, AC-16)
+# ---------------------------------------------------------------------------
+
+def _write_skip_reeval_log(project_dir: Path, phase: str, reason: str) -> None:
+    """Write a skip-reeval log entry to phases/{phase}/skip-reeval-log.json.
+
+    The entry intentionally has NO default set by any env-var or config —
+    it is only written when the --skip-reeval flag is explicitly passed (AC-15).
+    """
+    phase_dir = project_dir / "phases" / phase
+    phase_dir.mkdir(parents=True, exist_ok=True)
+    log_file = phase_dir / "skip-reeval-log.json"
+
+    existing: list = []
+    if log_file.exists():
+        try:
+            data = json.loads(log_file.read_text(encoding="utf-8"))
+            existing = data if isinstance(data, list) else [data]
+        except (json.JSONDecodeError, OSError):
+            existing = []
+
+    entry = {
+        "phase": phase,
+        "skipped_at": get_utc_timestamp(),
+        "reason": reason,
+        "resolved_at": None,
+        "resolved_by": None,
+        "resolution_note": None,
+    }
+    existing.append(entry)
+    log_file.write_text(json.dumps(existing, indent=2))
+
+
+def _check_addendum_freshness(
+    project_dir: Path, phase: str, phase_started_at: "str | None"
+) -> "str | None":
+    """Return an error string if the phase-end re-eval addendum is missing or stale.
+
+    Fail-closed: a missing or stale addendum blocks approval (AC-8).
+
+    Args:
+        project_dir:      Project root directory.
+        phase:            Phase being approved.
+        phase_started_at: ISO timestamp when the phase started; None skips check.
+
+    Returns:
+        None if the addendum is present and fresh; an error string otherwise.
+    """
+    reeval_log = project_dir / "phases" / phase / "reeval-log.jsonl"
+    if not reeval_log.exists():
+        return (
+            f"Phase '{phase}' has no re-evaluation addendum "
+            f"(phases/{phase}/reeval-log.jsonl missing). "
+            "Re-evaluation is required before approval. "
+            "Run propose-process in re-evaluate mode, or use "
+            "--skip-reeval --reason '<justification>' as an emergency bypass."
+        )
+
+    # Read last line to check triggered_at freshness
+    try:
+        lines = [
+            line.strip()
+            for line in reeval_log.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if not lines:
+            return (
+                f"Phase '{phase}' re-evaluation log is empty. "
+                "Re-evaluation required before approval."
+            )
+        last_record = json.loads(lines[-1])
+    except (json.JSONDecodeError, OSError):
+        return (
+            f"Phase '{phase}' re-evaluation log is unreadable or malformed. "
+            "Re-run re-evaluation or use --skip-reeval --reason."
+        )
+
+    # Optionally check that re-eval occurred after phase start
+    if phase_started_at:
+        triggered_at = last_record.get("triggered_at", "")
+        if triggered_at and phase_started_at:
+            if triggered_at < phase_started_at:
+                return (
+                    f"Phase '{phase}' re-evaluation addendum (triggered_at={triggered_at}) "
+                    f"predates phase start ({phase_started_at}). "
+                    "Re-run phase-end re-evaluation before approving."
+                )
+
+    return None  # addendum is present and fresh
+
+
+def _check_final_audit_skip_logs(state: "ProjectState") -> List[str]:
+    """Collect unresolved skip-reeval entries for the final-audit gate (AC-16).
+
+    Returns a list of CONDITIONAL finding strings.  Empty means no open entries.
+    """
+    try:
+        from audit_skip_log import scan as _scan_skip_log
+    except ImportError:
+        logger.warning("[final-audit] audit_skip_log module not importable — skipping scan")
+        return []
+
+    project_dir = get_project_dir(state.name)
+    try:
+        unresolved = _scan_skip_log(project_dir)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[final-audit] audit_skip_log.scan failed: %s", exc)
+        return []
+
+    findings: List[str] = []
+    for entry in unresolved:
+        src_phase = entry.get("_source_phase", "unknown")
+        reason = entry.get("reason") or "(no reason)"
+        findings.append(
+            f"Unresolved skip-reeval entry from phase '{src_phase}': {reason!r}. "
+            "Retrospective review required before final-audit gate clears."
+        )
+    return findings
+
+
 def _load_session_dispatches() -> List[Dict[str, Any]]:
     """Load specialist dispatch records from session state file."""
     import os
@@ -1092,15 +1279,71 @@ def approve_phase(
     override_reason: str = "",
     override_deliverables: bool = False,
     override_deliverables_reason: str = "",
+    skip_reeval: bool = False,
+    skip_reeval_reason: str = "",
 ) -> Tuple[ProjectState, Optional[str]]:
     """Approve a phase and return next phase (or None if done).
 
     Performs gate checks and deliverable checks.
     Raises ValueError when gate enforcement blocks advancement.
     Caller (CLI handle_approve) catches this and exits non-zero.
+
+    Args:
+        skip_reeval:        When True, bypass the addendum-freshness check.
+                            Must be used with a non-empty skip_reeval_reason.
+                            This is a deliberate, logged, audited bypass — NOT a
+                            silent escape (AC-14, AC-15).
+        skip_reeval_reason: Mandatory justification string when skip_reeval=True.
     """
     phase = resolve_phase(phase)
     warnings: List[str] = []
+
+    # Check 0 (AC-8): phase-end re-eval addendum freshness — fail-closed.
+    # Must happen before deliverable check so the user sees the most actionable
+    # error first.  skip_reeval=True bypasses with a mandatory logged reason.
+    project_dir_reeval = get_project_dir(state.name)
+    phase_state_for_ts = state.phases.get(phase)
+    phase_started_at = (
+        phase_state_for_ts.started_at if phase_state_for_ts else None
+    )
+    addendum_error = _check_addendum_freshness(
+        project_dir_reeval, phase, phase_started_at
+    )
+    if addendum_error:
+        if skip_reeval:
+            if not (skip_reeval_reason and skip_reeval_reason.strip()):
+                raise ValueError(
+                    "Error: --skip-reeval requires --reason. "
+                    "Provide a justification string, e.g.: "
+                    "--reason 'propose-process failed mid-run; manually validated addendum'"
+                )
+            # Write the bypass to the audit log (AC-14)
+            _write_skip_reeval_log(project_dir_reeval, phase, skip_reeval_reason)
+            print(
+                f"WARNING: [skip-reeval] Phase '{phase}' addendum check bypassed. "
+                f"Reason: {skip_reeval_reason}. "
+                "Entry written to skip-reeval-log.json.",
+                file=sys.stderr,
+            )
+            warnings.append(
+                f"skip-reeval applied for phase '{phase}'. "
+                f"Reason: {skip_reeval_reason}"
+            )
+        else:
+            raise ValueError(addendum_error)
+
+    # Check 0.1 (AC-16): final-audit gate must surface unresolved skip-reeval entries.
+    if resolve_phase(phase) == "review":
+        skip_log_findings = _check_final_audit_skip_logs(state)
+        if skip_log_findings:
+            # CONDITIONAL — reviewer may mark entries resolved; not a hard REJECT
+            for finding in skip_log_findings:
+                warnings.append(f"[final-audit CONDITIONAL] {finding}")
+            logger.warning(
+                "[final-audit] %d unresolved skip-reeval entries detected — "
+                "gate verdict is CONDITIONAL until entries are resolved.",
+                len(skip_log_findings),
+            )
 
     # Check 1: deliverables for the phase being approved — BLOCKING
     deliverable_issues = _check_phase_deliverables(state, phase)
@@ -1419,32 +1662,30 @@ def skip_phase(state: ProjectState, phase: str, reason: str = "", approved_by: s
         raise ValueError(f"Phase '{phase}' cannot be skipped (is_skippable=false)")
 
     # Complexity guard: block skip if project complexity exceeds threshold (AC-3.2)
-    if GATE_ENFORCEMENT_MODE != "legacy":
-        skip_threshold = phase_config.get("skip_complexity_threshold")
-        if skip_threshold is not None:
-            complexity = getattr(state, "complexity_score", 0) or 0
-            if complexity >= skip_threshold:
-                raise ValueError(
-                    f"Phase '{phase}' cannot be skipped at complexity {complexity} "
-                    f"(skip_complexity_threshold={skip_threshold}). "
-                    f"The phase is required at this complexity level."
-                )
+    skip_threshold = phase_config.get("skip_complexity_threshold")
+    if skip_threshold is not None:
+        complexity = getattr(state, "complexity_score", 0) or 0
+        if complexity >= skip_threshold:
+            raise ValueError(
+                f"Phase '{phase}' cannot be skipped at complexity {complexity} "
+                f"(skip_complexity_threshold={skip_threshold}). "
+                f"The phase is required at this complexity level."
+            )
 
     # Structured skip reason validation (AC-4.2)
-    if GATE_ENFORCEMENT_MODE != "legacy":
-        valid_reasons = phase_config.get("valid_skip_reasons")
-        if valid_reasons:
-            reason_lower = (reason or "").lower().strip()
-            matched = any(
-                reason_lower == vr.lower() or reason_lower.startswith(vr.lower())
-                for vr in valid_reasons
-                if reason_lower
+    valid_reasons = phase_config.get("valid_skip_reasons")
+    if valid_reasons:
+        reason_lower = (reason or "").lower().strip()
+        matched = any(
+            reason_lower == vr.lower() or reason_lower.startswith(vr.lower())
+            for vr in valid_reasons
+            if reason_lower
+        )
+        if not reason_lower or not matched:
+            raise ValueError(
+                f"Skip reason '{reason}' is not recognized for phase '{phase}'. "
+                f"Valid skip reasons: {', '.join(valid_reasons)}"
             )
-            if not reason_lower or not matched:
-                raise ValueError(
-                    f"Skip reason '{reason}' is not recognized for phase '{phase}'. "
-                    f"Valid skip reasons: {', '.join(valid_reasons)}"
-                )
 
     phase_state = state.phases.get(phase, PhaseState())
     phase_state.status = "skipped"
@@ -1678,8 +1919,30 @@ def main():
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--description", default="", help="Project description (for create)")
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
+    parser.add_argument(
+        "--skip-reeval",
+        action="store_true",
+        default=False,
+        help=(
+            "Bypass phase-end re-eval addendum check (AC-14). "
+            "REQUIRES --reason. Writes to phases/{phase}/skip-reeval-log.json. "
+            "NEVER set via env-var or config — call-site only (AC-15)."
+        ),
+    )
 
     args = parser.parse_args()
+
+    # Enforce --reason when --skip-reeval is passed (AC-14, AC-15)
+    # NOTE: NEVER read any env-var or config to default skip_reeval (AC-15).
+    if getattr(args, "skip_reeval", False) and args.action in ("approve", "advance"):
+        if not (args.reason and args.reason.strip()):
+            print(
+                "Error: --skip-reeval requires --reason. "
+                "Provide a non-empty justification, e.g.: "
+                "--reason 'propose-process timed out; addendum manually verified'",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     # Enforce --reason when --override-gate is passed (check before project lookup)
     if getattr(args, "override_gate", False) and args.action in ("approve", "advance"):
@@ -1771,6 +2034,8 @@ def main():
                 override_reason=args.reason or "",
                 override_deliverables=args.override_deliverables,
                 override_deliverables_reason=args.reason or "",
+                skip_reeval=getattr(args, "skip_reeval", False),
+                skip_reeval_reason=args.reason or "",
             )
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)

@@ -1,0 +1,108 @@
+{
+  "version": "1.0.0",
+  "description": "Codified Gate x Rigor reviewer matrix (D1, D4). Source of truth loaded by phase_manager._resolve_gate_reviewer(). Human-readable description at skills/crew/propose-process/refs/gate-policy.md.",
+  "gates": {
+    "requirements-quality": {
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "requirements-analyst"
+      },
+      "standard": {
+        "reviewers": ["requirements-quality-analyst"],
+        "mode": "sequential",
+        "fallback": "requirements-analyst"
+      },
+      "full": {
+        "reviewers": ["product-manager", "requirements-analyst"],
+        "mode": "council",
+        "fallback": "senior-engineer"
+      }
+    },
+    "design-quality": {
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "solution-architect"
+      },
+      "standard": {
+        "reviewers": ["solution-architect"],
+        "mode": "sequential",
+        "fallback": "senior-engineer"
+      },
+      "full": {
+        "reviewers": ["solution-architect", "security-engineer", "product-manager", "risk-assessor"],
+        "mode": "council",
+        "fallback": "senior-engineer"
+      }
+    },
+    "testability": {
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "test-strategist"
+      },
+      "standard": {
+        "reviewers": ["test-strategist"],
+        "mode": "sequential",
+        "fallback": "senior-engineer"
+      },
+      "full": {
+        "reviewers": ["test-strategist", "risk-assessor"],
+        "mode": "parallel",
+        "fallback": "senior-engineer"
+      }
+    },
+    "code-quality": {
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "senior-engineer"
+      },
+      "standard": {
+        "reviewers": ["senior-engineer"],
+        "mode": "sequential",
+        "fallback": "senior-engineer"
+      },
+      "full": {
+        "reviewers": ["senior-engineer", "security-engineer"],
+        "mode": "parallel",
+        "fallback": "senior-engineer"
+      }
+    },
+    "evidence-quality": {
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "test-strategist"
+      },
+      "standard": {
+        "reviewers": ["test-strategist"],
+        "mode": "sequential",
+        "fallback": "senior-engineer"
+      },
+      "full": {
+        "reviewers": ["test-strategist", "production-quality-engineer"],
+        "mode": "parallel",
+        "fallback": "senior-engineer"
+      }
+    },
+    "final-audit": {
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "senior-engineer"
+      },
+      "standard": {
+        "reviewers": ["senior-engineer"],
+        "mode": "sequential",
+        "fallback": "independent-reviewer"
+      },
+      "full": {
+        "reviewers": ["senior-engineer", "independent-reviewer"],
+        "mode": "sequential",
+        "fallback": "human"
+      }
+    }
+  }
+}

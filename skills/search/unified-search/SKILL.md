@@ -9,10 +9,8 @@ description: |
 
   Prefer this over raw Grep/Glob for symbol search, impact analysis,
   code-doc cross-references, and understanding codebase structure.
-# TODO (Issue #332): When Claude Code supports `context: "fork"` in skill frontmatter,
-# add `context: fork` to the search:index command/skill. Index building parses the
-# entire codebase and generates large intermediate output. A forked context would
-# keep the parent conversation clean.
+disable-model-invocation: false
+context: fork
 ---
 
 # Unified Search Skill

@@ -8,12 +8,8 @@ description: |
   Use when: "crew phases", "phase plan", "workflow execution", "start a project",
   "clarify outcome", "design phase", "build phase", "approve phase", "crew workflow",
   "phase progression", "QE gate", "shift-left testing", or structured delivery guidance.
-disable-model-invocation: true
-# TODO (Issue #332): When Claude Code supports `context: "fork"` in skill frontmatter,
-# add `context: fork` here to run crew workflow in a forked context. This would prevent
-# the heavy crew orchestration from consuming the parent context window. Currently,
-# crew workflow relies on delegation via Task() to manage context, but a native fork
-# would be more efficient.
+disable-model-invocation: false
+context: fork
 ---
 
 # Workflow Skill (v3)
@@ -49,7 +45,7 @@ Gate verdicts: **APPROVE** → proceed. **CONDITIONAL** → conditions-manifest.
 
 CONDITIONAL auto-resolution (AC-4.4): spec gaps fixed inline; intent changes escalate to user/council.
 
-Build depends on design (`depends_on: ["clarify", "design"]`). Rollback: `CREW_GATE_ENFORCEMENT=legacy`.
+Build depends on design (`depends_on: ["clarify", "design"]`). To migrate legacy beta.3 projects, use `/wicked-garden:crew:adopt-legacy`.
 
 ## Smart Decisioning
 

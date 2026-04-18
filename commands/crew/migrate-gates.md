@@ -7,21 +7,32 @@ argument-hint: "[project-name]"
 
 Migration reference for moving in-flight projects to strict gate enforcement.
 
-## For In-Flight Projects
+## v6.0 Breaking Change
 
-Projects started before strict enforcement may fail Tier 1 gate checks due to missing artifacts. To complete the current phase without disruption:
+The legacy gate-bypass env var was removed in v6.0 (D3 — clean break). There is no
+env-var escape hatch in v6.0. Projects that relied on the legacy bypass must be upgraded
+using `/wicked-garden:crew:adopt-legacy`.
 
-1. Set `CREW_GATE_ENFORCEMENT=legacy` before running any crew command
-2. Complete the current phase normally — all gate checks are bypassed
-3. At the next phase boundary, unset the env var — new phases get strict enforcement by default
+## For In-Flight Beta Projects (beta.3 → 6.0)
+
+If you have a project started on v6.0-beta.3 that fails gate checks due to missing
+artifacts, use the adopt-legacy skill to inspect and upgrade it:
 
 ```bash
-CREW_GATE_ENFORCEMENT=legacy /wicked-garden:crew:approve design
+/wicked-garden:crew:adopt-legacy <project-dir>
 ```
+
+This detects three legacy markers and offers to transform them:
+
+1. Missing `phase_plan_mode` key in project state
+2. Markdown `## Re-evaluation YYYY-MM-DD` addendum headers in `process-plan.md`
+3. Legacy gate-bypass env-var references in project files
+
+Run with `--dry-run` (default) to preview changes, then `--apply` to execute.
 
 ## Retroactive Artifact Creation
 
-If strict enforcement is required mid-flight, create the missing artifacts manually:
+If gate checks fail because required artifacts are missing, create them manually:
 
 **`specialist-engagement.json`** — list specialists engaged during the phase:
 ```json
@@ -49,12 +60,12 @@ coverage: unit,integration,e2e
 
 ## New Projects
 
-Strict enforcement is the default — no action needed. `phase_manager.py` reads `CREW_GATE_ENFORCEMENT` at runtime. Only set it to `"legacy"` if you have a specific reason to bypass enforcement.
+Strict enforcement is the default — no action needed. v6.0 projects are always strict.
 
 ## Override Reference
 
 | Override | Usage | Notes |
 |----------|-------|-------|
-| `CREW_GATE_ENFORCEMENT=legacy` | Env var before any crew command | Bypasses all Tier 1 checks |
+| `--skip-reeval --reason "..."` | On `crew:approve` | Bypasses re-eval addendum check; reason required; logged to skip-reeval-log.json |
 | `--override-reviewer` | On `crew:approve` | Skips independent reviewer check; audit logged |
 | `--override-deliverables --reason "..."` | On `crew:approve` | Skips deliverable checks; reason required |

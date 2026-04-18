@@ -124,7 +124,7 @@ def _validate_event_metadata(tool_input: dict) -> "str | None":
 
 
 def _task_metadata_mode() -> str:
-    """``off`` | ``warn`` | ``strict`` — mirrors CREW_GATE_ENFORCEMENT convention."""
+    """``off`` | ``warn`` | ``strict`` — mirrors gate enforcement convention."""
     mode = (os.environ.get("WG_TASK_METADATA") or "warn").strip().lower()
     return mode if mode in ("off", "warn", "strict") else "warn"
 
@@ -675,10 +675,8 @@ def _crew_gate_preflight(command: str) -> dict:
         return {"ok": True}
 
     # ------------------------------------------------------------------ #
-    # Respect legacy mode                                                  #
+    # v6.0: strict enforcement always active (D3 — no legacy bypass)     #
     # ------------------------------------------------------------------ #
-    if os.environ.get("CREW_GATE_ENFORCEMENT", "strict") == "legacy":
-        return {"ok": True}
 
     # ------------------------------------------------------------------ #
     # Parse project and phase from command                                 #
