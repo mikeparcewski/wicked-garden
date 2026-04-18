@@ -194,17 +194,26 @@ EventStore.append(
 
 If event emission fails, skip silently — it is supplementary, not required.
 
-Also emit to wicked-bus (additive — both EventStore and bus):
+Also emit to wicked-bus (additive — both EventStore and bus).
 
-At session start:
+**Payload rules**: IDs + counts + outcomes only — never persona dialogue, thinking text, or full prompts. Truncate any `topic` field to the first 80 characters before emitting.
+
+At session start (emit `expected_persona_count` so the synthesis-trigger consumer knows when Round 1 is complete):
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.session.started '{"session_id":"{session_id}","topic":"{topic}","persona_count":{N}}' 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.session.started '{"session_id":"{session_id}","topic":"{topic_truncated_80}","persona_count":{N},"expected_persona_count":{N}}' 2>/dev/null || true
+```
+
+After each Round 1 persona contributes (fire once per persona; Round 2 and beyond must NOT emit this event):
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.persona.contributed '{"session_id":"{session_id}","persona_name":"{persona_name}","round":1,"expected_persona_count":{N}}' 2>/dev/null || true
 ```
 
 After synthesis:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.session.synthesized '{"session_id":"{session_id}","topic":"{topic}","insight_count":{N},"duration_secs":{D}}' 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.session.synthesized '{"session_id":"{session_id}","insight_count":{N},"duration_secs":{D}}' 2>/dev/null || true
 ```
+
+`expected_persona_count` equals the number of personas chosen in step 2 (Persona Assembly). Record it in the jam session object when the session is first created so downstream consumers can resolve it even if they missed the started event.
 
 ### 4. Synthesis
 

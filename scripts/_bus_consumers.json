@@ -41,6 +41,14 @@
       "description": "Generates scenario scaffolding when build phase completes",
       "module": "scripts/qe/_bus_consumers.py",
       "added": "2026-04-18"
+    },
+    {
+      "id": "jam:synthesis-trigger",
+      "event_filter": "wicked.persona.contributed",
+      "domain": "jam",
+      "description": "Emits wicked.session.synthesis_ready when all Round 1 personas have contributed or 120s elapsed",
+      "module": "scripts/jam/_bus_consumers.py",
+      "added": "2026-04-17"
     }
   ]
 }

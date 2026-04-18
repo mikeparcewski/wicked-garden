@@ -81,6 +81,11 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "jam.session",
         "description": "Session synthesis completed",
     },
+    "wicked.session.synthesis_ready": {
+        "domain": "wicked-garden",
+        "subdomain": "jam.session",
+        "description": "All expected Round 1 personas contributed or timeout elapsed — facilitator may synthesize",
+    },
     "wicked.council.voted": {
         "domain": "wicked-garden",
         "subdomain": "jam.council",
