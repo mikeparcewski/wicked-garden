@@ -21,21 +21,24 @@ Skill(skill="wicked-garden:{domain}:{command}", args="{args}")
 **Signal**: step says "send", "submit", "ask", "prompt", or quotes a user
 message to process.
 
-**Action**: this is a user prompt to process through smaht. Run the orchestrator
-directly:
+**Action**: this is a user prompt to process through smaht. v6 replaced the
+push-model orchestrator (deleted in #428) with a pull-model — invoke the
+`wicked-garden:smaht:smaht` command or call brain directly:
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}/scripts" && \
-  uv run python smaht/v2/orchestrator.py gather "the prompt text" \
-    --session "scenario-test-$$" --json
+# Pull-model: brain search is the default "gather" action
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, urllib.request, os
+port = int(os.environ.get('WICKED_BRAIN_PORT', '4242'))
+req = urllib.request.Request(f'http://localhost:{port}/api',
+    data=json.dumps({'action':'search','params':{'query':'the prompt text'}}).encode(),
+    headers={'Content-Type':'application/json'}, method='POST')
+print(urllib.request.urlopen(req, timeout=5).read().decode())
+"
 ```
 
-If the step is about routing only (not full context), use `route`:
-
-```bash
-cd "${CLAUDE_PLUGIN_ROOT}/scripts" && \
-  uv run python smaht/v2/orchestrator.py route "the prompt text" --json
-```
+If the step is about routing only (not full context), skip — there is no HOT/FAST/SLOW
+router in v6. The caller picks which adapters to invoke.
 
 ## 3. Verification / Assertion
 

@@ -119,19 +119,27 @@ In "just-finish" mode:
   ```
 - **Document assumptions**: At project completion, include an "Assumptions Made" appendix listing every tracked assumption
 
-### 3.5 Dynamic Archetype Pre-Analysis
+### 3.5 Facilitator Plan (yolo mode)
 
-**Same as execute.md Section 4 — run before starting phase work.**
+**v6**: the facilitator's `process-plan.md` (written during `/wicked-garden:crew:start`)
+is the source of truth for phase plan, rigor_tier, and specialists. `just-finish` does
+NOT re-run archetype detection — the facilitator already folded archetype context into
+its factor readings.
 
-Before loading signal analysis, dynamically detect project archetypes. Quality means different things for different projects. Use the same approach as execute.md:
+1. **Read project descriptor files** for context that might have changed since start:
+   AGENTS.md, CLAUDE.md, README.md, package.json (load AGENTS.md first, CLAUDE.md overrides).
+2. **Query memories** for prior patterns:
+   ```
+   /wicked-garden:mem:recall "project type and quality dimensions for {project-name}"
+   ```
+3. **Read `${project_dir}/process-plan.json`** to load the facilitator's cached plan.
+4. If the plan is missing (legacy project created before v6), invoke the facilitator
+   now with `mode: "propose"` + `--rigor=` as specified in flags, and write the plan
+   before proceeding.
 
-1. **Read project descriptor files**: AGENTS.md, CLAUDE.md, README.md, package.json, etc. (load AGENTS.md first for general context, CLAUDE.md overrides)
-2. **Query memories**: `/wicked-garden:mem:recall "project type and quality dimensions for {project-name}"`
-3. **Analyze codebase**: `/wicked-garden:search:scout` and `/wicked-garden:search:blast-radius` if available
-4. **Classify archetypes** and build hints JSON
-5. **Pass hints** to smart_decisioning via `--archetype-hints`
-
-In just-finish mode, do this analysis ONCE at the start and cache the archetype hints in project.json for reuse at checkpoints. Do NOT re-run the full discovery at every checkpoint unless signals change significantly.
+In yolo mode, skip the interactive confirmations but preserve the rigor tier, gates,
+and evidence requirements from the facilitator plan. Yolo is an interaction-mode
+axis, not a phase-plan or rigor axis.
 
 ### 4. Guardrails (ALWAYS pause)
 
@@ -152,24 +160,34 @@ When hitting a guardrail:
 Proceed? (Y/n)
 ```
 
-### 4.5 Signal Re-Analysis at Checkpoints
+### 4.5 Checkpoint Re-Evaluation
 
 **Same as execute.md Section 4.5 — run after every checkpoint phase completes.**
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` and check if the completed phase has `"checkpoint": true` (clarify, design, build).
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` and check if the completed
+phase has `"checkpoint": true` (clarify, design, build).
 
 When a checkpoint phase completes:
 
 1. Gather phase artifacts from `phases/{phase}/`
-2. Re-run signal analysis:
-   ```bash
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json "{summary of deliverables}"
+2. Re-invoke the facilitator in `re-evaluate` mode:
    ```
-3. Compare new signals against project.json `signals_detected`
-4. If new signals found:
-   - Update project.json (signals, complexity, specialists)
+   Skill(
+     skill="wicked-garden:crew:propose-process",
+     args={
+       "description": "{summary of deliverables}",
+       "mode": "re-evaluate",
+       "project_slug": "{slug}",
+       "prior_plan_path": "${project_dir}/process-plan.json",
+       "output": "json"
+     }
+   )
+   ```
+3. Compare new factor readings against project.json `factors`
+4. If factor readings shift or complexity increases:
+   - Update project.json (factors, complexity, specialists)
    - Check if phases NOT in `phase_plan` should be injected (see execute.md Section 4.5 for injection rules)
-   - Report injections to user (even in just-finish mode, injections are informational)
+   - Report injections to user (even in yolo mode, injections are informational)
 5. Maximum 2 injections per checkpoint
 
 **Skip if**: project.json has `"phase_plan_mode": "static"`.

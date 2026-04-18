@@ -220,17 +220,14 @@ Build archetype hints as a JSON dict. Known archetypes have built-in adjustments
 }
 ```
 
-At checkpoints (Section 4.5), **reuse cached hints** unless signal re-analysis detects significant changes (new signals or complexity increase >= 2). If the project context changes substantially, re-run the full discovery and update the cache.
+At checkpoints (Section 4.5), **reuse cached hints** unless re-evaluation detects
+significant changes (new factor readings or complexity increase >= 2). If the project
+context changes substantially, re-invoke the facilitator with the new context and
+update the cache.
 
-Include archetype hints when calling smart_decisioning:
-
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json \
-  --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
-  "{description}"
-```
-
-The script merges external hints with keyword detection, applies adjustments from ALL detected archetypes holistically (max impact_bonus, union of injected signals, max min_complexity).
+**v6**: archetype detection is implicit in the facilitator's factor readings; there is
+no separate `--archetype-hints` flag. The checkpoint re-analysis invocation is the
+`wicked-garden:crew:propose-process` skill in `re-evaluate` mode — see Section 4.5.
 
 ### 4.4 Load Signal Analysis
 
@@ -248,15 +245,29 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` and check if the current
 When a checkpoint phase completes:
 
 1. **Gather phase artifacts**: Read all files in `phases/{phase}/` and any deliverables produced
-2. **Re-run signal analysis** on the combined project description + phase artifacts:
-   ```bash
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json "{combined text summary of deliverables}"
+2. **Re-invoke the facilitator** in `re-evaluate` mode with the combined project
+   description + phase artifacts:
    ```
-3. **Compare signals AND complexity**: Diff new `signals` against project.json `signals_detected`, AND compare new `complexity` against `complexity_score`
-4. **If new signals found OR complexity increased**:
-   - Update project.json `signals_detected` with union of old + new signals
+   Skill(
+     skill="wicked-garden:crew:propose-process",
+     args={
+       "description": "{original description + combined text summary of deliverables}",
+       "mode": "re-evaluate",
+       "project_slug": "{slug}",
+       "prior_plan_path": "${project_dir}/process-plan.json",
+       "output": "json"
+     }
+   )
+   ```
+   The skill reads the prior plan + new context and emits a diff plan (new factor
+   readings, any phase additions/demotions, any rigor_tier change). See
+   `skills/crew/propose-process/SKILL.md#Re-evaluation mode`.
+3. **Compare factors AND complexity**: Diff new `factors` against project.json
+   `factors`, AND compare new `complexity` against `complexity_score`
+4. **If factor readings shift OR complexity increased**:
+   - Update project.json `factors` with new readings
    - Update `complexity_score` if new score is higher
-   - Update `specialists_recommended` with new recommendations
+   - Update `specialists` with any new recommendations
    - **Check for phase injection** (see below)
 
 #### Dynamic Phase Injection
@@ -292,17 +303,30 @@ When new signals are detected OR complexity increases at a checkpoint, check if 
 
 **User override**: If project.json contains `"phase_plan_mode": "static"`, skip re-analysis and injection entirely.
 
-#### Memory Payload Storage
+#### Re-Evaluation Memory Storage
 
-When `smart_decisioning.py --json` output includes a `memory_payload` field (non-null), the analysis was deemed significant and should be persisted to wicked-garden:mem. **The script only returns the payload — this command is responsible for storing it** via Claude's native tool system:
+The facilitator's `re-evaluate` mode writes an addendum to `${project_dir}/process-plan.md`
+(the durable artifact) AND stores a wicked-brain memory describing the plan diff:
 
 ```
-/wicked-garden:mem:store "{memory_payload.content}" --type {memory_payload.type} --tags "{memory_payload.tags}" --importance {memory_payload.importance}
+Skill(
+  skill="wicked-brain:memory",
+  args={"action": "store", "type": "decision",
+        "title": "crew:execute checkpoint re-eval for {slug}",
+        "content": "<summary of factor deltas + any phase injections + rigor change>",
+        "tags": ["crew", "facilitator", "re-evaluate", "{slug}"],
+        "importance": 5}
+)
 ```
 
-This applies to ALL calls to `smart_decisioning.py` — both initial analysis (in start.md) and checkpoint re-analysis. The same pattern applies to `feedback.py record --json` which also returns a `memory_payload`.
+Fail-open: if the brain is unavailable, skip silently. The plan addendum is the
+system of record. The same pattern applies to `feedback.py record --json`, which
+still returns a `memory_payload` field that this command stores via
+`/wicked-garden:mem:store`.
 
-**Rationale**: Scripts run as subprocesses and should never call other plugins directly. Claude's tool system (skills, Task tool) IS the universal API for cross-plugin communication.
+**Rationale**: Scripts run as subprocesses and should never call other plugins
+directly. Claude's tool system (skills, Task tool) IS the universal API for
+cross-plugin communication.
 
 ### 5. Discover Available Specialists
 

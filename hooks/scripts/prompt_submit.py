@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
-UserPromptSubmit hook — wicked-garden unified context assembly.
+UserPromptSubmit hook — wicked-garden pull-model context assembly.
 
-Thin synchronous wrapper around the wicked-smaht v2 Orchestrator.
-Responsible only for session-level concerns:
+v6 replaced the v5 push-model orchestrator (deleted in #428) with a pull-model
+architecture. The hook is now responsible only for session-level concerns:
   - Setup gate (hard-block / onboarding directive)
+  - Facilitator re-evaluation directive (v6 Gate 3, #428)
   - Turn counter increment
   - Session goal capture (turns 1-2)
-  - Orchestrator delegation for all routing + context assembly
+  - HOT fast-exit on continuation tokens
+  - Pull-model directive injection (tiny, ~60-150 chars)
   - Memory nudge (every 10 turns)
-  - Crew routing suggestion
-  - Jam suggestion
-  - Context pressure tracking
+  - Jam / discovery suggestion
   - Output formatting
 
-Routing (HOT / FAST / SLOW) and context assembly are handled exclusively by
-scripts/smaht/v2/orchestrator.py via asyncio.run(). The hook is stdlib-only.
+Subagents pull context on demand via wicked-brain:search/query and
+wicked-garden:search rather than having a briefing pushed every turn.
+The hook is stdlib-only.
 
 Always fails open — any unhandled exception returns {"continue": true}.
 """
@@ -27,14 +28,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Add shared scripts directory and v2 directory to path.
-# The v2 directory must be on path before importing Orchestrator so that
-# the orchestrator's own relative imports (router, fast_path, etc.) resolve.
+# Add shared scripts directory to path.
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
-_V2_DIR = _SCRIPTS_DIR / "smaht" / "v2"
 sys.path.insert(0, str(_SCRIPTS_DIR))
-sys.path.insert(0, str(_V2_DIR))
 
 def _resolve_brain_port():
     try:
@@ -55,29 +52,6 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
         log(domain, level, event, ok=ok, ms=ms, detail=detail)
     except Exception:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Async bridge — sync-to-async for hook context
-# ---------------------------------------------------------------------------
-
-def _gather_context_sync(orchestrator, prompt: str):
-    """Synchronous bridge: run the async gather_context coroutine to completion.
-
-    Safe because hook scripts run in a fresh subprocess — no running event loop
-    exists. Uses asyncio.run() (Python 3.7+) which creates, runs, and properly
-    closes the event loop.
-
-    Defensive: if a running loop is detected (future executor model), falls back
-    to run_coroutine_threadsafe. See architecture.md — Async Bridge Design.
-
-    Injects a deliberate failure when WICKED_SMAHT_FAIL_INJECT is set, to allow
-    fail-open tests to validate Layer 1 catch-all behavior (architecture.md §Fail-Open).
-    """
-    if os.environ.get("WICKED_SMAHT_FAIL_INJECT"):
-        raise RuntimeError("injected by WICKED_SMAHT_FAIL_INJECT")
-
-    return orchestrator.gather_context_sync(prompt)
 
 
 # ---------------------------------------------------------------------------
@@ -407,21 +381,20 @@ def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, s
     """
     import tempfile as _tempfile
 
-    # Compact recent turns summary for the skill
+    # Compact recent turns summary for the skill.
+    # v6: the v5 HistoryCondenser ticket rail is gone; pull what SessionState
+    # exposes (session_goal + active chain) as a minimal substitute.
     turns_summary = ""
     try:
-        from history_condenser import HistoryCondenser
-        import os as _os
-        session_id = _os.environ.get("CLAUDE_SESSION_ID", "default")
-        condenser = HistoryCondenser(session_id)
-        s = condenser.get_session_state()
+        from _session import SessionState
+        s = SessionState.load()
         parts = []
-        if s.get("current_task"):
-            parts.append(f"task={s['current_task'][:80]}")
-        if s.get("active_constraints"):
-            parts.append(f"constraints={'; '.join(s['active_constraints'][-2:])}")
-        if s.get("decisions"):
-            parts.append(f"decisions={'; '.join(s['decisions'][-2:])}")
+        goal = getattr(s, "session_goal", "") or ""
+        if goal:
+            parts.append(f"goal={goal[:80]}")
+        chain = getattr(s, "active_chain_id", "") or ""
+        if chain:
+            parts.append(f"chain={chain}")
         turns_summary = " | ".join(parts)
     except Exception:
         pass
@@ -806,48 +779,19 @@ def _build_pull_directive(turn_count: int, state) -> str:
 def _build_wip_recovery_block(session_id: str, project: str) -> str:
     """Build a WIP recovery block if compaction just happened.
 
-    Returns a formatted markdown block with working state so the model
-    can resume without repeating completed work. Returns empty string
-    if no compaction occurred or if WIP data is unavailable.
+    v6: the v5 compaction-detection path (PressureTracker.was_just_compacted +
+    HistoryCondenser wip_snapshot) was deleted with smaht/v2 in #428. For v6
+    we rely on native in-progress tasks as the sole WIP source — if the task
+    dir is empty we emit nothing. Acceptable per gate4-deletion-manifest.md §5.2
+    ("compaction is rare and facilitator re-evaluate-on-TaskCompleted covers
+    the crew case").
 
-    Zero overhead on normal (non-compacted) prompts — the compaction
-    check is a single file read that short-circuits immediately.
+    Returns a formatted markdown block listing in-progress tasks, or an
+    empty string when there's no signal worth showing.
     """
-    try:
-        from context_pressure import PressureTracker
-        tracker = PressureTracker(session_id)
-        if not tracker.was_just_compacted():
-            return ""
-    except Exception:
-        return ""
-
-    _log("smaht", "debug", "wip_recovery.start")
-
-    # --- Source 1: WIP snapshot saved by PreCompact hook ---
+    # v6: no compaction-detection; always try to surface native in-progress
+    # tasks. Fail-open to empty string on any error.
     wip_data = None
-    try:
-        from history_condenser import HistoryCondenser
-        condenser = HistoryCondenser(session_id)
-        wip_path = condenser.session_dir / "wip_snapshot.json"
-        if wip_path.exists():
-            wip_data = json.loads(wip_path.read_text())
-            _log("smaht", "debug", "wip_recovery.source", detail="snapshot")
-    except Exception:
-        pass
-
-    # --- Source 2: Fallback to live session state from HistoryCondenser ---
-    if not wip_data:
-        try:
-            from history_condenser import HistoryCondenser
-            condenser = HistoryCondenser(session_id)
-            wip_data = condenser.get_session_state()
-            _log("smaht", "debug", "wip_recovery.source", detail="live_state")
-        except Exception:
-            pass
-
-    if not wip_data:
-        _log("smaht", "debug", "wip_recovery.empty")
-        return ""
 
     # --- Source 3: Native in-progress tasks (optional, fail gracefully) ---
     # Reads the same store SubagentStart uses for procedure-bundle lookup.
@@ -873,34 +817,18 @@ def _build_wip_recovery_block(session_id: str, project: str) -> str:
         pass  # task query is best-effort
 
     # --- Format recovery block (budget: <1000 chars) ---
-    parts = ["## [Recovery] Context was just compacted -- here is your WIP state\n"]
+    # v6: only surface in-progress tasks. The v5 ticket-rail fields
+    # (current_task, decisions, file_scope, active_constraints, open_questions)
+    # are gone. If nothing is in-progress, emit nothing.
+    if not in_progress_tasks:
+        _log("smaht", "debug", "wip_recovery.empty")
+        return ""
 
-    current_task = wip_data.get("current_task", "")
-    if current_task:
-        parts.append(f"**You were working on**: {current_task[:120]}")
-
-    decisions = wip_data.get("decisions", [])
-    if decisions:
-        parts.append(f"**Recent decisions**: {'; '.join(decisions[:3])}")
-
-    file_scope = wip_data.get("file_scope", [])
-    if file_scope:
-        parts.append(f"**Active files**: {', '.join(file_scope[:6])}")
-
-    constraints = wip_data.get("active_constraints", [])
-    if constraints:
-        parts.append(f"**Constraints**: {'; '.join(constraints[:3])}")
-
-    questions = wip_data.get("open_questions", [])
-    if questions:
-        parts.append(f"**Open questions**: {'; '.join(questions[:2])}")
-
-    if in_progress_tasks:
-        parts.append("\n### In-Progress Tasks")
-        for task in in_progress_tasks:
-            parts.append(f"- {task[:80]}")
-
-    parts.append("\n**IMPORTANT**: Review this state before proceeding. Do NOT repeat completed work.")
+    parts = ["## [Recovery] Work in progress\n"]
+    parts.append("### In-Progress Tasks")
+    for task in in_progress_tasks:
+        parts.append(f"- {task[:80]}")
+    parts.append("\n**IMPORTANT**: Review before proceeding. Do NOT repeat completed work.")
 
     block = "\n".join(parts)
 
@@ -962,16 +890,14 @@ def main():
         pass
 
     # ---------------------------------------------------------------------------
-    # HOT fast-exit: known continuation tokens bypass all imports and the
-    # Orchestrator entirely.  Keeps HOT path p95 well under 100ms SLO.
+    # HOT fast-exit: known continuation tokens bypass all imports and any
+    # downstream classification. Keeps HOT path p95 well under 100ms SLO.
     # These words carry no new intent — there is nothing for context assembly
     # to add beyond what is already in the conversation window.
     #
-    # Keep in sync with CONTINUATION_PATTERNS in scripts/smaht/v2/router.py.
-    # _HOT_CONTINUATIONS triggers a hook-level fast-exit (no imports, no Orchestrator).
-    # CONTINUATION_PATTERNS covers the same tokens via regex for Orchestrator routing.
-    # Adding a token here without a matching pattern there (or vice versa) causes
-    # behavioral inconsistency. See tests/hooks/test_prompt_submit_refactor.py::TestContinuationPatternParity.
+    # v6 note: the v5 CONTINUATION_PATTERNS in scripts/smaht/v2/router.py was
+    # deleted in #428. This in-hook fast-exit is now the sole continuation
+    # detector — it's just a set membership check, no regex needed.
     # ---------------------------------------------------------------------------
     _HOT_CONTINUATIONS = frozenset({
         "yes", "ok", "okay", "sure", "yep", "yup",
@@ -981,16 +907,9 @@ def main():
         "next", "done",
     })
     if prompt.strip().lower() in _HOT_CONTINUATIONS:
-        # Accumulate into history condenser before early return so HOT turns
-        # are reflected in session state (topics, task, file scope).
-        # Import is inside try/except — any failure still allows fast exit.
-        # p95 latency measured under 100ms: HistoryCondenser uses stdlib + _domain_store only.
-        try:
-            from history_condenser import HistoryCondenser
-            _hc = HistoryCondenser(session_id)
-            _hc.update_from_prompt(prompt.strip())
-        except Exception:
-            pass  # fail open — accumulation is best-effort on HOT path
+        # v6: no history condenser to update. The HOT path is a pure no-op
+        # bypass — session counter increment still happens via the normal
+        # path for non-continuation turns.
 
         # Even on HOT path, inject onboarding directive + facilitator re-eval
         # directive so the gate + re-eval can never be bypassed via continuation
@@ -1029,70 +948,35 @@ def main():
     _capture_session_goal(prompt, turn_count, project, session_id)
 
     # Complexity + risk gate — inject synthesis skill directive for complex/risky prompts.
-    # Uses Router path decision (most accurate) with inline risk scoring as a fallback.
+    # v6: the v5 Router + Orchestrator pre-fetch were deleted in #428. Classification
+    # is now an inline heuristic; the synthesize skill is expected to pull its own
+    # context via brain+search if it needs more than the raw prompt.
     # Synthesis is skipped if onboarding is pending (no context yet to synthesize from).
     if not onboarding_directive:
         complexity, is_risky = _score_complexity_and_risk(prompt, state)
-        _should_synthesize = False
-        _is_slow_path = False  # tracks whether Router classified this as SLOW
-        try:
-            from router import Router
-            _r = Router(session_topics=list(getattr(state, "topics", None) or [])).route(prompt)
-            _word_count = len(prompt.split())
-            _prompt_lower = prompt.lower()
-
-            # Near-HOT guard: very short phrases with no technical signals are continuations.
-            # Catches "ok looks good", "sounds right", "makes sense" — Router sees these as
-            # ambiguous/slow but they carry no real intent worth synthesizing.
-            _has_technical = (
-                "?" in prompt
-                or any(s in _prompt_lower for s in _DEEP_WORK_SIGNALS)
-                or any(s in _prompt_lower for s in _RISK_SIGNALS)
+        _word_count = len(prompt.split())
+        _prompt_lower = prompt.lower()
+        _has_technical = (
+            "?" in prompt
+            or any(s in _prompt_lower for s in _DEEP_WORK_SIGNALS)
+            or any(s in _prompt_lower for s in _RISK_SIGNALS)
+        )
+        # Near-HOT guard: very short phrases with no technical signals are continuations.
+        _is_near_hot = (_word_count <= 6) and not _has_technical
+        _should_synthesize = (
+            not _is_near_hot
+            and (
+                is_risky
+                or (complexity >= _SYNTHESIS_THRESHOLD and _word_count > 8)
             )
-            _is_near_hot = (_word_count <= 6) and not _has_technical
-
-            # Synthesize when:
-            # - Router says compound/ambiguous (slow) AND has real content (not near-HOT)
-            # - Low confidence AND meaningful inline complexity (>= 0.40) — word count alone
-            #   is not a reliable signal; a long but simple clarification should not fire
-            # - Risky keywords (need verification regardless of length)
-            # - Inline heuristics exceed threshold AND > 8 words
-            _low_confidence = (_r.analysis.confidence < 0.60) and (complexity >= 0.40)
-            _is_slow_path = (_r.path.value == "slow")
-            _should_synthesize = (
-                not _is_near_hot
-                and (
-                    (_is_slow_path and _has_technical)
-                    or is_risky
-                    or _low_confidence
-                    or (complexity >= _SYNTHESIS_THRESHOLD and _word_count > 8)
-                )
-            )
-            complexity = float(getattr(_r.analysis, "confidence", complexity))
-        except Exception:
-            # Fallback: inline heuristics
-            _should_synthesize = (complexity >= _SYNTHESIS_THRESHOLD) or is_risky
+        )
 
         if _should_synthesize:
-            # For SLOW-path prompts, run the orchestrator first so the synthesize
-            # skill receives adapter context (brain, domain, events) rather
-            # than starting cold. Fail open: if orchestrator errors, synthesize
-            # without context (original behavior).
-            _context_briefing = ""
-            if _is_slow_path:
-                try:
-                    from orchestrator import Orchestrator
-                    _orch = Orchestrator(session_id=session_id)
-                    _orch_result = _gather_context_sync(_orch, prompt)
-                    if _orch_result and _orch_result.briefing:
-                        _context_briefing = _orch_result.briefing
-                        _log("smaht", "debug", "synthesis.orchestrator_prefetch",
-                             detail={"briefing_len": len(_context_briefing)})
-                except Exception:
-                    pass  # fail open — synthesize without context
-
+            # v6: synthesize without a pre-fetched briefing. The synthesize skill
+            # pulls context on demand via brain + search rather than having a
+            # push orchestrator run first.
             synthesis_directive = _build_synthesis_directive(
-                prompt, complexity, is_risky, state, context_briefing=_context_briefing
+                prompt, complexity, is_risky, state, context_briefing=""
             )
             _log("smaht", "debug", "synthesis.triggered",
                  detail={"complexity": complexity, "risk": is_risky, "turn": turn_count})
@@ -1118,34 +1002,18 @@ def main():
 
     try:
         # --- Pull-model context assembly (Issue #416) ---
-        # Instead of pushing a full orchestrator briefing (~1200 chars) every turn,
-        # inject a tiny pull directive (~60-150 chars) that tells the model to
-        # fetch context on demand via wicked-brain:query/search.
+        # Instead of pushing a full briefing every turn, inject a tiny pull
+        # directive (~60-150 chars) that tells the model to fetch context on
+        # demand via wicked-brain:query/search.
         #
-        # The orchestrator is still available for the synthesis skill path
-        # (complex/risky prompts — see synthesis gate above).
+        # v6: the smaht/v2 orchestrator (and its HOT/FAST/SLOW tiers) was
+        # deleted in #428. The synthesize skill remains as the one path that
+        # still pulls a briefing — see the complexity+risk gate above.
 
         # Build the pull directive
         pull_directive = _build_pull_directive(turn_count, state)
 
-        # Feed context pressure tracker with this turn's byte contribution
-        try:
-            from context_pressure import PressureTracker
-            PressureTracker(session_id).increment_turn(
-                prompt_bytes=len(prompt.encode("utf-8")),
-                briefing_bytes=len(pull_directive.encode("utf-8")),
-            )
-        except Exception:
-            pass  # fail open
-
-        # Update history condenser with this turn's prompt
-        try:
-            from history_condenser import HistoryCondenser
-            HistoryCondenser(session_id).update_from_prompt(prompt)
-        except Exception:
-            pass  # fail open
-
-        # WIP recovery: inject working state after context compaction
+        # WIP recovery: surface native in-progress tasks (v5 ticket rail gone)
         wip_block = _build_wip_recovery_block(session_id, project)
 
         # Build output: single <system-reminder> block with all context parts

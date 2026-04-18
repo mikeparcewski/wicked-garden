@@ -73,7 +73,7 @@ def trace(component: str, event: str, data: dict = None):
     Trace data flow through components for debugging.
 
     Usage:
-        trace("smart_decisioning", "signals_detected", {"signals": ["security"]})
+        trace("facilitator", "factors_scored", {"factors": {"reversibility": "HIGH"}})
         trace("specialist_discovery", "specialists_found", {"count": 3})
     """
     if not FEATURES["DEBUG"]:

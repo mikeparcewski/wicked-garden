@@ -12,82 +12,87 @@ estimated_minutes: 5
 This scenario validates that QE quality gates now span the full lifecycle: from requirements (clarify)
 through design (testability) and into production (monitoring), alongside the existing build phase coverage.
 
-## Scenario 1: Quality Signal Routing
+## Scenario 1: Facilitator Routes Quality-Themed Work to QE
 
-Validates that `smart_decisioning.py` detects quality-related prompts and routes to `qe`.
+v6 replaced the v5 `SIGNAL_KEYWORDS` / `SIGNAL_TO_SPECIALISTS` maps with the
+`wicked-garden:crew:propose-process` facilitator rubric (#428). This scenario
+validates that quality-themed descriptions still route to QE specialists and
+phases in the facilitator's output plan.
 
 ### Setup
 
-No external setup required. This tests the signal detection logic directly.
+- wicked-garden plugin checked out; `scenarios/crew/facilitator-rubric/*` passing
+- No external services required
 
 ### Steps
 
-#### 1. Verify quality keywords are in SIGNAL_KEYWORDS
+#### 1. QE lifecycle agents are discoverable by the facilitator
+
+The facilitator reads `agents/**/*.md` frontmatter directly. Validate the QE
+lifecycle agent files exist and their body mentions quality/testing cues.
 
 ```bash
 python3 -c "
-import sys
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
-from smart_decisioning import SIGNAL_KEYWORDS, SIGNAL_TO_SPECIALISTS
-
-assert 'quality' in SIGNAL_KEYWORDS, 'quality key missing from SIGNAL_KEYWORDS'
-assert 'quality' in SIGNAL_TO_SPECIALISTS, 'quality key missing from SIGNAL_TO_SPECIALISTS'
-assert 'qe' in SIGNAL_TO_SPECIALISTS['quality'], 'qe not in quality specialists'
-
-quality_keywords = SIGNAL_KEYWORDS['quality']
-required = ['tdd', 'slo', 'acceptance criteria', 'testability', 'quality gate', 'shift-left']
-for kw in required:
-    assert kw in quality_keywords, f'keyword missing: {kw}'
-
-print('PASS: quality signal routing configured correctly')
-print(f'  Keywords: {len(quality_keywords)} total')
-print(f'  Specialists: {SIGNAL_TO_SPECIALISTS[\"quality\"]}')
-"
-```
-
-**Expected**: `PASS: quality signal routing configured correctly`
-
-#### 2. Verify signal detection fires on quality prompts
-
-```bash
-python3 -c "
-import sys
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
-from smart_decisioning import SIGNAL_KEYWORDS
 import re
-
-quality_prompts = [
-    'we need better test coverage for the payment service',
-    'what is our SLO target for this endpoint',
-    'help me define acceptance criteria for the login feature',
-    'the rollback criteria for this canary deploy',
-    'implement TDD for the new auth module',
+from pathlib import Path
+plugin_root = Path('${CLAUDE_PLUGIN_ROOT}')
+qe_agents = [
+    'agents/qe/requirements-quality-analyst.md',
+    'agents/qe/testability-reviewer.md',
+    'agents/qe/continuous-quality-monitor.md',
+    'agents/qe/production-quality-engineer.md',
 ]
-
-quality_kws = SIGNAL_KEYWORDS['quality']
-
-def matches(prompt, keywords):
-    prompt_lower = prompt.lower()
-    for kw in keywords:
-        pattern = kw.rstrip('*')
-        if re.search(r'\b' + re.escape(pattern), prompt_lower):
-            return True
-    return False
-
-for prompt in quality_prompts:
-    result = matches(prompt, quality_kws)
-    status = 'PASS' if result else 'FAIL'
-    print(f'{status}: {prompt[:60]}')
+quality_cues = {'quality', 'test', 'acceptance', 'reliability', 'slo', 'monitoring'}
+for rel in qe_agents:
+    p = plugin_root / rel
+    assert p.exists(), f'missing {rel}'
+    words = set(re.findall(r'\w+', p.read_text().lower()))
+    hits = quality_cues & words
+    assert hits, f'{rel} has no quality-related cues'
+    print(f'PASS: {p.name} cues={sorted(hits)[:3]}')
 "
 ```
 
-**Expected**: All 5 prompts print `PASS`.
+**Expected**: 4 `PASS` lines.
+
+#### 2. Facilitator picks QE specialists for quality-themed prompts
+
+Invoke the facilitator rubric on quality-themed descriptions. Verify each
+returned plan includes at least one QE specialist AND at least one of
+`test-strategy`, `test`, or `review` in the phase list.
+
+Descriptions to exercise:
+- "Add TDD tests for the payment module"
+- "Define SLO for the checkout API and add canary rollback"
+- "Write acceptance criteria for the shopping cart checkout"
+- "Design a rollback plan for the accounts database migration"
+
+For each, invoke:
+
+```
+Skill(
+  skill="wicked-garden:crew:propose-process",
+  args={"description": "<prompt>", "mode": "propose", "output": "json"}
+)
+```
+
+Inspect the returned JSON:
+
+- `specialists[]` must contain at least one QE-aligned role
+  (`test-strategist`, `requirements-quality-analyst`, `testability-reviewer`,
+  `production-quality-engineer`, or `continuous-quality-monitor`).
+- `phases[]` must contain at least one of `test-strategy`, `test`, `review`.
+
+The specific picks may change as the roster evolves — the contract is that
+QE involvement is non-zero for quality-themed work.
+
+**Expected**: all 4 descriptions return plans satisfying both constraints.
 
 ### Success Criteria
 
-- [ ] `quality` key present in `SIGNAL_KEYWORDS` with 15+ keywords
-- [ ] `quality` key present in `SIGNAL_TO_SPECIALISTS` mapping to `qe`
-- [ ] Quality-related prompts (TDD, SLO, acceptance criteria, rollback) trigger signal match
+- [ ] All 4 QE lifecycle agent markdown files exist with quality cues
+- [ ] Facilitator returns >= 1 QE-aligned specialist on all 4 quality prompts
+- [ ] Facilitator includes >= 1 of test-strategy / test / review phases
 
 ---
 
