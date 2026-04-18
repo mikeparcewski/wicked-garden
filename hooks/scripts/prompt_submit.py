@@ -615,19 +615,19 @@ def _consume_facilitator_reeval(state) -> str | None:
 
         # Issue #431: assemble structured current_chain data for the re-eval.
         chain_data = _assemble_current_chain(chain_id) if chain_id != "unknown" else None
+        # AC-5: build structured current_chain dict with required keys so the
+        # re-eval directive contains "current_chain" as a JSON key — not prose.
         chain_block = ""
         if chain_data:
             counts = chain_data.get("counts", {})
+            structured_chain = {
+                "tasks": chain_data.get("tasks", []),
+                "completed_count": counts.get("completed", 0),
+                "evidence_manifests": chain_data.get("evidence_manifests", []),
+            }
+            chain_json = json.dumps(structured_chain, separators=(",", ":"))
             chain_block = (
-                "\n\nCurrent chain snapshot (feed into propose-process `current_chain` arg):\n"
-                f"- tasks: {counts.get('total', 0)} total "
-                f"({counts.get('completed', 0)} completed, "
-                f"{counts.get('in_progress', 0)} in_progress, "
-                f"{counts.get('pending', 0)} pending, "
-                f"{counts.get('blocked', 0)} blocked)\n"
-                f"- evidence manifests discovered: {len(chain_data.get('evidence_manifests', []))}\n"
-                f"- full data available via: `sh ${{CLAUDE_PLUGIN_ROOT}}/scripts/_python.sh "
-                f"${{CLAUDE_PLUGIN_ROOT}}/scripts/crew/current_chain.py {chain_id} --pretty`"
+                f"\n\ncurrent_chain: {chain_json}"
             )
 
         return (
@@ -645,6 +645,71 @@ def _consume_facilitator_reeval(state) -> str | None:
         except Exception:
             pass
         return None
+
+
+def _consume_phase_start_gate(state) -> "str | None":
+    """Phase-start gate (#AC-11): emit directive if phase_start_gate_due is set.
+
+    Reads ``state.phase_start_gate_due`` set by task_completed.py on
+    phase-transition events.  When set, calls ``phase_start_gate.py::check()``
+    via subprocess and surfaces the resulting systemMessage (if any).
+
+    Clears the flag immediately (single-shot emission).
+    Fail-open: any exception or missing script returns None without raising.
+    """
+    if state is None:
+        return None
+    try:
+        if not getattr(state, "phase_start_gate_due", False):
+            return None
+
+        # Clear flag before subprocess call so a crash doesn't loop
+        state.update(phase_start_gate_due=False)
+
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        if not plugin_root:
+            return None
+        gate_script = Path(plugin_root) / "scripts" / "crew" / "phase_start_gate.py"
+        if not gate_script.exists():
+            return None
+
+        # Assemble chain snapshot (fail-open if unavailable)
+        chain_id = getattr(state, "facilitator_reeval_chain", None) or "unknown"
+        chain_data = _assemble_current_chain(chain_id) if chain_id != "unknown" else {}
+        chain_data = chain_data or {}
+
+        # Build state dict for the gate
+        gate_state = {
+            "last_reeval_ts": getattr(state, "last_reeval_ts", None),
+            "last_reeval_task_count": getattr(state, "last_reeval_task_count", 0) or 0,
+        }
+
+        # Call gate check inline by importing (same process, stdlib-only script)
+        import subprocess
+        python_shim = Path(plugin_root) / "scripts" / "_python.sh"
+        gate_input = json.dumps({"state": gate_state, "chain_snapshot": chain_data})
+
+        result = subprocess.run(
+            ["sh", str(python_shim), "-c",
+             (
+                 "import sys, json; "
+                 f"sys.path.insert(0, '{Path(plugin_root) / 'scripts' / 'crew'}'); "
+                 "from phase_start_gate import check; "
+                 "data = json.loads(sys.stdin.read()); "
+                 "out = check(data['state'], data['chain_snapshot']); "
+                 "print(json.dumps(out))"
+             )],
+            input=gate_input,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+        gate_result = json.loads(result.stdout.strip())
+        return gate_result.get("systemMessage")
+    except Exception:
+        return None  # fail-open always
 
 
 def _check_onboarding_gate(prompt: str) -> str | None:
@@ -930,10 +995,16 @@ def main():
     # flag set by task_completed.py. Idempotent: the consumer clears the flag
     # so a subsequent turn doesn't re-fire.
     facilitator_reeval_directive = None
+    phase_start_gate_directive = None
     try:
         from _session import SessionState
         _preload_state = SessionState.load()
         facilitator_reeval_directive = _consume_facilitator_reeval(_preload_state)
+        # AC-11: phase-start gate — consume phase_start_gate_due flag set by
+        # task_completed.py on phase-transition events.  On change-detected,
+        # emits a systemMessage asking Claude to invoke propose-process in
+        # re-evaluate mode with the current_chain data before engaging specialists.
+        phase_start_gate_directive = _consume_phase_start_gate(_preload_state)
     except Exception:
         pass
 
@@ -966,6 +1037,8 @@ def main():
         hot_parts = []
         if facilitator_reeval_directive:
             hot_parts.append(facilitator_reeval_directive)
+        if phase_start_gate_directive:
+            hot_parts.append(phase_start_gate_directive)
         if onboarding_directive:
             hot_parts.append(onboarding_directive)
         if hot_parts:
@@ -1072,6 +1145,11 @@ def main():
         # the model addresses the user's prompt.
         if facilitator_reeval_directive:
             all_parts.append(facilitator_reeval_directive)
+
+        # AC-11: phase-start gate directive — fires when a phase-transition
+        # event was detected and material changes exist since last re-eval.
+        if phase_start_gate_directive:
+            all_parts.append(phase_start_gate_directive)
 
         # WIP recovery block goes first so it's the first thing the model sees
         if wip_block:

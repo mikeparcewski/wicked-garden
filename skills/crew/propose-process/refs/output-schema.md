@@ -65,6 +65,7 @@ rubric against a scenario's expected-outcome block.
       }
     }
   ],
+
   "re_evaluation": {
     "pruned": [],
     "augmented": [],
@@ -92,6 +93,26 @@ rubric against a scenario's expected-outcome block.
 - `open_questions` — empty array if no ambiguity.
 - `re_evaluation` — only in `re-evaluate` mode; otherwise omit.
 - `anticipated_reevaluations` — optional in `propose` mode. List of `{trigger, likely_impact}` entries describing conditions that should cause re-evaluation (e.g. "if design reveals schema migration needed"). Zero-cost in the initial plan; makes forward planning auditable when re-evaluation fires. Omit if no plausible triggers.
+
+**Phase-boundary gate tasks**:
+
+Each phase in the task chain should include a corresponding gate task with
+`event_type: "gate-finding"`. Gate tasks carry additional metadata keys:
+
+```json
+{
+  "event_type": "gate-finding",
+  "verdict": "APPROVE | CONDITIONAL | REJECT",
+  "min_score": 0.7,
+  "score": 0.85,
+  "source_agent": "facilitator"
+}
+```
+
+The facilitator emits the gate task shell at plan time; `verdict`, `min_score`,
+and `score` are filled in by the reviewer agent at approve time.
+`_resolve_gate_reviewer()` in `phase_manager.py` determines the reviewer from
+`gate-policy.json` — the plan embeds the gate name, not the reviewer name.
 
 **Yolo mode additions**:
 

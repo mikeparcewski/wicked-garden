@@ -998,12 +998,7 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
     4. Write result to phases/{phase}/reviewer-report.md.
     5. If evaluation fails, write a pending report. Never block.
 
-    Legacy bypass: CREW_GATE_ENFORCEMENT=legacy skips entirely.
     """
-    # --- Legacy mode bypass ---
-    if os.environ.get("CREW_GATE_ENFORCEMENT") == "legacy":
-        return {"continue": True}
-
     # --- Fast early-exit: only act on phase_manager.py approve ---
     command = (tool_input.get("command") or "")
     if "phase_manager.py" not in command or "approve" not in command:

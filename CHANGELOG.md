@@ -1,5 +1,108 @@
 # Changelog
 
+## [6.0.0-beta.4] - 2026-04-18
+
+**v6.0 autonomy mechanism + issue #332 partial** — shift-left phase-boundary
+gates, bidirectional re-eval with prune + re-tier-down, codified reviewer
+matrix, JSONL addendum log, and the adopt-legacy skill. Also ships partial
+delivery of issue #332 (3 of 6 heavy skills got `context: fork`).
+
+**Still beta** because runtime behavior has not been validated in a live Claude
+Code session — the plugin cache on the build machine runs an older version, so
+all testing in this release cycle was via direct Python invocation (66/66 unit
+tests, 10/10 measurement scenarios, validator selftests, canary dogfood).
+Hook firing, phase-start gate dispatch, JSON addendum validation at approve
+time, and `context: fork` forking behavior need live-runtime verification on
+first post-install session.
+
+**Breaking change**: `CREW_GATE_ENFORCEMENT=legacy` is deleted (D3 — no backward
+compat flag in 6.0). There is no env-var escape hatch. Use
+`/wicked-garden:crew:adopt-legacy` to upgrade projects started on beta.3.
+
+### Issue #332 partial delivery
+
+Originally scoped for 6 heavy skills; actually ships fork on 3:
+- ✓ `skills/crew/workflow/SKILL.md` — `context: fork` applied
+- ✓ `skills/qe/acceptance-testing/SKILL.md` — `context: fork` applied
+- ✓ `skills/search/unified-search/SKILL.md` — `context: fork` applied
+- ✗ `qe:automate` — deferred; thin skill wrapper was dead code (command took precedence). Would need command body moved into skill body to actually fork.
+- ✗ `crew:just-finish` — deferred; same structural pattern.
+- ✗ `engineering:debug` / `jam:brainstorm` — dropped from scope by clarify-phase triage (conversational + inline-consumed).
+
+3 stale `TODO (Issue #332): When Claude Code supports context: fork` blocks cleared from `skills/crew/workflow`, `skills/search/unified-search`, `skills/qe/acceptance-testing` — the feature is supported and documented in the official Claude Code skills docs.
+
+### Post-build fixes (from plugin-validator pass)
+
+- `skills/crew/propose-process/SKILL.md` trimmed 233 → 197 lines (re-eval section extracted to `refs/re-evaluation.md`).
+- `scripts/_session.py` — `phase_start_gate_due` added as a declared dataclass field (was a transient attr, silently dropped by `asdict()` serialization — AC-11 was broken in bytecode).
+- `scripts/crew/phase_manager.py` — 6 dead `GATE_ENFORCEMENT_MODE == "legacy"` branches deleted (R1 dead code + D3 contradiction from the 4-variable-hardcoded-strict constant left behind).
+- Deleted the 2 dead-wrapper SKILL.md files (`skills/qe/automate/SKILL.md`, `skills/crew/just-finish/SKILL.md`) that added no content their co-located commands didn't already have.
+- `.claude-plugin/components.json` skills count corrected to 88 (66 pre-existing + 1 new adopt-legacy; 2 new edits retained but wrappers removed).
+
+### Added
+
+- **Shift-left phase-boundary gates** — every phase now has a named gate
+  (`requirements-quality`, `design-quality`, `testability`, `code-quality`,
+  `evidence-quality`, `final-audit`). Phase advance is blocked until the gate
+  reviewer renders a non-REJECT verdict. Gate reviewer assignment is read from
+  `.claude-plugin/gate-policy.json` at approve time by `_resolve_gate_reviewer()`
+  in `phase_manager.py` — not from rubric prose.
+- **Bidirectional re-eval loop** — `_run_checkpoint_reanalysis` now supports all
+  three mutation directions (`prune`, `augment`, `re_tier`). Prune and re-tier UP
+  auto-apply. Re-tier DOWN auto-applies only when tier is rubric-set and ≥2
+  HIGH/MEDIUM factors are disproven; deferred for confirmation when tier was
+  user-overridden (`rigor_override` in project state).
+- **Phase-start heuristic gate** (`scripts/crew/phase_start_gate.py`) — fires
+  before the first specialist engages on each phase; emits a `systemMessage`
+  directive when task-completion count or evidence file mtimes changed since
+  `last_reeval_ts`. Fail-open: missing chain data returns no-op with warning.
+- **JSONL addendum log** — re-eval output is appended to
+  `phases/{phase}/reeval-log.jsonl` (one JSON record per line, D8).
+  `validate_reeval_addendum.py` validates each line; approve is blocked until a
+  conformant addendum exists (fail-closed).
+- **`gate-policy.json`** (`.claude-plugin/gate-policy.json`) — codified Gate ×
+  Rigor reviewer matrix (D1, D4). Carries dispatch semantics per entry: mode
+  (`sequential`, `parallel`, `council`, `self-check`) and fallback agent.
+- **`adopt-legacy` skill + script** (`scripts/crew/adopt_legacy.py`,
+  `skills/crew/adopt-legacy/`) — detects three beta.3 legacy markers (missing
+  `phase_plan_mode`, markdown re-eval addendums, legacy bypass env-var
+  references) and transforms them in-place. Idempotent. Dry-run by default.
+- **Acceptance scenarios** (`scenarios/crew/phase-boundary-reeval.md`) — five
+  deterministic acceptance cases covering AC-5, AC-8, AC-9, AC-6, AC-7.
+- **`audit_skip_log.py`** (`scripts/crew/audit_skip_log.py`) — scans all phase
+  directories for unresolved `skip-reeval-log.json` entries. Final-audit gate
+  returns CONDITIONAL until all entries are marked resolved.
+- **`--skip-reeval`** flag on `phase_manager.py approve` — per-invocation
+  emergency bypass requiring a mandatory `--reason` string. Writes to
+  `phases/{phase}/skip-reeval-log.json`. No env-var or config default may set it
+  implicitly (AC-15).
+
+### Changed
+
+- **`skills/crew/propose-process/SKILL.md`** — new `## Phase-boundary gates`
+  section lists all 6 gate names; new `## Re-evaluation mode (bidirectional, v6)`
+  section describes the phase-start heuristic + phase-end full re-eval state
+  machine; `## Interaction mode` updated to note D7 bidirectional rules.
+- **`skills/crew/propose-process/refs/gate-policy.md`** — rewritten as
+  human-readable description of `gate-policy.json` (documentation only; not read
+  by code).
+- **`skills/crew/propose-process/refs/plan-template.md`** — task chain table
+  updated to surface per-phase gate names.
+- **`skills/crew/propose-process/refs/output-schema.md`** — gate-finding task
+  metadata documented (`verdict`, `min_score`, `score` keys).
+- **`commands/crew/migrate-gates.md`** — rewrites the beta-era migration guide
+  to point at `adopt-legacy` instead of the now-deleted env-var bypass.
+
+### Breaking Changes
+
+- `CREW_GATE_ENFORCEMENT=legacy` environment variable is **deleted**. Any script,
+  alias, or CI job that sets it must be updated. Projects relying on the legacy
+  bypass must run `/wicked-garden:crew:adopt-legacy` before upgrading.
+- Phase approve is now fail-closed on missing re-eval addendum. Beta.3 projects
+  that never ran a phase-end re-eval will be blocked at the first approve call.
+  Recovery: run `--skip-reeval --reason "<justification>"` once per phase to
+  unblock and log the bypass for final-audit review.
+
 ## [6.0.0-beta.3] - 2026-04-18
 
 **v6 reliability drop** — bundles #430 (shipped in beta.2.1 via #436) plus

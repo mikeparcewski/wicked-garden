@@ -103,9 +103,6 @@ def should_use_consensus(project_state: Dict[str, Any], phase_config: Dict[str, 
     Returns:
         True if consensus evaluation should run.
     """
-    if os.environ.get("CREW_GATE_ENFORCEMENT") == "legacy":
-        return False
-
     threshold = phase_config.get("consensus_threshold")
     if threshold is None:
         return False

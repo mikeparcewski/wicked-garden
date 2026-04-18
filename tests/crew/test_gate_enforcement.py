@@ -142,55 +142,43 @@ class TestMinGateScore(unittest.TestCase):
         print("PASS T-1.3d: no min score config passes")
 
 
-class TestLegacyMode(unittest.TestCase):
-    """T-1.6: CREW_GATE_ENFORCEMENT=legacy bypasses all enforcement."""
+class TestLegacyModeDeleted(unittest.TestCase):
+    """T-1.6: v6.0 breaking change — legacy gate bypass is permanently deleted (D3).
 
-    def setUp(self):
-        os.environ["CREW_GATE_ENFORCEMENT"] = "legacy"
+    These tests confirm that v6.0 is strict-only: the GATE_ENFORCEMENT_MODE
+    constant is always 'strict' regardless of any env-var, and enforcement
+    checks are never bypassed.
+    """
 
-    def tearDown(self):
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
+    def test_gate_enforcement_mode_is_always_strict(self):
+        """T-1.6a: GATE_ENFORCEMENT_MODE is 'strict' unconditionally in v6.0."""
+        import phase_manager as _pm
+        self.assertEqual(
+            _pm.GATE_ENFORCEMENT_MODE, "strict",
+            "v6.0 does not support legacy mode — GATE_ENFORCEMENT_MODE must be 'strict'",
+        )
+        print("PASS T-1.6a: GATE_ENFORCEMENT_MODE is strict (legacy deleted)")
 
-    def _import_fresh(self):
-        if "phase_manager" in sys.modules:
-            del sys.modules["phase_manager"]
-        import phase_manager
-        return phase_manager
-
-    def test_banned_reviewer_bypassed_in_legacy(self):
-        """T-1.6a: banned reviewer name is bypassed in legacy mode."""
-        pm = self._import_fresh()
-        self.assertEqual(pm.GATE_ENFORCEMENT_MODE, "legacy")
+    def test_banned_reviewer_always_enforced(self):
+        """T-1.6b: banned reviewer names are rejected regardless of any env-var."""
+        import phase_manager as _pm
         gate_result = {"result": "APPROVE", "reviewer": "fast-pass", "score": 0.9}
-        error = pm._validate_gate_reviewer(gate_result)
-        self.assertIsNone(error, "Legacy mode should bypass banned reviewer check")
-        print("PASS T-1.6a: banned reviewer bypassed in legacy mode")
+        error = _pm._validate_gate_reviewer(gate_result)
+        self.assertIsNotNone(
+            error, "Banned reviewer 'fast-pass' must be rejected in v6.0 strict mode"
+        )
+        print("PASS T-1.6b: banned reviewer always enforced")
 
-    def test_min_score_bypassed_in_legacy(self):
-        """T-1.6b: min_gate_score check bypassed in legacy mode."""
-        pm = self._import_fresh()
+    def test_min_score_always_enforced(self):
+        """T-1.6c: min_gate_score check is always active in v6.0."""
+        import phase_manager as _pm
         gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:qe:test-strategist", "score": 0.1}
         phases_config = {"design": {"min_gate_score": 0.7}}
-        error = pm._validate_min_gate_score(gate_result, "design", phases_config)
-        self.assertIsNone(error, "Legacy mode should bypass min score check")
-        print("PASS T-1.6b: min score check bypassed in legacy mode")
-
-    def test_condition_verify_bypassed_in_legacy(self):
-        """T-1.6c: _verify_conditions returns [] in legacy mode."""
-        pm = self._import_fresh()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = Path(tmpdir)
-            phase_dir = project_dir / "phases" / "clarify"
-            phase_dir.mkdir(parents=True)
-            # Write an unverified conditions manifest
-            manifest = {
-                "source_gate": "clarify",
-                "conditions": [{"id": "CONDITION-1", "description": "Fix error handling", "verified": False}]
-            }
-            (phase_dir / "conditions-manifest.json").write_text(json.dumps(manifest))
-            issues = pm._verify_conditions(project_dir, "clarify")
-            self.assertEqual(issues, [], "Legacy mode should bypass condition verification")
-        print("PASS T-1.6c: condition verification bypassed in legacy mode")
+        error = _pm._validate_min_gate_score(gate_result, "design", phases_config)
+        self.assertIsNotNone(
+            error, "Min score check must block low scores in v6.0 strict mode"
+        )
+        print("PASS T-1.6c: min score check always enforced")
 
 
 class TestEmptyDeliverable(unittest.TestCase):

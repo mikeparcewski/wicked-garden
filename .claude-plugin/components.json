@@ -10,7 +10,7 @@
   "summary": {
     "commands": 147,
     "agents": 69,
-    "skills": 87,
+    "skills": 88,
     "hooks": 12,
     "specialists": 8
   },
@@ -31,7 +31,7 @@
 
   "skills_by_domain": {
     "agentic":               ["agentic-patterns", "context-engineering", "five-layer-architecture", "frameworks", "maturity-model", "review-methodology", "trust-and-safety"],
-    "crew":                  ["adaptive", "change-type-detector", "crew-qe-gate", "evidence-validation", "issue-reporting", "propose-process", "test-task-factory", "workflow"],
+    "crew":                  ["adaptive", "adopt-legacy", "change-type-detector", "crew-qe-gate", "evidence-validation", "issue-reporting", "propose-process", "test-task-factory", "workflow"],
     "data":                  ["analysis", "data", "ml", "numbers", "pipeline"],
     "deliberate":            ["deliberate"],
     "delivery":              ["design", "onboarding-guide", "reporting", "rollout"],

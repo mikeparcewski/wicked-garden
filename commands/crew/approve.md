@@ -330,6 +330,57 @@ Then display:
 
 Continue to the approval prompt.
 
+### 4.8 Phase-End Re-Evaluation Addendum (AC-8, AC-12)
+
+**REQUIRED: Before invoking phase_manager.py approve, verify the phase-end re-eval addendum.**
+
+The `approve_phase` path in `phase_manager.py` is **fail-closed** on the re-eval addendum check:
+
+- If `phases/{phase}/reeval-log.jsonl` is **missing** → approval is blocked with the message:
+  `"Phase '{phase}' has no re-evaluation addendum … Re-evaluation is required before approval."`
+- If the addendum file exists but the most recent record's `triggered_at` **predates the phase start** → blocked with a staleness message.
+- If the JSONL record **fails `validate_reeval_addendum.py`** → the re-eval must be re-run.
+
+**Recovery**: invoke `wicked-garden:crew:propose-process` in `re-evaluate` mode, then retry approve.
+
+**Emergency bypass** (AC-14): use `--skip-reeval --reason "<justification>"`. This is a **deliberate, audited bypass**:
+- Writes a skip entry to `phases/{phase}/skip-reeval-log.json`.
+- Prints a WARNING to stderr.
+- The `final-audit` gate at review phase WILL surface this entry as a CONDITIONAL finding (AC-16).
+- `--skip-reeval` without `--reason` exits non-zero — the reason is MANDATORY.
+- `--skip-reeval` is call-site-only. It is NEVER set by env-var or config default (AC-15).
+
+```bash
+# Emergency bypass example
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+  scripts/crew/phase_manager.py {project} approve \
+  --phase {phase} \
+  --skip-reeval \
+  --reason "propose-process timed out; addendum manually verified against ADR"
+```
+
+### 4.9 Final-Audit Skip-Log Consumption (AC-16)
+
+**Applies to the `review` phase only.**
+
+When approving the `review` phase, `phase_manager.py` automatically:
+
+1. Calls `audit_skip_log.scan(project_dir)` on all prior phases.
+2. Aggregates entries without a `resolved_at` field.
+3. Emits each unresolved entry as a **CONDITIONAL** finding (not REJECT — the reviewer may resolve inline).
+4. The approval proceeds but the conditions are surfaced so reviewers see them.
+
+To mark a skip-reeval entry as resolved, edit `phases/{phase}/skip-reeval-log.json` and add:
+```json
+{
+  "resolved_at": "{ISO timestamp}",
+  "resolved_by": "{reviewer name}",
+  "resolution_note": "Reviewed and confirmed: no material risk"
+}
+```
+
+**Note on the legacy gate bypass (v6.0 breaking change)**: per D3, the env-var escape hatch is **deleted in v6.0**. The only per-invocation bypass is `--skip-reeval --reason`. See `/wicked-garden:crew:adopt-legacy` to upgrade beta.3 projects.
+
 ### 5. Process Approval
 
 **Only proceed if all validations pass OR user has set appropriate overrides.**
@@ -363,7 +414,7 @@ If user approves (Y or proceeds):
    ```
    This updates `current_phase` and marks the phase as approved in project.json.
 
-   **Consensus gate (high-complexity projects)**: For projects with `complexity_score >= consensus_threshold` (default 5), phase_manager automatically runs multi-perspective consensus evaluation using the jam consensus protocol. Proposer specialists are configured per phase in `phases.json` (e.g., engineering + security + product for design). If strong dissent is detected, the gate is REJECTED. If agreement ratio is below the confidence threshold, the gate returns CONDITIONAL with conditions from dissenting views. The consensus report is written to `phases/{phase}/consensus-report.json`. Override with `--override-gate` or set `CREW_GATE_ENFORCEMENT=legacy` to bypass.
+   **Consensus gate (high-complexity projects)**: For projects with `complexity_score >= consensus_threshold` (default 5), phase_manager automatically runs multi-perspective consensus evaluation using the jam consensus protocol. Proposer specialists are configured per phase in `phases.json` (e.g., engineering + security + product for design). If strong dissent is detected, the gate is REJECTED. If agreement ratio is below the confidence threshold, the gate returns CONDITIONAL with conditions from dissenting views. The consensus report is written to `phases/{phase}/consensus-report.json`. Override with `--override-gate`.
 
    If required deliverables are missing, the approve call will **block** with an error. To bypass in exceptional circumstances:
    ```bash

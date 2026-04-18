@@ -7,10 +7,8 @@ description: |
 
   Use when: "run acceptance tests", "verify it works", "did it pass",
   "test this scenario", "acceptance criteria", "validate the feature"
-# TODO (Issue #332): When Claude Code supports `context: "fork"` in skill frontmatter,
-# add `context: fork` here. Acceptance testing runs three subagents (writer, executor,
-# reviewer) that generate significant context. A forked context would prevent test
-# artifacts from bloating the parent conversation.
+disable-model-invocation: false
+context: fork
 ---
 
 # Acceptance Testing

@@ -162,6 +162,29 @@ def main():
                 state.facilitator_reeval_due = True
                 state.facilitator_reeval_chain = chain_id
 
+            # Phase-start gate signal: set when the completed task is a
+            # phase-transition event so prompt_submit.py can dispatch
+            # phase_start_gate.check() before the next phase's specialists engage.
+            # Fires ONLY for phase-transition event_type to avoid OQ-5 noise.
+            # Fail-open: missing metadata is a no-op; never blocks completion.
+            try:
+                event_type = None
+                if session_id and task_id:
+                    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+                    base = Path(config_dir) if config_dir else Path.home() / ".claude"
+                    task_file = base / "tasks" / session_id / f"{task_id}.json"
+                    if task_file.is_file():
+                        task_data = json.loads(task_file.read_text(encoding="utf-8"))
+                        event_type = (
+                            task_data.get("metadata", {}).get("event_type")
+                            if isinstance(task_data, dict)
+                            else None
+                        )
+                if event_type == "phase-transition":
+                    state.phase_start_gate_due = True
+            except Exception:
+                pass  # fail-open: gate-due flag is best-effort
+
             state.save()
         except Exception as e:
             print(f"[wicked-garden] task_completed session state error: {e}", file=sys.stderr)

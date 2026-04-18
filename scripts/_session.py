@@ -249,6 +249,14 @@ class SessionState:
     facilitator_reeval_due: bool = False
     facilitator_reeval_chain: str | None = None  # chain_id needing re-eval
 
+    # v6 phase-start heuristic gate (AC-11). task_completed.py sets this when
+    # a completed task is the last in a phase; prompt_submit.py dispatches
+    # phase_start_gate.py::check() on next turn and emits the directive.
+    # MUST be a declared dataclass field — asdict() only serializes declared
+    # attributes, so setting it as a transient attr won't persist. (Caught by
+    # senior-engineer review of this very project — meta bug fix.)
+    phase_start_gate_due: bool = False
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

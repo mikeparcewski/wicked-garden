@@ -75,17 +75,29 @@ any risk words heard.>
 
 ## 9. Task chain
 
-| # | Task title                             | Phase          | Specialist            | blockedBy | test_required | test_types | evidence_required |
-|---|----------------------------------------|----------------|-----------------------|-----------|---------------|------------|-------------------|
-| 1 | ...                                    | clarify        | requirements-analyst  |           | false         | []         | []                |
-| 2 | ...                                    | design         | solution-architect    | [1]       | false         | []         | []                |
-| 3 | ...                                    | build          | backend-engineer      | [2]       | true          | [unit,api] | [unit-results, api-contract-diff] |
-| ...                                                                                                                                                |
+Each phase should include a gate task at the end of the phase's task block.
+Gate task `event_type` is `"gate-finding"`; gate name comes from the gate catalog.
+
+| # | Task title                              | Phase          | Gate name            | Specialist            | blockedBy | test_required | evidence_required |
+|---|-----------------------------------------|----------------|----------------------|-----------------------|-----------|---------------|-------------------|
+| 1 | ...                                     | clarify        | —                    | requirements-analyst  |           | false         | []                |
+| 2 | Gate: requirements-quality              | clarify        | requirements-quality | (reviewer at approve) | [1]       | false         | []                |
+| 3 | ...                                     | design         | —                    | solution-architect    | [2]       | false         | []                |
+| 4 | Gate: design-quality                    | design         | design-quality       | (reviewer at approve) | [3]       | false         | []                |
+| 5 | ...                                     | build          | —                    | backend-engineer      | [4]       | true          | [unit-results]    |
+| 6 | Gate: code-quality                      | build          | code-quality         | (reviewer at approve) | [5]       | false         | []                |
+| ...                                                                                                                                                                |
+
+The six phase gate names are: `requirements-quality`, `design-quality`, `testability`,
+`code-quality`, `evidence-quality`, `final-audit`. Reviewer assignment is deferred to
+approve time via `gate-policy.json` — do NOT embed reviewer names in the plan.
 
 ## 10. Re-evaluation log
 
-(Appended when `re-evaluate` mode fires. Each entry records: timestamp, trigger task,
-pruned/augmented/re-tiered tasks with one-sentence WHY each.)
+(This section is retained for readability. Structured re-eval data is written to
+`phases/{phase}/reeval-log.jsonl` as JSONL — see `refs/re-eval-addendum-schema.md`.)
+
+A plain-English summary may be appended here after each phase-end re-eval fires:
 
 - **<ISO timestamp>** — triggered by task <#> completion. Pruned task <#>
   (<reason>). Added task <#>: "<title>" (<reason>). Re-tiered task <#> from
