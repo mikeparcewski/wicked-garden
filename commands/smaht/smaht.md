@@ -1,17 +1,19 @@
 ---
-description: Gather intelligent context from wicked-garden sources before responding
+description: Gather intelligent context from wicked-brain + wicked-garden:search
 argument-hint: "[query] [--deep]"
 ---
 
 # /wicked-garden:smaht:smaht
 
-Gather and display intelligent context from wicked-garden sources.
+Pull a context briefing from wicked-brain and wicked-garden:search. v6 replaced
+the v5 push-model orchestrator (deleted in #428) — this command is now a thin
+shim over brain + search.
 
 ## Usage
 
 ```
-/smaht [query]           # Gather context (fast path if simple)
-/smaht --deep [query]    # Force slow path (all sources, history)
+/smaht [query]           # Gather context (brain search)
+/smaht --deep [query]    # Also query brain + search + active crew state
 /smaht --sources         # Show available sources and their status
 ```
 
@@ -20,20 +22,29 @@ Gather and display intelligent context from wicked-garden sources.
 ### 1. Parse Arguments
 
 - `query` (optional): Focus query for context gathering
-- `--deep`: Force slow path (all adapters, 2s timeout, history context)
-- `--sources`: Show source status instead of gathering
+- `--deep`: Also pull active crew project state, recent events, and a codebase
+  search slice — not just brain results
+- `--sources`: Show source availability status instead of gathering
 
 ### 2. Gather Context
 
-Run the v2 orchestrator:
+**Default (brain-only)**:
 
-```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/smaht/v2/orchestrator.py gather "{query}" --session {session_id}
+```
+Skill(skill="wicked-brain:search", args={"query": "{query}", "limit": 10})
 ```
 
-For sources check:
+**Deep mode** — run these in parallel:
+
+```
+Skill(skill="wicked-brain:search", args={"query": "{query}", "limit": 20})
+Skill(skill="wicked-garden:search:search", args={"query": "{query}", "limit": 10})
+```
+
+Then read active crew project state if one exists:
+
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/smaht/v2/orchestrator.py route "{query}" --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
 ### 3. Display Results
@@ -43,23 +54,49 @@ Show the context briefing in a clear format:
 ```markdown
 ## Wicked Smaht Context
 
-**Path**: fast/slow
-**Intent**: {detected_intent} (confidence: {score})
-**Sources**: {sources_queried}
-**Latency**: {ms}ms
+**Mode**: default / deep
+**Query**: {query}
+**Sources**: brain{, search, crew}
 
-{briefing content}
+### Brain Results
+{bulleted list of top N brain hits with source_type, path, excerpt}
+
+### Active Project (deep mode only)
+{project name, phase, rigor_tier, last checkpoint}
+
+### Search Hits (deep mode only)
+{top code/doc symbols matching the query}
 ```
 
-### 4. Context Injection
+### 4. Sources Check
 
-The context briefing is automatically added to the conversation context via UserPromptSubmit hook for Claude to use.
+For `--sources`, don't gather — just report availability:
+
+```bash
+# Brain health
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import urllib.request, json, os
+port = int(os.environ.get('WICKED_BRAIN_PORT', '4242'))
+try:
+    req = urllib.request.Request(f'http://localhost:{port}/api', data=json.dumps({'action':'ping'}).encode(), headers={'Content-Type':'application/json'}, method='POST')
+    with urllib.request.urlopen(req, timeout=2) as r:
+        print('brain: ok')
+except Exception as e:
+    print(f'brain: down ({e})')
+"
+```
 
 ## Examples
 
 ```
-/smaht                     # General session context
-/smaht authentication      # Context about auth
-/smaht --deep caching      # Force deep analysis on caching
-/smaht --sources           # Check routing decision
+/smaht                     # Brain search on the current turn topic
+/smaht authentication      # Brain search for "authentication"
+/smaht --deep caching      # Brain + search + crew state for "caching"
+/smaht --sources           # Check brain availability
 ```
+
+## v5 → v6 Notes
+
+The v5 HOT/FAST/SLOW/SYNTHESIZE router and its tiered adapter fan-out was
+deleted in #428. Intent classification is no longer a thing — the caller asks
+for what they need (brain, search, or both).

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-PreCompact hook — wicked-garden structured WIP snapshot before context compression.
+PreCompact hook — wicked-garden WIP snapshot before context compression.
 
-Three jobs:
-1. Save structured WIP state to wicked-garden:mem (decisions, constraints, file scope, etc.)
-2. Write a fast-retrieval JSON snapshot for the briefing system
+v6: the v5 ticket-rail preservation path (HistoryCondenser + PressureTracker)
+was removed with smaht/v2 in #428. The remaining jobs are:
+1. Stamp SessionState.last_compact_ts (dedup guard)
+2. Save a lightweight WIP memory to wicked-brain using SessionState + native
+   in-progress task subjects as the input
 3. Prompt Claude to store any additional memories before context is lost
 
 Always fails open — any unhandled exception returns {"continue": true}.
@@ -107,37 +109,52 @@ def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="ep
 _MAX_WIP_CHARS = 4000
 
 
-def _build_wip_markdown(session_state_dict, condensed_history):
-    """Format structured WIP state as markdown, capped at _MAX_WIP_CHARS."""
-    sections = []
-    sections.append("## WIP State (Pre-Compaction)")
+def _read_in_progress_tasks(session_id, limit=10):
+    """Read native in-progress task subjects for the session.
 
-    current_task = session_state_dict.get("current_task") or ""
-    if current_task:
-        sections.append(f"### Current Task\n{current_task}")
+    Replaces the v5 HistoryCondenser "current_task" read — v6 has no ticket
+    rail. Returns an empty list on any error.
+    """
+    out = []
+    try:
+        base = os.environ.get("CLAUDE_CONFIG_DIR")
+        root = Path(base).expanduser() if base else Path.home() / ".claude"
+        safe = (session_id or "").replace("/", "_").replace("\\", "_").replace("..", "_")
+        tdir = root / "tasks" / safe
+        if not tdir.is_dir():
+            return out
+        for entry in tdir.iterdir():
+            if entry.name.startswith(".") or entry.suffix != ".json":
+                continue
+            try:
+                data = json.loads(entry.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if isinstance(data, dict) and data.get("status") == "in_progress":
+                subj = data.get("subject") or "untitled"
+                out.append(subj)
+            if len(out) >= limit:
+                break
+    except Exception:
+        pass
+    return out
 
-    decisions = session_state_dict.get("decisions") or []
-    if decisions:
-        items = "\n".join(f"- {d}" for d in decisions)
-        sections.append(f"### Decisions Made\n{items}")
 
-    file_scope = session_state_dict.get("file_scope") or []
-    if file_scope:
-        items = "\n".join(f"- {f}" for f in file_scope)
-        sections.append(f"### Files In Scope\n{items}")
+def _build_wip_markdown(session_state_dict, in_progress):
+    """Format lightweight WIP state as markdown, capped at _MAX_WIP_CHARS."""
+    sections = ["## WIP State (Pre-Compaction)"]
 
-    constraints = session_state_dict.get("active_constraints") or []
-    if constraints:
-        items = "\n".join(f"- {c}" for c in constraints)
-        sections.append(f"### Active Constraints\n{items}")
+    active_project = session_state_dict.get("active_project") or ""
+    if active_project:
+        sections.append(f"### Active Project\n{active_project}")
 
-    questions = session_state_dict.get("open_questions") or []
-    if questions:
-        items = "\n".join(f"- {q}" for q in questions)
-        sections.append(f"### Open Questions\n{items}")
+    turn_count = session_state_dict.get("turn_count")
+    if turn_count:
+        sections.append(f"### Turn Count\n{turn_count}")
 
-    if condensed_history:
-        sections.append(f"### Condensed History\n{condensed_history}")
+    if in_progress:
+        items = "\n".join(f"- {s}" for s in in_progress)
+        sections.append(f"### In-Progress Tasks\n{items}")
 
     content = "\n\n".join(sections)
     if len(content) > _MAX_WIP_CHARS:
@@ -146,57 +163,39 @@ def _build_wip_markdown(session_state_dict, condensed_history):
 
 
 def _save_wip_state(session_id, project):
-    """Save structured WIP state to wicked-garden:mem and a JSON snapshot file."""
+    """Save a lightweight WIP memory to wicked-brain.
+
+    v6: no HistoryCondenser ticket rail. Input is SessionState + native
+    in-progress task subjects. The richer v5 snapshot (decisions, file scope,
+    open questions) is gone.
+    """
     try:
         from _session import SessionState
         state = SessionState.load()
     except Exception:
         state = None
 
-    # Collect SessionState fields
     ss_fields = {}
     if state:
         ss_fields = {
-            "active_project": state.active_project,
-            "active_project_id": state.active_project_id,
-            "turn_count": state.turn_count,
-            "failure_counts": state.failure_counts,
-            "bash_count": state.bash_count,
+            "active_project": getattr(state, "active_project", ""),
+            "active_project_id": getattr(state, "active_project_id", ""),
+            "turn_count": getattr(state, "turn_count", 0),
+            "failure_counts": getattr(state, "failure_counts", None),
+            "bash_count": getattr(state, "bash_count", 0),
         }
 
-    # Try to load smaht HistoryCondenser state
-    condenser_state = {}
-    condensed_history = ""
-    condenser = None
-    try:
-        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
-        from history_condenser import HistoryCondenser
-        condenser = HistoryCondenser(session_id)
-        condenser_state = condenser.get_session_state()
-        condensed_history = condenser.get_condensed_history()
-    except Exception as e:
-        _log("context", "debug", "pre_compact.condenser_unavailable",
-             ok=True, detail={"error": str(e)[:100]})
+    in_progress = _read_in_progress_tasks(session_id, limit=10)
 
-    # Merge into a single dict for the snapshot
-    snapshot = {**ss_fields, **condenser_state, "timestamp": datetime.now(timezone.utc).isoformat()}
+    # Nothing to save if we have no signal at all
+    if not any(ss_fields.values()) and not in_progress:
+        _log("context", "debug", "pre_compact.empty_wip")
+        return
 
-    # Write JSON snapshot for fast retrieval by the briefing system
-    if condenser is not None:
-        try:
-            snapshot_path = condenser.session_dir / "wip_snapshot.json"
-            snapshot_path.write_text(json.dumps(snapshot, indent=2, default=str), encoding="utf-8")
-        except Exception as e:
-            _log("context", "debug", "pre_compact.snapshot_write_failed",
-                 ok=True, detail={"error": str(e)[:100]})
+    content = _build_wip_markdown(ss_fields, in_progress)
+    active_project = ss_fields.get("active_project") or ""
+    title = f"WIP: {active_project or 'Session work'} — pre-compaction snapshot"
 
-    # Build structured markdown content
-    content = _build_wip_markdown(condenser_state or ss_fields, condensed_history)
-
-    current_task = condenser_state.get("current_task") or ""
-    title = f"WIP: {current_task or 'Session work'} — pre-compaction snapshot"
-
-    # Store via brain API (write chunk file + index)
     try:
         chunk_id = _write_brain_memory(
             title=title,
@@ -226,7 +225,7 @@ def main():
     # Normal-level log fires regardless of log level (AC-07)
     _log("context", "normal", "pre_compact")
 
-    session_id = os.environ.get("CLAUDE_SESSION_ID") or f"sess_{uuid.uuid4().hex[:8]}"
+    session_id = os.environ.get("CLAUDE_SESSION_ID") or f"sess_{_uuid_mod.uuid4().hex[:8]}"
     project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
 
     # Dedup guard: skip WIP save if compaction happened <60s ago
@@ -251,15 +250,9 @@ def main():
     if not skip_wip:
         _save_wip_state(session_id, project)
 
-    # Notify the pressure tracker that compaction just occurred so it resets
-    # cumulative byte pressure by ~70% (avoids over-aggressive budget scaling
-    # on the first turns after a compaction).
-    try:
-        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
-        from context_pressure import PressureTracker
-        PressureTracker(session_id).mark_compacted()
-    except Exception:
-        pass  # fail open
+    # v6: PressureTracker was deleted with smaht/v2 in #428. There is no
+    # cumulative-byte pressure model to reset — the pull-model architecture
+    # does not rely on it.
 
     # Update last_compact_ts after successful processing
     if not skip_wip:

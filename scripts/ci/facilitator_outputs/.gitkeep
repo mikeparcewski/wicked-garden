@@ -1,0 +1,17 @@
+# Placeholder — captured facilitator outputs per scenario
+
+This directory holds JSON files matching the schema in
+`skills/crew/propose-process/refs/output-schema.md`, one per scenario
+under `scenarios/crew/facilitator-rubric/`. File names mirror scenario
+stems: `01-trivial-typo.json`, `02-small-bugfix.json`, etc.
+
+To capture an output:
+
+1. Invoke the `propose-process` skill on the scenario's `Input` description
+   with `output=json`.
+2. Save the JSON response to `scripts/ci/facilitator_outputs/<scenario-stem>.json`.
+3. Run `python3 scripts/ci/measure_facilitator.py` to score.
+
+These files are the artifacts the rubric iteration loop consumes. Treat them
+as test fixtures — keep them under version control; diff them as the rubric
+evolves.

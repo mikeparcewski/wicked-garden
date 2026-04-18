@@ -40,7 +40,9 @@ def main():
                 if field not in plugin:
                     errors.append(f"plugin.json missing required field: {field}")
             version = plugin.get("version", "")
-            if not re.match(r"^\d+\.\d+\.\d+$", version):
+            # Allow semver core X.Y.Z plus optional pre-release (-alpha.N, -beta.N, -rc.N)
+            # per semver.org; v6 ships as 6.0.0-beta.1.
+            if not re.match(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$", version):
                 errors.append(f"plugin.json version is not semver: {version}")
         except json.JSONDecodeError as e:
             errors.append(f"plugin.json is invalid JSON: {e}")

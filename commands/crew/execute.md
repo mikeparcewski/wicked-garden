@@ -147,97 +147,27 @@ Check for `${CREW_ROOT}/preferences.yaml` or project-level preferences for:
 - Autonomy level (ask-first, balanced, just-finish)
 - Communication style
 
-### 4. Dynamic Archetype Pre-Analysis
+### 4. Archetype Pre-Analysis — REMOVED IN V6
 
-**BEFORE loading signal analysis, dynamically detect project archetypes.** Quality means different things for different projects — a content site needs messaging consistency, a UI app needs design coherence, infrastructure needs reliability. Static keyword matching is a fallback; this dynamic analysis is the primary path.
+The old "dynamic archetype pre-analysis" phase (discover project context → classify archetypes → cache `archetype_hints` on `project.json`) has been **removed** in v6. Its job is now owned by `wicked-garden:crew:propose-process` (run during `/wicked-garden:crew:start`), which folds project-type readings into its 9 factor scores and specialist picks. No standalone archetype step runs here — skip straight to 4.4 to load the facilitator's plan. Checkpoint re-evaluation (Section 4.5) re-invokes the facilitator in `re-evaluate` mode when phase artifacts change the picture.
 
-#### 4.1 Discover Project Context
+### 4.4 Load Facilitator Plan
 
-Use the Explore agent or direct tool calls to gather context about the project being worked on:
-
-1. **Read project descriptor files** (any that exist):
-   - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `agent.md`, `README.md` in the target directory (load `AGENTS.md` first for general agent context, then `CLAUDE.md` for Claude-specific overrides)
-   - `package.json`, `pyproject.toml`, `Cargo.toml` for tech stack detection
-   - `.claude-plugin/plugin.json` if it's a plugin project
-
-2. **Query memories** (if wicked-garden:mem available):
-   ```
-   /wicked-garden:mem:recall "project type and quality dimensions for {project-name}" --limit 5
-   /wicked-garden:mem:recall --tags onboarding --limit 10
-   ```
-   Onboarding memories (tech stack, architecture, flows, gaps) plus past quality decisions inform archetype detection.
-
-3. **Analyze codebase structure** :
-   - `/wicked-garden:search:scout` for common patterns (component library? API routes? data pipelines?)
-   - `/wicked-garden:search:blast-radius` on files being changed to understand impact scope
-
-4. **Check for past crew projects** on the same codebase to inherit archetype context
-
-#### 4.2 Classify Archetypes
-
-From the gathered context, classify the project into one or more archetypes. Each archetype defines what "quality" means for that project type:
-
-- **What dimensions of quality matter most** (code quality? content accuracy? design consistency? data integrity? security compliance?)
-- **What review processes are needed** (code review? UX review? content review? accessibility audit?)
-- **What testing strategies apply** (unit tests? visual regression? content validation? load testing?)
-
-Build archetype hints as a JSON dict. Known archetypes have built-in adjustments; but you can define NEW archetypes dynamically based on what you discover:
-
-```json
-{
-  "infrastructure-framework": {
-    "confidence": 0.9,
-    "impact_bonus": 2,
-    "inject_signals": {"architecture": 0.3},
-    "min_complexity": 3,
-    "description": "Modifying core execution paths that affect all downstream users"
-  },
-  "design-system": {
-    "confidence": 0.7,
-    "impact_bonus": 1,
-    "inject_signals": {"ux": 0.4},
-    "min_complexity": 2,
-    "description": "Component library changes need visual consistency review"
-  }
-}
-```
-
-#### 4.3 Cache and Pass Hints
-
-**Cache hints in project.json** so checkpoints can reuse them without re-running the full discovery:
-
-```json
-{
-  "archetype_hints": {
-    "infrastructure-framework": {
-      "confidence": 0.9,
-      "impact_bonus": 2,
-      "inject_signals": {"architecture": 0.3},
-      "min_complexity": 3,
-      "description": "Core execution paths"
-    }
-  }
-}
-```
-
-At checkpoints (Section 4.5), **reuse cached hints** unless signal re-analysis detects significant changes (new signals or complexity increase >= 2). If the project context changes substantially, re-run the full discovery and update the cache.
-
-Include archetype hints when calling smart_decisioning:
+Locate the active project and read the facilitator's plan (v6 — replaces the old signal-analysis block that lived on `project.json`):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json \
-  --archetype-hints '${ARCHETYPE_HINTS_JSON}' \
-  "{description}"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
-The script merges external hints with keyword detection, applies adjustments from ALL detected archetypes holistically (max impact_bonus, union of injected signals, max min_complexity).
+This returns `{project, project_dir}`. Read `${project_dir}/process-plan.json` for the canonical plan written by `wicked-garden:crew:propose-process`. Pull the following fields (schema: `skills/crew/propose-process/refs/output-schema.md`):
 
-### 4.4 Load Signal Analysis
+- **factors** — 9 factor readings (reversibility, blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort, state_complexity, operational_risk, coordination_cost), each `{reading: LOW|MEDIUM|HIGH, why: "..."}`. These replace `signals_detected`.
+- **specialists** — list of `{name, why}` the facilitator picked. Replaces `specialists_recommended`.
+- **phases** — ordered list of `{name, why, primary: [specialist names]}`. Replaces the old `phase_plan`.
+- **rigor_tier** — `minimal | standard | full` (gate enforcement level).
+- **complexity** — integer 0-7 (drives autonomy and gate thresholds).
 
-Read project.json for:
-- **signals_detected**: What types of work were identified
-- **complexity_score**: How complex (affects autonomy)
-- **specialists_recommended**: Which specialists to engage
+If `process-plan.json` is missing (legacy project), invoke `wicked-garden:crew:propose-process` in `propose` mode now and persist the plan before continuing.
 
 ### 4.5 Signal Re-Analysis at Checkpoints
 
@@ -248,15 +178,29 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/phases.json` and check if the current
 When a checkpoint phase completes:
 
 1. **Gather phase artifacts**: Read all files in `phases/{phase}/` and any deliverables produced
-2. **Re-run signal analysis** on the combined project description + phase artifacts:
-   ```bash
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/smart_decisioning.py --json "{combined text summary of deliverables}"
+2. **Re-invoke the facilitator** in `re-evaluate` mode with the combined project
+   description + phase artifacts:
    ```
-3. **Compare signals AND complexity**: Diff new `signals` against project.json `signals_detected`, AND compare new `complexity` against `complexity_score`
-4. **If new signals found OR complexity increased**:
-   - Update project.json `signals_detected` with union of old + new signals
+   Skill(
+     skill="wicked-garden:crew:propose-process",
+     args={
+       "description": "{original description + combined text summary of deliverables}",
+       "mode": "re-evaluate",
+       "project_slug": "{slug}",
+       "prior_plan_path": "${project_dir}/process-plan.json",
+       "output": "json"
+     }
+   )
+   ```
+   The skill reads the prior plan + new context and emits a diff plan (new factor
+   readings, any phase additions/demotions, any rigor_tier change). See
+   `skills/crew/propose-process/SKILL.md#Re-evaluation mode`.
+3. **Compare factors AND complexity**: Diff new `factors` against project.json
+   `factors`, AND compare new `complexity` against `complexity_score`
+4. **If factor readings shift OR complexity increased**:
+   - Update project.json `factors` with new readings
    - Update `complexity_score` if new score is higher
-   - Update `specialists_recommended` with new recommendations
+   - Update `specialists` with any new recommendations
    - **Check for phase injection** (see below)
 
 #### Dynamic Phase Injection
@@ -292,17 +236,30 @@ When new signals are detected OR complexity increases at a checkpoint, check if 
 
 **User override**: If project.json contains `"phase_plan_mode": "static"`, skip re-analysis and injection entirely.
 
-#### Memory Payload Storage
+#### Re-Evaluation Memory Storage
 
-When `smart_decisioning.py --json` output includes a `memory_payload` field (non-null), the analysis was deemed significant and should be persisted to wicked-garden:mem. **The script only returns the payload — this command is responsible for storing it** via Claude's native tool system:
+The facilitator's `re-evaluate` mode writes an addendum to `${project_dir}/process-plan.md`
+(the durable artifact) AND stores a wicked-brain memory describing the plan diff:
 
 ```
-/wicked-garden:mem:store "{memory_payload.content}" --type {memory_payload.type} --tags "{memory_payload.tags}" --importance {memory_payload.importance}
+Skill(
+  skill="wicked-brain:memory",
+  args={"action": "store", "type": "decision",
+        "title": "crew:execute checkpoint re-eval for {slug}",
+        "content": "<summary of factor deltas + any phase injections + rigor change>",
+        "tags": ["crew", "facilitator", "re-evaluate", "{slug}"],
+        "importance": 5}
+)
 ```
 
-This applies to ALL calls to `smart_decisioning.py` — both initial analysis (in start.md) and checkpoint re-analysis. The same pattern applies to `feedback.py record --json` which also returns a `memory_payload`.
+Fail-open: if the brain is unavailable, skip silently. The plan addendum is the
+system of record. The same pattern applies to `feedback.py record --json`, which
+still returns a `memory_payload` field that this command stores via
+`/wicked-garden:mem:store`.
 
-**Rationale**: Scripts run as subprocesses and should never call other plugins directly. Claude's tool system (skills, Task tool) IS the universal API for cross-plugin communication.
+**Rationale**: Scripts run as subprocesses and should never call other plugins
+directly. Claude's tool system (skills, Task tool) IS the universal API for
+cross-plugin communication.
 
 ### 5. Discover Available Specialists
 
@@ -315,9 +272,9 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 This returns all available specialists with their `enhances` declarations (which phases they support).
 
 **Dynamic Routing**: Do NOT use hardcoded specialist-to-phase mappings. Instead:
-1. Read `signals_detected` and `specialists_recommended` from project.json
+1. Read `specialists` and per-phase `phases[].primary` from `${project_dir}/process-plan.json` (the facilitator's plan)
 2. Filter discovered specialists to those whose `enhances` list includes the current phase or `"*"`
-3. Cross-reference with recommended specialists from signal analysis
+3. Intersect with the facilitator's picks — engage the specialists the plan named for this phase, falling back to any `enhances`-compatible specialist if a pick is unavailable
 4. Engage all matching, available specialists for the current phase
 
 ### 6. Engage Specialists for Phase
@@ -1189,7 +1146,7 @@ TaskUpdate(taskId="{id}", status="completed",
 
 2. **Filter to reviewers**: Select specialists whose `enhances` list includes the current phase or `"*"`
 
-3. **Cross-reference signals**: Prioritize specialists that match `signals_detected` from project.json
+3. **Cross-reference facilitator plan**: Prioritize specialists the facilitator named in `${project_dir}/process-plan.json` — the `specialists[]` roster and the `phases[].primary` list for this phase (replaces the v5 `signals_detected` lookup)
 
 4. **Dispatch matching specialists in parallel**:
    ```

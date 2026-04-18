@@ -1,134 +1,96 @@
 ---
-description: Show what context was assembled for recent turns
-argument-hint: "[--turns N] [--state] [--json]"
+description: Show session state and recent context for debugging
+argument-hint: "[--state] [--events N] [--json]"
 ---
 
 # /wicked-garden:smaht:debug
 
-Show the session state document and context assembly details for debugging.
+Show session state and recent events for debugging context assembly. v6 removed
+the per-turn push orchestrator (#428), so there is no HOT/FAST/SLOW routing log
+to surface. This command now shows what lives in `SessionState` plus the last N
+events on the bus.
 
 ## Usage
 
 ```bash
-/wicked-garden:smaht:debug          # Show session state + last 3 turns of context
-/wicked-garden:smaht:debug --state   # Session state document only
-/wicked-garden:smaht:debug --turns 5 # Show last 5 turns
-/wicked-garden:smaht:debug --json    # Raw JSON output
+/wicked-garden:smaht:debug              # SessionState + last 10 events
+/wicked-garden:smaht:debug --state       # SessionState only
+/wicked-garden:smaht:debug --events 20   # Show last 20 events
+/wicked-garden:smaht:debug --json        # Raw JSON output
 ```
 
 ## Instructions
 
-### 1. Load Session State
-
-Read the session state from the history condenser:
+### 1. Load SessionState
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/smaht/v2/history_condenser.py ${CLAUDE_SESSION_ID:-default}
-```
-
-### 2. Parse Arguments
-
-- `--state`: Show only the session state document (ticket rail)
-- `--turns N`: Show last N turns (default 3)
-- `--json`: Output raw JSON instead of formatted markdown
-
-### 3. Display Session State Document
-
-Show the "ticket rail" — the L2 cache that survives context compression:
-
-```markdown
-## Session State (Ticket Rail)
-
-**Current task**: {current_task or "(none)"}
-**Topics**: {topics}
-**Decisions**: {decisions}
-**Constraints**: {active_constraints}
-**Files in scope**: {file_scope}
-**Open questions**: {open_questions}
-**Open threads**: {open_threads}
-**Preferences**: {preferences}
-```
-
-### 4. Display Turn History
-
-Resolve the smaht session path:
-```bash
-SMAHT_SESSION=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-smaht sessions ${CLAUDE_SESSION_ID:-default})
-```
-
-Read the last N turns from `{SMAHT_SESSION}/turns.jsonl`:
-
-```markdown
-## Recent Turns
-
-| Turn | User | Assistant | Path |
-|------|------|-----------|------|
-| 1 | {user[:80]} | {assistant[:80]} | {fast/slow/hot} |
-```
-
-### 5. Display Context Pressure
-
-Read pressure state using the PressureTracker:
-
-```bash
-python3 -c "
-import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/v2')
-from context_pressure import PressureTracker
-t = PressureTracker()
-import json; print(json.dumps(t.get_state_summary(), indent=2))
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys, json
+from pathlib import Path
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+from _session import SessionState
+state = SessionState.load()
+print(json.dumps(state.to_dict() if hasattr(state, 'to_dict') else state.__dict__, indent=2, default=str))
 "
 ```
 
-Display under:
+### 2. Display Session State
 
 ```markdown
-## Context Pressure
+## Session State
 
-- **Level**: {level} ({cumulative_kb}KB cumulative, {peak_kb}KB peak)
-- **Turn count**: {turn_count}
-- **Last compacted**: {last_compacted}
+**Turn count**: {turn_count}
+**Active chain**: {active_chain_id or "(none)"}
+**Active crew project**: {active_project or "(none)"}
+**Current phase**: {current_phase or "(none)"}
+**Session goal**: {session_goal or "(not set)"}
 ```
 
-Also check for compaction bug reports:
+### 3. Display Recent Events
+
+Pull the last N events from the wicked-bus (default 10):
 
 ```bash
-cat ${SMAHT_SESSION}/compaction_bugs.jsonl 2>/dev/null
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys, json
+from pathlib import Path
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+try:
+    from _bus import tail_events
+    events = tail_events(limit=${EVENTS_LIMIT:-10})
+    for e in events:
+        print(f\"  [{e.get('event_type','?')}] {e.get('data',{}).get('summary','')}\")
+except Exception as exc:
+    print(f'bus unavailable: {exc}')
+"
 ```
-
-If any exist, display them under `## Compaction Bug Reports` with a note that these indicate the pressure system failed to prevent auto-compaction.
-
-### 6. Display Routing Stats and Session Metrics
-
-Read metrics from `{SMAHT_SESSION}/metrics.json`:
 
 ```markdown
-## Routing Stats
+## Recent Events (last N)
 
-- **Total turns**: {count}
-- **Context path**: hot={hot_count}, fast={fast_count}, slow={slow_count}
-- **Session ID**: {session_id}
-
-## Session Metrics
-
-- **Sources pre-loaded**: {items_pre_loaded} across {queries_made} queries
-- **Estimated turns saved**: ~{estimated_turns_saved} (context that would have required manual search/recall)
-- **Value**: Pre-loaded context eliminated approximately {estimated_turns_saved} additional turns of re-explaining or re-searching
+{bulleted list of event_type + summary}
 ```
 
-### 6. Show Context Package Preview
-
-Run the context package builder to show what a subagent would receive:
+### 4. Display Active Project Context (if any)
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/smaht/context_package.py build --task "current session work" --prompt
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
-Display the output under:
+Display:
 
 ```markdown
-## Subagent Context Package Preview
+## Active Crew Project
 
-{output from context_package.py}
+**Slug**: {slug}
+**Phase**: {current_phase}
+**Rigor tier**: {rigor_tier}
+**Process plan**: `{project_dir}/process-plan.md`
 ```
 
-This shows exactly what context a subagent would receive if dispatched right now.
+## v5 → v6 Notes
+
+The v5 HistoryCondenser + PressureTracker + ticket rail have all been removed.
+Session context now lives in `SessionState` (simple key/value state) and the
+wicked-bus event log. The facilitator's `process-plan.md` is the durable
+artifact that used to be the "ticket rail."

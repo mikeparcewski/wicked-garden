@@ -1,0 +1,62 @@
+{
+  "project_slug": "dashboard-feel-faster",
+  "mode": "propose",
+  "summary": "Stated intent: 'make the dashboard feel faster.' Multiple plausible reads (initial paint vs TTI vs perceived responsiveness), unspecified dashboard (admin, customer, internal), and the word 'feel' signals UX perception rather than a raw metric. Ambiguity is high enough to stop and clarify before scoring the rest of the plan.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "UNKNOWN", "why": "Depends on whether the intervention is a client render tweak or a caching/architecture change."},
+    "blast_radius":       {"reading": "UNKNOWN", "why": "Scope of 'dashboard' is unresolved — admin vs customer have very different reach."},
+    "compliance_scope":   {"reading": "LOW",     "why": "Perception tuning does not create a regulated surface on its own."},
+    "user_facing_impact": {"reading": "HIGH",    "why": "Any fix is by definition something users should 'feel'."},
+    "novelty":            {"reading": "MEDIUM",  "why": "Perceived-performance work blends engineering and UX; novelty depends on prior interventions."},
+    "scope_effort":       {"reading": "UNKNOWN", "why": "Could range from skeleton loaders to a caching tier — effort is a multiple of the chosen intervention."},
+    "state_complexity":   {"reading": "UNKNOWN", "why": "Caching or data-shape changes would introduce state; a pure render tweak would not."},
+    "operational_risk":   {"reading": "UNKNOWN", "why": "Depends on whether a caching or streaming change lands in production."},
+    "coordination_cost":  {"reading": "UNKNOWN", "why": "Requires UX + PM + engineering alignment once scope resolves."}
+  },
+  "specialists": [
+    {"name": "requirements-analyst", "why": "Owns the clarification and produces the REQ- IDs once scope resolves."},
+    {"name": "ux-designer",          "why": "'Feel faster' is a UX concept; perception work needs a UX owner."},
+    {"name": "product-manager",      "why": "Adjudicates scope (which dashboard, which users) and rollout appetite."}
+  ],
+  "phases": [
+    {"name": "clarify", "why": "Only phase emitted confidently — resolve ambiguity before sizing the rest of the chain.", "primary": ["requirements-analyst", "ux-designer", "product-manager"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "Floor: can only be scored as standard until clarification; may escalate to full if scope crosses compliance or production caching.",
+  "complexity": 4,
+  "complexity_why": "Rough mid-range estimate with wide tolerance; true complexity depends on the chosen intervention.",
+  "open_questions": [
+    "Which dashboard — admin, customer, internal?",
+    "By 'faster', do you mean initial paint, time-to-interactive, or perceived responsiveness after an interaction?",
+    "Is there a specific user complaint, a metric regressing, or a visible slowdown you want to address?",
+    "What's the rollout appetite — feature-flag experiment, or ship to everyone?"
+  ],
+  "ambiguity_stop": true,
+  "requires_jam_quick_or_deliberate": true,
+  "recommended_next_steps": [
+    "/wicked-garden:deliberate — challenge assumptions and reframe the ask",
+    "/wicked-garden:jam:quick — surface alternative reads of 'feel faster' across personas"
+  ],
+  "evidence_required": [],
+  "test_types": [],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Clarify dashboard scope, 'faster' definition, and rollout appetite",
+      "phase": "clarify",
+      "specialist": "requirements-analyst",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "dashboard-feel-faster.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "clarify",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    }
+  ]
+}

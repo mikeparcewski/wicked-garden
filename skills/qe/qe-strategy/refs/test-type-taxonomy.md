@@ -292,7 +292,7 @@ All applicable types must be PASS for the test phase gate to clear.
 
 The QE strategy phase uses this taxonomy to build a **test requirement matrix** for the project.
 
-1. **Signal analysis** — `smart_decisioning.py` identifies change signals (new endpoint, schema change, UI work, etc.)
+1. **Factor analysis** — the `wicked-garden:crew:propose-process` facilitator rubric identifies change signals via its 9-factor reading (reversibility, blast_radius, state_complexity, etc.) rather than keyword-based signals. See the facilitator's `process-plan.md` for the factor table.
 2. **Matrix construction** — test-strategist maps signals to required test types using the change-type selection matrix
 3. **Evidence planning** — for each required type, define the specific artifact and the command/tool that produces it
 4. **Gate assignment**: `unit`/`configuration` → build gate; `integration`/`data/state` → build+test gate; `scenario`/`visual`/`copy` → test gate; `security`/`performance` → test gate; `regression` → test gate

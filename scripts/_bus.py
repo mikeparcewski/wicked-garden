@@ -34,7 +34,7 @@ logger = logging.getLogger("wicked-garden.bus")
 # ---------------------------------------------------------------------------
 
 BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
-    # Crew domain — phase_manager.py + smart_decisioning.py
+    # Crew domain — phase_manager.py + propose-process facilitator skill
     "wicked.project.created": {
         "domain": "wicked-garden",
         "subdomain": "crew.project",

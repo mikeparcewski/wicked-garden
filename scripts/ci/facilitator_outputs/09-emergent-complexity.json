@@ -1,0 +1,232 @@
+{
+  "project_slug": "saved-searches",
+  "mode": "re-evaluate",
+  "summary": "Add a 'saved searches' feature. Pass 1 read it as a mid-scale user-visible feature; pass-2 design evidence revealed that existing storage lacks full-text indexing, query volume will grow to ~1M rows, and per-user saved lists require a new table plus a backfill. This file is the post-re-evaluation composite plan; pass-1 and pass-2 captures live alongside as -pass1.json / -pass2.json.",
+  "priors": [
+    {"path": "design/saved-searches-design.md", "source_type": "task-evidence", "why": "Surfaced the migration + indexing requirement that triggered re-evaluation."}
+  ],
+  "factors": {
+    "reversibility":      {"reading": "MEDIUM","why": "New table + backfill narrows rollback; still reversible but not free."},
+    "blast_radius":       {"reading": "MEDIUM","why": "Bounded to the search subsystem plus the new table; index build touches shared DB resources."},
+    "compliance_scope":   {"reading": "LOW",    "why": "Saved searches are user-owned settings; no new regulated surface."},
+    "user_facing_impact": {"reading": "HIGH",   "why": "New UI affordance + re-run flow visible to every search user."},
+    "novelty":            {"reading": "MEDIUM","why": "Full-text index on this dataset is new territory for the team."},
+    "scope_effort":       {"reading": "MEDIUM","why": "UI + API + storage + migration + index pipeline span multiple disciplines."},
+    "state_complexity":   {"reading": "HIGH",   "why": "New table, foreign keys, backfill, and a full-text index all introduce persistent state."},
+    "operational_risk":   {"reading": "MEDIUM","why": "Index build and backfill can pressure DB during cutover."},
+    "coordination_cost":  {"reading": "MEDIUM","why": "PM + architect + BE + FE + migration + data-eng + test strategy need to align."}
+  },
+  "specialists": [
+    {"name": "requirements-analyst", "why": "Own REQ capture + AC."},
+    {"name": "product-manager",      "why": "Own scope, priorities, rollout."},
+    {"name": "solution-architect",   "why": "Storage shape, API, indexing strategy."},
+    {"name": "backend-engineer",     "why": "Implement endpoints and persistence."},
+    {"name": "frontend-engineer",    "why": "Implement save/manage/run UI."},
+    {"name": "test-designer",        "why": "Design full pyramid including migration + performance."},
+    {"name": "migration-engineer",   "why": "AUGMENTED in pass 2: new table + foreign keys + backfill."},
+    {"name": "data-engineer",        "why": "AUGMENTED in pass 2: full-text index pipeline for growing query path."}
+  ],
+  "phases": [
+    {"name": "clarify",       "why": "Nail AC, search types, quotas.", "primary": ["requirements-analyst", "product-manager"]},
+    {"name": "design",        "why": "API contract, storage, and indexing strategy.", "primary": ["solution-architect"]},
+    {"name": "test-strategy", "why": "Plan full pyramid + migration + performance.", "primary": ["test-designer"]},
+    {"name": "build",         "why": "Implement BE + FE + migration + indexing in parallel where possible.", "primary": ["backend-engineer", "frontend-engineer", "migration-engineer", "data-engineer"]},
+    {"name": "test",          "why": "Execute unit/integration/api/ui/acceptance plus migration + performance.", "primary": ["test-designer"]},
+    {"name": "review",        "why": "Review rollback plan and performance baseline before shipping.", "primary": ["solution-architect"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "Emergent migration + indexing handled with rollback plan + performance baseline; kept at standard because no compliance amplifier; escalation to full noted in plan if backfill window exceeds a business day.",
+  "complexity": 5,
+  "complexity_why": "Bumped from 4 → 5 in re-evaluation: migration + indexing added without crossing into compliance territory.",
+  "open_questions": [],
+  "evidence_required": [
+    "unit-results",
+    "integration-results",
+    "api-contract-diff",
+    "acceptance-report",
+    "screenshot-before-after",
+    "migration-rollback-plan",
+    "performance-baseline"
+  ],
+  "test_types": [
+    "unit",
+    "integration",
+    "api",
+    "ui",
+    "acceptance",
+    "migration",
+    "performance"
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Clarify saved-search AC, search types, and quotas",
+      "phase": "clarify",
+      "specialist": "requirements-analyst",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "clarify",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Design storage + API contract for saved searches",
+      "phase": "design",
+      "specialist": "solution-architect",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["api-contract-diff"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Plan unit/integration/api/ui/acceptance + migration + performance coverage",
+      "phase": "test-strategy",
+      "specialist": "test-designer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test-strategy",
+        "test_required": false,
+        "test_types": ["unit", "integration", "api", "ui", "acceptance", "migration", "performance"],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Implement saved-search endpoints",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit", "integration", "api"],
+        "evidence_required": ["unit-results", "integration-results", "api-contract-diff"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t5",
+      "title": "Implement saved-search UI (save/manage/run)",
+      "phase": "build",
+      "specialist": "frontend-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit", "ui"],
+        "evidence_required": ["unit-results", "screenshot-before-after"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t6",
+      "title": "Acceptance test end-to-end",
+      "phase": "test",
+      "specialist": "test-designer",
+      "blockedBy": ["t4", "t5"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["acceptance"],
+        "evidence_required": ["acceptance-report"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t7",
+      "title": "Design + execute saved-search table migration (FKs, index)",
+      "phase": "build",
+      "specialist": "migration-engineer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["migration"],
+        "evidence_required": ["migration-rollback-plan"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t8",
+      "title": "Build full-text index pipeline + backfill existing search events",
+      "phase": "build",
+      "specialist": "data-engineer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["migration", "performance"],
+        "evidence_required": ["migration-rollback-plan", "performance-baseline"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t9",
+      "title": "Performance baseline against ~1M-row query path",
+      "phase": "test",
+      "specialist": "test-designer",
+      "blockedBy": ["t7", "t8"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["performance"],
+        "evidence_required": ["performance-baseline"],
+        "rigor_tier": "standard"
+      }
+    }
+  ],
+  "re_evaluation": {
+    "trigger": "task-2 (design) completion revealed full-text search + 1M-row query + new table + backfill",
+    "pruned": [],
+    "augmented": [
+      {"specialist": "migration-engineer", "reason": "design revealed new table + foreign keys + backfill"},
+      {"specialist": "data-engineer",      "reason": "full-text index + 1M-row query path needs a data pipeline owner"}
+    ],
+    "evidence_added": ["migration-rollback-plan", "performance-baseline"],
+    "test_types_added": ["migration", "performance"],
+    "re_tiered": [
+      {"from": "standard", "to": "standard", "why": "Escalation considered; no compliance amplifier so we stayed at standard with explicit migration + perf evidence."}
+    ],
+    "completed_tasks_untouched": true,
+    "complexity_before": 4,
+    "complexity_after": 5,
+    "process_plan_addendum": "Re-evaluation 2026-04-17 — augmented migration-engineer + data-engineer, added migration-rollback-plan and performance-baseline, complexity 4→5."
+  }
+}

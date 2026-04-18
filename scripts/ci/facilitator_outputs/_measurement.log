@@ -1,0 +1,104 @@
+======================================================================
+Facilitator Rubric — Gate-1 Measurement
+======================================================================
+
+[PASS] 01-trivial-typo  (6/6)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+
+[PASS] 02-small-bugfix  (6/6)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+
+[PASS] 03-feature-midscale  (6/6)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+
+[PASS] 04-auth-rewrite  (7/7)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+    OK    yolo_forbidden         ok
+
+[PASS] 05-reversibility-migration  (6/6)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+
+[PASS] 06-internal-refactor  (6/6)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+
+[PASS] 07-docs-only  (6/6)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+
+[PASS] 08-ambiguous-ask  (7/7)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+    OK    open_questions         ok
+
+[PASS] 09-emergent-complexity  (7/7)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+    OK    re_evaluation          ok
+
+[PASS] 10-compliance-gdpr  (7/7)
+    OK    specialists            ok
+    OK    phases                 ok
+    OK    evidence_required      ok
+    OK    test_types             ok
+    OK    complexity             ok
+    OK    rigor_tier             ok
+    OK    yolo_forbidden         ok
+
+----------------------------------------------------------------------
+Per-dimension totals (passed/applicable):
+  complexity             10/10  (100.0%)
+  evidence_required      10/10  (100.0%)
+  open_questions         1/1  (100.0%)
+  phases                 10/10  (100.0%)
+  re_evaluation          1/1  (100.0%)
+  rigor_tier             10/10  (100.0%)
+  specialists            10/10  (100.0%)
+  test_types             10/10  (100.0%)
+  yolo_forbidden         2/2  (100.0%)
+----------------------------------------------------------------------
+Scenarios passed: 10/10  (100.0%)
+Gate threshold:   80%
+Result:           PASS
+======================================================================

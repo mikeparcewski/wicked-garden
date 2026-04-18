@@ -1,0 +1,219 @@
+{
+  "project_slug": "gdpr-data-export-endpoint",
+  "mode": "propose",
+  "summary": "Add a GDPR data export endpoint so users can request all their data as JSON. Implementation is 'just a handler,' but the compliance scope is high: GDPR Art. 15 right-to-access, identity verification, consent/auth checks, audit logging, and rate-limiting to prevent abuse.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "MEDIUM","why": "Endpoint can be disabled; data already sent cannot be recalled, so any bug in the export shape is permanent for that user."},
+    "blast_radius":       {"reading": "MEDIUM","why": "New endpoint on its own path; does not change existing auth flows, but exposes every table the user touches."},
+    "compliance_scope":   {"reading": "HIGH",   "why": "GDPR data-subject access request is explicitly in regulatory scope — Art. 15 timing and completeness requirements apply."},
+    "user_facing_impact": {"reading": "HIGH",   "why": "Users directly invoke the endpoint and receive their data."},
+    "novelty":            {"reading": "MEDIUM","why": "DSAR handlers have a known shape, but every app's data surface differs."},
+    "scope_effort":       {"reading": "MEDIUM","why": "Handler + identity verification + audit logging + rate-limiting + docs."},
+    "state_complexity":   {"reading": "LOW",    "why": "Read-only export; no schema mutation."},
+    "operational_risk":   {"reading": "MEDIUM","why": "Abuse potential (enumeration, DoS) requires rate-limiting and monitoring."},
+    "coordination_cost":  {"reading": "MEDIUM","why": "Compliance + privacy + audit + security + engineering all touch the plan."}
+  },
+  "specialists": [
+    {"name": "requirements-analyst", "why": "Capture DSAR requirements and REQ- IDs mapped to GDPR articles."},
+    {"name": "product-manager",      "why": "Own user-facing narrative, rate-limit policy, and rollout."},
+    {"name": "solution-architect",   "why": "Design data-assembly path and identity-verification flow."},
+    {"name": "backend-engineer",     "why": "Implement handler, assembly, and audit logging."},
+    {"name": "security-engineer",    "why": "Threat-model abuse scenarios; enforce rate-limit and identity checks."},
+    {"name": "compliance-officer",   "why": "Attest GDPR Art. 15 coverage and produce traceability artifacts."},
+    {"name": "privacy-expert",       "why": "Validate what belongs in the export and data-minimization boundaries."},
+    {"name": "auditor",              "why": "Ensure audit trail is sufficient for later regulatory inspection."},
+    {"name": "test-strategist",      "why": "Shape pyramid including security and acceptance."},
+    {"name": "test-designer",        "why": "Author integration/api/security/acceptance coverage."},
+    {"name": "technical-writer",     "why": "User-facing docs for how to invoke the export."}
+  ],
+  "phases": [
+    {"name": "clarify",       "why": "Pin GDPR Art. 15 obligations, identity verification method, and retention policy.", "primary": ["requirements-analyst", "compliance-officer"]},
+    {"name": "design",        "why": "Data-assembly design, identity-verification flow, rate-limit model, audit logging.", "primary": ["solution-architect", "security-engineer", "privacy-expert"]},
+    {"name": "test-strategy", "why": "Plan pyramid including security scan and compliance traceability.", "primary": ["test-strategist"]},
+    {"name": "build",         "why": "Implement handler, checks, audit trail, and docs.", "primary": ["backend-engineer", "technical-writer"]},
+    {"name": "test",          "why": "Execute unit/integration/api/security/acceptance.", "primary": ["test-designer"]},
+    {"name": "review",        "why": "Compliance + privacy + audit sign-off before enabling.", "primary": ["compliance-officer", "auditor"]}
+  ],
+  "rigor_tier": "full",
+  "rigor_why": "Named regulatory surface (GDPR) + user-visible + identity-verification + audit-logging — compliance scope HIGH forces full rigor regardless of other factors.",
+  "complexity": 5,
+  "complexity_why": "Mid-range effort with compliance amplifier; not as cross-cutting as the auth rewrite but squarely in the regulatory surface.",
+  "open_questions": [
+    "Identity verification method — reuse existing session, force re-auth, or a time-boxed token?",
+    "Retention and re-request throttle — how often can a user request a new export?"
+  ],
+  "requires_compliance_traceability": true,
+  "yolo_forbidden": true,
+  "yolo_refusal_reason": "rigor_tier=full with named regulatory surface (GDPR). Auto-proceed is ignored for full-rigor work; user confirmation + compliance officer sign-off are mandatory.",
+  "evidence_required": [
+    "unit-results",
+    "integration-results",
+    "api-contract-diff",
+    "security-scan",
+    "acceptance-report",
+    "compliance-traceability"
+  ],
+  "test_types": [
+    "unit",
+    "integration",
+    "api",
+    "security",
+    "acceptance"
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Clarify GDPR Art. 15 scope, identity verification, retention",
+      "phase": "clarify",
+      "specialist": "requirements-analyst",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "clarify",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Design data-assembly, identity verification, rate-limit, audit logging",
+      "phase": "design",
+      "specialist": "solution-architect",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["api-contract-diff"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Plan unit/integration/api/security/acceptance coverage + compliance traceability",
+      "phase": "test-strategy",
+      "specialist": "test-strategist",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test-strategy",
+        "test_required": false,
+        "test_types": ["unit", "integration", "api", "security", "acceptance"],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Implement GDPR export handler + audit logging + rate-limiting",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit", "integration", "api"],
+        "evidence_required": ["unit-results", "integration-results", "api-contract-diff"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t5",
+      "title": "Security scan + abuse/enumeration threat model",
+      "phase": "build",
+      "specialist": "security-engineer",
+      "blockedBy": ["t4"],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["security"],
+        "evidence_required": ["security-scan"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t6",
+      "title": "User-facing documentation for export endpoint",
+      "phase": "build",
+      "specialist": "technical-writer",
+      "blockedBy": ["t4"],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t7",
+      "title": "Acceptance test: user requests, receives, and verifies export",
+      "phase": "test",
+      "specialist": "test-designer",
+      "blockedBy": ["t5"],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["acceptance"],
+        "evidence_required": ["acceptance-report"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t8",
+      "title": "Compliance traceability package (REQ → design → code → test for GDPR Art. 15)",
+      "phase": "review",
+      "specialist": "compliance-officer",
+      "blockedBy": ["t7"],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["compliance-traceability"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t9",
+      "title": "Audit + privacy final review",
+      "phase": "review",
+      "specialist": "auditor",
+      "blockedBy": ["t8"],
+      "metadata": {
+        "chain_id": "gdpr-data-export-endpoint.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    }
+  ]
+}

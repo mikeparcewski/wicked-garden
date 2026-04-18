@@ -1,95 +1,70 @@
 ---
 name: context-assembly
 description: |
-  Fires automatically on every user prompt via UserPromptSubmit hook — no manual invocation needed.
-  Always-on context assembly: gathers relevant context from mem, jam, search, and crew
-  before each response using a tiered hot/fast/slow path strategy (<100ms to ~525ms).
+  On-demand context assembly over wicked-brain + wicked-garden:search. v6 replaced
+  the v5 push-model orchestrator (deleted in #428) with a pull-model skill —
+  subagents call this skill directly when they need a context briefing rather
+  than having one pushed onto every prompt.
 
   Use when: "context briefing", "gather background", "what do we know about",
   "resume where we left off", "catch me up", "what happened before",
-  "how does smaht work", "context assembly", "prompt enrichment", "auto context"
-user-invocable: false
+  "context assembly", "prompt enrichment"
+user-invocable: true
 ---
 
-# Context Assembly
+# Context Assembly (v6 pull-model)
 
-Gather relevant context before responding using wicked-smaht v2's tiered hybrid architecture.
+Gather relevant context from wicked-brain + wicked-garden:search + domain state when
+a subagent or command asks for it. There is no per-prompt push — the user prompt
+submit hook no longer runs an orchestrator.
 
 ## Quick Reference
 
 ```bash
-# Gather context (automatic fast/slow path selection)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/v2/orchestrator.py" gather "your query"
+# Brain search — primary knowledge source
+wicked-brain:search "your query"
 
-# Just route (see path decision without gathering)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/v2/orchestrator.py" route "your query" --json
+# Brain query — conceptual / "how does X work"
+wicked-brain:query "how does the facilitator rubric work"
 
-# Force deep analysis via slow path
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/v2/orchestrator.py" gather "your query" --session my-session
+# Codebase symbol search
+/wicked-garden:search:code "symbol or pattern"
+/wicked-garden:search:docs "doc or markdown text"
+
+# Pull active crew project state
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
-
-## Architecture
-
-| Path | Latency | Adapters | Depth |
-|------|---------|----------|-------|
-| Hot | <100ms | None (session state only) | Ticket rail: task, decisions, constraints, files |
-| Fast | ~500ms | Intent-specific (2-3) | 5 items/source |
-| Slow | ~525ms | All adapters (6) | 10 items/source + history |
-
-Router triggers **hot path** for short continuations/confirmations (<30 chars, e.g. "yes", "do it").
-
-Router triggers **slow path** when:
-- Low confidence (<0.5) or competing intents
-- References conversation history
-- Planning/design request
-- Novel topic or compound request
 
 ## Context Sources
 
 | Source | Plugin | Content |
 |--------|--------|---------|
-| brain | wicked-brain (required) | Code, docs, wiki — FTS5 search |
+| brain | wicked-brain (required) | Code, docs, wiki, memories — FTS5 search |
+| search | wicked-garden | Indexed code symbols + docs |
 | mem | wicked-garden | Memories, decisions, learnings |
-| jam | wicked-garden | Brainstorm sessions, perspectives |
 | crew | wicked-garden | Project phase, outcomes, constraints |
-| context7 | wicked-garden | External documentation (optional) |
+| jam | wicked-garden | Brainstorm sessions, perspectives |
 
-## Intent Types
+## Pull-Model Rules
 
-| Type | Prioritizes | Pattern Examples |
-|------|-------------|------------------|
-| debugging | Recent items, code refs | "fix", "error", "crash" |
-| planning | Project context, brainstorms | "design", "strategy", "approach" |
-| research | Semantic matches | "what is", "explain", "where" |
-| implementation | Tasks, code | "build", "create", "add" |
-| review | Code, tasks | "review", "check", "PR" |
-| general | Balanced | (default fallback) |
-
-## Briefing Format
-
-```markdown
-# Context Briefing
-
-## Situation
-**Intent**: research (confidence: 0.85)
-**Entities**: router.py, FastPathAssembler
-
-## Relevant Context
-
-### Memories
-- **Auth decision**: Use JWT with 1h expiry...
-
-### Code & Docs
-- **router.py**: Intent detection with regex patterns...
-```
-
-## Automatic Enrichment
-
-Context is gathered automatically via hooks:
-- **SessionStart**: Initial session context
-- **UserPromptSubmit**: Per-turn context injection
+1. **Ask only for what you need.** Each adapter costs latency and tokens.
+2. **Brain first.** `wicked-brain:search` replaces Grep/Glob/Agent(Explore) for any
+   open-ended search. Fall back to raw tools only when the brain returns empty.
+3. **Active chain matters.** When a crew project is active, prefer queries scoped
+   to that project's `chain_id` — see `scripts/_session.py::SessionState.active_chain_id`.
+4. **Recent events win.** For debugging, prefer the last 20 chain-matching events
+   over broad semantic search.
 
 ## Sub-Skills
 
 - [discovery/SKILL.md](discovery/SKILL.md) — Integration discovery and adapter configuration
 - [synthesize/SKILL.md](synthesize/SKILL.md) — Agentic synthesis for complex/risky prompts
+
+## v5 → v6 Notes
+
+The v5 HOT/FAST/SLOW/SYNTHESIZE tiered orchestrator
+(`scripts/smaht/v2/orchestrator.py`) was deleted in #428. Adapters (`brain_adapter`,
+`domain_adapter`, `events_adapter`, etc.) still live under `scripts/smaht/adapters/`
+and can be called directly by subagents as needed. There is no longer a central
+router that decides HOT vs FAST vs SLOW — the caller decides by picking which
+adapters (or skill calls) to invoke.

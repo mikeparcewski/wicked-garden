@@ -1,0 +1,111 @@
+{
+  "project_slug": "users-endpoint-500",
+  "mode": "propose",
+  "summary": "Regression: GET /users returns 500 when the query string is empty. Crisp repro, single endpoint, production bug that must be covered by both unit (edge case) and integration (real request path) tests before shipping.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "HIGH",   "why": "Fix is a small code change that can be reverted cleanly if the patch misbehaves."},
+    "blast_radius":       {"reading": "MEDIUM", "why": "A customer-facing endpoint is broken for a common call shape; all callers that omit the query string hit 500."},
+    "compliance_scope":   {"reading": "LOW",    "why": "No regulated data surface — just a handler bug on an already-existing endpoint."},
+    "user_facing_impact": {"reading": "MEDIUM","why": "Users feel the bug indirectly via failed requests in any client that omits the query arg."},
+    "novelty":            {"reading": "LOW",    "why": "Handler-path null/empty-guard bugs are well-understood territory in this codebase."},
+    "scope_effort":       {"reading": "LOW",    "why": "Single handler plus its tests; no other services or components change."},
+    "state_complexity":   {"reading": "LOW",    "why": "Read-only endpoint; no writes, no schema, no migrations."},
+    "operational_risk":   {"reading": "MEDIUM","why": "Production is already emitting 5xxs; the fix itself is safe but the environment is hot."},
+    "coordination_cost":  {"reading": "LOW",    "why": "Backend engineer plus a test author is sufficient; no cross-team handoff."}
+  },
+  "specialists": [
+    {"name": "backend-engineer", "why": "Owns the /users handler and the guard logic that will be added."},
+    {"name": "test-strategist",  "why": "Shapes the unit + integration coverage so empty-string and normal paths are both proven."},
+    {"name": "senior-engineer",  "why": "Inline reviewer — spot-check the guard and test coverage before merge."}
+  ],
+  "phases": [
+    {"name": "clarify", "why": "Pin the expected behavior for empty query (400? 200 with default filter?) before coding.", "primary": ["backend-engineer"]},
+    {"name": "build",   "why": "Apply the guard and wire tests.", "primary": ["backend-engineer"]},
+    {"name": "test",    "why": "Unit covers the edge, integration covers the real request path.", "primary": ["test-strategist"]},
+    {"name": "review",  "why": "Senior engineer sanity-check pre-merge.", "primary": ["senior-engineer"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "Production bug on a public endpoint — enforced gate with a test phase is non-negotiable, but no compliance/migration amplifiers are present.",
+  "complexity": 2,
+  "complexity_why": "Small, self-contained bug with a crisp repro and bounded change surface.",
+  "open_questions": [],
+  "evidence_required": [
+    "unit-results",
+    "integration-results"
+  ],
+  "test_types": [
+    "unit",
+    "integration"
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Clarify expected behavior for empty query string",
+      "phase": "clarify",
+      "specialist": "backend-engineer",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "users-endpoint-500.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "clarify",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Implement empty-query guard on /users",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "users-endpoint-500.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit"],
+        "evidence_required": ["unit-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Add integration test covering empty-query and baseline paths",
+      "phase": "test",
+      "specialist": "test-strategist",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "users-endpoint-500.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["integration"],
+        "evidence_required": ["integration-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Senior review of guard + tests",
+      "phase": "review",
+      "specialist": "senior-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "users-endpoint-500.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    }
+  ]
+}

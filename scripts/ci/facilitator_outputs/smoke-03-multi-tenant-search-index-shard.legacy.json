@@ -1,0 +1,145 @@
+{
+  "archetype_adjustments_applied": {
+    "impact_bonus": 1,
+    "impact_bonus_from": "api-backend"
+  },
+  "archetypes": {
+    "api-backend": 0.417
+  },
+  "available_specialists": [
+    "data",
+    "delivery",
+    "engineering",
+    "jam",
+    "platform",
+    "qe"
+  ],
+  "chain_id": "adedcb74.root",
+  "complexity_breakdown": {
+    "coordination": 1,
+    "coordination_cost": 0,
+    "documentation": 0,
+    "impact": 1,
+    "integration_surface": 0,
+    "operational": 0,
+    "risk_premium": 1,
+    "scope": 2,
+    "scope_effort": 0,
+    "state_complexity": 0,
+    "test_complexity": 0
+  },
+  "complexity_score": 5,
+  "confidence": "HIGH",
+  "fallback_agents": {},
+  "flags": {
+    "needs_rollback_plan": true
+  },
+  "is_ambiguous": false,
+  "memory_payload": {
+    "content": "Signals: data=16%, performance=13%, reversibility=12% | Complexity 5/7 (impact=1, risk=1, scope=2, coord=1) | Risk: Impact (1/3): archetype:api-backend +1 (API/Backend: integration surface and contract stability matter); Reversibility (2/3): +3 data migration; -1 rollback mentioned | Recommended: qe, engineering, data, platform, delivery, jam",
+    "importance": "high",
+    "tags": "crew,smart-decisioning,signal-analysis",
+    "title": "Signal analysis: 3 signals, complexity 5",
+    "type": "decision"
+  },
+  "normalized_dimensions": {
+    "compliance_exposure": 0.0,
+    "coordination_cost": 0.0,
+    "coupling": 0.5,
+    "data_risk": 0.158,
+    "documentation": 0.0,
+    "impact": 0.3333,
+    "integration_surface": 0.0,
+    "novelty": 0.6667,
+    "operational": 0.0,
+    "reversibility": 0.6667,
+    "scope_effort": 0.0,
+    "state_complexity": 0.0,
+    "team_coordination": 1.0,
+    "test_complexity": 0.0,
+    "ux_surface": 0.0
+  },
+  "overrides_applied": {},
+  "primary_archetype": "api-backend",
+  "recommended_specialists": [
+    "data",
+    "delivery",
+    "engineering",
+    "jam",
+    "platform",
+    "qe"
+  ],
+  "review_tier": "standard",
+  "risk_dimensions": {
+    "coordination_cost": 0,
+    "documentation": 0,
+    "explanation": [
+      "Impact (1/3): archetype:api-backend +1 (API/Backend: integration surface and contract stability matter)",
+      "Reversibility (2/3): +3 data migration; -1 rollback mentioned",
+      "Novelty (2/3): +2 cross-domain (3 signal categories)"
+    ],
+    "impact": 1,
+    "integration_surface": 0,
+    "novelty": 2,
+    "operational": 0,
+    "reversibility": 2,
+    "scope_effort": 0,
+    "state_complexity": 0,
+    "test_complexity": 0
+  },
+  "routing_lane": "standard",
+  "signal_confidences": {
+    "data": 0.158,
+    "performance": 0.133,
+    "reversibility": 0.118
+  },
+  "signals": [
+    "performance",
+    "data",
+    "reversibility"
+  ],
+  "specialist_routing": {
+    "data": {
+      "reason": "signal:data",
+      "signals": [
+        "data"
+      ],
+      "tier": "RECOMMENDED"
+    },
+    "delivery": {
+      "reason": "signal:reversibility",
+      "signals": [
+        "reversibility"
+      ],
+      "tier": "RECOMMENDED"
+    },
+    "engineering": {
+      "reason": "signal:performance",
+      "signals": [
+        "performance"
+      ],
+      "tier": "RECOMMENDED"
+    },
+    "jam": {
+      "reason": "complexity:5>=4",
+      "signals": [],
+      "tier": "RECOMMENDED"
+    },
+    "platform": {
+      "reason": "signal:reversibility",
+      "signals": [
+        "reversibility"
+      ],
+      "tier": "RECOMMENDED"
+    },
+    "qe": {
+      "reason": "signal:performance",
+      "signals": [
+        "performance"
+      ],
+      "tier": "RECOMMENDED"
+    }
+  },
+  "unavailable_specialists": [],
+  "weighted_risk_index": 0.3779
+}

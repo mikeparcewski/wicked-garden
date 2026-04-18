@@ -14,8 +14,10 @@ Features:
 - Graceful degradation
 - Comprehensive error handling for malformed configurations
 
-IMPORTANT: Avoid importing from smart_decisioning.py to prevent circular dependencies.
-If integration is needed, smart_decisioning.py should import this module, not vice versa.
+Historical note: this module lived in a two-way import dance with
+smart_decisioning.py (v5 rule engine, deleted in Gate 4 Phase 2 #428). The
+facilitator rubric (v6) reads agent frontmatter directly and does not import
+this module, so the circular-dependency hazard is gone.
 """
 
 import json

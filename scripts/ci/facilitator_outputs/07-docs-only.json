@@ -1,0 +1,67 @@
+{
+  "project_slug": "readme-api-key-setup-docs",
+  "mode": "propose",
+  "summary": "Update the README to document the new API key setup flow. Pure prose change — no code, no tests. The phrase 'API key' is incidental; the docs describe setup rather than implement auth.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "HIGH",   "why": "Prose edit; revert via git."},
+    "blast_radius":       {"reading": "LOW",    "why": "README is adjacent to the product; nothing executes from it."},
+    "compliance_scope":   {"reading": "LOW",    "why": "Docs describe existing flow; no regulated data surface is introduced."},
+    "user_facing_impact": {"reading": "LOW",    "why": "Docs support users but are not the product itself."},
+    "novelty":            {"reading": "LOW",    "why": "Standard README update."},
+    "scope_effort":       {"reading": "LOW",    "why": "Single file edit."},
+    "state_complexity":   {"reading": "LOW",    "why": "No runtime state involved."},
+    "operational_risk":   {"reading": "LOW",    "why": "No runtime execution; static content."},
+    "coordination_cost":  {"reading": "LOW",    "why": "Technical writer + one reviewer for accuracy."}
+  },
+  "specialists": [
+    {"name": "technical-writer", "why": "Owns the README and the setup-flow prose."}
+  ],
+  "phases": [
+    {"name": "build",  "why": "The edit itself is the 'build' — write the updated setup section.", "primary": ["technical-writer"]},
+    {"name": "review", "why": "Single-pass accuracy check against the actual setup flow.", "primary": ["technical-writer"]}
+  ],
+  "rigor_tier": "minimal",
+  "rigor_why": "All factors LOW; docs-only update with no executable surface; advisory review is enough.",
+  "complexity": 1,
+  "complexity_why": "One file, prose update, no dependencies.",
+  "open_questions": [],
+  "evidence_required": [],
+  "test_types": [],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Update README with new API key setup section",
+      "phase": "build",
+      "specialist": "technical-writer",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "readme-api-key-setup-docs.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "minimal"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Review README for accuracy against actual setup flow",
+      "phase": "review",
+      "specialist": "technical-writer",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "readme-api-key-setup-docs.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "minimal"
+      }
+    }
+  ]
+}

@@ -2,15 +2,16 @@
 """
 Stop hook — wicked-garden unified session teardown (async, 30s timeout).
 
-Consolidates: crew stop, kanban stop, mem stop, smaht session_end.
+Consolidates: crew stop, mem stop, session-end fact emission.
 
 Flow:
 1. Session outcome check (mismatch report from auto_issue_reporter state)
-2. Automatic memory promotion from smaht session
-3. Run memory decay maintenance
-4. Persist smaht history condenser session metadata
+2. Automatic memory promotion from native tasks (session_fact_extractor)
+3. Working-tier consolidation via brain compile + lint
+4. Memory decay maintenance
 5. Persist final SessionState
-6. Emit memory flush reminder directive
+6. Event store retention purge
+7. Emit memory flush reminder directive
 
 Always fails open — any unhandled exception returns {"systemMessage": ...}.
 Runs async so it does NOT block the user on exit.
@@ -110,12 +111,13 @@ def _check_session_outcome() -> list:
 # Step 2b: Session-end fact emission → wicked-brain auto-memorize
 # ---------------------------------------------------------------------------
 #
-# wicked-garden no longer runs a promoter pipeline. Session facts extracted by
-# smaht's FactExtractor are emitted as `wicked.fact.extracted` events on
-# wicked-bus, and wicked-brain's auto-memorize subscriber applies its own
-# promotion policy (type filter, length gate, content-hash dedup) and writes
-# memories. Brain owns dedup via content hash, so no local tracking file is
-# needed.
+# v6: Session facts are extracted from native Claude tasks
+# (${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json) by
+# scripts/mem/session_fact_extractor.py. This replaces the v5 smaht
+# FactExtractor/HistoryCondenser pipeline deleted in Gate 4 Phase 2 (#428).
+# Emission shape is unchanged: wicked.fact.extracted events on wicked-bus,
+# picked up by wicked-brain's auto-memorize subscriber, which re-applies its
+# own type/length/dedup policy.
 
 # Fact types eligible for emission — mirrors brain's auto-memorize policy.
 # Brain will re-check these; this pre-filter keeps bus traffic sensible.
@@ -126,28 +128,34 @@ _MIN_FACT_CONTENT_LENGTH = 15
 def _run_memory_promotion(session_id: str) -> list:
     """Emit high-value session facts as wicked.fact.extracted events on wicked-bus.
 
-    Brain's auto-memorize subscriber picks them up asynchronously and writes
-    memories. Returns a list of message strings (empty when nothing was emitted
-    or the bus is unavailable). Always fails open — exceptions are caught and
-    logged to stderr.
+    Reads native task records (TaskCreate/TaskUpdate output) via
+    scripts/mem/session_fact_extractor.py, filters to decisions + discoveries
+    over the length threshold, and emits one event per fact. Brain's
+    auto-memorize subscriber handles persistence asynchronously.
+
+    Returns a list of message strings (empty when nothing was emitted or the
+    bus is unavailable). Always fails open — exceptions are caught and logged
+    to stderr.
     """
     try:
-        smaht_dir = _session_dir("wicked-smaht")
-        if not smaht_dir.exists():
-            if os.environ.get("WICKED_DEBUG"):
-                print(f"[wicked-garden] fact emit: no smaht session at {smaht_dir}", file=sys.stderr)
-            return []
+        # scripts/ is already on sys.path; add the mem/ directory for the
+        # sibling import of session_fact_extractor.
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "mem"))
 
-        # Add smaht/v2 + scripts root so FactExtractor + _bus are importable.
-        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
-        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
-
-        from fact_extractor import FactExtractor
+        from session_fact_extractor import extract_session_facts
         from _bus import emit_event
 
-        fact_extractor = FactExtractor(smaht_dir)
+        facts = extract_session_facts(session_id, limit=20)
+        if not facts:
+            if os.environ.get("WICKED_DEBUG"):
+                print(
+                    f"[wicked-garden] fact emit: no promotable facts in session {session_id}",
+                    file=sys.stderr,
+                )
+            return []
+
         emitted = 0
-        for fact in fact_extractor.facts:
+        for fact in facts:
             if fact.type not in _EMITTABLE_FACT_TYPES:
                 continue
             if len(fact.content) < _MIN_FACT_CONTENT_LENGTH:
@@ -158,7 +166,7 @@ def _run_memory_promotion(session_id: str) -> list:
                     "type": fact.type,
                     "content": fact.content,
                     "entities": list(fact.entities)[:5] if fact.entities else [],
-                    "source": fact.source or "smaht",
+                    "source": fact.source or "task",
                     "session_id": session_id,
                 },
             )
@@ -272,23 +280,6 @@ def _purge_old_events() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Smaht session meta persistence
-# ---------------------------------------------------------------------------
-
-def _persist_smaht_session_meta(session_id: str) -> None:
-    """Persist smaht history condenser session metadata for cross-session recall."""
-    try:
-        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "smaht" / "v2"))
-        from history_condenser import HistoryCondenser
-        condenser = HistoryCondenser(session_id)
-        condenser.persist_session_meta()
-    except ImportError:
-        pass
-    except Exception as e:
-        print(f"[wicked-garden] smaht session persist error: {e}", file=sys.stderr)
-
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -347,9 +338,6 @@ def main():
 
         # 3. Memory decay
         decay_messages = _run_memory_decay()
-
-        # Smaht history condenser persistence
-        _persist_smaht_session_meta(session_id)
 
         # 4. Persist session state
         _persist_session_state()

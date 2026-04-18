@@ -1,5 +1,100 @@
 # Changelog
 
+## [6.0.0-beta.1] - 2026-04-18
+
+**v6 is the rebuild**: the v5 keyword-based rule engine that drove crew
+decisioning (`scripts/crew/smart_decisioning.py`, ~2,430 LOC) and the
+push-model tiered context-assembly orchestrator (`scripts/smaht/v2/`, 11
+files, ~2,950 LOC) are gone. In their place, a single progressive-disclosure
+rubric — the `wicked-garden:crew:propose-process` facilitator — reads the
+work, scores 9 factors, picks specialists by reading agent frontmatter
+directly, selects phases, sets rigor tier, and emits a full task chain. Context
+assembly shifts from "push a briefing every turn" to "subagents pull what they
+need via wicked-brain + wicked-garden:search."
+
+### Breaking
+
+- `/wicked-garden:crew:start` now invokes the facilitator rubric. Output shape
+  differs from v5: no `signals_detected`, no `archetypes`, no `routing_lane` —
+  replaced with `factors`, `specialists`, `phases`, `rigor_tier`, `complexity`.
+  The command writes `process-plan.md` (markdown) + `process-plan.json` (raw)
+  to the project directory.
+- `WG_FACILITATOR` environment variable removed. v5 ran under
+  `WG_FACILITATOR=legacy`; v6 has no legacy path. If you need v5 behavior,
+  pin the `5.2.0` tag.
+- `--quick` and `--no-auto-finish` flags on `crew:start` removed. These were
+  v5 conflations of two orthogonal axes (phase plan and interaction mode).
+  Use `--rigor=minimal` for a lighter phase plan, `--yolo` to skip user
+  prompts, or both.
+- `scripts/smaht/v2/orchestrator.py gather` / `route` CLI removed. Replaced by
+  `/wicked-garden:smaht:smaht` (thin brain + search shim) and direct
+  `wicked-brain:search` / `wicked-brain:query` invocations.
+- `HOT/FAST/SLOW/SYNTHESIZE` context-assembly tiers no longer exist. Intent
+  classification is a tiny inline heuristic in `prompt_submit.py` that only
+  fires for the synthesize skill path.
+- `HistoryCondenser` ticket-rail (current_task, decisions, file_scope,
+  active_constraints, open_questions) removed. Session working state is now
+  the facilitator's `process-plan.md` + `SessionState` (simple key/value) +
+  native in-progress tasks.
+- `/wicked-garden:smaht:debug` output shape changed — no more HOT/FAST/SLOW
+  routing log; shows SessionState + last N bus events + active crew project.
+- `detect_swarm_trigger()` relocated from `scripts/crew/smart_decisioning.py`
+  to `scripts/crew/swarm_trigger.py`. Same public signature; the import
+  changes.
+
+### Added
+
+- **Facilitator rubric** — `wicked-garden:crew:propose-process` skill, the v6
+  decision-making surface. Tier-1/2/3 progressive disclosure. 9 factors,
+  phase catalog in refs/, plan template in refs/. Gate 1: 10 canonical
+  scenarios measuring 10/10 PASS on quality output. Gate 3: wired into
+  `crew:start` + async re-evaluate on `TaskCompleted` for facilitator-owned
+  tasks.
+- **`scripts/crew/swarm_trigger.py`** — standalone stdlib module carrying the
+  v5 swarm-trigger detector forward. Extracted verbatim; public API unchanged.
+- **`scripts/mem/session_fact_extractor.py`** — stdlib session-fact extractor
+  reading native Claude tasks
+  (`${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json`). Replaces the
+  v5 `FactExtractor` pipeline. Emission shape on wicked-bus is unchanged, so
+  wicked-brain auto-memorize is unaffected.
+
+### Removed
+
+- `scripts/crew/smart_decisioning.py` (~2,430 LOC) — the v5 rule engine
+- `scripts/smaht/v2/` (11 files, ~2,950 LOC) — adapter_registry,
+  budget_enforcer, context_pressure, fact_extractor, fast_path,
+  history_condenser, lane_tracker, orchestrator, router, slow_path, __init__
+- 7 test files totaling ~2,580 LOC (adapter_registry, assembler_registry,
+  orchestrator_metrics, prompt_submit_refactor, prompt_submit_routing,
+  hot_continuation_accumulation, hot_path_fast_exit)
+- 11 scenario files exercising v5 behavior
+- 12 specialist agents merged/deleted/demoted across Gates 1-2 (net roster
+  81 -> 69 agents)
+- Total removal: ~17k lines
+
+### Why beta
+
+Measurement evidence to date is: (a) Gate 1's 10 canonical scenarios (10/10
+PASS against rubric targets), (b) Gate 4 Phase 1's 3 smoke inputs (3/3 PASS,
+all beating legacy in at least one dimension), (c) internal dogfooding on
+the v6 branch. Live-run evidence on novel inputs is limited. The rubric may
+need a v1.1 tightening once real users exercise it. If you need the v5
+behavior for production work, pin to `5.2.0` — it's a drop-in replacement.
+
+### Migration
+
+- **Active crew projects** that predate v6: `crew:execute` and `crew:just-finish`
+  now invoke the facilitator in `re-evaluate` mode at checkpoints. Projects
+  without a `process-plan.json` on disk will trigger a fresh `propose` invocation
+  on the next checkpoint.
+- **Scripts calling `smart_decisioning.py --json`**: migrate to the
+  `wicked-garden:crew:propose-process` skill. The output schema is documented
+  in `skills/crew/propose-process/refs/output-schema.md`.
+- **Code referencing `smaht/v2/` modules**: migrate to pull-model. For session
+  state, use `scripts/_session.py::SessionState`. For session facts, use
+  `scripts/mem/session_fact_extractor.py`. For context, invoke
+  `wicked-brain:search` directly.
+
 ## [5.2.0] - 2026-04-18
 
 ### Features

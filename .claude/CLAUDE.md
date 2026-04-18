@@ -129,20 +129,20 @@ Six adapters query domain scripts directly: `domain`, `brain`, `events`, `contex
 
 **Adapter fan-out by intent** (fast path): DEBUGGING: domain, brain, delegation · IMPLEMENTATION: domain, brain, context7, tools, delegation · PLANNING: domain, brain, events, delegation · RESEARCH: domain, brain, events, context7, tools, delegation · REVIEW: domain, brain, events, delegation · GENERAL: domain, delegation
 
-**Router** (`scripts/smaht/v2/router.py`): intent classification with tiebreak (leading-verb wins on tied scores); `code review` explicitly maps to REVIEW. Synthesize skill args format: JSON string — parse with `json.loads(args)`.
+**Router (v6)**: the v5 `scripts/smaht/v2/router.py` intent classifier was deleted in #428. Intent classification is now a tiny inline heuristic in `hooks/scripts/prompt_submit.py` (word count + risk signals). Synthesize skill args format: JSON string — parse with `json.loads(args)`.
 
 **wicked-brain**: Optional but strongly recommended companion plugin. When installed, brain server runs at `localhost:4242` (configurable via `WICKED_BRAIN_PORT`) and bootstrap emits directives to run `ingest → retag → compile` if brain is empty. When not installed, brain adapter returns empty.
 
 ### Crew Workflow System
 
-Dynamic multi-phase workflows with signal-based specialist routing:
+Dynamic multi-phase workflows with facilitator-driven specialist routing (v6):
 
-1. `smart_decisioning.py` analyzes project description → detects signals → maps to specialists → scores complexity (0-7) → determines review tier (minimal/standard/full) → generates root `chain_id` (`{uuid8}.root`)
-2. `phases.json` defines phase catalog with triggers, complexity ranges, gates, dependencies
-3. Phase selection: non-skippable always included, then signal-matched, then complexity-based
-4. Checkpoints at clarify/design/build can re-analyze and inject missing phases
-5. Specialists engage via `enhances` declarations in `specialist.json`
-6. Swarm detection: `detect_swarm_trigger()` monitors for 3+ BLOCK/REJECT gate findings → recommends Quality Coalition
+1. `wicked-garden:crew:propose-process` facilitator rubric reads the project description → scores 9 factors (reversibility, blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort, state_complexity, operational_risk, coordination_cost) → picks specialists by reading `agents/**/*.md` frontmatter → picks phases from catalog → sets rigor_tier (minimal/standard/full) → emits `process-plan.md` + full task chain
+2. `phases.json` defines phase catalog with gate config (min scores, evidence requirements, dependencies). The facilitator decides which phases to pick; phases.json supplies their gate configuration.
+3. Phase selection: rubric-driven, not rule-based. Facilitator decides inline based on factor readings.
+4. Checkpoints at clarify/design/build re-invoke the facilitator in `re-evaluate` mode to adjust the plan
+5. Specialists are discovered by reading frontmatter directly — no static `enhances` map
+6. Swarm detection: `scripts/crew/swarm_trigger.py::detect_swarm_trigger()` monitors for 3+ BLOCK/REJECT gate findings → recommends Quality Coalition (extracted from the deleted v5 rule engine)
 
 Review tiers map from complexity: 0-2 → minimal (advisory gates), 3-5 → standard (enforced gates), 6-7 → full (multi-reviewer). Security/compliance signals override to full regardless of complexity.
 
@@ -217,8 +217,8 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/cre
 # via _run.py wrapper (auto-help on argparse errors)
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py ${project} ${action}
 
-# has deps (smaht needs pydantic, search needs tree-sitter)
-cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/smaht/v2/orchestrator.py gather "${prompt}"
+# has deps (search needs tree-sitter)
+cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/search/index.py build
 ```
 
 ### Hook Development

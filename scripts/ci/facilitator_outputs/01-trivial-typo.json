@@ -1,0 +1,49 @@
+{
+  "project_slug": "login-button-typo",
+  "mode": "propose",
+  "summary": "Pure copy fix on the login button label. No behavior change, no auth change — just a visible text string. Surface is UI only and reversibility is trivial (revert the string).",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "HIGH",   "why": "A string edit is a single-line revert with no schema or migration exposure."},
+    "blast_radius":       {"reading": "LOW",    "why": "One label on one button; no callers, no APIs, no data paths affected."},
+    "compliance_scope":   {"reading": "LOW",    "why": "No regulated data and no identity/consent surface touched — the word 'login' is incidental."},
+    "user_facing_impact": {"reading": "HIGH",   "why": "The label is literally read by every user on the login screen, even if the change is tiny."},
+    "novelty":            {"reading": "LOW",    "why": "Copy fixes are routine; no priors suggest hidden complexity on this surface."},
+    "scope_effort":       {"reading": "LOW",    "why": "Single-line change in one component."},
+    "state_complexity":   {"reading": "LOW",    "why": "No persistent state, no schema, no cache."},
+    "operational_risk":   {"reading": "LOW",    "why": "Rendering a corrected string has no runtime failure modes."},
+    "coordination_cost":  {"reading": "LOW",    "why": "A single frontend hand is sufficient; no cross-team sign-off needed."}
+  },
+  "specialists": [
+    {"name": "frontend-engineer", "why": "Owns the component that renders the login button label."}
+  ],
+  "phases": [
+    {"name": "build", "why": "Fix the string inline — no clarify or design needed for a typo.", "primary": ["frontend-engineer"]}
+  ],
+  "rigor_tier": "minimal",
+  "rigor_why": "All risk factors are LOW or trivial; advisory review is enough. A full gate ceremony would be more risky than the change itself.",
+  "complexity": 0,
+  "complexity_why": "A single-word string edit sits at the floor of the 0–7 scale.",
+  "open_questions": [],
+  "evidence_required": [],
+  "test_types": [],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Fix typo in login button label",
+      "phase": "build",
+      "specialist": "frontend-engineer",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "login-button-typo.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "minimal"
+      }
+    }
+  ]
+}

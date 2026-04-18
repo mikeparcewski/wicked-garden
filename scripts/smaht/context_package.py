@@ -174,12 +174,30 @@ async def gather_code_context(task: str, files: list = None, limit: int = 5) -> 
 
 
 def get_session_state() -> dict:
-    """Get current session state from history condenser."""
+    """Get current session state from SessionState (v6).
+
+    Replaces the v5 HistoryCondenser.get_session_state() read. The v5 condenser
+    maintained a "ticket rail" (current_task, topics, decisions, constraints,
+    file_scope, open_questions) that is no longer tracked — v6 relies on the
+    facilitator's process-plan.md for the durable plan view, and SessionState
+    for per-session flags.
+
+    Returns whatever SessionState exposes as a dict, or {} on failure. Callers
+    that expected the v5 ticket-rail keys should treat missing keys as "".
+    """
     try:
-        from smaht.v2.history_condenser import HistoryCondenser
-        session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
-        condenser = HistoryCondenser(session_id)
-        return condenser.get_session_state()
+        # scripts/smaht/context_package.py — scripts/ is parents[1]
+        import sys
+        from pathlib import Path
+        _SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+        if str(_SCRIPTS_DIR) not in sys.path:
+            sys.path.insert(0, str(_SCRIPTS_DIR))
+        from _session import SessionState
+        state = SessionState.load()
+        if hasattr(state, "to_dict"):
+            return state.to_dict()
+        # Fallback: best-effort dataclass/attr snapshot
+        return {k: v for k, v in vars(state).items() if not k.startswith("_")}
     except Exception:
         return {}
 

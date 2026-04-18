@@ -38,7 +38,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path('${CLAUDE_PLUGIN_ROOT}/scripts/crew')))
-from smart_decisioning import detect_swarm_trigger
+from swarm_trigger import detect_swarm_trigger
 gate_results = json.loads(sys.stdin.read())
 result = detect_swarm_trigger(gate_results)
 if result:

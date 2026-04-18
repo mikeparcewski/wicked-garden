@@ -1,0 +1,103 @@
+{
+  "project_slug": "feature-flag-expiry-sweeper",
+  "mode": "propose",
+  "summary": "Internal cron job that soft-deletes expired feature flags in Postgres once daily and logs counts. No UI, no customer-visible surface, platform-owned. Reversibility is high because the soft-delete keeps an audit trail and nothing deletes hard.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "HIGH",   "why": "Soft-delete sets a tombstone column; every action is reversible with an UPDATE to clear deleted_at."},
+    "blast_radius":       {"reading": "LOW",    "why": "Touches a single backoffice table via a daily batch; no customer-visible behavior changes."},
+    "compliance_scope":   {"reading": "LOW",    "why": "No regulated data; feature flag metadata is not PII or payment."},
+    "user_facing_impact": {"reading": "LOW",    "why": "Flags are internal plumbing — cleanup is invisible to customers and developers until the old flag would have been queried."},
+    "novelty":            {"reading": "LOW",    "why": "Cron-style sweepers over a Postgres table are a well-trodden pattern in this codebase."},
+    "scope_effort":       {"reading": "LOW",    "why": "One module: query, soft-delete update, structured log emit. A handful of files."},
+    "state_complexity":   {"reading": "LOW",    "why": "Single-table update with idempotent soft-delete; no cross-shard or eventually-consistent concerns."},
+    "operational_risk":   {"reading": "LOW",    "why": "A daily batch with count-logging is monitorable; worst case is a delayed sweep, not a production fault."},
+    "coordination_cost":  {"reading": "LOW",    "why": "Platform team-owned; no cross-team sign-off needed."}
+  },
+  "specialists": [
+    {"name": "backend-engineer", "why": "Owns Postgres access patterns and the sweeper module that will live with the rest of our batch jobs."},
+    {"name": "sre",              "why": "Reviews the daily-cadence scheduling, structured log shape, and alerting on sweep failures."}
+  ],
+  "phases": [
+    {"name": "build",  "why": "Implement the sweeper, soft-delete query, and structured log emission inline with unit tests.",         "primary": ["backend-engineer"]},
+    {"name": "test",   "why": "Run unit tests over the sweep logic + integration test against a seeded Postgres fixture.",               "primary": ["backend-engineer"]},
+    {"name": "review", "why": "One reviewer checks the SQL, the schedule wiring, and that expired flags that are already soft-deleted are skipped idempotently.", "primary": ["backend-engineer", "sre"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "Factors are mostly LOW but there is a persistent side effect (soft-delete updates). Standard rigor keeps a test phase and a reviewer; minimal would skip both and let an off-by-one sweep go live unreviewed.",
+  "complexity": 2,
+  "complexity_why": "Self-contained batch job touching one table with a clear idempotency story. Sits between trivial and small-feature.",
+  "open_questions": [],
+  "evidence_required": ["unit-results", "integration-results"],
+  "test_types": ["unit", "integration"],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Implement expired-flag sweeper query + soft-delete",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "feature-flag-expiry-sweeper.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit"],
+        "evidence_required": ["unit-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Wire daily schedule + structured log emission with counts",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "feature-flag-expiry-sweeper.build",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit"],
+        "evidence_required": ["unit-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Integration test: sweeper idempotency + skipped-already-deleted behavior",
+      "phase": "test",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t1", "t2"],
+      "metadata": {
+        "chain_id": "feature-flag-expiry-sweeper.test",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["integration"],
+        "evidence_required": ["integration-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Reviewer signs off on SQL, schedule wiring, and alert on sweep failure",
+      "phase": "review",
+      "specialist": "sre",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "feature-flag-expiry-sweeper.review",
+        "event_type": "gate-finding",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    }
+  ]
+}
