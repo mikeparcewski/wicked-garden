@@ -1,0 +1,175 @@
+{
+  "project_slug": "user-list-csv-export",
+  "mode": "propose",
+  "summary": "Add a CSV export affordance on the user list page. New API endpoint plus a UI button and download flow. Baseline treats data as internal (not GDPR-scoped) — the GDPR variant is a separate scenario.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "HIGH",   "why": "New additive surface; disabling the button and the endpoint rolls it back cleanly."},
+    "blast_radius":       {"reading": "MEDIUM", "why": "Touches UI and a new API route but doesn't change existing read paths or auth."},
+    "compliance_scope":   {"reading": "LOW",    "why": "Baseline assumption is internal data; would flip to MEDIUM/HIGH if PII export is in play (see scenario 10)."},
+    "user_facing_impact": {"reading": "HIGH",   "why": "Users see a new button and a new download flow end-to-end."},
+    "novelty":            {"reading": "LOW",    "why": "CSV export on a list view is a familiar pattern; priors on existing list pages apply."},
+    "scope_effort":       {"reading": "MEDIUM","why": "API endpoint + UI affordance + acceptance test coverage spans two teams' surface areas."},
+    "state_complexity":   {"reading": "LOW",    "why": "Read-only export; no new persistence or schema change."},
+    "operational_risk":   {"reading": "LOW",    "why": "Read path, no mutation; pagination strategy bounds memory pressure."},
+    "coordination_cost":  {"reading": "MEDIUM","why": "Frontend + backend + QE need to align on contract and sync-vs-async export choice."}
+  },
+  "specialists": [
+    {"name": "product-manager",     "why": "Own scope and acceptance criteria for the export affordance."},
+    {"name": "solution-architect",  "why": "Decide sync vs async export and pagination/limit strategy."},
+    {"name": "backend-engineer",    "why": "Implement the CSV endpoint and streaming/pagination behavior."},
+    {"name": "frontend-engineer",   "why": "Wire the button and the download flow into the user list page."},
+    {"name": "ui-reviewer",         "why": "Polish visual affordance and verify download UX is coherent."},
+    {"name": "test-designer",       "why": "Design the API, UI, and acceptance coverage; specifies evidence."}
+  ],
+  "phases": [
+    {"name": "clarify",       "why": "Confirm in-scope columns, sync/async choice, and row-count limits.", "primary": ["product-manager"]},
+    {"name": "design",        "why": "API contract and download flow designed together.", "primary": ["solution-architect"]},
+    {"name": "test-strategy", "why": "Plan the unit/integration/api/ui/acceptance coverage before implementation.", "primary": ["test-designer"]},
+    {"name": "build",         "why": "Backend endpoint and frontend button implemented in parallel once the contract is set.", "primary": ["backend-engineer", "frontend-engineer"]},
+    {"name": "test",          "why": "Execute the planned pyramid and capture acceptance evidence.", "primary": ["test-designer"]},
+    {"name": "review",        "why": "Final UI review and senior sign-off before shipping.", "primary": ["ui-reviewer"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "User-visible and cross-surface, but all risk factors stop at MEDIUM — enforced gates are appropriate, full-rigor ceremony is not.",
+  "complexity": 3,
+  "complexity_why": "Mid-scale feature spanning API + UI with multi-role coordination but no migration or compliance amplifier.",
+  "open_questions": [
+    "Sync download or async job + emailed link when row count is large?"
+  ],
+  "evidence_required": [
+    "api-contract-diff",
+    "unit-results",
+    "integration-results",
+    "acceptance-report",
+    "screenshot-before-after"
+  ],
+  "test_types": [
+    "unit",
+    "integration",
+    "api",
+    "ui",
+    "acceptance"
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Clarify export scope and row-count behavior",
+      "phase": "clarify",
+      "specialist": "product-manager",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "user-list-csv-export.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "clarify",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Design API contract and download flow",
+      "phase": "design",
+      "specialist": "solution-architect",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "user-list-csv-export.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["api-contract-diff"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Plan test coverage (unit, integration, api, ui, acceptance)",
+      "phase": "test-strategy",
+      "specialist": "test-designer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "user-list-csv-export.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test-strategy",
+        "test_required": false,
+        "test_types": ["unit", "integration", "api", "ui", "acceptance"],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Implement CSV export endpoint",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "user-list-csv-export.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit", "integration", "api"],
+        "evidence_required": ["unit-results", "integration-results", "api-contract-diff"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t5",
+      "title": "Implement user-list Export button and download UX",
+      "phase": "build",
+      "specialist": "frontend-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "user-list-csv-export.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit", "ui"],
+        "evidence_required": ["unit-results", "screenshot-before-after"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t6",
+      "title": "End-to-end acceptance test covering happy path and pagination",
+      "phase": "test",
+      "specialist": "test-designer",
+      "blockedBy": ["t4", "t5"],
+      "metadata": {
+        "chain_id": "user-list-csv-export.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["acceptance", "ui"],
+        "evidence_required": ["acceptance-report"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t7",
+      "title": "UI review + senior sign-off",
+      "phase": "review",
+      "specialist": "ui-reviewer",
+      "blockedBy": ["t6"],
+      "metadata": {
+        "chain_id": "user-list-csv-export.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["screenshot-before-after"],
+        "rigor_tier": "standard"
+      }
+    }
+  ]
+}

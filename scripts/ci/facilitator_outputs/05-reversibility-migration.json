@@ -1,0 +1,169 @@
+{
+  "project_slug": "users-nullable-column-backfill",
+  "mode": "propose",
+  "summary": "Add a nullable column to the users table and backfill it from the existing immutable signup_date. State complexity is high, but the change is reversible (drop the column) and the backfill is idempotent.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "MEDIUM", "why": "Nullable-column drop is cheap; the backfill is idempotent since signup_date is immutable, but in-flight rollback between phases needs a plan."},
+    "blast_radius":       {"reading": "MEDIUM", "why": "Users table is central; the change is additive but the backfill touches every row."},
+    "compliance_scope":   {"reading": "LOW",    "why": "No new regulated data surface; adding a derived column does not introduce PII semantics."},
+    "user_facing_impact": {"reading": "LOW",    "why": "Internal schema change; no UI, no API contract change user-side."},
+    "novelty":            {"reading": "LOW",    "why": "Nullable-column + backfill is a standard playbook; priors apply."},
+    "scope_effort":       {"reading": "LOW",    "why": "One migration, one backfill job, minimal code."},
+    "state_complexity":   {"reading": "HIGH",   "why": "Schema change + full-table backfill = persistent state mutation at scale."},
+    "operational_risk":   {"reading": "MEDIUM","why": "Backfill can pressure the DB; needs batching and a window; not inherently unsafe but must be planned."},
+    "coordination_cost":  {"reading": "LOW",    "why": "Backend + migration + test authorship within one team."}
+  },
+  "specialists": [
+    {"name": "solution-architect", "why": "Decide column type, nullability semantics, and indexing strategy."},
+    {"name": "migration-engineer", "why": "Own the migration + backfill plan, batching strategy, and rollback."},
+    {"name": "backend-engineer",   "why": "Implement the migration file and the backfill code."},
+    {"name": "test-designer",      "why": "Design unit + integration + migration coverage including idempotency."}
+  ],
+  "phases": [
+    {"name": "clarify",       "why": "Confirm intended semantics of the new column and backfill window.", "primary": ["solution-architect"]},
+    {"name": "design",        "why": "Settle on type/index choice and backfill batching approach.", "primary": ["solution-architect", "migration-engineer"]},
+    {"name": "test-strategy", "why": "Plan migration + integration coverage including rollback and idempotency.", "primary": ["test-designer"]},
+    {"name": "build",         "why": "Apply schema change + write backfill.", "primary": ["backend-engineer", "migration-engineer"]},
+    {"name": "test",          "why": "Run migration test against a snapshot and integration coverage against the new column.", "primary": ["test-designer"]},
+    {"name": "review",        "why": "Confirm rollback plan and DB impact before prod apply.", "primary": ["migration-engineer"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "Schema change demands a rollback plan and migration test, but no compliance or cross-service amplifiers fire — enforced gates fit, full-rigor ceremony doesn't.",
+  "complexity": 3,
+  "complexity_why": "Small code surface but high state-complexity and a full-table backfill place it firmly in mid-range.",
+  "open_questions": [
+    "Table size estimate and acceptable backfill window?"
+  ],
+  "evidence_required": [
+    "unit-results",
+    "integration-results",
+    "migration-rollback-plan"
+  ],
+  "test_types": [
+    "unit",
+    "integration",
+    "migration"
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Clarify column semantics and backfill window",
+      "phase": "clarify",
+      "specialist": "solution-architect",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "users-nullable-column-backfill.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "clarify",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Design column type, nullability, and index strategy",
+      "phase": "design",
+      "specialist": "solution-architect",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "users-nullable-column-backfill.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Test strategy: migration + backfill idempotency",
+      "phase": "test-strategy",
+      "specialist": "test-designer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "users-nullable-column-backfill.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test-strategy",
+        "test_required": false,
+        "test_types": ["unit", "integration", "migration"],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Write migration + batched backfill with rollback plan",
+      "phase": "build",
+      "specialist": "migration-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "users-nullable-column-backfill.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["migration"],
+        "evidence_required": ["migration-rollback-plan"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t5",
+      "title": "Implement code paths that use the new column",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "users-nullable-column-backfill.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit"],
+        "evidence_required": ["unit-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t6",
+      "title": "Run integration + migration test suites against snapshot",
+      "phase": "test",
+      "specialist": "test-designer",
+      "blockedBy": ["t4", "t5"],
+      "metadata": {
+        "chain_id": "users-nullable-column-backfill.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["integration", "migration"],
+        "evidence_required": ["integration-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t7",
+      "title": "Review rollback plan + DB pressure estimate",
+      "phase": "review",
+      "specialist": "migration-engineer",
+      "blockedBy": ["t6"],
+      "metadata": {
+        "chain_id": "users-nullable-column-backfill.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["migration-rollback-plan"],
+        "rigor_tier": "standard"
+      }
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "project_slug": "saved-searches",
+  "mode": "re-evaluate",
+  "pass": 2,
+  "trigger": "task-2 (design) completion — evidence revealed free-text search surface (~1M rows), new table with foreign keys, and a categorization backfill for existing search events.",
+  "summary": "Design evidence sharpened scope: existing storage lacks full-text indexing, query volume will grow to ~1M rows, and per-user saved lists require a new table + backfill. Augmenting the chain with migration and data-engineering tasks; rigor upgraded with explicit WHY.",
+  "priors": [
+    {"path": "design/saved-searches-design.md", "source_type": "task-evidence", "why": "Surfaced the migration + indexing requirement that triggered re-evaluation."}
+  ],
+  "factors": {
+    "reversibility":      {"reading": "MEDIUM","why": "New table + backfill narrows rollback; additive but not trivial to undo once populated."},
+    "blast_radius":       {"reading": "MEDIUM","why": "Still bounded to search subsystem + new table; index build has DB-wide cost."},
+    "compliance_scope":   {"reading": "LOW",    "why": "Saved searches are user-owned; no new regulated surface."},
+    "user_facing_impact": {"reading": "HIGH",   "why": "Unchanged — users still see the feature."},
+    "novelty":            {"reading": "MEDIUM","why": "Full-text index on this dataset is new territory; raises effort vs. pass 1."},
+    "scope_effort":       {"reading": "MEDIUM","why": "Adds a migration + index build + backfill on top of UI/API work."},
+    "state_complexity":   {"reading": "HIGH",   "why": "New table, foreign keys, categorization backfill, and a full-text index."},
+    "operational_risk":   {"reading": "MEDIUM","why": "Index build and backfill can pressure DB; need batching + observation."},
+    "coordination_cost":  {"reading": "MEDIUM","why": "Adds migration + data-engineering hands; still one coherent team."}
+  },
+  "specialists": [
+    {"name": "requirements-analyst", "why": "Carry-over from pass 1."},
+    {"name": "product-manager",      "why": "Carry-over from pass 1."},
+    {"name": "solution-architect",   "why": "Carry-over from pass 1."},
+    {"name": "backend-engineer",     "why": "Carry-over from pass 1."},
+    {"name": "frontend-engineer",    "why": "Carry-over from pass 1."},
+    {"name": "test-designer",        "why": "Carry-over from pass 1 — will expand coverage to migration + performance."},
+    {"name": "migration-engineer",   "why": "AUGMENTED: design revealed a new table + foreign keys + backfill for existing search events."},
+    {"name": "data-engineer",        "why": "AUGMENTED: full-text index decision + 1M-row query path needs a data pipeline owner."}
+  ],
+  "phases": [
+    {"name": "clarify",       "why": "Completed in pass 1.", "primary": ["requirements-analyst"]},
+    {"name": "design",        "why": "Completed in pass 1 — evidence triggered this re-evaluation.", "primary": ["solution-architect"]},
+    {"name": "test-strategy", "why": "Carry-over; expand to include migration + performance.", "primary": ["test-designer"]},
+    {"name": "build",         "why": "Pass 1 build tasks proceed; new migration + indexing tasks join the build phase.", "primary": ["backend-engineer", "frontend-engineer", "migration-engineer", "data-engineer"]},
+    {"name": "test",          "why": "Extended with migration + performance suites.", "primary": ["test-designer"]},
+    {"name": "review",        "why": "Review now covers rollback plan + performance baseline.", "primary": ["solution-architect"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "Emergent migration is handled with a rollback plan + performance baseline but stays within standard because no compliance amplifier surfaced; plan notes escalation to full if backfill window exceeds a business day.",
+  "complexity": 5,
+  "complexity_why": "Bumped from 4 → 5: migration + indexing add cross-subsystem coordination without crossing into compliance territory.",
+  "open_questions": [],
+  "evidence_required": [
+    "unit-results",
+    "integration-results",
+    "api-contract-diff",
+    "acceptance-report",
+    "screenshot-before-after",
+    "migration-rollback-plan",
+    "performance-baseline"
+  ],
+  "test_types": [
+    "unit",
+    "integration",
+    "api",
+    "ui",
+    "acceptance",
+    "migration",
+    "performance"
+  ],
+  "tasks": [
+    {
+      "id": "t7",
+      "title": "Design + execute saved-search table migration (FKs, index)",
+      "phase": "build",
+      "specialist": "migration-engineer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["migration"],
+        "evidence_required": ["migration-rollback-plan"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t8",
+      "title": "Build full-text index pipeline + backfill existing search events",
+      "phase": "build",
+      "specialist": "data-engineer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["migration", "performance"],
+        "evidence_required": ["migration-rollback-plan", "performance-baseline"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t9",
+      "title": "Performance baseline against ~1M-row query path",
+      "phase": "test",
+      "specialist": "test-designer",
+      "blockedBy": ["t7", "t8"],
+      "metadata": {
+        "chain_id": "saved-searches.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["performance"],
+        "evidence_required": ["performance-baseline"],
+        "rigor_tier": "standard"
+      }
+    }
+  ],
+  "re_evaluation": {
+    "pruned": [],
+    "augmented": [
+      {"specialist": "migration-engineer", "reason": "design revealed new table + foreign keys + backfill"},
+      {"specialist": "data-engineer",      "reason": "full-text index decision + 1M-row query path needs a data pipeline owner"}
+    ],
+    "evidence_added": ["migration-rollback-plan", "performance-baseline"],
+    "test_types_added": ["migration", "performance"],
+    "re_tiered": [
+      {"from": "standard", "to": "standard", "why": "Escalation considered; compliance did not fire, so kept at standard with explicit migration + perf evidence."}
+    ],
+    "completed_tasks_untouched": true,
+    "process_plan_addendum": "Re-evaluation 2026-04-17 — augmented migration-engineer + data-engineer, added migration-rollback-plan and performance-baseline, complexity 4→5."
+  }
+}

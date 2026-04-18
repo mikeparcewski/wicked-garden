@@ -1,0 +1,109 @@
+{
+  "project_slug": "pricing-calculator-refactor",
+  "mode": "propose",
+  "summary": "Pure internal refactor of the pricing calculator into smaller, better-named functions. Behavior must be preserved; existing unit tests are the parity proof and reviewer must confirm no behavior change.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "HIGH",   "why": "Refactor is reverse-able via git; no state or contract changes to unwind."},
+    "blast_radius":       {"reading": "MEDIUM", "why": "Pricing calc is money-adjacent — small drift becomes financial error, which warrants test rigor even on an internal refactor."},
+    "compliance_scope":   {"reading": "LOW",    "why": "No regulated data surface; pricing logic is business logic but not in a compliance framework here."},
+    "user_facing_impact": {"reading": "LOW",    "why": "Intended to be invisible; users should see no change."},
+    "novelty":            {"reading": "LOW",    "why": "Standard function-extraction refactor."},
+    "scope_effort":       {"reading": "LOW",    "why": "Contained to the calculator module and its direct callers."},
+    "state_complexity":   {"reading": "LOW",    "why": "No persistence or cache semantics change."},
+    "operational_risk":   {"reading": "LOW",    "why": "No runtime behavior intended to change; risk is behavioral drift, not ops."},
+    "coordination_cost":  {"reading": "LOW",    "why": "Single team, single module."}
+  },
+  "specialists": [
+    {"name": "senior-engineer",   "why": "Drive the decomposition shape and mentor reviewers on parity checks."},
+    {"name": "backend-engineer",  "why": "Execute the refactor and keep test green."},
+    {"name": "test-designer",     "why": "Verify existing coverage exercises the refactor and add characterization tests where gaps exist."}
+  ],
+  "phases": [
+    {"name": "design",  "why": "Decide decomposition boundaries before cutting functions apart.", "primary": ["senior-engineer"]},
+    {"name": "build",   "why": "Execute the refactor.", "primary": ["backend-engineer"]},
+    {"name": "test",    "why": "Run existing tests + add characterization tests to prove parity.", "primary": ["test-designer"]},
+    {"name": "review",  "why": "Senior engineer confirms behavior parity and improved readability.", "primary": ["senior-engineer"]}
+  ],
+  "rigor_tier": "standard",
+  "rigor_why": "Money-adjacent logic earns enforced unit-test gate even without external amplifiers; minimal would be too loose for pricing.",
+  "complexity": 2,
+  "complexity_why": "Small, self-contained module with a single concern (decomposition).",
+  "open_questions": [],
+  "evidence_required": [
+    "unit-results"
+  ],
+  "test_types": [
+    "unit"
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Design decomposition boundaries for pricing calculator",
+      "phase": "design",
+      "specialist": "senior-engineer",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "pricing-calculator-refactor.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Execute refactor: extract smaller, better-named functions",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "pricing-calculator-refactor.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit"],
+        "evidence_required": ["unit-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Run existing suite + add characterization tests as needed",
+      "phase": "test",
+      "specialist": "test-designer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "pricing-calculator-refactor.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["unit"],
+        "evidence_required": ["unit-results"],
+        "rigor_tier": "standard"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Parity review + readability review",
+      "phase": "review",
+      "specialist": "senior-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "pricing-calculator-refactor.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "standard"
+      }
+    }
+  ]
+}

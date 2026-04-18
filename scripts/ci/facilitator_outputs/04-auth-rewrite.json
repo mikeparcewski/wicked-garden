@@ -1,0 +1,242 @@
+{
+  "project_slug": "auth-session-to-jwt",
+  "mode": "propose",
+  "summary": "Migrate authentication from session cookies to JWT across three services. Touches every user, every service, live session state, and the compliance surface. Textbook full-rigor, irreversible-in-flight migration.",
+  "priors": [],
+  "factors": {
+    "reversibility":      {"reading": "LOW",    "why": "Mid-migration rollback is painful: tokens are issued, sessions invalidated, clients cached; partial rollback strands users."},
+    "blast_radius":       {"reading": "HIGH",   "why": "Every authenticated request across three services goes through the new path; a bug logs everyone out."},
+    "compliance_scope":   {"reading": "HIGH",   "why": "Authentication is a SOC2 control and usually in PCI/HIPAA audit scope; auth rewrites are always compliance events."},
+    "user_facing_impact": {"reading": "HIGH",   "why": "Every user experiences the cutover; any session-loss manifests as a forced logout."},
+    "novelty":            {"reading": "MEDIUM","why": "JWT migration patterns are well-known, but this codebase hasn't done the specific three-service dance before."},
+    "scope_effort":       {"reading": "HIGH",   "why": "Three services, libraries, client-side code, and operational tooling all change."},
+    "state_complexity":   {"reading": "HIGH",   "why": "Live session store must co-exist with token issuance during the cutover; rotation + revocation semantics are stateful."},
+    "operational_risk":   {"reading": "HIGH",   "why": "Any hiccup in token validation is an immediate P1; rollback drill must be exercised before cutover."},
+    "coordination_cost":  {"reading": "HIGH",   "why": "Security, SRE, three service teams, release, and compliance all must sign off."}
+  },
+  "specialists": [
+    {"name": "requirements-analyst",  "why": "Capture formal requirements and REQ- IDs for auditability."},
+    {"name": "product-manager",       "why": "Own user-facing narrative, rollout comms, and cutover windows."},
+    {"name": "solution-architect",    "why": "Design the dual-stack period, key rotation, and service-to-service trust model."},
+    {"name": "senior-engineer",       "why": "Technical lead across services; arbitrate contract-level design decisions."},
+    {"name": "backend-engineer",      "why": "Implement issuance, validation, and middleware in each service."},
+    {"name": "security-engineer",     "why": "Threat-model the JWT flow, algorithm choice, key management, and replay/invalidation controls."},
+    {"name": "compliance-officer",    "why": "Attest SOC2 / applicable regulatory controls and produce traceability artifacts."},
+    {"name": "migration-engineer",    "why": "Own the dual-stack cutover plan, session-to-token bridge, and rollback procedure."},
+    {"name": "sre",                   "why": "Observability, SLOs, rollback drill, and on-call readiness for the cutover."},
+    {"name": "release-engineer",      "why": "Sequence the staged rollout across three services and clients."},
+    {"name": "test-strategist",       "why": "Shape the full pyramid including security and performance coverage."},
+    {"name": "test-designer",         "why": "Author the integration, api, security, and acceptance suites."},
+    {"name": "independent-reviewer",  "why": "Multi-reviewer structure required for full-rigor irreversible work."}
+  ],
+  "phases": [
+    {"name": "clarify",       "why": "Formal requirements, cutover constraints, compliance envelope pinned down.", "primary": ["requirements-analyst", "product-manager"]},
+    {"name": "design",        "why": "Architecture + security + migration design, including `/wicked-garden:jam:council` multi-model review for irreversible choices.", "primary": ["solution-architect", "security-engineer", "migration-engineer"]},
+    {"name": "test-strategy", "why": "Plan full pyramid with security and performance explicitly called out.", "primary": ["test-strategist"]},
+    {"name": "build",         "why": "Implement issuance, validation, and middleware per service with dual-stack support.", "primary": ["backend-engineer"]},
+    {"name": "test",          "why": "Execute unit/integration/api/security/acceptance/performance suites and migration rehearsal.", "primary": ["test-designer"]},
+    {"name": "review",        "why": "Independent reviewer + compliance officer sign-off before cutover.", "primary": ["independent-reviewer", "compliance-officer"]}
+  ],
+  "rigor_tier": "full",
+  "rigor_why": "Auth rewrite crosses compliance, reversibility, blast radius, operational risk, and coordination — every full-rigor amplifier fires simultaneously.",
+  "complexity": 6,
+  "complexity_why": "Cross-service, stateful, compliance-bound migration with coordinated cutover — high end of the scale, short of a green-field rewrite (7).",
+  "open_questions": [
+    "Algorithm and key-rotation policy: RS256 with JWKS and 24h rotation, or tenant-scoped HS256?",
+    "Dual-stack window length and rollback trigger thresholds?"
+  ],
+  "requires_council": true,
+  "yolo_forbidden": true,
+  "yolo_refusal_reason": "rigor_tier=full — per the rubric, auto_proceed is ignored for full-rigor work. This change is irreversible in mid-flight and carries SOC2/PCI implications; user confirmation and independent review are mandatory.",
+  "evidence_required": [
+    "api-contract-diff",
+    "unit-results",
+    "integration-results",
+    "security-scan",
+    "acceptance-report",
+    "compliance-traceability",
+    "migration-rollback-plan",
+    "performance-baseline"
+  ],
+  "test_types": [
+    "unit",
+    "integration",
+    "api",
+    "security",
+    "acceptance",
+    "performance",
+    "migration"
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Capture REQ- IDs, compliance envelope, and cutover constraints",
+      "phase": "clarify",
+      "specialist": "requirements-analyst",
+      "blockedBy": [],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "clarify",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t2",
+      "title": "Architecture + security + migration design (with council review)",
+      "phase": "design",
+      "specialist": "solution-architect",
+      "blockedBy": ["t1"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "design",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["api-contract-diff", "migration-rollback-plan"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t3",
+      "title": "Full-pyramid test strategy including security and performance",
+      "phase": "test-strategy",
+      "specialist": "test-strategist",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "test-strategy",
+        "test_required": false,
+        "test_types": ["unit", "integration", "api", "security", "acceptance", "performance", "migration"],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t4",
+      "title": "Implement JWT issuance + validation across 3 services (dual-stack)",
+      "phase": "build",
+      "specialist": "backend-engineer",
+      "blockedBy": ["t3"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["unit", "integration", "api"],
+        "evidence_required": ["unit-results", "integration-results", "api-contract-diff"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t5",
+      "title": "Security threat model + scan of new auth surface",
+      "phase": "build",
+      "specialist": "security-engineer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["security"],
+        "evidence_required": ["security-scan"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t6",
+      "title": "Migration cutover plan + rehearsal + rollback drill",
+      "phase": "build",
+      "specialist": "migration-engineer",
+      "blockedBy": ["t2"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": true,
+        "test_types": ["migration"],
+        "evidence_required": ["migration-rollback-plan"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t7",
+      "title": "SRE observability + SLO + on-call readiness",
+      "phase": "build",
+      "specialist": "sre",
+      "blockedBy": ["t4"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "build",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t8",
+      "title": "Acceptance + performance suite against dual-stack",
+      "phase": "test",
+      "specialist": "test-designer",
+      "blockedBy": ["t4", "t5", "t6"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "coding-task",
+        "source_agent": "facilitator",
+        "phase": "test",
+        "test_required": true,
+        "test_types": ["acceptance", "performance"],
+        "evidence_required": ["acceptance-report", "performance-baseline"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t9",
+      "title": "Compliance traceability package (REQ → design → code → test)",
+      "phase": "review",
+      "specialist": "compliance-officer",
+      "blockedBy": ["t8"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": ["compliance-traceability"],
+        "rigor_tier": "full"
+      }
+    },
+    {
+      "id": "t10",
+      "title": "Independent review + release sequencing sign-off",
+      "phase": "review",
+      "specialist": "independent-reviewer",
+      "blockedBy": ["t9"],
+      "metadata": {
+        "chain_id": "auth-session-to-jwt.root",
+        "event_type": "task",
+        "source_agent": "facilitator",
+        "phase": "review",
+        "test_required": false,
+        "test_types": [],
+        "evidence_required": [],
+        "rigor_tier": "full"
+      }
+    }
+  ]
+}
