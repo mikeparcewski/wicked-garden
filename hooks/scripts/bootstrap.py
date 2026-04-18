@@ -623,6 +623,49 @@ def _probe_onedrive_path() -> str | None:
     return None
 
 
+# Critical v6 skills — if these files exist on disk under the plugin root
+# but a Skill() call fails with "Unknown skill", the plugin cache is stale
+# and needs `/reload-plugins`. Issue #434.
+_CRITICAL_V6_SKILLS = (
+    "skills/crew/propose-process/SKILL.md",
+)
+
+
+def _check_critical_skills() -> str | None:
+    """Verify critical v6 skill files are present in the plugin root.
+
+    Claude Code's skill registry is cached at plugin-install time. When the
+    plugin ships a new skill mid-version, the cache lags until the user runs
+    `/reload-plugins`. We can't query the live registry from a hook — but we
+    can check the files exist on disk and emit a diagnostic directive so an
+    "Unknown skill" error surfaces a fix path instead of being cryptic.
+
+    Returns a directive string (shown in the briefing) when any critical skill
+    is missing from disk, OR a 1-liner when all files are present that tells
+    Claude how to handle a cache-stale Skill() failure. Fails open on errors.
+    """
+    try:
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        if not plugin_root:
+            return None
+        root = Path(plugin_root)
+        missing = [s for s in _CRITICAL_V6_SKILLS if not (root / s).exists()]
+        if missing:
+            return (
+                "[Skills] Critical v6 skill files are missing from the plugin root:\n"
+                + "\n".join(f"  - {s}" for s in missing)
+                + "\nThe plugin install is incomplete. Reinstall with "
+                "`claude plugin install wicked-garden --scope project`."
+            )
+        return (
+            "[Skills] Critical v6 skills are present on disk. "
+            "If Skill() returns 'Unknown skill: wicked-garden:crew:*', the plugin "
+            "cache is stale — run `/reload-plugins` once, then retry."
+        )
+    except Exception:
+        return None  # fail open — never block bootstrap
+
+
 def _suggest_commands_for_project() -> str | None:
     """Detect project type from files in cwd and suggest 2-3 relevant commands.
 
@@ -831,6 +874,11 @@ def main():
         dangerous_mode = _detect_dangerous_mode()
         if state is not None:
             state.update(dangerous_mode=dangerous_mode)
+
+        # 7c.1. Critical v6 skill smoke-test (issue #434)
+        skills_note = _check_critical_skills()
+        if skills_note:
+            mode_notes.append(skills_note)
 
         # 7d. Check wicked-brain dependency (required, not optional)
         brain_available, brain_note = _check_brain_dependency()
