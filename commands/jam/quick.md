@@ -15,10 +15,9 @@ Delegate to the facilitator agent:
 Task(subagent_type="wicked-garden:jam:facilitator",
      prompt="Run a quick jam session on: {topic}. Use 4 personas, EXACTLY 1 round, then synthesize IMMEDIATELY. Do not run a second round under any circumstances — this is fast convergence mode. Brief synthesis with 2-3 insights max. Still gather evidence if available (but keep it fast — 2 sources max). Store a lightweight decision record after synthesis.
 
-Kanban tracking (skip silently if kanban unavailable):
-1. Session start: /wicked-garden:kanban:new-task 'Jam: {topic}' --metadata '{\"type\":\"jam-session\",\"status\":\"brainstorming\"}'
-2. After synthesis: /wicked-garden:kanban:comment {task_id} 'Synthesis: {summary}'
-3. On decision: /wicked-garden:kanban:comment {task_id} 'Decision: {decision_record}'
+Native-task tracking (fail open on any tool errors):
+1. Session start: TaskCreate(subject='Jam: {topic}', metadata={'event_type':'task','chain_id':'jam-{topic-slug}.root','source_agent':'jam-facilitator','initiative':'{topic-slug}'})
+2. After synthesis and on decision: TaskUpdate(taskId, description='append: Synthesis: {summary}' / 'Decision: {decision_record}')
 
-kanban = process, wicked-garden:mem = outcome.")
+native task = process, wicked-garden:mem = outcome.")
 ```

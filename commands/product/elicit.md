@@ -27,14 +27,14 @@ Elicit requirements and write user stories with acceptance criteria.
 - **target** (required): Path to document(s) or "--interactive"
 - **--personas**: Comma-separated list of user personas
 - **--scope**: Focus area (e.g., "authentication", "data-management")
-- **--output**: Where to save results (default: console + kanban)
+- **--output**: Where to save results (default: console + native task)
 
 ## Process
 
 1. **Read Context**: Parse target documents or accept interactive mode
 2. **Dispatch to Requirements Analyst**: Elicit requirements, identify gaps, generate user stories
 3. **Present Results**: Format user stories with acceptance criteria and open questions
-4. **Update Kanban**: Store requirements for traceability
+4. **Update Task**: Store requirements via TaskUpdate on the active clarify task for traceability
 
 ## Instructions
 
@@ -126,7 +126,7 @@ Format the agent's output into the standard elicitation report structure.
 ## Integration
 
 Automatically updates:
-- **wicked-garden:kanban**: Stores requirements as comments
+- **Native tasks**: Stores requirements via TaskUpdate description appends on the active clarify task
 - **wicked-garden:mem**: Learns requirements patterns
 - **Event**: Emits `[product:requirements:elicited:success]`
 
@@ -154,6 +154,6 @@ Open Questions:
 1. Password complexity requirements?
 2. Social login support (Google, GitHub)?
 
-Stored in kanban: task-001
+Stored on active task: task-001
 Event emitted: [product:requirements:elicited:success]
 ```

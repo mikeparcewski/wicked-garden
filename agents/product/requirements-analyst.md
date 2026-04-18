@@ -41,7 +41,7 @@ Before doing work manually, check if a wicked-* tool can help:
 
 - **Search**: Use wicked-garden:search to find similar requirements
 - **Memory**: Use wicked-garden:mem to recall past patterns
-- **Task tracking**: Use wicked-garden:kanban to document requirements
+- **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to document requirements (see scripts/_event_schema.py).
 
 ## Elicitation Process
 
@@ -244,4 +244,4 @@ When clarify phase starts:
 - Elicit requirements through questioning
 - Write user stories with acceptance criteria
 - Flag ambiguities for stakeholder input
-- Store in kanban for traceability
+- Store via TaskCreate with `metadata={event_type:"task", chain_id:"{project}.clarify", source_agent:"requirements-analyst", phase:"clarify", initiative:"{req_id}"}` for traceability

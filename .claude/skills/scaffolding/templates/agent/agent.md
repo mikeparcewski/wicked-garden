@@ -54,7 +54,7 @@ Include:
 ## Integration
 
 Reference other wicked-* plugins when helpful:
-- wicked-kanban: Track tasks and findings
+- Native TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent}`: track tasks and findings (see `scripts/_event_schema.py`)
 - wicked-mem: Store decisions and patterns
 - wicked-search: Find code patterns
 

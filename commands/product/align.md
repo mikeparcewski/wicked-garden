@@ -28,7 +28,7 @@ Facilitate stakeholder alignment, surface concerns, and build consensus.
 - **--stakeholders**: Comma-separated stakeholder groups
 - **--focus**: What to focus on (concerns, tradeoffs, conflicts)
 - **--conflict**: Specific conflict to mediate
-- **--output**: Where to save (default: console + kanban)
+- **--output**: Where to save (default: console + native task)
 
 ## Process
 
@@ -131,7 +131,7 @@ Format the agent's output into the standard alignment analysis structure.
 ## Integration
 
 Automatically:
-- **wicked-garden:kanban**: Documents alignment status
+- **Native tasks**: Documents alignment status via TaskCreate/TaskUpdate with `metadata.event_type="task"`
 - **wicked-garden:mem**: Tracks stakeholder patterns
 - **Event**: Emits `[product:alignment:achieved:success]` or `[product:concern:raised:warning]`
 
@@ -174,7 +174,7 @@ Next Steps:
 2. Define phased delivery plan
 3. Document OAuth roadmap for v2
 
-Stored in kanban: alignment-001
+Stored on active task (initiative: alignment-001)
 Events emitted: [product:concern:raised:warning]
 ```
 

@@ -28,7 +28,7 @@ Before manual work, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find version files and changelogs
 - **Memory**: Use wicked-garden:mem to recall release patterns
-- **Kanban**: Use wicked-garden:kanban to track release tasks
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track release tasks (see scripts/_event_schema.py).
 
 ## Your Focus
 

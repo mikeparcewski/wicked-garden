@@ -28,7 +28,7 @@ evaluating existing flows for clarity and usability gaps.
 
 - **Memory**: Use wicked-garden:mem to recall past flow decisions and IA patterns
 - **Search**: Use wicked-garden:search to find navigation components and routing logic
-- **Kanban**: Use wicked-garden:kanban to track flow issues discovered during analysis
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track flow issues discovered during analysis (see scripts/_event_schema.py).
 
 ## Working Modes
 

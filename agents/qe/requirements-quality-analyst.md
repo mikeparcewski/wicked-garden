@@ -27,7 +27,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Memory**: Use wicked-garden:mem to recall past AC quality patterns
 - **Search**: Use wicked-garden:search to find existing acceptance criteria in the codebase
-- **Task tracking**: Use wicked-garden:kanban to update evidence
+- **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to update evidence on the active task (see scripts/_event_schema.py).
 
 If a wicked-* tool is available, prefer it over manual approaches.
 

@@ -431,7 +431,7 @@ After the block, the skill tells Claude: "Proceed with this context. Answer the 
 
 ## Value Demonstrated
 
-Fast and slow paths assemble context from adapters (mem, search, kanban, crew) and inject a
+Fast and slow paths assemble context from adapters (mem, search, crew) and inject a
 static briefing. For the hardest prompts — complex architecture questions, risky production
 changes — static assembly is insufficient. The synthesize skill goes further:
 

@@ -330,7 +330,7 @@ For each specialist engagement:
 3. Dispatch to specialist (skill invocation or subagent)
 4. Mark completed: `TaskUpdate(taskId="{id}", status="completed", description="{original}\n\n## Outcome\n{summary of specialist findings/output}")`
 
-**Initiative metadata**: Always include `"initiative": "{project-name}"` in task metadata. This routes the task to the crew project's kanban initiative (see start.md Section 8.5). Tasks without initiative metadata default to the repo's "Issues" initiative.
+**Initiative metadata**: Always include `"initiative": "{project-name}"` in task metadata. This groups the task under the crew project's initiative (see start.md Section 8.5). Tasks without initiative metadata default to the repo's generic "Issues" initiative.
 
 #### Specialist-to-Phase Mapping (Reference)
 
@@ -818,7 +818,7 @@ TaskCreate(
   description="WHY this task exists. What problem it solves. Acceptance criteria.",
   activeForm="{Phase-verb}ing {task description}",
   metadata={
-    "initiative": "{project-name}",  // routes to crew project kanban initiative
+    "initiative": "{project-name}",  // groups task under crew project initiative
     "priority": "P1",               // P0-P3, set explicitly
     "assigned_to": "agent-name"      // who owns this
   }
@@ -864,7 +864,7 @@ TaskUpdate(taskId="{id}", status="completed",
 **Task Subject Prefix Filtering** (case-insensitive):
 - Match pattern: `(?i)^(build|clarify|design|ideate|test-strategy|test|review)[\s:-]`
 
-Tasks created via TaskCreate are automatically synced to kanban (if installed) via PostToolUse hooks. No manual kanban CLI calls needed.
+Tasks created via TaskCreate are validated at PreToolUse against the event envelope contract (see scripts/_event_schema.py) and persist natively under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`.
 
 #### Build Phase: Change-Type Detection (Issue QE-001)
 
@@ -940,7 +940,7 @@ After creating each test task, **wire the dependency** so the implementation tas
 TaskUpdate(taskId="{impl-task-id}", addBlockedBy=["{test-task-id}"])
 ```
 
-This means the implementation task will appear as blocked in kanban until the test task is completed. This is the intended UX: "work is done, but testing is pending."
+This means the implementation task will appear as blocked in task views until the test task is completed. This is the intended UX: "work is done, but testing is pending."
 
 **Update `phases/build/change-type.json`** to record the test task IDs under the impl task entry:
 ```json
@@ -954,7 +954,7 @@ This means the implementation task will appear as blocked in kanban until the te
 }
 ```
 
-**Implementation tasks are marked complete at the end of the build phase** (design decision CONDITION-1): the implementation work is done, but kanban will show the task as blocked until QE completes. This is correct — "blocked" is a visibility state, not a completion gate.
+**Implementation tasks are marked complete at the end of the build phase** (design decision CONDITION-1): the implementation work is done, but the task will render as blocked until QE completes. This is correct — "blocked" is a visibility state, not a completion gate.
 
 #### Phase Deliverables
 

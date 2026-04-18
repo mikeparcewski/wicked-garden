@@ -71,7 +71,6 @@ echo "Test project created at $TEST_DIR/ts-api"
 claude plugin install wicked-jam@wicked-garden
 claude plugin install wicked-search@wicked-garden
 claude plugin install wicked-product@wicked-garden
-claude plugin install wicked-kanban@wicked-garden
 claude plugin install wicked-mem@wicked-garden
 ```
 
@@ -92,7 +91,7 @@ Available Integrations:
   ✓ wicked-jam - brainstorming
   ✓ wicked-search - code research
   ✓ wicked-product - code review
-  ✓ wicked-kanban - task tracking
+  ✓ Native tasks - TaskCreate/TaskUpdate validated by PreToolUse
   ✓ wicked-mem - memory persistence
 ```
 
@@ -117,7 +116,6 @@ Available Integrations:
 claude plugin uninstall wicked-jam
 claude plugin uninstall wicked-search
 claude plugin uninstall wicked-product
-claude plugin uninstall wicked-kanban
 # Keep wicked-mem
 ```
 
@@ -138,7 +136,7 @@ Available Integrations:
   ✗ wicked-jam - using inline brainstorming
   ✗ wicked-search - using Glob/Grep/Read
   ✗ wicked-product - using inline review
-  ✗ wicked-kanban - using TodoWrite
+  ✓ Native tasks - TaskCreate/TaskUpdate validated by PreToolUse
   ✓ wicked-mem - memory persistence
 ```
 
@@ -174,9 +172,8 @@ Available Integrations:
 ```
 
 **Expected**:
-- Uses TodoWrite for task tracking
-- Creates tasks in `phases/build/tasks.md`
-- Mentions: "Using TodoWrite instead of wicked-kanban"
+- Uses native TaskCreate/TaskUpdate for task tracking (metadata validated by PreToolUse per scripts/_event_schema.py)
+- Creates tasks visible under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`
 
 ### Test 3: Standalone Mode (Level 1)
 
@@ -202,7 +199,7 @@ Available Integrations:
   ✗ wicked-jam - using inline brainstorming
   ✗ wicked-search - using Glob/Grep/Read
   ✗ wicked-product - using inline review
-  ✗ wicked-kanban - using TodoWrite
+  ✓ Native tasks - TaskCreate/TaskUpdate validated by PreToolUse
   ✗ wicked-mem - using file persistence
 
 Note: All project data stored locally via file-based persistence
@@ -274,7 +271,7 @@ The only differences:
 - [ ] All five phases work at each degradation level
 - [ ] Clarify produces valid `objective.md` and `acceptance-criteria.md` regardless of wicked-jam
 - [ ] Design finds patterns regardless of wicked-search
-- [ ] Build tracks tasks regardless of wicked-kanban
+- [ ] Build tracks tasks via native TaskCreate/TaskUpdate
 - [ ] Review validates regardless of wicked-product
 
 ### Inline Alternatives
@@ -303,6 +300,6 @@ wicked-crew's graceful degradation means it works for everyone, not just users w
 
 This architectural flexibility prevents vendor lock-in and reduces adoption friction. You don't need to install 5 plugins just to try workflow orchestration - wicked-crew works standalone.
 
-The degradation is graceful because functionality doesn't break - it just uses simpler alternatives. A brainstorming session without wicked-jam is still valuable, it's just structured prompting instead of multi-persona simulation. Task tracking without wicked-kanban still works, it's just TodoWrite instead of visual boards.
+The degradation is graceful because functionality doesn't break - it just uses simpler alternatives. A brainstorming session without wicked-jam is still valuable, it's just structured prompting instead of multi-persona simulation. Task tracking always works via native TaskCreate/TaskUpdate regardless of which plugins are installed.
 
 This proves the core workflow value is in the phase structure and quality gates, not in specific tool integrations. The integrations enhance the experience but aren't required for effectiveness.

@@ -48,7 +48,7 @@ Required evidence before completion:
 
 Collect evidence using:
 - curl or httpie to call the endpoint
-- Store as kanban artifacts via add-artifact command
+- Append to the native task description via TaskUpdate, referencing any on-disk artifact paths
 - Request artifact type: api_request
 - Response artifact type: api_response
 

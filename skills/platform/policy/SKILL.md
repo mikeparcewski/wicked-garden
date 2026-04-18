@@ -115,14 +115,20 @@ Recommend:
 
 ## Integration
 
-### With wicked-garden:kanban
+### With native tasks
 
 Create remediation tasks:
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-task \
-  --name "Implement {control}" \
-  --description "Policy: {policy}\nGap: {gap}" \
-  --priority {P0|P1|P2}
+```
+TaskCreate(
+  subject="Implement {control}",
+  description="Policy: {policy}\nGap: {gap}",
+  metadata={
+    "event_type": "task",
+    "chain_id": "policy.remediation",
+    "source_agent": "policy-reviewer",
+    "priority": "{P0|P1|P2}"
+  }
+)
 ```
 
 ### With wicked-garden:mem

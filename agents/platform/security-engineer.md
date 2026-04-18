@@ -31,7 +31,7 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find security patterns
 - **Memory**: Use wicked-garden:mem to recall past vulnerabilities
-- **Kanban**: Use wicked-garden:kanban to track security findings
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track security findings (see scripts/_event_schema.py).
 
 ## Your Focus
 

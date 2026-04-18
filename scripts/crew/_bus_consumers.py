@@ -45,17 +45,13 @@ def process_pending_events() -> List[str]:
             if event_id > max_event_id:
                 max_event_id = event_id
 
-            # Consumer 1: gate REJECT → kanban rework task
+            # Consumer: gate APPROVE + low complexity → auto-advance
+            #
+            # Gate REJECT no longer creates a tracked task here — the reviewer
+            # agent emits TaskCreate directly with metadata.event_type=gate-finding
+            # and verdict=REJECT. The bus event remains for observability only.
             if event_type == "wicked.gate.decided":
                 result = payload.get("result")
-                if result == "REJECT" and chain_id:
-                    if not is_processed(event_type, chain_id):
-                        action = _create_rework_task(payload, chain_id)
-                        if action:
-                            mark_processed(event_type, chain_id)
-                            actions.append(action)
-
-                # Consumer 2: gate APPROVE + low complexity → auto-advance
                 if result == "APPROVE" and chain_id:
                     idem_key = f"auto-advance:{chain_id}"
                     if not is_processed("wicked.phase.auto_advanced", idem_key):
@@ -72,51 +68,6 @@ def process_pending_events() -> List[str]:
         logger.debug(f"Bus consumer error (non-blocking): {e}")
 
     return actions
-
-
-def _create_rework_task(payload: Dict[str, Any], chain_id: str) -> str:
-    """Create a kanban rework task from a gate REJECT event.
-
-    Returns action description string, or empty string on failure.
-    """
-    try:
-        from _domain_store import DomainStore
-        import uuid
-        from datetime import datetime, timezone
-
-        project_id = payload.get("project_id", "unknown")
-        phase = payload.get("phase", "unknown")
-        reviewer = payload.get("reviewer", "unknown")
-        score = payload.get("score")
-
-        task_id = uuid.uuid4().hex[:8]
-        task = {
-            "id": f"{project_id}:{task_id}",
-            "name": f"Rework: {phase} — gate REJECT",
-            "status": "todo",
-            "priority": "P1",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "metadata": {
-                "type": "rework",
-                "event_type": "gate-finding",
-                "source_agent": "bus:gate-reject-consumer",
-                "phase": phase,
-                "chain_id": chain_id,
-                "gate_score": score,
-                "gate_reviewer": reviewer,
-            },
-        }
-
-        ds = DomainStore("wicked-kanban")
-        ds.create("tasks", task)
-
-        action = f"Created rework task for {project_id}/{phase} (gate REJECT)"
-        logger.info(action)
-        return action
-
-    except Exception as e:
-        logger.debug(f"Failed to create rework task: {e}")
-        return ""
 
 
 def _try_auto_advance(payload: Dict[str, Any], chain_id: str) -> str:

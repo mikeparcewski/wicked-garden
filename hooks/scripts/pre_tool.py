@@ -6,7 +6,8 @@ Consolidates: crew pretool_taskcreate, crew pretool_planmode, mem block_memory_m
               crew gate preflight (Bash approve calls).
 
 Dispatches by tool_name from hook payload:
-  TaskCreate    → crew initiative metadata injection + one-time suggestion
+  TaskCreate    → validate event metadata envelope + crew initiative injection
+  TaskUpdate    → validate event metadata envelope on updates
   EnterPlanMode → deny and redirect to crew workflow
   Write / Edit  → MEMORY.md write guard (AGENTS.md writes allowed, synced via PostToolUse)
   Bash          → crew gate preflight for phase_manager.py approve calls
@@ -73,11 +74,15 @@ def _deny(reason: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _find_active_crew_project():
-    """Return (project_data_dict, project_name, kanban_initiative_name).
+    """Return (project_data_dict, project_name, initiative_name).
 
     Scoped to the current workspace (CLAUDE_PROJECT_NAME or cwd basename).
     Only returns projects whose ``workspace`` field matches.
     Uses DomainStore exclusively — operates local-only in hook mode.
+
+    ``initiative_name`` is the project name (used to tag task metadata
+    with a coarse grouping). Custom display names can be set via the
+    optional ``initiative`` field on project.json.
     """
     workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
     try:
@@ -93,7 +98,7 @@ def _find_active_crew_project():
             phase = p.get("current_phase", "")
             if phase and phase not in ("complete", "done", ""):
                 name = p.get("name", "")
-                initiative = p.get("kanban_initiative") or name
+                initiative = p.get("initiative") or name
                 return p, name, initiative
     except Exception:
         pass
@@ -101,8 +106,38 @@ def _find_active_crew_project():
     return None, None, None
 
 
+def _validate_event_metadata(tool_input: dict) -> "str | None":
+    """Validate the metadata envelope on TaskCreate / TaskUpdate.
+
+    Returns an error string on failure, or None on pass. Loads phases.json
+    for phase enum validation. Fail-silent on import errors — an
+    un-importable schema module must never break task creation.
+    """
+    try:
+        from _event_schema import validate_metadata
+    except Exception:
+        return None  # schema module unavailable; fail open
+
+    metadata = tool_input.get("metadata") or {}
+    phases = set(_load_phases_config_hook().keys())
+    return validate_metadata(metadata, valid_phases=phases or None)
+
+
+def _task_metadata_mode() -> str:
+    """``off`` | ``warn`` | ``strict`` — mirrors CREW_GATE_ENFORCEMENT convention."""
+    mode = (os.environ.get("WG_TASK_METADATA") or "warn").strip().lower()
+    return mode if mode in ("off", "warn", "strict") else "warn"
+
+
 def _handle_task_create(tool_input: dict) -> str:
-    """Inject crew initiative metadata into TaskCreate input."""
+    """Inject crew initiative metadata and validate the event envelope."""
+    mode = _task_metadata_mode()
+    err = None if mode == "off" else _validate_event_metadata(tool_input)
+
+    if err and mode == "strict":
+        _log("pretool", "info", "task.metadata.blocked", detail={"reason": err})
+        return _deny(f"[wicked-garden] task metadata invalid: {err}")
+
     _data, project_name, initiative_name = _find_active_crew_project()
 
     if project_name:
@@ -110,20 +145,56 @@ def _handle_task_create(tool_input: dict) -> str:
         if not metadata.get("initiative"):
             metadata["initiative"] = initiative_name
             tool_input["metadata"] = metadata
-        return _allow(updated_input=tool_input)
+        system_message = None
+        if err and mode == "warn":
+            _log("pretool", "warn", "task.metadata.deprecated", detail={"reason": err})
+            system_message = f"[wicked-garden] DEPRECATION: task metadata: {err}"
+        return _allow(updated_input=tool_input, system_message=system_message)
 
     # No active project — show one-time suggestion via SessionState
+    system_message = None
+    if err and mode == "warn":
+        _log("pretool", "warn", "task.metadata.deprecated", detail={"reason": err})
+        system_message = f"[wicked-garden] DEPRECATION: task metadata: {err}"
     try:
         from _session import SessionState
         state = SessionState.load()
         if not state.task_suggest_shown:
             state.update(task_suggest_shown=True)
+            suggest = "Creating tasks? Consider `/wicked-garden:crew:start` for quality gates."
             return _allow(
-                system_message="Creating tasks? Consider `/wicked-garden:crew:start` for quality gates."
+                system_message=(system_message + "\n" + suggest) if system_message else suggest
             )
     except Exception:
         pass
 
+    return _allow(system_message=system_message)
+
+
+def _handle_task_update(tool_input: dict) -> str:
+    """Validate the event envelope on TaskUpdate (metadata merges).
+
+    TaskUpdate metadata is a merge patch — an empty/absent metadata is valid
+    (the caller is updating status or subject only). Validation only fires
+    when metadata is present and contains an event_type claim.
+    """
+    mode = _task_metadata_mode()
+    if mode == "off":
+        return _allow()
+
+    metadata = tool_input.get("metadata") or {}
+    if not metadata.get("event_type"):
+        return _allow()  # pure status/subject update
+
+    err = _validate_event_metadata(tool_input)
+    if err and mode == "strict":
+        _log("pretool", "info", "task.metadata.blocked", detail={"reason": err})
+        return _deny(f"[wicked-garden] task metadata invalid: {err}")
+    if err and mode == "warn":
+        _log("pretool", "warn", "task.metadata.deprecated", detail={"reason": err})
+        return _allow(
+            system_message=f"[wicked-garden] DEPRECATION: task metadata: {err}"
+        )
     return _allow()
 
 
@@ -755,6 +826,12 @@ def main():
 
         if tool_name == "TaskCreate":
             result = _handle_task_create(tool_input)
+            _log("pretool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
+            print(result)
+            return
+
+        if tool_name == "TaskUpdate":
+            result = _handle_task_update(tool_input)
             _log("pretool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
             print(result)
             return

@@ -106,7 +106,7 @@ After exploration, ask specific questions:
 /wicked-garden:data:numbers data.csv
 ```
 
-**wicked-garden:kanban** - Document insights as tasks
+**Native tasks** - Document insights via TaskCreate with `metadata.event_type="task"`
 **wicked-garden:mem** - Store analysis patterns for reuse
 
 ## Best Practices

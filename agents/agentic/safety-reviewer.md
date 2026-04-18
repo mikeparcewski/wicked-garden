@@ -29,7 +29,7 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find safety patterns and vulnerabilities
 - **Memory**: Use wicked-garden:mem to recall past safety issues
-- **Kanban**: Use wicked-garden:kanban to track safety findings
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track safety findings (see scripts/_event_schema.py).
 
 ## Your Focus
 
@@ -328,7 +328,7 @@ grep -r "citation\|source\|reference" --include="*.py" /path/to/codebase
 - [ ] Multi-agent verification for critical facts
 - [ ] User can request sources/evidence
 
-### 7. Update Kanban
+### 7. Update Task
 
 Track safety findings:
 

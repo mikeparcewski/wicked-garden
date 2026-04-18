@@ -60,7 +60,7 @@ All models agreed on:
 
 ## Related
 - [Payment Design Doc](../docs/payment-design.md)
-- [Kanban Task #42](link-to-task)
+- [Task #42](link-to-task)
 ```
 
 ## wicked-crew Integration
@@ -88,7 +88,7 @@ actions:
         - security
         - scalability
         - maintainability
-      output: kanban_task_comments
+      output: native_task_description
 
   - name: synthesize_feedback
     status: pending

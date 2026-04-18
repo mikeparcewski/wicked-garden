@@ -37,7 +37,7 @@ Args are passed as a JSON string. Parse with `json.loads(args)`:
 
 Before running the full synthesis loop, validate that this prompt actually warrants agentic synthesis. Parse `complexity`, `risk`, and (if present) `context_briefing` from the skill args (all provided as JSON fields).
 
-If `context_briefing` is present in args, its content can be used to inform all 3 checks below — treat it as verified adapter evidence (kanban state, brain index hits, domain events) rather than re-deriving from scratch.
+If `context_briefing` is present in args, its content can be used to inform all 3 checks below — treat it as verified adapter evidence (native task state, brain index hits, domain events) rather than re-deriving from scratch.
 
 Run these 3 quick checks against the user's prompt:
 
@@ -58,7 +58,7 @@ Run these 3 quick checks against the user's prompt:
 
 ## Step 1: Facilitator — What do I need to know?
 
-**If `context_briefing` is present in args**: Skip the cold exploration phase. Use the provided briefing as your starting context — it already contains adapter output (brain index hits, kanban state, domain events). Proceed directly to Step 3 to assess whether the briefing is sufficient or if targeted follow-up is needed.
+**If `context_briefing` is present in args**: Skip the cold exploration phase. Use the provided briefing as your starting context — it already contains adapter output (brain index hits, native task state, domain events). Proceed directly to Step 3 to assess whether the briefing is sufficient or if targeted follow-up is needed.
 
 **If `context_briefing` is absent**: Read the user's prompt and recent turns. Identify 3–5 specific questions:
 - What concept, file, or system is the user asking about?

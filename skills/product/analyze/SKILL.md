@@ -140,11 +140,12 @@ if event.type == "product:requirements:started":
     emit_signal("voice:analysis:ready", analysis)
 ```
 
-### With wicked-garden:kanban (Link to Tasks)
+### With native tasks (Link to Tasks)
 
 ```python
-# Tag themes with related task IDs via kanban domain API
-tasks = search_tasks(theme.keywords)
+# Tag themes with related task IDs by reading native tasks from
+# ${CLAUDE_CONFIG_DIR}/tasks/{session_id}/ and matching keywords
+tasks = search_native_tasks(theme.keywords)
 theme.related_tasks = tasks
 ```
 

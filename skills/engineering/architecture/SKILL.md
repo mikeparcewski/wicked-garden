@@ -81,11 +81,20 @@ Architecture informs test strategy:
 - Failure modes
 - Performance targets
 
-### With wicked-garden:kanban
+### With native tasks
 
-Track work with ADR links:
-```bash
-TodoWrite "ADR-001" --reference "phases/design/decisions/001.md"
+Track work with ADR links via native TaskCreate:
+```
+TaskCreate(
+  subject="ADR-001",
+  description="Reference: phases/design/decisions/001.md",
+  metadata={
+    "event_type": "task",
+    "chain_id": "{project}.design",
+    "source_agent": "solution-architect",
+    "phase": "design"
+  }
+)
 ```
 
 ## Architectural Thinking

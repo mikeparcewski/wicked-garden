@@ -181,13 +181,9 @@ Maximum autonomy — execute all remaining phases without stopping for approval:
 /wicked-garden:crew:just-finish
 ```
 
-## Kanban Integration
+## Native Task Integration
 
-Every crew project creates a kanban initiative. Tasks created during phases are automatically grouped under the project on the kanban board. This happens via hooks — no manual tagging needed.
-
-```bash
-/wicked-garden:kanban:board-status    # see all projects and tasks
-```
+Phase work uses Claude Code's native `TaskCreate` / `TaskUpdate` with enriched `metadata` (`chain_id`, `event_type`, `source_agent`, `phase`). The PreToolUse validator in `hooks/scripts/pre_tool.py` enforces the envelope per `scripts/_event_schema.py`, and SubagentStart reads `metadata.event_type` from `${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json` to inject the matching procedure bundle (R1-R6 for coding-tasks, Gate Finding Protocol for gate-findings).
 
 ## Cross-Phase Intelligence
 
@@ -204,7 +200,7 @@ For details on the traceability model and artifact states, see the scripts in `s
 Each crew project is isolated via `project_registry.py`:
 
 - **Project Registration**: Every `crew:start` registers a project with a unique ID, description, and metadata.
-- **Isolation**: `get_project_filter()` returns a filter function that scopes all queries (kanban tasks, memories, artifacts, evidence) to the active project. This prevents cross-project data leakage when multiple crew projects exist.
+- **Isolation**: `get_project_filter()` returns a filter function that scopes all queries (memories, artifacts, evidence) to the active project. This prevents cross-project data leakage when multiple crew projects exist.
 - **Multi-Project Support**: You can have multiple active projects. `crew:status` shows the current one; `crew:archive` manages lifecycle.
 
 ## Memory Integration

@@ -37,7 +37,7 @@ def resolve_tool(domain: str, hook_mode: bool = False) -> Optional[str]:
     """Return the external tool name to use for *domain*, or None for local.
 
     Args:
-        domain:    Plugin domain, e.g. "wicked-kanban", "wicked-garden:mem".
+        domain:    Plugin domain, e.g. "wicked-crew", "wicked-garden:mem".
         hook_mode: When True, skip discovery and return None immediately so
                    hook scripts stay within the 5-second timing budget.
 
@@ -198,7 +198,7 @@ def _discover_mcp_tools(domain: str) -> list:
     determined.
 
     Args:
-        domain: Plugin domain name (e.g. "wicked-kanban").
+        domain: Plugin domain name (e.g. "wicked-crew").
 
     Returns:
         List of matching tool name strings (empty until real discovery is wired).

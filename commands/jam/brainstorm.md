@@ -24,11 +24,9 @@ Convergence mode instructions:
 
 Follow the full session structure including evidence gathering, persona assembly, discussion rounds, multi-AI perspective (if available), synthesis, and decision record storage.
 
-Kanban tracking (skip silently if kanban unavailable):
-1. Session start: /wicked-garden:kanban:new-task 'Jam: {topic}' --metadata '{\"type\":\"jam-session\",\"personas\":[...],\"status\":\"brainstorming\"}'
-2. After each persona contributes: /wicked-garden:kanban:comment {task_id} '{persona_name}: {key_insight}'
-3. After synthesis: /wicked-garden:kanban:comment {task_id} 'Synthesis: {summary}'
-4. On decision: /wicked-garden:kanban:comment {task_id} 'Decision: {decision_record}'
+Native-task tracking (fail open on any tool errors):
+1. Session start: TaskCreate(subject='Jam: {topic}', metadata={'event_type':'task','chain_id':'jam-{topic-slug}.root','source_agent':'jam-facilitator','initiative':'{topic-slug}'})
+2. After each persona contributes, after synthesis, and on decision: TaskUpdate(taskId, description='append: {persona_name}: {key_insight}' / 'Synthesis: {summary}' / 'Decision: {decision_record}')
 
-Continue storing outcomes in wicked-garden:mem as before (kanban = process, mem = outcome).")
+Continue storing outcomes in wicked-garden:mem as before (native task = process, mem = outcome).")
 ```

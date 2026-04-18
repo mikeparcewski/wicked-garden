@@ -78,17 +78,24 @@ cat design.md | codex exec "Critique this architecture" > codex_review.md
 git diff main | codex exec "Flag security issues in these changes"
 ```
 
-## Kanban Integration
+## Native Task Tracking
 
 Track Codex insights for team visibility:
 
-```bash
+```
 # Create a task for the review
-/wicked-garden:kanban:new-task "Code review: auth-service refactor"
+TaskCreate(
+  subject="Code review: auth-service refactor",
+  metadata={
+    "event_type": "task",
+    "chain_id": "auth-service-review.root",
+    "source_agent": "multi-model:codex"
+  }
+)
 
-# Get Codex's review and add as comment
-CODEX_REVIEW=$(cat src/auth.py | codex exec "Security review")
-# Add CODEX_REVIEW as kanban comment with attribution
+# Get Codex's review and append via TaskUpdate
+# CODEX_REVIEW=$(cat src/auth.py | codex exec "Security review")
+# TaskUpdate(taskId, description="{previous}\n\nCodex: ${CODEX_REVIEW}")
 ```
 
 ## Command Reference
@@ -125,7 +132,7 @@ CODEX_REVIEW=$(cat src/auth.py | codex exec "Security review")
 1. **Use exec for automation** — `codex exec` is ideal for scripted workflows
 2. **Pipe content** — Use stdin for context rather than describing files
 3. **Compare perspectives** — Use Codex alongside Claude for important decisions
-4. **Track in kanban** — Record AI insights for team visibility
+4. **Track via native tasks** — Record AI insights for team visibility through TaskCreate/TaskUpdate
 5. **Resume sessions** — Use `codex resume` to continue complex discussions
 6. **Fork for alternatives** — `codex fork` explores "what if" without losing current thread
 

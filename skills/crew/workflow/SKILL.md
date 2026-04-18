@@ -157,7 +157,7 @@ crew:phase:approved:success
 
 | Plugin | Enhancement | Fallback |
 |--------|-------------|----------|
-| wicked-garden:kanban | Persistent task board | TodoWrite |
+| Native tasks | TaskCreate/TaskUpdate with validated `metadata` (see scripts/_event_schema.py) | TodoWrite |
 | wicked-garden:mem | Cross-session learning | Project files |
 
 See [Integration Details](refs/integration.md) for usage patterns.

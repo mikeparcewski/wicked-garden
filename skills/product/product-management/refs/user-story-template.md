@@ -243,7 +243,7 @@ Before marking a story as "Ready":
 
 ## Integration with Tools
 
-**Kanban**: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-task "User Stories" "US-123: ..." --tags "auth,p0" --description "$(cat story.md)"`
+**Tasks**: `TaskCreate(subject="US-123: ...", description="$(cat story.md)", metadata={"event_type":"task","chain_id":"auth.clarify","source_agent":"requirements-analyst","phase":"clarify","priority":"P0","initiative":"auth"})`
 
 **Memory**: `/wicked-garden:mem:store "auth-stories" "$(cat story.md)"`
 

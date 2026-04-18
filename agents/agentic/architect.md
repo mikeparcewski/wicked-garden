@@ -27,7 +27,7 @@ Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find architectural patterns
 - **Memory**: Use wicked-garden:mem to recall past architecture decisions
-- **Kanban**: Use wicked-garden:kanban to track architecture recommendations
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track architecture recommendations (see scripts/_event_schema.py).
 
 ## Your Focus
 
@@ -185,7 +185,7 @@ Review the topology output for:
 - Deep nesting (A → B → C → D → E)
 - Tight coupling (many bidirectional dependencies)
 
-### 6. Update Kanban
+### 6. Update Task
 
 Track architecture findings:
 

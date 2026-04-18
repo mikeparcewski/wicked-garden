@@ -47,6 +47,6 @@ Multi-perspective delivery reporting and metrics configuration for project track
 ## Integration
 
 - **wicked-crew**: Specialist routing for delivery phases
-- **wicked-garden:kanban**: Project and task data as report input
+- **Native tasks**: TaskCreate/TaskUpdate with `metadata.event_type` provide task data as report input
 - **product**: Strategic alignment for delivery priorities
 ```

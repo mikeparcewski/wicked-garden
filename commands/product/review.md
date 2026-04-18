@@ -75,6 +75,6 @@ Return in under 15 seconds with a short findings list.
 
 ## Integration
 
-- **wicked-garden:kanban**: Issues are tracked by the reviewer agent
+- **Native tasks**: issues are tracked by the reviewer agent via TaskCreate/TaskUpdate with `metadata.event_type="task"`
 - **wicked-garden:mem**: Design token patterns stored for future reviews
 - **engineering**: Coordinate fixes with code review

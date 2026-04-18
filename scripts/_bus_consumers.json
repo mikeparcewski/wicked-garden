@@ -3,14 +3,6 @@
   "max_consumers": 8,
   "consumers": [
     {
-      "id": "crew:gate-reject-rework",
-      "event_filter": "wicked.gate.decided",
-      "domain": "crew",
-      "description": "Creates kanban rework task when gate returns REJECT",
-      "module": "scripts/crew/_bus_consumers.py",
-      "added": "2026-04-13"
-    },
-    {
       "id": "crew:auto-advance",
       "event_filter": "wicked.gate.decided",
       "domain": "crew",

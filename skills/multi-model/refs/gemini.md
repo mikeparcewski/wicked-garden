@@ -88,15 +88,23 @@ cat docs/architecture-200-pages.md | gemini "Summarize and flag concerns" > gemi
 cat src/auth.py | codex exec "Code-level security review"
 ```
 
-## Kanban Integration
+## Native Task Tracking
 
-```bash
+```
 # Create review task
-/wicked-garden:kanban:new-task "Architecture review: payment service" --priority P1
+TaskCreate(
+  subject="Architecture review: payment service",
+  metadata={
+    "event_type": "task",
+    "chain_id": "payment-arch-review.root",
+    "source_agent": "multi-model:gemini",
+    "priority": "P1"
+  }
+)
 
-# Capture Gemini's perspective
-GEMINI_REVIEW=$(cat docs/payment-design.md | gemini "Architecture critique")
-# Add as kanban comment: "Gemini: ${GEMINI_REVIEW}"
+# Capture Gemini's perspective and append to the task description via TaskUpdate
+# GEMINI_REVIEW=$(cat docs/payment-design.md | gemini "Architecture critique")
+# TaskUpdate(taskId, description="{previous}\n\nGemini: ${GEMINI_REVIEW}")
 ```
 
 ## Options Reference
@@ -125,7 +133,7 @@ GEMINI_REVIEW=$(cat docs/payment-design.md | gemini "Architecture critique")
 2. **Use for long docs** — Leverage Gemini's context window for large inputs
 3. **Be specific** — Focused prompts yield more actionable output
 4. **Compare perspectives** — Pair Gemini broad analysis with Codex code-specific review
-5. **Track decisions** — Use wicked-garden:kanban and wicked-garden:mem for team visibility
+5. **Track decisions** — Use native TaskUpdate and wicked-garden:mem for team visibility
 
 ## Session Management
 

@@ -61,7 +61,7 @@ Dynamic multi-phase workflow engine with signal-based specialist routing. Crew a
 ## Integration
 
 - **All specialist plugins**: Routed to automatically via signal analysis
-- **wicked-garden:kanban**: Task tracking synced via hooks
+- **Native tasks**: TaskCreate/TaskUpdate carry `metadata={event_type, chain_id, source_agent, phase}`; PreToolUse validates per scripts/_event_schema.py
 - **wicked-garden:mem**: Context and decisions persisted across phases
 - **wicked-smaht**: Context assembly for each phase
 ```

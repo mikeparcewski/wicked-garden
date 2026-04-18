@@ -29,7 +29,7 @@ Before manual work, leverage available tools:
 
 - **wicked-garden:data:numbers**: For data profiling and SQL queries
 - **wicked-garden:search**: Find existing pipeline code
-- **wicked-garden:kanban**: Track data quality issues
+- **Native tasks**: TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` track data quality issues
 - **wicked-garden:mem**: Recall past pipeline patterns
 
 ## Core Responsibilities
@@ -163,7 +163,7 @@ WHERE execution_time > 60
 ORDER BY execution_time DESC;
 ```
 
-### 5. Integration with wicked-garden:kanban
+### 5. Record findings on the active task
 
 Document findings:
 ```

@@ -47,7 +47,7 @@ TaskCreate(
 )
 ```
 
-This is automatically synced to kanban if installed.
+PreToolUse validates the task's `metadata` per scripts/_event_schema.py; the task persists natively under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`.
 
 ### 4. Invoke Orchestrator
 
@@ -127,7 +127,7 @@ Display the result from orchestrator:
 
 ---
 
-**Kanban Task**: {task_id} (if created)
+**Task**: {task_id} (if created)
 
 To view full evidence: `/wicked-garden:crew:evidence`
 ```

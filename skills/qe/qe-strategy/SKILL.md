@@ -193,4 +193,4 @@ See [`refs/test-type-taxonomy.md`](refs/test-type-taxonomy.md) for full layer de
 
 ## Integration
 
-Integrates with: **crew** (quality gates), **scenarios** (E2E discovery), **kanban** (task tracking), **product** (requirements/UX), **platform** (deployment), **engineering** (architecture/code quality).
+Integrates with: **crew** (quality gates), **scenarios** (E2E discovery), **native tasks** (task tracking via TaskCreate/TaskUpdate), **product** (requirements/UX), **platform** (deployment), **engineering** (architecture/code quality).

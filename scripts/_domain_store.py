@@ -61,11 +61,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 DOMAIN_MCP_PATTERNS: dict[str, list[str]] = {
-    "wicked-kanban": [
-        "jira", "linear", "asana", "github", "gitlab",
-        "trello", "monday", "clickup", "rally", "ado",
-        "azure-devops", "project", "issue",
-    ],
     "wicked-garden:mem": [
         "notion", "confluence", "obsidian", "memory",
         "knowledge", "wiki", "coda",
@@ -168,7 +163,7 @@ class DomainStore:
     ) -> None:
         """
         Args:
-            domain:          Plugin domain, e.g. "wicked-garden:mem", "wicked-kanban".
+            domain:          Plugin domain, e.g. "wicked-garden:mem", "wicked-crew".
             hook_mode:       Pass True from hook scripts. Skips integration-discovery
                              to stay within the 5s hook timing budget.
             _skip_discovery: Internal flag. Pass True from integration resolver when

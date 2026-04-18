@@ -101,7 +101,7 @@ See [refs/journey-mapping.md](refs/journey-mapping.md) for stage analysis.
 
 **wicked-crew**: Auto-inject synthesis into `product:requirements:started` events
 **wicked-garden:mem**: Store high-priority insights as decision memories
-**wicked-garden:kanban**: Link recommendations to roadmap tasks
+**Native tasks**: Link recommendations to roadmap tasks via TaskCreate with `metadata.event_type="task"`
 
 ## Rules
 

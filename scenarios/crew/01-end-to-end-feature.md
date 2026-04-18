@@ -190,14 +190,10 @@ phases/test-strategy/test-strategy.md containing:
 /wicked-garden:crew:execute
 ```
 
-**With wicked-kanban available**:
-- Creates tasks in kanban board
-- Tracks implementation progress visually
-- Updates task status as work completes
-
-**Without wicked-kanban (standalone)**:
-- Uses TaskCreate/TaskUpdate tools for task tracking
+**Task tracking**:
+- Uses native TaskCreate/TaskUpdate tools for task tracking (metadata validated by PreToolUse per scripts/_event_schema.py)
 - Creates tasks dynamically based on implementation needs
+- Updates task status as work completes
 
 **Implementation tasks created dynamically** (exact tasks depend on complexity analysis):
 - Tasks for OAuth library installation and configuration
@@ -316,7 +312,7 @@ By forcing outcome clarification upfront, the team knows what success looks like
 
 This replaces ad-hoc project management where developers start coding without clear acceptance criteria, skip testing until the end, and then discover they built the wrong thing. The explicit approval gates ensure stakeholder alignment at key decision points.
 
-For teams using wicked-kanban, wicked-search, and wicked-engineering, the integration provides seamless orchestration across tools. For teams without those plugins, the graceful degradation ensures the workflow still works with built-in alternatives.
+For teams using wicked-search and wicked-engineering, the integration provides seamless orchestration across tools. For teams without those plugins, the graceful degradation ensures the workflow still works with built-in alternatives (and tasks always persist natively via TaskCreate/TaskUpdate).
 
 ## Cleanup
 

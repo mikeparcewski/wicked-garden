@@ -2,7 +2,7 @@
 name: risk-assessor
 description: |
   Identify risks and failure modes. Assesses security, reliability,
-  and operational risks. Updates kanban with risk matrix.
+  and operational risks. Updates the active task with the risk matrix via TaskUpdate.
   Use when: risk identification, failure modes, technical risks, mitigation
 
   <example>

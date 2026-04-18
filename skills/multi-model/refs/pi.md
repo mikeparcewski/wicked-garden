@@ -103,15 +103,23 @@ cat "$CONTEXT" | pi exec "User experience and human factors: where will users st
 # Synthesize all perspectives
 ```
 
-## Kanban Integration
+## Native Task Tracking
 
-```bash
+```
 # Create review task
-/wicked-garden:kanban:new-task "UX impact review: new auth flow" --priority P1
+TaskCreate(
+  subject="UX impact review: new auth flow",
+  metadata={
+    "event_type": "task",
+    "chain_id": "ux-review.root",
+    "source_agent": "multi-model:pi",
+    "priority": "P1"
+  }
+)
 
-# Get Pi's perspective
-PI_REVIEW=$(cat design.md | pi exec "User experience analysis")
-# Add as kanban comment: "Pi (user advocacy): ${PI_REVIEW}"
+# Get Pi's perspective and append to the task description via TaskUpdate
+# PI_REVIEW=$(cat design.md | pi exec "User experience analysis")
+# TaskUpdate(taskId, description="{previous}\n\nPi (user advocacy): ${PI_REVIEW}")
 ```
 
 ## Command Reference
@@ -147,7 +155,7 @@ user empathy and human-centered design in a panel of technical perspectives:
 2. **Review communications** — Error messages, announcements, onboarding copy all benefit from Pi
 3. **Pipe content** — Use stdin or `-f` for context
 4. **Council sessions** — Pi's empathetic voice is essential in decision councils
-5. **Track insights** — Record Pi's perspectives in wicked-garden:kanban or wicked-garden:mem
+5. **Track insights** — Record Pi's perspectives via native TaskUpdate or wicked-garden:mem
 
 ## Common Prompts
 

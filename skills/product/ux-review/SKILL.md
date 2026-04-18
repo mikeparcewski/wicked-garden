@@ -61,7 +61,7 @@ Review produces:
 - **Issues**: Critical / Major / Minor findings
 - **Recommendations**: Specific, actionable improvements
 - **Evidence**: Screenshots, code snippets, WCAG citations
-- **Kanban**: Issues tracked for follow-up
+- **Tasks**: Issues tracked via native TaskCreate for follow-up
 
 ## Review Types
 
@@ -100,7 +100,7 @@ Review produces:
 Works with:
 - **wicked-crew**: Auto-suggested after phases
 - **Read tool**: Analyze screenshots directly; capture via browser automation if available
-- **wicked-garden:kanban**: Issue tracking
+- **Native tasks**: Issue tracking via TaskCreate with `metadata.event_type="task"`
 - **wicked-garden:mem**: Design system memory
 - **wicked-garden:search**: Pattern discovery
 
@@ -140,7 +140,7 @@ For fast feedback:
 - `ux-review.md` - Findings and recommendations
 - `personas/`, `journeys/` - Research artifacts
 - `a11y-report.md` - Accessibility results
-- Kanban tasks for tracking
+- Native tasks for tracking (TaskCreate with `metadata.event_type="task"`)
 
 ## Best Practices
 
@@ -148,7 +148,7 @@ For fast feedback:
 2. Focus on users - always ask "how does this help?"
 3. Be specific - give actionable recommendations
 4. Cite standards - reference WCAG, design system
-5. Track issues - use kanban for follow-through
+5. Track issues - use native TaskCreate for follow-through
 
 ## Getting Started
 

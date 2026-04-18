@@ -28,7 +28,7 @@ Before doing work manually, leverage existing tools:
 - **Search**: Use wicked-garden:search to find component usage patterns
 - **Browse**: Use wicked-browse to capture UI screenshots
 - **Memory**: Use wicked-garden:mem to recall design system guidelines
-- **Tracking**: Use wicked-garden:kanban to log UI issues
+- **Tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to log UI issues (see scripts/_event_schema.py).
 
 ## Review Focus Areas
 

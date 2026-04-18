@@ -124,7 +124,7 @@ glab mr merge 123 --squash --remove-source-branch
 
 Works with:
 - **wicked-garden:search**: Find code, create issues via glab
-- **wicked-garden:kanban**: Track MR status alongside tasks
+- **Native tasks**: Track MR status alongside tasks via TaskUpdate description appends
 
 ## References
 

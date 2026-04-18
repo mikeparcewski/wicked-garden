@@ -59,7 +59,7 @@ async def run_in_thread(func, *args, **kwargs):
 class ContextItem:
     """A single item of context from a source."""
     id: str
-    source: str           # mem, jam, kanban, search, crew, context7
+    source: str           # mem, jam, search, crew, context7
     title: str
     summary: str
     excerpt: str = ""

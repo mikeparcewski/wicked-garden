@@ -173,7 +173,7 @@ After implementing recommendations, measure:
 ### Next Steps
 1. Review recommendations with stakeholders
 2. Prioritize based on roadmap capacity
-3. Create tasks in kanban for approved items
+3. Create native tasks (TaskCreate with `metadata.event_type="task"`) for approved items
 4. Set up feedback monitoring for validation
 ```
 
@@ -181,7 +181,7 @@ After implementing recommendations, measure:
 
 - **wicked-garden:product:listen**: Aggregates feedback
 - **wicked-garden:product:analyze**: Extracts insights
-- **wicked-garden:kanban**: Create tasks for approved recommendations
+- **Native tasks**: TaskCreate for approved recommendations with `metadata.event_type="task"`
 - **wicked-crew**: Feed into planning phases
 - **wicked-garden:mem**: Store decisions for future reference
 
@@ -233,7 +233,7 @@ Based on analysis of 156 feedback items over the last 30 days:
 
 ---
 
-Stored in kanban: synthesis-001
+Stored on active task (initiative: synthesis-001)
 Ready for stakeholder review
 ```
 

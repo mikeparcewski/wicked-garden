@@ -35,7 +35,7 @@ _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve(
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
 
-# Map from kanban event_type to procedure bundle injected at SubagentStart
+# Map from task metadata.event_type to procedure bundle injected at SubagentStart
 _EVENT_TYPE_PROCEDURES: dict = {
     "coding-task": (
         "[Bulletproof Coding Standards] R1: No dead code. R2: No bare panics — "
@@ -67,40 +67,61 @@ _EVENT_TYPE_PROCEDURES: dict = {
 
 
 # ---------------------------------------------------------------------------
-# Kanban event_type reader — fail-silent, never crashes the hook
+# Active task event_type reader — native Claude Code tasks (no sidecar)
 # ---------------------------------------------------------------------------
+#
+# Tasks persist to ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json``.
+# Each JSON file has shape:
+#   {"id":"...", "subject":"...", "status":"pending|in_progress|completed",
+#    "metadata": {"event_type":"...", "chain_id":"...", ...}}
+# The `metadata` dict is preserved verbatim from TaskCreate/TaskUpdate input.
+#
+# We pick the most-recently-modified in-progress task and read its
+# ``metadata.event_type`` for procedure injection. Fail-silent — a missing
+# directory, bad JSON, or absent metadata all return None.
 
-def _get_active_task_event_type(active_project_id: "str | None") -> "str | None":
-    """Read the event_type of the most-recently-updated in-progress kanban task.
 
-    Takes the project_id from the already-loaded session state to avoid a
-    second SessionState.load() call. Uses raw storage reads to skip the
-    comment-join overhead that list_tasks() performs.
+def _tasks_dir_for_session(session_id: str) -> "Path | None":
+    """Resolve ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/``."""
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    base = Path(config_dir) if config_dir else Path.home() / ".claude"
+    tasks_dir = base / "tasks" / session_id
+    return tasks_dir if tasks_dir.is_dir() else None
 
-    Returns the event_type string or None if not determinable.
-    Fails silently — never blocks the hook.
+
+def _get_active_task_event_type(session_id: str) -> "str | None":
+    """Return event_type of the most-recently-modified in-progress native task.
+
+    Reads ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json``,
+    filters to ``status == "in_progress"``, picks the highest mtime, and
+    returns ``metadata.event_type``.
+
+    Fail-silent — never blocks the hook.
     """
-    if not active_project_id:
+    if not session_id:
         return None
     try:
-        from _domain_store import DomainStore
-
-        sm = DomainStore("wicked-kanban")
-        index = sm.get("indexes", active_project_id) or {}
-        task_ids = index.get("by_swimlane", {}).get("in_progress", [])
-        if not task_ids:
+        tasks_dir = _tasks_dir_for_session(session_id)
+        if tasks_dir is None:
             return None
 
-        best_updated = ""
-        best_event_type = None
-        for task_id in task_ids:
-            task = sm.get("tasks", f"{active_project_id}:{task_id}")
-            if not task:
+        best_mtime = -1.0
+        best_event_type: "str | None" = None
+        for entry in tasks_dir.iterdir():
+            if entry.name.startswith(".") or entry.suffix != ".json":
                 continue
-            updated = task.get("updated_at", "")
-            if updated > best_updated:
-                best_updated = updated
-                best_event_type = task.get("event_type")
+            try:
+                data = json.loads(entry.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(data, dict) or data.get("status") != "in_progress":
+                continue
+            mtime = entry.stat().st_mtime
+            if mtime > best_mtime:
+                best_mtime = mtime
+                metadata = data.get("metadata") or {}
+                if isinstance(metadata, dict):
+                    best_event_type = metadata.get("event_type")
         return best_event_type
     except Exception:
         return None
@@ -280,12 +301,10 @@ def _handle_start(payload: dict) -> "str | None":
     _log("subagent", "normal", "subagent.start",
          detail={"agent": agent_name, "agent_id": agent_id})
 
-    # Track in session state — load once and reuse for procedure injection below
-    active_project_id = None
+    # Track in session state
     try:
         from _session import SessionState
         state = SessionState.load()
-        active_project_id = state.active_project_id
         active_agents = state.active_subagents or {}
         active_agents[agent_id or agent_name] = {
             "name": agent_name,
@@ -301,17 +320,19 @@ def _handle_start(payload: dict) -> "str | None":
     except Exception:
         pass
 
+    session_id = _get_session_id()
+
     # Write trace entry
     _write_trace({
         "event": "subagent_start",
         "agent_name": agent_name,
         "agent_id": agent_id,
         "timestamp": _now_iso(),
-        "session_id": _get_session_id(),
+        "session_id": session_id,
     })
 
-    # Get active task event_type for procedure injection (reuses project_id from above)
-    return _get_active_task_event_type(active_project_id)
+    # Get active task event_type from native on-disk task store
+    return _get_active_task_event_type(session_id)
 
 
 # ---------------------------------------------------------------------------

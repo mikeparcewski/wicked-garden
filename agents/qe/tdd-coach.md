@@ -27,7 +27,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Search**: Use wicked-garden:search to find existing tests
 - **Memory**: Use wicked-garden:mem to recall TDD patterns
-- **Task tracking**: Use wicked-garden:kanban to track TDD cycles
+- **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track TDD cycles (see scripts/_event_schema.py).
 - **Automation**: Use test-automation-engineer for test generation
 
 If a wicked-* tool is available, prefer it over manual approaches.

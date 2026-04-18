@@ -1,5 +1,29 @@
 # Changelog
 
+## [5.0.0] - 2026-04-17
+
+### Breaking Changes
+- **Remove the `kanban` domain entirely.** Commands under `/wicked-garden:kanban:*`, the `wicked-kanban` DomainStore, and all kanban scripts/skills/scenarios are deleted. Task tracking now uses Claude Code's native `TaskCreate` / `TaskUpdate` with enriched `metadata`.
+
+### Features
+- feat(hooks): metadata contract + PreToolUse validator for native tasks — new `scripts/_event_schema.py` defines the event envelope (`chain_id`, `event_type`, `source_agent`, `phase`, gate-finding `verdict`/`score`). Validator in `hooks/scripts/pre_tool.py` is env-gated by `WG_TASK_METADATA={off,warn,strict}` (warn by default; mirrors `CREW_GATE_ENFORCEMENT=legacy`).
+- feat(hooks): SubagentStart reads `metadata.event_type` from `${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json` for procedure-bundle injection (R1-R6 for coding-tasks, Gate Finding Protocol for gate-findings, etc.). No sidecar storage.
+
+### Removed
+- `scripts/kanban/` (1,727 lines — KanbanStore, initiatives, migrations).
+- `commands/kanban/` (7 slash commands: `board-status`, `new-task`, `comment`, `initiative`, `name-session`, `start-api`, `help`).
+- `skills/kanban/` (10 skill files and refs).
+- `scenarios/kanban/` (10 acceptance scenarios).
+- `hooks/scripts/post_tool.py` TaskCreate/TaskUpdate/TodoWrite sync handler (~220 lines).
+- `_create_rework_task` in `scripts/crew/_bus_consumers.py` — gate REJECT no longer writes a kanban task; the reviewer agent emits `TaskCreate(metadata={event_type: "gate-finding", verdict: "REJECT", …})` directly.
+- `kanban_board` and `kanban_sync` fields from `SessionState`.
+- `kanban_initiative` / `kanban_initiative_id` fields from crew `ProjectState` (old `project.json` values fall through to `extras` on load — no migration needed).
+- `wicked-kanban` entry from `DOMAIN_MCP_PATTERNS`, `SOURCE_PRIORITY`, `_DOMAIN_QUERIES`, and `_bus_consumers.json`.
+
+### Migration notes
+- Consumers of `/wicked-garden:kanban:new-task` etc. should switch to `TaskCreate(subject="…", metadata={"event_type":"task", "chain_id":"{project}.root", "source_agent":"{name}"})`.
+- Ops integrations (Jira/Linear channel descriptions in `plugin.json._future_channels`) now point at native tasks instead of the kanban domain.
+
 ## [4.10.0] - 2026-04-16
 
 ### Chores

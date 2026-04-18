@@ -143,7 +143,7 @@ The combination of `/wicked-garden:delivery:report` for data-driven analysis and
 ## Integration Notes
 
 **With wicked-mem**: Stores sprint snapshots for velocity trend analysis across sprints
-**With wicked-kanban**: Live task data feeds the report instead of a static CSV export
+**With native tasks**: Live TaskList data feeds the report instead of a static CSV export
 **Standalone**: Works with any CSV export from Jira, GitHub Issues, Linear, or Azure DevOps
 
 ## Cleanup

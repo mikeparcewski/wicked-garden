@@ -187,9 +187,9 @@ Informs test strategy:
 - Highlights failure modes
 - Documents assumptions to validate
 
-### With wicked-garden:kanban
+### With native tasks
 
-Tracks architecture tasks:
+Track architecture work via TaskCreate with `metadata={event_type:"task", chain_id:"{project}.design", source_agent:"solution-architect", phase:"design"}`:
 - Break down architecture work
 - Link ADRs to decisions
 - Track technical debt items

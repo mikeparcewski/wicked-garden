@@ -4,7 +4,7 @@ How wicked-crew integrates with utility plugins (graceful degradation).
 
 ## Task Management (Claude Native)
 
-Crew uses Claude's native task tools for all task lifecycle operations. **Use the full richness of task fields** — kanban syncs everything automatically.
+Crew uses Claude's native task tools for all task lifecycle operations. **Use the full richness of task fields, including `metadata`, per the event envelope contract in `scripts/_event_schema.py`.** PreToolUse validates every TaskCreate/TaskUpdate against that contract.
 
 ### Creating Tasks
 
@@ -14,8 +14,12 @@ TaskCreate(
   description="WHY this task exists, what problem it solves, acceptance criteria",
   activeForm="Working on {task}",
   metadata={
-    "priority": "P1",           # P0 (critical) through P3 (minor)
-    "assigned_to": "agent-name"  # who owns this
+    "event_type": "task",          # or coding-task, gate-finding, phase-transition, procedure-trigger, subtask
+    "chain_id": "{project}.{phase}",  # dotted causality: {project}.root, {project}.{phase}, {project}.{phase}.{gate}
+    "source_agent": "{agent-name}",
+    "phase": "{phase}",             # required for coding-task, gate-finding, phase-transition
+    "priority": "P1",               # P0 (critical) through P3 (minor)
+    "assigned_to": "agent-name"     # who owns this
   }
 )
 ```
@@ -38,7 +42,7 @@ TaskUpdate(
 ### Enrichment Guidelines
 
 - **description**: Include the WHY, not just the WHAT. Add outcomes when completing.
-- **addBlockedBy/addBlocks**: Set dependencies — kanban tracks and visualizes them.
+- **addBlockedBy/addBlocks**: Set dependencies — task views render blocked state until the dependency closes.
 - **metadata.priority**: Set explicitly instead of relying on keyword inference.
 - **description updates on completion**: Document what was decided, learned, or changed.
 
@@ -49,7 +53,7 @@ TaskList()  # filter by subject: (?i)^{phase}[\s:-].*{project-name}
 TaskGet(taskId="{id}")
 ```
 
-**Automatic sync**: If wicked-garden:kanban is installed, its PostToolUse hook automatically syncs all TaskCreate/TaskUpdate fields to persistent kanban storage. No explicit kanban calls needed.
+**Validation & persistence**: PreToolUse runs `pretool_taskcreate.py` on every TaskCreate/TaskUpdate, validating the `metadata` dict against `scripts/_event_schema.py` (event_type, chain_id shape, source_agent, required per-type fields). Tasks persist natively under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`.
 
 ## wicked-garden:mem
 
@@ -79,7 +83,7 @@ TaskGet(taskId="{id}")
 
 ## Detection Pattern
 
-Crew uses Claude's native task tools (TaskCreate, TaskUpdate, TaskList, TaskGet) directly — no plugin detection needed for task management. Utility plugins like wicked-garden:kanban enhance this automatically via hooks.
+Crew uses Claude's native task tools (TaskCreate, TaskUpdate, TaskList, TaskGet) directly — no plugin detection needed for task management. The PreToolUse hook enforces the metadata envelope defined in `scripts/_event_schema.py`.
 
 For optional utility plugins (wicked-garden:mem), use graceful degradation:
 
@@ -100,10 +104,6 @@ Users can customize utility plugin usage in the wicked-crew local storage `confi
 
 ```yaml
 utilities:
-  kanban:
-    enabled: true
-    auto_track: true  # Auto-create tasks from phase deliverables
-
   mem:
     enabled: true
     auto_store_decisions: true  # Store architectural decisions
@@ -119,7 +119,7 @@ Crew emits events when engaging utilities:
 
 ```
 crew:utility:engaged:success
-  └── context: {utility: "kanban", action: "create-task"}
+  └── context: {utility: "mem", action: "store-decision"}
 
 crew:utility:unavailable:warning
   └── context: {utility: "mem", fallback: "file-based"}

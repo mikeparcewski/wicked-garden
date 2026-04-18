@@ -167,7 +167,7 @@ Map costs to business units:
 - {cost risk}: {potential impact}
 ```
 
-### 7. Update Kanban
+### 7. Update Task
 
 Store analysis findings:
 TaskUpdate(

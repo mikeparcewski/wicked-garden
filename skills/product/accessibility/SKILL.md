@@ -137,9 +137,16 @@ wicked-garden:search "aria-" --type html          # ARIA usage
 # Color contrast check
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/contrast-check.py" "#666" "#fff"
 
-# Track issues
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" create-task \
-  "A11y" "A11y: {issue}" "todo" --priority P0 --tags "accessibility,wcag"
+# Track issues via native TaskCreate
+# TaskCreate(
+#   subject="A11y: {issue}",
+#   metadata={
+#     "event_type": "task",
+#     "chain_id": "a11y-review.root",
+#     "source_agent": "a11y-expert",
+#     "priority": "P0"
+#   }
+# )
 ```
 
 **Collaboration:**
@@ -189,6 +196,4 @@ Discover available integrations via capability detection. Fall back to local con
 - Post-build phase (crew integration)
 - User-facing features
 
-## Legal Context
-
-**Why it matters:** ADA compliance (US), Section 508 (government), EAA (Europe), 15-20% of users need accessibility, SEO impact (screen readers = search bots)
+**Legal context:** ADA (US), Section 508 (gov), EAA (EU). ~15-20% of users need accessibility; screen readers double as SEO bots.

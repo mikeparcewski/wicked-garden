@@ -411,8 +411,6 @@ class ProjectState:
     specialists_recommended: List[str] = field(default_factory=list)
     phase_plan: List[str] = field(default_factory=list)
     phases: Dict[str, PhaseState] = field(default_factory=dict)
-    kanban_initiative: Optional[str] = None
-    kanban_initiative_id: Optional[str] = None
     cp_project_id: Optional[str] = None
     workspace: Optional[str] = None
     extras: Dict[str, Any] = field(default_factory=dict)
@@ -479,7 +477,6 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         "id", "name", "current_phase", "created_at", "version",
         "signals_detected", "complexity_score", "specialists_recommended",
         "phase_plan", "phases",
-        "kanban_initiative", "kanban_initiative_id",
         "cp_project_id",
         "created_at", "updated_at", "deleted", "deleted_at",
     }
@@ -495,8 +492,6 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         specialists_recommended=data.get("specialists_recommended", []),
         phase_plan=data.get("phase_plan", []),
         phases=phases,
-        kanban_initiative=data.get("kanban_initiative"),
-        kanban_initiative_id=data.get("kanban_initiative_id"),
         cp_project_id=data.get("cp_project_id"),
         extras=extras,
     )
@@ -607,8 +602,6 @@ def save_project_state(state: ProjectState) -> None:
         "specialists_recommended": state.specialists_recommended,
         "phase_plan": state.phase_plan,
         "phases": phases_list,
-        "kanban_initiative": state.kanban_initiative,
-        "kanban_initiative_id": state.kanban_initiative_id,
         "cp_project_id": state.cp_project_id,
         **state.extras,
     })
@@ -1531,7 +1524,7 @@ def _merge_data_into_state(state: ProjectState, data: Dict[str, Any]) -> Project
     """Merge a data dict into ProjectState fields."""
     known_fields = {
         "signals_detected", "complexity_score", "specialists_recommended",
-        "phase_plan", "kanban_initiative", "kanban_initiative_id",
+        "phase_plan",
         "current_phase", "version", "cp_project_id",
     }
 
@@ -1629,8 +1622,6 @@ def main():
                 "phases": get_phase_status_summary(state),
                 "signals": state.signals_detected,
                 "complexity": state.complexity_score,
-                "kanban_initiative": state.kanban_initiative,
-                "kanban_initiative_id": state.kanban_initiative_id,
             }
             print(json.dumps(summary, indent=2))
         else:

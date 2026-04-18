@@ -258,7 +258,7 @@ The integration with wicked-mem enables trend analysis - not just "where are we 
 ## Integration Notes
 
 **With wicked-mem**: Stores reports for historical comparison
-**With wicked-kanban**: Links to tracked project items
+**With native tasks**: Links to tracked project items via TaskCreate/TaskUpdate references
 **Standalone**: Full functionality with provided export files
 
 ## Cleanup

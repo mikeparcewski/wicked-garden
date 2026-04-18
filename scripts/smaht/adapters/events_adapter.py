@@ -3,7 +3,7 @@ Event log adapter for wicked-smaht context assembly.
 
 Queries the unified event log (events.db) for recent cross-domain activity
 relevant to the current prompt. Surfaces crew phase transitions, jam decisions,
-kanban task changes, and other domain events alongside traditional context sources.
+native task changes, and other domain events alongside traditional context sources.
 
 This adapter complements brain_adapter (which queries memories) by providing
 the broader activity timeline that memories alone don't capture.
@@ -36,10 +36,10 @@ _HIGH_VALUE_ACTIONS = {
     "projects.created": 0.25,
     "sessions.created": 0.2,  # Jam sessions
     "memories.created": 0.15,
-    "tasks.": 0.1,        # Kanban changes (base; event_type may boost further)
+    "tasks.": 0.1,        # Native task changes (base; event_type may boost further)
 }
 
-# Event type boosts (for kanban events carrying event_type in payload)
+# Event type boosts (for native task events carrying event_type in metadata)
 _EVENT_TYPE_BOOSTS = {
     "gate-finding": 0.4,
     "phase-transition": 0.35,

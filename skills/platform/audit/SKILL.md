@@ -113,14 +113,14 @@ Create report with:
 
 ## Integration
 
-### With wicked-garden:kanban
+### With native tasks
 
-Store evidence as artifacts:
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/kanban/kanban.py" add-artifact \
-  "{task_id}" "file" \
-  --file-path "{evidence_path}" \
-  --label "Audit Evidence: {control_id}"
+Attach audit evidence by appending to the task description (reference file paths checked into the repo):
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="{previous}\n\n## Audit Evidence: {control_id}\nEvidence file: {evidence_path}"
+)
 ```
 
 ### With wicked-garden:search

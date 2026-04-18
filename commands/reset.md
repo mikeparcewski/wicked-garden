@@ -132,7 +132,7 @@ Parse the JSON output and show:
 ## Reset complete
 
 Cleared: smaht, crew
-Kept: config, mem, search, kanban, delivery, jam
+Kept: config, mem, search, delivery, jam
 Errors: none
 
 Note: If you cleared 'config', the setup wizard will run on your next session.

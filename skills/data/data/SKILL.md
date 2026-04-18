@@ -96,7 +96,7 @@ See [examples](refs/examples.md) for schema format.
 | Plugin | Enhancement |
 |--------|-------------|
 | wicked-garden:data:numbers | Use for SQL-based profiling of large files |
-| wicked-garden:kanban | Document quality issues as tasks |
+| Native tasks | Document quality issues via TaskCreate with `metadata.event_type="task"` |
 | wicked-garden:mem | Store quality patterns across sessions |
 
 ## Large Files

@@ -28,7 +28,7 @@ Before manual work, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find existing workflows
 - **Memory**: Use wicked-garden:mem to recall pipeline patterns
-- **Kanban**: Use wicked-garden:kanban to track pipeline improvements
+- **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track pipeline improvements (see scripts/_event_schema.py).
 
 ## Your Focus
 

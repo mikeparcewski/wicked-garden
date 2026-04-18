@@ -186,4 +186,4 @@ Throughout project:
 - Surface concerns early
 - Facilitate trade-off discussions
 - Document consensus
-- Track open items in kanban
+- Track open items via TaskCreate with `metadata={event_type:"task", chain_id:"{project}.clarify", source_agent:"alignment-lead", phase:"clarify"}`

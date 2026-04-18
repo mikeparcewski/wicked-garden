@@ -23,7 +23,6 @@ This is non-negotiable for wicked-garden. Users should never be forced to instal
 ├─────────────────────────────────────────────────────────────┤
 │                    ENHANCED (When available)                 │
 │  + wicked-brain → Cross-session memory (FTS5 index + chunks) │
-│  + wicked-kanban → Visual task tracking                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,7 +55,6 @@ Every plugin README should include an Integration table:
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
 | wicked-brain | Cross-session insights | Session-only memory |
-| wicked-kanban | Visual task board | TodoWrite fallback |
 ```
 
 #### Skill Description Pattern

@@ -174,7 +174,7 @@ Gracefully degrades to manual procedures when capabilities unavailable.
 
 ## Integration
 
-**With wicked-garden:kanban**: Tracks rollout progress per stage
+**With native tasks**: Tracks rollout progress per stage via TaskCreate/TaskUpdate with `metadata.event_type="task"`
 **With qe**: Uses test scenarios for validation
 **With wicked-garden:mem**: Recalls past rollout learnings
 **With wicked-garden:delivery:analyze**: Uses experiment results for confidence

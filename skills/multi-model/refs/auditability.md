@@ -15,7 +15,7 @@ How to maintain audit trails for multi-AI conversations. Essential for complianc
 ┌─────────────────────────────────────────┐
 │  wicked-garden:mem (long-term decisions)       │  ← Persist important decisions
 ├─────────────────────────────────────────┤
-│  wicked-garden:kanban (conversation tracking)  │  ← Track active discussions
+│  Native tasks (conversation tracking)   │  ← Track active discussions
 ├─────────────────────────────────────────┤
 │  Local logs (session artifacts)         │  ← Raw AI outputs
 └─────────────────────────────────────────┘
@@ -63,17 +63,23 @@ jq -n \
   >> "$LOG_FILE"
 ```
 
-## Level 2: Kanban Task Tracking
+## Level 2: Native Task Tracking
 
-Use wicked-garden:kanban for active conversations that need team visibility.
+Use TaskCreate/TaskUpdate for active conversations that need team visibility.
 
 ### Creating an Auditable Task
 
-```bash
-# Create task with audit metadata
-/wicked-garden:kanban:new-task "Design review: Payment API" \
-  --priority P1 \
-  --labels "ai-review,audit-required"
+```
+TaskCreate(
+  subject="Design review: Payment API",
+  metadata={
+    "event_type": "task",
+    "chain_id": "payment-api-review.root",
+    "source_agent": "multi-model-review",
+    "priority": "P1",
+    "initiative": "payment-api-review"
+  }
+)
 ```
 
 ### Adding AI Perspectives as Comments
@@ -112,8 +118,8 @@ ${RESPONSE}
 ---
 Model: ${MODEL} | Logged by: $(whoami)"
 
-  # Add to kanban (adjust for your kanban CLI)
-  echo "$COMMENT" | /wicked-garden:kanban:comment "$TASK_ID"
+  # Append to the native task description via TaskUpdate
+  # TaskUpdate(taskId=$TASK_ID, description="{previous}\n\n${COMMENT}")
 }
 ```
 
@@ -138,7 +144,7 @@ For decisions that matter long-term, persist to wicked-garden:mem.
 Consensus from Claude, Gemini, Codex (2026-01-25).
 Key factors: idempotency, retry handling, audit trail.
 Dissent: None.
-Task: KANBAN-123" \
+Task: task-123" \
   --type decision \
   --tags payments,architecture,ai-consensus
 
@@ -232,14 +238,14 @@ Change ticket: JIRA-456" \
 2. **Attribute clearly** - Which model, which version, when
 3. **Human in the loop** - Record who made the final decision
 4. **Store dissent** - Minority AI opinions may be valuable later
-5. **Link artifacts** - Connect logs to kanban tasks to mem entries
+5. **Link artifacts** - Connect logs to native task IDs to mem entries
 
 ## Quick Reference
 
 | Need | Solution |
 |------|----------|
 | Raw AI outputs | Local file logging |
-| Team visibility | wicked-garden:kanban comments |
+| Team visibility | Native task description appends via TaskUpdate |
 | Long-term decisions | wicked-garden:mem storage |
 | Formal compliance | Audit record template |
 | Cross-reference | Link task ID in all artifacts |

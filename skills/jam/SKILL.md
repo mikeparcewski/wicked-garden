@@ -4,7 +4,7 @@ description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
   This skill should be used when the user wants to brainstorm, explore ideas,
   get feedback on concepts, or run a focus group discussion.
-  Sessions are tracked in kanban (process) and stored in wicked-garden:mem (outcome).
+  Sessions are tracked as native tasks (process) and stored in wicked-garden:mem (outcome).
 
   Use when: "brainstorm this", "explore ideas", "get different perspectives",
   "focus group", "what do you think about", "pros and cons"
@@ -136,26 +136,34 @@ if user_approves:
     mem_store(insights, type="decision", tags=[topic])  # via /wicked-garden:mem:store
 ```
 
-### With wicked-garden:kanban
+### With native tasks
 
-Sessions are tracked in kanban for process visibility:
+Sessions are tracked as native tasks for process visibility:
 
 ```
 # On session start
-/wicked-garden:kanban:new-task "Jam: {topic}" --metadata '{"type":"jam-session","personas":[...],"status":"brainstorming"}'
+TaskCreate(
+  subject="Jam: {topic}",
+  metadata={
+    "event_type": "task",
+    "chain_id": "jam-{topic-slug}.root",
+    "source_agent": "jam-facilitator",
+    "initiative": "{topic-slug}"
+  }
+)
 
-# After each persona round
-/wicked-garden:kanban:comment {task_id} "{persona_name}: {key_insight}"
+# After each persona round — append to description
+TaskUpdate(taskId, description="{previous}\n\n{persona_name}: {key_insight}")
 
 # After synthesis
-/wicked-garden:kanban:comment {task_id} "Synthesis: {summary}"
+TaskUpdate(taskId, description="{previous}\n\nSynthesis: {summary}")
 
 # On decision
-/wicked-garden:kanban:comment {task_id} "Decision: {decision_record}"
+TaskUpdate(taskId, description="{previous}\n\nDecision: {decision_record}")
 ```
 
-Wrap all kanban calls in graceful degradation — if kanban unavailable, skip silently.
-Kanban tracks process; wicked-garden:mem stores outcomes. Both can coexist.
+Wrap all task calls in graceful degradation — if TaskCreate/TaskUpdate fail, skip silently.
+Native tasks track process; wicked-garden:mem stores outcomes. Both can coexist.
 
 ### With wicked-crew
 
@@ -179,20 +187,4 @@ or content/documentation-heavy scope.
 
 ## Output Structure
 
-Put synthesis first (context efficiency):
-
-```markdown
-## Brainstorm: {Topic}
-
-### Key Insights
-{Most important - read this first}
-
-### Action Items
-{What to do next}
-
-### Open Questions
-{What's unresolved}
-
-### Session Details
-{Personas, rounds, discussion summary}
-```
+Synthesis-first: `## Brainstorm: {Topic}` → `### Key Insights` (read first) → `### Action Items` → `### Open Questions` → `### Session Details` (personas, rounds, summary).
