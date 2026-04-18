@@ -7,6 +7,7 @@ Validates all installed plugins against structural contracts:
   3. Cross-plugin subagent_type refs in commands/*.md and agents/*.md
   4. Ghost specialist checks (role, personas, enhances fields)
   5. plugin.json required fields (name, version, description)
+  6. Bus consumer budget (scripts/_bus_consumers.json vs max_consumers)
 
 Exit codes:
   0  healthy — no violations
@@ -438,6 +439,92 @@ def check_specialist(
 
 
 # ---------------------------------------------------------------------------
+# Check 6: Bus consumer budget (scripts/_bus_consumers.json)
+# ---------------------------------------------------------------------------
+
+def check_bus_consumer_budget(
+    plugin_name: str,
+    plugin_root: Path,
+) -> list[dict[str, Any]]:
+    """Validate that registered bus consumers stay within the declared budget.
+
+    Reads plugin_root/scripts/_bus_consumers.json. Flags a warning when
+    registered > max_consumers. Silent (no violation) when the manifest is
+    absent — plugins without bus consumers are not required to ship one.
+    Fail-open: a malformed manifest is reported as a warning, not an error.
+    """
+    violations: list[dict[str, Any]] = []
+    manifest_path = plugin_root / "scripts" / "_bus_consumers.json"
+    if not manifest_path.exists():
+        return violations
+
+    rel_file = _rel_from(manifest_path, plugin_root.parent.parent)
+
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        violations.append(
+            make_violation(
+                plugin=plugin_name,
+                vtype="bus_consumer_budget",
+                severity="warning",
+                message=f"Could not parse _bus_consumers.json: {exc}",
+                file=rel_file,
+            )
+        )
+        return violations
+
+    if not isinstance(data, dict):
+        violations.append(
+            make_violation(
+                plugin=plugin_name,
+                vtype="bus_consumer_budget",
+                severity="warning",
+                message="_bus_consumers.json root is not an object.",
+                file=rel_file,
+            )
+        )
+        return violations
+
+    consumers = data.get("consumers", [])
+    if not isinstance(consumers, list):
+        violations.append(
+            make_violation(
+                plugin=plugin_name,
+                vtype="bus_consumer_budget",
+                severity="warning",
+                message="_bus_consumers.json 'consumers' is not a list.",
+                file=rel_file,
+            )
+        )
+        return violations
+
+    max_budget_raw = data.get("max_consumers", 8)
+    try:
+        max_budget = int(max_budget_raw)
+    except (TypeError, ValueError):
+        max_budget = 8
+
+    registered = len(consumers)
+    if registered > max_budget:
+        violations.append(
+            make_violation(
+                plugin=plugin_name,
+                vtype="bus_consumer_budget",
+                severity="warning",
+                message=(
+                    f"Bus consumer budget exceeded: {registered} consumers "
+                    f"registered, max {max_budget}. Review entries before "
+                    f"adding more."
+                ),
+                file=rel_file,
+            )
+        )
+
+    return violations
+
+
+# ---------------------------------------------------------------------------
 # Check 5: plugin.json required fields
 # ---------------------------------------------------------------------------
 
@@ -536,6 +623,11 @@ def probe_plugin(plugin_root: Path, plugins_dir: Path) -> list[dict[str, Any]]:
         violations.extend(
             check_specialist(plugin_name, plugin_root, specialist_json_path)
         )
+
+    # Check 6: bus consumer budget (scripts/_bus_consumers.json)
+    violations.extend(
+        check_bus_consumer_budget(plugin_name, plugin_root)
+    )
 
     return violations
 
