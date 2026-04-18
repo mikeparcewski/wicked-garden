@@ -69,6 +69,28 @@ under 10 seconds and it fits in under 5 lines.
 | Triangulation | You want multiple tests to drive a clean abstraction |
 | Obvious Implementation | The answer is trivial and writing a fake is wasted motion |
 
+## Common TDD Scenarios
+
+### New Feature
+1. Write test for simplest case
+2. Implement minimal solution
+3. Write test for next case
+4. Enhance implementation
+5. Refactor when duplication appears
+
+### Bug Fix
+1. Write test that reproduces the bug (fails)
+2. Fix the bug (test passes)
+3. Refactor if needed
+4. Add related edge case tests
+
+### Refactoring
+1. Ensure good test coverage first
+2. Tests are the safety net
+3. Refactor in small steps
+4. Run tests after each change
+5. Commit when tests green
+
 ## Common Anti-Patterns
 
 ### Writing too much test
@@ -107,6 +129,48 @@ Going RED → GREEN → RED → GREEN without refactoring accumulates duplicatio
 and ugly code even though tests pass. Refactor whenever duplication or
 unclear naming appears.
 
+## Coaching Output Template
+
+```markdown
+## TDD Coaching Session
+
+**Feature**: {feature_name}
+**Current Phase**: RED | GREEN | REFACTOR
+
+### Current Test
+\`\`\`{language}
+{test_code}
+\`\`\`
+**Status**: PASS | FAIL
+
+### Next Step
+{What to do next in the cycle}
+
+### Tips
+- {Specific guidance}
+
+### Coverage
+**Lines**: {percentage}%
+**Branches**: {percentage}%
+```
+
+Optionally append progress to the active task via `TaskUpdate`:
+
+```
+TaskUpdate(
+  taskId="{task_id}",
+  description="Append QE findings:
+
+[tdd-coach] TDD Cycle {n}
+**Feature**: {feature_name}
+**Phase**: RED | GREEN | REFACTOR
+**Test**: {test_description}
+**Status**: PASS
+**Coverage**: {percentage}%
+**Next**: {next_test_to_write}"
+)
+```
+
 ## Teaching Moments Checklist
 
 When coaching, actively watch for and surface:
@@ -120,3 +184,8 @@ When coaching, actively watch for and surface:
 - [ ] GREEN phase writes the "real" solution → let triangulation drive it
 - [ ] Refactor introduces a new behavior → that's a new test, not a refactor
 - [ ] Tests are slow → separate unit vs integration; move slow ones out
+- [ ] Too much code at once → suggest smaller steps
+- [ ] Missing edge cases → suggest additional test cases
+- [ ] Duplication appears → suggest refactoring phase
+- [ ] Hardcoded value after test passes → that's fine for now; the NEXT test
+      will force generalization (triangulation)

@@ -15,13 +15,14 @@ typo, minimal rigor on a migration), not to re-litigate calibration.
 Usage
 -----
     python3 scripts/ci/gate4_smoke.py                      # score captured outputs
-    python3 scripts/ci/gate4_smoke.py --capture            # same + run legacy engine for comparison
     python3 scripts/ci/gate4_smoke.py --input smoke-02     # single input
-    python3 scripts/ci/gate4_smoke.py --with-legacy        # also run smart_decisioning.py per input
 
 Exit codes: 0 all pass, 1 at least one fail, 2 configuration error.
 
 Stdlib-only. Cross-platform (macOS, Linux, Windows).
+
+Note: the v5 `--with-legacy` / `--capture` flag was removed in #428 when
+`scripts/crew/smart_decisioning.py` was deleted alongside the rule engine.
 """
 
 from __future__ import annotations
@@ -29,7 +30,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -37,8 +37,6 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 INPUTS_DIR = REPO_ROOT / "scripts" / "ci" / "gate4_smoke_inputs"
 OUTPUTS_DIR = REPO_ROOT / "scripts" / "ci" / "facilitator_outputs"
-LEGACY_ENGINE = REPO_ROOT / "scripts" / "crew" / "smart_decisioning.py"
-PYTHON_SHIM = REPO_ROOT / "scripts" / "_python.sh"
 
 
 # ---------------------------------------------------------------------------
@@ -314,25 +312,6 @@ def verdict(dimension_results: dict) -> tuple[bool, int, int]:
 
 
 # ---------------------------------------------------------------------------
-# Legacy engine runner (best-effort; failure is non-fatal)
-# ---------------------------------------------------------------------------
-
-def run_legacy(description: str) -> dict | None:
-    if not LEGACY_ENGINE.exists():
-        return None
-    try:
-        cmd = ["sh", str(PYTHON_SHIM), str(LEGACY_ENGINE), "--json", description]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        if res.returncode != 0:
-            sys.stderr.write(f"[gate4_smoke] legacy engine exit {res.returncode}: {res.stderr[:200]}\n")
-            return None
-        return json.loads(res.stdout)
-    except Exception as e:
-        sys.stderr.write(f"[gate4_smoke] legacy engine error: {e}\n")
-        return None
-
-
-# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -359,7 +338,7 @@ def load_facilitator_plan(input_id: str) -> dict | None:
         return None
 
 
-def print_report(input_data: dict, plan: dict, scores: dict, legacy: dict | None) -> bool:
+def print_report(input_data: dict, plan: dict, scores: dict) -> bool:
     ok, passed, total = verdict(scores)
     status = "PASS" if ok else "FAIL"
     print(f"\n=== {input_data['id']} — {status} ({passed}/{total}) ===")
@@ -376,26 +355,14 @@ def print_report(input_data: dict, plan: dict, scores: dict, legacy: dict | None
     for dim, (dok, note) in sorted(scores.items()):
         marker = "OK" if dok else "XX"
         print(f"    [{marker}] {dim:30s} {note}")
-    if legacy is not None:
-        print("  --- legacy engine (comparison only) ---")
-        print(f"    complexity={legacy.get('complexity_score')} "
-              f"review_tier={legacy.get('review_tier')} "
-              f"routing_lane={legacy.get('routing_lane')} "
-              f"signals={legacy.get('signals')}")
     return ok
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Gate 4 facilitator smoke suite")
-    ap.add_argument("--capture", action="store_true",
-                    help="also run legacy engine for comparison (same as --with-legacy)")
-    ap.add_argument("--with-legacy", action="store_true",
-                    help="also run scripts/crew/smart_decisioning.py for qualitative comparison")
     ap.add_argument("--input", type=str, default=None,
                     help="filter inputs by id substring (e.g. smoke-02)")
     args = ap.parse_args(argv)
-
-    run_legacy_flag = args.capture or args.with_legacy
 
     try:
         inputs = iter_inputs(args.input)
@@ -416,19 +383,12 @@ def main(argv: list[str] | None = None) -> int:
             results_by_id[item["id"]] = {"pass": False, "note": "plan missing"}
             continue
         scores = score_plan(plan, item["expected_outcome"])
-        legacy = run_legacy(item["description"]) if run_legacy_flag else None
-        ok = print_report(item, plan, scores, legacy)
+        ok = print_report(item, plan, scores)
         overall_ok = overall_ok and ok
         results_by_id[item["id"]] = {
             "pass": ok,
             "scores": {k: {"pass": v[0], "note": v[1]} for k, v in scores.items()},
-            "legacy_complexity": (legacy or {}).get("complexity_score") if legacy else None,
-            "legacy_lane": (legacy or {}).get("routing_lane") if legacy else None,
         }
-        # Cache legacy output for manual review
-        if legacy is not None:
-            legacy_path = OUTPUTS_DIR / f"{item['id']}.legacy.json"
-            legacy_path.write_text(json.dumps(legacy, indent=2, sort_keys=True), encoding="utf-8")
 
     print("\n=== overall ===")
     print(f"  verdict: {'PASS' if overall_ok else 'FAIL'}")

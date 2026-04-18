@@ -225,7 +225,7 @@ def main():
     # Normal-level log fires regardless of log level (AC-07)
     _log("context", "normal", "pre_compact")
 
-    session_id = os.environ.get("CLAUDE_SESSION_ID") or f"sess_{uuid.uuid4().hex[:8]}"
+    session_id = os.environ.get("CLAUDE_SESSION_ID") or f"sess_{_uuid_mod.uuid4().hex[:8]}"
     project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
 
     # Dedup guard: skip WIP save if compaction happened <60s ago

@@ -116,8 +116,7 @@ def _parse_yaml(text: str) -> dict:
                 if v:
                     entry[k] = _scalar(v)
                 else:
-                    # value continues as nested mapping
-                    pass
+                    pass  # intentional no-op: value continues as a nested mapping on subsequent indented lines
                 parent.append(entry)
                 stack.append((indent, entry))
             else:

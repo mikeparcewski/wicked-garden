@@ -147,94 +147,27 @@ Check for `${CREW_ROOT}/preferences.yaml` or project-level preferences for:
 - Autonomy level (ask-first, balanced, just-finish)
 - Communication style
 
-### 4. Dynamic Archetype Pre-Analysis
+### 4. Archetype Pre-Analysis — REMOVED IN V6
 
-**BEFORE loading signal analysis, dynamically detect project archetypes.** Quality means different things for different projects — a content site needs messaging consistency, a UI app needs design coherence, infrastructure needs reliability. Static keyword matching is a fallback; this dynamic analysis is the primary path.
+The old "dynamic archetype pre-analysis" phase (discover project context → classify archetypes → cache `archetype_hints` on `project.json`) has been **removed** in v6. Its job is now owned by `wicked-garden:crew:propose-process` (run during `/wicked-garden:crew:start`), which folds project-type readings into its 9 factor scores and specialist picks. No standalone archetype step runs here — skip straight to 4.4 to load the facilitator's plan. Checkpoint re-evaluation (Section 4.5) re-invokes the facilitator in `re-evaluate` mode when phase artifacts change the picture.
 
-#### 4.1 Discover Project Context
+### 4.4 Load Facilitator Plan
 
-Use the Explore agent or direct tool calls to gather context about the project being worked on:
+Locate the active project and read the facilitator's plan (v6 — replaces the old signal-analysis block that lived on `project.json`):
 
-1. **Read project descriptor files** (any that exist):
-   - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `agent.md`, `README.md` in the target directory (load `AGENTS.md` first for general agent context, then `CLAUDE.md` for Claude-specific overrides)
-   - `package.json`, `pyproject.toml`, `Cargo.toml` for tech stack detection
-   - `.claude-plugin/plugin.json` if it's a plugin project
-
-2. **Query memories** (if wicked-garden:mem available):
-   ```
-   /wicked-garden:mem:recall "project type and quality dimensions for {project-name}" --limit 5
-   /wicked-garden:mem:recall --tags onboarding --limit 10
-   ```
-   Onboarding memories (tech stack, architecture, flows, gaps) plus past quality decisions inform archetype detection.
-
-3. **Analyze codebase structure** :
-   - `/wicked-garden:search:scout` for common patterns (component library? API routes? data pipelines?)
-   - `/wicked-garden:search:blast-radius` on files being changed to understand impact scope
-
-4. **Check for past crew projects** on the same codebase to inherit archetype context
-
-#### 4.2 Classify Archetypes
-
-From the gathered context, classify the project into one or more archetypes. Each archetype defines what "quality" means for that project type:
-
-- **What dimensions of quality matter most** (code quality? content accuracy? design consistency? data integrity? security compliance?)
-- **What review processes are needed** (code review? UX review? content review? accessibility audit?)
-- **What testing strategies apply** (unit tests? visual regression? content validation? load testing?)
-
-Build archetype hints as a JSON dict. Known archetypes have built-in adjustments; but you can define NEW archetypes dynamically based on what you discover:
-
-```json
-{
-  "infrastructure-framework": {
-    "confidence": 0.9,
-    "impact_bonus": 2,
-    "inject_signals": {"architecture": 0.3},
-    "min_complexity": 3,
-    "description": "Modifying core execution paths that affect all downstream users"
-  },
-  "design-system": {
-    "confidence": 0.7,
-    "impact_bonus": 1,
-    "inject_signals": {"ux": 0.4},
-    "min_complexity": 2,
-    "description": "Component library changes need visual consistency review"
-  }
-}
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
-#### 4.3 Cache and Pass Hints
+This returns `{project, project_dir}`. Read `${project_dir}/process-plan.json` for the canonical plan written by `wicked-garden:crew:propose-process`. Pull the following fields (schema: `skills/crew/propose-process/refs/output-schema.md`):
 
-**Cache hints in project.json** so checkpoints can reuse them without re-running the full discovery:
+- **factors** — 9 factor readings (reversibility, blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort, state_complexity, operational_risk, coordination_cost), each `{reading: LOW|MEDIUM|HIGH, why: "..."}`. These replace `signals_detected`.
+- **specialists** — list of `{name, why}` the facilitator picked. Replaces `specialists_recommended`.
+- **phases** — ordered list of `{name, why, primary: [specialist names]}`. Replaces the old `phase_plan`.
+- **rigor_tier** — `minimal | standard | full` (gate enforcement level).
+- **complexity** — integer 0-7 (drives autonomy and gate thresholds).
 
-```json
-{
-  "archetype_hints": {
-    "infrastructure-framework": {
-      "confidence": 0.9,
-      "impact_bonus": 2,
-      "inject_signals": {"architecture": 0.3},
-      "min_complexity": 3,
-      "description": "Core execution paths"
-    }
-  }
-}
-```
-
-At checkpoints (Section 4.5), **reuse cached hints** unless re-evaluation detects
-significant changes (new factor readings or complexity increase >= 2). If the project
-context changes substantially, re-invoke the facilitator with the new context and
-update the cache.
-
-**v6**: archetype detection is implicit in the facilitator's factor readings; there is
-no separate `--archetype-hints` flag. The checkpoint re-analysis invocation is the
-`wicked-garden:crew:propose-process` skill in `re-evaluate` mode — see Section 4.5.
-
-### 4.4 Load Signal Analysis
-
-Read project.json for:
-- **signals_detected**: What types of work were identified
-- **complexity_score**: How complex (affects autonomy)
-- **specialists_recommended**: Which specialists to engage
+If `process-plan.json` is missing (legacy project), invoke `wicked-garden:crew:propose-process` in `propose` mode now and persist the plan before continuing.
 
 ### 4.5 Signal Re-Analysis at Checkpoints
 
@@ -339,9 +272,9 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 This returns all available specialists with their `enhances` declarations (which phases they support).
 
 **Dynamic Routing**: Do NOT use hardcoded specialist-to-phase mappings. Instead:
-1. Read `signals_detected` and `specialists_recommended` from project.json
+1. Read `specialists` and per-phase `phases[].primary` from `${project_dir}/process-plan.json` (the facilitator's plan)
 2. Filter discovered specialists to those whose `enhances` list includes the current phase or `"*"`
-3. Cross-reference with recommended specialists from signal analysis
+3. Intersect with the facilitator's picks — engage the specialists the plan named for this phase, falling back to any `enhances`-compatible specialist if a pick is unavailable
 4. Engage all matching, available specialists for the current phase
 
 ### 6. Engage Specialists for Phase
@@ -1213,7 +1146,7 @@ TaskUpdate(taskId="{id}", status="completed",
 
 2. **Filter to reviewers**: Select specialists whose `enhances` list includes the current phase or `"*"`
 
-3. **Cross-reference signals**: Prioritize specialists that match `signals_detected` from project.json
+3. **Cross-reference facilitator plan**: Prioritize specialists the facilitator named in `${project_dir}/process-plan.json` — the `specialists[]` roster and the `phases[].primary` list for this phase (replaces the v5 `signals_detected` lookup)
 
 4. **Dispatch matching specialists in parallel**:
    ```

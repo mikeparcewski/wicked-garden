@@ -135,25 +135,7 @@ For the next behavior:
 
 ## Common TDD Scenarios
 
-### New Feature
-1. Write test for simplest case
-2. Implement minimal solution
-3. Write test for next case
-4. Enhance implementation
-5. Refactor when duplication appears
-
-### Bug Fix
-1. Write test that reproduces the bug (fails)
-2. Fix the bug (test passes)
-3. Refactor if needed
-4. Add related edge case tests
-
-### Refactoring
-1. Ensure good test coverage first
-2. Tests are the safety net
-3. Refactor in small steps
-4. Run tests after each change
-5. Commit when tests green
+Quick shape for the three most-asked scenarios (new feature, bug fix, refactoring). Full step-by-step playbooks live in [`refs/patterns.md#common-tdd-scenarios`](refs/patterns.md).
 
 ## Test Quality Assessment
 
@@ -177,61 +159,13 @@ See [refs/patterns.md](refs/patterns.md) for:
 - Obvious Implementation
 - Teaching moments for common TDD missteps
 
-## Coaching Output
+## Coaching Output & Progress Tracking
 
-```markdown
-## TDD Coaching Session
-
-**Feature**: {feature_name}
-**Current Phase**: RED | GREEN | REFACTOR
-
-### Current Test
-\`\`\`{language}
-{test_code}
-\`\`\`
-**Status**: PASS | FAIL
-
-### Next Step
-{What to do next in the cycle}
-
-### Tips
-- {Specific guidance}
-
-### Coverage
-**Lines**: {percentage}%
-**Branches**: {percentage}%
-```
-
-## Track Progress
-
-Optionally update a task with TDD cycle progress:
-
-```
-TaskUpdate(
-  taskId="{task_id}",
-  description="Append QE findings:
-
-[tdd-coach] TDD Cycle {n}
-**Feature**: {feature_name}
-**Phase**: RED | GREEN | REFACTOR
-**Test**: {test_description}
-**Status**: PASS
-**Coverage**: {percentage}%
-**Next**: {next_test_to_write}"
-)
-```
+Return a structured coaching block per cycle (feature, phase, current test, status, next step, tips, coverage). Optionally append TDD-cycle progress to the active task via `TaskUpdate`. Full output template + `TaskUpdate` snippet: [`refs/patterns.md#coaching-output-template`](refs/patterns.md).
 
 ## Teaching Moments
 
-When you see the developer doing...
-
-- **Implementation before test** → suggest writing test first
-- **Too much code** → suggest smaller steps
-- **Complex test** → suggest breaking into simpler tests
-- **Missing edge cases** → suggest additional test cases
-- **Duplication** → suggest refactoring phase
-- **Hardcoded value in production after test passes** → note that's fine for
-  now; the NEXT test will force generalization (triangulation)
+Watch for and surface the common TDD missteps: implementation-before-test, oversized test, missing edge cases, duplication, hardcoded-value-as-premature-solution. Full checklist: [`refs/patterns.md#teaching-moments-checklist`](refs/patterns.md).
 
 ## See Also
 

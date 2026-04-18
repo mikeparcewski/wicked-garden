@@ -10,13 +10,23 @@ Continue project with maximum autonomy, respecting safety guardrails.
 
 ### 1. Load Project State
 
-Read `project.json` to understand:
+Locate the active project and read state from both `project.json` (for phase progress) and `process-plan.json` (for v6 facilitator plan):
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
+```
+
+From `project.json`:
 - Current phase
 - Remaining phases
 - What's been completed
-- **signals_detected**: Complexity profile
-- **complexity_score**: 0-7 scale
-- **specialists_recommended**: Which specialists to auto-engage
+
+From `${project_dir}/process-plan.json` (schema: `skills/crew/propose-process/refs/output-schema.md`):
+- **factors**: 9 factor readings (reversibility, blast_radius, compliance_scope, etc.) — replaces `signals_detected`
+- **complexity**: 0-7 integer
+- **rigor_tier**: `minimal | standard | full`
+- **specialists**: facilitator-picked roster — replaces `specialists_recommended`
+- **phases**: ordered phase plan with per-phase `primary` specialist list
 
 ### 2. Discover Available Specialists
 
@@ -25,7 +35,7 @@ Run specialist discovery:
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/specialist_discovery.py --json
 ```
 
-Match available specialists to project signals for auto-engagement.
+Match available specialists against the facilitator's picks (`process-plan.json` `specialists[]` and `phases[].primary`) for auto-engagement.
 
 ### 2.5 Gather Context via wicked-smaht (if available)
 

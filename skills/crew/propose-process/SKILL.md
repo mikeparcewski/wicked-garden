@@ -162,30 +162,9 @@ On `TaskCompleted` or a gate-finding, read `current_chain` + latest evidence. Th
 Emit mutations as follow-up `TaskCreate` / `TaskUpdate`. Do NOT rewrite completed tasks.
 Append an addendum to `process-plan.md` titled "Re-evaluation <timestamp>".
 
-## Interaction mode — yolo / `/wicked-garden:crew:just-finish`
+## Interaction mode
 
-**Interaction mode is orthogonal to phase plan, specialist selection, rigor tier, and
-evidence requirements.** Those are determined by the work itself via this rubric,
-regardless of whether the user wants interactive or autonomous completion.
-
-Interaction mode controls ONLY whether the user is prompted at gate boundaries:
-
-- **normal** (default): user confirms the plan before task creation; reviewer verdicts
-  at each gate surface to the user for approval.
-- **yolo** / `auto_proceed=true` / `/wicked-garden:crew:just-finish`:
-  - Skip user confirmation on the initial plan when rigor_tier is `minimal` or `standard`.
-  - Auto-approve gates whose reviewer verdict is APPROVE.
-  - Silently accept CONDITIONAL gates when the conditions are self-resolving spec gaps.
-  - Escalate to user on REJECT verdicts with no clear fix, or CONDITIONAL requiring intent changes.
-  - NEVER operate in yolo when rigor_tier is `full` — escalate to user with the plan.
-
-"Just-finish" means **run to the end autonomously**, NOT "skip phases" or "do less
-work." The facilitator already picked the phase plan based on the factors; yolo mode
-does not change it. If the work genuinely needs only build + review, the facilitator
-chose `minimal` rigor — not because yolo was passed.
-
-Banned `source_agent` values (`just-finish-auto`, `fast-pass`, `auto-approve-*`) are
-still banned. Use `facilitator` for all facilitator-emitted tasks even in yolo.
+Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew:just-finish`) is orthogonal to the plan: it ONLY controls whether the user is prompted at gate boundaries. The facilitator picks phases, specialists, rigor, and evidence from the factors regardless of mode. Yolo is REFUSED for `rigor_tier: full`. Banned `source_agent` values (`just-finish-auto`, `fast-pass`, `auto-approve-*`) remain banned — always emit as `facilitator`. Full rules, examples, and the mode-vs-rigor matrix live in [`refs/interaction-mode.md`](refs/interaction-mode.md).
 
 ## Measurement hook
 
@@ -204,3 +183,4 @@ against.
 - [`refs/ambiguity.md`](refs/ambiguity.md) — when to stop and ask
 - [`refs/plan-template.md`](refs/plan-template.md) — `process-plan.md` template
 - [`refs/output-schema.md`](refs/output-schema.md) — JSON shape for measurement
+- [`refs/interaction-mode.md`](refs/interaction-mode.md) — normal vs. yolo, banned values

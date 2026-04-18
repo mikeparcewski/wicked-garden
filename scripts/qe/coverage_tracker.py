@@ -422,7 +422,7 @@ def _resolve_project_id(project_id: Optional[str]) -> Optional[str]:
         if fallback:
             return _sanitize_project_id(fallback)
     except Exception:
-        pass
+        pass  # fail open: SessionState unavailable — fall through to default slug
 
     # Last resort — use a stable default slug so we still record
     # something. Better to have one "default" record than lose the signal.
