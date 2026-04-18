@@ -134,3 +134,13 @@ Rules:
 - evidence_required: [unit-results, integration-results, api-contract-diff,
   security-scan, acceptance-report, compliance-traceability]
 - reasoning: privacy-sensitive + new API + auditable; traceability is mandatory.
+
+### Plugin extension-point contract (e.g. custom section renderers)
+- test_required: true
+- test_types: [unit, integration, api]
+- evidence_required: [unit-results, integration-results, api-contract-diff]
+- reasoning: the extension point IS an API — third-party authors consume it. The
+  `api-contract-diff` artifact proves the registered extension contract matches
+  the design, including the signature, lifecycle hooks, and error modes. Unit tests
+  cover the registry; integration covers the end-to-end register → invoke flow.
+  Treat the plugin API surface with the same evidence discipline as a public HTTP API.

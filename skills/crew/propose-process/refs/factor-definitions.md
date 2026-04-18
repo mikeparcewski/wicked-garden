@@ -51,6 +51,13 @@ controls?
 If ANY of (GDPR, CCPA, HIPAA, PCI, SOX, SOC2) verbs appear in the description or
 implicit in the surface → default HIGH and justify down, not up.
 
+**Exception: read-only tools that touch regulated data as a byproduct** (log viewers,
+tracers, debuggers, incident-timeline reconstructions). These tools READ regulated
+data that already exists but don't CREATE a new regulated surface. Default **MEDIUM**
+with an explicit PII-handling open question (redaction policy? consent?), not HIGH.
+The regulated surface is the source, not the viewer. Upgrade to HIGH only if the
+viewer itself stores, transmits, or exposes the regulated data to a new audience.
+
 ---
 
 ## 4. User-Facing Impact

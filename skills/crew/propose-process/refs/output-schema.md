@@ -69,7 +69,11 @@ rubric against a scenario's expected-outcome block.
     "pruned": [],
     "augmented": [],
     "re_tiered": []
-  }
+  },
+  "anticipated_reevaluations": [
+    {"trigger": "if clarify phase surfaces a bigger scope than expected",
+     "likely_impact": "augment with migration-engineer + data specialist"}
+  ]
 }
 ```
 
@@ -87,6 +91,7 @@ rubric against a scenario's expected-outcome block.
 - `priors` — empty array if search returned nothing.
 - `open_questions` — empty array if no ambiguity.
 - `re_evaluation` — only in `re-evaluate` mode; otherwise omit.
+- `anticipated_reevaluations` — optional in `propose` mode. List of `{trigger, likely_impact}` entries describing conditions that should cause re-evaluation (e.g. "if design reveals schema migration needed"). Zero-cost in the initial plan; makes forward planning auditable when re-evaluation fires. Omit if no plausible triggers.
 
 **Yolo mode additions**:
 

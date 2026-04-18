@@ -165,11 +165,8 @@ Fires `jam` specialist regardless of signal confidence when input matches:
 
 ## Semantic Signal Entries
 
-No `default_signals.jsonl` exists in this repository. ChromaDB-based semantic
-matching is an optional extension. When ChromaDB is unavailable (default),
-keyword-based detection above is the sole detection method.
-
-User signals can be added via:
-```
-signal_library.py save --category {name} --text "{example}" [--weight 1.0]
-```
+**Deprecated in v6**: the v5 `signal_library.py` semantic-matching entry point was
+removed in the v6 rebuild (see issue #428) along with the rule-engine stack. The
+facilitator rubric reads project context directly via factor scoring rather than
+looking up cached signal entries. This document is retained as a historical reference
+for the keyword categories; no runtime consumer reads it in v6.

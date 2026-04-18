@@ -1087,6 +1087,11 @@ def approve_phase(
     phase_config = phases_config.get(phase, {})
     gate_required = phase_config.get("gate_required", False)
 
+    # Initialize gate_result so post-block checks (emit, conditions manifest,
+    # min-score validation) don't UnboundLocalError when the gate wasn't run
+    # (e.g. --override-gate path).
+    gate_result = None
+
     if gate_required:
         gate_override_allowed = phase_config.get("gate_override_allowed", True)
         project_dir = get_project_dir(state.name)

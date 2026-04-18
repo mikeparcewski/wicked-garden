@@ -37,6 +37,7 @@ Each row lists: factor(s) that tend to require it → specialist → one-line WH
 - system boundaries → `system-designer`
 - documentation → `technical-writer` (humans) or `api-documentarian` (SDK/API docs)
 - data schemas (data domain) → `data-architect`
+- **plugin / third-party extension-point contract** → `solution-architect` + `technical-writer` pair. No dedicated `plugin-api-designer` role exists in the current roster — solution-architect owns the contract rationale and technical-writer owns the author-facing docs. If this pairing recurs on multiple projects, consider proposing `plugin-api-designer` via `persona:submit`.
 
 ### QE
 - test planning / scenarios → `test-strategist`
