@@ -57,7 +57,18 @@ return a structured manifest to `phase_manager.execute()`. You are an **orchestr
    AND `process-plan.addendum.jsonl` at project root. Use the schema pinned by
    `skills/propose-process/refs/re-eval-addendum-schema.md`.
 5. `TaskUpdate` your executor task: `in_progress` before work, `completed` when finished.
-6. Return the structured JSON manifest (see "Return contract" below).
+6. **Convergence recording (build/test phases only).** After landing each code
+   artifact produced by this phase, call
+   `scripts/crew/convergence.py record --project <P> --artifact <id> --to <state> --verifier <agent> --phase <phase> --ref <path> --desc "<>= 10 chars>"`
+   for the appropriate forward transition (`Built` when an implementation file
+   lands and compiles, `Wired` when a production caller invokes it, `Tested`
+   when a test covers it, `Integrated` when an end-to-end flow exercises it).
+   A task marked `completed` is not the same as the artifact reaching
+   `Integrated`. Skip silently on `clarify` / `design` / `challenge` / `review`
+   — those phases do not emit code artifacts. This is the expectation
+   codified in `.claude/CLAUDE.md` "Convergence tracking"; today it is not
+   hook-enforced, so the executor is the responsible caller.
+7. Return the structured JSON manifest (see "Return contract" below).
 
 ## Dispatch Discipline (SC-6, AC-α10 — ENFORCED)
 
