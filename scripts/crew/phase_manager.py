@@ -1128,14 +1128,103 @@ def _check_gate_run(project_dir: Path, phase: str, rigor_tier: Optional[str] = N
 
 
 def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
-    """Load gate-result.json if it exists. Returns None if missing or unreadable."""
+    """Load, validate, and orphan-check ``gate-result.json`` for a phase.
+
+    **Contract shift (design-addendum-1 D-7 / #479):** this function
+    previously returned ``None`` on ``json.JSONDecodeError``. It now
+    **raises** :class:`gate_result_schema.GateResultSchemaError`
+    instead. Returning ``None`` silently caused the exact bypass that
+    #479 / #471 close — a malformed gate-result would slip through
+    ``approve_phase`` as "gate not run". Callers must handle the
+    exception explicitly (typically surfacing as a rejection).
+
+    The ``None`` return is preserved when the file does not exist —
+    that path still means "no gate run for this phase".
+
+    Layered defenses (all increments of #471 stack here):
+      1. Schema validator (AC-1..AC-4, AC-10 env-var bypass)
+      2. Content sanitizer (AC-5, AC-6)
+      3. Dispatch-log orphan detection (AC-7) — soft-window until
+         ``WG_GATE_RESULT_STRICT_AFTER``, then REJECT.
+      4. Audit-log write on every reject path (AC-8).
+      5. Content-hash memoization cache (AC-11; ``WG_GATE_RESULT_CACHE``
+         =off for debug).
+    """
     gate_file = project_dir / "phases" / phase / "gate-result.json"
     if not gate_file.exists():
         return None
+
+    # Lazy imports keep hook-path cost low and avoid cycles.
+    from gate_result_schema import (
+        GateResultAuthorizationError,
+        GateResultSchemaError,
+        validate_gate_result_from_file,
+    )
+    from gate_ingest_audit import append_audit_entry
+    from dispatch_log import check_orphan
+
     try:
-        return json.loads(gate_file.read_text())
-    except (json.JSONDecodeError, OSError):
+        raw_bytes = gate_file.read_bytes()
+    except OSError as exc:
+        logger.warning(
+            "[phase-manager] gate-result.json unreadable for phase '%s': %s",
+            phase, exc,
+        )
         return None
+
+    try:
+        parsed = validate_gate_result_from_file(gate_file)
+    except GateResultSchemaError as exc:
+        # Audit the reject path (AC-8). Failures here are logged to
+        # stderr by the audit module — reject still propagates.
+        event = (
+            "sanitization_violation" if exc.violation_class == "content"
+            else (
+                "malformed_json"
+                if exc.reason.startswith("malformed-json:")
+                else "schema_violation"
+            )
+        )
+        append_audit_entry(
+            project_dir, phase,
+            event=event,
+            reason=exc.reason,
+            offending_field=exc.offending_field,
+            offending_value=exc.offending_value_excerpt,
+            raw_bytes=raw_bytes,
+        )
+        raise
+
+    # Orphan detection (AC-7) — soft-window: warn + allow pre-cutover,
+    # REJECT post-cutover. Schema + content violations still REJECT
+    # unconditionally (caught above).
+    try:
+        check_orphan(parsed, project_dir, phase)
+    except GateResultAuthorizationError as exc:
+        today = datetime.now(timezone.utc).date()
+        from dispatch_log import _get_strict_after_date
+        if today >= _get_strict_after_date():
+            # Strict mode — hard reject, like schema/content violations.
+            append_audit_entry(
+                project_dir, phase,
+                event="unauthorized_dispatch",
+                reason=exc.reason,
+                offending_field=exc.offending_field,
+                offending_value=exc.offending_value_excerpt,
+                raw_bytes=raw_bytes,
+            )
+            raise
+        # Soft window — audit as "accepted_legacy" and fall through.
+        append_audit_entry(
+            project_dir, phase,
+            event="unauthorized_dispatch_accepted_legacy",
+            reason=exc.reason,
+            offending_field=exc.offending_field,
+            offending_value=exc.offending_value_excerpt,
+            raw_bytes=raw_bytes,
+        )
+
+    return parsed
 
 
 # ---------------------------------------------------------------------------
@@ -1167,6 +1256,61 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
 #   - All APPROVE                   -> APPROVE
 #   - Score = min of per-reviewer scores (conservative)
 # ---------------------------------------------------------------------------
+
+
+def _record_dispatch(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    reviewer: str,
+    *,
+    dispatcher_agent: str = "wicked-garden:crew:phase-manager",
+    dispatch_id: Optional[str] = None,
+) -> None:
+    """B-1 (AC-7) — append a dispatch-log entry BEFORE reviewer invocation.
+
+    Runs at the top of every ``_dispatch_*`` helper so an out-of-band
+    gate-result written by a rogue subagent fails the orphan check
+    (``dispatch_log.check_orphan``). Failures never block dispatch —
+    a stderr WARN is emitted and the caller proceeds.
+
+    ``state`` may be None in test / CLI shells; in that case the helper
+    cannot resolve a project_dir and becomes a no-op. This is consistent
+    with the rest of the dispatch helpers which degrade gracefully when
+    ``dispatcher=None``.
+    """
+    if state is None or not getattr(state, "name", None):
+        return
+    try:
+        from dispatch_log import append as _dispatch_log_append
+    except ImportError:  # pragma: no cover — defensive
+        return
+    try:
+        project_dir = get_project_dir(state.name)
+    except (ValueError, Exception) as exc:  # pragma: no cover — defensive
+        sys.stderr.write(
+            "[wicked-garden:gate-result] dispatch-log wire skipped — "
+            f"project_dir unresolvable (name={state.name!r}): {exc}.\n"
+        )
+        return
+    try:
+        _dispatch_log_append(
+            project_dir, phase,
+            reviewer=reviewer,
+            gate=gate_name,
+            dispatch_id=dispatch_id
+            or f"{phase}:{gate_name}:{reviewer}:{get_utc_timestamp()}",
+            dispatcher_agent=dispatcher_agent,
+            expected_result_path="gate-result.json",
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        # Fail-open per AC-7 design: a dispatch-log write error must NOT
+        # block dispatch. The orphan check will still warn-on-load when
+        # no matching record is found.
+        sys.stderr.write(
+            "[wicked-garden:gate-result] dispatch-log append failed "
+            f"(phase={phase}, gate={gate_name}, reviewer={reviewer}): {exc}.\n"
+        )
 
 
 def _banned_reviewer_error(reviewer: str) -> Optional[str]:
@@ -1336,6 +1480,10 @@ def _dispatch_fast_evaluator(
     and returns a normalized gate_result. When `dispatcher` is None (unit
     tests / CLI shells without Task tool), returns a CONDITIONAL stub.
     """
+    # B-1 (AC-7): record the dispatch BEFORE invoking the reviewer so an
+    # out-of-band gate-result written by a rogue agent fails the orphan
+    # check. Fail-open — errors do not block dispatch.
+    _record_dispatch(state, phase, gate_name, fallback_reviewer)
     ctx = {
         "gate_name": gate_name,
         "phase": phase,
@@ -1382,6 +1530,13 @@ def _dispatch_sequential(
 
     Merged verdict uses BLEND-RULE over the results collected so far.
     """
+    # B-1 (AC-7): record one dispatch-log entry per reviewer up-front so
+    # the orphan check can distinguish authorized sequential dispatches
+    # from out-of-band writes. Appended BEFORE the loop so an early
+    # REJECT short-circuit still leaves the log consistent with the
+    # reviewers-dispatched intent.
+    for _reviewer in reviewers or []:
+        _record_dispatch(state, phase, gate_name, _reviewer)
     if not reviewers:
         return _dispatch_fast_evaluator(
             state, phase, gate_name, dispatcher=dispatcher
@@ -1436,6 +1591,9 @@ def _dispatch_parallel_and_merge(
     Merge rule: REJECT if any REJECT, CONDITIONAL if any CONDITIONAL, else
     APPROVE. Conditions are unioned; score = min.
     """
+    # B-1 (AC-7): record one dispatch entry per reviewer up-front.
+    for _reviewer in reviewers or []:
+        _record_dispatch(state, phase, gate_name, _reviewer)
     if not reviewers:
         return _dispatch_fast_evaluator(
             state, phase, gate_name, dispatcher=dispatcher
@@ -1521,6 +1679,15 @@ def _dispatch_council(
     CONDITIONAL with reason `insufficient-concurrence`. REJECT still
     short-circuits any plurality analysis (one REJECT blocks).
     """
+    # B-1 (AC-7): record one dispatch entry per reviewer up-front. Note
+    # ``_dispatch_parallel_and_merge`` also records — this helper appends
+    # a council-tagged record first so the log distinguishes the two
+    # modes for orphan-detection forensics.
+    for _reviewer in reviewers or []:
+        _record_dispatch(
+            state, phase, gate_name, _reviewer,
+            dispatcher_agent="wicked-garden:crew:phase-manager:council",
+        )
     if not reviewers:
         return _dispatch_fast_evaluator(
             state, phase, gate_name, dispatcher=dispatcher

@@ -464,5 +464,121 @@ class TestPhasesJsonExecutorMayDelegate(unittest.TestCase):
             )
 
 
+# ---------------------------------------------------------------------------
+# B-4 (D-7 caller-contract regression): approve_phase must propagate
+# GateResultSchemaError from _load_gate_result. No silent swallow.
+# ---------------------------------------------------------------------------
+
+class TestApprovePhaseHandlesGateResultSchemaError(unittest.TestCase):
+    """B-4: when ``_load_gate_result`` raises ``GateResultSchemaError``
+    (malformed / oversize / banned / content-leak payload), ``approve_phase``
+    must NOT silently swallow the exception. The caller sees the error
+    and the audit log carries the rejection entry.
+    """
+
+    def test_approve_phase_propagates_gate_result_schema_error(self):
+        """Schema violation surfaces as GateResultSchemaError, not as a
+        silent 'no-gate-run' bypass."""
+        from gate_result_schema import GateResultSchemaError
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = Path(tmpdir) / "proj"
+            phase_dir = project_dir / "phases" / "build"
+            phase_dir.mkdir(parents=True)
+            # Write a malformed gate-result.json — invalid verdict enum.
+            (phase_dir / "gate-result.json").write_text(
+                json.dumps({
+                    "verdict": "MAYBE",
+                    "reviewer": "security-engineer",
+                    "recorded_at": "2026-04-19T10:00:00+00:00",
+                })
+            )
+
+            state = _make_state(rigor_tier="full")
+            state.current_phase = "build"
+            state.phases["build"] = PhaseState(
+                status="in_progress",
+                started_at="2026-04-19T00:00:00Z",
+            )
+
+            # Patch the pre-flight checks that would otherwise block the
+            # path to _load_gate_result (addendum freshness, deliverables,
+            # rigor policy validator).
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness", return_value=None), \
+                 patch.object(pm, "_check_phase_deliverables", return_value=[]), \
+                 patch.object(pm, "_validate_gate_policy_full_rigor"), \
+                 patch.object(pm, "load_phases_config", return_value={
+                     "build": {"gate_required": True,
+                               "depends_on": [], "blocks_next": True,
+                               "required_deliverables": []},
+                 }):
+                # GateResultSchemaError must bubble up from _load_gate_result,
+                # NOT be swallowed into a fall-through "gate not run" path.
+                with self.assertRaises(GateResultSchemaError) as cm:
+                    approve_phase(state, "build", approver="test-user")
+
+            # Contract: reason is set; violation_class set.
+            self.assertTrue(cm.exception.reason)
+            self.assertEqual(cm.exception.violation_class, "schema")
+
+            # Audit log captures the rejection (AC-8).
+            audit_path = phase_dir / "gate-ingest-audit.jsonl"
+            self.assertTrue(
+                audit_path.exists(),
+                "AC-8: audit-log entry must be written on schema_violation",
+            )
+            text = audit_path.read_text(encoding="utf-8")
+            self.assertIn("schema_violation", text)
+
+    def test_approve_phase_does_not_swallow_authorization_error(self):
+        """GateResultAuthorizationError (orphan in strict window) also
+        propagates — approve_phase must NOT silently accept unauthorized
+        gate-results by treating the exception as 'no gate run'."""
+        from gate_result_schema import (
+            GateResultAuthorizationError,
+            GateResultSchemaError,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = Path(tmpdir) / "proj"
+            phase_dir = project_dir / "phases" / "build"
+            phase_dir.mkdir(parents=True)
+            valid_result = {
+                "verdict": "APPROVE", "result": "APPROVE",
+                "reviewer": "security-engineer",
+                "recorded_at": "2026-04-19T10:00:00+00:00",
+                "phase": "build", "gate": "code-quality",
+                "score": 0.9, "min_score": 0.7,
+            }
+            (phase_dir / "gate-result.json").write_text(json.dumps(valid_result))
+
+            state = _make_state(rigor_tier="full")
+            state.current_phase = "build"
+            state.phases["build"] = PhaseState(
+                status="in_progress",
+                started_at="2026-04-19T00:00:00Z",
+            )
+
+            # Force strict-after to the past so orphan -> REJECT (no
+            # dispatch-log present -> GateResultAuthorizationError).
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness", return_value=None), \
+                 patch.object(pm, "_check_phase_deliverables", return_value=[]), \
+                 patch.object(pm, "_validate_gate_policy_full_rigor"), \
+                 patch.object(pm, "load_phases_config", return_value={
+                     "build": {"gate_required": True,
+                               "depends_on": [], "blocks_next": True,
+                               "required_deliverables": []},
+                 }), \
+                 patch.dict(os.environ, {
+                     "WG_GATE_RESULT_STRICT_AFTER": "2020-01-01",
+                 }):
+                with self.assertRaises(GateResultSchemaError) as cm:
+                    approve_phase(state, "build", approver="test-user")
+
+            self.assertIsInstance(cm.exception, GateResultAuthorizationError)
+
+
 if __name__ == "__main__":
     unittest.main()
