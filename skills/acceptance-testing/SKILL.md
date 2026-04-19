@@ -8,6 +8,7 @@ description: |
   Use when: "run acceptance tests", "verify it works", "did it pass",
   "test this scenario", "acceptance criteria", "validate the feature"
 context: fork
+agent: test-designer
 ---
 
 # Acceptance Testing
