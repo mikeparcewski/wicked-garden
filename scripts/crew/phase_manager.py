@@ -517,6 +517,77 @@ def _check_test_phases_before_review(state: 'ProjectState') -> List[str]:
 
 _VALID_REANALYSIS_DIRECTIONS = frozenset({"augment", "prune", "re_tier"})
 
+# AC-9: at most N augment mutations may be applied per phase across the project
+# lifetime.  Excess augments are deferred with why="augment-cap-exceeded" and
+# surfaced as open questions only — they do NOT spawn new TaskCreate calls.
+# The cap guards against runaway plan growth at phase-end checkpoints.
+_AUGMENT_CAP_PER_PHASE: int = 2
+_AUGMENT_CAP_DEFER_REASON: str = "augment-cap-exceeded"
+
+
+def _count_prior_augments_for_phase(
+    project_dir: "Path | None",
+    phase: str,
+) -> int:
+    """Count previously-applied augment mutations for ``phase``.
+
+    Reads ``process-plan.addendum.jsonl`` via ``reeval_addendum.read`` and
+    tallies every ``{"op": "augment", ...}`` entry in ``mutations_applied``
+    across records whose ``chain_id`` targets ``phase``.  Missing file /
+    unreadable records return 0 (fail-open — the write path will still
+    enforce the cap on the new record).
+    """
+    if project_dir is None:
+        return 0
+    try:
+        from reeval_addendum import read as _read_addendum
+    except ImportError:
+        return 0
+    try:
+        records = _read_addendum(project_dir, phase_filter=phase)
+    except Exception:  # fail-open on any I/O or parse error
+        return 0
+    count = 0
+    for rec in records:
+        applied = rec.get("mutations_applied") or []
+        if not isinstance(applied, list):
+            continue
+        for m in applied:
+            if isinstance(m, dict) and m.get("op") == "augment":
+                count += 1
+    return count
+
+
+def _apply_augment_cap(
+    mutations: "List[Dict[str, Any]]",
+    prior_count: int,
+    cap: int = _AUGMENT_CAP_PER_PHASE,
+) -> "Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]":
+    """Split ``mutations`` into (applied, deferred) enforcing the augment cap.
+
+    Non-augment mutations pass through to ``applied`` unchanged.  Augments
+    fill the remaining budget (``cap - prior_count``); excess augments are
+    cloned into ``deferred`` with ``why`` overwritten to
+    ``"augment-cap-exceeded"``.
+    """
+    applied: List[Dict[str, Any]] = []
+    deferred: List[Dict[str, Any]] = []
+    remaining = max(0, cap - prior_count)
+    for m in mutations:
+        if not isinstance(m, dict):
+            continue
+        if m.get("op") != "augment":
+            applied.append(m)
+            continue
+        if remaining > 0:
+            applied.append(m)
+            remaining -= 1
+        else:
+            deferred_m = dict(m)
+            deferred_m["why"] = _AUGMENT_CAP_DEFER_REASON
+            deferred.append(deferred_m)
+    return (applied, deferred)
+
 
 def _run_checkpoint_reanalysis(
     state: "ProjectState",
@@ -535,7 +606,12 @@ def _run_checkpoint_reanalysis(
                     NOT acceptable).
         _reeval_fn: Optional dependency-injection shim for acceptance tests.
                     Defaults to None (real facilitator call path); tests can pass
-                    a lambda returning a fixture addendum dict.
+                    a callable ``(state, phase) -> addendum_dict`` returning a
+                    fixture addendum.  When provided, the returned record's
+                    ``mutations`` list is capped to at most
+                    ``_AUGMENT_CAP_PER_PHASE`` augments per phase and the
+                    record's ``mutations_applied`` / ``mutations_deferred``
+                    fields are rewritten in-place (AC-9).
 
     Returns:
         (injected_phases, warnings)
@@ -561,7 +637,45 @@ def _run_checkpoint_reanalysis(
         "(direction=%s)",
         phase, direction,
     )
-    return validate_phase_plan(state)
+
+    # AC-9: augment cap enforcement.  If a re-eval function is injected, run
+    # it, then cap the returned mutations to at most _AUGMENT_CAP_PER_PHASE
+    # augments per phase.  Excess augments are deferred with
+    # why="augment-cap-exceeded" — they do not spawn new TaskCreate calls.
+    cap_warnings: List[str] = []
+    if _reeval_fn is not None:
+        try:
+            record = _reeval_fn(state, phase)
+        except Exception as exc:  # fail-open: cap logic must not block approve
+            logger.warning("[checkpoint] _reeval_fn raised %s — skipping cap", exc)
+            record = None
+        if isinstance(record, dict):
+            mutations = record.get("mutations") or []
+            if isinstance(mutations, list) and mutations:
+                try:
+                    project_dir = get_project_dir(state.name)
+                except (ValueError, Exception):
+                    project_dir = None  # fail-open on path errors
+                prior_count = _count_prior_augments_for_phase(project_dir, phase)
+                applied, deferred = _apply_augment_cap(mutations, prior_count)
+                # Rewrite the record's applied/deferred fields so downstream
+                # writers (e.g., reeval_addendum.append) see the capped state.
+                record["mutations_applied"] = applied
+                # Preserve any pre-existing deferrals (non-cap reasons) and
+                # append the cap-exceeded ones.
+                existing_deferred = record.get("mutations_deferred") or []
+                if not isinstance(existing_deferred, list):
+                    existing_deferred = []
+                record["mutations_deferred"] = existing_deferred + deferred
+                if deferred:
+                    cap_warnings.append(
+                        f"augment-cap-exceeded: {len(deferred)} augment mutation(s) "
+                        f"deferred for phase '{phase}' "
+                        f"(cap={_AUGMENT_CAP_PER_PHASE}, prior={prior_count})"
+                    )
+
+    injected, warnings = validate_phase_plan(state)
+    return (injected, warnings + cap_warnings)
 
 
 class PhaseStatus:
