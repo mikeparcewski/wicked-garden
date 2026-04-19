@@ -146,6 +146,12 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "facts",
         "description": "Structured fact extracted from conversation (consumed by wicked-brain auto-memorize)",
     },
+    # Delivery domain — telemetry.py + drift.py (Issue #443)
+    "wicked.quality.drift_detected": {
+        "domain": "wicked-garden",
+        "subdomain": "delivery.telemetry",
+        "description": "Cross-session quality metric drifted past baseline threshold (special-cause or >=15% drop)",
+    },
 }
 
 # Payload deny-list — these fields must NEVER appear in bus payloads.

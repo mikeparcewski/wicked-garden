@@ -277,6 +277,48 @@ def _purge_old_events() -> None:
         pass  # fire-and-forget
 
 
+# ---------------------------------------------------------------------------
+# Cross-session quality telemetry (Issue #443)
+#
+# Captures a JSONL record of session-level quality metrics and runs drift
+# classification against the 4-session baseline. Always fail-open — must
+# never break Stop. Target budget: <100ms typical, <500ms worst.
+# ---------------------------------------------------------------------------
+
+def _run_quality_telemetry(session_id: str) -> list:
+    """Append a timeline record + detect drift. Returns any messages."""
+    messages = []
+    try:
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "delivery"))
+        import telemetry as _telemetry
+        import drift as _drift
+
+        t_cap = time.monotonic()
+        record = _telemetry.capture_session(session_id)
+        cap_ms = int((time.monotonic() - t_cap) * 1000)
+        _log("telemetry", "debug", "telemetry.capture", ok=record is not None, ms=cap_ms)
+        if record is None:
+            return messages
+
+        project = record.get("project") or "_global"
+        records = _telemetry.read_timeline(project)
+        cls = _drift.classify(records)
+        # Emit bus event when drift actionable; fail-open when bus is absent.
+        emitted = _drift.emit_drift_event(project, cls)
+        if cls.get("drift"):
+            messages.append(
+                f"[Telemetry] Drift detected for {project}: " + _drift.summarize(cls)
+                + (" (emitted to wicked-bus)" if emitted else "")
+            )
+        elif cls.get("zone") == "warn":
+            messages.append(
+                f"[Telemetry] Watch signal for {project}: " + _drift.summarize(cls)
+            )
+    except Exception as e:
+        print(f"[wicked-garden] telemetry error: {e}", file=sys.stderr)
+    return messages
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +387,9 @@ def main():
         # 5. Event store retention purge
         _purge_old_events()
 
+        # 5b. Cross-session quality telemetry + drift detection (Issue #443)
+        telemetry_messages = _run_quality_telemetry(session_id)
+
         # Read session state for task completion count (fail open)
         tasks_completed_this_session = 0
         try:
@@ -390,7 +435,7 @@ def main():
 
         # Combine all pre-reflection messages (outcome + promotion + consolidation notices)
         # Note: decay_messages already included via decay_prefix in reflection
-        prepend_messages = outcome_messages + promotion_messages + consolidation_messages
+        prepend_messages = outcome_messages + promotion_messages + consolidation_messages + telemetry_messages
         if prepend_messages:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         else:

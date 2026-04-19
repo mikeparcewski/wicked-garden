@@ -114,6 +114,39 @@ If incidents or feedback exist, display:
 Use `/wicked-garden:crew:operate --status` for full operational details.
 ```
 
+### 6b. Show Cross-Session Quality Telemetry Trend (Issue #443)
+
+Run drift classification against the project's timeline. If the project has
+fewer than 5 sessions, skip this block quietly.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/drift.py" classify {project_name}
+```
+
+When the output's `classification.zone` is `"insufficient"`, skip the block
+entirely (not enough history yet).
+
+Otherwise display:
+
+```markdown
+### Quality Trend (cross-session)
+
+- **Metric**: gate_pass_rate
+- **Latest**: {classification.latest}
+- **Baseline mean** (last 4 sessions): {classification.baseline.mean} ± {classification.baseline.stddev}
+- **Drop vs baseline**: {classification.drop_pct * 100:.1f}%
+- **EWMA slope**: {classification.ewma_slope}
+- **Classification**: {classification.zone} — {"SIGNAL (special-cause)" if zone == "special-cause" else "watch" if zone == "warn" else "noise (common-cause)"}
+- **Sessions observed**: {classification.session_count}
+
+{If classification.drift is true: show "Drift detected — see `wicked.quality.drift_detected` event on wicked-bus" and list `classification.reasons`}
+{If actionable: recommend crew retro or gate-review; otherwise explicitly label as common-cause noise and state "no new gate will be added for common-cause variation"}
+```
+
+Rationale: per Issue #443 acceptance, common-cause variation must not trigger
+new process gates. Special-cause classification (outside 3σ) or a >=15% drop
+are the only signals worth escalating.
+
 ### 7. Suggest Actions
 
 Based on current state:
