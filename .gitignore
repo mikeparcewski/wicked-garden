@@ -127,3 +127,4 @@ _meta/
 
 # Gate 1 facilitator measurement artifact (narrow exception to *.log rule)
 !scripts/ci/facilitator_outputs/_measurement.log
+.hypothesis/

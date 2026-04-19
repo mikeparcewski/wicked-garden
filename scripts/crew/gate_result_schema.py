@@ -576,6 +576,15 @@ def validate_gate_result(data: Any) -> None:
         if isinstance(value, str):
             _check_string_cap(value, field=key, cap=DEFAULT_STRING_CAP_BYTES)
 
+    # Increment 2 (#471) — content sanitization pass. Imported lazily
+    # to avoid a hard load-time dependency: schema validation still
+    # runs when the sanitizer module is disabled / unavailable.
+    try:
+        from content_sanitizer import sanitize_gate_result
+    except ImportError:  # pragma: no cover — defensive
+        return
+    sanitize_gate_result(data)
+
 
 __all__ = [
     "BANNED_SOURCE_AGENTS",

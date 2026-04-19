@@ -15,6 +15,7 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "hypothesis>=6.100",
 ]
 
 [build-system]
@@ -30,5 +31,15 @@ packages = ["scripts"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "hypothesis>=6.100",
 ]
 # uv resolves from repo root so all `cd $PLUGIN_ROOT && uv run python ...` invocations work
+
+# Hypothesis config (design-addendum-1 D-8):
+#   derandomize=true keeps PR CI deterministic per T1 (determinism).
+#   Nightly 10K-iter jobs can override with --hypothesis-seed=random.
+[tool.hypothesis]
+database_file = ".hypothesis/examples"
+deadline = 1000
+verbosity = "normal"
+derandomize = true
