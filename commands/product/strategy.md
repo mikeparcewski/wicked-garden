@@ -53,7 +53,7 @@ Based on the `--focus` flag, dispatch to the appropriate expert(s) in parallel. 
 **For roi focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product:business-strategist",
+  subagent_type="wicked-garden:product:market-strategist",
   prompt="""Calculate ROI for the following feature/initiative:
 
 {feature/initiative description}
@@ -80,7 +80,7 @@ Provide:
 **For value focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product:value-analyst",
+  subagent_type="wicked-garden:product:value-strategist",
   prompt="""Design value proposition for the following feature/initiative:
 
 {feature/initiative description}
@@ -107,7 +107,7 @@ Provide:
 **For market focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product:market-analyst",
+  subagent_type="wicked-garden:product:market-strategist",
   prompt="""Analyze market for the following feature/initiative:
 
 {feature/initiative description}
@@ -133,7 +133,7 @@ Provide:
 **For competitive focus**:
 ```
 Task(
-  subagent_type="wicked-garden:product:competitive-analyst",
+  subagent_type="wicked-garden:product:market-strategist",
   prompt="""Assess competitive landscape for the following feature/initiative:
 
 {feature/initiative description}
@@ -304,7 +304,7 @@ User: /wicked-garden:product:strategy mobile-app-proposal.md --focus roi
 Claude: I'll analyze the ROI for the mobile app proposal.
 
 [Reads proposal document]
-[Dispatches to business-strategist agent]
+[Dispatches to market-strategist agent]
 [Agent calculates costs, benefits, payback]
 
 ## Strategic Analysis: Mobile App Proposal

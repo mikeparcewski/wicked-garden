@@ -75,7 +75,7 @@ Task(
 **warehouse**:
 ```
 Task(
-  subagent_type="wicked-garden:data:analytics-architect",
+  subagent_type="wicked-garden:data:data-architect",
   prompt="""
   Design warehouse integration for the provided dataset.
 

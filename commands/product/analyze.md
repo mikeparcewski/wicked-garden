@@ -50,7 +50,7 @@ If no data found, prompt user to run `/wicked-garden:product:listen` first.
 
 ```
 Task(
-  subagent_type="wicked-garden:product:feedback-analyst",
+  subagent_type="wicked-garden:product:user-voice",
   prompt="""Analyze customer feedback for patterns and insights.
 
 ## Feedback Data
@@ -180,7 +180,7 @@ User: /wicked-garden:product:analyze --theme "performance"
 Claude: I'll analyze feedback related to performance.
 
 [Loads aggregated feedback]
-[Dispatches to feedback-analyst agent]
+[Dispatches to user-voice agent]
 [Agent extracts themes and patterns]
 
 ## Feedback Analysis Report
