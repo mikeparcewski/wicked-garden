@@ -359,6 +359,10 @@ This applies to ALL commands that use `AskUserQuestion`: setup, delivery/setup, 
 - Python scripts: use `tempfile.gettempdir()` instead of hardcoding `/tmp` — Windows has no `/tmp`
 - Script invocation: use `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh"` — never bare `python3` (not available on Windows)
 
+### Gate-result security (AC-9 §5.4)
+
+`gate-result.json` ingestion runs a layered defense floor: schema validator, content sanitizer (codepoint allow-list + injection patterns), dispatch-log orphan detection, and append-only audit log. This is a **floor** against content drift and trivial prompt-injection — not a wall against local disk-write attackers. See [`docs/threat-models/gate-result-ingestion.md`](../docs/threat-models/gate-result-ingestion.md) for the full trust boundary, residual risks, and rollback levers (`WG_GATE_RESULT_*` env vars).
+
 ## wicked-brain
 
 Digital brain: **wicked-garden** | 9,352 indexed items | 9,352 chunks, 0 wiki articles, 0 memories | server port 4243

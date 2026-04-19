@@ -27,7 +27,7 @@ The module is stdlib-only and fail-open on env-var opt-out
 
 from __future__ import annotations
 
-import hashlib as _hashlib_top  # aliased to avoid duplicate symbol
+import hashlib
 import json
 import os
 import sys
@@ -218,6 +218,33 @@ def _excerpt(value: Any, limit: int = 256) -> str:
         return "<unrenderable>"
 
 
+# B-2: ``GateResultSchemaError.reason`` is consumed by LLM-facing surfaces
+# (gate-ingest-audit.jsonl readers, error-propagation paths). Interpolating
+# raw attacker-controlled field values into that string re-introduces the
+# exact prompt-injection vector #471 is defending against. Use this helper
+# to produce a short, non-reversible tag of the offending value so the
+# ``reason`` remains diagnostic without carrying adversarial content.
+#
+# Shape: ``{violation_class}:{field}:{sha256[:16]}`` (hex). The full value
+# can still be inspected via the separately-passed ``offending_value_excerpt``
+# (routed through the audit module, where it is ALSO hashed before disk).
+def _safe_value_tag(value: Any, *, field: str,
+                    violation_class: str = "content") -> str:
+    """Non-reversible tag suitable for embedding in a user-visible reason.
+
+    Never raises. Empty / unrenderable values collapse to a zero-hash tag.
+    """
+    try:
+        if isinstance(value, str):
+            encoded = value.encode("utf-8", errors="replace")
+        else:
+            encoded = repr(value).encode("utf-8", errors="replace")
+        digest = hashlib.sha256(encoded).hexdigest()[:16]
+    except Exception:  # pragma: no cover — defensive
+        digest = "0" * 16
+    return f"{violation_class}:{field}:{digest}"
+
+
 def _is_banned_reviewer(name: str) -> bool:
     """Check ``name`` against the authoritative banned-reviewer union.
 
@@ -287,8 +314,12 @@ def _check_reviewer_field(value: Any, *, field: str) -> None:
         )
     _check_string_cap(value, field=field, cap=MAX_REVIEWER_NAME_CHARS, unit="chars")
     if _is_banned_reviewer(value):
+        # B-2: do not interpolate raw ``value`` into ``reason`` — a banned
+        # reviewer identity can still carry prompt-injection text. Use a
+        # hash-prefix tag; the excerpt is preserved on the exception for
+        # in-process debugging (audit module re-hashes before write).
         raise GateResultSchemaError(
-            f"banned-reviewer-at-load:{value}",
+            f"banned-reviewer-at-load:{_safe_value_tag(value, field=field, violation_class='banned-reviewer')}",
             offending_field=field,
             offending_value_excerpt=_excerpt(value),
             violation_class="schema",
@@ -303,8 +334,12 @@ def _check_verdict_enum(value: Any, *, field: str) -> None:
             violation_class="schema",
         )
     if value not in _VALID_VERDICTS:
+        # B-2: do not interpolate raw ``value`` — a crafted verdict string
+        # can carry prompt-injection text that flows into LLM-readable
+        # audit/error surfaces. Hash-prefix tag only.
         raise GateResultSchemaError(
-            f"invalid-{field.split('.')[-1]}-enum:{value}",
+            f"invalid-{field.split('.')[-1]}-enum:"
+            f"{_safe_value_tag(value, field=field, violation_class='invalid-enum')}",
             offending_field=field,
             offending_value_excerpt=_excerpt(value),
             violation_class="schema",
@@ -528,8 +563,11 @@ def validate_gate_result(data: Any) -> None:
     if "rigor_tier" in data and data["rigor_tier"] is not None:
         tier = data["rigor_tier"]
         if not isinstance(tier, str) or tier not in _VALID_RIGOR_TIERS:
+            # B-2: tier is attacker-controlled — same content-leak concern
+            # as verdict / reviewer. Use hash-prefix tag.
             raise GateResultSchemaError(
-                f"invalid-rigor_tier-enum:{tier}",
+                f"invalid-rigor_tier-enum:"
+                f"{_safe_value_tag(tier, field='rigor_tier', violation_class='invalid-enum')}",
                 offending_field="rigor_tier",
                 offending_value_excerpt=_excerpt(tier),
                 violation_class="schema",
@@ -649,7 +687,7 @@ def validate_gate_result_from_file(
     """
     raw_bytes = gate_file.read_bytes()
     stat = gate_file.stat()
-    sha_hex = _hashlib_top.sha256(raw_bytes).hexdigest()
+    sha_hex = hashlib.sha256(raw_bytes).hexdigest()
     key = _cache_key(str(gate_file.resolve()), stat.st_mtime_ns, sha_hex)
 
     cached = _cache_get(key)

@@ -45,6 +45,29 @@ for _p in (_SCRIPTS_DIR, _THIS_DIR):
 from gate_result_constants import AUDIT_SNIPPET_HASH_MAX_BYTES  # noqa: E402
 
 
+# B-2: a defense-in-depth cap on how much of the caller-provided ``reason``
+# string we serialize onto disk. Upstream (``gate_result_schema``) is
+# already supposed to hash-prefix any attacker-controlled content before it
+# reaches this module — but the audit log is read by LLM-observability tools
+# and must not become a re-injection vector if a future caller regresses
+# and passes a raw-content reason. The cap is conservative — enough room
+# for a diagnostic tag + hash suffix, not enough for any meaningful
+# prompt-injection payload.
+_REASON_MAX_CHARS: int = 256
+
+
+def _sanitize_reason(reason: Optional[str]) -> Optional[str]:
+    """Truncate ``reason`` to a safe cap so a caller-side regression cannot
+    smuggle adversarial content onto the audit log. Returns ``None`` for
+    falsy input so existing JSON null shape is preserved.
+    """
+    if reason is None:
+        return None
+    if not isinstance(reason, str):
+        return repr(reason)[:_REASON_MAX_CHARS]
+    return reason[:_REASON_MAX_CHARS]
+
+
 VALID_EVENT_TYPES: frozenset = frozenset({
     "schema_violation",
     "sanitization_violation",
@@ -112,7 +135,9 @@ def append_audit_entry(
         "event": event,
         "phase": phase,
         "gate": gate,
-        "reason": reason,
+        # B-2: pass reason through the sanitizer — belt-and-suspenders cap
+        # in case a caller regresses and hands us raw adversarial content.
+        "reason": _sanitize_reason(reason),
         "offending_field": offending_field,
         "violation_snippet_hash": snippet_hash,
         "file_sha256": file_sha,

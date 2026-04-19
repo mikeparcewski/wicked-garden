@@ -123,6 +123,15 @@ _SUSPECT_PATTERNS: tuple = (
      re.compile(r"```[^`]{0,64}?system", re.IGNORECASE | re.DOTALL)),
     ("shell-subst-dollar-paren", re.compile(r"\$\(")),
     # NOTE: ``${`` uses the dedicated matcher to honor the carve-out.
+    # B-8: the unbounded ``[^`]*`` in this pattern is safe against catastrophic
+    # backtracking because the *outer* field-length cap bounds the input size
+    # before the regex ever runs. Every field that feeds this pattern is
+    # first length-checked by ``_check_string_cap`` against one of the
+    # ``MAX_*`` constants in ``gate_result_constants``
+    # (MAX_REASON_BYTES = 8 KiB, MAX_CONDITION_BYTES = 4 KiB, etc.), so worst-case
+    # iterations are bounded by that byte-cap — not by an open-ended attacker
+    # input. Rewriting this as ``[^`]{0,MAX_REASON_BYTES}`` would pin the cap
+    # inline at the cost of coupling the sanitizer to a specific field's cap.
     ("shell-backtick-rm", re.compile(r"`[^`]*\brm\s+")),
 )
 

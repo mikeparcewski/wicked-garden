@@ -18,6 +18,8 @@ import sys
 import unittest
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 sys.path.insert(0, str(_REPO_ROOT / "scripts" / "crew"))
@@ -162,6 +164,12 @@ class DollarBraceCarveOut(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 # Hypothesis property-based fuzz (design-addendum-1 D-8 derandomize=true)
+#
+# B-3: this module must collect cleanly in stdlib-only envs (hypothesis is
+# a dev dep, not a runtime requirement). Guard the import *and* the class
+# body so decorator evaluation only runs when hypothesis is available.
+# Previously, ``@settings(...)`` at class definition raised NameError
+# during collection and aborted the entire test file.
 # ---------------------------------------------------------------------------
 
 try:
@@ -171,35 +179,52 @@ except ImportError:  # pragma: no cover — hypothesis is a dev dep
     _HYP_AVAILABLE = False
 
 
-@unittest.skipUnless(_HYP_AVAILABLE, "hypothesis not installed")
-class HypothesisFuzz(unittest.TestCase):
-    @settings(max_examples=200, deadline=None)
-    @given(st.text(alphabet=st.characters(
-        whitelist_categories=("Ll", "Lu", "Nd", "Po", "Pd"),
-        min_codepoint=0x20, max_codepoint=0x7E,
-    ), max_size=64))
-    def test_strict_accepts_any_basic_latin_mix(self, s):
-        # ASCII alpha/digit/punct with no suspect substrings should always pass.
-        banned = ("ignore previous", "disregard the above", "<system",
-                  "system:", "$(", "${", "`rm ", "<human", "<assistant",
-                  "<|system", "```system")
-        if any(b in s.lower() for b in banned):
-            return
-        sanitize_strict(s, field="reviewer")
+if _HYP_AVAILABLE:
 
-    @settings(max_examples=200, deadline=None)
-    @given(st.text(alphabet=st.characters(
-        whitelist_categories=("Lo", "Ll", "Lu"),
-        min_codepoint=0x4E00, max_codepoint=0x9FFF,
-    ), min_size=1, max_size=32))
-    def test_permissive_accepts_cjk(self, s):
-        sanitize_permissive(s, field="reason")
+    class HypothesisFuzz(unittest.TestCase):
+        @settings(max_examples=200, deadline=None)
+        @given(st.text(alphabet=st.characters(
+            whitelist_categories=("Ll", "Lu", "Nd", "Po", "Pd"),
+            min_codepoint=0x20, max_codepoint=0x7E,
+        ), max_size=64))
+        def test_strict_accepts_any_basic_latin_mix(self, s):
+            # ASCII alpha/digit/punct with no suspect substrings should always pass.
+            banned = ("ignore previous", "disregard the above", "<system",
+                      "system:", "$(", "${", "`rm ", "<human", "<assistant",
+                      "<|system", "```system")
+            if any(b in s.lower() for b in banned):
+                return
+            sanitize_strict(s, field="reviewer")
 
-    @settings(max_examples=100, deadline=None)
-    @given(st.sampled_from(sorted(_DENIED_CODEPOINTS_EXPLICIT)))
-    def test_permissive_rejects_all_explicit_deny_codepoints(self, cp):
-        with self.assertRaises(GateResultSchemaError):
-            sanitize_permissive(f"prefix{chr(cp)}suffix", field="reason")
+        @settings(max_examples=200, deadline=None)
+        @given(st.text(alphabet=st.characters(
+            whitelist_categories=("Lo", "Ll", "Lu"),
+            min_codepoint=0x4E00, max_codepoint=0x9FFF,
+        ), min_size=1, max_size=32))
+        def test_permissive_accepts_cjk(self, s):
+            sanitize_permissive(s, field="reason")
+
+        @settings(max_examples=100, deadline=None)
+        @given(st.sampled_from(sorted(_DENIED_CODEPOINTS_EXPLICIT)))
+        def test_permissive_rejects_all_explicit_deny_codepoints(self, cp):
+            with self.assertRaises(GateResultSchemaError):
+                sanitize_permissive(f"prefix{chr(cp)}suffix", field="reason")
+
+
+class HypothesisEnvGuard(unittest.TestCase):
+    """B-3 acceptance: confirm pytest collection passes in stdlib-only
+    envs. When hypothesis is unavailable, the fuzz class is skipped
+    rather than crashing collection (NameError on ``settings``)."""
+
+    def test_module_collects_without_hypothesis(self):
+        # Importing the test module itself is enough — pytest already
+        # collected it if we got here. This records the guard explicitly
+        # so a future regression that reintroduces a top-level ``@given``
+        # or ``@settings`` without the guard is caught by this assertion.
+        self.assertTrue(
+            _HYP_AVAILABLE or ("HypothesisFuzz" not in globals()),
+            "HypothesisFuzz must not exist when hypothesis is unavailable",
+        )
 
 
 if __name__ == "__main__":

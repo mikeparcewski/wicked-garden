@@ -1258,6 +1258,61 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
 # ---------------------------------------------------------------------------
 
 
+def _record_dispatch(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    reviewer: str,
+    *,
+    dispatcher_agent: str = "wicked-garden:crew:phase-manager",
+    dispatch_id: Optional[str] = None,
+) -> None:
+    """B-1 (AC-7) — append a dispatch-log entry BEFORE reviewer invocation.
+
+    Runs at the top of every ``_dispatch_*`` helper so an out-of-band
+    gate-result written by a rogue subagent fails the orphan check
+    (``dispatch_log.check_orphan``). Failures never block dispatch —
+    a stderr WARN is emitted and the caller proceeds.
+
+    ``state`` may be None in test / CLI shells; in that case the helper
+    cannot resolve a project_dir and becomes a no-op. This is consistent
+    with the rest of the dispatch helpers which degrade gracefully when
+    ``dispatcher=None``.
+    """
+    if state is None or not getattr(state, "name", None):
+        return
+    try:
+        from dispatch_log import append as _dispatch_log_append
+    except ImportError:  # pragma: no cover — defensive
+        return
+    try:
+        project_dir = get_project_dir(state.name)
+    except (ValueError, Exception) as exc:  # pragma: no cover — defensive
+        sys.stderr.write(
+            "[wicked-garden:gate-result] dispatch-log wire skipped — "
+            f"project_dir unresolvable (name={state.name!r}): {exc}.\n"
+        )
+        return
+    try:
+        _dispatch_log_append(
+            project_dir, phase,
+            reviewer=reviewer,
+            gate=gate_name,
+            dispatch_id=dispatch_id
+            or f"{phase}:{gate_name}:{reviewer}:{get_utc_timestamp()}",
+            dispatcher_agent=dispatcher_agent,
+            expected_result_path="gate-result.json",
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        # Fail-open per AC-7 design: a dispatch-log write error must NOT
+        # block dispatch. The orphan check will still warn-on-load when
+        # no matching record is found.
+        sys.stderr.write(
+            "[wicked-garden:gate-result] dispatch-log append failed "
+            f"(phase={phase}, gate={gate_name}, reviewer={reviewer}): {exc}.\n"
+        )
+
+
 def _banned_reviewer_error(reviewer: str) -> Optional[str]:
     """Return a reason string if `reviewer` is banned; None otherwise.
 
@@ -1425,6 +1480,10 @@ def _dispatch_fast_evaluator(
     and returns a normalized gate_result. When `dispatcher` is None (unit
     tests / CLI shells without Task tool), returns a CONDITIONAL stub.
     """
+    # B-1 (AC-7): record the dispatch BEFORE invoking the reviewer so an
+    # out-of-band gate-result written by a rogue agent fails the orphan
+    # check. Fail-open — errors do not block dispatch.
+    _record_dispatch(state, phase, gate_name, fallback_reviewer)
     ctx = {
         "gate_name": gate_name,
         "phase": phase,
@@ -1471,6 +1530,13 @@ def _dispatch_sequential(
 
     Merged verdict uses BLEND-RULE over the results collected so far.
     """
+    # B-1 (AC-7): record one dispatch-log entry per reviewer up-front so
+    # the orphan check can distinguish authorized sequential dispatches
+    # from out-of-band writes. Appended BEFORE the loop so an early
+    # REJECT short-circuit still leaves the log consistent with the
+    # reviewers-dispatched intent.
+    for _reviewer in reviewers or []:
+        _record_dispatch(state, phase, gate_name, _reviewer)
     if not reviewers:
         return _dispatch_fast_evaluator(
             state, phase, gate_name, dispatcher=dispatcher
@@ -1525,6 +1591,9 @@ def _dispatch_parallel_and_merge(
     Merge rule: REJECT if any REJECT, CONDITIONAL if any CONDITIONAL, else
     APPROVE. Conditions are unioned; score = min.
     """
+    # B-1 (AC-7): record one dispatch entry per reviewer up-front.
+    for _reviewer in reviewers or []:
+        _record_dispatch(state, phase, gate_name, _reviewer)
     if not reviewers:
         return _dispatch_fast_evaluator(
             state, phase, gate_name, dispatcher=dispatcher
@@ -1610,6 +1679,15 @@ def _dispatch_council(
     CONDITIONAL with reason `insufficient-concurrence`. REJECT still
     short-circuits any plurality analysis (one REJECT blocks).
     """
+    # B-1 (AC-7): record one dispatch entry per reviewer up-front. Note
+    # ``_dispatch_parallel_and_merge`` also records — this helper appends
+    # a council-tagged record first so the log distinguishes the two
+    # modes for orphan-detection forensics.
+    for _reviewer in reviewers or []:
+        _record_dispatch(
+            state, phase, gate_name, _reviewer,
+            dispatcher_agent="wicked-garden:crew:phase-manager:council",
+        )
     if not reviewers:
         return _dispatch_fast_evaluator(
             state, phase, gate_name, dispatcher=dispatcher

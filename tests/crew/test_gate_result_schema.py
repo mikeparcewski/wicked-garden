@@ -71,7 +71,16 @@ class EnumEnforcement(unittest.TestCase):
     def test_invalid_verdict_enum_raises(self):
         with self.assertRaises(GateResultSchemaError) as cm:
             validate_gate_result(_valid_gate_result(verdict="MAYBE"))
-        self.assertEqual(cm.exception.reason, "invalid-verdict-enum:MAYBE")
+        # B-2: reason now carries a hash-prefix tag, not the raw value.
+        # Shape: ``invalid-verdict-enum:invalid-enum:verdict:<16-hex>``.
+        self.assertTrue(
+            cm.exception.reason.startswith("invalid-verdict-enum:invalid-enum:verdict:"),
+            f"unexpected reason shape: {cm.exception.reason!r}",
+        )
+        self.assertNotIn(
+            "MAYBE", cm.exception.reason,
+            "raw value must not appear in reason (B-2 content-leak fix)",
+        )
         self.assertEqual(cm.exception.violation_class, "schema")
 
     def test_invalid_result_enum_raises(self):
@@ -80,7 +89,12 @@ class EnumEnforcement(unittest.TestCase):
         payload["result"] = "MAYBE"
         with self.assertRaises(GateResultSchemaError) as cm:
             validate_gate_result(payload)
-        self.assertEqual(cm.exception.reason, "invalid-result-enum:MAYBE")
+        # B-2: hash-prefix tag, not raw value.
+        self.assertTrue(
+            cm.exception.reason.startswith("invalid-result-enum:invalid-enum:result:"),
+            f"unexpected reason shape: {cm.exception.reason!r}",
+        )
+        self.assertNotIn("MAYBE", cm.exception.reason)
 
     def test_missing_both_verdict_and_result_raises(self):
         payload = _valid_gate_result()
@@ -216,7 +230,14 @@ class LoaderContractShift(unittest.TestCase):
             )
             with self.assertRaises(GateResultSchemaError) as cm:
                 pm._load_gate_result(project_dir, "design")
-            self.assertEqual(cm.exception.reason, "invalid-verdict-enum:MAYBE")
+            # B-2: reason no longer carries raw "MAYBE"; hash-prefix tag only.
+            self.assertTrue(
+                cm.exception.reason.startswith(
+                    "invalid-verdict-enum:invalid-enum:verdict:"
+                ),
+                f"unexpected reason shape: {cm.exception.reason!r}",
+            )
+            self.assertNotIn("MAYBE", cm.exception.reason)
 
 
 class SchemaValidationOffFlag(unittest.TestCase):
@@ -231,6 +252,83 @@ class SchemaValidationOffFlag(unittest.TestCase):
         }):
             # No exception.
             validate_gate_result(bad)
+
+
+class ContentLeakRegression(unittest.TestCase):
+    """B-2: attacker-controlled field values MUST NOT appear literally in
+    ``GateResultSchemaError.reason`` nor in any audit-log reason passthrough.
+
+    The violation_class + field + sha256 prefix pattern is enforced at the
+    raise sites (gate_result_schema.py lines 291 / 307 / 532 pre-fix).
+    """
+
+    _SCRIPT_PAYLOAD = "<script>alert(1)</script>"
+
+    def test_banned_reviewer_reason_has_no_raw_script_tag(self):
+        from gate_result_schema import _is_banned_reviewer
+        # Craft a reviewer value that both looks banned and carries a
+        # script tag. ``auto-approve-`` prefix is banned per _event_schema.
+        reviewer_value = f"auto-approve-{self._SCRIPT_PAYLOAD}"
+        self.assertTrue(_is_banned_reviewer(reviewer_value))
+
+        payload = _valid_gate_result(reviewer=reviewer_value)
+        with self.assertRaises(GateResultSchemaError) as cm:
+            validate_gate_result(payload)
+        self.assertNotIn(
+            self._SCRIPT_PAYLOAD, cm.exception.reason,
+            f"raw script tag MUST NOT appear in exception.reason "
+            f"(got {cm.exception.reason!r})",
+        )
+        self.assertNotIn("<script>", cm.exception.reason)
+        self.assertNotIn("alert(1)", cm.exception.reason)
+
+    def test_invalid_verdict_reason_has_no_raw_script_tag(self):
+        payload = _valid_gate_result(verdict=self._SCRIPT_PAYLOAD)
+        with self.assertRaises(GateResultSchemaError) as cm:
+            validate_gate_result(payload)
+        self.assertNotIn(self._SCRIPT_PAYLOAD, cm.exception.reason)
+        self.assertNotIn("<script>", cm.exception.reason)
+
+    def test_invalid_rigor_tier_reason_has_no_raw_script_tag(self):
+        payload = _valid_gate_result(rigor_tier=self._SCRIPT_PAYLOAD)
+        with self.assertRaises(GateResultSchemaError) as cm:
+            validate_gate_result(payload)
+        self.assertNotIn(self._SCRIPT_PAYLOAD, cm.exception.reason)
+
+    def test_audit_log_passthrough_of_reason_is_capped(self):
+        """B-2: ``gate_ingest_audit.append_audit_entry`` must cap /
+        sanitize the reason it writes. Upstream already hash-prefixes;
+        this is belt-and-suspenders — a future-caller regression that
+        hands us a raw-content reason must still not leak literally
+        onto disk (256-char cap).
+        """
+        from gate_ingest_audit import append_audit_entry
+        with tempfile.TemporaryDirectory() as tmp:
+            project_dir = Path(tmp) / "proj"
+            (project_dir / "phases" / "build").mkdir(parents=True)
+            huge_injection = self._SCRIPT_PAYLOAD + ("X" * 1024)
+            append_audit_entry(
+                project_dir, "build",
+                event="schema_violation",
+                reason=huge_injection,
+                offending_field="reviewer",
+                offending_value=huge_injection,
+                raw_bytes=b"{}",
+            )
+            audit_path = (
+                project_dir / "phases" / "build" / "gate-ingest-audit.jsonl"
+            )
+            text = audit_path.read_text(encoding="utf-8")
+            record = json.loads(text.strip().splitlines()[0])
+            # Reason must be capped to a safe upper bound (256 chars).
+            self.assertLessEqual(len(record["reason"]), 256)
+            # Offending VALUE is hashed (not passed through).
+            self.assertTrue(
+                record["violation_snippet_hash"].startswith("sha256:"),
+            )
+            # ``record["violation_snippet_hash"]`` must NOT contain the
+            # raw payload characters.
+            self.assertNotIn("<script>", record["violation_snippet_hash"])
 
 
 if __name__ == "__main__":
