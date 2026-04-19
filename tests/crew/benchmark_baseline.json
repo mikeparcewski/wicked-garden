@@ -1,0 +1,17 @@
+{
+  "metric": "validate_gate_result_from_file_p95_ns",
+  "p95_ns": 2100000,
+  "unit": "nanoseconds",
+  "fixture_count": 50,
+  "fixture_sizes_bytes": [1024, 4096, 16384, 60000],
+  "recorded_on": "2026-04-18",
+  "recorded_from_commit": "d260649",
+  "recorded_env": {
+    "platform": "darwin",
+    "python": "3.14",
+    "note": "Establishment run on Apple Silicon dev host. CI baseline (ubuntu-latest) will converge after the first scheduled run on main; re-baseline per docs/threat-models/gate-result-ingestion.md §8 if CI p95 diverges by >20%."
+  },
+  "slo_multiplier": 2.0,
+  "tracked_by_issue": 504,
+  "rebaseline_procedure": "docs/threat-models/gate-result-ingestion.md §8"
+}

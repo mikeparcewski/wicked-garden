@@ -186,3 +186,57 @@ guard to catch it.
 without benchmark enforcement.
 
 **Owner**: repo:maintainer (role-based). Tracking: #504.
+
+### §8.2 AC-11 benchmark lane — how it works
+
+**CI lane**: `.github/workflows/benchmark.yml`. Triggers on PRs that touch
+any of: `scripts/crew/phase_manager.py`, `scripts/crew/gate_result_schema.py`,
+`scripts/crew/content_sanitizer.py`, `scripts/crew/dispatch_log.py`, or the
+benchmark test/baseline themselves. Other PRs skip the lane entirely so the
+default CI cost stays flat.
+
+**Test**: `tests/crew/test_gate_result_benchmark.py::test_load_gate_result_p95_within_2x_baseline`.
+Opt-in via the `benchmark` pytest marker — running `uv run pytest` locally
+deselects it (see `pyproject.toml` `addopts = "-m 'not benchmark'"`).
+Invoke explicitly with `uv run pytest -m benchmark`.
+
+**Fixtures**: 50 deterministic gate-result JSON files, sizes cycling through
+1 KB / 4 KB / 16 KB / 60 KB (bounded by `MAX_SUMMARY_BYTES`). Each
+benchmark round clears the memoization cache so the full
+validate + sanitize + cache-insert path is measured (the SLO target, per
+AC-11). Cache-hit timing is intentionally not part of the SLO.
+
+**Baseline**: `tests/crew/benchmark_baseline.json` — p95 in nanoseconds.
+Measured on main at commit `d260649` (2026-04-18) at **2,100,000 ns** per
+file on Apple Silicon. CI (`ubuntu-latest`) will typically measure
+comparable-order numbers; if CI p95 diverges by >20% from the local
+baseline after the first main-branch run, re-baseline using the procedure
+below.
+
+**Assertion**: `p95_current ≤ 2.0 × p95_baseline`. The workflow also
+comments the delta on every triggered PR.
+
+### §8.3 Re-baselining procedure
+
+Re-baseline **only** when a deliberate perf change lands on main (e.g.
+validator hardening, cache eviction tuning, schema expansion). Never
+re-baseline to silence a regression.
+
+1. Check out the target main commit.
+2. Run the benchmark three times:
+   `uv run pytest -m benchmark tests/crew/test_gate_result_benchmark.py -s`
+3. Record the highest of the three `p95_current` readings (adds a small
+   margin against CI noise).
+4. Update `tests/crew/benchmark_baseline.json`:
+   - `p95_ns` — new rounded-up value
+   - `recorded_on` — today's date
+   - `recorded_from_commit` — short SHA of the target main commit
+   - Leave `slo_multiplier` at `2.0` unless the AC-11 contract changes.
+5. Commit the baseline update in a dedicated PR titled
+   `chore(benchmark): re-baseline AC-11 after {change-summary}`.
+6. The benchmark workflow runs automatically on the PR and must pass.
+
+**Missing baseline behavior**: if `benchmark_baseline.json` is deleted or
+malformed, the test soft-skips with a directive to record one. The SLO
+is not enforced until a valid baseline is present — by design, so a
+re-baseline PR can merge without circular dependency.
