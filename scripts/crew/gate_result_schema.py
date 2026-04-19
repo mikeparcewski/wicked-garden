@@ -717,3 +717,20 @@ __all__ = [
     "validate_gate_result",
     "validate_gate_result_from_file",
 ]
+
+
+# ---------------------------------------------------------------------------
+# #500 — DispatchLogTamperError re-export
+#
+# Defined in ``dispatch_log`` (closer to its detection point), re-exported
+# here so callers catching ``GateResultSchemaError`` /
+# ``GateResultAuthorizationError`` can reach the matching subclass from the
+# schema module surface. Import lazy-guarded so a broken dispatch_log never
+# breaks ``validate_gate_result``.
+# ---------------------------------------------------------------------------
+
+try:  # pragma: no cover — trivial re-export
+    from dispatch_log import DispatchLogTamperError  # noqa: E402,F401
+    __all__.append("DispatchLogTamperError")
+except ImportError:
+    pass  # intentional: dispatch_log optional; tamper-error re-export is best-effort

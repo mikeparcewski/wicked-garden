@@ -145,6 +145,17 @@ def append_audit_entry(
     }
 
     audit_path = _resolve_audit_path(Path(project_dir), phase)
+
+    # #505 — rotate BEFORE writing each record. Cheap stat() check; a
+    # rotation failure is non-fatal (rotate_if_needed is fail-open).
+    # Lazy import: audit-log must not break if log_retention is missing
+    # (e.g., partial plugin install).
+    try:
+        from log_retention import rotate_if_needed  # type: ignore
+        rotate_if_needed(audit_path)
+    except ImportError:  # pragma: no cover — defensive
+        pass  # fail-open: rotation module unavailable, append continues unbounded
+
     try:
         audit_path.parent.mkdir(parents=True, exist_ok=True)
         with audit_path.open("a", encoding="utf-8") as fp:

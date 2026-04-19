@@ -850,6 +850,92 @@ def _suggest_commands_for_project() -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# #506 — WG_GATE_RESULT_STRICT_AFTER pre-flip monitoring
+#
+# Surfaces a visible warning as the strict-mode cutover approaches so
+# operators aren't surprised when orphan gate-results start rejecting.
+# Thresholds (T = days until flip, computed in UTC):
+#   T > 7       silent
+#   7 >= T >= 1 stderr WARN, every SessionStart
+#   T == 0      stderr INFO, one-time per session (latched via
+#               SessionState.strict_mode_active_announced)
+#   T < 0       stderr INFO, same one-time latch (post-flip banner)
+#
+# Fail-open: malformed dates fall back to the module default and the
+# signal is skipped silently rather than blocking bootstrap.
+# ---------------------------------------------------------------------------
+
+
+def _check_pre_flip_notice(state, today=None) -> None:
+    """Emit pre-flip / post-flip monitoring signals on stderr.
+
+    Arguments:
+        state: The loaded SessionState (or None). When None, the
+            post-flip banner still fires but won't latch — next
+            SessionStart in the same session may re-fire, which is
+            the expected degrade.
+        today: ``datetime.date`` override for deterministic tests.
+            Production callers pass ``None`` and the helper uses
+            today's UTC date.
+    """
+    try:
+        # Lazy import — keeps hook cheap; dispatch_log is in the crew
+        # scripts dir which is already on sys.path via the hook bootstrap.
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "crew"))
+        from dispatch_log import (  # type: ignore
+            DEFAULT_STRICT_AFTER,
+            _get_strict_after_date,
+        )
+    except Exception:
+        return  # fail-open: module unavailable, skip the signal
+
+    try:
+        from datetime import datetime, timezone
+
+        flip_date = _get_strict_after_date()
+        if today is None:
+            today = datetime.now(timezone.utc).date()
+        delta_days = (flip_date - today).days
+        raw_env_val = os.environ.get("WG_GATE_RESULT_STRICT_AFTER", "").strip()
+        # Display the user-supplied value when it parsed; otherwise show
+        # the effective default. A malformed env-var produces the fallback
+        # WARN in ``_get_strict_after_date`` already — we don't duplicate.
+        if raw_env_val and flip_date.isoformat() == raw_env_val:
+            raw_env = raw_env_val
+        else:
+            raw_env = flip_date.isoformat()
+
+        if delta_days > 7:
+            return  # silent
+
+        if 1 <= delta_days <= 7:
+            sys.stderr.write(
+                f"[PreFlipNotice] Strict-mode activation in {delta_days} "
+                f"days (WG_GATE_RESULT_STRICT_AFTER={raw_env}). "
+                "Orphan gate-result files will start rejecting.\n"
+            )
+            return
+
+        # delta_days <= 0 → post-flip; emit one-time-per-session INFO.
+        already = bool(getattr(state, "strict_mode_active_announced", False)) \
+            if state is not None else False
+        if already:
+            return
+        sys.stderr.write(
+            f"[StrictMode] Strict-mode active (flipped on "
+            f"{flip_date.isoformat()}). Any orphan gate-result now rejects.\n"
+        )
+        if state is not None:
+            try:
+                state.update(strict_mode_active_announced=True)
+            except Exception:  # pragma: no cover — defensive
+                pass  # session-state write failure: banner may re-fire, acceptable
+    except Exception:
+        # Signal computation errors must never block bootstrap.
+        return
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -938,6 +1024,11 @@ def main():
             _log("bootstrap", "debug", "event_store.schema", ok=True)
         except Exception:
             pass  # event store is optional — never block session start
+
+        # 2c. #506 — pre-flip monitoring signal for WG_GATE_RESULT_STRICT_AFTER.
+        # Fail-open: never blocks bootstrap. Emits stderr WARN at T-7..T-1,
+        # stderr INFO once per session post-flip.
+        _check_pre_flip_notice(state)
 
         # 3. Load dynamic agents
         agents_loaded, agents_dict = _load_agents()
