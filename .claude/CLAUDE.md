@@ -146,6 +146,8 @@ Dynamic multi-phase workflows with facilitator-driven specialist routing (v6):
 
 Review tiers map from complexity: 0-2 → minimal (advisory gates), 3-5 → standard (enforced gates), 6-7 → full (multi-reviewer). Security/compliance signals override to full regardless of complexity.
 
+**Convergence tracking (build/test phases)**: implementers and test-designers SHOULD call `scripts/crew/convergence.py record` after landing each artifact (Designed -> Built -> Wired -> Tested -> Integrated -> Verified). A task marked `completed` is not the same as an artifact being wired into the production path. The `convergence-verify` review gate flips from REJECT to APPROVE only when every tracked artifact reaches at least `Integrated` - stalls at threshold 3 sessions surface as findings. Scenario: `scenarios/crew/convergence-lifecycle.md`.
+
 Fallback agents (facilitator, researcher, implementer, reviewer) handle phases when specialist agents aren't matched.
 
 ### Gate Enforcement (v2.5.0+)
