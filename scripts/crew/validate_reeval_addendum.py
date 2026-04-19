@@ -4,6 +4,9 @@
 Each line in a JSONL file (or a single stdin record) must conform to the
 re-eval addendum schema defined in autonomy-and-checks-model.md §5.
 
+Schema version 1.1.0 adds optional archetype fields (AC-4, AC-5).
+1.0 records remain fully valid under this validator (backward-compat, AC-13).
+
 Usage:
     validate_reeval_addendum.py <path-to-reeval-log.jsonl>
     validate_reeval_addendum.py --stdin            # read single record from stdin
@@ -36,7 +39,27 @@ REQUIRED_TOP_KEYS = frozenset({
     "validator_version",
 })
 
+# v1.0 known triggers; v1.1.0 extends with qe-evaluator prefix (checked separately).
 VALID_TRIGGERS = frozenset({"phase-end", "task-completion"})
+
+# v1.1.0: qe-evaluator triggers use a prefix convention "qe-evaluator:<gate>".
+QE_EVALUATOR_TRIGGER_PREFIX = "qe-evaluator:"
+
+# v1.1.0: archetype enum (AC-5).
+VALID_ARCHETYPES = frozenset({
+    "code-repo",
+    "docs-only",
+    "skill-agent-authoring",
+    "config-infra",
+    "multi-repo",
+    "testing-only",
+    "schema-migration",
+})
+
+# v1.1.0: allowed manifest_path prefixes for qe-evaluator triggers (MINOR-1).
+ALLOWED_QE_MANIFEST_PREFIXES = ("phases/testability/", "phases/evidence-quality/")
+DISALLOWED_QE_MANIFEST_PREFIXES = ("phases/clarify/", "phases/design/")
+
 VALID_RIGOR_TIERS = frozenset({"minimal", "standard", "full"})
 VALID_MUTATION_OPS = frozenset({"prune", "augment", "re_tier"})
 
@@ -100,12 +123,71 @@ def validate_record(record: object, line_num: "int | None" = None) -> "list[str]
     for key in sorted(missing):
         errors.append(f"{prefix}: missing required key '{key}'")
 
-    # trigger enum
+    # trigger enum — v1.1.0 extends with qe-evaluator:<gate> prefix convention.
     trigger = record.get("trigger")
-    if trigger is not None and trigger not in VALID_TRIGGERS:
-        errors.append(
-            f"{prefix}.trigger: '{trigger}' is not one of {sorted(VALID_TRIGGERS)}"
+    if trigger is not None:
+        is_qe_trigger = isinstance(trigger, str) and trigger.startswith(
+            QE_EVALUATOR_TRIGGER_PREFIX
         )
+        if not is_qe_trigger and trigger not in VALID_TRIGGERS:
+            errors.append(
+                f"{prefix}.trigger: '{trigger}' is not one of {sorted(VALID_TRIGGERS)} "
+                f"and does not start with '{QE_EVALUATOR_TRIGGER_PREFIX}'"
+            )
+
+    # v1.1.0: qe-evaluator triggers must have empty mutations and mutations_applied.
+    trigger_str = trigger if isinstance(trigger, str) else ""
+    is_qe_trigger = trigger_str.startswith(QE_EVALUATOR_TRIGGER_PREFIX)
+    if is_qe_trigger:
+        mutations_val = record.get("mutations")
+        if isinstance(mutations_val, list) and mutations_val:
+            errors.append(
+                f"{prefix}: qe-evaluator trigger must have empty mutations list; "
+                f"got {len(mutations_val)} item(s)"
+            )
+        applied_val = record.get("mutations_applied")
+        if isinstance(applied_val, list) and applied_val:
+            errors.append(
+                f"{prefix}: qe-evaluator trigger must have empty mutations_applied list; "
+                f"got {len(applied_val)} item(s)"
+            )
+
+    # v1.1.0: validate optional archetype field when present.
+    archetype = record.get("archetype")
+    if archetype is not None:
+        if archetype not in VALID_ARCHETYPES:
+            errors.append(
+                f"{prefix}.archetype: '{archetype}' is not one of "
+                f"{sorted(VALID_ARCHETYPES)}"
+            )
+
+    # v1.1.0: validate archetype_evidence.conditions_deferred manifest_path prefixes.
+    archetype_evidence = record.get("archetype_evidence")
+    if isinstance(archetype_evidence, dict) and is_qe_trigger:
+        conditions_deferred = archetype_evidence.get("conditions_deferred", [])
+        if isinstance(conditions_deferred, list):
+            for i, cond in enumerate(conditions_deferred):
+                if not isinstance(cond, dict):
+                    continue
+                manifest_path = cond.get("manifest_path", "")
+                if not manifest_path:
+                    continue
+                if not any(
+                    manifest_path.startswith(pfx)
+                    for pfx in ALLOWED_QE_MANIFEST_PREFIXES
+                ):
+                    errors.append(
+                        f"{prefix}.archetype_evidence.conditions_deferred[{i}]"
+                        f".manifest_path '{manifest_path}' must start with one of "
+                        f"{list(ALLOWED_QE_MANIFEST_PREFIXES)} for qe-evaluator triggers"
+                    )
+                for disallowed in DISALLOWED_QE_MANIFEST_PREFIXES:
+                    if manifest_path.startswith(disallowed):
+                        errors.append(
+                            f"{prefix}.archetype_evidence.conditions_deferred[{i}]"
+                            f".manifest_path '{manifest_path}' must not start with "
+                            f"'{disallowed}' for qe-evaluator triggers"
+                        )
 
     # rigor tiers
     for tier_key in ("prior_rigor_tier", "new_rigor_tier"):

@@ -2,7 +2,8 @@
 """reeval_addendum.py — Read and append re-eval addendum records (AC-α4).
 
 Schema is pinned by ``skills/propose-process/refs/re-eval-addendum-schema.md``
-v1.0.0. Validation is delegated to ``scripts/crew/validate_reeval_addendum.py``.
+v1.1.0 (bumped from v1.0 in feat-crew-phase-boundary-qe-evaluator, AC-4).
+Validation is delegated to ``scripts/crew/validate_reeval_addendum.py``.
 
 Two write targets per phase-end re-eval:
     - per-phase log:    ``{project_dir}/phases/{phase}/reeval-log.jsonl``
@@ -54,8 +55,34 @@ def _project_addendum_path(project_dir: Path) -> Path:
     return project_dir / "process-plan.addendum.jsonl"
 
 
+# Valid archetype enum values (v1.1.0, AC-5).
+VALID_ARCHETYPES = frozenset({
+    "code-repo",
+    "docs-only",
+    "skill-agent-authoring",
+    "config-infra",
+    "multi-repo",
+    "testing-only",
+    "schema-migration",
+})
+
+# Allowed manifest_path prefixes for qe-evaluator triggers (MINOR-1).
+_QE_EVALUATOR_TRIGGER_PREFIX = "qe-evaluator:"
+_ALLOWED_QE_MANIFEST_PREFIXES = ("phases/testability/", "phases/evidence-quality/")
+_DISALLOWED_QE_MANIFEST_PREFIXES = ("phases/clarify/", "phases/design/")
+
+
 def _validate_record(record: Dict[str, Any]) -> Optional[str]:
     """Return None when the record is valid, else a short error string.
+
+    Supports both v1.0 and v1.1.0 records. New v1.1.0 optional fields are
+    validated when present; their absence is always valid (backward-compat).
+
+    v1.1.0 enforcement rules (MINOR-1, AC-4):
+    - When trigger starts with "qe-evaluator:", mutations MUST be [].
+    - When trigger starts with "qe-evaluator:", mutations_applied MUST be [].
+    - When trigger starts with "qe-evaluator:", conditions_deferred[*].manifest_path
+      MUST have prefix "phases/testability/" or "phases/evidence-quality/".
 
     This is a lightweight structural check — the full schema validation
     happens via ``scripts/crew/validate_reeval_addendum.py`` which we shell
@@ -81,6 +108,64 @@ def _validate_record(record: Dict[str, Any]) -> Optional[str]:
     for key in ("mutations", "mutations_applied", "mutations_deferred"):
         if not isinstance(record.get(key), list):
             return f"{key} must be a list"
+
+    trigger = record.get("trigger", "") or ""
+
+    # v1.1.0 rules: qe-evaluator triggers must have empty mutations lists.
+    if trigger.startswith(_QE_EVALUATOR_TRIGGER_PREFIX):
+        mutations = record.get("mutations", [])
+        if mutations:
+            return (
+                f"qe-evaluator trigger must have empty mutations list; "
+                f"got {len(mutations)} item(s)"
+            )
+        mutations_applied = record.get("mutations_applied", [])
+        if mutations_applied:
+            return (
+                f"qe-evaluator trigger must have empty mutations_applied list; "
+                f"got {len(mutations_applied)} item(s)"
+            )
+
+    # v1.1.0: validate optional archetype field enum when present.
+    archetype = record.get("archetype")
+    if archetype is not None:
+        if archetype not in VALID_ARCHETYPES:
+            return (
+                f"archetype {archetype!r} is not one of the valid archetypes: "
+                f"{sorted(VALID_ARCHETYPES)}"
+            )
+
+    # v1.1.0: validate archetype_evidence.conditions_deferred[*].manifest_path
+    # prefix enforcement for qe-evaluator triggers.
+    archetype_evidence = record.get("archetype_evidence")
+    if archetype_evidence is not None and isinstance(archetype_evidence, dict):
+        conditions_deferred = archetype_evidence.get("conditions_deferred", [])
+        if isinstance(conditions_deferred, list) and trigger.startswith(
+            _QE_EVALUATOR_TRIGGER_PREFIX
+        ):
+            for i, cond in enumerate(conditions_deferred):
+                if not isinstance(cond, dict):
+                    continue
+                manifest_path = cond.get("manifest_path", "")
+                if not manifest_path:
+                    continue
+                # Must start with an allowed prefix.
+                if not any(
+                    manifest_path.startswith(pfx)
+                    for pfx in _ALLOWED_QE_MANIFEST_PREFIXES
+                ):
+                    return (
+                        f"conditions_deferred[{i}].manifest_path {manifest_path!r} "
+                        f"must start with one of {list(_ALLOWED_QE_MANIFEST_PREFIXES)} "
+                        f"for qe-evaluator triggers (indirect authority creep guard)"
+                    )
+                # Must not start with a disallowed prefix.
+                for disallowed in _DISALLOWED_QE_MANIFEST_PREFIXES:
+                    if manifest_path.startswith(disallowed):
+                        return (
+                            f"conditions_deferred[{i}].manifest_path {manifest_path!r} "
+                            f"must not start with {disallowed!r} for qe-evaluator triggers"
+                        )
 
     return None
 

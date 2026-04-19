@@ -13,6 +13,10 @@ Field semantics mirror the previous kanban envelope:
                  procedure-trigger | subtask
   source_agent — the agent that authored the event
   phase        — crew phase name (must appear in phases.json catalog)
+  archetype    — optional (v1.1.0, AC-5): one of 7 project archetype values
+                 emitted by the facilitator at clarify time and carried
+                 in TaskCreate metadata for audit trail. Invalid value
+                 triggers warn mode warning or strict mode denial.
 """
 
 from __future__ import annotations
@@ -40,6 +44,19 @@ VALID_VERDICTS = frozenset({"APPROVE", "CONDITIONAL", "REJECT"})
 # Prefix matches handled separately (see BANNED_SOURCE_AGENT_PREFIXES).
 BANNED_REVIEWERS = frozenset({"just-finish-auto", "fast-pass"})
 BANNED_SOURCE_AGENT_PREFIXES = ("auto-approve-",)
+
+# v1.1.0: Archetype enum for TaskCreate metadata (AC-5, D5).
+# Emitted by the facilitator at clarify time and carried through the audit log.
+# Invalid value → warn mode warning or strict mode denial (via validate_metadata).
+VALID_ARCHETYPES = frozenset({
+    "code-repo",
+    "docs-only",
+    "skill-agent-authoring",
+    "config-infra",
+    "multi-repo",
+    "testing-only",
+    "schema-migration",
+})
 
 # Per-event_type required and optional metadata fields.
 SCHEMA: dict[str, dict[str, list[str]]] = {
@@ -166,6 +183,16 @@ def validate_metadata(
                 f"parent_chain_id {parent!r}"
             )
 
+    # v1.1.0: optional archetype field validation (AC-5, D5).
+    # Present + valid → accept without warning.
+    # Present + invalid → warn/strict response handled by caller.
+    archetype = metadata.get("archetype")
+    if archetype is not None and archetype not in VALID_ARCHETYPES:
+        return (
+            f"metadata.archetype={archetype!r} is not a valid archetype value. "
+            f"Allowed: {sorted(VALID_ARCHETYPES)}"
+        )
+
     return None
 
 
@@ -173,6 +200,7 @@ __all__ = [
     "CHAIN_ID_RE",
     "VALID_EVENT_TYPES",
     "VALID_VERDICTS",
+    "VALID_ARCHETYPES",
     "BANNED_REVIEWERS",
     "BANNED_SOURCE_AGENT_PREFIXES",
     "SCHEMA",
