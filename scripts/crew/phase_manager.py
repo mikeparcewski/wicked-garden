@@ -1128,14 +1128,57 @@ def _check_gate_run(project_dir: Path, phase: str, rigor_tier: Optional[str] = N
 
 
 def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
-    """Load gate-result.json if it exists. Returns None if missing or unreadable."""
+    """Load and validate ``gate-result.json`` for a phase.
+
+    **Contract shift (design-addendum-1 D-7 / #479):** this function
+    previously returned ``None`` on ``json.JSONDecodeError``. It now
+    **raises** :class:`gate_result_schema.GateResultSchemaError`
+    instead. Returning ``None`` silently caused the exact bypass that
+    #479 / #471 close — a malformed gate-result would slip through
+    ``approve_phase`` as "gate not run". Callers must handle the
+    exception explicitly (typically surfacing as a rejection).
+
+    The ``None`` return is preserved when the file does not exist —
+    that path still means "no gate run for this phase".
+
+    Schema validation can be opted out at runtime with
+    ``WG_GATE_RESULT_SCHEMA_VALIDATION=off`` (auto-expiring emergency
+    lever per design-addendum-1 D-1); the file is still parsed so
+    callers see a dict, but the validator is skipped.
+    """
     gate_file = project_dir / "phases" / phase / "gate-result.json"
     if not gate_file.exists():
         return None
+
+    # Import lazily so circular-import risk stays low (gate_result_schema
+    # lives in scripts/crew/ alongside this module — direct import OK).
+    from gate_result_schema import GateResultSchemaError, validate_gate_result
+
     try:
-        return json.loads(gate_file.read_text())
-    except (json.JSONDecodeError, OSError):
+        raw_text = gate_file.read_text()
+    except OSError as exc:
+        # Disk read failures are categorically different from schema
+        # violations: treat as "no usable gate result". Caller sees
+        # None (preserving pre-existing behavior for I/O errors).
+        logger.warning(
+            "[phase-manager] gate-result.json unreadable for phase '%s': %s",
+            phase, exc,
+        )
         return None
+
+    try:
+        parsed = json.loads(raw_text)
+    except json.JSONDecodeError as exc:
+        # D-7 contract shift — previously `return None`, now raise so
+        # approve_phase cannot silently proceed as if the gate never ran.
+        raise GateResultSchemaError(
+            f"malformed-json:{str(exc)[:40]}",
+            offending_field="<root>",
+            violation_class="schema",
+        ) from exc
+
+    validate_gate_result(parsed)
+    return parsed
 
 
 # ---------------------------------------------------------------------------

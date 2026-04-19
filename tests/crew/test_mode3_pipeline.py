@@ -226,6 +226,8 @@ class TestYoloApproveTimeAutoAccept(unittest.TestCase):
             "reviewer": "test-reviewer",
             "reason": f"synthetic {verdict}",
             "conditions": conditions or [],
+            # recorded_at is required by #479 schema validator.
+            "recorded_at": "2026-04-19T10:00:00+00:00",
         }))
 
     def test_yolo_auto_accept_on_approve(self):
