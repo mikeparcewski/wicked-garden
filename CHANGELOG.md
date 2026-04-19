@@ -1,5 +1,24 @@
 # Changelog
 
+## [6.2.0] - 2026-04-19
+
+### Features
+- feat(crew): ops bundle — HMAC dispatch-log + log retention + pre-flip monitoring (#513) (8e8bd5f)
+- feat(crew): hardening + tests — yolo guardrails + BLEND test tighten + 6-phase traversal (#512) (c883271)
+- feat(crew): storage + DX bundle — reviewer-context, atomic conditions, amendments.jsonl, explain skill (#511) (9ed1cdc)
+- feat(crew): review machinery correctness — blind reviewer, multi-reviewer invariant, re-eval skill contract (#510) (3c6c1e4)
+- feat(crew): AC-11 CI benchmark lane — enforce 2x p95 SLO on gate-result load (#509) (7c84b93)
+
+### Bug Fixes
+- fix(crew): CLI parity bundle — honest stubs, deliverables from config, mode-3 default, status field parity (closes #492, #493, #494, #498, #499) (#508) (d260649)
+
+### Documentation
+- docs(propose-process): rubric doc drift — yolo-at-full-rigor + phases.primary + tasks.phase (closes #495, #496, #497) (#507) (dab62f9)
+
+### Chores
+- Closes #479, #471: gate-result ingestion security hardening (floor) (#501) (90c5b2c)
+- release: wicked-garden v6.1.0 — mode-3 formal crew execution + issue sweep (903be9c)
+
 ## [6.1.0] - 2026-04-19
 
 ### Features
