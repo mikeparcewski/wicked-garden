@@ -1,5 +1,27 @@
 # Changelog
 
+## [6.3.2] - 2026-04-19
+
+### Features
+- feat(#535): inject `subagent_type` frontmatter into 71 agents that were missing the
+  field — all agents now declare `wicked-garden:{domain}:{stem}` for correct routing
+- feat(#533): create `agents/product/ux-analyst.md` — new agent covering user research
+  synthesis, journey mapping, usability heuristics, and A/B test interpretation
+  (genuinely distinct from ux-designer and ui-reviewer)
+- feat(#534): rename `jam/facilitator` → `jam/brainstorm-facilitator` to eliminate
+  collision with crew's facilitator; update all 3 inbound command refs
+- feat(#533): update 10 command files to point 15 broken subagent_type refs at their
+  consolidated targets (visual-reviewer→ui-reviewer, business-strategist→market-strategist,
+  value-analyst→value-strategist, alignment-lead→value-strategist, feedback-analyst→user-voice,
+  customer-advocate→user-voice, acceptance-test-writer/executor/reviewer→test-designer,
+  tdd-coach→test-strategist, analytics-architect→data-architect,
+  engineering:data-architect→data:data-architect)
+- feat(#536): rewrite `skills/workflow/SKILL.md` for v6 — removes stale v3/v5 content,
+  documents propose-process as the decision engine, interaction modes (normal/yolo),
+  rigor tiers, phase plan, and gate policy reviewer assignment
+- feat(tests): add 4 regression suites — agent subagent_type coverage, basename
+  uniqueness, command agent ref resolution, workflow skill v6 conformance
+
 ## [6.3.1] - 2026-04-19
 
 ### Bug Fixes
