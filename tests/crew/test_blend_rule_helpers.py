@@ -494,5 +494,229 @@ class TestBlendHelpersPropagateOrSurfaceFailure(unittest.TestCase):
         self.assertNotEqual(result["verdict"], "APPROVE")
 
 
+# ---------------------------------------------------------------------------
+# #473 — Multi-reviewer dispatch-count invariant
+# ---------------------------------------------------------------------------
+
+
+def _under_counting_dispatcher(verdict, *, increment: int = 0):
+    """Return a dispatcher that reports fewer calls than it actually made.
+
+    When ``increment == 0`` (default), the ``.calls`` attribute never grows
+    regardless of how many times the dispatcher is called — simulating one
+    agent emulating N reviewers without dispatching N Agent calls.
+    """
+    calls_visible = []
+
+    def dispatcher(subagent_type, prompt, context):
+        # Intentionally do NOT append every invocation — simulate undercounting.
+        if increment and (len(calls_visible) < increment):
+            calls_visible.append({"subagent_type": subagent_type})
+        return verdict
+
+    dispatcher.calls = calls_visible
+    return dispatcher
+
+
+class TestMultiReviewerDispatchCountInvariant(unittest.TestCase):
+    """#473 — Parallel / council must dispatch N calls for N reviewers.
+
+    An injected mock dispatcher that under-counts invocations must cause
+    the helper to raise ``DispatchCountError``. The invariant protects
+    against one agent emulating N reviewers in a single call.
+    """
+
+    def test_parallel_raises_dispatch_count_error_on_undercount(self):
+        """Parallel fallback loop raises DispatchCountError when undercounted."""
+        # No batched path — dispatcher raises on the sentinel so we fall
+        # through to the per-reviewer loop, where the undercount is visible.
+        verdict = {"verdict": "APPROVE", "score": 0.9, "reason": "ok"}
+        dispatcher = _under_counting_dispatcher(verdict, increment=0)
+        with self.assertRaises(phase_manager.DispatchCountError):
+            phase_manager._dispatch_parallel_and_merge(
+                None, "build", "code-quality",
+                ["senior-engineer", "security-engineer", "devsecops-engineer"],
+                dispatcher=dispatcher,
+            )
+
+    def test_council_raises_dispatch_count_error_on_undercount(self):
+        """Council dispatch inherits the invariant via parallel-and-merge."""
+        verdict = {"verdict": "APPROVE", "score": 0.9}
+        dispatcher = _under_counting_dispatcher(verdict, increment=0)
+        with self.assertRaises(phase_manager.DispatchCountError):
+            phase_manager._dispatch_council(
+                None, "design", "design-quality",
+                ["r1", "r2", "r3"],
+                dispatcher=dispatcher,
+            )
+
+    def test_parallel_passes_when_count_matches(self):
+        """Honest mock with .calls growing once-per-invocation does not raise."""
+        dispatcher = _mock_dispatcher_factory({
+            "senior-engineer": {"verdict": "APPROVE", "score": 0.9},
+            "security-engineer": {"verdict": "APPROVE", "score": 0.85},
+        })
+        # Poison the batched path so the fallback loop runs. We do this
+        # by wrapping the dispatcher — the batched call raises, subsequent
+        # per-reviewer calls return honest verdicts.
+        original = dispatcher
+
+        def fallback_only(subagent_type, prompt, context):
+            if subagent_type.endswith("_parallel_batch"):
+                raise RuntimeError("no-batch-support")
+            return original(subagent_type, prompt, context)
+
+        fallback_only.calls = original.calls
+        # Should NOT raise — each reviewer got its own dispatcher call.
+        result = phase_manager._dispatch_parallel_and_merge(
+            None, "build", "code-quality",
+            ["senior-engineer", "security-engineer"],
+            dispatcher=fallback_only,
+        )
+        self.assertEqual(result["verdict"], "APPROVE")
+
+    def test_batched_path_raises_on_short_result_list(self):
+        """Batched path with N results != len(reviewers) also raises."""
+
+        def short_batched_dispatcher(subagent_type, prompt, context):
+            if subagent_type.endswith("_parallel_batch"):
+                # Return only 1 result for 3 reviewers — impersonation attempt.
+                return [{"verdict": "APPROVE", "score": 0.9}]
+            return {"verdict": "APPROVE", "score": 0.9}
+
+        short_batched_dispatcher.calls = []
+        with self.assertRaises(phase_manager.DispatchCountError):
+            phase_manager._dispatch_parallel_and_merge(
+                None, "build", "code-quality",
+                ["r1", "r2", "r3"],
+                dispatcher=short_batched_dispatcher,
+            )
+
+
+# ---------------------------------------------------------------------------
+# #476 — Blind-reviewer context sanitization
+# ---------------------------------------------------------------------------
+
+
+class TestBlindReviewerContext(unittest.TestCase):
+    """#476 — Reviewer briefs must not carry the executor's self-assessment.
+
+    The sanitizer strips ``self_score``, ``self_verdict``, and
+    ``executor_notes`` from any context dict passed to a dispatcher. Tests
+    use the capture-all mock to inspect what the dispatcher actually
+    received.
+    """
+
+    def _capture_dispatcher(self, verdict_map):
+        """Return a dispatcher that records (subagent, prompt, context)."""
+        calls = []
+
+        def dispatcher(subagent_type, prompt, context):
+            # Deep-copy context so the test sees exactly what was passed.
+            import copy
+            calls.append({
+                "subagent_type": subagent_type,
+                "prompt": prompt,
+                "context": copy.deepcopy(context),
+            })
+            if subagent_type.endswith("_parallel_batch"):
+                reviewers = context.get("reviewers") or []
+                return [
+                    verdict_map.get(r, {"verdict": "CONDITIONAL", "score": 0.0})
+                    for r in reviewers
+                ]
+            name = subagent_type.split(":")[-1]
+            return verdict_map.get(
+                name, {"verdict": "CONDITIONAL", "score": 0.0},
+            )
+
+        dispatcher.calls = calls
+        return dispatcher
+
+    def test_strip_helper_removes_known_keys(self):
+        """_strip_executor_self_score removes all three self-score keys."""
+        raw = {
+            "gate_name": "code-quality",
+            "phase": "build",
+            "self_score": 0.95,
+            "self_verdict": "APPROVE",
+            "executor_notes": "lgtm",
+            "reviewer": "senior-engineer",
+        }
+        clean = phase_manager._strip_executor_self_score(raw)
+        self.assertNotIn("self_score", clean)
+        self.assertNotIn("self_verdict", clean)
+        self.assertNotIn("executor_notes", clean)
+
+    def test_strip_helper_preserves_allowed_keys(self):
+        """_strip_executor_self_score keeps every non-self-score key intact."""
+        raw = {
+            "gate_name": "code-quality",
+            "phase": "build",
+            "self_score": 0.95,
+            "reviewer": "senior-engineer",
+        }
+        clean = phase_manager._strip_executor_self_score(raw)
+        self.assertEqual(clean.get("gate_name"), "code-quality")
+        self.assertEqual(clean.get("reviewer"), "senior-engineer")
+
+    def test_parallel_dispatcher_receives_no_self_score(self):
+        """No context delivered to the dispatcher in parallel mode carries self_score."""
+        dispatcher = self._capture_dispatcher({
+            "senior-engineer": {"verdict": "APPROVE", "score": 0.9},
+            "security-engineer": {"verdict": "APPROVE", "score": 0.85},
+        })
+        # Poison the batched path so we exercise the per-reviewer fallback.
+        original = dispatcher
+
+        def fallback_only(subagent_type, prompt, context):
+            if subagent_type.endswith("_parallel_batch"):
+                raise RuntimeError("no-batch")
+            return original(subagent_type, prompt, context)
+
+        fallback_only.calls = original.calls
+        phase_manager._dispatch_parallel_and_merge(
+            None, "build", "code-quality",
+            ["senior-engineer", "security-engineer"],
+            dispatcher=fallback_only,
+        )
+        for entry in original.calls:
+            ctx = entry["context"] or {}
+            self.assertNotIn("self_score", ctx)
+            self.assertNotIn("self_verdict", ctx)
+            self.assertNotIn("executor_notes", ctx)
+
+    def test_sequential_dispatcher_receives_no_self_score(self):
+        """No context delivered to the dispatcher in sequential mode carries self_score."""
+        dispatcher = self._capture_dispatcher({
+            "senior-engineer": {"verdict": "APPROVE", "score": 0.9},
+        })
+        phase_manager._dispatch_sequential(
+            None, "build", "code-quality",
+            ["senior-engineer"],
+            dispatcher=dispatcher,
+        )
+        for entry in dispatcher.calls:
+            ctx = entry["context"] or {}
+            self.assertNotIn("self_score", ctx)
+            self.assertNotIn("self_verdict", ctx)
+            self.assertNotIn("executor_notes", ctx)
+
+    def test_fast_evaluator_dispatcher_receives_no_self_score(self):
+        """Fast-evaluator dispatcher context has no self_* keys."""
+        dispatcher = self._capture_dispatcher({
+            "gate-evaluator": {"verdict": "APPROVE", "score": 0.9},
+        })
+        phase_manager._dispatch_fast_evaluator(
+            None, "design", "design-quality",
+            dispatcher=dispatcher,
+        )
+        for entry in dispatcher.calls:
+            ctx = entry["context"] or {}
+            self.assertNotIn("self_score", ctx)
+            self.assertNotIn("self_verdict", ctx)
+            self.assertNotIn("executor_notes", ctx)
+
+
 if __name__ == "__main__":
     unittest.main()

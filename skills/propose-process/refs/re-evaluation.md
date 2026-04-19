@@ -2,6 +2,43 @@
 
 The facilitator runs at every phase boundary — not just at `crew:start`. Two modes:
 
+## How to invoke (#475 — skill call, not JSON snapshot)
+
+Both phase-start and phase-end re-evals are executed by **invoking the
+propose-process skill in `re-evaluate` mode** and appending the returned
+record to `process-plan.addendum.jsonl` via
+`scripts/crew/reeval_addendum.py` (`append(...)` as library or the `append`
+subcommand). Writing JSON snapshots in lieu of the skill call is a
+bootstrap-only behavior from v6.0 beta and is no longer accepted — the
+addendum JSONL line is the authoritative record.
+
+The exact call shape (from `agents/crew/phase-executor.md`):
+
+```
+Skill(
+  skill='wicked-garden:propose-process',
+  args={
+    "mode": "re-evaluate",
+    "current_chain": <structured dict from scripts/crew/current_chain.py>,
+    "bookend": "phase-start" | "phase-end",
+    "phase": "<phase>",
+    "project": "<project>"
+  }
+)
+```
+
+After the call returns, append via:
+
+```python
+from reeval_addendum import append as reeval_addendum_append
+reeval_addendum_append(project_dir, phase="<phase>", record=<returned record>)
+```
+
+`scripts/crew/phase_manager.py::execute` soft-enforces this contract by
+sampling the addendum line count before and after the executor runs
+(`_verify_reeval_addendum_growth`, #482). No growth → `reeval_warning`
+on the result dict and a stderr warning.
+
 ## Phase-start heuristic
 
 Before the first specialist engages, `phase_start_gate.check()` fires a lightweight check. If task-completion count or evidence file mtimes have changed since `last_reeval_ts`, it emits a `systemMessage` directing the facilitator to run `re-evaluate` mode before proceeding. Fail-open: missing chain data → no-op with warning.
@@ -10,7 +47,7 @@ See `scripts/crew/phase_start_gate.py` for the stdlib implementation. Heuristic 
 
 ## Phase-end full re-eval
 
-After the phase's primary deliverable is written, before `crew:approve`, the facilitator is invoked in `re-evaluate` mode with the structured `current_chain` dict (from `scripts/crew/current_chain.py`). The output is appended as a JSONL record to `phases/{phase}/reeval-log.jsonl`.
+After the phase's primary deliverable is written, before `crew:approve`, the facilitator is invoked in `re-evaluate` mode with the structured `current_chain` dict (from `scripts/crew/current_chain.py`). The output is appended as a JSONL record to `phases/{phase}/reeval-log.jsonl` AND `process-plan.addendum.jsonl` via `reeval_addendum.append()`.
 
 `crew:approve` is **blocked fail-closed** until a conformant addendum exists. Schema: `refs/re-eval-addendum-schema.md`. Emergency bypass: `--skip-reeval --reason "<justification>"` which writes to `skip-reeval-log.json` and is consumed by `final-audit` gate per D9.
 
