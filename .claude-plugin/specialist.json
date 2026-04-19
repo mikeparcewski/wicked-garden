@@ -1,5 +1,6 @@
 {
   "plugin": "wicked-garden",
+  "_comment": "Specialist roles listed here are user-facing disciplines surfaced by crew for phase routing. Internal infrastructure domains (crew, mem, persona, smaht, search, jam) are NOT listed as specialists — they are invoked directly via their commands, not routed through the specialist dispatch system.",
   "specialists": [
     {
       "name": "engineering",

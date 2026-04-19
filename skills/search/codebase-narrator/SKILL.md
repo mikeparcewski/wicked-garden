@@ -1,4 +1,7 @@
 ---
+# Search domain convention: search is primarily command-driven. Skill logic is embedded in
+# the domain scripts (scripts/search/). Skills here cover cross-cutting codebase-level
+# patterns only. For interactive search, use /wicked-garden:search:{code|docs|blast-radius|lineage}.
 name: codebase-narrator
 description: |
   Narrate codebase structure and architecture for orientation — directory layout,

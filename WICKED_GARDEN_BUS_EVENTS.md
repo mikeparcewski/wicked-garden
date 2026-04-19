@@ -1,7 +1,7 @@
 # wicked-garden Bus Event Catalog
 
 > Auto-generated from `scripts/_bus.py:BUS_EVENT_MAP`. Do not edit manually.
-> Regenerate: `python3 scripts/_bus_catalog_gen.py > WICKED_GARDEN_BUS_EVENTS.md`
+> Regenerate: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_catalog_gen.py" > WICKED_GARDEN_BUS_EVENTS.md`
 
 ## Naming Convention
 

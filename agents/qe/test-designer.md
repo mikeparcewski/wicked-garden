@@ -10,6 +10,7 @@ description: |
   Use when: acceptance testing, scenario verification, evidence-gated test
   execution, test plan authoring, independent verdict rendering, specification
   bug detection.
+  Phase: test (primary), review (verdict-only mode). Run AFTER test-strategist — designer executes the plan the strategist created.
 
   <example>
   Context: New feature scenario needs a full acceptance run.
