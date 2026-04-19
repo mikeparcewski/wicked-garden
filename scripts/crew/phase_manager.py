@@ -1353,6 +1353,103 @@ def _record_dispatch(
         )
 
 
+# ---------------------------------------------------------------------------
+# Shared reviewer context (issue #474)
+#
+# Writing the same "here is the phase, here are the deliverables, here are
+# the prior-phase gate findings" block into every reviewer brief is wasteful
+# — reviewers in a parallel dispatch all read the same upstream context.
+# The phase-executor produces a single ``phases/{phase}/reviewer-context.md``
+# up-front, and `_dispatch_gate_reviewer` + friends pass the file PATH into
+# the reviewer brief instead of re-embedding the content. Reviewers open the
+# file themselves with Read when they need it.
+#
+# Design constraints:
+#   - The helper is idempotent: if ``reviewer-context.md`` already exists,
+#     it is left alone. The phase-executor is the canonical writer; the
+#     dispatcher is only a fallback when the executor didn't produce one.
+#   - The helper is fail-open: when writing is not possible (no project_dir,
+#     no filesystem access), the dispatcher still injects whatever path it
+#     *would* have written so reviewer briefs remain consistent in shape.
+#   - Content is minimal — reviewer-specific context stays in the reviewer
+#     brief. The file is a pointer, not a replacement for reviewer prompts.
+# ---------------------------------------------------------------------------
+
+REVIEWER_CONTEXT_FILENAME = "reviewer-context.md"
+
+
+def _reviewer_context_path(project_dir: Path, phase: str) -> Path:
+    """Return the canonical reviewer-context.md path for ``(project, phase)``.
+
+    Does not read / write — just the location. Callers use
+    :func:`ensure_reviewer_context` to materialize content when absent.
+    """
+    return Path(project_dir) / "phases" / phase / REVIEWER_CONTEXT_FILENAME
+
+
+def ensure_reviewer_context(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+) -> Optional[Path]:
+    """Ensure ``phases/{phase}/reviewer-context.md`` exists; return its path.
+
+    The phase-executor is the canonical writer for this file (per #474), but
+    when the dispatcher is called outside a full phase-execution (e.g. a
+    manual ``/wicked-garden:crew:gate`` re-run), we still want reviewers to
+    be pointed at a file. This helper performs a cheap stub-write when
+    missing so reviewer briefs always carry a valid path.
+
+    Fails open: returns ``None`` when the path cannot be resolved (no
+    state, no project_dir, filesystem not writable). Callers handle
+    ``None`` by omitting the shared-context line from the reviewer brief.
+
+    Args:
+        state: Optional project state used to resolve ``project_dir``.
+        phase: Phase name under ``phases/``.
+        gate_name: Gate being dispatched — embedded in the stub so the
+            generated file is self-describing when recovered post-hoc.
+
+    Returns:
+        Absolute path to the reviewer-context.md file, or ``None`` if
+        not resolvable.
+    """
+    if state is None or not getattr(state, "name", None):
+        return None
+    try:
+        project_dir = get_project_dir(state.name)
+    except (ValueError, Exception):
+        return None
+
+    context_path = _reviewer_context_path(project_dir, phase)
+    if context_path.exists():
+        return context_path
+
+    try:
+        context_path.parent.mkdir(parents=True, exist_ok=True)
+        stub = (
+            f"# Reviewer Context — {state.name} / phase={phase}\n"
+            f"\n"
+            f"_Auto-generated stub. The phase-executor should produce a "
+            f"richer reviewer-context.md during phase execution._\n"
+            f"\n"
+            f"- **project:** {state.name}\n"
+            f"- **phase:** {phase}\n"
+            f"- **gate:** {gate_name}\n"
+            f"- **generated_at:** {get_utc_timestamp()}\n"
+            f"\n"
+            f"## Deliverables to review\n"
+            f"\n"
+            f"See `phases/{phase}/` for the full set of deliverables. "
+            f"Prior-phase gate findings live in "
+            f"`phases/*/gate-result.json`.\n"
+        )
+        context_path.write_text(stub, encoding="utf-8")
+    except OSError:
+        return None
+    return context_path
+
+
 def _banned_reviewer_error(reviewer: str) -> Optional[str]:
     """Return a reason string if `reviewer` is banned; None otherwise.
 
@@ -1606,6 +1703,7 @@ def _dispatch_fast_evaluator(
     *,
     dispatcher: Optional[Any] = None,
     fallback_reviewer: str = "gate-evaluator",
+    shared_context_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Fast-path dispatcher for self-check / advisory / empty-reviewers gates.
 
@@ -1617,16 +1715,27 @@ def _dispatch_fast_evaluator(
     # out-of-band gate-result written by a rogue agent fails the orphan
     # check. Fail-open — errors do not block dispatch.
     _record_dispatch(state, phase, gate_name, fallback_reviewer)
-    ctx = _strip_executor_self_score({
+    ctx: Dict[str, Any] = {
         "gate_name": gate_name,
         "phase": phase,
         "project": getattr(state, "name", None) if state is not None else None,
         "mode": "fast-evaluator",
-    })
+    }
+    # #474 — inject the shared reviewer-context.md path (not the content).
+    if shared_context_path is not None:
+        ctx["shared_context_path"] = str(shared_context_path)
+    # #473 — strip executor self-score keys before dispatching to reviewers.
+    ctx = _strip_executor_self_score(ctx)
     if dispatcher is None:
         return _empty_verdict_stub(
             gate_name, phase, "dispatcher-unavailable", reviewer=fallback_reviewer
         )
+    shared_line = (
+        f" Shared reviewer context: read `{shared_context_path}` for phase-wide "
+        f"deliverable and prior-finding context."
+        if shared_context_path is not None
+        else ""
+    )
     try:
         raw = dispatcher(
             "wicked-garden:crew:gate-evaluator",
@@ -1634,7 +1743,7 @@ def _dispatch_fast_evaluator(
                 f"Evaluate gate '{gate_name}' for phase '{phase}'. "
                 "Read gate-policy.json for objective thresholds and the "
                 f"deliverables under phases/{phase}/. Emit verdict + score + "
-                "reason + conditions."
+                "reason + conditions." + shared_line
             ),
             ctx,
         )
@@ -1658,6 +1767,7 @@ def _dispatch_sequential(
     reviewers: List[str],
     *,
     dispatcher: Optional[Any] = None,
+    shared_context_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Dispatch reviewers in order, stopping on the first REJECT.
 
@@ -1672,25 +1782,38 @@ def _dispatch_sequential(
         _record_dispatch(state, phase, gate_name, _reviewer)
     if not reviewers:
         return _dispatch_fast_evaluator(
-            state, phase, gate_name, dispatcher=dispatcher
+            state, phase, gate_name, dispatcher=dispatcher,
+            shared_context_path=shared_context_path,
         )
     if dispatcher is None:
         return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
 
+    shared_line = (
+        f" Shared reviewer context: read `{shared_context_path}` for phase-wide "
+        f"deliverable and prior-finding context."
+        if shared_context_path is not None
+        else ""
+    )
+
     collected: List[Dict[str, Any]] = []
     for reviewer in reviewers:
+        ctx: Dict[str, Any] = {
+            "gate_name": gate_name,
+            "phase": phase,
+            "reviewer": reviewer,
+        }
+        if shared_context_path is not None:
+            ctx["shared_context_path"] = str(shared_context_path)
+        # #473 — strip executor self-score keys before dispatching to reviewers.
+        ctx = _strip_executor_self_score(ctx)
         try:
             raw = dispatcher(
                 f"wicked-garden:crew:{reviewer}",
                 (
                     f"Review gate '{gate_name}' for phase '{phase}' as {reviewer}. "
-                    "Emit verdict + score + reason + conditions."
+                    "Emit verdict + score + reason + conditions." + shared_line
                 ),
-                _strip_executor_self_score({
-                    "gate_name": gate_name,
-                    "phase": phase,
-                    "reviewer": reviewer,
-                }),
+                ctx,
             )
         except Exception as exc:  # pragma: no cover — defensive
             raw = {"verdict": "CONDITIONAL", "score": 0.0,
@@ -1716,6 +1839,7 @@ def _dispatch_parallel_and_merge(
     reviewers: List[str],
     *,
     dispatcher: Optional[Any] = None,
+    shared_context_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Dispatch all reviewers in a single-message parallel Agent batch (SC-6).
 
@@ -1733,10 +1857,18 @@ def _dispatch_parallel_and_merge(
         _record_dispatch(state, phase, gate_name, _reviewer)
     if not reviewers:
         return _dispatch_fast_evaluator(
-            state, phase, gate_name, dispatcher=dispatcher
+            state, phase, gate_name, dispatcher=dispatcher,
+            shared_context_path=shared_context_path,
         )
     if dispatcher is None:
         return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
+
+    shared_line = (
+        f" Shared reviewer context: read `{shared_context_path}` for phase-wide "
+        f"deliverable and prior-finding context."
+        if shared_context_path is not None
+        else ""
+    )
 
     per_reviewer: List[Dict[str, Any]] = []
     # Attempt batched dispatch first via a sentinel subagent_type. If the
@@ -1744,19 +1876,24 @@ def _dispatch_parallel_and_merge(
     # we then fall back to per-reviewer dispatch. The caller supplies
     # whichever style they support.
     batched: Any = None
+    batch_ctx: Dict[str, Any] = {
+        "gate_name": gate_name,
+        "phase": phase,
+        "reviewers": reviewers,
+        "mode": "parallel",
+    }
+    if shared_context_path is not None:
+        batch_ctx["shared_context_path"] = str(shared_context_path)
+    # #473 — strip executor self-score keys before dispatching to reviewers.
+    batch_ctx = _strip_executor_self_score(batch_ctx)
     try:
         batched = dispatcher(
             "wicked-garden:crew:_parallel_batch",
             (
                 f"Dispatch reviewers in parallel for gate '{gate_name}' "
-                f"phase '{phase}'. reviewers={reviewers}"
+                f"phase '{phase}'. reviewers={reviewers}" + shared_line
             ),
-            _strip_executor_self_score({
-                "gate_name": gate_name,
-                "phase": phase,
-                "reviewers": reviewers,
-                "mode": "parallel",
-            }),
+            batch_ctx,
         )
     except Exception:
         batched = None
@@ -1786,19 +1923,25 @@ def _dispatch_parallel_and_merge(
         # loop itself.)
         count_before = _dispatcher_call_count(dispatcher)
         for reviewer in reviewers:
+            ctx: Dict[str, Any] = {
+                "gate_name": gate_name,
+                "phase": phase,
+                "reviewer": reviewer,
+                "mode": "parallel",
+            }
+            if shared_context_path is not None:
+                ctx["shared_context_path"] = str(shared_context_path)
+            # #473 — strip executor self-score keys before dispatching.
+            ctx = _strip_executor_self_score(ctx)
             try:
                 raw = dispatcher(
                     f"wicked-garden:crew:{reviewer}",
                     (
                         f"Review gate '{gate_name}' for phase '{phase}' as "
                         f"{reviewer}. Emit verdict + score + reason + conditions."
+                        + shared_line
                     ),
-                    _strip_executor_self_score({
-                        "gate_name": gate_name,
-                        "phase": phase,
-                        "reviewer": reviewer,
-                        "mode": "parallel",
-                    }),
+                    ctx,
                 )
             except Exception as exc:  # pragma: no cover
                 raw = {"verdict": "CONDITIONAL", "score": 0.0,
@@ -1832,6 +1975,7 @@ def _dispatch_council(
     *,
     min_concurrence: float = 0.6,
     dispatcher: Optional[Any] = None,
+    shared_context_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Council dispatch — parallel plurality vote with concurrence threshold.
 
@@ -1851,13 +1995,16 @@ def _dispatch_council(
         )
     if not reviewers:
         return _dispatch_fast_evaluator(
-            state, phase, gate_name, dispatcher=dispatcher
+            state, phase, gate_name, dispatcher=dispatcher,
+            shared_context_path=shared_context_path,
         )
     if dispatcher is None:
         return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
 
     merged = _dispatch_parallel_and_merge(
-        state, phase, gate_name, reviewers, dispatcher=dispatcher
+        state, phase, gate_name, reviewers,
+        dispatcher=dispatcher,
+        shared_context_path=shared_context_path,
     )
     merged["dispatch_mode"] = "council"
 
@@ -1955,6 +2102,12 @@ def _dispatch_gate_reviewer(
     reviewers = list(gate_policy_entry.get("reviewers") or [])
     fallback = gate_policy_entry.get("fallback") or "gate-evaluator"
 
+    # #474 — materialize a shared reviewer-context.md ONCE and pass the
+    # path into every reviewer brief instead of re-embedding context.
+    # Fail-open: when the file cannot be resolved, downstream helpers
+    # simply omit the ``shared_context_path`` key from their context dicts.
+    shared_context_path = ensure_reviewer_context(state, phase, gate_name)
+
     # BLEND RULE — fast path when no reviewers or advisory/self-check.
     if not reviewers or mode in ("self-check", "advisory"):
         return _dispatch_fast_evaluator(
@@ -1963,19 +2116,26 @@ def _dispatch_gate_reviewer(
             gate_name,
             dispatcher=dispatcher,
             fallback_reviewer=fallback,
+            shared_context_path=shared_context_path,
         )
 
     if mode == "sequential":
         return _dispatch_sequential(
-            state, phase, gate_name, reviewers, dispatcher=dispatcher
+            state, phase, gate_name, reviewers,
+            dispatcher=dispatcher,
+            shared_context_path=shared_context_path,
         )
     if mode == "parallel":
         return _dispatch_parallel_and_merge(
-            state, phase, gate_name, reviewers, dispatcher=dispatcher
+            state, phase, gate_name, reviewers,
+            dispatcher=dispatcher,
+            shared_context_path=shared_context_path,
         )
     if mode == "council":
         return _dispatch_council(
-            state, phase, gate_name, reviewers, dispatcher=dispatcher
+            state, phase, gate_name, reviewers,
+            dispatcher=dispatcher,
+            shared_context_path=shared_context_path,
         )
 
     # Unknown mode — conservative stub (do not raise: this path runs inside
