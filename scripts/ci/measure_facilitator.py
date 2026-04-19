@@ -10,7 +10,7 @@ Mechanics
 ---------
 Each scenario under scenarios/crew/facilitator-rubric/ carries a YAML
 expected_outcome block inside ```yaml ... ``` fences. The facilitator rubric
-(skills/crew/propose-process) emits a JSON object matching
+(skills/propose-process) emits a JSON object matching
 refs/output-schema.md. This script loads both, compares them across six
 dimensions, and prints a per-scenario + overall pass/fail report.
 
@@ -614,7 +614,7 @@ def main(argv: list[str]) -> int:
         )
         print(
             f"Capture JSON under {args.outputs}/<scenario>.json "
-            "(see skills/crew/propose-process/refs/output-schema.md).",
+            "(see skills/propose-process/refs/output-schema.md).",
             file=sys.stderr,
         )
 

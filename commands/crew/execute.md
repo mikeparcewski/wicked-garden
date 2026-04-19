@@ -68,7 +68,7 @@ print(json.dumps(result))
 "
 ```
 
-**On a non-empty `systemMessage` response**: emit the directive verbatim before proceeding. The directive instructs Claude to invoke `wicked-garden:crew:propose-process` in `re-evaluate` mode with the `current_chain` data before engaging specialists. **Do not proceed to Step 1 until re-eval completes** (or the user explicitly bypasses with `--skip-reeval --reason`).
+**On a non-empty `systemMessage` response**: emit the directive verbatim before proceeding. The directive instructs Claude to invoke `wicked-garden:propose-process` in `re-evaluate` mode with the `current_chain` data before engaging specialists. **Do not proceed to Step 1 until re-eval completes** (or the user explicitly bypasses with `--skip-reeval --reason`).
 
 **Fail-open**: if `phase_start_gate.check()` returns `{"ok": true}` with no `systemMessage`, proceed normally. If the script is unavailable or errors, proceed with a stderr warning.
 
@@ -197,7 +197,7 @@ Check for `${CREW_ROOT}/preferences.yaml` or project-level preferences for:
 
 ### 4. Archetype Pre-Analysis — REMOVED IN V6
 
-The old "dynamic archetype pre-analysis" phase (discover project context → classify archetypes → cache `archetype_hints` on `project.json`) has been **removed** in v6. Its job is now owned by `wicked-garden:crew:propose-process` (run during `/wicked-garden:crew:start`), which folds project-type readings into its 9 factor scores and specialist picks. No standalone archetype step runs here — skip straight to 4.4 to load the facilitator's plan. Checkpoint re-evaluation (Section 4.5) re-invokes the facilitator in `re-evaluate` mode when phase artifacts change the picture.
+The old "dynamic archetype pre-analysis" phase (discover project context → classify archetypes → cache `archetype_hints` on `project.json`) has been **removed** in v6. Its job is now owned by `wicked-garden:propose-process` (run during `/wicked-garden:crew:start`), which folds project-type readings into its 9 factor scores and specialist picks. No standalone archetype step runs here — skip straight to 4.4 to load the facilitator's plan. Checkpoint re-evaluation (Section 4.5) re-invokes the facilitator in `re-evaluate` mode when phase artifacts change the picture.
 
 ### 4.4 Load Facilitator Plan
 
@@ -207,7 +207,7 @@ Locate the active project and read the facilitator's plan (v6 — replaces the o
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
 ```
 
-This returns `{project, project_dir}`. Read `${project_dir}/process-plan.json` for the canonical plan written by `wicked-garden:crew:propose-process`. Pull the following fields (schema: `skills/crew/propose-process/refs/output-schema.md`):
+This returns `{project, project_dir}`. Read `${project_dir}/process-plan.json` for the canonical plan written by `wicked-garden:propose-process`. Pull the following fields (schema: `skills/propose-process/refs/output-schema.md`):
 
 - **factors** — 9 factor readings (reversibility, blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort, state_complexity, operational_risk, coordination_cost), each `{reading: LOW|MEDIUM|HIGH, why: "..."}`. These replace `signals_detected`.
 - **specialists** — list of `{name, why}` the facilitator picked. Replaces `specialists_recommended`.
@@ -215,7 +215,7 @@ This returns `{project, project_dir}`. Read `${project_dir}/process-plan.json` f
 - **rigor_tier** — `minimal | standard | full` (gate enforcement level).
 - **complexity** — integer 0-7 (drives autonomy and gate thresholds).
 
-If `process-plan.json` is missing (legacy project), invoke `wicked-garden:crew:propose-process` in `propose` mode now and persist the plan before continuing.
+If `process-plan.json` is missing (legacy project), invoke `wicked-garden:propose-process` in `propose` mode now and persist the plan before continuing.
 
 ### 4.5 Signal Re-Analysis at Checkpoints
 
@@ -230,7 +230,7 @@ When a checkpoint phase completes:
    description + phase artifacts:
    ```
    Skill(
-     skill="wicked-garden:crew:propose-process",
+     skill="wicked-garden:propose-process",
      args={
        "description": "{original description + combined text summary of deliverables}",
        "mode": "re-evaluate",
@@ -242,7 +242,7 @@ When a checkpoint phase completes:
    ```
    The skill reads the prior plan + new context and emits a diff plan (new factor
    readings, any phase additions/demotions, any rigor_tier change). See
-   `skills/crew/propose-process/SKILL.md#Re-evaluation mode`.
+   `skills/propose-process/SKILL.md#Re-evaluation mode`.
 3. **Compare factors AND complexity**: Diff new `factors` against project.json
    `factors`, AND compare new `complexity` against `complexity_score`
 4. **If factor readings shift OR complexity increased**:

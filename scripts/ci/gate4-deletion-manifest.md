@@ -72,7 +72,7 @@
 |---|---|---|---|
 | `commands/crew/start.md` | 403 | `scripts/crew/smart_decisioning.py --json ...` invocation in Section B | **legacy-path-only**: Section B (WG_FACILITATOR=legacy) exists as the rollback escape hatch. In Phase 2 the `start.md` legacy section B is deleted entirely along with the script. |
 | `commands/crew/start.md` | 415–420 | Section B `memory_payload` handling | delete with Section B |
-| `commands/crew/execute.md` | 228, 253 | `scripts/crew/smart_decisioning.py --json` for checkpoint re-analysis | rewrite: checkpoint re-analysis must invoke `wicked-garden:crew:propose-process` skill in `re-evaluate` mode (see `skills/crew/propose-process/SKILL.md#Re-evaluation mode`) |
+| `commands/crew/execute.md` | 228, 253 | `scripts/crew/smart_decisioning.py --json` for checkpoint re-analysis | rewrite: checkpoint re-analysis must invoke `wicked-garden:propose-process` skill in `re-evaluate` mode (see `skills/propose-process/SKILL.md#Re-evaluation mode`) |
 | `commands/crew/execute.md` | 297, 303 | Section "memory_payload handling" | rewrite: payload is now the facilitator's `process-plan.md` addendum + explicit `wicked-brain:memory` call (rubric Step 9 / re-eval mode) |
 | `commands/crew/just-finish.md` | 166 | `scripts/crew/smart_decisioning.py --json "{summary of deliverables}"` | rewrite: invoke propose-process skill with `mode=yolo` |
 | `commands/crew/swarm.md` | 41 | `from smart_decisioning import detect_swarm_trigger` | rewrite: detect_swarm_trigger is gate-finding aggregation — move to a standalone stdlib module `scripts/crew/swarm_trigger.py` (roughly 70 LOC isolated in smart_decisioning.py lines ~1781–1870) OR replace with bus-query over `event_type=gate-finding` events. See note in §4 — this is the **one non-trivial extraction** hiding in the manifest. |
@@ -81,8 +81,8 @@
 | `skills/smaht/SKILL.md` | 22, 25, 28 | orchestrator invocation | rewrite skill body or retire |
 | `skills/qe/scenario-executor/refs/prose-interpretation.md` | 29, 37 | smaht/v2/orchestrator references | update prose |
 | `skills/qe/qe-strategy/refs/test-type-taxonomy.md` | 295 | reference to smart_decisioning signal analysis | update prose to cite facilitator rubric |
-| `skills/crew/workflow/refs/scoring-rubric.md` | 4 | "extracted from smart_decisioning.py" | rewrite or delete ref (the workflow skill's scoring refs may become obsolete — propose-process is the new rubric) |
-| `skills/crew/propose-process/SKILL.md` | 7 | descriptive mention: "Replaces the v5 rule engine (smart_decisioning.py + phases.json + SIGNAL_TO_SPECIALISTS)" | leave — this is the deprecation notice pointing at the old system |
+| `skills/workflow/refs/scoring-rubric.md` | 4 | "extracted from smart_decisioning.py" | rewrite or delete ref (the workflow skill's scoring refs may become obsolete — propose-process is the new rubric) |
+| `skills/propose-process/SKILL.md` | 7 | descriptive mention: "Replaces the v5 rule engine (smart_decisioning.py + phases.json + SIGNAL_TO_SPECIALISTS)" | leave — this is the deprecation notice pointing at the old system |
 
 ### 2.3 Config / data files
 
@@ -157,8 +157,8 @@ For Phase 2 execution, each caller falls into one of:
 - `commands/smaht/smaht.md`, `commands/smaht/debug.md`, `skills/smaht/SKILL.md` — **pending decision**: retire smaht domain vs. shim over brain+search
 
 **Rewrite to use facilitator**:
-- `commands/crew/execute.md` — checkpoint re-analysis → `wicked-garden:crew:propose-process` (mode=re-evaluate)
-- `commands/crew/just-finish.md` — yolo completion → `wicked-garden:crew:propose-process` (mode=yolo)
+- `commands/crew/execute.md` — checkpoint re-analysis → `wicked-garden:propose-process` (mode=re-evaluate)
+- `commands/crew/just-finish.md` — yolo completion → `wicked-garden:propose-process` (mode=yolo)
 - `scenarios/qe/qe-lifecycle-expansion.md` — signal-to-specialist coverage → rewrite against facilitator roster
 - `hooks/scripts/prompt_submit.py` — strip v2 imports; retain session counter + goal capture + memory nudge (<100 LOC after surgery)
 - `hooks/scripts/stop.py` — drop FactExtractor path OR reimplement as stdlib turn-log scanner (~60 LOC)

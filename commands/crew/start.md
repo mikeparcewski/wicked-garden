@@ -104,13 +104,13 @@ land in step 7.
 
 ### 5. Invoke the Facilitator Skill
 
-Invoke the `wicked-garden:crew:propose-process` skill with the description. The skill
+Invoke the `wicked-garden:propose-process` skill with the description. The skill
 is a rubric (Tier-1/2/3 progressive disclosure) that reasons over the 9 factors and
 emits a full plan.
 
 ```
 Skill(
-  skill="wicked-garden:crew:propose-process",
+  skill="wicked-garden:propose-process",
   args={
     "description": "{description}",
     "mode": "propose",
@@ -121,7 +121,7 @@ Skill(
 ```
 
 The skill returns a single JSON object matching
-`skills/crew/propose-process/refs/output-schema.md` — with `project_slug`, `summary`,
+`skills/propose-process/refs/output-schema.md` — with `project_slug`, `summary`,
 `factors`, `specialists`, `phases`, `rigor_tier`, `complexity`, `open_questions`,
 `tasks[]`. Each task carries full metadata (chain_id, event_type, source_agent:
 "facilitator", phase, test_required, test_types, evidence_required, rigor_tier).
@@ -164,7 +164,7 @@ creation — they're included in `process-plan.md` for the clarify phase to answ
 ### 7. Persist `process-plan.md`
 
 Render the returned JSON into the Markdown template at
-`skills/crew/propose-process/refs/plan-template.md`. Write to
+`skills/propose-process/refs/plan-template.md`. Write to
 `${project_dir}/process-plan.md` using the Write tool.
 
 Also persist the raw JSON alongside for audit at

@@ -7,7 +7,7 @@ Usage:
 Reads native task JSON files under ${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/,
 filters to those whose metadata.chain_id matches, and emits a structured dict
 suitable for passing as the ``current_chain`` input to the
-``wicked-garden:crew:propose-process`` skill in re-evaluate mode.
+``wicked-garden:propose-process`` skill in re-evaluate mode.
 
 Output shape:
     {

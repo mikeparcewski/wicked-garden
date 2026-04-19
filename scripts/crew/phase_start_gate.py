@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 _CHANGE_MESSAGE_TEMPLATE = (
     "Phase `{phase}` is starting. Material changes detected since last "
-    "re-evaluation ({reason}). Invoke `wicked-garden:crew:propose-process` "
+    "re-evaluation ({reason}). Invoke `wicked-garden:propose-process` "
     "in `re-evaluate` mode with `current_chain` before engaging specialists. "
     "Do not proceed until re-eval completes."
 )

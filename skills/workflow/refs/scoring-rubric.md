@@ -4,14 +4,14 @@
 algorithm that lived in `scripts/crew/smart_decisioning.py`. The script was deleted
 in the v6 rebuild (Gate 4 Phase 2, #428).
 
-**v6 replacement**: the `wicked-garden:crew:propose-process` facilitator rubric
+**v6 replacement**: the `wicked-garden:propose-process` facilitator rubric
 replaces this scoring model with a 9-factor judgment read (reversibility,
 blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort,
 state_complexity, operational_risk, coordination_cost) plus a judgment-driven 0-7
 complexity estimate. See:
 
-- `skills/crew/propose-process/SKILL.md`
-- `skills/crew/propose-process/refs/output-schema.md`
+- `skills/propose-process/SKILL.md`
+- `skills/propose-process/refs/output-schema.md`
 
 This file is kept as a historical reference for anyone reading v5 commit archeology
 or comparing v5 vs v6 behaviour. Do NOT use the composite-score formula below as a

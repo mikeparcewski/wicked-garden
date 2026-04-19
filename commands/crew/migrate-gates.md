@@ -11,7 +11,7 @@ Migration reference for moving in-flight projects to strict gate enforcement.
 
 The legacy gate-bypass env var was removed in v6.0 (D3 — clean break). There is no
 env-var escape hatch in v6.0. Projects that relied on the legacy bypass must be upgraded
-using `/wicked-garden:crew:adopt-legacy`.
+using `/wicked-garden:adopt-legacy`.
 
 ## For In-Flight Beta Projects (beta.3 → 6.0)
 
@@ -19,7 +19,7 @@ If you have a project started on v6.0-beta.3 that fails gate checks due to missi
 artifacts, use the adopt-legacy skill to inspect and upgrade it:
 
 ```bash
-/wicked-garden:crew:adopt-legacy <project-dir>
+/wicked-garden:adopt-legacy <project-dir>
 ```
 
 This detects three legacy markers and offers to transform them:
