@@ -197,5 +197,4 @@ Before Step 3 (factor scoring), read per-project process memory — unresolved r
 - [`refs/output-schema.md`](refs/output-schema.md) — JSON shape for measurement
 - [`refs/interaction-mode.md`](refs/interaction-mode.md) — normal vs. yolo, banned values
 - [`refs/gate-policy.md`](refs/gate-policy.md) — human-readable Gate × Rigor reviewer matrix
-- [`refs/re-eval-addendum-schema.md`](refs/re-eval-addendum-schema.md) — JSONL addendum schema
-- [`refs/spec-quality-rubric.md`](refs/spec-quality-rubric.md) — scored spec quality rubric (10 dims × 0-2 pts) + tier thresholds
+- [`refs/re-eval-addendum-schema.md`](refs/re-eval-addendum-schema.md) — JSONL addendum schema; [`refs/spec-quality-rubric.md`](refs/spec-quality-rubric.md) — scored spec quality rubric (10 dims × 0-2 pts) + tier thresholds
