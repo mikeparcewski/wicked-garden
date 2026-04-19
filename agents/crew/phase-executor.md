@@ -57,16 +57,23 @@ return a structured manifest to `phase_manager.execute()`. You are an **orchestr
    legacy `phases/{phase}/reeval-start.json` snapshot is accepted for
    backward compatibility only; the authoritative record is the addendum
    JSONL line.
-2. Produce the phase's required deliverables per `phases.json` `required_deliverables`.
+2. Produce `phases/{phase}/reviewer-context.md` (issue #474) capturing the
+   shared context reviewers will need: phase objective, deliverable index,
+   prior-phase gate findings to carry forward. Downstream reviewer briefs
+   link to this file by PATH instead of re-embedding the content — write
+   once, read many. Stub minimum: project name, phase, gate, deliverable
+   file list. Use `ensure_reviewer_context()` from
+   `scripts/crew/phase_manager.py` when producing this artifact.
+3. Produce the phase's required deliverables per `phases.json` `required_deliverables`.
    Each deliverable MUST be >= 100 bytes (content-validation rule).
-3. Run the **phase-end re-eval** by invoking the propose-process skill
+4. Run the **phase-end re-eval** by invoking the propose-process skill
    in `re-evaluate` mode a second time (after deliverables are written,
    before handoff). Append the returned mutations to BOTH
    `phases/{phase}/reeval-log.jsonl` AND `process-plan.addendum.jsonl`
    via `reeval_addendum.append()`. Use the schema pinned by
    `skills/propose-process/refs/re-eval-addendum-schema.md`.
-4. `TaskUpdate` your executor task: `in_progress` before work, `completed` when finished.
-5. **Convergence recording (build/test phases only).** After landing each code
+5. `TaskUpdate` your executor task: `in_progress` before work, `completed` when finished.
+6. **Convergence recording (build/test phases only).** After landing each code
    artifact produced by this phase, call
    `scripts/crew/convergence.py record --project <P> --artifact <id> --to <state> --verifier <agent> --phase <phase> --ref <path> --desc "<>= 10 chars>"`
    for the appropriate forward transition (`Built` when an implementation file
@@ -77,7 +84,7 @@ return a structured manifest to `phase_manager.execute()`. You are an **orchestr
    — those phases do not emit code artifacts. This is the expectation
    codified in `.claude/CLAUDE.md` "Convergence tracking"; today it is not
    hook-enforced, so the executor is the responsible caller.
-6. Return the structured JSON manifest (see "Return contract" below).
+7. Return the structured JSON manifest (see "Return contract" below).
 
 ## Dispatch Discipline (SC-6, AC-α10 — ENFORCED)
 
@@ -201,3 +208,25 @@ you write:
 - **Zero-byte deliverable** → rejected as `"deliverable-too-small"`.
 - **Addendum validator rejects record** → `"addendum-invalid: <reason>"`.
 - **`parallelization_check` missing with multi-sub-task run** → `"parallelization-check-missing"`.
+
+## Amendments Log (issue #478)
+
+Mid-phase design corrections are no longer written as per-file
+`design-addendum-N.md`. Instead, append a single JSONL record to
+`phases/{phase}/amendments.jsonl` using `scripts/crew/amendments.py append`:
+
+```python
+from crew.amendments import append as append_amendment
+append_amendment(
+    phase_dir,
+    trigger="gate-conditional",
+    summary="Clarify FR-3 acceptance threshold",
+    patches=[{"target": "phases/design/design.md#FR-3", "operation": "replace",
+              "rationale": "align threshold with SLO"}],
+    resolution_refs=["CONDITION-1"],
+)
+```
+
+Legacy `.md` addenda remain readable via `amendments show {phase}`; new
+amendments MUST use the JSONL log. The log is append-only — never rewrite
+earlier records.
