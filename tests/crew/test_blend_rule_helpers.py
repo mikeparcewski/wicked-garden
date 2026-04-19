@@ -10,6 +10,14 @@ Unit tests for the BLEND-RULE gate-dispatch helpers added to phase_manager.py
   - _dispatch_council               (plurality with min-concurrence threshold)
   - _dispatch_gate_reviewer         (main entry — dispatch by mode)
 
+#481 audit:
+Every test in this file exercises HELPER behavior — merge priority, short-
+circuit rules, routing, count invariants, sanitization — not just the mock
+return path. Tautologies that asserted "given a mock that returns X, we
+get X" have been removed or strengthened to assert a secondary helper-side
+effect (mode tag, call count, sanitized context, etc). Each test carries a
+docstring naming the helper behavior under test.
+
 Stdlib-only; no sleep-based sync (T2); single-assertion focus where
 practical (T4); descriptive names (T5).
 """
@@ -65,27 +73,27 @@ def _mock_dispatcher_factory(verdict_map):
 
 
 class TestFastEvaluator(unittest.TestCase):
-    """Fast path: empty reviewers / self-check / advisory."""
+    """Fast path: empty reviewers / self-check / advisory.
+
+    HELPER BEHAVIOR: when no dispatcher is supplied, the fast evaluator must
+    degrade to a conservative CONDITIONAL stub (never APPROVE). When a
+    dispatcher IS supplied, the helper MUST tag the result with
+    `dispatch_mode='fast-evaluator'` so downstream merge logic can attribute
+    the verdict.
+    """
 
     def test_returns_stub_when_dispatcher_none(self):
-        """Without a dispatcher, fast-evaluator returns a CONDITIONAL stub."""
+        """HELPER: without a dispatcher the fast-evaluator returns a
+        conservative CONDITIONAL stub rather than silently APPROVE."""
         result = phase_manager._dispatch_fast_evaluator(
             None, "design", "design-quality", dispatcher=None,
         )
         self.assertEqual(result["verdict"], "CONDITIONAL")
 
-    def test_uses_dispatcher_when_provided(self):
-        """With a dispatcher, fast-evaluator returns its verdict."""
-        dispatcher = _mock_dispatcher_factory({
-            "gate-evaluator": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
-        })
-        result = phase_manager._dispatch_fast_evaluator(
-            None, "design", "design-quality", dispatcher=dispatcher,
-        )
-        self.assertEqual(result["verdict"], "APPROVE")
-
     def test_records_dispatch_mode_fast_evaluator(self):
-        """Fast evaluator sets dispatch_mode='fast-evaluator'."""
+        """HELPER: the helper tags its own dispatch mode
+        (`fast-evaluator`) — the mock cannot inject this key, so this asserts
+        the helper's own path was taken, not the mock's return."""
         dispatcher = _mock_dispatcher_factory({
             "gate-evaluator": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
         })
@@ -94,6 +102,17 @@ class TestFastEvaluator(unittest.TestCase):
         )
         self.assertEqual(result["dispatch_mode"], "fast-evaluator")
 
+    def test_fast_evaluator_invokes_dispatcher_exactly_once(self):
+        """HELPER: the fast-evaluator dispatches once, not N times —
+        asserts the helper's own invocation contract, not the mock's output."""
+        dispatcher = _mock_dispatcher_factory({
+            "gate-evaluator": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
+        })
+        phase_manager._dispatch_fast_evaluator(
+            None, "design", "design-quality", dispatcher=dispatcher,
+        )
+        self.assertEqual(len(dispatcher.calls), 1)
+
 
 # ---------------------------------------------------------------------------
 # _dispatch_sequential
@@ -101,10 +120,17 @@ class TestFastEvaluator(unittest.TestCase):
 
 
 class TestSequential(unittest.TestCase):
-    """Sequential dispatch — stops on first REJECT."""
+    """Sequential dispatch — stops on first REJECT.
 
-    def test_all_approve_returns_approve(self):
-        """Sequential over two APPROVEs merges to APPROVE."""
+    HELPER BEHAVIOR: invoke reviewers in list order; on REJECT stop and
+    return REJECT; on APPROVE / CONDITIONAL continue to the next reviewer;
+    merge verdicts across the reviewers that ran. Dispatch mode tag is
+    `sequential`.
+    """
+
+    def test_all_approve_invokes_every_reviewer_and_tags_sequential(self):
+        """HELPER: when no REJECT occurs, all N reviewers are invoked and
+        the merged result is tagged `dispatch_mode='sequential'`."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
             "security-engineer": {"verdict": "APPROVE", "score": 0.8, "reason": "ok"},
@@ -114,15 +140,21 @@ class TestSequential(unittest.TestCase):
             ["senior-engineer", "security-engineer"],
             dispatcher=dispatcher,
         )
-        self.assertEqual(result["verdict"], "APPROVE")
+        # Assert both dispatcher call-count AND the helper's mode tag —
+        # neither is something the mock can fake.
+        self.assertEqual(
+            (len(dispatcher.calls), result["dispatch_mode"]),
+            (2, "sequential"),
+        )
 
     def test_stops_on_first_reject(self):
-        """Sequential short-circuits on REJECT; later reviewers not called."""
+        """HELPER: REJECT short-circuits — dispatcher is called exactly once
+        (the first reviewer) even though two reviewers were declared."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "REJECT", "score": 0.2, "reason": "fail"},
             "security-engineer": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
         })
-        result = phase_manager._dispatch_sequential(
+        phase_manager._dispatch_sequential(
             None, "build", "code-quality",
             ["senior-engineer", "security-engineer"],
             dispatcher=dispatcher,
@@ -131,7 +163,9 @@ class TestSequential(unittest.TestCase):
         self.assertEqual(len(dispatcher.calls), 1)
 
     def test_reject_short_circuit_yields_reject_verdict(self):
-        """After short-circuit, merged verdict is REJECT."""
+        """HELPER: the merged verdict surfaced by the helper after a REJECT
+        short-circuit is REJECT — the merge logic doesn't down-grade or
+        lose the REJECT on the way out."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "REJECT", "score": 0.2, "reason": "fail"},
             "security-engineer": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
@@ -144,13 +178,14 @@ class TestSequential(unittest.TestCase):
         self.assertEqual(result["verdict"], "REJECT")
 
     def test_conditional_does_not_short_circuit(self):
-        """CONDITIONAL does NOT short-circuit — later reviewers still run."""
+        """HELPER: CONDITIONAL does NOT short-circuit — later reviewers still
+        run. Asserts via dispatcher call count (not the mock's return)."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "CONDITIONAL", "score": 0.6,
                                 "reason": "warn", "conditions": [{"id": "c1"}]},
             "security-engineer": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
         })
-        result = phase_manager._dispatch_sequential(
+        phase_manager._dispatch_sequential(
             None, "build", "code-quality",
             ["senior-engineer", "security-engineer"],
             dispatcher=dispatcher,
@@ -164,23 +199,45 @@ class TestSequential(unittest.TestCase):
 
 
 class TestParallelMerge(unittest.TestCase):
-    """Parallel dispatch + merge — REJECT > CONDITIONAL > APPROVE."""
+    """Parallel dispatch + merge — REJECT > CONDITIONAL > APPROVE.
 
-    def test_all_approve_merges_to_approve(self):
-        """All-APPROVE merge yields APPROVE."""
+    HELPER BEHAVIOR: dispatch every reviewer once; merge verdicts with the
+    priority ordering REJECT > CONDITIONAL > APPROVE; union all `conditions`
+    arrays; take the min of per-reviewer scores (conservative); reject any
+    banned reviewer identity.
+    """
+
+    def test_all_approve_merges_to_approve_with_full_count(self):
+        """HELPER: merge of N APPROVE verdicts yields APPROVE — AND the
+        helper dispatched all N reviewers (not short-circuited)."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
             "security-engineer": {"verdict": "APPROVE", "score": 0.8, "reason": "ok"},
         })
+        # Poison the batched sentinel so the per-reviewer fallback runs;
+        # that's the path where call-count invariance is meaningful.
+        original = dispatcher
+
+        def fallback_only(subagent_type, prompt, context):
+            if subagent_type.endswith("_parallel_batch"):
+                raise RuntimeError("no-batch")
+            return original(subagent_type, prompt, context)
+
+        fallback_only.calls = original.calls
         result = phase_manager._dispatch_parallel_and_merge(
             None, "build", "code-quality",
             ["senior-engineer", "security-engineer"],
-            dispatcher=dispatcher,
+            dispatcher=fallback_only,
         )
-        self.assertEqual(result["verdict"], "APPROVE")
+        # Merged verdict AND every reviewer dispatched — both HELPER assertions.
+        self.assertEqual(
+            (result["verdict"], len(original.calls)),
+            ("APPROVE", 2),
+        )
 
     def test_any_reject_merges_to_reject(self):
-        """Any-REJECT merge yields REJECT even with APPROVE peers."""
+        """HELPER: merge priority — one REJECT among APPROVEs yields REJECT.
+        Tests the helper's priority rule, not the mock's return."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
             "security-engineer": {"verdict": "REJECT", "score": 0.1,
@@ -194,7 +251,8 @@ class TestParallelMerge(unittest.TestCase):
         self.assertEqual(result["verdict"], "REJECT")
 
     def test_any_conditional_merges_to_conditional(self):
-        """CONDITIONAL + APPROVE (no REJECT) merges to CONDITIONAL."""
+        """HELPER: merge priority — CONDITIONAL + APPROVE (no REJECT) yields
+        CONDITIONAL. Tests the helper's priority rule, not the mock."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
             "security-engineer": {"verdict": "CONDITIONAL", "score": 0.7,
@@ -209,7 +267,8 @@ class TestParallelMerge(unittest.TestCase):
         self.assertEqual(result["verdict"], "CONDITIONAL")
 
     def test_conditional_unions_all_conditions(self):
-        """All CONDITIONAL's `conditions` arrays union into the merged result."""
+        """HELPER: the merge unions all per-reviewer conditions arrays into
+        a single flat list on the merged result."""
         dispatcher = _mock_dispatcher_factory({
             "r1": {"verdict": "CONDITIONAL", "score": 0.7,
                    "conditions": [{"id": "c1"}]},
@@ -223,7 +282,8 @@ class TestParallelMerge(unittest.TestCase):
         self.assertEqual(len(result["conditions"]), 2)
 
     def test_merged_score_is_min_of_reviewer_scores(self):
-        """Merged score is the minimum across reviewer scores (conservative)."""
+        """HELPER: the merge score aggregator is MIN (conservative) —
+        not mean, not max. Tests the helper's aggregator choice."""
         dispatcher = _mock_dispatcher_factory({
             "r1": {"verdict": "APPROVE", "score": 0.9, "reason": "ok"},
             "r2": {"verdict": "APPROVE", "score": 0.7, "reason": "ok"},
@@ -235,16 +295,10 @@ class TestParallelMerge(unittest.TestCase):
         self.assertAlmostEqual(result["score"], 0.7)
 
     def test_banned_reviewer_yields_reject(self):
-        """A banned reviewer identity short-circuits to REJECT."""
+        """HELPER: banned reviewer identity short-circuits the merge to
+        REJECT even when the reviewer reports APPROVE. Asserts the
+        helper's banned-reviewer guard, not the mock's verdict."""
         dispatcher = _mock_dispatcher_factory({
-            "just-finish-auto": {"verdict": "APPROVE", "score": 0.9,
-                                 "reason": "ok"},
-            "senior-engineer": {"verdict": "APPROVE", "score": 0.9,
-                                "reason": "ok"},
-        })
-        # The mock returns `reviewer` as the key; the merge helper inspects
-        # reviewer name. Ensure the mock echoes the reviewer identity.
-        dispatcher2 = _mock_dispatcher_factory({
             "just-finish-auto": {"verdict": "APPROVE", "score": 0.9,
                                  "reason": "ok", "reviewer": "just-finish-auto"},
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9,
@@ -253,7 +307,7 @@ class TestParallelMerge(unittest.TestCase):
         result = phase_manager._dispatch_parallel_and_merge(
             None, "build", "code-quality",
             ["just-finish-auto", "senior-engineer"],
-            dispatcher=dispatcher2,
+            dispatcher=dispatcher,
         )
         self.assertEqual(result["verdict"], "REJECT")
 
@@ -264,10 +318,18 @@ class TestParallelMerge(unittest.TestCase):
 
 
 class TestCouncil(unittest.TestCase):
-    """Council dispatch — plurality vote with min-concurrence threshold."""
+    """Council dispatch — plurality vote with min-concurrence threshold.
+
+    HELPER BEHAVIOR: plurality wins among reviewer verdicts; when
+    concurrence (winning fraction) falls below `min_concurrence`, downgrade
+    APPROVE to CONDITIONAL (safer). Any REJECT short-circuits. Tie-break
+    on equal plurality favours CONDITIONAL. Merged result exposes the
+    concurrence ratio for audit.
+    """
 
     def test_unanimous_approve_passes_threshold(self):
-        """Unanimous APPROVE yields APPROVE (concurrence = 1.0)."""
+        """HELPER: unanimous APPROVE (concurrence 1.0) clears any threshold
+        and the plurality rule yields APPROVE."""
         dispatcher = _mock_dispatcher_factory({
             "r1": {"verdict": "APPROVE", "score": 0.9},
             "r2": {"verdict": "APPROVE", "score": 0.8},
@@ -280,12 +342,9 @@ class TestCouncil(unittest.TestCase):
         self.assertEqual(result["verdict"], "APPROVE")
 
     def test_split_verdicts_below_threshold_downgrade(self):
-        """2-APPROVE + 2-CONDITIONAL at threshold 0.6 downgrades to CONDITIONAL.
-
-        Plurality is a tie — 2/4 = 0.5 for either APPROVE or CONDITIONAL. Our
-        tie-break picks CONDITIONAL (safer). Concurrence 0.5 < 0.6 threshold
-        downgrades APPROVE paths, but CONDITIONAL plurality remains CONDITIONAL.
-        """
+        """HELPER: 2-APPROVE + 2-CONDITIONAL at threshold 0.6 —
+        plurality is tied (0.5 each); the helper's tie-break picks
+        CONDITIONAL (safer)."""
         dispatcher = _mock_dispatcher_factory({
             "r1": {"verdict": "APPROVE", "score": 0.9},
             "r2": {"verdict": "APPROVE", "score": 0.8},
@@ -301,10 +360,8 @@ class TestCouncil(unittest.TestCase):
         self.assertEqual(result["verdict"], "CONDITIONAL")
 
     def test_low_concurrence_approve_downgrades_to_conditional(self):
-        """2-APPROVE + 1-CONDITIONAL at threshold 0.8 downgrades APPROVE.
-
-        Concurrence 2/3 = 0.667 < 0.8 threshold → downgrade to CONDITIONAL.
-        """
+        """HELPER: the concurrence-threshold downgrade rule — APPROVE with
+        plurality 2/3 = 0.667 < 0.8 threshold downgrades to CONDITIONAL."""
         dispatcher = _mock_dispatcher_factory({
             "r1": {"verdict": "APPROVE", "score": 0.9},
             "r2": {"verdict": "APPROVE", "score": 0.8},
@@ -318,7 +375,8 @@ class TestCouncil(unittest.TestCase):
         self.assertEqual(result["verdict"], "CONDITIONAL")
 
     def test_reject_short_circuits_council(self):
-        """Any REJECT in council short-circuits to REJECT regardless of plurality."""
+        """HELPER: any REJECT in council short-circuits to REJECT regardless
+        of plurality — the helper's veto rule."""
         dispatcher = _mock_dispatcher_factory({
             "r1": {"verdict": "APPROVE", "score": 0.9},
             "r2": {"verdict": "APPROVE", "score": 0.85},
@@ -331,7 +389,8 @@ class TestCouncil(unittest.TestCase):
         self.assertEqual(result["verdict"], "REJECT")
 
     def test_council_records_concurrence_score(self):
-        """Council result exposes the concurrence ratio for audit."""
+        """HELPER: council result exposes the concurrence ratio for audit —
+        a result-shape guarantee the mock cannot provide."""
         dispatcher = _mock_dispatcher_factory({
             "r1": {"verdict": "APPROVE", "score": 0.9},
             "r2": {"verdict": "APPROVE", "score": 0.85},
@@ -350,10 +409,17 @@ class TestCouncil(unittest.TestCase):
 
 
 class TestGateReviewerEntry(unittest.TestCase):
-    """Main BLEND-RULE entry point routing by policy mode."""
+    """Main BLEND-RULE entry point routing by policy mode.
+
+    HELPER BEHAVIOR: `policy_entry['mode']` determines which helper runs;
+    the `dispatch_mode` tag on the result is the observable routing signal.
+    Empty reviewers fall through to the fast-evaluator path. A missing /
+    non-dict policy entry returns a conservative CONDITIONAL stub.
+    """
 
     def test_empty_reviewers_routes_to_fast_evaluator(self):
-        """Empty reviewers → fast-evaluator path."""
+        """HELPER: empty reviewers list → fast-evaluator path (dispatch_mode
+        tag proves the routing decision)."""
         dispatcher = _mock_dispatcher_factory({
             "gate-evaluator": {"verdict": "APPROVE", "score": 0.8, "reason": "ok"},
         })
@@ -367,7 +433,8 @@ class TestGateReviewerEntry(unittest.TestCase):
         self.assertEqual(result["dispatch_mode"], "fast-evaluator")
 
     def test_sequential_mode_routes_to_sequential(self):
-        """mode=sequential → _dispatch_sequential path."""
+        """HELPER: mode='sequential' routes to _dispatch_sequential — proven
+        by the dispatch_mode tag on the result."""
         dispatcher = _mock_dispatcher_factory({
             "solution-architect": {"verdict": "APPROVE", "score": 0.9,
                                    "reason": "ok"},
@@ -384,7 +451,7 @@ class TestGateReviewerEntry(unittest.TestCase):
         self.assertEqual(result["dispatch_mode"], "sequential")
 
     def test_parallel_mode_routes_to_parallel(self):
-        """mode=parallel → _dispatch_parallel_and_merge path."""
+        """HELPER: mode='parallel' routes to _dispatch_parallel_and_merge."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9},
             "security-engineer": {"verdict": "APPROVE", "score": 0.9},
@@ -400,7 +467,7 @@ class TestGateReviewerEntry(unittest.TestCase):
         self.assertEqual(result["dispatch_mode"], "parallel")
 
     def test_council_mode_routes_to_council(self):
-        """mode=council → _dispatch_council path."""
+        """HELPER: mode='council' routes to _dispatch_council."""
         dispatcher = _mock_dispatcher_factory({
             "r1": {"verdict": "APPROVE", "score": 0.9},
             "r2": {"verdict": "APPROVE", "score": 0.85},
@@ -417,7 +484,8 @@ class TestGateReviewerEntry(unittest.TestCase):
         self.assertEqual(result["dispatch_mode"], "council")
 
     def test_missing_policy_entry_returns_stub(self):
-        """A None or non-dict policy entry returns a conservative stub."""
+        """HELPER: None / non-dict policy entry short-circuits to the
+        conservative CONDITIONAL stub (fail-closed, not fail-open)."""
         result = phase_manager._dispatch_gate_reviewer(
             None, "design", "design-quality", None,  # type: ignore[arg-type]
             dispatcher=None,
@@ -449,14 +517,16 @@ def _raising_dispatcher(exc_factory=lambda: RuntimeError("simulated agent failur
 class TestBlendHelpersPropagateOrSurfaceFailure(unittest.TestCase):
     """COND-TG-3 — every BLEND helper must refuse to silently APPROVE on error.
 
-    The helpers either propagate the exception or return a clearly-marked
-    failure verdict (CONDITIONAL or REJECT with a `dispatch-error:` reason).
-    What they must NEVER do is swallow the error and return APPROVE, which
-    would let a broken agent quietly advance a phase.
+    HELPER BEHAVIOR: when the dispatcher raises, the helper either propagates
+    the exception or returns a clearly-marked failure verdict (CONDITIONAL
+    or REJECT with a `dispatch-error:` reason). What the helper must NEVER
+    do is swallow the error and return APPROVE, which would let a broken
+    agent quietly advance a phase.
     """
 
     def test_fast_evaluator_does_not_return_approve_on_raise(self):
-        """_dispatch_fast_evaluator surfaces dispatcher failure, not APPROVE."""
+        """HELPER: fast-evaluator surfaces dispatcher failure — verdict is
+        NOT APPROVE when the dispatcher raised."""
         dispatcher = _raising_dispatcher()
         result = phase_manager._dispatch_fast_evaluator(
             None, "design", "design-quality", dispatcher=dispatcher,
@@ -464,7 +534,8 @@ class TestBlendHelpersPropagateOrSurfaceFailure(unittest.TestCase):
         self.assertNotEqual(result["verdict"], "APPROVE")
 
     def test_sequential_does_not_return_approve_on_raise(self):
-        """_dispatch_sequential surfaces dispatcher failure, not APPROVE."""
+        """HELPER: sequential surfaces dispatcher failure — verdict is
+        NOT APPROVE when the dispatcher raised."""
         dispatcher = _raising_dispatcher()
         result = phase_manager._dispatch_sequential(
             None, "build", "code-quality",
@@ -474,7 +545,8 @@ class TestBlendHelpersPropagateOrSurfaceFailure(unittest.TestCase):
         self.assertNotEqual(result["verdict"], "APPROVE")
 
     def test_parallel_does_not_return_approve_on_raise(self):
-        """_dispatch_parallel_and_merge surfaces dispatcher failure, not APPROVE."""
+        """HELPER: parallel surfaces dispatcher failure — verdict is
+        NOT APPROVE when the dispatcher raised."""
         dispatcher = _raising_dispatcher()
         result = phase_manager._dispatch_parallel_and_merge(
             None, "build", "code-quality",
@@ -484,7 +556,8 @@ class TestBlendHelpersPropagateOrSurfaceFailure(unittest.TestCase):
         self.assertNotEqual(result["verdict"], "APPROVE")
 
     def test_council_does_not_return_approve_on_raise(self):
-        """_dispatch_council surfaces dispatcher failure, not APPROVE."""
+        """HELPER: council surfaces dispatcher failure — verdict is
+        NOT APPROVE when the dispatcher raised."""
         dispatcher = _raising_dispatcher()
         result = phase_manager._dispatch_council(
             None, "design", "design-quality",
@@ -521,13 +594,15 @@ def _under_counting_dispatcher(verdict, *, increment: int = 0):
 class TestMultiReviewerDispatchCountInvariant(unittest.TestCase):
     """#473 — Parallel / council must dispatch N calls for N reviewers.
 
-    An injected mock dispatcher that under-counts invocations must cause
-    the helper to raise ``DispatchCountError``. The invariant protects
-    against one agent emulating N reviewers in a single call.
+    HELPER BEHAVIOR: the helper enforces a count invariant — an injected
+    mock dispatcher that under-counts invocations MUST cause the helper
+    to raise `DispatchCountError`. The invariant protects against one
+    agent emulating N reviewers in a single call.
     """
 
     def test_parallel_raises_dispatch_count_error_on_undercount(self):
-        """Parallel fallback loop raises DispatchCountError when undercounted."""
+        """HELPER: parallel fallback loop raises DispatchCountError when
+        the dispatcher under-counts its own invocations."""
         # No batched path — dispatcher raises on the sentinel so we fall
         # through to the per-reviewer loop, where the undercount is visible.
         verdict = {"verdict": "APPROVE", "score": 0.9, "reason": "ok"}
@@ -540,7 +615,8 @@ class TestMultiReviewerDispatchCountInvariant(unittest.TestCase):
             )
 
     def test_council_raises_dispatch_count_error_on_undercount(self):
-        """Council dispatch inherits the invariant via parallel-and-merge."""
+        """HELPER: council dispatch inherits the count-invariant via
+        parallel-and-merge — undercount also raises DispatchCountError."""
         verdict = {"verdict": "APPROVE", "score": 0.9}
         dispatcher = _under_counting_dispatcher(verdict, increment=0)
         with self.assertRaises(phase_manager.DispatchCountError):
@@ -551,14 +627,13 @@ class TestMultiReviewerDispatchCountInvariant(unittest.TestCase):
             )
 
     def test_parallel_passes_when_count_matches(self):
-        """Honest mock with .calls growing once-per-invocation does not raise."""
+        """HELPER: honest mock with .calls growing once-per-invocation does
+        NOT raise — the invariant is satisfied. Asserts merged verdict AND
+        call-count together (both are HELPER-side observations)."""
         dispatcher = _mock_dispatcher_factory({
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9},
             "security-engineer": {"verdict": "APPROVE", "score": 0.85},
         })
-        # Poison the batched path so the fallback loop runs. We do this
-        # by wrapping the dispatcher — the batched call raises, subsequent
-        # per-reviewer calls return honest verdicts.
         original = dispatcher
 
         def fallback_only(subagent_type, prompt, context):
@@ -573,10 +648,16 @@ class TestMultiReviewerDispatchCountInvariant(unittest.TestCase):
             ["senior-engineer", "security-engineer"],
             dispatcher=fallback_only,
         )
-        self.assertEqual(result["verdict"], "APPROVE")
+        # Assert BOTH: the merge ran to completion AND the helper saw
+        # exactly 2 dispatcher invocations (one per reviewer).
+        self.assertEqual(
+            (result["verdict"], len(original.calls)),
+            ("APPROVE", 2),
+        )
 
     def test_batched_path_raises_on_short_result_list(self):
-        """Batched path with N results != len(reviewers) also raises."""
+        """HELPER: batched path with N results != len(reviewers) also raises
+        DispatchCountError — protects against impersonation in batched mode."""
 
         def short_batched_dispatcher(subagent_type, prompt, context):
             if subagent_type.endswith("_parallel_batch"):
@@ -601,10 +682,10 @@ class TestMultiReviewerDispatchCountInvariant(unittest.TestCase):
 class TestBlindReviewerContext(unittest.TestCase):
     """#476 — Reviewer briefs must not carry the executor's self-assessment.
 
-    The sanitizer strips ``self_score``, ``self_verdict``, and
-    ``executor_notes`` from any context dict passed to a dispatcher. Tests
-    use the capture-all mock to inspect what the dispatcher actually
-    received.
+    HELPER BEHAVIOR: the sanitizer (`_strip_executor_self_score`) strips
+    `self_score`, `self_verdict`, and `executor_notes` from any context dict
+    passed to a dispatcher. Every dispatch path (fast/sequential/parallel)
+    MUST run the sanitizer before handing context to the reviewer.
     """
 
     def _capture_dispatcher(self, verdict_map):
@@ -634,7 +715,8 @@ class TestBlindReviewerContext(unittest.TestCase):
         return dispatcher
 
     def test_strip_helper_removes_known_keys(self):
-        """_strip_executor_self_score removes all three self-score keys."""
+        """HELPER: `_strip_executor_self_score` removes all three self-score
+        keys from the input context dict."""
         raw = {
             "gate_name": "code-quality",
             "phase": "build",
@@ -649,7 +731,8 @@ class TestBlindReviewerContext(unittest.TestCase):
         self.assertNotIn("executor_notes", clean)
 
     def test_strip_helper_preserves_allowed_keys(self):
-        """_strip_executor_self_score keeps every non-self-score key intact."""
+        """HELPER: sanitizer keeps every non-self-score key intact — it
+        strips a denylist, not an allowlist."""
         raw = {
             "gate_name": "code-quality",
             "phase": "build",
@@ -661,7 +744,8 @@ class TestBlindReviewerContext(unittest.TestCase):
         self.assertEqual(clean.get("reviewer"), "senior-engineer")
 
     def test_parallel_dispatcher_receives_no_self_score(self):
-        """No context delivered to the dispatcher in parallel mode carries self_score."""
+        """HELPER: the parallel path runs the sanitizer — no context
+        captured by the dispatcher carries the self-score keys."""
         dispatcher = self._capture_dispatcher({
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9},
             "security-engineer": {"verdict": "APPROVE", "score": 0.85},
@@ -687,7 +771,8 @@ class TestBlindReviewerContext(unittest.TestCase):
             self.assertNotIn("executor_notes", ctx)
 
     def test_sequential_dispatcher_receives_no_self_score(self):
-        """No context delivered to the dispatcher in sequential mode carries self_score."""
+        """HELPER: the sequential path runs the sanitizer — no context
+        delivered to the dispatcher carries self-score keys."""
         dispatcher = self._capture_dispatcher({
             "senior-engineer": {"verdict": "APPROVE", "score": 0.9},
         })
@@ -703,7 +788,8 @@ class TestBlindReviewerContext(unittest.TestCase):
             self.assertNotIn("executor_notes", ctx)
 
     def test_fast_evaluator_dispatcher_receives_no_self_score(self):
-        """Fast-evaluator dispatcher context has no self_* keys."""
+        """HELPER: the fast-evaluator path runs the sanitizer — dispatcher
+        context has no self_* keys."""
         dispatcher = self._capture_dispatcher({
             "gate-evaluator": {"verdict": "APPROVE", "score": 0.9},
         })
