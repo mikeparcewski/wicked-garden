@@ -139,7 +139,7 @@
       }
     },
     "semantic-alignment": {
-      "description": "Spec-to-code alignment verification (issue #444). Runs at review-phase gate for complexity >= 3. Extracts numbered AC/FR from clarify-phase specs and classifies each as aligned / divergent / missing against the implementation + test corpora. Missing findings are hard REJECT; divergent findings become gate conditions. Advisory at complexity 0-2. Bypass with CREW_GATE_ENFORCEMENT=legacy.",
+      "description": "Spec-to-code alignment verification (issue #444). Runs at review-phase gate for complexity >= 3. Extracts numbered AC/FR from clarify-phase specs and classifies each as aligned / divergent / missing against the implementation + test corpora. Missing findings are hard REJECT; divergent findings become gate conditions. Advisory at complexity 0-2. Bypass not supported in v6.0; gate behavior is unconditional.",
       "minimal": {
         "reviewers": [],
         "mode": "advisory",

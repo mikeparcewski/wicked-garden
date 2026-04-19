@@ -7,7 +7,6 @@ Run with: python3 scripts/crew/test_gate_enforcement.py
 """
 
 import json
-import os
 import sys
 import tempfile
 import unittest
@@ -32,10 +31,6 @@ def _make_project_dir(tmp_root: Path, project_name: str) -> Path:
 
 class TestBannedReviewer(unittest.TestCase):
     """T-1.4: Banned reviewer names are rejected."""
-
-    def setUp(self):
-        # Ensure strict mode
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
 
     def _import_fresh(self):
         """Re-import phase_manager to pick up env changes."""
@@ -93,9 +88,6 @@ class TestBannedReviewer(unittest.TestCase):
 
 class TestMinGateScore(unittest.TestCase):
     """T-1.3: Minimum gate score threshold blocks advancement."""
-
-    def setUp(self):
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
 
     def _import_fresh(self):
         if "phase_manager" in sys.modules:
@@ -184,9 +176,6 @@ class TestLegacyModeDeleted(unittest.TestCase):
 class TestEmptyDeliverable(unittest.TestCase):
     """T-1.5: Zero-byte deliverables are reported as empty."""
 
-    def setUp(self):
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
-
     def _import_fresh(self):
         if "phase_manager" in sys.modules:
             del sys.modules["phase_manager"]
@@ -204,10 +193,10 @@ class TestEmptyDeliverable(unittest.TestCase):
             empty_file.write_text("")  # 0 bytes
             self.assertEqual(empty_file.stat().st_size, 0)
 
-            # Verify the condition: GATE_ENFORCEMENT_MODE != "legacy" and size == 0 => issue
-            self.assertNotEqual(pm.GATE_ENFORCEMENT_MODE, "legacy")
+            # v6.0 strict mode is unconditional — empty file must always produce an issue.
+            self.assertEqual(pm.GATE_ENFORCEMENT_MODE, "strict")
             size = empty_file.stat().st_size
-            if pm.GATE_ENFORCEMENT_MODE != "legacy" and size == 0:
+            if size == 0:
                 issue = f"Empty deliverable for clarify: objective.md (0 bytes)"
             else:
                 issue = None
@@ -284,9 +273,6 @@ class TestPhasesJsonStructure(unittest.TestCase):
 class TestSkipPhaseStructuredReason(unittest.TestCase):
     """T-4.2 functional: skip_phase raises on unrecognized reason."""
 
-    def setUp(self):
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
-
     def _import_fresh(self):
         if "phase_manager" in sys.modules:
             del sys.modules["phase_manager"]
@@ -342,7 +328,7 @@ if __name__ == "__main__":
     suite = unittest.TestSuite()
     suite.addTests(loader.loadTestsFromTestCase(TestBannedReviewer))
     suite.addTests(loader.loadTestsFromTestCase(TestMinGateScore))
-    suite.addTests(loader.loadTestsFromTestCase(TestLegacyMode))
+    suite.addTests(loader.loadTestsFromTestCase(TestLegacyModeDeleted))
     suite.addTests(loader.loadTestsFromTestCase(TestEmptyDeliverable))
     suite.addTests(loader.loadTestsFromTestCase(TestPhasesJsonStructure))
     suite.addTests(loader.loadTestsFromTestCase(TestSkipPhaseStructuredReason))

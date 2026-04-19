@@ -1,7 +1,7 @@
 ---
 name: gate-enforcement-adversarial
 title: Adversarial Gate Enforcement — Bypass Attempts Blocked
-description: Verify that all Tier 1 gate enforcement checks in pre_tool.py block adversarial bypass attempts and that legacy mode cleanly overrides all checks
+description: Verify that all Tier 1 gate enforcement checks in pre_tool.py block adversarial bypass attempts under strict-mode enforcement
 type: testing
 difficulty: advanced
 estimated_minutes: 20
@@ -13,7 +13,7 @@ This scenario deliberately tries to bypass gate enforcement and verifies each at
 blocked with a specific error message. All checks are Tier 1 (hook layer, `pre_tool.py`)
 and run at <100ms via file stat + small reads before `phase_manager.py` ever executes.
 
-The scenario tests seven adversarial paths:
+The scenario tests six adversarial paths:
 
 1. Missing phase directory — phase has no output at all
 2. Missing required deliverables — phase directory exists but deliverables absent
@@ -21,7 +21,9 @@ The scenario tests seven adversarial paths:
 4. Test coverage below threshold — test-results.md has 25% coverage when 80% is required
 5. Missing specialist engagement — complexity 7 project missing required specialists
 6. Unresolved conditions — prior CONDITIONAL gate conditions not verified
-7. Legacy mode bypass — `CREW_GATE_ENFORCEMENT=legacy` disables all checks
+
+(v6.0 removed the env-var bypass; strict enforcement is always active. Rollback is a
+`git revert` on the PR, not a runtime toggle.)
 
 The hook functions are tested directly via Python import. This avoids requiring a running
 Claude session and makes the tests deterministic and infrastructure-free.
@@ -88,7 +90,6 @@ preflight() {
 import sys, os
 sys.path.insert(0, '${PLUGIN_ROOT}/hooks/scripts')
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
-os.environ['CREW_GATE_ENFORCEMENT'] = os.environ.get('CREW_GATE_ENFORCEMENT', 'strict')
 from pre_tool import _crew_gate_preflight
 cmd = '${PLUGIN_ROOT}/scripts/crew/phase_manager.py ${TEST_PROJECT} approve --phase $phase'
 result = _crew_gate_preflight(cmd)
@@ -368,53 +369,14 @@ print('reason:', reason)
 
 The reason must reference `design` and unresolved conditions.
 
-### Step 8: Legacy mode bypass — all checks skipped
-
-Set `CREW_GATE_ENFORCEMENT=legacy` and repeat the missing-deliverables scenario
-from Step 2. The hook must return `ok: true` immediately.
-
-```bash
-# Remove clarify deliverables to recreate a normally-blocked state
-rm -rf "${PROJECT_DIR}/phases/clarify"
-mkdir -p "${PROJECT_DIR}/phases/clarify"
-# No deliverables inside
-
-result=$(CREW_GATE_ENFORCEMENT=legacy preflight clarify)
-echo "${result}"
-echo "${result}" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-assert d['ok'], f'Expected ok=True in legacy mode but got: {d}'
-print('PASS: legacy mode bypasses all checks')
-"
-```
-
-**Expected**: `PASS: legacy mode bypasses all checks`
-
-Verify the same scenario blocks in strict mode (confirming legacy bypass is the
-only reason it passed):
-
-```bash
-result=$(CREW_GATE_ENFORCEMENT=strict preflight clarify)
-echo "${result}"
-echo "${result}" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-assert not d['ok'], 'Expected block in strict mode'
-print('PASS: strict mode blocks the same scenario')
-"
-```
-
-**Expected**: `PASS: strict mode blocks the same scenario`
-
 ## Expected Outcome
 
 Every adversarial bypass attempt produces a specific, actionable error message — not a
 generic "gate failed". The messages identify the exact file, phase, or condition that
 failed so engineers can fix the root cause rather than guess.
 
-Legacy mode is a clean escape hatch: `CREW_GATE_ENFORCEMENT=legacy` overrides all Tier 1
-checks with a single env var and is verified to restore blocking behavior when removed.
+(v6.0 removed the env-var bypass; strict enforcement is always active. Rollback is a
+`git revert` on the PR, not a runtime toggle.)
 
 ## Success Criteria
 
@@ -425,8 +387,6 @@ checks with a single env var and is verified to restore blocking behavior when r
 - [ ] Missing specialist engagement blocked with specialist domain name referenced
 - [ ] Successful path passes when all checks are satisfied
 - [ ] Unresolved conditions manifest blocked with prior phase name and "condition" referenced
-- [ ] Legacy mode (`CREW_GATE_ENFORCEMENT=legacy`) passes the same scenario that was blocked
-- [ ] Strict mode re-blocks the same scenario after legacy bypass confirms it was the bypass that passed
 
 ## Value Demonstrated
 

@@ -1032,10 +1032,8 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
 # checks (see call site in ``approve_phase``). Complexity-aware: mandatory at
 # complexity >= 3, advisory otherwise.
 #
-# Emergency bypass honoured via CREW_GATE_ENFORCEMENT=legacy env var. The
-# wider v6 enforcement machinery removed the general legacy flag, but this
-# specific gate is new and its own rollback lever is additive — matches the
-# WG_TASK_METADATA escape-hatch pattern for newly-added validators.
+# (v6.0 removed the env-var bypass; strict enforcement is always active.
+# Rollback is a ``git revert`` on the PR, not a runtime toggle.)
 # ---------------------------------------------------------------------------
 
 # Complexity at/above which semantic alignment is MANDATORY (blocking).
@@ -1068,21 +1066,12 @@ def _check_semantic_alignment_gate(
         complexity <  3                 -> advisory warning only; never blocks
         no spec items found             -> advisory skip
 
-    Respects ``CREW_GATE_ENFORCEMENT=legacy`` — returns (None, []) when set.
     Fails safe — any exception during analysis becomes a warning, not a block.
+    (v6.0 removed the env-var bypass; strict enforcement is always active.)
     """
     # Only runs for the review phase. Caller should pre-check but we
     # defensively verify here too.
     if resolve_phase(phase) != "review":
-        return None, []
-
-    # Emergency rollback — honoured for this gate explicitly per issue #444
-    # acceptance ("Respect CREW_GATE_ENFORCEMENT=legacy bypass").
-    if os.environ.get("CREW_GATE_ENFORCEMENT", "").lower() == "legacy":
-        logger.info(
-            "[semantic-alignment] CREW_GATE_ENFORCEMENT=legacy set — "
-            "skipping spec-to-code alignment check."
-        )
         return None, []
 
     complexity = int(getattr(state, "complexity_score", 0) or 0)
@@ -1189,8 +1178,7 @@ def _check_semantic_alignment_gate(
                 f"missing from implementation ({', '.join(missing_ids)}). "
                 f"See {project_dir / 'phases' / 'review' / 'semantic-gap-report.json'}. "
                 f"Implement the referenced AC or remove them from the spec "
-                f"before approving, or set CREW_GATE_ENFORCEMENT=legacy to "
-                f"bypass (emergency rollback only)."
+                f"before approving."
             ),
             warnings,
         )
@@ -1665,13 +1653,12 @@ def _check_convergence_gate(state: "ProjectState") -> List[str]:
     Fails open on:
         - missing module (module not importable)
         - missing log file (no convergence data recorded yet)
-        - `CREW_GATE_ENFORCEMENT=legacy`
 
     Returns:
         List of human-readable CONDITIONAL finding strings.  Empty means the
-        gate passed (or was bypassed).  These are warnings, not hard REJECTs —
-        they are appended to the approve_phase warnings list so the reviewer
-        sees them without the approval itself being blocked by this gate.
+        gate passed.  These are warnings, not hard REJECTs — they are
+        appended to the approve_phase warnings list so the reviewer sees
+        them without the approval itself being blocked by this gate.
     """
     try:
         from convergence import evaluate_review_gate as _eval_cv_gate
@@ -1690,7 +1677,6 @@ def _check_convergence_gate(state: "ProjectState") -> List[str]:
         logger.warning("[convergence-verify] evaluate_review_gate failed: %s", exc)
         return []
 
-    # Legacy bypass already handled inside evaluate_review_gate.
     if result.get("result") == "APPROVE":
         return []
 
@@ -1746,18 +1732,11 @@ def _run_build_phase_guard(project_dir: Path) -> List[str]:
     Fail-open on every axis — ImportError, missing module, exception during
     scan, budget_exceeded — all return an empty list without raising.
 
-    Respects CREW_GATE_ENFORCEMENT=legacy as a rollback switch: when set
-    the guard hook is a complete no-op (matches the documented escape hatch
-    for additive gate enforcement layers).
+    (v6.0 removed the env-var bypass; strict enforcement is always active.
+    Rollback is a ``git revert`` on the PR, not a runtime toggle.)
 
     Mirrors the fail-open pattern used by hooks/scripts/stop.py::_run_guard_pipeline.
     """
-    # Rollback switch — keep the build-phase guard hook no-op when legacy
-    # enforcement is requested (matches the mode-flag escape pattern used
-    # by the telemetry step and the #448 stop-hook integration).
-    if os.environ.get("CREW_GATE_ENFORCEMENT", "").lower() == "legacy":
-        return []
-
     try:
         # scripts/platform/ is a sibling of scripts/crew/.  Add it to
         # sys.path lazily so the import only pays the cost at build-phase

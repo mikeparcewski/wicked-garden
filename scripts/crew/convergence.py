@@ -533,7 +533,9 @@ def evaluate_review_gate(
         - Over-budget artifacts (sessions > aging budget for their state)
           are surfaced as CONDITIONAL findings when the verdict would
           otherwise be APPROVE.
-        - ``CREW_GATE_ENFORCEMENT=legacy`` forces APPROVE regardless of findings.
+
+    (v6.0 removed the env-var bypass; strict enforcement is always active.
+    Rollback is a ``git revert`` on the PR, not a runtime toggle.)
 
     Returns:
         Dict with keys:
@@ -541,10 +543,7 @@ def evaluate_review_gate(
             result:    APPROVE | CONDITIONAL | REJECT
             findings:  list of {kind, artifact_id, state, message}
             summary:   dict (counts + totals)
-            legacy_bypass: bool
     """
-    legacy_bypass = os.environ.get("CREW_GATE_ENFORCEMENT", "").lower() == "legacy"
-
     log_paths = _iter_all_log_paths(project_dir)
     if not log_paths:
         # No log — fail-open per graceful-degradation policy.
@@ -556,7 +555,6 @@ def evaluate_review_gate(
                 "note": "No convergence log found — skipping gate.",
                 "total_artifacts": 0,
             },
-            "legacy_bypass": legacy_bypass,
         }
 
     status = project_status(project_dir, current_session_id=current_session_id)
@@ -616,9 +614,6 @@ def evaluate_review_gate(
     else:
         result = _GATE_CONDITIONAL
 
-    if legacy_bypass:
-        result = _GATE_APPROVE
-
     return {
         "gate": "convergence-verify",
         "result": result,
@@ -628,7 +623,6 @@ def evaluate_review_gate(
             "counts": status["counts"],
             "threshold": threshold,
         },
-        "legacy_bypass": legacy_bypass,
     }
 
 

@@ -14,7 +14,6 @@ Run with::
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 import unittest
@@ -216,8 +215,7 @@ class TestMissingDetection(unittest.TestCase):
 
 class TestGateIntegration(unittest.TestCase):
     def setUp(self) -> None:
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
-        # Fresh-import phase_manager to pick up env state.
+        # Fresh-import phase_manager to pick up any test-specific state.
         if "phase_manager" in sys.modules:
             del sys.modules["phase_manager"]
         import phase_manager  # noqa: E402
@@ -294,7 +292,6 @@ class TestGateIntegration(unittest.TestCase):
 
 class TestComplexityThreshold(unittest.TestCase):
     def setUp(self) -> None:
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
         if "phase_manager" in sys.modules:
             del sys.modules["phase_manager"]
         import phase_manager  # noqa: E402
@@ -337,42 +334,6 @@ class TestComplexityThreshold(unittest.TestCase):
             )
             self.assertIsNotNone(block, "Complexity 3 must block on missing")
             print("PASS complexity threshold: complexity 3 blocks on missing")
-
-
-# ---------------------------------------------------------------------------
-# Legacy bypass
-# ---------------------------------------------------------------------------
-
-
-class TestLegacyBypass(unittest.TestCase):
-    def setUp(self) -> None:
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
-
-    def tearDown(self) -> None:
-        os.environ.pop("CREW_GATE_ENFORCEMENT", None)
-
-    def test_legacy_bypass_skips_gate_entirely(self) -> None:
-        os.environ["CREW_GATE_ENFORCEMENT"] = "legacy"
-        if "phase_manager" in sys.modules:
-            del sys.modules["phase_manager"]
-        import phase_manager  # noqa: E402
-
-        with tempfile.TemporaryDirectory() as td:
-            project = Path(td) / "proj"
-            _write(project / "phases" / "clarify" / "acceptance-criteria.md",
-                   "- AC-9: missing everything [P0]\n")
-            state = phase_manager.ProjectState(
-                name="sem", current_phase="review",
-                created_at="2026-01-01T00:00:00Z", complexity_score=6,
-            )
-            block, warnings = phase_manager._check_semantic_alignment_gate(
-                state, project, "review",
-            )
-            self.assertIsNone(block,
-                              "CREW_GATE_ENFORCEMENT=legacy must bypass the gate")
-            self.assertEqual(warnings, [],
-                             "Legacy bypass should return no warnings")
-            print("PASS legacy bypass")
 
 
 # ---------------------------------------------------------------------------
