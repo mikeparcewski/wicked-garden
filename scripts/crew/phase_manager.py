@@ -4099,6 +4099,146 @@ def execute(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# #470 — Full-rigor yolo guardrails
+# ---------------------------------------------------------------------------
+#
+# The three guardrails stack on top of the existing yolo_action() grant path.
+# Each is enforced ONLY at full rigor (the tier where yolo is most dangerous)
+# and ONLY for the `approve` sub-action. Lower tiers and the `revoke`/`status`
+# paths are unaffected.
+#
+#   1. Justification: `--reason "<text>"` must be >= 40 characters.
+#   2. Cooldown:      after an auto-revoke, enforce a 5-minute window before
+#                     re-grant is allowed.
+#   3. Second-persona review: a sentinel file at
+#                     {project_dir}/phases/yolo-approval/second-persona-review.md
+#                     must exist with >= 100 bytes of non-whitespace content.
+#
+# Each failure raises ValueError with a short machine-greppable prefix so
+# agents can detect the failure class without re-parsing the full message.
+
+YOLO_JUSTIFICATION_MIN_LENGTH = 40
+YOLO_COOLDOWN_SECONDS = 300  # 5 minutes
+YOLO_SECOND_PERSONA_REVIEW_MIN_BYTES = 100
+
+
+def _parse_iso_timestamp(ts: str) -> Optional[datetime]:
+    """Parse an ISO-8601 timestamp (with Z or offset) into aware UTC datetime.
+
+    Returns None on any parse failure — callers treat None as "no prior event".
+    Stdlib-only; no dateutil dependency.
+    """
+    if not ts or not isinstance(ts, str):
+        return None
+    # get_utc_timestamp() emits the `Z` suffix; datetime.fromisoformat accepts
+    # the offset form. Normalise before parsing.
+    normalized = ts.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _last_auto_revoke_at(project_dir: Path) -> Optional[datetime]:
+    """Return the timestamp of the most recent auto-revoke, or None.
+
+    Scans yolo-audit.jsonl for the most recent record with event == "revoked"
+    AND reason beginning with "scope-increase@" (the signature of auto-revoke
+    emitted by _apply_scope_increase_revoke). Manual user-revokes do NOT
+    trigger the cooldown.
+    """
+    audit_path = project_dir / "yolo-audit.jsonl"
+    if not audit_path.exists():
+        return None
+    latest: Optional[datetime] = None
+    try:
+        text = audit_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("event") != "revoked":
+            continue
+        reason = rec.get("reason") or ""
+        if not reason.startswith("scope-increase@"):
+            continue
+        ts = _parse_iso_timestamp(rec.get("timestamp") or "")
+        if ts is None:
+            continue
+        if latest is None or ts > latest:
+            latest = ts
+    return latest
+
+
+def _second_persona_review_path(project_dir: Path) -> Path:
+    """Return the canonical sentinel path for the second-persona review."""
+    return project_dir / "phases" / "yolo-approval" / "second-persona-review.md"
+
+
+def _check_second_persona_review(project_dir: Path) -> Optional[str]:
+    """Return an error string when the sentinel is absent or trivial, else None.
+
+    Uses a byte-length check on non-whitespace content to catch trivial
+    sentinels (a single newline, a stray comment) that would defeat the intent
+    of the guardrail.
+    """
+    path = _second_persona_review_path(project_dir)
+    if not path.exists():
+        return (
+            "yolo-second-persona-review-missing: "
+            f"expected sentinel at {path.relative_to(project_dir)}. "
+            "Run /wicked-garden:persona:as <specialist> "
+            "\"review the project spec and confirm yolo is safe\" first."
+        )
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return f"yolo-second-persona-review-unreadable: {exc}"
+    stripped = content.strip()
+    if len(stripped.encode("utf-8")) < YOLO_SECOND_PERSONA_REVIEW_MIN_BYTES:
+        return (
+            "yolo-second-persona-review-trivial: sentinel exists but has "
+            f"< {YOLO_SECOND_PERSONA_REVIEW_MIN_BYTES} bytes of non-whitespace "
+            "content. Record the persona's actual review."
+        )
+    return None
+
+
+def _check_yolo_cooldown(
+    project_dir: Path,
+    *,
+    now: Optional[datetime] = None,
+) -> Optional[str]:
+    """Return an error string when within cooldown window, else None.
+
+    The `now` argument is exposed for tests; production callers pass None and
+    get wall-clock time.
+    """
+    last = _last_auto_revoke_at(project_dir)
+    if last is None:
+        return None
+    current = now or datetime.now(timezone.utc)
+    elapsed = (current - last).total_seconds()
+    if elapsed >= YOLO_COOLDOWN_SECONDS:
+        return None
+    remaining = int(YOLO_COOLDOWN_SECONDS - elapsed)
+    return (
+        "yolo-cooldown-active: "
+        f"last auto-revoke at {last.isoformat()}; "
+        f"{remaining}s remaining in the {YOLO_COOLDOWN_SECONDS}s cooldown."
+    )
+
+
 def yolo_action(project: str, action: str, reason: str = "") -> Dict[str, Any]:
     """Grant / revoke / inspect the yolo flag for a project.
 
@@ -4106,6 +4246,11 @@ def yolo_action(project: str, action: str, reason: str = "") -> Dict[str, Any]:
         approve  — set yolo_approved_by_user=True (writes audit line).
         revoke   — set yolo_approved_by_user=False (writes audit line).
         status   — return current flag + last audit record (no write).
+
+    Full-rigor guardrails (#470) apply to the `approve` path only:
+        - Justification (reason) must be >= 40 chars.
+        - 5-minute cooldown after an auto-revoke before re-grant is allowed.
+        - Second-persona review sentinel must exist with non-trivial content.
     """
     state = load_project_state(project)
     if state is None:
@@ -4113,6 +4258,7 @@ def yolo_action(project: str, action: str, reason: str = "") -> Dict[str, Any]:
     project_dir = get_project_dir(project)
     extras = state.extras or {}
     prior = bool(extras.get("yolo_approved_by_user"))
+    rigor_tier = (extras.get("rigor_tier") or "").lower()
 
     if action == "status":
         return {
@@ -4124,17 +4270,45 @@ def yolo_action(project: str, action: str, reason: str = "") -> Dict[str, Any]:
         }
 
     if action == "approve":
+        # #470 guardrails — full rigor only. At lower tiers yolo is still
+        # granted (preserving existing behaviour) but without the harder
+        # safety mechanisms.
+        if rigor_tier == "full":
+            just = (reason or "").strip()
+            if len(just) < YOLO_JUSTIFICATION_MIN_LENGTH:
+                raise ValueError(
+                    "yolo-justification-required: full-rigor yolo grant needs "
+                    f"--justification >= {YOLO_JUSTIFICATION_MIN_LENGTH} chars "
+                    f"(got {len(just)}). Example: --approve --justification "
+                    "\"payments refactor; reviewed by senior-engineer persona; "
+                    "scope locked to module X\""
+                )
+            cooldown_err = _check_yolo_cooldown(project_dir)
+            if cooldown_err:
+                raise ValueError(cooldown_err)
+            persona_err = _check_second_persona_review(project_dir)
+            if persona_err:
+                raise ValueError(persona_err)
+
         new_value = True
         extras["yolo_approved_by_user"] = True
         extras["yolo_approved_at"] = get_utc_timestamp()
         state.extras = extras
         save_project_state(state)
+        audit_extra: Dict[str, Any] = {}
+        if rigor_tier == "full":
+            # Record the full-rigor justification in a structured field
+            # rather than only via the free-text `reason`, so tooling can
+            # distinguish a full-rigor grant audit line from older grants.
+            audit_extra["justification"] = (reason or "").strip()
+            audit_extra["rigor_tier"] = "full"
         _append_yolo_audit(
             project_dir,
             event="granted",
             reason=reason or "user-granted",
             prior_value=prior,
             new_value=new_value,
+            extra=audit_extra or None,
         )
         return {
             "project": project,
@@ -4305,6 +4479,15 @@ def main():
             "Bypass phase-end re-eval addendum check (AC-14). "
             "REQUIRES --reason. Writes to phases/{phase}/skip-reeval-log.json. "
             "NEVER set via env-var or config — call-site only (AC-15)."
+        ),
+    )
+    parser.add_argument(
+        "--justification",
+        default=None,
+        help=(
+            "#470 — Full-rigor yolo grant justification (min 40 chars). "
+            "Equivalent to --reason for yolo approve but makes the intent "
+            "explicit in CLI usage."
         ),
     )
 
@@ -4668,8 +4851,12 @@ def main():
 
     elif args.action == "yolo":
         sub = args.yolo_action or args.sub_action or "status"
+        # Prefer --justification when provided (it makes intent explicit
+        # for the #470 full-rigor grant path); fall back to --reason so
+        # existing callers that use --reason continue to work unchanged.
+        yolo_reason = (args.justification or args.reason or "").strip()
         try:
-            yr = yolo_action(args.project, sub, reason=args.reason or "")
+            yr = yolo_action(args.project, sub, reason=yolo_reason)
         except ValueError as exc:
             if args.json:
                 print(json.dumps({"ok": False, "error": str(exc)}))

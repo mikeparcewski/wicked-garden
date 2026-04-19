@@ -172,15 +172,37 @@ class TestYoloActionAudit(unittest.TestCase):
     """AC-α5 — yolo_action writes audit line."""
 
     def test_yolo_approve_writes_audit(self):
-        """yolo_action('approve') sets flag and writes yolo-audit.jsonl."""
+        """yolo_action('approve') sets flag and writes yolo-audit.jsonl.
+
+        #470: full-rigor grants require a >= 40 char justification and a
+        second-persona review sentinel. Both are provided here so the
+        existing contract (audit file is written on grant) still holds.
+        """
         with tempfile.TemporaryDirectory() as td:
             project_dir = Path(td) / "yolo-grant"
             project_dir.mkdir()
             state = _synth_state("yolo-grant", yolo=False)
+            # #470 — stage the second-persona review sentinel the guardrail
+            # requires at full rigor. Content must be >= 100 bytes of
+            # non-whitespace per _check_second_persona_review.
+            sentinel = project_dir / "phases" / "yolo-approval" / "second-persona-review.md"
+            sentinel.parent.mkdir(parents=True, exist_ok=True)
+            sentinel.write_text(
+                "# Second-persona review\n\n"
+                "Reviewed by senior-engineer persona: project spec is locked "
+                "to module X; rollback plan documented; scope reviewed and "
+                "approved for yolo auto-advance at full rigor.\n"
+            )
+            justification = (
+                "Unit-test full-rigor grant; scope reviewed, rollback covered, "
+                "persona review on file."
+            )
             with patch.object(phase_manager, "load_project_state", return_value=state), \
                  patch.object(phase_manager, "save_project_state"), \
                  patch.object(phase_manager, "get_project_dir", return_value=project_dir):
-                phase_manager.yolo_action("yolo-grant", "approve", reason="unit-test")
+                phase_manager.yolo_action(
+                    "yolo-grant", "approve", reason=justification,
+                )
             audit = project_dir / "yolo-audit.jsonl"
             self.assertTrue(audit.exists())
 

@@ -1,6 +1,6 @@
 ---
 description: Grant or revoke yolo (auto-approve) for a crew project
-argument-hint: "<project-name> --approve | --revoke | --status"
+argument-hint: "<project-name> --approve --justification \"<text>\" | --revoke | --status"
 ---
 
 # /wicked-garden:crew:yolo
@@ -9,14 +9,27 @@ Grant, revoke, or inspect **yolo auto-approval** for a crew project. When grante
 `phase_manager.approve_phase()` auto-advances on APPROVE verdicts without user
 confirmation. CONDITIONAL and REJECT always surface to the user regardless.
 
-**Full-rigor policy**: yolo is ALLOWED at full rigor with explicit `--approve`. A
-scope-increase (augment OR re-tier-up) mutation in phase-end re-eval AUTO-REVOKES
-yolo with an audit line — safety is one-way.
+**Full-rigor policy**: yolo is ALLOWED at full rigor with explicit `--approve`,
+subject to three guardrails (#470):
+
+1. **Justification** — `--justification "<text>"` must be >= 40 characters.
+2. **Cooldown** — after an auto-revoke (scope-increase trigger), a 5-minute
+   cooldown blocks re-grant.
+3. **Second-persona review** — a sentinel at
+   `{project_dir}/phases/yolo-approval/second-persona-review.md` must exist
+   with >= 100 bytes of non-whitespace content. Produce it via
+   `/wicked-garden:persona:as <specialist> "review the project spec and
+   confirm yolo is safe"` (any persona qualifies).
+
+A scope-increase (augment OR re-tier-up) mutation in phase-end re-eval
+AUTO-REVOKES yolo with an audit line — safety is one-way.
 
 ## Arguments
 
 - `project-name` (required): crew project slug.
 - `--approve`: grant yolo (writes `yolo_approved_by_user=true` to ProjectState).
+- `--justification "<text>"`: required at full rigor (>= 40 chars). Captured
+  in `yolo-audit.jsonl` under the grant record's `justification` field.
 - `--revoke`: user-initiated revoke (writes `yolo_approved_by_user=false`).
 - `--status`: show current flag + last yolo-audit entry.
 
