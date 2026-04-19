@@ -112,4 +112,4 @@ been started for this project and how to record the first transition.
 - Gate verdict is informational here; enforcement happens inside
   `phase_manager.approve_phase` during review approval.
 - Fails open when the log is missing (graceful degradation).
-- `CREW_GATE_ENFORCEMENT=legacy` forces APPROVE verdict.
+- (v6.0 removed the env-var bypass; strict enforcement is always active.)

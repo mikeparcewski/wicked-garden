@@ -94,9 +94,10 @@ blocks `Write` / `Edit` during `build` phase when:
 
 ### Rollback
 
-Two env vars disable the gate:
+One env var disables the gate:
 
-- `CREW_GATE_ENFORCEMENT=legacy` — disables ALL gates (global)
 - `WG_CHALLENGE_GATE=off` — disables ONLY the challenge gate (targeted)
 
-Either takes effect immediately without re-starting the session.
+Takes effect immediately without re-starting the session. (v6.0 removed
+the global `CREW_GATE_ENFORCEMENT=legacy` switch; broader rollback is a
+`git revert` on the PR, not a runtime toggle.)

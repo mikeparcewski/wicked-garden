@@ -145,6 +145,13 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.phase",
         "description": "Phase auto-advanced for low-complexity project (audit trail)",
     },
+    # Yolo scope-increase revoke — emitted by _apply_scope_increase_revoke when
+    # an augment/re-tier-up mutation flips yolo_approved_by_user to False.
+    "wicked.crew.yolo_revoked": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.yolo",
+        "description": "Yolo auto-approval revoked due to scope-increase mutation (audit + observability)",
+    },
     # Smaht domain — fact_extractor.py → brain auto-memorize subscriber
     "wicked.fact.extracted": {
         "domain": "smaht",

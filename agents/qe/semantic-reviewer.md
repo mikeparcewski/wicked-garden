@@ -160,8 +160,8 @@ minimal-rigor tier.
 
 ## Bypass
 
-Set `CREW_GATE_ENFORCEMENT=legacy` to skip the semantic gate entirely
-(emergency rollback only — log the bypass in status.md).
+(v6.0 removed the env-var bypass; strict enforcement is always active.
+Rollback is a `git revert` on the PR, not a runtime toggle.)
 
 ## Common Divergence Patterns
 

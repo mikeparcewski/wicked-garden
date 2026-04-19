@@ -247,7 +247,9 @@ def _handle_write_guard(tool_input: dict) -> str:
 
     Issue #442: Also blocks Write/Edit during build phase when the
     challenge-artifacts gate has not cleared (complexity >= 4). Respects
-    ``CREW_GATE_ENFORCEMENT=legacy`` and ``WG_CHALLENGE_GATE=off`` bypasses.
+    ``WG_CHALLENGE_GATE=off`` as a scoped bypass. (The legacy global
+    ``CREW_GATE_ENFORCEMENT=legacy`` switch was removed in #466 — v6 gate
+    enforcement is unconditional; use ``git revert`` to roll back.)
 
     TODO (Issue #329): When Claude Code supports updatedInput for PreToolUse hooks
     to redirect tool calls, change the MEMORY.md deny into an updatedInput redirect
@@ -290,13 +292,13 @@ def _handle_write_guard(tool_input: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def _challenge_gate_bypassed() -> bool:
-    """Respect ``CREW_GATE_ENFORCEMENT=legacy`` and ``WG_CHALLENGE_GATE=off``.
+    """Respect ``WG_CHALLENGE_GATE=off`` as a scoped bypass.
 
-    Either env var disables the challenge gate — matches the existing gate
-    rollback convention used elsewhere in the codebase.
+    Only the scoped flag disables the challenge gate. The global
+    ``CREW_GATE_ENFORCEMENT=legacy`` switch was removed in #466 — v6 gate
+    enforcement is unconditional. Rollback is a ``git revert``, not a
+    runtime toggle.
     """
-    if (os.environ.get("CREW_GATE_ENFORCEMENT") or "").strip().lower() == "legacy":
-        return True
     if (os.environ.get("WG_CHALLENGE_GATE") or "").strip().lower() == "off":
         return True
     return False
@@ -386,8 +388,7 @@ def _check_challenge_gate(file_path: str) -> str:
             f"phases/design/challenge-artifacts.md before continuing build. "
             f"Run `wicked-garden:crew:contrarian` or dispatch Task("
             f"subagent_type='wicked-garden:crew:contrarian'). "
-            f"To bypass temporarily, set WG_CHALLENGE_GATE=off or "
-            f"CREW_GATE_ENFORCEMENT=legacy."
+            f"To bypass temporarily, set WG_CHALLENGE_GATE=off."
         )
     except Exception:
         return ""

@@ -22,6 +22,7 @@
       "min_gate_score": null,
       "min_test_coverage": null,
       "conditions_manifest_required": false,
+      "phase_executor_may_delegate": false,
       "valid_skip_reasons": [
         "complexity_below_threshold",
         "user_explicit_request",
@@ -50,7 +51,8 @@
       "gate_required": true,
       "min_gate_score": 0.6,
       "min_test_coverage": null,
-      "conditions_manifest_required": true
+      "conditions_manifest_required": true,
+      "phase_executor_may_delegate": false
     },
     "design": {
       "name": "design",
@@ -76,6 +78,7 @@
       "consensus_threshold": 5,
       "consensus_proposers": ["engineering", "devsecops", "product"],
       "strong_dissent_blocks": true,
+      "phase_executor_may_delegate": false,
       "valid_skip_reasons": [
         "complexity_below_threshold",
         "user_explicit_request",
@@ -105,6 +108,7 @@
       "min_test_coverage": null,
       "conditions_manifest_required": false,
       "skip_complexity_threshold": 3,
+      "phase_executor_may_delegate": false,
       "valid_skip_reasons": [
         "complexity_below_threshold",
         "user_explicit_request",
@@ -133,6 +137,7 @@
       "min_test_coverage": null,
       "conditions_manifest_required": true,
       "skip_complexity_threshold": 4,
+      "phase_executor_may_delegate": false,
       "valid_skip_reasons": [
         "complexity_below_threshold",
         "user_explicit_request",
@@ -160,7 +165,8 @@
       "conditions_manifest_required": false,
       "consensus_threshold": 5,
       "consensus_proposers": ["engineering", "quality-engineering", "devsecops"],
-      "strong_dissent_blocks": true
+      "strong_dissent_blocks": true,
+      "phase_executor_may_delegate": true
     },
     "test": {
       "name": "test",
@@ -184,6 +190,7 @@
       "min_gate_score": 0.8,
       "min_test_coverage": 0.80,
       "conditions_manifest_required": false,
+      "phase_executor_may_delegate": true,
       "valid_skip_reasons": [
         "user_explicit_request",
         "ci_equivalent_exists"
@@ -212,7 +219,8 @@
       "conditions_manifest_required": true,
       "consensus_threshold": 5,
       "consensus_proposers": ["quality-engineering", "product", "engineering"],
-      "strong_dissent_blocks": true
+      "strong_dissent_blocks": true,
+      "phase_executor_may_delegate": false
     },
     "operate": {
       "name": "operate",
@@ -236,6 +244,7 @@
       "min_test_coverage": null,
       "conditions_manifest_required": false,
       "skip_complexity_threshold": 3,
+      "phase_executor_may_delegate": false,
       "valid_skip_reasons": [
         "complexity_below_threshold",
         "user_explicit_request",

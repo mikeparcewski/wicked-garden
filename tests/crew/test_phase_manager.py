@@ -385,5 +385,84 @@ class TestMissingFileRaises(unittest.TestCase):
             self.assertIsNone(error)
 
 
+# ---------------------------------------------------------------------------
+# Review-gate condition (a): handle_approve without dispatcher logs a warning
+# ---------------------------------------------------------------------------
+
+class TestHandleApproveNoDispatcherWarning(unittest.TestCase):
+    """Review-gate condition (a): CLI approve path is honest about not
+    dispatching gate reviewers. `handle_approve` must emit a warning log
+    containing "no dispatcher" when invoked, so users are not silently
+    surprised by dispatcher-unavailable stubs."""
+
+    def test_handle_approve_logs_no_dispatcher_warning(self):
+        """Reading the source of the CLI approve branch must contain the
+        explicit warning log with "no dispatcher" text."""
+        src = Path(pm.__file__).read_text(encoding="utf-8")
+        # Find the approve branch. Match the CLI elif body.
+        idx = src.find('elif args.action == "approve":')
+        self.assertNotEqual(idx, -1, "handle_approve approve branch missing")
+        # Grab the next ~40 lines of source.
+        branch_src = src[idx:idx + 2500]
+        self.assertIn(
+            "logger.warning(",
+            branch_src,
+            "approve branch must call logger.warning() when no dispatcher "
+            "is injected",
+        )
+        self.assertIn(
+            "no dispatcher",
+            branch_src,
+            'approve branch warning text must contain "no dispatcher" so '
+            "the message is greppable and matches the review-gate "
+            "condition (a) acceptance test",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Review-gate condition (b): phases.json has phase_executor_may_delegate
+# ---------------------------------------------------------------------------
+
+class TestPhasesJsonExecutorMayDelegate(unittest.TestCase):
+    """Review-gate condition (b) / design-addendum-2 §SC-2: every phase
+    entry in phases.json must declare `phase_executor_may_delegate`.
+    Only `build` and `test` are allowed to delegate; everything else
+    must explicitly opt out."""
+
+    @classmethod
+    def setUpClass(cls):
+        phases_path = (
+            _REPO_ROOT / ".claude-plugin" / "phases.json"
+        )
+        cls.phases = json.loads(phases_path.read_text(encoding="utf-8"))["phases"]
+
+    def test_every_phase_has_field(self):
+        for name, cfg in self.phases.items():
+            self.assertIn(
+                "phase_executor_may_delegate",
+                cfg,
+                f"phase '{name}' is missing phase_executor_may_delegate",
+            )
+
+    def test_build_and_test_may_delegate(self):
+        self.assertTrue(self.phases["build"]["phase_executor_may_delegate"])
+        self.assertTrue(self.phases["test"]["phase_executor_may_delegate"])
+
+    def test_other_phases_may_not_delegate(self):
+        for name in (
+            "ideate",
+            "clarify",
+            "design",
+            "test-strategy",
+            "challenge",
+            "review",
+            "operate",
+        ):
+            self.assertFalse(
+                self.phases[name]["phase_executor_may_delegate"],
+                f"phase '{name}' must not delegate (design-addendum-2 §SC-2)",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

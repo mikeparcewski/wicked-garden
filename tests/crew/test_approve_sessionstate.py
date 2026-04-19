@@ -225,37 +225,5 @@ class TestGuardFailOpen(_SessionTempTestCase):
         self.assertEqual(result_state.extras.get("last_approve_warnings", []), [])
 
 
-# ---------------------------------------------------------------------------
-# CREW_GATE_ENFORCEMENT=legacy rollback — the build-phase guard is a no-op
-# ---------------------------------------------------------------------------
-
-
-class TestLegacyBypass(_SessionTempTestCase):
-
-    def test_legacy_enforcement_skips_guard(self):
-        """When CREW_GATE_ENFORCEMENT=legacy, the build-phase guard returns
-        an empty list without attempting to import guard_pipeline."""
-        state = _make_build_ready_state()
-
-        # If the guard ran, this patched run_pipeline would be called; we
-        # assert it's NOT called, proving the early-return in legacy mode.
-        import guard_pipeline as gp  # noqa: WPS433
-        called = {"count": 0}
-
-        def _counting(*_a, **_kw):
-            called["count"] += 1
-            return gp.PipelineReport(
-                pipeline_version="1.0", profile="standard",
-                budget_seconds=5.0, duration_ms=1, status="ok",
-            )
-
-        with patch.dict(os.environ, {"CREW_GATE_ENFORCEMENT": "legacy"}):
-            with patch.object(gp, "run_pipeline", side_effect=_counting):
-                approve_phase(state, "build")
-
-        self.assertEqual(called["count"], 0,
-                         "guard pipeline must not run under CREW_GATE_ENFORCEMENT=legacy")
-
-
 if __name__ == "__main__":
     unittest.main()

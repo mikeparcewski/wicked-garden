@@ -161,7 +161,7 @@ Quality gates are hard enforcement mechanisms, not advisory:
 - **Build depends on design**: `phases.json` `build.depends_on: ["clarify", "design"]`
 - **Structured skip reasons**: `valid_skip_reasons` per phase; free-text rejected
 - **Non-skippable test-strategy**: `skip_complexity_threshold: 3` prevents skipping at complexity >= 3
-- **Rollback**: `CREW_GATE_ENFORCEMENT=legacy` env var bypasses all enforcement
+- **Rollback**: git revert on the PR; no runtime toggle.
 - **Cross-session learning**: crew agents store learnings in wicked-garden:mem at project completion and gate failures
 
 ### Bulletproof Standards
@@ -269,7 +269,7 @@ Tasks carry agent-coordination fields in the `metadata` dict passed to `TaskCrea
 
 `gate-finding` additionally requires `verdict` (APPROVE | CONDITIONAL | REJECT), `min_score`, `score`; CONDITIONAL requires `conditions_manifest_path`.
 
-**Enforcement mode**: `WG_TASK_METADATA=warn|strict|off` (default: `warn`). Warn emits a deprecation `systemMessage` on violations; strict denies via `permissionDecision: "deny"`. Mirrors the `CREW_GATE_ENFORCEMENT=legacy` rollback pattern.
+**Enforcement mode**: `WG_TASK_METADATA=warn|strict|off` (default: `warn`). Warn emits a deprecation `systemMessage` on violations; strict denies via `permissionDecision: "deny"`.
 
 **Procedure injection**: SubagentStart hook reads the most-recently-modified in-progress task at `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` and injects the procedure bundle keyed on `metadata.event_type` (e.g. `coding-task` → R1-R6 bulletproof standards, `gate-finding` → Gate Finding Protocol).
 

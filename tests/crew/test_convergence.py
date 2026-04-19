@@ -7,7 +7,6 @@ Coverage:
     - Stall detection: pre-Integrated, >= threshold sessions
     - Aging budget: over-budget flags
     - Review gate: APPROVE/CONDITIONAL/REJECT verdicts
-    - Legacy bypass via CREW_GATE_ENFORCEMENT=legacy
     - Fail-open when log missing
 
 All deterministic. Stdlib-only. No sleep. Cross-platform tempdirs.
@@ -15,12 +14,10 @@ All deterministic. Stdlib-only. No sleep. Cross-platform tempdirs.
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
@@ -448,18 +445,6 @@ class TestReviewGate(unittest.TestCase):
             self.assertEqual(result["result"], "REJECT")  # art-2/3/4 block
             kinds = {f["kind"] for f in result["findings"]}
             self.assertIn("pre-integrated", kinds)
-
-    def test_legacy_bypass_forces_approve(self):
-        with _TmpProject() as pd:
-            _record(pd, "art-1", "Designed", phase="design", session_id="s1")
-            _record(pd, "art-1", "Built", phase="build", session_id="s1")
-            with patch.dict(os.environ, {"CREW_GATE_ENFORCEMENT": "legacy"}):
-                result = cv.evaluate_review_gate(pd)
-            self.assertEqual(result["result"], "APPROVE")
-            self.assertTrue(result["legacy_bypass"])
-            # Findings still attached for audit trail.
-            self.assertTrue(len(result["findings"]) >= 1)
-
 
 # ---------------------------------------------------------------------------
 # Project status aggregation

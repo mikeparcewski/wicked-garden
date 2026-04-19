@@ -167,6 +167,112 @@ def _resolve_gate_reviewer(gate_name: str, rigor_tier: str) -> dict:
     return tier_map[rigor_tier]
 
 
+# ---------------------------------------------------------------------------
+# Startup validation (SC-4) — full-rigor gates must declare non-empty reviewers
+# ---------------------------------------------------------------------------
+
+
+class ConfigError(ValueError):
+    """Raised on a mis-configured gate-policy.json (e.g. empty full-rigor reviewers).
+
+    Subclass of ValueError so existing callers that catch ValueError continue
+    to degrade gracefully, while new callers can discriminate config errors.
+    """
+
+
+_GATE_POLICY_FULL_VALIDATED: bool = False
+
+
+def _validate_gate_policy_full_rigor() -> None:
+    """Raise ConfigError if any gate at 'full' rigor has an empty reviewers list.
+
+    Runs once per process invocation; result cached in module-level flag
+    ``_GATE_POLICY_FULL_VALIDATED``. Called lazily from
+    ``phase_manager.execute()`` and ``approve_phase()`` entry points.
+
+    Rationale (SC-4 / CHL-04): silent fallback to the fast gate-evaluator at
+    full rigor is a correctness bug — the user asked for specialist council
+    scrutiny. Hard validation surfaces the misconfiguration immediately.
+
+    Behaviour:
+        - Each gate's ``full.reviewers`` list (when ``full`` tier is defined)
+          MUST be non-empty.
+        - Gates without a ``full`` tier are skipped (they do not advertise
+          full-rigor support).
+    """
+    global _GATE_POLICY_FULL_VALIDATED
+    if _GATE_POLICY_FULL_VALIDATED:
+        return
+    try:
+        policy = _load_gate_policy()
+    except FileNotFoundError:
+        # gate-policy.json missing is handled elsewhere; this validator only
+        # inspects a loadable policy.
+        return
+    for gate_name, tiers in (policy.get("gates") or {}).items():
+        if not isinstance(tiers, dict):
+            continue
+        full = tiers.get("full")
+        if not isinstance(full, dict):
+            continue
+        reviewers = full.get("reviewers")
+        if isinstance(reviewers, list) and len(reviewers) == 0:
+            raise ConfigError(
+                f"Gate policy for '{gate_name}' at full rigor has empty "
+                f"reviewers — full rigor requires at least one reviewer, "
+                f"found none. Configure reviewers or remove the full tier."
+            )
+    _GATE_POLICY_FULL_VALIDATED = True
+
+
+# ---------------------------------------------------------------------------
+# Dispatch-mode detection (CR-2 / AC-α11) — in-flight cutover rule
+# ---------------------------------------------------------------------------
+
+
+_DISPATCH_MODE_VALID = ("mode-3", "v6-legacy", "v5")
+_DISPATCH_MODE_DEFAULT_LEGACY = "v6-legacy"
+_DISPATCH_MODE_DEFAULT_FRESH = "mode-3"
+
+
+def _detect_dispatch_mode(state: "ProjectState") -> str:
+    """Return the dispatch mode for a project (reads + backfills).
+
+    Reads ``state.extras['dispatch_mode']`` if present. When absent, inspects
+    the project directory for mode-3 evidence (``phases/{phase}/reeval-log.jsonl``
+    or ``phases/{phase}/executor-status.json``) and returns ``"mode-3"`` when
+    any is found, else ``"v6-legacy"``. Writes the detected value back to
+    ``state.extras`` (caller persists via ``save_project_state``).
+
+    Safety: on any unexpected error, returns ``"v6-legacy"`` (preserves
+    existing behavior; mode-3 is opt-in).
+    """
+    try:
+        extras = getattr(state, "extras", None) or {}
+        stored = extras.get("dispatch_mode")
+        if isinstance(stored, str) and stored in _DISPATCH_MODE_VALID:
+            return stored
+
+        # Backfill path — inspect project dir for mode-3 evidence.
+        project_dir = get_project_dir(state.name)
+        phases_dir = project_dir / "phases"
+        detected = _DISPATCH_MODE_DEFAULT_LEGACY
+        if phases_dir.is_dir():
+            for phase_dir in phases_dir.iterdir():
+                if not phase_dir.is_dir():
+                    continue
+                if (phase_dir / "reeval-log.jsonl").exists() or (
+                    phase_dir / "executor-status.json"
+                ).exists():
+                    detected = _DISPATCH_MODE_DEFAULT_FRESH
+                    break
+        extras["dispatch_mode"] = detected
+        state.extras = extras
+        return detected
+    except Exception:  # noqa: BLE001 — safety: fail-safe default
+        return _DISPATCH_MODE_DEFAULT_LEGACY
+
+
 def load_phases_config() -> dict:
     """Load phase definitions from phases.json in .claude-plugin/."""
     config_path = _get_plugin_root() / ".claude-plugin" / "phases.json"
@@ -919,6 +1025,525 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
 
 
 # ---------------------------------------------------------------------------
+# BLEND-RULE gate dispatch helpers (design §3, AC-α3 / FR-α3.1..FR-α3.5)
+#
+# `_dispatch_gate_reviewer()` is the main entry point. It reads the
+# `gate-policy.json` entry for `{gate_name, rigor_tier}` and routes to one
+# of four sub-helpers based on the policy's `mode`:
+#
+#   - `_dispatch_fast_evaluator`    (self-check | advisory | empty reviewers)
+#   - `_dispatch_sequential`        (mode: sequential — stops on first REJECT)
+#   - `_dispatch_parallel_and_merge` (mode: parallel — single-batch dispatch,
+#                                     merged via REJECT > CONDITIONAL > APPROVE)
+#   - `_dispatch_council`           (mode: council — parallel + plurality)
+#
+# Since Task/Agent dispatching from within a Python script is
+# environment-dependent (not always available in unit tests or CLI subshells),
+# every helper accepts an injectable `dispatcher` callable with shape
+# `(subagent_type, prompt, context) -> dict`. Callers supply the real
+# orchestrator in production; tests supply a mock. When `dispatcher` is None,
+# helpers return a conservative CONDITIONAL stub with
+# `reason: "dispatcher-unavailable"` so callers can fall back to the existing
+# disk-based `gate-result.json` contract without blowing up.
+#
+# Merge rule (per design §3):
+#   - Any banned reviewer identity  -> REJECT "banned-reviewer"
+#   - Any REJECT                    -> REJECT (safety bias)
+#   - No REJECT, any CONDITIONAL    -> CONDITIONAL (union conditions)
+#   - All APPROVE                   -> APPROVE
+#   - Score = min of per-reviewer scores (conservative)
+# ---------------------------------------------------------------------------
+
+
+def _banned_reviewer_error(reviewer: str) -> Optional[str]:
+    """Return a reason string if `reviewer` is banned; None otherwise.
+
+    Mirrors _validate_gate_reviewer() logic but returns a short tag suitable
+    for embedding in a synthesized gate_result.
+    """
+    if not reviewer:
+        return None
+    r = reviewer.lower().strip()
+    if r in (name.lower() for name in BANNED_REVIEWER_NAMES):
+        return f"banned-reviewer:{reviewer}"
+    for prefix in BANNED_REVIEWER_PREFIXES:
+        if r.startswith(prefix.lower()):
+            return f"banned-reviewer:{reviewer}"
+    return None
+
+
+def _empty_verdict_stub(
+    gate_name: str, phase: str, reason: str, *, reviewer: str = "phase-manager"
+) -> Dict[str, Any]:
+    """Return a conservative CONDITIONAL gate_result used when dispatch
+    is unavailable. Callers may treat this as "no decision made"."""
+    return {
+        "verdict": "CONDITIONAL",
+        "score": 0.0,
+        "min_score": 0.0,
+        "reviewer": reviewer,
+        "reason": reason,
+        "timestamp": get_utc_timestamp(),
+        "conditions": [],
+        "gate_name": gate_name,
+        "phase": phase,
+        "per_reviewer_verdicts": [],
+        "reviewers_dispatched": [],
+        "dispatch_mode": "stub",
+        "external_review": False,
+    }
+
+
+def _normalize_reviewer_result(
+    raw: Any, *, reviewer: str
+) -> Dict[str, Any]:
+    """Normalize a reviewer's output into the canonical verdict shape.
+
+    Accepts a dict from the dispatcher with keys like
+    `{verdict|result, score, reason, conditions}` and produces:
+        {reviewer, verdict, score, reason, conditions}
+    Unknown / missing values degrade to CONDITIONAL with score 0.
+    """
+    if not isinstance(raw, dict):
+        return {
+            "reviewer": reviewer,
+            "verdict": "CONDITIONAL",
+            "score": 0.0,
+            "reason": "malformed-reviewer-output",
+            "conditions": [],
+        }
+    verdict = str(raw.get("verdict") or raw.get("result") or "CONDITIONAL").upper()
+    if verdict not in ("APPROVE", "CONDITIONAL", "REJECT"):
+        verdict = "CONDITIONAL"
+    try:
+        score = float(raw.get("score") or 0.0)
+    except (TypeError, ValueError):
+        score = 0.0
+    conditions = raw.get("conditions") or []
+    if not isinstance(conditions, list):
+        conditions = []
+    return {
+        "reviewer": raw.get("reviewer") or reviewer,
+        "verdict": verdict,
+        "score": score,
+        "reason": raw.get("reason") or "",
+        "conditions": conditions,
+    }
+
+
+def _merge_reviewer_verdicts(
+    per_reviewer: List[Dict[str, Any]],
+    *,
+    gate_name: str,
+    phase: str,
+    dispatch_mode: str,
+) -> Dict[str, Any]:
+    """Apply the BLEND-RULE merge to a list of normalized reviewer results.
+
+    Rules (design §3):
+      - Any banned identity        -> REJECT "banned-reviewer"
+      - Any REJECT                 -> REJECT
+      - No REJECT, any CONDITIONAL -> CONDITIONAL (union conditions)
+      - All APPROVE                -> APPROVE
+      - Merged score               -> min of scores (conservative)
+    """
+    if not per_reviewer:
+        return _empty_verdict_stub(
+            gate_name, phase, "no-reviewer-results", reviewer="phase-manager"
+        )
+
+    # 1. Banned reviewer short-circuit (highest priority).
+    for pr in per_reviewer:
+        banned = _banned_reviewer_error(pr.get("reviewer", ""))
+        if banned:
+            return {
+                "verdict": "REJECT",
+                "score": 0.0,
+                "min_score": 0.0,
+                "reviewer": pr.get("reviewer", ""),
+                "reason": banned,
+                "timestamp": get_utc_timestamp(),
+                "conditions": [],
+                "gate_name": gate_name,
+                "phase": phase,
+                "per_reviewer_verdicts": per_reviewer,
+                "reviewers_dispatched": [p.get("reviewer", "") for p in per_reviewer],
+                "dispatch_mode": dispatch_mode,
+                "external_review": len(per_reviewer) > 1,
+            }
+
+    verdicts = [pr["verdict"] for pr in per_reviewer]
+    scores = [pr["score"] for pr in per_reviewer]
+    merged_score = min(scores) if scores else 0.0
+    reviewers = [pr.get("reviewer", "") for pr in per_reviewer]
+    union_conditions: List[Any] = []
+    reasons: List[str] = []
+    for pr in per_reviewer:
+        union_conditions.extend(pr.get("conditions", []))
+        if pr.get("reason"):
+            reasons.append(f"{pr.get('reviewer', '?')}: {pr['reason']}")
+
+    if "REJECT" in verdicts:
+        merged_verdict = "REJECT"
+    elif "CONDITIONAL" in verdicts:
+        merged_verdict = "CONDITIONAL"
+    else:
+        merged_verdict = "APPROVE"
+
+    return {
+        "verdict": merged_verdict,
+        "result": merged_verdict,  # legacy alias consumed by approve_phase
+        "score": merged_score,
+        "min_score": merged_score,
+        "reviewer": reviewers[0] if reviewers else "phase-manager",
+        "reason": "; ".join(reasons) if reasons else merged_verdict,
+        "timestamp": get_utc_timestamp(),
+        "conditions": union_conditions,
+        "gate_name": gate_name,
+        "phase": phase,
+        "per_reviewer_verdicts": per_reviewer,
+        "reviewers_dispatched": reviewers,
+        "dispatch_mode": dispatch_mode,
+        "external_review": len(per_reviewer) > 1,
+    }
+
+
+def _dispatch_fast_evaluator(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    *,
+    dispatcher: Optional[Any] = None,
+    fallback_reviewer: str = "gate-evaluator",
+) -> Dict[str, Any]:
+    """Fast-path dispatcher for self-check / advisory / empty-reviewers gates.
+
+    Dispatches the `gate-evaluator` agent with a deliverable-summary context
+    and returns a normalized gate_result. When `dispatcher` is None (unit
+    tests / CLI shells without Task tool), returns a CONDITIONAL stub.
+    """
+    ctx = {
+        "gate_name": gate_name,
+        "phase": phase,
+        "project": getattr(state, "name", None) if state is not None else None,
+        "mode": "fast-evaluator",
+    }
+    if dispatcher is None:
+        return _empty_verdict_stub(
+            gate_name, phase, "dispatcher-unavailable", reviewer=fallback_reviewer
+        )
+    try:
+        raw = dispatcher(
+            "wicked-garden:crew:gate-evaluator",
+            (
+                f"Evaluate gate '{gate_name}' for phase '{phase}'. "
+                "Read gate-policy.json for objective thresholds and the "
+                f"deliverables under phases/{phase}/. Emit verdict + score + "
+                "reason + conditions."
+            ),
+            ctx,
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        return _empty_verdict_stub(
+            gate_name, phase, f"dispatch-error:{exc}", reviewer=fallback_reviewer
+        )
+    norm = _normalize_reviewer_result(raw, reviewer=fallback_reviewer)
+    return _merge_reviewer_verdicts(
+        [norm],
+        gate_name=gate_name,
+        phase=phase,
+        dispatch_mode="fast-evaluator",
+    )
+
+
+def _dispatch_sequential(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    reviewers: List[str],
+    *,
+    dispatcher: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Dispatch reviewers in order, stopping on the first REJECT.
+
+    Merged verdict uses BLEND-RULE over the results collected so far.
+    """
+    if not reviewers:
+        return _dispatch_fast_evaluator(
+            state, phase, gate_name, dispatcher=dispatcher
+        )
+    if dispatcher is None:
+        return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
+
+    collected: List[Dict[str, Any]] = []
+    for reviewer in reviewers:
+        try:
+            raw = dispatcher(
+                f"wicked-garden:crew:{reviewer}",
+                (
+                    f"Review gate '{gate_name}' for phase '{phase}' as {reviewer}. "
+                    "Emit verdict + score + reason + conditions."
+                ),
+                {"gate_name": gate_name, "phase": phase, "reviewer": reviewer},
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            raw = {"verdict": "CONDITIONAL", "score": 0.0,
+                   "reason": f"dispatch-error:{exc}", "conditions": []}
+        norm = _normalize_reviewer_result(raw, reviewer=reviewer)
+        collected.append(norm)
+        if norm["verdict"] == "REJECT":
+            # Short-circuit — do not dispatch remaining reviewers.
+            break
+
+    return _merge_reviewer_verdicts(
+        collected,
+        gate_name=gate_name,
+        phase=phase,
+        dispatch_mode="sequential",
+    )
+
+
+def _dispatch_parallel_and_merge(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    reviewers: List[str],
+    *,
+    dispatcher: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Dispatch all reviewers in a single-message parallel Agent batch (SC-6).
+
+    The dispatcher is expected to support a batched call — we pass the
+    reviewer list and a per-reviewer context in one invocation. A single-
+    reviewer dispatcher is accepted too; we invoke it once per reviewer but
+    the intent is that the caller's wrapper preserves the parallel batch
+    (see `parallelization_check` in execute() for the SC-6 contract).
+
+    Merge rule: REJECT if any REJECT, CONDITIONAL if any CONDITIONAL, else
+    APPROVE. Conditions are unioned; score = min.
+    """
+    if not reviewers:
+        return _dispatch_fast_evaluator(
+            state, phase, gate_name, dispatcher=dispatcher
+        )
+    if dispatcher is None:
+        return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
+
+    per_reviewer: List[Dict[str, Any]] = []
+    # Attempt batched dispatch first via a sentinel subagent_type. If the
+    # dispatcher doesn't recognize the batch shape it returns None / raises;
+    # we then fall back to per-reviewer dispatch. The caller supplies
+    # whichever style they support.
+    batched: Any = None
+    try:
+        batched = dispatcher(
+            "wicked-garden:crew:_parallel_batch",
+            (
+                f"Dispatch reviewers in parallel for gate '{gate_name}' "
+                f"phase '{phase}'. reviewers={reviewers}"
+            ),
+            {
+                "gate_name": gate_name,
+                "phase": phase,
+                "reviewers": reviewers,
+                "mode": "parallel",
+            },
+        )
+    except Exception:
+        batched = None
+
+    if isinstance(batched, list) and batched:
+        for idx, raw in enumerate(batched):
+            name = reviewers[idx] if idx < len(reviewers) else f"reviewer-{idx}"
+            per_reviewer.append(
+                _normalize_reviewer_result(raw, reviewer=name)
+            )
+    else:
+        # Fallback: call the dispatcher once per reviewer. We still mark
+        # dispatch_mode=parallel — the contract is the merge rule.
+        for reviewer in reviewers:
+            try:
+                raw = dispatcher(
+                    f"wicked-garden:crew:{reviewer}",
+                    (
+                        f"Review gate '{gate_name}' for phase '{phase}' as "
+                        f"{reviewer}. Emit verdict + score + reason + conditions."
+                    ),
+                    {
+                        "gate_name": gate_name,
+                        "phase": phase,
+                        "reviewer": reviewer,
+                        "mode": "parallel",
+                    },
+                )
+            except Exception as exc:  # pragma: no cover
+                raw = {"verdict": "CONDITIONAL", "score": 0.0,
+                       "reason": f"dispatch-error:{exc}", "conditions": []}
+            per_reviewer.append(
+                _normalize_reviewer_result(raw, reviewer=reviewer)
+            )
+
+    return _merge_reviewer_verdicts(
+        per_reviewer,
+        gate_name=gate_name,
+        phase=phase,
+        dispatch_mode="parallel",
+    )
+
+
+def _dispatch_council(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    reviewers: List[str],
+    *,
+    min_concurrence: float = 0.6,
+    dispatcher: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Council dispatch — parallel plurality vote with concurrence threshold.
+
+    Verdict is the plurality of (APPROVE | CONDITIONAL | REJECT). When the
+    plurality share < `min_concurrence`, the verdict is downgraded to
+    CONDITIONAL with reason `insufficient-concurrence`. REJECT still
+    short-circuits any plurality analysis (one REJECT blocks).
+    """
+    if not reviewers:
+        return _dispatch_fast_evaluator(
+            state, phase, gate_name, dispatcher=dispatcher
+        )
+    if dispatcher is None:
+        return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
+
+    merged = _dispatch_parallel_and_merge(
+        state, phase, gate_name, reviewers, dispatcher=dispatcher
+    )
+    merged["dispatch_mode"] = "council"
+
+    per_reviewer = merged.get("per_reviewer_verdicts") or []
+    total = len(per_reviewer)
+    if not total:
+        return merged
+
+    # REJECT short-circuit already applied by the merge helper.
+    if merged.get("verdict") == "REJECT":
+        return merged
+
+    verdict_counts: Dict[str, int] = {"APPROVE": 0, "CONDITIONAL": 0, "REJECT": 0}
+    for pr in per_reviewer:
+        v = pr.get("verdict", "CONDITIONAL")
+        verdict_counts[v] = verdict_counts.get(v, 0) + 1
+
+    # Plurality (ties broken in the safer direction: CONDITIONAL > APPROVE).
+    plurality_verdict = "APPROVE"
+    plurality_count = verdict_counts["APPROVE"]
+    if verdict_counts["CONDITIONAL"] >= plurality_count:
+        plurality_verdict = "CONDITIONAL"
+        plurality_count = verdict_counts["CONDITIONAL"]
+
+    concurrence = plurality_count / total
+    merged["concurrence"] = concurrence
+    merged["min_concurrence"] = min_concurrence
+    merged["plurality_verdict"] = plurality_verdict
+    if concurrence < min_concurrence and plurality_verdict == "APPROVE":
+        # Downgrade — not enough agreement to approve.
+        merged["verdict"] = "CONDITIONAL"
+        merged["result"] = "CONDITIONAL"
+        prior_reason = merged.get("reason") or ""
+        merged["reason"] = (
+            "insufficient-concurrence"
+            + (f"; {prior_reason}" if prior_reason else "")
+        )
+    else:
+        merged["verdict"] = plurality_verdict
+        merged["result"] = plurality_verdict
+
+    return merged
+
+
+# Phase -> default gate_name mapping. Used by approve_phase() when it needs
+# to call _dispatch_gate_reviewer() but the caller didn't pass an explicit
+# gate_name. Mirrors skills/propose-process/refs/gate-policy.md. Phases not
+# listed fall back to the phase-name (e.g. 'review' -> 'review') which will
+# surface as "unknown gate" via _resolve_gate_reviewer.
+_PHASE_DEFAULT_GATE: Dict[str, str] = {
+    "clarify": "requirements-quality",
+    "design": "design-quality",
+    "build": "code-quality",
+    "review": "evidence-quality",
+    "test-strategy": "testability",
+    "challenge": "challenge-resolution",
+}
+
+
+def _gate_name_for_phase(phase: str) -> str:
+    """Return the default gate_name for a given phase (BLEND dispatch)."""
+    return _PHASE_DEFAULT_GATE.get(resolve_phase(phase), resolve_phase(phase))
+
+
+def _dispatch_gate_reviewer(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    gate_policy_entry: Dict[str, Any],
+    *,
+    dispatcher: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Main BLEND-RULE entry point.
+
+    Reads the policy entry for `{tier}` and delegates to the right
+    sub-helper. Returns a merged gate_result dict with
+    `{verdict, score, reason, conditions, per_reviewer_verdicts[]}`.
+
+    Args:
+        state:              ProjectState for context (may be None in stubs).
+        phase:              Phase being approved.
+        gate_name:          One of the configured gates.
+        gate_policy_entry:  The rigor-tier block from gate-policy.json
+                            (dict with `reviewers`, `mode`, `fallback`).
+        dispatcher:         Optional injectable callable
+                            `(subagent_type, prompt, context) -> dict`.
+                            When None, returns a CONDITIONAL stub.
+    """
+    if not isinstance(gate_policy_entry, dict):
+        return _empty_verdict_stub(
+            gate_name, phase, "missing-gate-policy-entry"
+        )
+
+    mode = str(gate_policy_entry.get("mode") or "self-check").lower()
+    reviewers = list(gate_policy_entry.get("reviewers") or [])
+    fallback = gate_policy_entry.get("fallback") or "gate-evaluator"
+
+    # BLEND RULE — fast path when no reviewers or advisory/self-check.
+    if not reviewers or mode in ("self-check", "advisory"):
+        return _dispatch_fast_evaluator(
+            state,
+            phase,
+            gate_name,
+            dispatcher=dispatcher,
+            fallback_reviewer=fallback,
+        )
+
+    if mode == "sequential":
+        return _dispatch_sequential(
+            state, phase, gate_name, reviewers, dispatcher=dispatcher
+        )
+    if mode == "parallel":
+        return _dispatch_parallel_and_merge(
+            state, phase, gate_name, reviewers, dispatcher=dispatcher
+        )
+    if mode == "council":
+        return _dispatch_council(
+            state, phase, gate_name, reviewers, dispatcher=dispatcher
+        )
+
+    # Unknown mode — conservative stub (do not raise: this path runs inside
+    # approve_phase() where a raise would abort advancement for all callers).
+    return _empty_verdict_stub(
+        gate_name, phase, f"unknown-dispatch-mode:{mode}", reviewer=fallback
+    )
+
+
+# ---------------------------------------------------------------------------
 # Semantic alignment gate (issue #444)
 #
 # Post-implementation pass that verifies spec-to-code alignment per numbered
@@ -926,10 +1551,8 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
 # checks (see call site in ``approve_phase``). Complexity-aware: mandatory at
 # complexity >= 3, advisory otherwise.
 #
-# Emergency bypass honoured via CREW_GATE_ENFORCEMENT=legacy env var. The
-# wider v6 enforcement machinery removed the general legacy flag, but this
-# specific gate is new and its own rollback lever is additive — matches the
-# WG_TASK_METADATA escape-hatch pattern for newly-added validators.
+# (v6.0 removed the env-var bypass; strict enforcement is always active.
+# Rollback is a ``git revert`` on the PR, not a runtime toggle.)
 # ---------------------------------------------------------------------------
 
 # Complexity at/above which semantic alignment is MANDATORY (blocking).
@@ -962,21 +1585,12 @@ def _check_semantic_alignment_gate(
         complexity <  3                 -> advisory warning only; never blocks
         no spec items found             -> advisory skip
 
-    Respects ``CREW_GATE_ENFORCEMENT=legacy`` — returns (None, []) when set.
     Fails safe — any exception during analysis becomes a warning, not a block.
+    (v6.0 removed the env-var bypass; strict enforcement is always active.)
     """
     # Only runs for the review phase. Caller should pre-check but we
     # defensively verify here too.
     if resolve_phase(phase) != "review":
-        return None, []
-
-    # Emergency rollback — honoured for this gate explicitly per issue #444
-    # acceptance ("Respect CREW_GATE_ENFORCEMENT=legacy bypass").
-    if os.environ.get("CREW_GATE_ENFORCEMENT", "").lower() == "legacy":
-        logger.info(
-            "[semantic-alignment] CREW_GATE_ENFORCEMENT=legacy set — "
-            "skipping spec-to-code alignment check."
-        )
         return None, []
 
     complexity = int(getattr(state, "complexity_score", 0) or 0)
@@ -1083,8 +1697,7 @@ def _check_semantic_alignment_gate(
                 f"missing from implementation ({', '.join(missing_ids)}). "
                 f"See {project_dir / 'phases' / 'review' / 'semantic-gap-report.json'}. "
                 f"Implement the referenced AC or remove them from the spec "
-                f"before approving, or set CREW_GATE_ENFORCEMENT=legacy to "
-                f"bypass (emergency rollback only)."
+                f"before approving."
             ),
             warnings,
         )
@@ -1559,13 +2172,12 @@ def _check_convergence_gate(state: "ProjectState") -> List[str]:
     Fails open on:
         - missing module (module not importable)
         - missing log file (no convergence data recorded yet)
-        - `CREW_GATE_ENFORCEMENT=legacy`
 
     Returns:
         List of human-readable CONDITIONAL finding strings.  Empty means the
-        gate passed (or was bypassed).  These are warnings, not hard REJECTs —
-        they are appended to the approve_phase warnings list so the reviewer
-        sees them without the approval itself being blocked by this gate.
+        gate passed.  These are warnings, not hard REJECTs — they are
+        appended to the approve_phase warnings list so the reviewer sees
+        them without the approval itself being blocked by this gate.
     """
     try:
         from convergence import evaluate_review_gate as _eval_cv_gate
@@ -1584,7 +2196,6 @@ def _check_convergence_gate(state: "ProjectState") -> List[str]:
         logger.warning("[convergence-verify] evaluate_review_gate failed: %s", exc)
         return []
 
-    # Legacy bypass already handled inside evaluate_review_gate.
     if result.get("result") == "APPROVE":
         return []
 
@@ -1640,18 +2251,11 @@ def _run_build_phase_guard(project_dir: Path) -> List[str]:
     Fail-open on every axis — ImportError, missing module, exception during
     scan, budget_exceeded — all return an empty list without raising.
 
-    Respects CREW_GATE_ENFORCEMENT=legacy as a rollback switch: when set
-    the guard hook is a complete no-op (matches the documented escape hatch
-    for additive gate enforcement layers).
+    (v6.0 removed the env-var bypass; strict enforcement is always active.
+    Rollback is a ``git revert`` on the PR, not a runtime toggle.)
 
     Mirrors the fail-open pattern used by hooks/scripts/stop.py::_run_guard_pipeline.
     """
-    # Rollback switch — keep the build-phase guard hook no-op when legacy
-    # enforcement is requested (matches the mode-flag escape pattern used
-    # by the telemetry step and the #448 stop-hook integration).
-    if os.environ.get("CREW_GATE_ENFORCEMENT", "").lower() == "legacy":
-        return []
-
     try:
         # scripts/platform/ is a sibling of scripts/crew/.  Add it to
         # sys.path lazily so the import only pays the cost at build-phase
@@ -1703,6 +2307,8 @@ def approve_phase(
     override_deliverables_reason: str = "",
     skip_reeval: bool = False,
     skip_reeval_reason: str = "",
+    *,
+    dispatcher: Optional[Any] = None,
 ) -> Tuple[ProjectState, Optional[str]]:
     """Approve a phase and return next phase (or None if done).
 
@@ -1716,9 +2322,37 @@ def approve_phase(
                             This is a deliberate, logged, audited bypass — NOT a
                             silent escape (AC-14, AC-15).
         skip_reeval_reason: Mandatory justification string when skip_reeval=True.
+        dispatcher:         Optional injectable callable for BLEND-RULE gate
+                            dispatch (design §3). When provided, and the gate
+                            hasn't been run (no existing gate-result.json),
+                            approve_phase() dispatches reviewers per
+                            gate-policy.json instead of raising. When None
+                            (legacy callers), existing behavior is preserved —
+                            "Gate not run" raises as before.
+
+                            IMPORTANT (review-gate condition a): the
+                            `handle_approve` CLI entry always passes
+                            dispatcher=None because raw CLI invocations
+                            cannot dispatch Claude Code subagents. Only
+                            Agent-driven callers (e.g. the `crew:approve`
+                            slash command running inside claude-code) can
+                            inject a real dispatcher. `handle_approve`
+                            logs an explicit warning in that case so the
+                            behaviour is honest rather than silent.
     """
     phase = resolve_phase(phase)
     warnings: List[str] = []
+
+    # SC-4 startup validation (COND-TG-4): when the project is running at full
+    # rigor, assert gate-policy.json declares non-empty reviewers for every
+    # full-tier gate. Empty reviewers would silently degrade to the fast
+    # evaluator which is a correctness bug at full rigor. Non-full tiers skip
+    # this check because an empty reviewer list is legitimate at minimal
+    # rigor (advisory-only gates). Matches the docstring claim that the
+    # validator is called from both execute() and approve_phase() entry
+    # points (see _validate_gate_policy_full_rigor docstring).
+    if (state.extras or {}).get("rigor_tier") == "full":
+        _validate_gate_policy_full_rigor()
 
     # Check 0 (AC-8): phase-end re-eval addendum freshness — fail-closed.
     # Must happen before deliverable check so the user sees the most actionable
@@ -1827,6 +2461,39 @@ def approve_phase(
         project_dir = get_project_dir(state.name)
         rigor_tier = state.extras.get("rigor_tier")
         gate_run = _check_gate_run(project_dir, phase, rigor_tier=rigor_tier)
+
+        # BLEND-RULE dispatch hook (design §3, FR-α3.x): when the gate
+        # hasn't been run yet and a dispatcher was supplied, synthesize
+        # a gate-result.json by invoking reviewers per gate-policy.json
+        # BEFORE the legacy "gate not run" branch fires. Writing the
+        # artifact lets the existing post-load check chain run unchanged.
+        if not gate_run and dispatcher is not None and not override_gate:
+            try:
+                gate_name = _gate_name_for_phase(phase)
+                gate_entry = _resolve_gate_reviewer(
+                    gate_name, rigor_tier or "standard"
+                )
+                synthesized = _dispatch_gate_reviewer(
+                    state, phase, gate_name, gate_entry,
+                    dispatcher=dispatcher,
+                )
+                phase_dir = project_dir / "phases" / phase
+                phase_dir.mkdir(parents=True, exist_ok=True)
+                (phase_dir / "gate-result.json").write_text(
+                    json.dumps(synthesized, indent=2, sort_keys=True)
+                )
+                # Re-run the run-detector now that we've written the file.
+                gate_run = _check_gate_run(
+                    project_dir, phase, rigor_tier=rigor_tier
+                )
+            except (ValueError, FileNotFoundError, OSError) as exc:
+                # Failed BLEND dispatch — fall through to legacy "gate not
+                # run" raise below so the user gets the familiar error.
+                logger.warning(
+                    "[approve] BLEND dispatch failed for phase '%s': %s; "
+                    "falling back to legacy gate-required error.",
+                    phase, exc,
+                )
 
         if not gate_run:
             if override_gate and not gate_override_allowed:
@@ -1973,6 +2640,61 @@ def approve_phase(
                         warnings.append(f"Score check overridden: {score_error}")
                     else:
                         raise ValueError(score_error)
+
+    # FR-α5.2: Approve-time yolo auto-accept.
+    #
+    # Policy (design §3 + task spec):
+    #   - yolo + APPROVE      -> advance normally, append yolo-audit line
+    #   - yolo + CONDITIONAL  -> DO NOT auto-advance; surface to user with
+    #                            conditions-manifest (raise ValueError)
+    #   - yolo + REJECT       -> existing REJECT raise already fired above
+    #   - no yolo             -> unchanged
+    #
+    # The REJECT path is already handled by the "Gate returned REJECT"
+    # raise earlier in this function, so only APPROVE + CONDITIONAL need
+    # new logic here. Audit lines go to yolo-audit.jsonl; advance logic
+    # is otherwise untouched (preserves legacy callers).
+    yolo_flag = bool((state.extras or {}).get("yolo_approved_by_user"))
+    if yolo_flag and gate_result:
+        _verdict_raw = (
+            gate_result.get("verdict") or gate_result.get("result") or ""
+        )
+        _verdict = str(_verdict_raw).upper()
+        if _verdict == "APPROVE":
+            try:
+                _project_dir_yolo = get_project_dir(state.name)
+            except Exception:
+                _project_dir_yolo = None
+            if _project_dir_yolo is not None:
+                _append_yolo_audit(
+                    _project_dir_yolo,
+                    event="auto-accepted",
+                    reason=f"phase:{phase} verdict:APPROVE",
+                    prior_value=True,
+                    new_value=True,
+                    extra={
+                        "phase": phase,
+                        "verdict": "APPROVE",
+                        "score": gate_result.get("score"),
+                        "reviewer": gate_result.get("reviewer"),
+                    },
+                )
+        elif _verdict == "CONDITIONAL":
+            # Surface CONDITIONAL to the user — do not silently advance
+            # under yolo. Conditions-manifest has already been written
+            # above (Check 2b). Raise so the CLI exits non-zero and the
+            # user sees the manifest path in the error text.
+            conditions_manifest = (
+                get_project_dir(state.name) / "phases" / phase
+                / "conditions-manifest.json"
+            )
+            raise ValueError(
+                f"Phase '{phase}' gate verdict is CONDITIONAL under yolo "
+                f"— auto-advance blocked. Review "
+                f"{conditions_manifest} and re-run approve after "
+                f"conditions are resolved, or pass --override-gate "
+                f"with a reason to bypass."
+            )
 
     # Emit gate decision to wicked-bus
     if gate_result:
@@ -2380,13 +3102,430 @@ def _merge_data_into_state(state: ProjectState, data: Dict[str, Any]) -> Project
     return state
 
 
+# ---------------------------------------------------------------------------
+# Mode-3 execute() entry point (AC-α2 / FR-α2.1..FR-α2.5)
+# ---------------------------------------------------------------------------
+
+
+def _append_yolo_audit(
+    project_dir: Path,
+    *,
+    event: str,
+    reason: str,
+    prior_value: bool,
+    new_value: bool,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Append a single yolo-audit.jsonl record at the project root.
+
+    Append-only; never rewrites. Fails open — audit log failures log but
+    do not abort the caller (matches plugin's graceful-degradation pattern).
+    """
+    try:
+        audit_path = project_dir / "yolo-audit.jsonl"
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "event": event,
+            "timestamp": get_utc_timestamp(),
+            "reason": reason,
+            "scope": f"project:{project_dir.name}",
+            "prior_value": prior_value,
+            "new_value": new_value,
+        }
+        if extra:
+            record.update(extra)
+        with open(audit_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        logger.warning("[yolo-audit] append failed: %s", exc)
+
+
+def _apply_scope_increase_revoke(
+    state: "ProjectState",
+    *,
+    plan_mutations: List[Dict[str, Any]],
+    project_dir: Path,
+    trigger: str,
+) -> bool:
+    """Revoke yolo if any mutation is an augment or re-tier-up to 'full'.
+
+    Returns True when yolo was revoked by this call; False otherwise.
+    Idempotent — caller may invoke at both execute() and approve() points.
+    """
+    scope_increased = any(
+        (m.get("op") == "augment")
+        or (
+            m.get("op") == "re_tier"
+            and m.get("new_rigor_tier") == "full"
+        )
+        for m in (plan_mutations or [])
+    )
+    if not scope_increased:
+        return False
+    extras = getattr(state, "extras", None) or {}
+    if not extras.get("yolo_approved_by_user"):
+        return False
+    extras["yolo_approved_by_user"] = False
+    extras["yolo_revoked_count"] = int(extras.get("yolo_revoked_count") or 0) + 1
+    state.extras = extras
+    _append_yolo_audit(
+        project_dir,
+        event="revoked",
+        reason=f"scope-increase@{trigger}",
+        prior_value=True,
+        new_value=False,
+        extra={"triggering_mutations": plan_mutations},
+    )
+    # Observability: emit bus event so subscribers see the scope-increase
+    # revoke without tailing yolo-audit.jsonl. Fail-open on bus absence —
+    # emit_event() is a no-op when the bus is unavailable (see _bus.py).
+    try:
+        from _bus import emit_event
+        emit_event(
+            "wicked.crew.yolo_revoked",
+            {
+                "project": project_dir.name,
+                "trigger": trigger,
+                "mutation_count": len(plan_mutations or []),
+                "revoked_count": int(extras.get("yolo_revoked_count") or 0),
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 — observability fail-open
+        logger.debug("[yolo-revoke] bus emit failed (fail-open): %s", exc)
+    return True
+
+
+class ExecuteResult(Dict[str, Any]):
+    """Result shape for ``execute()``.
+
+    Keys:
+        status:                 "ok" | "failed"
+        deliverables:           list[str] of absolute paths (>= 100 bytes each)
+        executor_task_id:       opaque task identifier
+        reeval_start_path:      phases/{phase}/reeval-start.json
+        reeval_end_path:        phases/{phase}/reeval-log.jsonl
+        parallelization_check:  {sub_task_count, dispatched_in_parallel, serial_reason}
+        reason:                 present when status == "failed"
+    """
+
+
+def _check_parallelization(check: Dict[str, Any]) -> Optional[str]:
+    """Return a failure reason string when the parallelization_check is invalid.
+
+    Enforces SC-6 / AC-α10: when ``sub_task_count >= 2`` and
+    ``dispatched_in_parallel is False``, ``serial_reason`` MUST be non-empty.
+    Returns None when the check is satisfied.
+    """
+    if not isinstance(check, dict):
+        return "parallelization-check-missing"
+    sub_count = int(check.get("sub_task_count") or 0)
+    if sub_count < 2:
+        return None
+    in_parallel = bool(check.get("dispatched_in_parallel"))
+    if in_parallel:
+        return None
+    serial_reason = (check.get("serial_reason") or "").strip()
+    if not serial_reason:
+        return "parallelization-check-missing"
+    return None
+
+
+def execute(
+    project: str,
+    phase: str,
+    *,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Dispatch the phase-executor, collect deliverables, persist addendum.
+
+    Signature (AC-α2 / FR-α2.1): ``execute(project, phase) -> ExecuteResult``.
+
+    Returns a dict with keys listed in :class:`ExecuteResult`.
+
+    The live dispatch (Task tool invocation) is owned by the orchestrator;
+    this function is the server-side persistence / validation / status
+    writer. When called by an agent via the CLI, it reads an
+    ``executor-status.json`` already produced by the phase-executor and
+    performs post-dispatch enforcement (parallelization-check + yolo
+    auto-revoke + addendum validation).
+
+    Raises:
+        ValueError:  project unknown, archived, wrong phase, unresolved
+                     conditions, or ConfigError from gate-policy validator.
+        RuntimeError: executor produced empty deliverables, or the
+                     parallelization-check failed (AC-α10 failure mode).
+    """
+    # SC-4 startup validation (first line of every mode-3 entry point).
+    _validate_gate_policy_full_rigor()
+
+    state = load_project_state(project)
+    if state is None:
+        raise ValueError(f"Project not found: {project}")
+
+    # Dispatch-mode routing (CR-2 / AC-α11).
+    dispatch_mode = _detect_dispatch_mode(state)
+    if dispatch_mode in ("v6-legacy", "v5"):
+        return {
+            "status": "skipped",
+            "reason": f"dispatch_mode={dispatch_mode}; mode-3 execute() is opt-in",
+            "dispatch_mode": dispatch_mode,
+            "deliverables": [],
+        }
+
+    phase = resolve_phase(phase)
+    project_dir = get_project_dir(project)
+    phase_dir = project_dir / "phases" / phase
+    phase_dir.mkdir(parents=True, exist_ok=True)
+
+    reeval_start_path = phase_dir / "reeval-start.json"
+    reeval_log_path = phase_dir / "reeval-log.jsonl"
+    executor_status_path = phase_dir / "executor-status.json"
+
+    # When executor-status.json was already written by the phase-executor
+    # agent, apply post-dispatch enforcement to it.
+    result: Dict[str, Any] = {
+        "status": "ok",
+        "deliverables": [],
+        "executor_task_id": "",
+        "reeval_start_path": str(reeval_start_path),
+        "reeval_end_path": str(reeval_log_path),
+        "parallelization_check": {
+            "sub_task_count": 0,
+            "dispatched_in_parallel": True,
+            "serial_reason": None,
+        },
+        "dispatch_mode": dispatch_mode,
+    }
+
+    if dry_run:
+        return result
+
+    if executor_status_path.exists():
+        try:
+            status_doc = json.loads(executor_status_path.read_text())
+        except (json.JSONDecodeError, OSError) as exc:
+            raise RuntimeError(f"executor-status-unreadable: {exc}")
+        deliverables = status_doc.get("deliverables") or []
+        if not deliverables:
+            raise RuntimeError("executor-empty-deliverables")
+        # Validate deliverables are under phases/{phase}/ — hard path-traversal
+        # guard (COND-TG-2). Resolves the declared path and asserts the real
+        # on-disk location is scoped inside the phase directory. `..` segments
+        # that escape phase_dir or absolute paths outside it are rejected with
+        # a ValueError so callers can distinguish "bad input" from runtime
+        # failures. Using phase_dir (not project_dir) matches the original
+        # intent of the comment and prevents a phase-executor from declaring
+        # deliverables under a sibling phase or the project root.
+        phase_dir_resolved = phase_dir.resolve()
+        for rel in deliverables:
+            rel_path = Path(rel)
+            if rel_path.is_absolute():
+                abs_path = rel_path
+            else:
+                abs_path = project_dir / rel
+            try:
+                abs_path.resolve().relative_to(phase_dir_resolved)
+            except ValueError:
+                raise ValueError(f"deliverable-out-of-scope: {rel}")
+
+        p_check = status_doc.get("parallelization_check") or {}
+        fail = _check_parallelization(p_check)
+        if fail:
+            result["status"] = "failed"
+            result["reason"] = fail
+            return result
+
+        result["deliverables"] = [str(p) for p in deliverables]
+        result["executor_task_id"] = status_doc.get("executor_task_id", "")
+        result["parallelization_check"] = p_check
+
+        # Scope-increase revoke hook (Point A — execute-time).
+        _apply_scope_increase_revoke(
+            state,
+            plan_mutations=status_doc.get("plan_mutations") or [],
+            project_dir=project_dir,
+            trigger="execute",
+        )
+        save_project_state(state)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Yolo management (AC-α5)
+# ---------------------------------------------------------------------------
+
+
+def yolo_action(project: str, action: str, reason: str = "") -> Dict[str, Any]:
+    """Grant / revoke / inspect the yolo flag for a project.
+
+    Actions:
+        approve  — set yolo_approved_by_user=True (writes audit line).
+        revoke   — set yolo_approved_by_user=False (writes audit line).
+        status   — return current flag + last audit record (no write).
+    """
+    state = load_project_state(project)
+    if state is None:
+        raise ValueError(f"Project not found: {project}")
+    project_dir = get_project_dir(project)
+    extras = state.extras or {}
+    prior = bool(extras.get("yolo_approved_by_user"))
+
+    if action == "status":
+        return {
+            "project": project,
+            "yolo_approved_by_user": prior,
+            "yolo_approved_at": extras.get("yolo_approved_at"),
+            "yolo_revoked_count": int(extras.get("yolo_revoked_count") or 0),
+            "rigor_tier": extras.get("rigor_tier"),
+        }
+
+    if action == "approve":
+        new_value = True
+        extras["yolo_approved_by_user"] = True
+        extras["yolo_approved_at"] = get_utc_timestamp()
+        state.extras = extras
+        save_project_state(state)
+        _append_yolo_audit(
+            project_dir,
+            event="granted",
+            reason=reason or "user-granted",
+            prior_value=prior,
+            new_value=new_value,
+        )
+        return {
+            "project": project,
+            "yolo_approved_by_user": True,
+            "prior_value": prior,
+        }
+
+    if action == "revoke":
+        new_value = False
+        extras["yolo_approved_by_user"] = False
+        state.extras = extras
+        save_project_state(state)
+        _append_yolo_audit(
+            project_dir,
+            event="revoked",
+            reason=reason or "user-revoked",
+            prior_value=prior,
+            new_value=new_value,
+        )
+        return {
+            "project": project,
+            "yolo_approved_by_user": False,
+            "prior_value": prior,
+        }
+
+    raise ValueError(f"Unknown yolo action: {action} (expected approve|revoke|status)")
+
+
+# ---------------------------------------------------------------------------
+# Cutover command (CR-2 / AC-α11)
+# ---------------------------------------------------------------------------
+
+
+def _safe_cutover_window(state: "ProjectState", project_dir: Path) -> Optional[str]:
+    """Return an error string when the project is NOT in a safe cutover window.
+
+    Validates:
+      - no in-flight phase dispatch (phase-executor task in_progress)
+      - no unresolved conditions on the current/prior phase
+      - no pending scope-increase re-eval
+    """
+    # Unresolved conditions check — reuse _verify_conditions heuristics.
+    try:
+        current = resolve_phase(state.current_phase)
+        condition_issues = _verify_conditions(project_dir, current) or []
+        if condition_issues:
+            return f"unresolved-conditions: {condition_issues[0]}"
+    except Exception:  # noqa: BLE001
+        pass  # fail open: absence of evidence is not evidence of absence
+    # In-flight-dispatch check: phase status == in_progress AND executor-status
+    # not yet written indicates an active dispatch.
+    cur = state.phases.get(resolve_phase(state.current_phase))
+    if cur and cur.status == "in_progress":
+        status_path = project_dir / "phases" / state.current_phase / "executor-status.json"
+        if not status_path.exists():
+            return "in-flight-dispatch: current phase still executing"
+    return None
+
+
+def cutover_action(project: str, target_mode: str) -> Dict[str, Any]:
+    """Opt a legacy project into mode-3 dispatch (writes state + audit marker).
+
+    Validates the safe cutover window (no in-flight dispatch, no unresolved
+    conditions). Writes ``state.dispatch_mode = "mode-3"`` and emits
+    ``{project_dir}/phases/.cutover-to-mode-3.json``.
+    """
+    if target_mode != "mode-3":
+        raise ValueError(f"Unsupported --to value: {target_mode} (only 'mode-3' supported)")
+
+    state = load_project_state(project)
+    if state is None:
+        raise ValueError(f"Project not found: {project}")
+
+    project_dir = get_project_dir(project)
+    prior_mode = _detect_dispatch_mode(state)
+
+    if prior_mode == "mode-3":
+        return {
+            "project": project,
+            "dispatch_mode": "mode-3",
+            "already_on_target": True,
+            "note": "Project is already on mode-3 dispatch.",
+        }
+
+    err = _safe_cutover_window(state, project_dir)
+    if err:
+        raise ValueError(f"cutover-refused: {err}")
+
+    extras = state.extras or {}
+    extras["dispatch_mode"] = "mode-3"
+    state.extras = extras
+    save_project_state(state)
+
+    phases_dir = project_dir / "phases"
+    phases_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = phases_dir / ".cutover-to-mode-3.json"
+    try:
+        marker_path.write_text(json.dumps({
+            "timestamp": get_utc_timestamp(),
+            "prior_mode": prior_mode,
+            "new_mode": "mode-3",
+            "prior_phase_pointer": state.current_phase,
+            "user_ack": "explicit-cutover-command",
+            "note": "Mode-3 semantics apply from the next phase forward.",
+        }, indent=2))
+    except OSError as exc:
+        logger.warning("[cutover] marker write failed: %s", exc)
+
+    return {
+        "project": project,
+        "dispatch_mode": "mode-3",
+        "prior_mode": prior_mode,
+        "marker_path": str(marker_path),
+    }
+
+
+def detect_mode_action(project: str) -> Dict[str, Any]:
+    """Return the detected dispatch mode (with backfill side-effect)."""
+    state = load_project_state(project)
+    if state is None:
+        raise ValueError(f"Project not found: {project}")
+    mode = _detect_dispatch_mode(state)
+    # Persist backfill (detect may have mutated extras).
+    save_project_state(state)
+    return {"project": project, "dispatch_mode": mode}
+
+
 def main():
     """CLI interface for phase management."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -2405,6 +3544,16 @@ def main():
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--description", default="", help="Project description (for create)")
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
+    parser.add_argument("--to", default=None, help="Target dispatch mode for cutover (e.g. mode-3)")
+    parser.add_argument(
+        "--yolo-action", dest="yolo_action",
+        default=None, choices=["approve", "revoke", "status"],
+        help="Sub-action for the 'yolo' action (approve|revoke|status). Also accepted via --action.",
+    )
+    parser.add_argument(
+        "--action", dest="sub_action", default=None,
+        help="Sub-action name (e.g. approve|revoke|status for yolo).",
+    )
     parser.add_argument(
         "--skip-reeval",
         action="store_true",
@@ -2511,6 +3660,19 @@ def main():
 
     elif args.action == "approve":
         phase = args.phase or state.current_phase
+        # BLEND-RULE honesty note (review-gate condition a):
+        # The CLI `approve` path cannot dispatch subagents — only an
+        # Agent-driven caller can inject a real dispatcher. We log an
+        # explicit warning so users aren't silently surprised when
+        # `_dispatch_gate_reviewer` returns a "dispatcher-unavailable"
+        # stub instead of running reviewers. Agent-driven callers should
+        # pass `dispatcher=...` to approve_phase() directly.
+        logger.warning(
+            "CLI approve path: no dispatcher available — gate reviewers "
+            "will NOT be auto-dispatched. Use `crew:approve` via the "
+            "wicked-garden agent path to invoke reviewers, or pre-stage "
+            "a gate-result.json before approval. (BLEND-RULE)"
+        )
         try:
             state, next_phase = approve_phase(
                 state,
@@ -2522,6 +3684,7 @@ def main():
                 override_deliverables_reason=args.reason or "",
                 skip_reeval=getattr(args, "skip_reeval", False),
                 skip_reeval_reason=args.reason or "",
+                dispatcher=None,
             )
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
@@ -2702,6 +3865,69 @@ def main():
         else:
             print(f"Approved phase: {approved_phase}")
             print(f"Started phase: {next_phase}")
+
+    elif args.action == "execute":
+        phase = args.phase or state.current_phase
+        try:
+            result = execute(args.project, phase)
+        except (ValueError, RuntimeError, ConfigError) as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, **result}, indent=2))
+        else:
+            status = result.get("status")
+            print(f"execute: status={status} phase={resolve_phase(phase)}")
+            if status == "failed":
+                print(f"Reason: {result.get('reason')}", file=sys.stderr)
+                sys.exit(1)
+
+    elif args.action == "yolo":
+        sub = args.yolo_action or args.sub_action or "status"
+        try:
+            yr = yolo_action(args.project, sub, reason=args.reason or "")
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, **yr}, indent=2))
+        else:
+            print(json.dumps(yr, indent=2))
+
+    elif args.action == "cutover":
+        target = args.to or "mode-3"
+        try:
+            cr = cutover_action(args.project, target)
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, **cr}, indent=2))
+        else:
+            print(json.dumps(cr, indent=2))
+
+    elif args.action == "detect-mode":
+        try:
+            dm = detect_mode_action(args.project)
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, **dm}, indent=2))
+        else:
+            print(json.dumps(dm, indent=2))
 
 
 if __name__ == "__main__":
