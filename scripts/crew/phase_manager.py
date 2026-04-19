@@ -1025,6 +1025,525 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
 
 
 # ---------------------------------------------------------------------------
+# BLEND-RULE gate dispatch helpers (design §3, AC-α3 / FR-α3.1..FR-α3.5)
+#
+# `_dispatch_gate_reviewer()` is the main entry point. It reads the
+# `gate-policy.json` entry for `{gate_name, rigor_tier}` and routes to one
+# of four sub-helpers based on the policy's `mode`:
+#
+#   - `_dispatch_fast_evaluator`    (self-check | advisory | empty reviewers)
+#   - `_dispatch_sequential`        (mode: sequential — stops on first REJECT)
+#   - `_dispatch_parallel_and_merge` (mode: parallel — single-batch dispatch,
+#                                     merged via REJECT > CONDITIONAL > APPROVE)
+#   - `_dispatch_council`           (mode: council — parallel + plurality)
+#
+# Since Task/Agent dispatching from within a Python script is
+# environment-dependent (not always available in unit tests or CLI subshells),
+# every helper accepts an injectable `dispatcher` callable with shape
+# `(subagent_type, prompt, context) -> dict`. Callers supply the real
+# orchestrator in production; tests supply a mock. When `dispatcher` is None,
+# helpers return a conservative CONDITIONAL stub with
+# `reason: "dispatcher-unavailable"` so callers can fall back to the existing
+# disk-based `gate-result.json` contract without blowing up.
+#
+# Merge rule (per design §3):
+#   - Any banned reviewer identity  -> REJECT "banned-reviewer"
+#   - Any REJECT                    -> REJECT (safety bias)
+#   - No REJECT, any CONDITIONAL    -> CONDITIONAL (union conditions)
+#   - All APPROVE                   -> APPROVE
+#   - Score = min of per-reviewer scores (conservative)
+# ---------------------------------------------------------------------------
+
+
+def _banned_reviewer_error(reviewer: str) -> Optional[str]:
+    """Return a reason string if `reviewer` is banned; None otherwise.
+
+    Mirrors _validate_gate_reviewer() logic but returns a short tag suitable
+    for embedding in a synthesized gate_result.
+    """
+    if not reviewer:
+        return None
+    r = reviewer.lower().strip()
+    if r in (name.lower() for name in BANNED_REVIEWER_NAMES):
+        return f"banned-reviewer:{reviewer}"
+    for prefix in BANNED_REVIEWER_PREFIXES:
+        if r.startswith(prefix.lower()):
+            return f"banned-reviewer:{reviewer}"
+    return None
+
+
+def _empty_verdict_stub(
+    gate_name: str, phase: str, reason: str, *, reviewer: str = "phase-manager"
+) -> Dict[str, Any]:
+    """Return a conservative CONDITIONAL gate_result used when dispatch
+    is unavailable. Callers may treat this as "no decision made"."""
+    return {
+        "verdict": "CONDITIONAL",
+        "score": 0.0,
+        "min_score": 0.0,
+        "reviewer": reviewer,
+        "reason": reason,
+        "timestamp": get_utc_timestamp(),
+        "conditions": [],
+        "gate_name": gate_name,
+        "phase": phase,
+        "per_reviewer_verdicts": [],
+        "reviewers_dispatched": [],
+        "dispatch_mode": "stub",
+        "external_review": False,
+    }
+
+
+def _normalize_reviewer_result(
+    raw: Any, *, reviewer: str
+) -> Dict[str, Any]:
+    """Normalize a reviewer's output into the canonical verdict shape.
+
+    Accepts a dict from the dispatcher with keys like
+    `{verdict|result, score, reason, conditions}` and produces:
+        {reviewer, verdict, score, reason, conditions}
+    Unknown / missing values degrade to CONDITIONAL with score 0.
+    """
+    if not isinstance(raw, dict):
+        return {
+            "reviewer": reviewer,
+            "verdict": "CONDITIONAL",
+            "score": 0.0,
+            "reason": "malformed-reviewer-output",
+            "conditions": [],
+        }
+    verdict = str(raw.get("verdict") or raw.get("result") or "CONDITIONAL").upper()
+    if verdict not in ("APPROVE", "CONDITIONAL", "REJECT"):
+        verdict = "CONDITIONAL"
+    try:
+        score = float(raw.get("score") or 0.0)
+    except (TypeError, ValueError):
+        score = 0.0
+    conditions = raw.get("conditions") or []
+    if not isinstance(conditions, list):
+        conditions = []
+    return {
+        "reviewer": raw.get("reviewer") or reviewer,
+        "verdict": verdict,
+        "score": score,
+        "reason": raw.get("reason") or "",
+        "conditions": conditions,
+    }
+
+
+def _merge_reviewer_verdicts(
+    per_reviewer: List[Dict[str, Any]],
+    *,
+    gate_name: str,
+    phase: str,
+    dispatch_mode: str,
+) -> Dict[str, Any]:
+    """Apply the BLEND-RULE merge to a list of normalized reviewer results.
+
+    Rules (design §3):
+      - Any banned identity        -> REJECT "banned-reviewer"
+      - Any REJECT                 -> REJECT
+      - No REJECT, any CONDITIONAL -> CONDITIONAL (union conditions)
+      - All APPROVE                -> APPROVE
+      - Merged score               -> min of scores (conservative)
+    """
+    if not per_reviewer:
+        return _empty_verdict_stub(
+            gate_name, phase, "no-reviewer-results", reviewer="phase-manager"
+        )
+
+    # 1. Banned reviewer short-circuit (highest priority).
+    for pr in per_reviewer:
+        banned = _banned_reviewer_error(pr.get("reviewer", ""))
+        if banned:
+            return {
+                "verdict": "REJECT",
+                "score": 0.0,
+                "min_score": 0.0,
+                "reviewer": pr.get("reviewer", ""),
+                "reason": banned,
+                "timestamp": get_utc_timestamp(),
+                "conditions": [],
+                "gate_name": gate_name,
+                "phase": phase,
+                "per_reviewer_verdicts": per_reviewer,
+                "reviewers_dispatched": [p.get("reviewer", "") for p in per_reviewer],
+                "dispatch_mode": dispatch_mode,
+                "external_review": len(per_reviewer) > 1,
+            }
+
+    verdicts = [pr["verdict"] for pr in per_reviewer]
+    scores = [pr["score"] for pr in per_reviewer]
+    merged_score = min(scores) if scores else 0.0
+    reviewers = [pr.get("reviewer", "") for pr in per_reviewer]
+    union_conditions: List[Any] = []
+    reasons: List[str] = []
+    for pr in per_reviewer:
+        union_conditions.extend(pr.get("conditions", []))
+        if pr.get("reason"):
+            reasons.append(f"{pr.get('reviewer', '?')}: {pr['reason']}")
+
+    if "REJECT" in verdicts:
+        merged_verdict = "REJECT"
+    elif "CONDITIONAL" in verdicts:
+        merged_verdict = "CONDITIONAL"
+    else:
+        merged_verdict = "APPROVE"
+
+    return {
+        "verdict": merged_verdict,
+        "result": merged_verdict,  # legacy alias consumed by approve_phase
+        "score": merged_score,
+        "min_score": merged_score,
+        "reviewer": reviewers[0] if reviewers else "phase-manager",
+        "reason": "; ".join(reasons) if reasons else merged_verdict,
+        "timestamp": get_utc_timestamp(),
+        "conditions": union_conditions,
+        "gate_name": gate_name,
+        "phase": phase,
+        "per_reviewer_verdicts": per_reviewer,
+        "reviewers_dispatched": reviewers,
+        "dispatch_mode": dispatch_mode,
+        "external_review": len(per_reviewer) > 1,
+    }
+
+
+def _dispatch_fast_evaluator(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    *,
+    dispatcher: Optional[Any] = None,
+    fallback_reviewer: str = "gate-evaluator",
+) -> Dict[str, Any]:
+    """Fast-path dispatcher for self-check / advisory / empty-reviewers gates.
+
+    Dispatches the `gate-evaluator` agent with a deliverable-summary context
+    and returns a normalized gate_result. When `dispatcher` is None (unit
+    tests / CLI shells without Task tool), returns a CONDITIONAL stub.
+    """
+    ctx = {
+        "gate_name": gate_name,
+        "phase": phase,
+        "project": getattr(state, "name", None) if state is not None else None,
+        "mode": "fast-evaluator",
+    }
+    if dispatcher is None:
+        return _empty_verdict_stub(
+            gate_name, phase, "dispatcher-unavailable", reviewer=fallback_reviewer
+        )
+    try:
+        raw = dispatcher(
+            "wicked-garden:crew:gate-evaluator",
+            (
+                f"Evaluate gate '{gate_name}' for phase '{phase}'. "
+                "Read gate-policy.json for objective thresholds and the "
+                f"deliverables under phases/{phase}/. Emit verdict + score + "
+                "reason + conditions."
+            ),
+            ctx,
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        return _empty_verdict_stub(
+            gate_name, phase, f"dispatch-error:{exc}", reviewer=fallback_reviewer
+        )
+    norm = _normalize_reviewer_result(raw, reviewer=fallback_reviewer)
+    return _merge_reviewer_verdicts(
+        [norm],
+        gate_name=gate_name,
+        phase=phase,
+        dispatch_mode="fast-evaluator",
+    )
+
+
+def _dispatch_sequential(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    reviewers: List[str],
+    *,
+    dispatcher: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Dispatch reviewers in order, stopping on the first REJECT.
+
+    Merged verdict uses BLEND-RULE over the results collected so far.
+    """
+    if not reviewers:
+        return _dispatch_fast_evaluator(
+            state, phase, gate_name, dispatcher=dispatcher
+        )
+    if dispatcher is None:
+        return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
+
+    collected: List[Dict[str, Any]] = []
+    for reviewer in reviewers:
+        try:
+            raw = dispatcher(
+                f"wicked-garden:crew:{reviewer}",
+                (
+                    f"Review gate '{gate_name}' for phase '{phase}' as {reviewer}. "
+                    "Emit verdict + score + reason + conditions."
+                ),
+                {"gate_name": gate_name, "phase": phase, "reviewer": reviewer},
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            raw = {"verdict": "CONDITIONAL", "score": 0.0,
+                   "reason": f"dispatch-error:{exc}", "conditions": []}
+        norm = _normalize_reviewer_result(raw, reviewer=reviewer)
+        collected.append(norm)
+        if norm["verdict"] == "REJECT":
+            # Short-circuit — do not dispatch remaining reviewers.
+            break
+
+    return _merge_reviewer_verdicts(
+        collected,
+        gate_name=gate_name,
+        phase=phase,
+        dispatch_mode="sequential",
+    )
+
+
+def _dispatch_parallel_and_merge(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    reviewers: List[str],
+    *,
+    dispatcher: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Dispatch all reviewers in a single-message parallel Agent batch (SC-6).
+
+    The dispatcher is expected to support a batched call — we pass the
+    reviewer list and a per-reviewer context in one invocation. A single-
+    reviewer dispatcher is accepted too; we invoke it once per reviewer but
+    the intent is that the caller's wrapper preserves the parallel batch
+    (see `parallelization_check` in execute() for the SC-6 contract).
+
+    Merge rule: REJECT if any REJECT, CONDITIONAL if any CONDITIONAL, else
+    APPROVE. Conditions are unioned; score = min.
+    """
+    if not reviewers:
+        return _dispatch_fast_evaluator(
+            state, phase, gate_name, dispatcher=dispatcher
+        )
+    if dispatcher is None:
+        return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
+
+    per_reviewer: List[Dict[str, Any]] = []
+    # Attempt batched dispatch first via a sentinel subagent_type. If the
+    # dispatcher doesn't recognize the batch shape it returns None / raises;
+    # we then fall back to per-reviewer dispatch. The caller supplies
+    # whichever style they support.
+    batched: Any = None
+    try:
+        batched = dispatcher(
+            "wicked-garden:crew:_parallel_batch",
+            (
+                f"Dispatch reviewers in parallel for gate '{gate_name}' "
+                f"phase '{phase}'. reviewers={reviewers}"
+            ),
+            {
+                "gate_name": gate_name,
+                "phase": phase,
+                "reviewers": reviewers,
+                "mode": "parallel",
+            },
+        )
+    except Exception:
+        batched = None
+
+    if isinstance(batched, list) and batched:
+        for idx, raw in enumerate(batched):
+            name = reviewers[idx] if idx < len(reviewers) else f"reviewer-{idx}"
+            per_reviewer.append(
+                _normalize_reviewer_result(raw, reviewer=name)
+            )
+    else:
+        # Fallback: call the dispatcher once per reviewer. We still mark
+        # dispatch_mode=parallel — the contract is the merge rule.
+        for reviewer in reviewers:
+            try:
+                raw = dispatcher(
+                    f"wicked-garden:crew:{reviewer}",
+                    (
+                        f"Review gate '{gate_name}' for phase '{phase}' as "
+                        f"{reviewer}. Emit verdict + score + reason + conditions."
+                    ),
+                    {
+                        "gate_name": gate_name,
+                        "phase": phase,
+                        "reviewer": reviewer,
+                        "mode": "parallel",
+                    },
+                )
+            except Exception as exc:  # pragma: no cover
+                raw = {"verdict": "CONDITIONAL", "score": 0.0,
+                       "reason": f"dispatch-error:{exc}", "conditions": []}
+            per_reviewer.append(
+                _normalize_reviewer_result(raw, reviewer=reviewer)
+            )
+
+    return _merge_reviewer_verdicts(
+        per_reviewer,
+        gate_name=gate_name,
+        phase=phase,
+        dispatch_mode="parallel",
+    )
+
+
+def _dispatch_council(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    reviewers: List[str],
+    *,
+    min_concurrence: float = 0.6,
+    dispatcher: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Council dispatch — parallel plurality vote with concurrence threshold.
+
+    Verdict is the plurality of (APPROVE | CONDITIONAL | REJECT). When the
+    plurality share < `min_concurrence`, the verdict is downgraded to
+    CONDITIONAL with reason `insufficient-concurrence`. REJECT still
+    short-circuits any plurality analysis (one REJECT blocks).
+    """
+    if not reviewers:
+        return _dispatch_fast_evaluator(
+            state, phase, gate_name, dispatcher=dispatcher
+        )
+    if dispatcher is None:
+        return _empty_verdict_stub(gate_name, phase, "dispatcher-unavailable")
+
+    merged = _dispatch_parallel_and_merge(
+        state, phase, gate_name, reviewers, dispatcher=dispatcher
+    )
+    merged["dispatch_mode"] = "council"
+
+    per_reviewer = merged.get("per_reviewer_verdicts") or []
+    total = len(per_reviewer)
+    if not total:
+        return merged
+
+    # REJECT short-circuit already applied by the merge helper.
+    if merged.get("verdict") == "REJECT":
+        return merged
+
+    verdict_counts: Dict[str, int] = {"APPROVE": 0, "CONDITIONAL": 0, "REJECT": 0}
+    for pr in per_reviewer:
+        v = pr.get("verdict", "CONDITIONAL")
+        verdict_counts[v] = verdict_counts.get(v, 0) + 1
+
+    # Plurality (ties broken in the safer direction: CONDITIONAL > APPROVE).
+    plurality_verdict = "APPROVE"
+    plurality_count = verdict_counts["APPROVE"]
+    if verdict_counts["CONDITIONAL"] >= plurality_count:
+        plurality_verdict = "CONDITIONAL"
+        plurality_count = verdict_counts["CONDITIONAL"]
+
+    concurrence = plurality_count / total
+    merged["concurrence"] = concurrence
+    merged["min_concurrence"] = min_concurrence
+    merged["plurality_verdict"] = plurality_verdict
+    if concurrence < min_concurrence and plurality_verdict == "APPROVE":
+        # Downgrade — not enough agreement to approve.
+        merged["verdict"] = "CONDITIONAL"
+        merged["result"] = "CONDITIONAL"
+        prior_reason = merged.get("reason") or ""
+        merged["reason"] = (
+            "insufficient-concurrence"
+            + (f"; {prior_reason}" if prior_reason else "")
+        )
+    else:
+        merged["verdict"] = plurality_verdict
+        merged["result"] = plurality_verdict
+
+    return merged
+
+
+# Phase -> default gate_name mapping. Used by approve_phase() when it needs
+# to call _dispatch_gate_reviewer() but the caller didn't pass an explicit
+# gate_name. Mirrors skills/propose-process/refs/gate-policy.md. Phases not
+# listed fall back to the phase-name (e.g. 'review' -> 'review') which will
+# surface as "unknown gate" via _resolve_gate_reviewer.
+_PHASE_DEFAULT_GATE: Dict[str, str] = {
+    "clarify": "requirements-quality",
+    "design": "design-quality",
+    "build": "code-quality",
+    "review": "evidence-quality",
+    "test-strategy": "testability",
+    "challenge": "challenge-resolution",
+}
+
+
+def _gate_name_for_phase(phase: str) -> str:
+    """Return the default gate_name for a given phase (BLEND dispatch)."""
+    return _PHASE_DEFAULT_GATE.get(resolve_phase(phase), resolve_phase(phase))
+
+
+def _dispatch_gate_reviewer(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    gate_policy_entry: Dict[str, Any],
+    *,
+    dispatcher: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Main BLEND-RULE entry point.
+
+    Reads the policy entry for `{tier}` and delegates to the right
+    sub-helper. Returns a merged gate_result dict with
+    `{verdict, score, reason, conditions, per_reviewer_verdicts[]}`.
+
+    Args:
+        state:              ProjectState for context (may be None in stubs).
+        phase:              Phase being approved.
+        gate_name:          One of the configured gates.
+        gate_policy_entry:  The rigor-tier block from gate-policy.json
+                            (dict with `reviewers`, `mode`, `fallback`).
+        dispatcher:         Optional injectable callable
+                            `(subagent_type, prompt, context) -> dict`.
+                            When None, returns a CONDITIONAL stub.
+    """
+    if not isinstance(gate_policy_entry, dict):
+        return _empty_verdict_stub(
+            gate_name, phase, "missing-gate-policy-entry"
+        )
+
+    mode = str(gate_policy_entry.get("mode") or "self-check").lower()
+    reviewers = list(gate_policy_entry.get("reviewers") or [])
+    fallback = gate_policy_entry.get("fallback") or "gate-evaluator"
+
+    # BLEND RULE — fast path when no reviewers or advisory/self-check.
+    if not reviewers or mode in ("self-check", "advisory"):
+        return _dispatch_fast_evaluator(
+            state,
+            phase,
+            gate_name,
+            dispatcher=dispatcher,
+            fallback_reviewer=fallback,
+        )
+
+    if mode == "sequential":
+        return _dispatch_sequential(
+            state, phase, gate_name, reviewers, dispatcher=dispatcher
+        )
+    if mode == "parallel":
+        return _dispatch_parallel_and_merge(
+            state, phase, gate_name, reviewers, dispatcher=dispatcher
+        )
+    if mode == "council":
+        return _dispatch_council(
+            state, phase, gate_name, reviewers, dispatcher=dispatcher
+        )
+
+    # Unknown mode — conservative stub (do not raise: this path runs inside
+    # approve_phase() where a raise would abort advancement for all callers).
+    return _empty_verdict_stub(
+        gate_name, phase, f"unknown-dispatch-mode:{mode}", reviewer=fallback
+    )
+
+
+# ---------------------------------------------------------------------------
 # Semantic alignment gate (issue #444)
 #
 # Post-implementation pass that verifies spec-to-code alignment per numbered
@@ -1788,6 +2307,8 @@ def approve_phase(
     override_deliverables_reason: str = "",
     skip_reeval: bool = False,
     skip_reeval_reason: str = "",
+    *,
+    dispatcher: Optional[Any] = None,
 ) -> Tuple[ProjectState, Optional[str]]:
     """Approve a phase and return next phase (or None if done).
 
@@ -1801,6 +2322,13 @@ def approve_phase(
                             This is a deliberate, logged, audited bypass — NOT a
                             silent escape (AC-14, AC-15).
         skip_reeval_reason: Mandatory justification string when skip_reeval=True.
+        dispatcher:         Optional injectable callable for BLEND-RULE gate
+                            dispatch (design §3). When provided, and the gate
+                            hasn't been run (no existing gate-result.json),
+                            approve_phase() dispatches reviewers per
+                            gate-policy.json instead of raising. When None
+                            (legacy callers), existing behavior is preserved —
+                            "Gate not run" raises as before.
     """
     phase = resolve_phase(phase)
     warnings: List[str] = []
@@ -1912,6 +2440,39 @@ def approve_phase(
         project_dir = get_project_dir(state.name)
         rigor_tier = state.extras.get("rigor_tier")
         gate_run = _check_gate_run(project_dir, phase, rigor_tier=rigor_tier)
+
+        # BLEND-RULE dispatch hook (design §3, FR-α3.x): when the gate
+        # hasn't been run yet and a dispatcher was supplied, synthesize
+        # a gate-result.json by invoking reviewers per gate-policy.json
+        # BEFORE the legacy "gate not run" branch fires. Writing the
+        # artifact lets the existing post-load check chain run unchanged.
+        if not gate_run and dispatcher is not None and not override_gate:
+            try:
+                gate_name = _gate_name_for_phase(phase)
+                gate_entry = _resolve_gate_reviewer(
+                    gate_name, rigor_tier or "standard"
+                )
+                synthesized = _dispatch_gate_reviewer(
+                    state, phase, gate_name, gate_entry,
+                    dispatcher=dispatcher,
+                )
+                phase_dir = project_dir / "phases" / phase
+                phase_dir.mkdir(parents=True, exist_ok=True)
+                (phase_dir / "gate-result.json").write_text(
+                    json.dumps(synthesized, indent=2, sort_keys=True)
+                )
+                # Re-run the run-detector now that we've written the file.
+                gate_run = _check_gate_run(
+                    project_dir, phase, rigor_tier=rigor_tier
+                )
+            except (ValueError, FileNotFoundError, OSError) as exc:
+                # Failed BLEND dispatch — fall through to legacy "gate not
+                # run" raise below so the user gets the familiar error.
+                logger.warning(
+                    "[approve] BLEND dispatch failed for phase '%s': %s; "
+                    "falling back to legacy gate-required error.",
+                    phase, exc,
+                )
 
         if not gate_run:
             if override_gate and not gate_override_allowed:
@@ -2058,6 +2619,61 @@ def approve_phase(
                         warnings.append(f"Score check overridden: {score_error}")
                     else:
                         raise ValueError(score_error)
+
+    # FR-α5.2: Approve-time yolo auto-accept.
+    #
+    # Policy (design §3 + task spec):
+    #   - yolo + APPROVE      -> advance normally, append yolo-audit line
+    #   - yolo + CONDITIONAL  -> DO NOT auto-advance; surface to user with
+    #                            conditions-manifest (raise ValueError)
+    #   - yolo + REJECT       -> existing REJECT raise already fired above
+    #   - no yolo             -> unchanged
+    #
+    # The REJECT path is already handled by the "Gate returned REJECT"
+    # raise earlier in this function, so only APPROVE + CONDITIONAL need
+    # new logic here. Audit lines go to yolo-audit.jsonl; advance logic
+    # is otherwise untouched (preserves legacy callers).
+    yolo_flag = bool((state.extras or {}).get("yolo_approved_by_user"))
+    if yolo_flag and gate_result:
+        _verdict_raw = (
+            gate_result.get("verdict") or gate_result.get("result") or ""
+        )
+        _verdict = str(_verdict_raw).upper()
+        if _verdict == "APPROVE":
+            try:
+                _project_dir_yolo = get_project_dir(state.name)
+            except Exception:
+                _project_dir_yolo = None
+            if _project_dir_yolo is not None:
+                _append_yolo_audit(
+                    _project_dir_yolo,
+                    event="auto-accepted",
+                    reason=f"phase:{phase} verdict:APPROVE",
+                    prior_value=True,
+                    new_value=True,
+                    extra={
+                        "phase": phase,
+                        "verdict": "APPROVE",
+                        "score": gate_result.get("score"),
+                        "reviewer": gate_result.get("reviewer"),
+                    },
+                )
+        elif _verdict == "CONDITIONAL":
+            # Surface CONDITIONAL to the user — do not silently advance
+            # under yolo. Conditions-manifest has already been written
+            # above (Check 2b). Raise so the CLI exits non-zero and the
+            # user sees the manifest path in the error text.
+            conditions_manifest = (
+                get_project_dir(state.name) / "phases" / phase
+                / "conditions-manifest.json"
+            )
+            raise ValueError(
+                f"Phase '{phase}' gate verdict is CONDITIONAL under yolo "
+                f"— auto-advance blocked. Review "
+                f"{conditions_manifest} and re-run approve after "
+                f"conditions are resolved, or pass --override-gate "
+                f"with a reason to bypass."
+            )
 
     # Emit gate decision to wicked-bus
     if gate_result:

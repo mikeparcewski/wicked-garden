@@ -185,5 +185,146 @@ class TestYoloActionAudit(unittest.TestCase):
             self.assertTrue(audit.exists())
 
 
+# ---------------------------------------------------------------------------
+# FR-α5.2 — approve-time yolo auto-accept
+# ---------------------------------------------------------------------------
+
+
+def _minimal_approve_patches(project_dir: Path):
+    """Common phase_manager patches so approve_phase() reaches the yolo block
+    without needing real gate/deliverable fixtures on disk."""
+    return [
+        patch.object(phase_manager, "get_project_dir", return_value=project_dir),
+        patch.object(phase_manager, "save_project_state"),
+        patch.object(phase_manager, "_sm"),
+        patch.object(phase_manager, "_check_addendum_freshness", return_value=None),
+        patch.object(phase_manager, "_check_phase_deliverables", return_value=[]),
+        patch.object(phase_manager, "load_phases_config", return_value={
+            "build": {"gate_required": False, "depends_on": []},
+        }),
+        patch.object(phase_manager, "_load_session_dispatches", return_value=[]),
+        patch.object(phase_manager, "_run_checkpoint_reanalysis",
+                     return_value=([], [])),
+        patch.object(phase_manager, "get_phase_order", return_value=[
+            "clarify", "design", "build", "review"]),
+        patch.object(phase_manager, "_run_build_phase_guard", return_value=[]),
+    ]
+
+
+class TestYoloApproveTimeAutoAccept(unittest.TestCase):
+    """FR-α5.2 — approve-time auto-accept on APPROVE / surface on CONDITIONAL."""
+
+    def _stub_gate_result(self, project_dir: Path, phase: str, verdict: str,
+                          score: float = 0.9, conditions=None):
+        phase_dir = project_dir / "phases" / phase
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        (phase_dir / "gate-result.json").write_text(json.dumps({
+            "verdict": verdict,
+            "result": verdict,
+            "score": score,
+            "min_score": score,
+            "reviewer": "test-reviewer",
+            "reason": f"synthetic {verdict}",
+            "conditions": conditions or [],
+        }))
+
+    def test_yolo_auto_accept_on_approve(self):
+        """yolo + APPROVE → advance to next phase + write auto-accept audit."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "yolo-auto-approve"
+            project_dir.mkdir()
+            state = _synth_state("yolo-auto-approve", yolo=True)
+            self._stub_gate_result(project_dir, "build", "APPROVE")
+
+            patches = _minimal_approve_patches(project_dir)
+            for p in patches:
+                p.start()
+            # Gate must be "required" for the verdict check chain to load the
+            # synthetic gate-result.json we wrote above.
+            phases_patch = patch.object(phase_manager, "load_phases_config",
+                                        return_value={"build": {
+                                            "gate_required": True,
+                                            "gate_override_allowed": True,
+                                            "depends_on": [],
+                                            "min_gate_score": 0.5,
+                                        }})
+            phases_patch.start()
+            try:
+                _, next_phase = phase_manager.approve_phase(state, "build")
+            finally:
+                phases_patch.stop()
+                for p in patches:
+                    p.stop()
+
+            audit = project_dir / "yolo-audit.jsonl"
+            # Both advance AND audit fired.
+            self.assertEqual(next_phase, "review")
+            self.assertTrue(audit.exists())
+
+    def test_yolo_no_advance_on_conditional(self):
+        """yolo + CONDITIONAL → raise (surface to user); no advance."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "yolo-no-advance-cond"
+            project_dir.mkdir()
+            state = _synth_state("yolo-no-advance-cond", yolo=True)
+            self._stub_gate_result(
+                project_dir, "build", "CONDITIONAL",
+                conditions=[{"id": "c1", "desc": "fix this"}],
+            )
+
+            patches = _minimal_approve_patches(project_dir)
+            # CONDITIONAL requires gate_required=True to trigger the verdict
+            # check chain — override the phases config for this test.
+            for p in patches:
+                if getattr(p, "attribute", None) == "load_phases_config":
+                    p.start()
+                    # Replace the return_value with gate_required=True.
+                    continue
+                p.start()
+            # Swap the default phases config patch to one with gate_required.
+            phases_patch = patch.object(phase_manager, "load_phases_config",
+                                        return_value={"build": {
+                                            "gate_required": True,
+                                            "gate_override_allowed": True,
+                                            "depends_on": [],
+                                            "min_gate_score": 0.5,
+                                        }})
+            phases_patch.start()
+            try:
+                with self.assertRaises(ValueError):
+                    phase_manager.approve_phase(state, "build")
+            finally:
+                phases_patch.stop()
+                for p in patches:
+                    p.stop()
+
+    def test_yolo_no_advance_on_reject(self):
+        """yolo + REJECT → raise (surface to user); no advance."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "yolo-no-advance-reject"
+            project_dir.mkdir()
+            state = _synth_state("yolo-no-advance-reject", yolo=True)
+            self._stub_gate_result(project_dir, "build", "REJECT", score=0.1)
+
+            patches = _minimal_approve_patches(project_dir)
+            for p in patches:
+                p.start()
+            phases_patch = patch.object(phase_manager, "load_phases_config",
+                                        return_value={"build": {
+                                            "gate_required": True,
+                                            "gate_override_allowed": True,
+                                            "depends_on": [],
+                                            "min_gate_score": 0.5,
+                                        }})
+            phases_patch.start()
+            try:
+                with self.assertRaises(ValueError):
+                    phase_manager.approve_phase(state, "build")
+            finally:
+                phases_patch.stop()
+                for p in patches:
+                    p.stop()
+
+
 if __name__ == "__main__":
     unittest.main()
