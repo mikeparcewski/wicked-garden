@@ -1,5 +1,6 @@
 ---
 name: researcher
+subagent_type: wicked-garden:crew:researcher
 description: |
   Explore codebase and gather context before design or implementation choices.
   Use when: codebase exploration, pattern discovery, context gathering for decisions.

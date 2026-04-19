@@ -1,5 +1,6 @@
 ---
 name: technical-writer
+subagent_type: wicked-garden:engineering:technical-writer
 description: |
   Create clear, accessible technical documentation with proper structure, audience awareness,
   and practical examples. Focus on helping users understand and use the system effectively.

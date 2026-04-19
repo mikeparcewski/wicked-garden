@@ -77,7 +77,7 @@ For each scenario:
 
 ```
 Task(
-  subagent_type="wicked-garden:qe:acceptance-test-writer",
+  subagent_type="wicked-garden:qe:test-designer",
   prompt="""Generate an evidence-gated test plan for this acceptance scenario.
 
 ## Scenario
@@ -121,7 +121,7 @@ If `--phase write`, stop here and present the test plan for review.
 
 ```
 Task(
-  subagent_type="wicked-garden:qe:acceptance-test-executor",
+  subagent_type="wicked-garden:qe:test-designer",
   prompt="""Execute this test plan and collect evidence artifacts.
 
 ## Test Plan
@@ -232,7 +232,7 @@ If the registry exists, proceed to dispatch the reviewer:
 
 ```
 Task(
-  subagent_type="wicked-garden:qe:acceptance-test-reviewer",
+  subagent_type="wicked-garden:qe:test-designer",
   prompt="""Review this evidence against the test plan assertions.
 
 ## Original Scenario

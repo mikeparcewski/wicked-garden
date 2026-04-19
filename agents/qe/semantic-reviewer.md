@@ -1,5 +1,6 @@
 ---
 name: semantic-reviewer
+subagent_type: wicked-garden:qe:semantic-reviewer
 description: |
   Autonomous post-implementation pass that verifies spec-to-code alignment.
   Extracts numbered acceptance criteria (AC-*, FR-*, REQ-*) from clarify-phase

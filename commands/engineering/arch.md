@@ -82,7 +82,7 @@ Provide overview, assessment (strengths + concerns), and strategic recommendatio
 If data-heavy system:
 ```python
 Task(
-    subagent_type="wicked-garden:engineering:data-architect",
+    subagent_type="wicked-garden:data:data-architect",
     prompt="""Analyze data architecture for this system.
 
 ## Evaluation Areas

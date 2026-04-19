@@ -1,5 +1,6 @@
 ---
 name: frontend-engineer
+subagent_type: wicked-garden:engineering:frontend-engineer
 description: |
   Frontend engineering specialist focusing on React, CSS, browser APIs,
   component design, performance, accessibility, and user experience patterns.

@@ -1,5 +1,6 @@
 ---
 name: production-quality-engineer
+subagent_type: wicked-garden:qe:production-quality-engineer
 description: |
   Monitor production quality post-deploy. Tracks SLO targets, error budgets,
   performance regressions, and canary analysis. Defines rollback criteria.

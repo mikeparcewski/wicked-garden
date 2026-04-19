@@ -1,5 +1,6 @@
 ---
 name: memory-recaller
+subagent_type: wicked-garden:mem:memory-recaller
 description: |
   Search and retrieve relevant memories without overloading main context.
   Use when: searching memory store, finding past decisions or patterns, recalling context by topic or tag.

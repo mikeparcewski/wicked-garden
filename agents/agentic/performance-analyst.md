@@ -1,5 +1,6 @@
 ---
 name: performance-analyst
+subagent_type: wicked-garden:agentic:performance-analyst
 description: |
   Token optimization, latency budgets, cost analysis, parallelization opportunities,
   caching strategies, and context window management for agentic systems.

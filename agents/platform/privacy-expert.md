@@ -1,5 +1,6 @@
 ---
 name: privacy-expert
+subagent_type: wicked-garden:platform:privacy-expert
 description: |
   Privacy and data protection specialist. Detects PII/PHI, ensures GDPR
   compliance, implements privacy by design, and protects sensitive data

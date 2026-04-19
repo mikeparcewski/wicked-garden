@@ -390,7 +390,7 @@ TaskUpdate(taskId="{id}", status="completed")
 | Specialist | Clarify | Design | Build | Review |
 |-----------|---------|--------|-------|--------|
 | jam | `/wicked-garden:jam:brainstorm` (interactive) | `/wicked-garden:jam:perspectives` (interactive) | - | - |
-| product | `Task(subagent_type="wicked-garden:product:requirements-analyst", ...)` | `Task(subagent_type="wicked-garden:product:business-strategist", ...)` | - | `Task(subagent_type="wicked-garden:product:ux-designer", ...)` |
+| product | `Task(subagent_type="wicked-garden:product:requirements-analyst", ...)` | `Task(subagent_type="wicked-garden:product:market-strategist", ...)` | - | `Task(subagent_type="wicked-garden:product:ux-designer", ...)` |
 | engineering | - | `Task(subagent_type="wicked-garden:engineering:solution-architect", ...)` | `Task(subagent_type="wicked-garden:engineering:senior-engineer", ...)` | `Task(subagent_type="wicked-garden:engineering:senior-engineer", ...)` |
 | qe | - | - | `/wicked-garden:crew:gate` (quality gate) | `/wicked-garden:crew:gate` (quality gate) |
 | platform | - | - | `Task(subagent_type="wicked-garden:platform:security-engineer", ...)` | `Task(subagent_type="wicked-garden:platform:security-engineer", ...)` |
@@ -533,7 +533,7 @@ For each required layer:
 Agent fallbacks:
 - If `test-automation-engineer` is unavailable → include instructions in generic reviewer prompt.
 - If `security-engineer` is unavailable → include security steps in integration test prompt.
-- If `acceptance-test-executor` is unavailable → include scenario steps in generic reviewer prompt.
+- If `test-designer` is unavailable → include scenario steps in generic reviewer prompt.
 
 **Step 4: Aggregate results.**
 
@@ -660,14 +660,14 @@ For each build task, check its complexity (from the task description or the proj
 1. **Red phase** (write failing tests first):
    ```
    Task(
-     subagent_type="wicked-garden:qe:tdd-coach",
+     subagent_type="wicked-garden:qe:test-strategist",
      prompt="Write failing tests (red phase) for: {task description}.
      Project: {project-name}. Design: {relevant design excerpt}.
      Output: failing test files that define the acceptance criteria.
      Do NOT implement the feature yet."
    )
    ```
-   If `wicked-garden:qe:tdd-coach` is unavailable, include TDD red-phase instructions in the implementer prompt instead.
+   If `wicked-garden:qe:test-strategist` is unavailable, include TDD red-phase instructions in the implementer prompt instead.
 
 2. **Green phase** (implement to pass tests):
    ```
@@ -683,7 +683,7 @@ For each build task, check its complexity (from the task description or the proj
 3. **Refactor verification** (clean up without breaking tests):
    ```
    Task(
-     subagent_type="wicked-garden:qe:tdd-coach",
+     subagent_type="wicked-garden:qe:test-strategist",
      prompt="Verify and guide the refactor phase for: {task description}.
      Project: {project-name}. Tests should remain passing after refactor.
      Check: code quality, duplication, naming, test coverage completeness."

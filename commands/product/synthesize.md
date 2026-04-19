@@ -46,7 +46,7 @@ If no analysis found, prompt user to run `/wicked-garden:product:analyze` first.
 
 ```
 Task(
-  subagent_type="wicked-garden:product:customer-advocate",
+  subagent_type="wicked-garden:product:user-voice",
   prompt="""Synthesize customer feedback analysis into actionable recommendations.
 
 ## Analysis Data
@@ -193,7 +193,7 @@ User: /wicked-garden:product:synthesize --priority high
 Claude: I'll synthesize high-priority recommendations from customer feedback.
 
 [Loads analysis results]
-[Dispatches to customer-advocate agent]
+[Dispatches to user-voice agent]
 [Agent generates prioritized recommendations]
 
 ## Customer Voice Synthesis

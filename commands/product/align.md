@@ -50,7 +50,7 @@ Read target document if provided and parse parameters:
 
 ```
 Task(
-  subagent_type="wicked-garden:product:alignment-lead",
+  subagent_type="wicked-garden:product:value-strategist",
   prompt="""Facilitate stakeholder alignment and consensus building.
 
 ## Context
@@ -141,7 +141,7 @@ Automatically:
 $ /wicked-garden:product:align requirements.md --stakeholders "eng,qe,ops"
 
 Analyzing stakeholder alignment...
-[Dispatches to alignment-lead agent]
+[Dispatches to value-strategist agent]
 [Agent analyzes stakeholder positions and surfaces concerns]
 
 Stakeholders Identified: 3

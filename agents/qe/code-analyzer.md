@@ -1,5 +1,6 @@
 ---
 name: code-analyzer
+subagent_type: wicked-garden:qe:code-analyzer
 description: |
   Static code analysis focusing on testability, quality, and maintainability.
   Reviews code structure, identifies test coverage gaps, and assesses risk areas.

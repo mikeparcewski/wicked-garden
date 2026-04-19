@@ -1,5 +1,6 @@
 ---
 name: system-designer
+subagent_type: wicked-garden:engineering:system-designer
 description: |
   Define component boundaries, module organization, and interface contracts.
   Focus on decomposition and dependency management.

@@ -53,7 +53,7 @@ gh issue list --label "customer-reported" 2>/dev/null | head -5
 
 ```
 Task(
-  subagent_type="wicked-garden:product:customer-advocate",
+  subagent_type="wicked-garden:product:user-voice",
   prompt="""Aggregate customer feedback from available sources.
 
 ## Sources Discovered
@@ -130,7 +130,7 @@ User: /wicked-garden:product:listen --days 7
 Claude: I'll aggregate customer feedback from the last 7 days.
 
 [Discovers available sources]
-[Dispatches to customer-advocate agent]
+[Dispatches to user-voice agent]
 [Agent aggregates and normalizes feedback]
 
 ## Listening Report: Last 7 Days

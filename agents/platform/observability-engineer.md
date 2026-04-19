@@ -1,5 +1,6 @@
 ---
 name: observability-engineer
+subagent_type: wicked-garden:platform:observability-engineer
 description: |
   Logs, traces, metrics design; SLI/SLO definition; dashboard and alerting
   architecture. Owns how a system reveals its own state — what's emitted, how

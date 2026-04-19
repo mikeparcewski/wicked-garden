@@ -1,5 +1,6 @@
 ---
 name: compliance-officer
+subagent_type: wicked-garden:platform:compliance-officer
 description: |
   Regulatory compliance expert. Evaluates code and systems against
   SOC2, HIPAA, GDPR, PCI requirements. Identifies violations and

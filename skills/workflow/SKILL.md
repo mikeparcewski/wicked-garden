@@ -1,175 +1,135 @@
 ---
 name: workflow
 description: |
-  Core wicked-crew v3 workflow engine with capability-based orchestration and phase progression.
-  Drives projects through crew phases: clarify → design → test-strategy → build → test → review.
-  Smart decisioning analyzes signals to determine which specialists to engage per phase.
+  wicked-crew v6 workflow engine. The facilitator rubric in
+  wicked-garden:propose-process drives project orchestration — scoring 9 risk
+  factors, picking phases from the catalog, assigning rigor tier, and emitting
+  a process-plan + full task chain. Phases have hard quality gates (APPROVE /
+  CONDITIONAL / REJECT); CONDITIONAL auto-resolves spec gaps or escalates.
 
   Use when: "crew phases", "phase plan", "workflow execution", "start a project",
   "clarify outcome", "design phase", "build phase", "approve phase", "crew workflow",
-  "phase progression", "QE gate", "shift-left testing", or structured delivery guidance.
+  "phase progression", "QE gate", "shift-left testing", or structured delivery.
 context: fork
+
+**Plain:** wicked-crew v6 — propose-process rubric picks phases and rigor tier;
+gates are hard enforcement; two interaction modes (normal / yolo).
 ---
 
-# Workflow Skill (v3)
+# Workflow Skill (v6)
 
-Capability-based orchestration with smart specialist engagement.
+Facilitator-rubric orchestration with hard quality gates.
 
-## v3 Architecture
-
-```
-User Input → Smart Decisioning → Specialist Discovery → Engagement
-                  │                     │
-                  ├── Signal Detection  ├── Available specialists
-                  ├── Complexity Score  ├── Personas
-                  └── Ambiguity Check   └── Fallback agents
-```
-
-## Phase Progression
+## Decision Engine — `wicked-garden:propose-process`
 
 ```
-clarify → design → test-strategy → build → test → review
+User project description
+        │
+        ▼
+propose-process facilitator
+  ├── Score 9 risk factors (0-3 each)
+  ├── Read agents/**/*.md frontmatter → pick specialists
+  ├── Pick phases from phases.json catalog
+  ├── Set rigor_tier (minimal / standard / full)
+  └── Emit process-plan.md + full task chain
 ```
 
-Each phase has: Clear deliverables, specialist engagement based on signals, mandatory quality gate.
+All phase selection is judgment-driven by the facilitator, not rule-based.
+
+## Interaction Modes
+
+| Mode | How | Effect |
+|------|-----|--------|
+| **normal** | Default | Each phase gate requires explicit user approval before advancing |
+| **yolo** | `/wicked-garden:crew:yolo` | Auto-advance through gates; gates still run, findings still logged |
+
+## Rigor Tiers
+
+| Tier | Complexity | Gates | Reviewers |
+|------|-----------|-------|-----------|
+| **minimal** | 0-2 | Advisory — gate findings logged but do not block | Single reviewer |
+| **standard** | 3-5 | Enforced — REJECT blocks advancement | Single reviewer |
+| **full** | 6-7 | Enforced — REJECT blocks; multi-reviewer | 2+ reviewers |
+
+Security or compliance signals override to **full** regardless of complexity.
+
+## Phase Plan
+
+```
+clarify → design → [challenge?] → [test-strategy?] → build → test → review
+```
+
+Brackets = optional phases. The facilitator picks which phases apply based on
+factor readings. `phases.json` defines gate config per phase (min_gate_score,
+valid_skip_reasons, depends_on).
+
+### Phase Summary
+
+| Phase | Goal | Key deliverable |
+|-------|------|-----------------|
+| **clarify** | Define success criteria | Outcome statement + success criteria |
+| **design** | Architect solution | Architecture docs + approach |
+| **challenge** | Adversarial stress-test | Challenge findings + revised design |
+| **test-strategy** | Define test approach pre-build | Test scenarios + risk assessment |
+| **build** | Implement | Working implementation |
+| **test** | Verify | Test results + convergence evidence |
+| **review** | Multi-perspective validation | Review findings + sign-off |
 
 ## Gate Enforcement (v2.5.0+)
 
-Gates are hard enforcement — not advisory. `phases.json` defines per-phase:
-- `min_gate_score` (0.6-0.8): gates below threshold block advancement
-- `valid_skip_reasons`: enumerated skip reasons; free-text rejected
-- `skip_complexity_threshold`: prevents skipping at high complexity (e.g., test-strategy at >= 3)
+Gates are hard enforcement — not advisory — at standard and full rigor.
 
-Gate verdicts: **APPROVE** → proceed. **CONDITIONAL** → conditions-manifest.json written, must verify before next phase. **REJECT** → blocks advancement, mandatory rework.
+| Verdict | Effect |
+|---------|--------|
+| **APPROVE** | Phase advances |
+| **CONDITIONAL** | `conditions-manifest.json` written; verify before next phase |
+| **REJECT** | Blocks advancement; mandatory rework |
 
-CONDITIONAL auto-resolution (AC-4.4): spec gaps fixed inline; intent changes escalate to user/council.
+CONDITIONAL auto-resolution (AC-4.4): spec gap conditions → fixed inline.
+Intent-changing conditions → escalate to user or council.
 
-Build depends on design (`depends_on: ["clarify", "design"]`). To migrate legacy beta.3 projects, use `/wicked-garden:adopt-legacy`.
+Gate reviewer assignment happens at approve time, not at phase start. Banned
+reviewer values: `just-finish-auto`, `fast-pass`, `auto-approve-*`.
 
-## Smart Decisioning
+Build depends on design (`depends_on: ["clarify", "design"]`). To migrate
+legacy beta.3 projects, use `/wicked-garden:adopt-legacy`.
 
-### Signal Categories
+## Specialist Discovery
 
-| Signal | Keywords | Specialists |
-|--------|----------|-------------|
-| Security | auth, encrypt, token, jwt | platform, compliance |
-| Performance | scale, optimize, cache | engineering, qe |
-| Product | user, feature, story | product |
-| Compliance | SOC2, HIPAA, audit | platform |
-| Ambiguity | maybe, should we, options | jam |
-| Complexity | integration, migrate, refactor | delivery, engineering |
+Crew discovers specialists by reading `agents/**/*.md` frontmatter directly at
+runtime. No static `enhances` map. Fallback agents (facilitator, researcher,
+implementer, reviewer) handle phases when no specialist matches.
 
-### Complexity Scoring (0-7)
+## Convergence Tracking (build/test phases)
 
-- 0-2: Simple → Built-in agents only
-- 3-4: Moderate → Core specialists
-- 5-7: Complex → All relevant + delivery
-
-## Specialist Engagement
-
-### Discovery
-
-Crew discovers specialists via `specialist.json` in each plugin.
-
-### Fallback Agents
-
-| Specialist | Fallback |
-|------------|----------|
-| jam | facilitator |
-| qe, product | reviewer |
-| engineering (arch) | researcher |
-| engineering, platform | implementer |
-
-## Phase Details
-
-### Clarify
-**Goal**: Define success criteria
-**Deliverables**: Outcome statement, success criteria, scope boundaries
-**Specialists**: jam (if ambiguous), product
-
-### Design
-**Goal**: Architect the solution
-**Deliverables**: Architecture docs, pattern identification, technical approach
-**Specialists**: product, engineering
-
-### QE (Quality Engineering)
-**Goal**: Define test strategy before building
-**Deliverables**: Test scenarios, risk assessment, edge cases
-**Specialists**: qe, platform (if security signals)
-
-### Build
-**Goal**: Implement the solution
-**Deliverables**: Working implementation, progress tracking, tests passing
-**Specialists**: engineering, platform (if infra)
-
-### Review
-**Goal**: Multi-perspective validation
-**Deliverables**: Review findings, recommendations, sign-off
-**Specialists**: product, qe, platform (if regulated)
-
-## Project Lifecycle
-
-Projects can be archived when complete or paused:
-
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" archive <name>      # Sets archived=true
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" unarchive <name>    # Reactivates
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" list                 # Excludes archived by default
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/crew.py" list --include-archived
-```
-
-Phase operations are blocked on archived projects.
+Artifact states: `Designed → Built → Wired → Tested → Integrated → Verified`.
+The `convergence-verify` gate flips REJECT → APPROVE only when every tracked
+artifact reaches `Integrated`. Stalls at threshold 3 sessions surface as findings.
 
 ## Commands Reference
 
 | Command | Purpose |
 |---------|---------|
-| `/wicked-garden:crew:start` | Begin project with smart decisioning |
-| `/wicked-garden:crew:status` | View current state and engaged specialists |
-| `/wicked-garden:crew:execute` | Run current phase with specialists |
-| `/wicked-garden:crew:approve` | Approve and advance phase |
-| `/wicked-garden:crew:just-finish` | Autonomous completion |
-| `/wicked-garden:crew:gate` | Run QE gate (value/strategy/execution) |
+| `/wicked-garden:crew:start` | Begin project — invokes propose-process |
+| `/wicked-garden:crew:status` | View current phase and engaged specialists |
+| `/wicked-garden:crew:execute` | Run current phase |
+| `/wicked-garden:crew:approve` | Advance phase after gate |
+| `/wicked-garden:crew:just-finish` | Autonomous completion (yolo-equivalent) |
+| `/wicked-garden:crew:gate` | Run a specific quality gate |
 | `/wicked-garden:crew:evidence` | Query evidence for a task |
+| `/wicked-garden:crew:yolo` | Switch to auto-advance mode |
 
-## Event Flow
+## Storage
 
-### Project Start
-```
-crew:project:started:success
-crew:specialist:engaged:success
-crew:specialist:unavailable:warning (with fallback)
-```
+| Store | What |
+|-------|------|
+| Native tasks | TaskCreate/TaskUpdate with validated `metadata` (see `scripts/_event_schema.py`) |
+| `wicked-garden:mem` | Cross-session learning at project completion and gate failures |
+| Local JSON | DomainStore fallback; always available |
 
-### Phase Transitions
-```
-crew:phase:started:success
-crew:phase:completed:success
-crew:phase:approved:success
-```
+## Refs (load on demand)
 
-## Utility Integration
-
-| Plugin | Enhancement | Fallback |
-|--------|-------------|----------|
-| Native tasks | TaskCreate/TaskUpdate with validated `metadata` (see scripts/_event_schema.py) | TodoWrite |
-| wicked-garden:mem | Cross-session learning | Project files |
-
-See [Integration Details](refs/integration.md) for usage patterns.
-
-## Evidence Tracking
-
-Gate decisions and artifacts are tracked as evidence. See [Evidence Tracking](refs/evidence.md) for:
-- Evidence tiers (L1-L4)
-- Artifact naming conventions
-- Automatic vs manual evidence collection
-
-## Configuration
-
-Customize in the wicked-crew local storage domain as `config.yaml`:
-
-```yaml
-defaults:
-  always_engage: [qe]      # Always use QE specialist
-  complexity_threshold: 4  # Lower = more specialists
-```
+- [Evidence Tracking](refs/evidence.md) — evidence tiers L1-L4, artifact naming
+- [Integration Details](refs/integration.md) — mem, search, wicked-bus usage
+- [Scoring Rubric](refs/scoring-rubric.md) — **HISTORICAL v5 only**; see propose-process for v6
+- [Risk Dimension Signals](refs/risk-dimension-signals.md) — signal keywords per factor

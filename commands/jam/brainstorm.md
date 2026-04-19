@@ -15,7 +15,7 @@ Start a full brainstorm with evidence-backed perspectives. The facilitator gathe
 Delegate to the facilitator agent:
 
 ```
-Task(subagent_type="wicked-garden:jam:facilitator",
+Task(subagent_type="wicked-garden:jam:brainstorm-facilitator",
      prompt="Run a full brainstorm session on: {topic}. Options: {personas}, {rounds}, convergence_mode={converge|'normal'}.
 
 Convergence mode instructions:

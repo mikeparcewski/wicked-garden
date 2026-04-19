@@ -1,5 +1,6 @@
 ---
 name: contrarian
+subagent_type: wicked-garden:crew:contrarian
 description: |
   Maintain and strengthen minority positions across sessions for crew projects.
   Use when: a crew project reaches design phase at complexity >= 4, or whenever the

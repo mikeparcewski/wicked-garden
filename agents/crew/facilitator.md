@@ -1,5 +1,6 @@
 ---
 name: facilitator
+subagent_type: wicked-garden:crew:facilitator
 description: |
   Guide outcome clarification through structured inquiry.
   Use when: defining project outcomes, resolving scope ambiguity before work begins.

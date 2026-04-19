@@ -1,5 +1,6 @@
 ---
 name: security-engineer
+subagent_type: wicked-garden:platform:security-engineer
 description: |
   Security scanning and vulnerability assessment from DevSecOps perspective.
   Focus on OWASP compliance, secure coding practices, secrets management,

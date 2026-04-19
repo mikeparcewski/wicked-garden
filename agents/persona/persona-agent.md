@@ -1,5 +1,6 @@
 ---
 name: persona-agent
+subagent_type: wicked-garden:persona:persona-agent
 description: |
   Executes tasks under a named persona's behavioral profile. Receives persona
   definition (name, focus, personality, constraints, memories, preferences)

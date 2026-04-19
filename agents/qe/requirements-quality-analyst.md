@@ -1,5 +1,6 @@
 ---
 name: requirements-quality-analyst
+subagent_type: wicked-garden:qe:requirements-quality-analyst
 description: |
   Evaluate acceptance criteria quality at the clarify phase. Checks whether ACs
   are specific, measurable, and testable. Flags ambiguous scope and missing edge cases.

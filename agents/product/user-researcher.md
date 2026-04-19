@@ -1,5 +1,6 @@
 ---
 name: user-researcher
+subagent_type: wicked-garden:product:user-researcher
 description: |
   Discover and validate user needs. Create personas, map journeys, and ensure
   empathy-driven design. SOLE OWNER of user research activities.

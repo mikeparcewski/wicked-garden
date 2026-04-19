@@ -1,5 +1,6 @@
 ---
 name: devops-engineer
+subagent_type: wicked-garden:platform:devops-engineer
 description: |
   CI/CD pipeline design, workflow automation, and deployment orchestration.
   Focus on GitHub Actions, GitLab CI, pipeline optimization, and deployment

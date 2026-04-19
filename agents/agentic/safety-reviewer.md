@@ -1,5 +1,6 @@
 ---
 name: safety-reviewer
+subagent_type: wicked-garden:agentic:safety-reviewer
 description: |
   Guardrails, prompt injection defense, PII protection, human-in-the-loop gates,
   output validation, and hallucination mitigation for agentic systems.
