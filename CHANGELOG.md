@@ -1,5 +1,25 @@
 # Changelog
 
+## [6.0.0-beta.5] - 2026-04-18
+
+**Skill-registration fix.** Beta.4 shipped 5 SKILL.md files with
+`disable-model-invocation: false` in frontmatter. Empirically that key —
+at any value including `false` — suppresses model-invocability (Claude Code
+appears to treat presence-of-key as opt-out). Removed the line from:
+- `skills/crew/adopt-legacy/SKILL.md`
+- `skills/crew/propose-process/SKILL.md`
+- `skills/crew/workflow/SKILL.md`
+- `skills/qe/acceptance-testing/SKILL.md`
+- `skills/search/unified-search/SKILL.md`
+
+`skills/persona/SKILL.md` retains `disable-model-invocation: true` (intentional — user-only).
+
+After this release:
+- `Skill(skill="wicked-garden:crew:adopt-legacy")` becomes invokable
+- `Skill(skill="wicked-garden:crew:propose-process")` becomes invokable (was unknown throughout the v6 rebuild)
+- `context: fork` on the 3 edited skills can finally activate on Skill() dispatch
+- Total invocable skill count should go up by 5 post-reload
+
 ## [6.0.0-beta.4] - 2026-04-18
 
 **v6.0 autonomy mechanism + issue #332 partial** — shift-left phase-boundary
