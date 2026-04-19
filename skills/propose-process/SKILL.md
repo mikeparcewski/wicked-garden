@@ -84,10 +84,11 @@ Core archetypes: `requirements-analyst`, `product-manager`, `solution-architect`
 
 ### 5. Select phases
 
-Pick from: `ideate`, `clarify`, `design`, `test-strategy`, `build`, `test`, `review`.
-Dependencies are soft — skip `design` for a trivial typo, collapse `clarify`+`design`
-for a crisp bugfix, insert `migrate` between `design` and `build` when state_complexity
-is high. One sentence WHY per phase + primary specialist(s). See `refs/phase-catalog.md`.
+Pick from: `ideate`, `clarify`, `challenge`, `design`, `test-strategy`, `build`, `test`,
+`review`. Soft deps — skip `design` for a trivial typo, collapse `clarify`+`design` for a
+crisp bugfix, insert `migrate` between `design` and `build` when state_complexity is high.
+**MUST**: at complexity ≥ 4, `challenge` phase MUST be included between `design` and `build`;
+do not use facilitator judgment to skip it. One sentence WHY per phase. See `refs/phase-catalog.md`.
 
 ### 6. Assign evidence metadata per task
 
@@ -193,8 +194,7 @@ Before Step 3 (factor scoring), read per-project process memory — unresolved r
 - [`refs/phase-catalog.md`](refs/phase-catalog.md) — phase templates, soft deps
 - [`refs/evidence-framing.md`](refs/evidence-framing.md) — functional evidence rubric
 - [`refs/ambiguity.md`](refs/ambiguity.md) — when to stop and ask
-- [`refs/plan-template.md`](refs/plan-template.md) — `process-plan.md` template
-- [`refs/output-schema.md`](refs/output-schema.md) — JSON shape for measurement
+- [`refs/plan-template.md`](refs/plan-template.md) — `process-plan.md` template; [`refs/output-schema.md`](refs/output-schema.md) — JSON shape for measurement
 - [`refs/interaction-mode.md`](refs/interaction-mode.md) — normal vs. yolo, banned values
 - [`refs/gate-policy.md`](refs/gate-policy.md) — human-readable Gate × Rigor reviewer matrix
 - [`refs/re-eval-addendum-schema.md`](refs/re-eval-addendum-schema.md) — JSONL addendum schema; [`refs/spec-quality-rubric.md`](refs/spec-quality-rubric.md) — scored spec quality rubric (10 dims × 0-2 pts) + tier thresholds
