@@ -16,6 +16,15 @@ Algorithms
 3. 3σ Western Electric zone-A rule (baseline mean ± 3 * baseline_stddev).
    Points outside 3σ are tagged ``special-cause``. Points outside 2σ are
    reported as ``warn`` (zone B). Everything else is ``common-cause`` noise.
+4. Western Electric runs rules (issue #459) beyond zone A:
+   - ``2_of_3_zone_b``: 2 of the last 3 points are beyond 2σ on the bad side
+     (below-baseline). Fires ``special-cause`` even when the latest point is
+     inside zone A.
+   - ``trending_down``: 6 consecutive points each lower than the one before
+     (monotonic degradation). Fires ``special-cause``.
+   - ``trending_up``: symmetric monotonic climb. Reported but never flips
+     ``drift`` — rising metrics on a "higher is better" axis are good news.
+   These runs rules are additive — they OR with the zone-A sigma check.
 
 Classification output
 ---------------------
@@ -68,6 +77,13 @@ DEFAULT_DROP_PCT_THRESHOLD = 0.15  # issue acceptance: 15% below 4-session basel
 DEFAULT_SPECIAL_CAUSE_SIGMA = 3.0  # Western Electric zone A
 DEFAULT_WARN_SIGMA = 2.0           # zone B
 MIN_SESSIONS_FOR_DRIFT = 5         # issue acceptance: >=5 sessions
+
+# Western Electric runs-rule thresholds (issue #459).
+# 2-of-3: "2 of the most recent 3 points beyond 2σ on the same side."
+WE_2OF3_WINDOW = 3
+WE_2OF3_COUNT = 2
+# Trending: 6 consecutive monotonically increasing / decreasing points.
+WE_TRENDING_WINDOW = 6
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +143,53 @@ def _pull_metric(records: List[Dict[str, Any]], metric: str) -> List[float]:
         if isinstance(v, (int, float)):
             out.append(float(v))
     return out
+
+
+# ---------------------------------------------------------------------------
+# Western Electric runs rules (issue #459)
+# ---------------------------------------------------------------------------
+
+def _we_2_of_3_zone_b(
+    series: List[float],
+    mean: float,
+    stddev: float,
+    *,
+    warn_sigma: float = DEFAULT_WARN_SIGMA,
+) -> bool:
+    """WE rule: 2 of the last 3 points beyond 2σ below the baseline mean.
+
+    Requires at least 3 points and a non-zero baseline stddev. We only flag
+    the "bad" (below-baseline) side — metrics like gate_pass_rate are
+    higher-is-better. Callers with lower-is-better metrics should invert
+    the series before passing it in.
+    """
+    if stddev <= 0:
+        return False
+    if len(series) < WE_2OF3_WINDOW:
+        return False
+    recent = series[-WE_2OF3_WINDOW:]
+    # Point counts as "beyond 2σ on the bad side" when it sits at least
+    # warn_sigma standard deviations below the baseline mean.
+    threshold = mean - warn_sigma * stddev
+    breaches = sum(1 for x in recent if x < threshold)
+    return breaches >= WE_2OF3_COUNT
+
+
+def _we_trending(series: List[float], direction: str = "down") -> bool:
+    """WE rule: 6 consecutive points moving monotonically.
+
+    ``direction`` is "down" (each point strictly less than the previous) or
+    "up" (strictly greater). Flat runs (equal values) do NOT count — SPC
+    theory requires strict monotonicity for a trend signal.
+    """
+    if len(series) < WE_TRENDING_WINDOW:
+        return False
+    window = series[-WE_TRENDING_WINDOW:]
+    if direction == "down":
+        return all(window[i] < window[i - 1] for i in range(1, len(window)))
+    if direction == "up":
+        return all(window[i] > window[i - 1] for i in range(1, len(window)))
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +272,7 @@ def classify(
     slope = _slope(ewma_series)
     result["ewma_slope"] = round(slope, 6)
 
-    # Zone classification.
+    # Zone classification (zone-A sigma test).
     if z >= special_cause_sigma:
         zone = "special-cause"
         result["reasons"].append(f"outside {special_cause_sigma:.0f}σ (z={z:.2f})")
@@ -218,6 +281,33 @@ def classify(
         result["reasons"].append(f"outside {warn_sigma:.0f}σ (z={z:.2f})")
     else:
         zone = "common-cause"
+
+    # Western Electric runs rules (issue #459) — operate on the full observed
+    # series using the baseline mean/stddev as the reference frame. These fire
+    # independently of the single-point z-score.
+    we_rules: List[str] = []
+    if _we_2_of_3_zone_b(series, mu, sigma, warn_sigma=warn_sigma):
+        we_rules.append("2_of_3_zone_b")
+        result["reasons"].append(
+            f"WE 2-of-3: 2+ of last {WE_2OF3_WINDOW} points beyond "
+            f"{warn_sigma:.0f}σ below baseline"
+        )
+    if _we_trending(series, direction="down"):
+        we_rules.append("trending_down")
+        result["reasons"].append(
+            f"WE trending-down: {WE_TRENDING_WINDOW} consecutive decreasing points"
+        )
+    if _we_trending(series, direction="up"):
+        we_rules.append("trending_up")
+        result["reasons"].append(
+            f"WE trending-up: {WE_TRENDING_WINDOW} consecutive increasing points"
+        )
+    result["we_rules"] = we_rules
+
+    # Any "bad-side" WE runs rule escalates zone to special-cause.
+    # trending_up is informational only (higher-is-better metrics).
+    if "2_of_3_zone_b" in we_rules or "trending_down" in we_rules:
+        zone = "special-cause"
 
     # Drift alarm: >=15% drop below baseline OR special-cause zone.
     drift = False
