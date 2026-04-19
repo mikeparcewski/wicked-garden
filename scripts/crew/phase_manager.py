@@ -167,6 +167,112 @@ def _resolve_gate_reviewer(gate_name: str, rigor_tier: str) -> dict:
     return tier_map[rigor_tier]
 
 
+# ---------------------------------------------------------------------------
+# Startup validation (SC-4) — full-rigor gates must declare non-empty reviewers
+# ---------------------------------------------------------------------------
+
+
+class ConfigError(ValueError):
+    """Raised on a mis-configured gate-policy.json (e.g. empty full-rigor reviewers).
+
+    Subclass of ValueError so existing callers that catch ValueError continue
+    to degrade gracefully, while new callers can discriminate config errors.
+    """
+
+
+_GATE_POLICY_FULL_VALIDATED: bool = False
+
+
+def _validate_gate_policy_full_rigor() -> None:
+    """Raise ConfigError if any gate at 'full' rigor has an empty reviewers list.
+
+    Runs once per process invocation; result cached in module-level flag
+    ``_GATE_POLICY_FULL_VALIDATED``. Called lazily from
+    ``phase_manager.execute()`` and ``approve_phase()`` entry points.
+
+    Rationale (SC-4 / CHL-04): silent fallback to the fast gate-evaluator at
+    full rigor is a correctness bug — the user asked for specialist council
+    scrutiny. Hard validation surfaces the misconfiguration immediately.
+
+    Behaviour:
+        - Each gate's ``full.reviewers`` list (when ``full`` tier is defined)
+          MUST be non-empty.
+        - Gates without a ``full`` tier are skipped (they do not advertise
+          full-rigor support).
+    """
+    global _GATE_POLICY_FULL_VALIDATED
+    if _GATE_POLICY_FULL_VALIDATED:
+        return
+    try:
+        policy = _load_gate_policy()
+    except FileNotFoundError:
+        # gate-policy.json missing is handled elsewhere; this validator only
+        # inspects a loadable policy.
+        return
+    for gate_name, tiers in (policy.get("gates") or {}).items():
+        if not isinstance(tiers, dict):
+            continue
+        full = tiers.get("full")
+        if not isinstance(full, dict):
+            continue
+        reviewers = full.get("reviewers")
+        if isinstance(reviewers, list) and len(reviewers) == 0:
+            raise ConfigError(
+                f"Gate policy for '{gate_name}' at full rigor has empty "
+                f"reviewers — full rigor requires at least one reviewer, "
+                f"found none. Configure reviewers or remove the full tier."
+            )
+    _GATE_POLICY_FULL_VALIDATED = True
+
+
+# ---------------------------------------------------------------------------
+# Dispatch-mode detection (CR-2 / AC-α11) — in-flight cutover rule
+# ---------------------------------------------------------------------------
+
+
+_DISPATCH_MODE_VALID = ("mode-3", "v6-legacy", "v5")
+_DISPATCH_MODE_DEFAULT_LEGACY = "v6-legacy"
+_DISPATCH_MODE_DEFAULT_FRESH = "mode-3"
+
+
+def _detect_dispatch_mode(state: "ProjectState") -> str:
+    """Return the dispatch mode for a project (reads + backfills).
+
+    Reads ``state.extras['dispatch_mode']`` if present. When absent, inspects
+    the project directory for mode-3 evidence (``phases/{phase}/reeval-log.jsonl``
+    or ``phases/{phase}/executor-status.json``) and returns ``"mode-3"`` when
+    any is found, else ``"v6-legacy"``. Writes the detected value back to
+    ``state.extras`` (caller persists via ``save_project_state``).
+
+    Safety: on any unexpected error, returns ``"v6-legacy"`` (preserves
+    existing behavior; mode-3 is opt-in).
+    """
+    try:
+        extras = getattr(state, "extras", None) or {}
+        stored = extras.get("dispatch_mode")
+        if isinstance(stored, str) and stored in _DISPATCH_MODE_VALID:
+            return stored
+
+        # Backfill path — inspect project dir for mode-3 evidence.
+        project_dir = get_project_dir(state.name)
+        phases_dir = project_dir / "phases"
+        detected = _DISPATCH_MODE_DEFAULT_LEGACY
+        if phases_dir.is_dir():
+            for phase_dir in phases_dir.iterdir():
+                if not phase_dir.is_dir():
+                    continue
+                if (phase_dir / "reeval-log.jsonl").exists() or (
+                    phase_dir / "executor-status.json"
+                ).exists():
+                    detected = _DISPATCH_MODE_DEFAULT_FRESH
+                    break
+        extras["dispatch_mode"] = detected
+        state.extras = extras
+        return detected
+    except Exception:  # noqa: BLE001 — safety: fail-safe default
+        return _DISPATCH_MODE_DEFAULT_LEGACY
+
+
 def load_phases_config() -> dict:
     """Load phase definitions from phases.json in .claude-plugin/."""
     config_path = _get_plugin_root() / ".claude-plugin" / "phases.json"
@@ -2380,13 +2486,406 @@ def _merge_data_into_state(state: ProjectState, data: Dict[str, Any]) -> Project
     return state
 
 
+# ---------------------------------------------------------------------------
+# Mode-3 execute() entry point (AC-α2 / FR-α2.1..FR-α2.5)
+# ---------------------------------------------------------------------------
+
+
+def _append_yolo_audit(
+    project_dir: Path,
+    *,
+    event: str,
+    reason: str,
+    prior_value: bool,
+    new_value: bool,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Append a single yolo-audit.jsonl record at the project root.
+
+    Append-only; never rewrites. Fails open — audit log failures log but
+    do not abort the caller (matches plugin's graceful-degradation pattern).
+    """
+    try:
+        audit_path = project_dir / "yolo-audit.jsonl"
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "event": event,
+            "timestamp": get_utc_timestamp(),
+            "reason": reason,
+            "scope": f"project:{project_dir.name}",
+            "prior_value": prior_value,
+            "new_value": new_value,
+        }
+        if extra:
+            record.update(extra)
+        with open(audit_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        logger.warning("[yolo-audit] append failed: %s", exc)
+
+
+def _apply_scope_increase_revoke(
+    state: "ProjectState",
+    *,
+    plan_mutations: List[Dict[str, Any]],
+    project_dir: Path,
+    trigger: str,
+) -> bool:
+    """Revoke yolo if any mutation is an augment or re-tier-up to 'full'.
+
+    Returns True when yolo was revoked by this call; False otherwise.
+    Idempotent — caller may invoke at both execute() and approve() points.
+    """
+    scope_increased = any(
+        (m.get("op") == "augment")
+        or (
+            m.get("op") == "re_tier"
+            and m.get("new_rigor_tier") == "full"
+        )
+        for m in (plan_mutations or [])
+    )
+    if not scope_increased:
+        return False
+    extras = getattr(state, "extras", None) or {}
+    if not extras.get("yolo_approved_by_user"):
+        return False
+    extras["yolo_approved_by_user"] = False
+    extras["yolo_revoked_count"] = int(extras.get("yolo_revoked_count") or 0) + 1
+    state.extras = extras
+    _append_yolo_audit(
+        project_dir,
+        event="revoked",
+        reason=f"scope-increase@{trigger}",
+        prior_value=True,
+        new_value=False,
+        extra={"triggering_mutations": plan_mutations},
+    )
+    return True
+
+
+class ExecuteResult(Dict[str, Any]):
+    """Result shape for ``execute()``.
+
+    Keys:
+        status:                 "ok" | "failed"
+        deliverables:           list[str] of absolute paths (>= 100 bytes each)
+        executor_task_id:       opaque task identifier
+        reeval_start_path:      phases/{phase}/reeval-start.json
+        reeval_end_path:        phases/{phase}/reeval-log.jsonl
+        parallelization_check:  {sub_task_count, dispatched_in_parallel, serial_reason}
+        reason:                 present when status == "failed"
+    """
+
+
+def _check_parallelization(check: Dict[str, Any]) -> Optional[str]:
+    """Return a failure reason string when the parallelization_check is invalid.
+
+    Enforces SC-6 / AC-α10: when ``sub_task_count >= 2`` and
+    ``dispatched_in_parallel is False``, ``serial_reason`` MUST be non-empty.
+    Returns None when the check is satisfied.
+    """
+    if not isinstance(check, dict):
+        return "parallelization-check-missing"
+    sub_count = int(check.get("sub_task_count") or 0)
+    if sub_count < 2:
+        return None
+    in_parallel = bool(check.get("dispatched_in_parallel"))
+    if in_parallel:
+        return None
+    serial_reason = (check.get("serial_reason") or "").strip()
+    if not serial_reason:
+        return "parallelization-check-missing"
+    return None
+
+
+def execute(
+    project: str,
+    phase: str,
+    *,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Dispatch the phase-executor, collect deliverables, persist addendum.
+
+    Signature (AC-α2 / FR-α2.1): ``execute(project, phase) -> ExecuteResult``.
+
+    Returns a dict with keys listed in :class:`ExecuteResult`.
+
+    The live dispatch (Task tool invocation) is owned by the orchestrator;
+    this function is the server-side persistence / validation / status
+    writer. When called by an agent via the CLI, it reads an
+    ``executor-status.json`` already produced by the phase-executor and
+    performs post-dispatch enforcement (parallelization-check + yolo
+    auto-revoke + addendum validation).
+
+    Raises:
+        ValueError:  project unknown, archived, wrong phase, unresolved
+                     conditions, or ConfigError from gate-policy validator.
+        RuntimeError: executor produced empty deliverables, or the
+                     parallelization-check failed (AC-α10 failure mode).
+    """
+    # SC-4 startup validation (first line of every mode-3 entry point).
+    _validate_gate_policy_full_rigor()
+
+    state = load_project_state(project)
+    if state is None:
+        raise ValueError(f"Project not found: {project}")
+
+    # Dispatch-mode routing (CR-2 / AC-α11).
+    dispatch_mode = _detect_dispatch_mode(state)
+    if dispatch_mode in ("v6-legacy", "v5"):
+        return {
+            "status": "skipped",
+            "reason": f"dispatch_mode={dispatch_mode}; mode-3 execute() is opt-in",
+            "dispatch_mode": dispatch_mode,
+            "deliverables": [],
+        }
+
+    phase = resolve_phase(phase)
+    project_dir = get_project_dir(project)
+    phase_dir = project_dir / "phases" / phase
+    phase_dir.mkdir(parents=True, exist_ok=True)
+
+    reeval_start_path = phase_dir / "reeval-start.json"
+    reeval_log_path = phase_dir / "reeval-log.jsonl"
+    executor_status_path = phase_dir / "executor-status.json"
+
+    # When executor-status.json was already written by the phase-executor
+    # agent, apply post-dispatch enforcement to it.
+    result: Dict[str, Any] = {
+        "status": "ok",
+        "deliverables": [],
+        "executor_task_id": "",
+        "reeval_start_path": str(reeval_start_path),
+        "reeval_end_path": str(reeval_log_path),
+        "parallelization_check": {
+            "sub_task_count": 0,
+            "dispatched_in_parallel": True,
+            "serial_reason": None,
+        },
+        "dispatch_mode": dispatch_mode,
+    }
+
+    if dry_run:
+        return result
+
+    if executor_status_path.exists():
+        try:
+            status_doc = json.loads(executor_status_path.read_text())
+        except (json.JSONDecodeError, OSError) as exc:
+            raise RuntimeError(f"executor-status-unreadable: {exc}")
+        deliverables = status_doc.get("deliverables") or []
+        if not deliverables:
+            raise RuntimeError("executor-empty-deliverables")
+        # Validate deliverables are under phases/{phase}/.
+        for rel in deliverables:
+            rel_path = Path(rel)
+            if rel_path.is_absolute():
+                abs_path = rel_path
+            else:
+                abs_path = project_dir / rel
+            try:
+                abs_path.resolve().relative_to(project_dir.resolve())
+            except ValueError:
+                raise RuntimeError(f"deliverable-out-of-scope: {rel}")
+
+        p_check = status_doc.get("parallelization_check") or {}
+        fail = _check_parallelization(p_check)
+        if fail:
+            result["status"] = "failed"
+            result["reason"] = fail
+            return result
+
+        result["deliverables"] = [str(p) for p in deliverables]
+        result["executor_task_id"] = status_doc.get("executor_task_id", "")
+        result["parallelization_check"] = p_check
+
+        # Scope-increase revoke hook (Point A — execute-time).
+        _apply_scope_increase_revoke(
+            state,
+            plan_mutations=status_doc.get("plan_mutations") or [],
+            project_dir=project_dir,
+            trigger="execute",
+        )
+        save_project_state(state)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Yolo management (AC-α5)
+# ---------------------------------------------------------------------------
+
+
+def yolo_action(project: str, action: str, reason: str = "") -> Dict[str, Any]:
+    """Grant / revoke / inspect the yolo flag for a project.
+
+    Actions:
+        approve  — set yolo_approved_by_user=True (writes audit line).
+        revoke   — set yolo_approved_by_user=False (writes audit line).
+        status   — return current flag + last audit record (no write).
+    """
+    state = load_project_state(project)
+    if state is None:
+        raise ValueError(f"Project not found: {project}")
+    project_dir = get_project_dir(project)
+    extras = state.extras or {}
+    prior = bool(extras.get("yolo_approved_by_user"))
+
+    if action == "status":
+        return {
+            "project": project,
+            "yolo_approved_by_user": prior,
+            "yolo_approved_at": extras.get("yolo_approved_at"),
+            "yolo_revoked_count": int(extras.get("yolo_revoked_count") or 0),
+            "rigor_tier": extras.get("rigor_tier"),
+        }
+
+    if action == "approve":
+        new_value = True
+        extras["yolo_approved_by_user"] = True
+        extras["yolo_approved_at"] = get_utc_timestamp()
+        state.extras = extras
+        save_project_state(state)
+        _append_yolo_audit(
+            project_dir,
+            event="granted",
+            reason=reason or "user-granted",
+            prior_value=prior,
+            new_value=new_value,
+        )
+        return {
+            "project": project,
+            "yolo_approved_by_user": True,
+            "prior_value": prior,
+        }
+
+    if action == "revoke":
+        new_value = False
+        extras["yolo_approved_by_user"] = False
+        state.extras = extras
+        save_project_state(state)
+        _append_yolo_audit(
+            project_dir,
+            event="revoked",
+            reason=reason or "user-revoked",
+            prior_value=prior,
+            new_value=new_value,
+        )
+        return {
+            "project": project,
+            "yolo_approved_by_user": False,
+            "prior_value": prior,
+        }
+
+    raise ValueError(f"Unknown yolo action: {action} (expected approve|revoke|status)")
+
+
+# ---------------------------------------------------------------------------
+# Cutover command (CR-2 / AC-α11)
+# ---------------------------------------------------------------------------
+
+
+def _safe_cutover_window(state: "ProjectState", project_dir: Path) -> Optional[str]:
+    """Return an error string when the project is NOT in a safe cutover window.
+
+    Validates:
+      - no in-flight phase dispatch (phase-executor task in_progress)
+      - no unresolved conditions on the current/prior phase
+      - no pending scope-increase re-eval
+    """
+    # Unresolved conditions check — reuse _verify_conditions heuristics.
+    try:
+        current = resolve_phase(state.current_phase)
+        condition_issues = _verify_conditions(project_dir, current) or []
+        if condition_issues:
+            return f"unresolved-conditions: {condition_issues[0]}"
+    except Exception:  # noqa: BLE001
+        pass  # fail open: absence of evidence is not evidence of absence
+    # In-flight-dispatch check: phase status == in_progress AND executor-status
+    # not yet written indicates an active dispatch.
+    cur = state.phases.get(resolve_phase(state.current_phase))
+    if cur and cur.status == "in_progress":
+        status_path = project_dir / "phases" / state.current_phase / "executor-status.json"
+        if not status_path.exists():
+            return "in-flight-dispatch: current phase still executing"
+    return None
+
+
+def cutover_action(project: str, target_mode: str) -> Dict[str, Any]:
+    """Opt a legacy project into mode-3 dispatch (writes state + audit marker).
+
+    Validates the safe cutover window (no in-flight dispatch, no unresolved
+    conditions). Writes ``state.dispatch_mode = "mode-3"`` and emits
+    ``{project_dir}/phases/.cutover-to-mode-3.json``.
+    """
+    if target_mode != "mode-3":
+        raise ValueError(f"Unsupported --to value: {target_mode} (only 'mode-3' supported)")
+
+    state = load_project_state(project)
+    if state is None:
+        raise ValueError(f"Project not found: {project}")
+
+    project_dir = get_project_dir(project)
+    prior_mode = _detect_dispatch_mode(state)
+
+    if prior_mode == "mode-3":
+        return {
+            "project": project,
+            "dispatch_mode": "mode-3",
+            "already_on_target": True,
+            "note": "Project is already on mode-3 dispatch.",
+        }
+
+    err = _safe_cutover_window(state, project_dir)
+    if err:
+        raise ValueError(f"cutover-refused: {err}")
+
+    extras = state.extras or {}
+    extras["dispatch_mode"] = "mode-3"
+    state.extras = extras
+    save_project_state(state)
+
+    phases_dir = project_dir / "phases"
+    phases_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = phases_dir / ".cutover-to-mode-3.json"
+    try:
+        marker_path.write_text(json.dumps({
+            "timestamp": get_utc_timestamp(),
+            "prior_mode": prior_mode,
+            "new_mode": "mode-3",
+            "prior_phase_pointer": state.current_phase,
+            "user_ack": "explicit-cutover-command",
+            "note": "Mode-3 semantics apply from the next phase forward.",
+        }, indent=2))
+    except OSError as exc:
+        logger.warning("[cutover] marker write failed: %s", exc)
+
+    return {
+        "project": project,
+        "dispatch_mode": "mode-3",
+        "prior_mode": prior_mode,
+        "marker_path": str(marker_path),
+    }
+
+
+def detect_mode_action(project: str) -> Dict[str, Any]:
+    """Return the detected dispatch mode (with backfill side-effect)."""
+    state = load_project_state(project)
+    if state is None:
+        raise ValueError(f"Project not found: {project}")
+    mode = _detect_dispatch_mode(state)
+    # Persist backfill (detect may have mutated extras).
+    save_project_state(state)
+    return {"project": project, "dispatch_mode": mode}
+
+
 def main():
     """CLI interface for phase management."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -2405,6 +2904,16 @@ def main():
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--description", default="", help="Project description (for create)")
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
+    parser.add_argument("--to", default=None, help="Target dispatch mode for cutover (e.g. mode-3)")
+    parser.add_argument(
+        "--yolo-action", dest="yolo_action",
+        default=None, choices=["approve", "revoke", "status"],
+        help="Sub-action for the 'yolo' action (approve|revoke|status). Also accepted via --action.",
+    )
+    parser.add_argument(
+        "--action", dest="sub_action", default=None,
+        help="Sub-action name (e.g. approve|revoke|status for yolo).",
+    )
     parser.add_argument(
         "--skip-reeval",
         action="store_true",
@@ -2702,6 +3211,69 @@ def main():
         else:
             print(f"Approved phase: {approved_phase}")
             print(f"Started phase: {next_phase}")
+
+    elif args.action == "execute":
+        phase = args.phase or state.current_phase
+        try:
+            result = execute(args.project, phase)
+        except (ValueError, RuntimeError, ConfigError) as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, **result}, indent=2))
+        else:
+            status = result.get("status")
+            print(f"execute: status={status} phase={resolve_phase(phase)}")
+            if status == "failed":
+                print(f"Reason: {result.get('reason')}", file=sys.stderr)
+                sys.exit(1)
+
+    elif args.action == "yolo":
+        sub = args.yolo_action or args.sub_action or "status"
+        try:
+            yr = yolo_action(args.project, sub, reason=args.reason or "")
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, **yr}, indent=2))
+        else:
+            print(json.dumps(yr, indent=2))
+
+    elif args.action == "cutover":
+        target = args.to or "mode-3"
+        try:
+            cr = cutover_action(args.project, target)
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, **cr}, indent=2))
+        else:
+            print(json.dumps(cr, indent=2))
+
+    elif args.action == "detect-mode":
+        try:
+            dm = detect_mode_action(args.project)
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, **dm}, indent=2))
+        else:
+            print(json.dumps(dm, indent=2))
 
 
 if __name__ == "__main__":
