@@ -279,6 +279,26 @@ class SessionState:
     complexity_at_session_open: int | None = None
     complexity_score: int = 0
 
+    # #500 — HMAC-signed dispatch-log secret. Session-scoped; lazily
+    # generated on first use via ``secrets.token_hex(32)``. Promotes the
+    # dispatch-log orphan check to authentication: an attacker who forges
+    # both a gate-result and a dispatch entry still cannot produce a
+    # correct HMAC without the in-session secret.
+    #
+    # Storage intent:
+    #   - NEVER logged, NEVER included in audit records (see
+    #     ``scripts/crew/gate_ingest_audit.py``).
+    #   - Persisted inside the session-state JSON, which already lives
+    #     in a per-session temp file. Cross-session lookup is explicitly
+    #     NOT supported — legacy (pre-HMAC) entries fall back to
+    #     orphan-detection only with a stderr WARN.
+    dispatch_log_hmac_secret: str = ""
+
+    # #506 — pre-flip monitoring: latch the post-cutover INFO banner so
+    # it fires at most once per session even across multiple SessionStart
+    # callbacks in the same session.
+    strict_mode_active_announced: bool = False
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
