@@ -918,6 +918,207 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Semantic alignment gate (issue #444)
+#
+# Post-implementation pass that verifies spec-to-code alignment per numbered
+# AC / FR. Runs at the review-phase hook point alongside other review-phase
+# checks (see call site in ``approve_phase``). Complexity-aware: mandatory at
+# complexity >= 3, advisory otherwise.
+#
+# Emergency bypass honoured via CREW_GATE_ENFORCEMENT=legacy env var. The
+# wider v6 enforcement machinery removed the general legacy flag, but this
+# specific gate is new and its own rollback lever is additive — matches the
+# WG_TASK_METADATA escape-hatch pattern for newly-added validators.
+# ---------------------------------------------------------------------------
+
+# Complexity at/above which semantic alignment is MANDATORY (blocking).
+_SEMANTIC_ALIGNMENT_COMPLEXITY_THRESHOLD = 3
+
+
+def _check_semantic_alignment_gate(
+    state: "ProjectState",
+    project_dir: Path,
+    phase: str,
+) -> Tuple[Optional[str], List[str]]:
+    """Run the semantic-alignment check at the review-phase hook point.
+
+    Extracts numbered AC / FR from clarify-phase specs and classifies each as
+    aligned / divergent / missing against the implementation + test corpora.
+
+    Returns a tuple ``(block_reason, warnings)`` where:
+      - ``block_reason`` is non-None when the gate must REJECT phase advance
+        (complexity >= 3 AND at least one MISSING finding). Caller should
+        raise ValueError with this string.
+      - ``warnings`` is a list of non-blocking notes (DIVERGENT or advisory
+        findings) to append to the approve-phase warning list.
+
+    Behaviour matrix::
+
+        complexity >= 3 + missing > 0   -> block_reason set (REJECT)
+        complexity >= 3 + divergent > 0 -> warning + conditions manifest
+                                           appended (CONDITIONAL)
+        complexity >= 3 + all aligned   -> single "APPROVE" warning (info)
+        complexity <  3                 -> advisory warning only; never blocks
+        no spec items found             -> advisory skip
+
+    Respects ``CREW_GATE_ENFORCEMENT=legacy`` — returns (None, []) when set.
+    Fails safe — any exception during analysis becomes a warning, not a block.
+    """
+    # Only runs for the review phase. Caller should pre-check but we
+    # defensively verify here too.
+    if resolve_phase(phase) != "review":
+        return None, []
+
+    # Emergency rollback — honoured for this gate explicitly per issue #444
+    # acceptance ("Respect CREW_GATE_ENFORCEMENT=legacy bypass").
+    if os.environ.get("CREW_GATE_ENFORCEMENT", "").lower() == "legacy":
+        logger.info(
+            "[semantic-alignment] CREW_GATE_ENFORCEMENT=legacy set — "
+            "skipping spec-to-code alignment check."
+        )
+        return None, []
+
+    complexity = int(getattr(state, "complexity_score", 0) or 0)
+    is_mandatory = complexity >= _SEMANTIC_ALIGNMENT_COMPLEXITY_THRESHOLD
+
+    # Resolve project + spec paths defensively — everything must be tolerant
+    # to a project dir without a clarify phase (skip cleanly).
+    clarify_dir = project_dir / "phases" / "clarify"
+    ac_file = clarify_dir / "acceptance-criteria.md"
+    obj_file = clarify_dir / "objective.md"
+
+    if not (ac_file.exists() or obj_file.exists()):
+        # No specs to check — advisory skip.
+        return None, [
+            f"[semantic-alignment] skipped — no clarify-phase specs "
+            f"(acceptance-criteria.md / objective.md) found at {clarify_dir}."
+        ]
+
+    # Import lazily — the script lives under scripts/qe/ and has no
+    # cross-module imports that would trigger at module load time.
+    try:
+        sys.path.insert(
+            0,
+            str(Path(__file__).resolve().parents[1] / "qe"),
+        )
+        import semantic_review  # type: ignore
+    except Exception as exc:  # noqa: BLE001 — fail-safe on ANY import error
+        logger.warning(
+            "[semantic-alignment] import failed (%s) — treating as advisory skip.",
+            exc,
+        )
+        return None, [
+            f"[semantic-alignment] advisory skip — import error: {exc}"
+        ]
+
+    # Run the review, fail-safe on any exception.
+    try:
+        report = semantic_review.review_project(
+            project_dir=project_dir,
+            project_name=state.name,
+            complexity=complexity,
+            ac_file=ac_file if ac_file.exists() else None,
+            objective_file=obj_file if obj_file.exists() else None,
+        )
+    except Exception as exc:  # noqa: BLE001 — see docstring: fail safe.
+        logger.warning(
+            "[semantic-alignment] review raised %s — advisory skip.", exc,
+        )
+        return None, [
+            f"[semantic-alignment] advisory skip — review error: {exc}"
+        ]
+
+    # Persist the report for evidence. Always safe to write even when
+    # aligned so downstream tools have a baseline.
+    try:
+        out_dir = project_dir / "phases" / "review"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / "semantic-gap-report.json"
+        out_path.write_text(
+            json.dumps(semantic_review.report_to_dict(report), indent=2)
+        )
+    except OSError as exc:
+        logger.warning(
+            "[semantic-alignment] could not persist gap report: %s", exc,
+        )
+
+    # Short-circuit when no numbered spec items were found — nothing to check.
+    if report.total == 0:
+        return None, [
+            "[semantic-alignment] skipped — no numbered AC / FR items found "
+            "in clarify-phase specs."
+        ]
+
+    warnings: List[str] = []
+    summary = (
+        f"[semantic-alignment] verdict={report.verdict} "
+        f"score={report.score} aligned={report.aligned} "
+        f"divergent={report.divergent} missing={report.missing} "
+        f"(complexity={complexity}, "
+        f"mandatory={'yes' if is_mandatory else 'no'})"
+    )
+    warnings.append(summary)
+
+    # Add one warning line per non-aligned finding so they surface in approve
+    # output without the caller having to read the JSON.
+    for finding in report.findings:
+        if finding.status == "aligned":
+            continue
+        warnings.append(
+            f"[semantic-alignment] {finding.status.upper()} "
+            f"{finding.id} (conf={finding.confidence:.2f}): {finding.reason}"
+        )
+
+    # Advisory-only at low complexity.
+    if not is_mandatory:
+        return None, warnings
+
+    # Mandatory path: missing => hard REJECT.
+    if report.missing > 0:
+        missing_ids = [f.id for f in report.findings if f.status == "missing"]
+        return (
+            (
+                f"Semantic alignment REJECT: {report.missing} spec item(s) "
+                f"missing from implementation ({', '.join(missing_ids)}). "
+                f"See {project_dir / 'phases' / 'review' / 'semantic-gap-report.json'}. "
+                f"Implement the referenced AC or remove them from the spec "
+                f"before approving, or set CREW_GATE_ENFORCEMENT=legacy to "
+                f"bypass (emergency rollback only)."
+            ),
+            warnings,
+        )
+
+    # Mandatory path: divergent => CONDITIONAL — write conditions so the
+    # existing manifest machinery picks them up on next-phase approve.
+    if report.divergent > 0:
+        try:
+            conditions = [
+                {
+                    "description": (
+                        f"Semantic divergence on {f.id}: {f.reason}"
+                    ),
+                    "source": "semantic-reviewer",
+                    "finding_id": f.id,
+                    "severity": "divergent",
+                }
+                for f in report.findings if f.status == "divergent"
+            ]
+            _write_conditions_manifest(project_dir, phase, conditions)
+            warnings.append(
+                f"[semantic-alignment] {len(conditions)} divergent finding(s) "
+                f"written to conditions manifest — must be resolved before "
+                f"next phase advance."
+            )
+        except OSError as exc:
+            warnings.append(
+                f"[semantic-alignment] divergent findings detected but "
+                f"conditions manifest write failed: {exc}"
+            )
+
+    return None, warnings
+
+
 def _write_conditions_manifest(
     project_dir: Path,
     phase: str,
@@ -1497,6 +1698,18 @@ def approve_phase(
                 "[convergence-verify] %d convergence gate finding(s) for review phase.",
                 len(convergence_findings),
             )
+
+    # Check 0.3 (issue #444): semantic alignment — spec-to-code verification.
+    # Mandatory at complexity >= 3; advisory below. Additive, sits after the
+    # convergence-verify hook (#445).
+    if resolve_phase(phase) == "review":
+        semantic_project_dir = get_project_dir(state.name)
+        sem_block_reason, sem_warnings = _check_semantic_alignment_gate(
+            state, semantic_project_dir, phase,
+        )
+        warnings.extend(sem_warnings)
+        if sem_block_reason:
+            raise ValueError(sem_block_reason)
 
     # Check 1: deliverables for the phase being approved — BLOCKING
     deliverable_issues = _check_phase_deliverables(state, phase)
