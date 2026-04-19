@@ -172,3 +172,17 @@ This is a deliberate trade-off: we choose "reject the gate-result" over
   `065d4f0` (resolver) → `558d5e1` (Increment 3) → `9455e7e` (Increment 2) → `65bae4a` (Increment 1).
 - **Partial revert caveat**: `065d4f0` (the resolver commit) closes two build-gate BLOCKERs (B-1 dispatch-log wiring + B-2 content-leak). Reverting it alone leaves the new modules in place but with the original leak and unwired dispatch — WORSE than a full revert. If selective revert is needed, revert `065d4f0` AND its dependency `558d5e1` together, or don't selectively revert at all.
 - **Env-var soft-rollback** (preferred over git-revert for prod): set any of `WG_GATE_RESULT_SCHEMA_VALIDATION=off` / `_CONTENT_SANITIZATION=off` / `_DISPATCH_CHECK=off` to scoped-disable a single check. All five flags auto-expire at `WG_GATE_RESULT_STRICT_AFTER` (default 2026-06-18).
+
+### §8.1 Pre-flip dependency (semantic-gate condition)
+
+**Hard dependency**: GH issue #504 (AC-11 CI benchmark job enforcing 2× p95 SLO)
+MUST land by **2026-06-15** — 3 days before the default `WG_GATE_RESULT_STRICT_AFTER`
+flip date of 2026-06-18. Rationale: once strict-mode activates, a silent 2×+ perf
+regression would cause every approve_phase call to exceed the SLO without a CI
+guard to catch it.
+
+**If #504 is not ready by 2026-06-15**: push `WG_GATE_RESULT_STRICT_AFTER` out
+(via env var or default-constant update). Do NOT let strict-mode activate
+without benchmark enforcement.
+
+**Owner**: repo:maintainer (role-based). Tracking: #504.
