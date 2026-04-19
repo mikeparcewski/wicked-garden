@@ -165,3 +165,10 @@ This is a deliberate trade-off: we choose "reject the gate-result" over
   model + perf cache (increments 2 and 3)
 - **#500** — HMAC-signed dispatch-log for authenticated gate-result
   verification (deferred)
+
+## §9 Rollback runbook (post-test-gate PQ-4)
+
+- **Full revert**: `git revert` the four commits in reverse order:
+  `065d4f0` (resolver) → `558d5e1` (Increment 3) → `9455e7e` (Increment 2) → `65bae4a` (Increment 1).
+- **Partial revert caveat**: `065d4f0` (the resolver commit) closes two build-gate BLOCKERs (B-1 dispatch-log wiring + B-2 content-leak). Reverting it alone leaves the new modules in place but with the original leak and unwired dispatch — WORSE than a full revert. If selective revert is needed, revert `065d4f0` AND its dependency `558d5e1` together, or don't selectively revert at all.
+- **Env-var soft-rollback** (preferred over git-revert for prod): set any of `WG_GATE_RESULT_SCHEMA_VALIDATION=off` / `_CONTENT_SANITIZATION=off` / `_DISPATCH_CHECK=off` to scoped-disable a single check. All five flags auto-expire at `WG_GATE_RESULT_STRICT_AFTER` (default 2026-06-18).
