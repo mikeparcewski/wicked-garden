@@ -111,6 +111,34 @@
         "ci_equivalent_exists"
       ]
     },
+    "challenge": {
+      "name": "challenge",
+      "description": "Persistent contrarian review (Issue #442). The contrarian specialist produces phases/design/challenge-artifacts.md — a steelmanned opposing view, enumerated challenges with distinct themes, convergence-collapse self-check, and resolution for each challenge. Blocks build when complexity >= 4 and the artifact has not cleared the challenge-resolution gate.",
+      "triggers": ["complexity", "architecture", "novelty", "reversibility"],
+      "complexity_range": [4, 7],
+      "required_deliverables": [
+        {"file": "challenge-artifacts.md", "min_bytes": 300, "frontmatter": []}
+      ],
+      "optional_deliverables": ["steelman-notes.md"],
+      "specialists": ["contrarian", "jam"],
+      "required_specialists": ["contrarian"],
+      "fallback_agent": "reviewer",
+      "is_skippable": true,
+      "depends_on": ["design"],
+      "confidence_threshold": 0.75,
+      "gate_type": "strategy",
+      "checkpoint": false,
+      "gate_required": true,
+      "min_gate_score": 0.7,
+      "min_test_coverage": null,
+      "conditions_manifest_required": true,
+      "skip_complexity_threshold": 4,
+      "valid_skip_reasons": [
+        "complexity_below_threshold",
+        "user_explicit_request",
+        "out_of_scope"
+      ]
+    },
     "build": {
       "name": "build",
       "description": "Implementation with task tracking",
@@ -122,7 +150,7 @@
       "required_specialists": ["engineering"],
       "fallback_agent": "implementer",
       "is_skippable": false,
-      "depends_on": ["clarify", "design"],
+      "depends_on": ["clarify", "design", "challenge"],
       "confidence_threshold": 0.7,
       "gate_type": "execution",
       "checkpoint": true,

@@ -245,6 +245,10 @@ def _handle_write_guard(tool_input: dict) -> str:
     orchestrator-only principle (Issue #251): orchestrators should write only
     to project state files, not directly produce implementation artifacts.
 
+    Issue #442: Also blocks Write/Edit during build phase when the
+    challenge-artifacts gate has not cleared (complexity >= 4). Respects
+    ``CREW_GATE_ENFORCEMENT=legacy`` and ``WG_CHALLENGE_GATE=off`` bypasses.
+
     TODO (Issue #329): When Claude Code supports updatedInput for PreToolUse hooks
     to redirect tool calls, change the MEMORY.md deny into an updatedInput redirect
     that rewrites the Write/Edit call into a mem:store invocation instead. This
@@ -267,6 +271,11 @@ def _handle_write_guard(tool_input: dict) -> str:
             "Use /wicked-garden:mem:store to save decisions, patterns, and gotchas instead."
         )
 
+    # Issue #442: challenge-artifacts gate for build-phase writes
+    challenge_block = _check_challenge_gate(file_path)
+    if challenge_block:
+        return _deny(challenge_block)
+
     # Orchestrator-only warning (Issue #251): warn when writing outside allowlist
     # during build or review phases. Fail open — always allow, but emit systemMessage.
     warning = _check_orchestrator_write(file_path)
@@ -274,6 +283,114 @@ def _handle_write_guard(tool_input: dict) -> str:
         return _allow(system_message=warning)
 
     return _allow()
+
+
+# ---------------------------------------------------------------------------
+# Challenge gate (Issue #442)
+# ---------------------------------------------------------------------------
+
+def _challenge_gate_bypassed() -> bool:
+    """Respect ``CREW_GATE_ENFORCEMENT=legacy`` and ``WG_CHALLENGE_GATE=off``.
+
+    Either env var disables the challenge gate — matches the existing gate
+    rollback convention used elsewhere in the codebase.
+    """
+    if (os.environ.get("CREW_GATE_ENFORCEMENT") or "").strip().lower() == "legacy":
+        return True
+    if (os.environ.get("WG_CHALLENGE_GATE") or "").strip().lower() == "off":
+        return True
+    return False
+
+
+def _check_challenge_gate(file_path: str) -> str:
+    """Return a deny-reason if the challenge gate blocks this Write/Edit.
+
+    Only fires when ALL of the following are true:
+      * an active crew project exists in the current workspace
+      * the project is in the ``build`` phase
+      * the project complexity_score is >= the configured threshold
+        (``WG_CHALLENGE_MIN_COMPLEXITY`` env var, default 4)
+      * ``phases/design/challenge-artifacts.md`` is missing or invalid
+      * the file being written is NOT on the orchestrator allowlist
+        (we still allow orchestrator state writes so the project can
+        self-recover — the contrarian itself needs to be able to write
+        the artifact)
+
+    Any unexpected error → returns "" (fail-open). This mirrors the
+    always-fail-open contract the rest of this file upholds.
+    """
+    if _challenge_gate_bypassed():
+        return ""
+
+    # Contrarian must be able to write the challenge artifact itself — never
+    # block on the artifact's own path. Also never block state writes.
+    if "challenge-artifacts.md" in file_path:
+        return ""
+    if _is_allowlisted(file_path):
+        return ""
+
+    try:
+        data, project_name, _ = _find_active_crew_project()
+        if not project_name or not data:
+            return ""
+
+        current_phase = (data.get("current_phase") or "").lower()
+        if current_phase != "build":
+            return ""
+
+        complexity = int(data.get("complexity_score", 0) or 0)
+
+        # Import here so pre_tool.py stays robust if the crew module is
+        # missing / malformed. Fail-open on any import or attribute error.
+        try:
+            scripts_crew = _PLUGIN_ROOT / "scripts" / "crew"
+            if str(scripts_crew) not in sys.path:
+                sys.path.insert(0, str(scripts_crew))
+            from challenge_manifest import (  # type: ignore
+                is_required,
+                artifact_satisfies_gate,
+            )
+        except Exception:
+            return ""
+
+        if not is_required(complexity, phase="build"):
+            return ""
+
+        # Resolve the project directory to look up the artifact
+        try:
+            from _paths import get_local_path
+            base = get_local_path("wicked-crew", "projects")
+            project_id = data.get("id") or project_name
+            project_dir = base / project_id
+        except Exception:
+            return ""
+
+        if not (project_dir / "project.json").exists():
+            return ""
+
+        ok, reason = artifact_satisfies_gate(project_dir, phase="design")
+        if ok:
+            return ""
+
+        _log(
+            "pretool",
+            "info",
+            "challenge.gate.blocked",
+            detail={"project": project_name, "reason": reason},
+        )
+
+        return (
+            f"[wicked-garden] Challenge gate is unresolved for crew project "
+            f"'{project_name}' (complexity={complexity}). {reason} "
+            f"Invoke the contrarian specialist to produce and clear "
+            f"phases/design/challenge-artifacts.md before continuing build. "
+            f"Run `wicked-garden:crew:contrarian` or dispatch Task("
+            f"subagent_type='wicked-garden:crew:contrarian'). "
+            f"To bypass temporarily, set WG_CHALLENGE_GATE=off or "
+            f"CREW_GATE_ENFORCEMENT=legacy."
+        )
+    except Exception:
+        return ""
 
 
 # ---------------------------------------------------------------------------
