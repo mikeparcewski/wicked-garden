@@ -2333,6 +2333,17 @@ def approve_phase(
     phase = resolve_phase(phase)
     warnings: List[str] = []
 
+    # SC-4 startup validation (COND-TG-4): when the project is running at full
+    # rigor, assert gate-policy.json declares non-empty reviewers for every
+    # full-tier gate. Empty reviewers would silently degrade to the fast
+    # evaluator which is a correctness bug at full rigor. Non-full tiers skip
+    # this check because an empty reviewer list is legitimate at minimal
+    # rigor (advisory-only gates). Matches the docstring claim that the
+    # validator is called from both execute() and approve_phase() entry
+    # points (see _validate_gate_policy_full_rigor docstring).
+    if (state.extras or {}).get("rigor_tier") == "full":
+        _validate_gate_policy_full_rigor()
+
     # Check 0 (AC-8): phase-end re-eval addendum freshness — fail-closed.
     # Must happen before deliverable check so the user sees the most actionable
     # error first.  skip_reeval=True bypasses with a mandatory logged reason.
@@ -3155,6 +3166,22 @@ def _apply_scope_increase_revoke(
         new_value=False,
         extra={"triggering_mutations": plan_mutations},
     )
+    # Observability: emit bus event so subscribers see the scope-increase
+    # revoke without tailing yolo-audit.jsonl. Fail-open on bus absence —
+    # emit_event() is a no-op when the bus is unavailable (see _bus.py).
+    try:
+        from _bus import emit_event
+        emit_event(
+            "wicked.crew.yolo_revoked",
+            {
+                "project": project_dir.name,
+                "trigger": trigger,
+                "mutation_count": len(plan_mutations or []),
+                "revoked_count": int(extras.get("yolo_revoked_count") or 0),
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 — observability fail-open
+        logger.debug("[yolo-revoke] bus emit failed (fail-open): %s", exc)
     return True
 
 
@@ -3271,7 +3298,15 @@ def execute(
         deliverables = status_doc.get("deliverables") or []
         if not deliverables:
             raise RuntimeError("executor-empty-deliverables")
-        # Validate deliverables are under phases/{phase}/.
+        # Validate deliverables are under phases/{phase}/ — hard path-traversal
+        # guard (COND-TG-2). Resolves the declared path and asserts the real
+        # on-disk location is scoped inside the phase directory. `..` segments
+        # that escape phase_dir or absolute paths outside it are rejected with
+        # a ValueError so callers can distinguish "bad input" from runtime
+        # failures. Using phase_dir (not project_dir) matches the original
+        # intent of the comment and prevents a phase-executor from declaring
+        # deliverables under a sibling phase or the project root.
+        phase_dir_resolved = phase_dir.resolve()
         for rel in deliverables:
             rel_path = Path(rel)
             if rel_path.is_absolute():
@@ -3279,9 +3314,9 @@ def execute(
             else:
                 abs_path = project_dir / rel
             try:
-                abs_path.resolve().relative_to(project_dir.resolve())
+                abs_path.resolve().relative_to(phase_dir_resolved)
             except ValueError:
-                raise RuntimeError(f"deliverable-out-of-scope: {rel}")
+                raise ValueError(f"deliverable-out-of-scope: {rel}")
 
         p_check = status_doc.get("parallelization_check") or {}
         fail = _check_parallelization(p_check)

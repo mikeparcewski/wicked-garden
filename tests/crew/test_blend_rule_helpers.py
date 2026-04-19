@@ -425,5 +425,74 @@ class TestGateReviewerEntry(unittest.TestCase):
         self.assertEqual(result["verdict"], "CONDITIONAL")
 
 
+# ---------------------------------------------------------------------------
+# COND-TG-3 — BLEND dispatcher failures must surface, not silently APPROVE
+# ---------------------------------------------------------------------------
+
+
+def _raising_dispatcher(exc_factory=lambda: RuntimeError("simulated agent failure")):
+    """Return a dispatcher callable that unconditionally raises.
+
+    Used to verify that BLEND-RULE helpers never return a silent APPROVE
+    verdict when the underlying dispatch call fails.
+    """
+    calls = []
+
+    def dispatcher(subagent_type, prompt, context):
+        calls.append({"subagent_type": subagent_type, "context": context})
+        raise exc_factory()
+
+    dispatcher.calls = calls
+    return dispatcher
+
+
+class TestBlendHelpersPropagateOrSurfaceFailure(unittest.TestCase):
+    """COND-TG-3 — every BLEND helper must refuse to silently APPROVE on error.
+
+    The helpers either propagate the exception or return a clearly-marked
+    failure verdict (CONDITIONAL or REJECT with a `dispatch-error:` reason).
+    What they must NEVER do is swallow the error and return APPROVE, which
+    would let a broken agent quietly advance a phase.
+    """
+
+    def test_fast_evaluator_does_not_return_approve_on_raise(self):
+        """_dispatch_fast_evaluator surfaces dispatcher failure, not APPROVE."""
+        dispatcher = _raising_dispatcher()
+        result = phase_manager._dispatch_fast_evaluator(
+            None, "design", "design-quality", dispatcher=dispatcher,
+        )
+        self.assertNotEqual(result["verdict"], "APPROVE")
+
+    def test_sequential_does_not_return_approve_on_raise(self):
+        """_dispatch_sequential surfaces dispatcher failure, not APPROVE."""
+        dispatcher = _raising_dispatcher()
+        result = phase_manager._dispatch_sequential(
+            None, "build", "code-quality",
+            ["senior-engineer", "security-engineer"],
+            dispatcher=dispatcher,
+        )
+        self.assertNotEqual(result["verdict"], "APPROVE")
+
+    def test_parallel_does_not_return_approve_on_raise(self):
+        """_dispatch_parallel_and_merge surfaces dispatcher failure, not APPROVE."""
+        dispatcher = _raising_dispatcher()
+        result = phase_manager._dispatch_parallel_and_merge(
+            None, "build", "code-quality",
+            ["senior-engineer", "security-engineer"],
+            dispatcher=dispatcher,
+        )
+        self.assertNotEqual(result["verdict"], "APPROVE")
+
+    def test_council_does_not_return_approve_on_raise(self):
+        """_dispatch_council surfaces dispatcher failure, not APPROVE."""
+        dispatcher = _raising_dispatcher()
+        result = phase_manager._dispatch_council(
+            None, "design", "design-quality",
+            ["r1", "r2", "r3"],
+            dispatcher=dispatcher,
+        )
+        self.assertNotEqual(result["verdict"], "APPROVE")
+
+
 if __name__ == "__main__":
     unittest.main()

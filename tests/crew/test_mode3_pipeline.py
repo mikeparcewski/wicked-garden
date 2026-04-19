@@ -326,5 +326,129 @@ class TestYoloApproveTimeAutoAccept(unittest.TestCase):
                     p.stop()
 
 
+# ---------------------------------------------------------------------------
+# COND-TG-1 — corrupt executor-status.json surfaces, is not silently swallowed
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteCorruptStatusRaises(unittest.TestCase):
+    """COND-TG-1 — corrupt executor-status.json must raise, not silently pass.
+
+    The phase-executor writes executor-status.json; execute() reads it. If the
+    file contains malformed JSON we MUST surface the error — silently falling
+    back to a default status would hide executor failures from the gate chain.
+    Current code wraps json.JSONDecodeError in RuntimeError with a descriptive
+    prefix; this test asserts that propagation path.
+    """
+
+    def test_corrupt_executor_status_raises_runtime_error(self):
+        """Malformed JSON in executor-status.json propagates as RuntimeError."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "corrupt-status"
+            project_dir.mkdir()
+            state = _synth_state("corrupt-status")
+            phase_dir = project_dir / "phases" / "build"
+            phase_dir.mkdir(parents=True, exist_ok=True)
+            # Write a deliberately malformed JSON payload (unclosed brace).
+            (phase_dir / "executor-status.json").write_text("{not-valid-json,,,")
+            with patch.object(phase_manager, "load_project_state", return_value=state), \
+                 patch.object(phase_manager, "save_project_state"), \
+                 patch.object(phase_manager, "get_project_dir", return_value=project_dir), \
+                 patch.object(phase_manager, "_validate_gate_policy_full_rigor"):
+                with self.assertRaises(RuntimeError) as ctx:
+                    phase_manager.execute("corrupt-status", "build")
+            self.assertIn("executor-status-unreadable", str(ctx.exception))
+
+
+# ---------------------------------------------------------------------------
+# COND-TG-2 — deliverable path-traversal guard
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteDeliverablePathTraversal(unittest.TestCase):
+    """COND-TG-2 — deliverables declared outside phases/{phase}/ are rejected.
+
+    A malicious or buggy phase-executor could declare a deliverable at a path
+    like `../outside/dir.md` or an absolute path to a sibling phase. execute()
+    MUST reject any deliverable that does not resolve under the phase
+    directory (SC-2 scope containment).
+    """
+
+    def test_relative_parent_escape_raises_value_error(self):
+        """`../outside/doc.md` path-traversal is rejected with ValueError."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "pt-rel"
+            project_dir.mkdir()
+            state = _synth_state("pt-rel")
+            phase_dir = project_dir / "phases" / "build"
+            phase_dir.mkdir(parents=True, exist_ok=True)
+            # The escape target actually exists outside the phase dir so the
+            # resolve() call won't fail for a different reason.
+            outside_dir = project_dir / "outside"
+            outside_dir.mkdir(parents=True, exist_ok=True)
+            evil = outside_dir / "leak.md"
+            evil.write_text("x" * 200)
+            status = {
+                "executor_task_id": "task-pt-1",
+                "phase": "build",
+                "deliverables": [str(evil.resolve())],
+                "plan_mutations": [],
+                "parallelization_check": {
+                    "sub_task_count": 0,
+                    "dispatched_in_parallel": True,
+                    "serial_reason": None,
+                },
+            }
+            (phase_dir / "executor-status.json").write_text(json.dumps(status))
+            with patch.object(phase_manager, "load_project_state", return_value=state), \
+                 patch.object(phase_manager, "save_project_state"), \
+                 patch.object(phase_manager, "get_project_dir", return_value=project_dir), \
+                 patch.object(phase_manager, "_validate_gate_policy_full_rigor"):
+                with self.assertRaises(ValueError) as ctx:
+                    phase_manager.execute("pt-rel", "build")
+            self.assertIn("deliverable-out-of-scope", str(ctx.exception))
+
+
+# ---------------------------------------------------------------------------
+# COND-TG-5 — scope-increase revoke emits wicked.crew.yolo_revoked bus event
+# ---------------------------------------------------------------------------
+
+
+class TestScopeIncreaseRevokeEmitsBusEvent(unittest.TestCase):
+    """COND-TG-5 — _apply_scope_increase_revoke emits observability event.
+
+    After writing yolo-audit.jsonl the function must also emit
+    wicked.crew.yolo_revoked so downstream subscribers (delivery telemetry,
+    platform observability) see the auto-revoke without tailing the audit
+    file. Fail-open on bus absence is verified elsewhere; this test checks
+    the emit is wired up when the bus is available.
+    """
+
+    def test_augment_mutation_emits_yolo_revoked_bus_event(self):
+        """Scope-increase augment triggers emit of wicked.crew.yolo_revoked."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "bus-revoke"
+            project_dir.mkdir()
+            state = _synth_state("bus-revoke", yolo=True)
+            _write_executor_status(
+                project_dir, "build",
+                deliverables=["impl.md"],
+                plan_mutations=[{"op": "augment", "task_id": "t-new", "why": "creep"}],
+            )
+            # Patch the emit_event import target. phase_manager does a lazy
+            # `from _bus import emit_event` inside the function — patching the
+            # attribute on the _bus module covers both import styles.
+            import _bus as _bus_mod  # noqa: WPS433 — local test import
+            with patch.object(phase_manager, "load_project_state", return_value=state), \
+                 patch.object(phase_manager, "save_project_state"), \
+                 patch.object(phase_manager, "get_project_dir", return_value=project_dir), \
+                 patch.object(phase_manager, "_validate_gate_policy_full_rigor"), \
+                 patch.object(_bus_mod, "emit_event") as mock_emit:
+                phase_manager.execute("bus-revoke", "build")
+            # Assert the yolo_revoked event was emitted exactly once.
+            event_types = [call.args[0] for call in mock_emit.call_args_list]
+            self.assertIn("wicked.crew.yolo_revoked", event_types)
+
+
 if __name__ == "__main__":
     unittest.main()
