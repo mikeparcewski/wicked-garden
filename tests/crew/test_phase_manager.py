@@ -580,5 +580,283 @@ class TestApprovePhaseHandlesGateResultSchemaError(unittest.TestCase):
             self.assertIsInstance(cm.exception, GateResultAuthorizationError)
 
 
+# ---------------------------------------------------------------------------
+# CLI parity bundle — issues #492, #493, #494, #498, #499
+# ---------------------------------------------------------------------------
+
+
+class TestCliApproveNoDispatcher(unittest.TestCase):
+    """Issue #492: CLI approve path is honest about not dispatching.
+
+    When ``main()`` runs the approve action without a dispatcher (the only
+    path a raw CLI caller can take), the JSON output must carry
+    ``status: "cli-no-dispatcher"`` so consumers can tell the gate was NOT
+    auto-dispatched. A warning must also hit stderr.
+    """
+
+    def test_cli_approve_json_contains_cli_no_dispatcher_status(self):
+        from io import StringIO
+        import contextlib
+
+        state = _make_state(name="cli-approve-proj", rigor_tier="standard")
+        state.current_phase = "clarify"
+        state.phases["clarify"] = pm.PhaseState(
+            status="in_progress", started_at="2026-04-19T00:00:00Z",
+        )
+
+        argv = [
+            "phase_manager.py", "cli-approve-proj", "approve",
+            "--phase", "clarify", "--json",
+        ]
+
+        stdout = StringIO()
+        stderr = StringIO()
+        with patch.object(pm, "load_project_state", return_value=state), \
+             patch.object(pm, "save_project_state"), \
+             patch.object(
+                 pm, "approve_phase",
+                 return_value=(state, "design"),
+             ), \
+             patch.object(sys, "argv", argv), \
+             contextlib.redirect_stdout(stdout), \
+             contextlib.redirect_stderr(stderr):
+            pm.main()
+
+        out = stdout.getvalue()
+        err = stderr.getvalue()
+        payload = json.loads(out)
+        self.assertEqual(payload.get("status"), "cli-no-dispatcher")
+        self.assertTrue(payload.get("ok"))
+        self.assertIn("cli-no-dispatcher", payload.get("status", ""))
+        self.assertIn("WARNING", err)
+        self.assertIn("BLEND-RULE", err)
+
+
+class TestPhaseDeliverablesFallback(unittest.TestCase):
+    """Issue #493: _check_phase_deliverables reads phases.json first,
+    falls back to the hardcoded _FALLBACK_REQUIRED_DELIVERABLES map when
+    the config has no entry for the phase (backward-compat).
+    """
+
+    def test_fallback_used_when_phases_config_empty_for_phase(self):
+        state = _make_state(name="fallback-proj")
+
+        # Force phases_config to return NO deliverables for the 'design'
+        # phase so the fallback map is exercised. 'design' has
+        # architecture.md in _FALLBACK_REQUIRED_DELIVERABLES.
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "fallback-proj"
+            (project_dir / "phases" / "design").mkdir(parents=True)
+
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(
+                     pm, "load_phases_config",
+                     return_value={"design": {"required_deliverables": []}},
+                 ):
+                issues = pm._check_phase_deliverables(state, "design")
+
+            # architecture.md is missing — fallback should surface it.
+            self.assertTrue(
+                any("architecture.md" in issue for issue in issues),
+                f"expected fallback architecture.md check, got: {issues}",
+            )
+
+    def test_phases_config_takes_precedence_over_fallback(self):
+        """When phases.json declares deliverables for a phase, those are
+        authoritative — the fallback map must NOT be consulted."""
+        state = _make_state(name="precedence-proj")
+
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "precedence-proj"
+            (project_dir / "phases" / "design").mkdir(parents=True)
+
+            # phases_config declares a DIFFERENT deliverable. Fallback
+            # map would flag architecture.md, but config says foo.md.
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(
+                     pm, "load_phases_config",
+                     return_value={"design": {
+                         "required_deliverables": [
+                             {"file": "foo.md", "min_bytes": 10},
+                         ],
+                     }},
+                 ):
+                issues = pm._check_phase_deliverables(state, "design")
+
+            joined = " ".join(issues)
+            self.assertIn("foo.md", joined)
+            self.assertNotIn("architecture.md", joined)
+
+
+class TestStatusJsonFieldParity(unittest.TestCase):
+    """Issue #494: `phase_manager.py status --json` surfaces rigor_tier,
+    complexity_score, and is_complete alongside the existing fields."""
+
+    def test_status_json_includes_new_fields(self):
+        from io import StringIO
+        import contextlib
+
+        state = _make_state(name="status-proj", rigor_tier="full")
+        state.complexity_score = 5
+        # Mark all phases in phase_plan as approved so is_complete=True
+        for p in state.phase_plan:
+            state.phases[p] = pm.PhaseState(status="approved")
+
+        argv = ["phase_manager.py", "status-proj", "status", "--json"]
+
+        stdout = StringIO()
+        with patch.object(pm, "load_project_state", return_value=state), \
+             patch.object(sys, "argv", argv), \
+             contextlib.redirect_stdout(stdout):
+            pm.main()
+
+        payload = json.loads(stdout.getvalue())
+        self.assertIn("rigor_tier", payload)
+        self.assertEqual(payload["rigor_tier"], "full")
+        self.assertIn("complexity_score", payload)
+        self.assertEqual(payload["complexity_score"], 5)
+        self.assertIn("is_complete", payload)
+        self.assertTrue(payload["is_complete"])
+
+    def test_status_json_is_complete_false_when_phases_pending(self):
+        from io import StringIO
+        import contextlib
+
+        state = _make_state(name="in-progress-proj")
+        state.complexity_score = 3
+        # Only first phase approved; rest pending -> not complete.
+        state.phases["clarify"] = pm.PhaseState(status="approved")
+
+        argv = ["phase_manager.py", "in-progress-proj", "status", "--json"]
+        stdout = StringIO()
+        with patch.object(pm, "load_project_state", return_value=state), \
+             patch.object(sys, "argv", argv), \
+             contextlib.redirect_stdout(stdout):
+            pm.main()
+
+        payload = json.loads(stdout.getvalue())
+        self.assertFalse(payload["is_complete"])
+
+
+class TestCreateProjectDefaultsToMode3(unittest.TestCase):
+    """Issue #498: create_project() stamps dispatch_mode='mode-3' on new
+    projects so _detect_dispatch_mode() does NOT return 'v6-legacy' for
+    freshly created projects. Legacy projects (missing the field entirely)
+    still fall through to the existing legacy-detection code path.
+    """
+
+    def test_fresh_project_defaults_to_mode_3(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "mode3-proj"
+
+            class _FakeStore:
+                def __init__(self):
+                    self._data = {}
+                def get(self, domain, key):
+                    return self._data.get(key)
+                def put(self, domain, key, value):
+                    self._data[key] = value
+                def create(self, domain, data):
+                    self._data[data.get("id") or data.get("name")] = data
+                def update(self, domain, key, data):
+                    self._data[key] = data
+                def list(self, domain):
+                    return list(self._data.values())
+                def delete(self, domain, key):
+                    self._data.pop(key, None)
+
+            fake_store = _FakeStore()
+            with patch.object(pm, "_sm", fake_store), \
+                 patch.object(pm, "get_project_dir", return_value=project_dir):
+                state, _ = pm.create_project(
+                    "mode3-proj", description="test mode3 default",
+                )
+
+            self.assertEqual(
+                state.extras.get("dispatch_mode"), "mode-3",
+                "newly created projects must default to dispatch_mode=mode-3",
+            )
+            # _detect_dispatch_mode must agree.
+            self.assertEqual(pm._detect_dispatch_mode(state), "mode-3")
+
+    def test_initial_data_dispatch_mode_preserved(self):
+        """A caller explicitly passing dispatch_mode='v6-legacy' in
+        initial_data must have that value preserved — create_project must
+        NOT overwrite an explicit caller choice."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "legacy-proj"
+
+            class _FakeStore:
+                def __init__(self):
+                    self._data = {}
+                def get(self, domain, key):
+                    return self._data.get(key)
+                def put(self, domain, key, value):
+                    self._data[key] = value
+                def create(self, domain, data):
+                    self._data[data.get("id") or data.get("name")] = data
+                def update(self, domain, key, data):
+                    self._data[key] = data
+                def list(self, domain):
+                    return list(self._data.values())
+                def delete(self, domain, key):
+                    self._data.pop(key, None)
+
+            fake_store = _FakeStore()
+            with patch.object(pm, "_sm", fake_store), \
+                 patch.object(pm, "get_project_dir", return_value=project_dir):
+                state, _ = pm.create_project(
+                    "legacy-proj",
+                    description="legacy test",
+                    initial_data={"dispatch_mode": "v6-legacy"},
+                )
+
+            self.assertEqual(
+                state.extras.get("dispatch_mode"), "v6-legacy",
+                "explicit initial_data.dispatch_mode must be preserved",
+            )
+
+
+class TestExecuteCliStub(unittest.TestCase):
+    """Issue #499: execute() with NO executor-status.json returns
+    ``status="cli-stub"`` and emits a clear warning — not a silent
+    ``status=ok, deliverables=[]`` stub."""
+
+    def test_execute_returns_cli_stub_when_no_executor_status(self):
+        from io import StringIO
+        import contextlib
+
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "stub-proj"
+            project_dir.mkdir()
+            state = pm.ProjectState(
+                name="stub-proj",
+                current_phase="build",
+                created_at="2026-04-19T00:00:00Z",
+                phase_plan=["clarify", "design", "build", "review"],
+                phases={
+                    "clarify": pm.PhaseState(status="approved"),
+                    "design": pm.PhaseState(status="approved"),
+                    "build": pm.PhaseState(status="in_progress"),
+                },
+                extras={"dispatch_mode": "mode-3", "rigor_tier": "standard"},
+            )
+
+            stderr = StringIO()
+            with patch.object(pm, "load_project_state", return_value=state), \
+                 patch.object(pm, "save_project_state"), \
+                 patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_validate_gate_policy_full_rigor"), \
+                 contextlib.redirect_stderr(stderr):
+                result = pm.execute("stub-proj", "build")
+
+            self.assertEqual(result["status"], "cli-stub")
+            self.assertIn("warning", result)
+            self.assertIn("no phase work performed", result["warning"])
+            # stderr receives the explicit WARNING line.
+            self.assertIn("WARNING", stderr.getvalue())
+            self.assertIn("CLI execute", stderr.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
