@@ -181,9 +181,13 @@ Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew
 
 `scripts/ci/measure_facilitator.py` invokes this rubric in dry-run. With `output=json`, emit one JSON object matching `refs/output-schema.md` instead of creating tasks.
 
+## Process memory (issue #447)
+
+Before Step 3 (factor scoring), read per-project process memory — unresolved retro AIs + open kaizen hypotheses change the plan. See [`refs/process-memory.md`](refs/process-memory.md).
+
 ## Navigation
 
-- [`refs/inputs.md`](refs/inputs.md) — prior-fetch queries, session state reads
+- [`refs/inputs.md`](refs/inputs.md) — prior-fetch queries, session state reads, and [`refs/process-memory.md`](refs/process-memory.md) — persistent process memory + uncertainty gate
 - [`refs/factor-definitions.md`](refs/factor-definitions.md) — the 9 factors + calibration
 - [`refs/specialist-selection.md`](refs/specialist-selection.md) — roster map
 - [`refs/phase-catalog.md`](refs/phase-catalog.md) — phase templates, soft deps

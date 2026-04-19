@@ -155,6 +155,24 @@
         "mode": "parallel",
         "fallback": "senior-engineer"
       }
+    },
+    "uncertainty-gate": {
+      "description": "Blocks addition of new process gates/reviews unless special-cause drift is detected OR the author explicitly flags epistemic uncertainty. Added by issue #447 to prevent reactive over-process on common-cause variation. Evaluated via scripts/delivery/process_memory.py::evaluate_uncertainty_gate. Fails open when scripts/delivery/drift is not importable.",
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "facilitator"
+      },
+      "standard": {
+        "reviewers": ["facilitator"],
+        "mode": "sequential",
+        "fallback": "senior-engineer"
+      },
+      "full": {
+        "reviewers": ["facilitator", "risk-assessor"],
+        "mode": "parallel",
+        "fallback": "senior-engineer"
+      }
     }
   }
 }
