@@ -1611,6 +1611,88 @@ def _load_session_dispatches() -> List[Dict[str, Any]]:
         return []
 
 
+def _record_last_phase_approved(phase: str) -> None:
+    """Write the approved phase onto SessionState (#462).
+
+    Idempotent — re-approving the same phase just rewrites the same value.
+    Fail-open — if the session state module is unavailable (e.g. during a
+    script run outside the hook environment) we log and move on.  This
+    hook must never block or mutate the approve return path.
+    """
+    try:
+        # scripts/ is on sys.path via the module-level insert at the top of
+        # this file, so the import is direct (matches other call sites).
+        from _session import SessionState  # type: ignore
+        sess = SessionState.load()
+        if getattr(sess, "last_phase_approved", None) == phase:
+            return  # idempotent no-op
+        sess.update(last_phase_approved=phase)
+    except Exception as exc:
+        # Fail open — session wiring should never break approve_phase.
+        logger.debug("[approve] last_phase_approved wiring skipped: %s", exc)
+
+
+def _run_build_phase_guard(project_dir: Path) -> List[str]:
+    """Run the guard pipeline at build-phase approval (#462, Item 2).
+
+    Lazy-imports scripts/platform/guard_pipeline.run_pipeline and returns a
+    list of human-readable warning strings to surface in the approve output.
+    Fail-open on every axis — ImportError, missing module, exception during
+    scan, budget_exceeded — all return an empty list without raising.
+
+    Respects CREW_GATE_ENFORCEMENT=legacy as a rollback switch: when set
+    the guard hook is a complete no-op (matches the documented escape hatch
+    for additive gate enforcement layers).
+
+    Mirrors the fail-open pattern used by hooks/scripts/stop.py::_run_guard_pipeline.
+    """
+    # Rollback switch — keep the build-phase guard hook no-op when legacy
+    # enforcement is requested (matches the mode-flag escape pattern used
+    # by the telemetry step and the #448 stop-hook integration).
+    if os.environ.get("CREW_GATE_ENFORCEMENT", "").lower() == "legacy":
+        return []
+
+    try:
+        # scripts/platform/ is a sibling of scripts/crew/.  Add it to
+        # sys.path lazily so the import only pays the cost at build-phase
+        # approval, not at module import time.
+        _platform_path = str(Path(__file__).resolve().parents[1] / "platform")
+        if _platform_path not in sys.path:
+            sys.path.insert(0, _platform_path)
+        from guard_pipeline import run_pipeline, render_summary  # type: ignore
+    except ImportError as exc:
+        logger.debug("[approve] guard_pipeline unavailable: %s", exc)
+        return []
+    except Exception as exc:  # pragma: no cover — defense in depth
+        logger.debug("[approve] guard_pipeline import error: %s", exc)
+        return []
+
+    try:
+        report = run_pipeline(
+            profile_name="standard",
+            project_dir=project_dir if project_dir else None,
+        )
+    except Exception as exc:
+        # MUST NOT let a guard-pipeline error bubble up and block approval.
+        print(f"[approve] guard_pipeline error: {exc}", file=sys.stderr)
+        logger.warning("[approve] guard_pipeline exception during build approve: %s", exc)
+        return []
+
+    if not report or report.total_findings == 0:
+        return []
+
+    try:
+        summary = render_summary(report)
+    except Exception as exc:
+        logger.debug("[approve] guard render_summary error: %s", exc)
+        # Fall back to a minimal summary — we still want to surface the count.
+        summary = (
+            f"[Guard] standard pipeline surfaced {report.total_findings} "
+            f"finding(s) at build-phase approval."
+        )
+    return [summary]
+
+
 def approve_phase(
     state: ProjectState,
     phase: str,
@@ -1991,6 +2073,35 @@ def approve_phase(
         logger.warning(f"[checkpoint] {w}")
     if injected:
         logger.info(f"[checkpoint] Injected phases after '{phase}': {injected}")
+
+    # --- #462 wiring: SessionState + build-phase guard hook ---
+    # Record the approved phase on SessionState so stop.py can promote
+    # the guard pipeline profile (scalpel → standard) next cycle.
+    # Idempotent + fail-open: re-approving the same phase is safe.
+    _record_last_phase_approved(phase)
+
+    # Build-phase guard hook — additive, non-blocking.  Surfaces guard
+    # findings as warnings in the approve output without gating approval.
+    if phase == "build":
+        try:
+            project_dir = get_project_dir(state.name)
+        except Exception:
+            project_dir = None  # fail-open: still attempt the scan
+        guard_warnings = _run_build_phase_guard(project_dir)
+        if guard_warnings:
+            warnings.extend(guard_warnings)
+            # Mirror the existing pattern — push them to stderr via logger.
+            for gw in guard_warnings:
+                logger.warning("[approve] %s", gw)
+            # Persist the warnings on the project state so structured
+            # callers (CLI --json, tests, downstream consumers) can reach
+            # them without changing the approve_phase return signature.
+            try:
+                extras_warnings = list(state.extras.get("last_approve_warnings", []))
+                extras_warnings.extend(guard_warnings)
+                state.extras["last_approve_warnings"] = extras_warnings
+            except Exception:
+                pass  # fail open — extras is best-effort surface for CLI consumers
 
     # Determine next phase from dynamic order (may have changed via injection)
     phase_order = get_phase_order(state)

@@ -188,6 +188,206 @@ class TestBulletproofScan(unittest.TestCase):
             self.assertTrue(r6, "expected R6 finding for >8 params")
 
 
+# ---------------------------------------------------------------------------
+# AC-4: R3 magic values in conditionals — AST heuristic
+# ---------------------------------------------------------------------------
+
+
+class TestR3MagicValues(unittest.TestCase):
+    """#462, Item 3 — R3 detects magic numeric literals in Compare nodes
+    while allow-listing 0, 1, -1."""
+
+    def test_magic_value_flagged(self):
+        """`if x > 42:` triggers an R3 finding."""
+        src = "def f(x):\n    if x > 42:\n        return x\n    return 0\n"
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/m.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r3 = [x for x in result.findings if x.rule_id == "R3"]
+        self.assertTrue(r3, "expected R3 finding for magic value 42")
+        self.assertTrue(any("42" in x.message for x in r3))
+
+    def test_allow_listed_zero_not_flagged(self):
+        """`if x > 0:` is NOT flagged — 0 is allow-listed."""
+        src = "def f(x):\n    if x > 0:\n        return x\n    return 0\n"
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/z.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r3 = [x for x in result.findings if x.rule_id == "R3"]
+        self.assertEqual(r3, [], f"0 should not be flagged as magic: {r3}")
+
+    def test_allow_listed_negative_one_not_flagged(self):
+        """`if x == -1:` is NOT flagged — -1 is allow-listed."""
+        src = "def f(x):\n    if x == -1:\n        return x\n    return 0\n"
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/neg.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r3 = [x for x in result.findings if x.rule_id == "R3"]
+        self.assertEqual(r3, [], f"-1 should not be flagged as magic: {r3}")
+
+    def test_allow_listed_one_not_flagged(self):
+        """`if n == 1:` is NOT flagged — 1 is allow-listed."""
+        src = "def f(n):\n    if n == 1:\n        return n\n    return 0\n"
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/one.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r3 = [x for x in result.findings if x.rule_id == "R3"]
+        self.assertEqual(r3, [], f"1 should not be flagged as magic: {r3}")
+
+    def test_named_constant_not_flagged(self):
+        """`if x > THRESHOLD:` is NOT flagged — comparator is a Name, not Constant."""
+        src = (
+            "THRESHOLD = 42\n"
+            "def f(x):\n"
+            "    if x > THRESHOLD:\n"
+            "        return x\n"
+            "    return 0\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/named.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r3 = [x for x in result.findings if x.rule_id == "R3"]
+        self.assertEqual(r3, [], f"Named constant should not be flagged: {r3}")
+
+    def test_negative_magic_flagged_via_unary(self):
+        """`if x < -42:` is flagged — -42 not in allow-list, parsed as UnaryOp."""
+        src = "def f(x):\n    if x < -42:\n        return x\n    return 0\n"
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/neg42.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r3 = [x for x in result.findings if x.rule_id == "R3"]
+        self.assertTrue(r3, "expected R3 finding for -42 via UnaryOp")
+
+
+# ---------------------------------------------------------------------------
+# AC-5: R5 unbounded recursion — AST heuristic
+# ---------------------------------------------------------------------------
+
+
+class TestR5UnboundedRecursion(unittest.TestCase):
+    """#462, Item 3 — R5 detects functions that self-call with no guard."""
+
+    def test_unbounded_recursion_flagged(self):
+        """`def f(n): return f(n - 1)` — flagged."""
+        src = "def f(n):\n    return f(n - 1)\n"
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/unbound.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r5 = [x for x in result.findings if x.rule_id == "R5"]
+        self.assertTrue(r5, "expected R5 finding for unguarded recursion")
+        self.assertTrue(any("f" in x.message for x in r5))
+
+    def test_guarded_recursion_not_flagged(self):
+        """Recursion with an early-return guard — NOT flagged."""
+        src = (
+            "def f(n):\n"
+            "    if n <= 0:\n"
+            "        return 0\n"
+            "    return f(n - 1)\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/guard.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r5 = [x for x in result.findings if x.rule_id == "R5"]
+        self.assertEqual(r5, [], f"Guarded recursion should not be flagged: {r5}")
+
+    def test_non_recursive_function_not_flagged(self):
+        """A plain function is not flagged."""
+        src = "def g(n):\n    return n + 1\n"
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/plain.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r5 = [x for x in result.findings if x.rule_id == "R5"]
+        self.assertEqual(r5, [], f"Non-recursive fn should not be R5: {r5}")
+
+    def test_method_self_call_flagged(self):
+        """`self.method(...)` also counts as self-call for R5 purposes."""
+        src = (
+            "class C:\n"
+            "    def walk(self, n):\n"
+            "        return self.walk(n - 1)\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            f = _make_py_file(tmpdir, "src/cls.py", src)
+            result = gp.check_bulletproof_scan([str(f)], budget_seconds=1.0)
+        r5 = [x for x in result.findings if x.rule_id == "R5"]
+        self.assertTrue(r5, "expected R5 finding for unguarded method recursion")
+
+
+# ---------------------------------------------------------------------------
+# AC-6: performance — scalpel + R3 + R5 stays under the 1s budget (2s CI slack)
+# ---------------------------------------------------------------------------
+
+
+class TestR3R5PerformanceBudget(unittest.TestCase):
+    """100-file synthetic diff with R3+R5 active on every Python file.
+    Must stay under the scalpel budget (1s target, 2s hard assert)."""
+
+    def test_scalpel_budget_with_r3_r5_active(self):
+        # Template includes both R3-eligible conditionals and a recursive
+        # guarded function — exercises the AST walkers on every file.
+        template = (
+            "import os\n"
+            "import sys\n"
+            "\n"
+            "def work(x):\n"
+            "    if x > 42:\n"                  # R3 candidate
+            "        return x\n"
+            "    if x == 0:\n"                  # allow-listed
+            "        return 0\n"
+            "    return work(x - 1)\n"          # R5 candidate (guarded)
+            "\n"
+            "class Worker:\n"
+            "    def run(self, value):\n"
+            "        if value < 100:\n"         # R3 candidate
+            "            return value\n"
+            "        return self.run(value - 1)\n"  # R5 (guarded via `if`)
+            "\n"
+            "def plain(y):\n"
+            "    return y + 1\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            tmpdir = Path(td)
+            files: List[str] = []
+            for i in range(100):
+                p = _make_py_file(tmpdir, f"src/mod_{i}.py", template)
+                files.append(str(p))
+
+            t0 = time.monotonic()
+            report = gp.run_pipeline(
+                profile_name="scalpel",
+                cwd=tmpdir,
+                files=files,
+            )
+            elapsed = time.monotonic() - t0
+
+            # Target budget 1s; 2s CI slack matches the baseline test at
+            # the top of this file.
+            self.assertLess(elapsed, 2.0,
+                            f"scalpel+R3+R5 took {elapsed:.3f}s on 100 files (target 1s)")
+            # Sanity: the scan should have surfaced at least the R3
+            # findings from `if x > 42:` and `if value < 100:`.
+            r3_count = sum(1 for c in report.checks for f in c.findings
+                           if f.rule_id == "R3")
+            self.assertGreater(r3_count, 0,
+                               "expected R3 findings from the synthetic diff")
+            # Print timing so CI always shows it.
+            sys.stderr.write(
+                f"\n[budget-test] scalpel+R3+R5 @ 100 files: {elapsed*1000:.1f}ms "
+                f"(internal={report.duration_ms}ms, r3={r3_count})\n"
+            )
+
+
 class TestDebugArtifacts(unittest.TestCase):
 
     def test_clean_file_no_findings(self):

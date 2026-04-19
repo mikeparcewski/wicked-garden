@@ -257,6 +257,13 @@ class SessionState:
     # senior-engineer review of this very project — meta bug fix.)
     phase_start_gate_due: bool = False
 
+    # Name of the last phase the user approved this session (#462).
+    # Written by scripts/crew/phase_manager.py::approve_phase() after a
+    # successful approval. Read by stop.py to decide whether to promote
+    # the guard pipeline profile (scalpel → standard) when build just closed.
+    # None when no approval has happened yet this session.
+    last_phase_approved: str | None = None
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
