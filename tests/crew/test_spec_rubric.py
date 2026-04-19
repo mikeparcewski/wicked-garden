@@ -9,7 +9,8 @@ Covers:
   T-R1.4 — grade_for_score returns A/B/C/D/F bands
   T-R1.5 — evaluate_verdict at-or-above threshold keeps base verdict
   T-R2.1 — minimal rigor score 11 yields CONDITIONAL (acceptance case)
-  T-R2.2 — full rigor score 17 yields CONDITIONAL (acceptance case) — actually REJECT per issue spec
+  T-R2.2 — full rigor score 17 yields CONDITIONAL (graduated response)
+  T-R2.4 — hard-reject floor (<12) yields REJECT at every tier
   T-R2.3 — base REJECT is preserved regardless of score
   T-R3.1 — score_breakdown_to_grid renders all 10 rows
   T-P1.1 — phase_manager._apply_spec_rubric skips non-clarify phases
@@ -266,14 +267,13 @@ class TestEvaluateVerdict(unittest.TestCase):
         self.assertIn("minimal", (reason or "").lower())
         self.assertTrue(len(conds) >= 1, "Must surface condition(s) from failing dims")
 
-    def test_acceptance_full_17_is_reject(self):
-        """T-R2.2 (ISSUE AC-2): full-rigor project scoring 17 — issue text says
-        'produces CONDITIONAL'. Per design: full below 18 = REJECT.
+    def test_acceptance_full_17_is_conditional(self):
+        """T-R2.2 (ISSUE AC-2): full-rigor project scoring 17 -> CONDITIONAL.
 
-        The issue spec is internally inconsistent ('failing at full-rigor = REJECT'
-        in the enforcement section, 'full project with score 17 produces
-        CONDITIONAL' in acceptance). We implement the stricter-and-documented
-        policy: full rigor below 18 = REJECT. This test pins that choice."""
+        Graduated response: 17 sits above the HARD_REJECT_FLOOR (12) but below
+        the full tier threshold (18), so the rubric downgrades APPROVE to
+        CONDITIONAL with conditions naming the 1-point-missing dimension(s).
+        Reserved REJECT for <12 (grade D/F) — spec fundamentally incomplete."""
         breakdown = _make_breakdown({
             "user_story": 2, "context_framed": 2,
             "numbered_functional_requirements": 2, "measurable_nfrs": 2,
@@ -286,8 +286,36 @@ class TestEvaluateVerdict(unittest.TestCase):
             score=17, rigor_tier="full",
             base_verdict="APPROVE", breakdown=breakdown,
         )
-        self.assertEqual(verdict, "REJECT")
+        self.assertEqual(verdict, "CONDITIONAL")
         self.assertIn("full", (reason or "").lower())
+
+    def test_hard_reject_floor_at_full_tier_only(self):
+        """T-R2.4: score < HARD_REJECT_FLOOR (12) yields REJECT only at FULL
+        rigor. minimal/standard max out at CONDITIONAL — the tier floor is
+        already soft there."""
+        breakdown = _make_breakdown({
+            "user_story": 2, "context_framed": 2,
+            "acceptance_criteria": 2, "design_section": 2,
+            # 8 total; below full hard-reject floor
+        })
+        self.assertEqual(spec_rubric.total_score(breakdown), 8)
+        # full rigor: REJECT
+        verdict, reason, _ = spec_rubric.evaluate_verdict(
+            score=8, rigor_tier="full",
+            base_verdict="APPROVE", breakdown=breakdown,
+        )
+        self.assertEqual(verdict, "REJECT")
+        self.assertIn("hard-reject", (reason or "").lower())
+        # minimal/standard: CONDITIONAL (not REJECT)
+        for tier in ("minimal", "standard"):
+            verdict, _, _ = spec_rubric.evaluate_verdict(
+                score=8, rigor_tier=tier,
+                base_verdict="APPROVE", breakdown=breakdown,
+            )
+            self.assertEqual(
+                verdict, "CONDITIONAL",
+                f"score 8 at tier={tier} must be CONDITIONAL (only full REJECTS)",
+            )
 
     def test_standard_below_15_is_conditional(self):
         breakdown = _make_breakdown({
@@ -319,8 +347,25 @@ class TestEvaluateVerdict(unittest.TestCase):
         )
         self.assertEqual(verdict, "CONDITIONAL")
 
-    def test_conditional_below_threshold_stays_conditional(self):
+    def test_conditional_base_preserved_when_above_hard_floor(self):
+        """Base CONDITIONAL is preserved when 12 <= score < tier_threshold."""
         verdict, _reason, _conds = spec_rubric.evaluate_verdict(
+            score=13, rigor_tier="standard", base_verdict="CONDITIONAL"
+        )
+        self.assertEqual(verdict, "CONDITIONAL")
+
+    def test_hard_floor_overrides_conditional_base_at_full_tier(self):
+        """At FULL rigor, base CONDITIONAL is overridden to REJECT when
+        score < HARD_REJECT_FLOOR — too many dimensions missing for the
+        reviewer's CONDITIONAL to stick. Minimal/standard preserve CONDITIONAL."""
+        # full: REJECT
+        verdict, reason, _ = spec_rubric.evaluate_verdict(
+            score=10, rigor_tier="full", base_verdict="CONDITIONAL"
+        )
+        self.assertEqual(verdict, "REJECT")
+        self.assertIn("hard-reject", (reason or "").lower())
+        # standard: stays CONDITIONAL
+        verdict, _, _ = spec_rubric.evaluate_verdict(
             score=10, rigor_tier="standard", base_verdict="CONDITIONAL"
         )
         self.assertEqual(verdict, "CONDITIONAL")
@@ -403,14 +448,19 @@ class TestPhaseManagerIntegration(unittest.TestCase):
         # Original not mutated
         self.assertEqual(gate_result["result"], "APPROVE")
 
-    def test_full_below_threshold_rejects(self):
-        """T-P1.4 (ISSUE AC-2 variant): full rigor, score 17 -> REJECT."""
+    def test_full_below_threshold_conditional(self):
+        """T-P1.4 (graduated): full rigor, score 17 -> CONDITIONAL (not REJECT).
+
+        17 sits above HARD_REJECT_FLOOR (12) but below the full threshold (18),
+        so the rubric downgrades APPROVE to CONDITIONAL with per-dimension
+        conditions. REJECT is reserved for <12 at full rigor."""
+        # Shape: 1 dim missing (0), 1 dim weak (1), 8 dims perfect (2) = 17
         breakdown = _make_breakdown({
             "user_story": 2, "context_framed": 2,
             "numbered_functional_requirements": 2, "measurable_nfrs": 2,
             "acceptance_criteria": 2, "gherkin_scenarios": 2,
             "test_plan_outline": 1, "api_contract": 2,
-            "dependencies_identified": 1, "design_section": 1,
+            "dependencies_identified": 0, "design_section": 2,
         })
         gate_result = {
             "result": "APPROVE",
@@ -418,11 +468,12 @@ class TestPhaseManagerIntegration(unittest.TestCase):
             "rubric_breakdown": breakdown,
         }
         out = phase_manager._apply_spec_rubric(gate_result, "clarify", "full")
-        self.assertEqual(out["result"], "REJECT")
+        self.assertEqual(out["result"], "CONDITIONAL")
         self.assertEqual(out["rubric_score"], 17)
         self.assertEqual(out["rubric_grade"], "B")
         self.assertEqual(out["rubric_threshold"], 18)
-        self.assertEqual(out["rubric_adjustment"]["to"], "REJECT")
+        self.assertEqual(out["rubric_adjustment"]["to"], "CONDITIONAL")
+        self.assertTrue(len(out.get("conditions", [])) > 0)
 
     def test_above_threshold_preserves_approve(self):
         """T-P1.5: score at or above tier threshold keeps APPROVE and still

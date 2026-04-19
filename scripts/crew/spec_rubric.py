@@ -9,11 +9,15 @@ that score to a tier-aware verdict:
   standard rigor -> requires >= 15 (grade B)
   full    rigor  -> requires >= 18 (grade A)
 
-Enforcement applied by ``phase_manager._validate_spec_rubric``:
+Enforcement applied by ``phase_manager._validate_spec_rubric`` — graduated
+at full rigor, soft at minimal/standard:
 
-  * below threshold at minimal/standard -> downgrade gate verdict to at least
-    CONDITIONAL (conditions = the failing dimensions).
-  * below threshold at full rigor -> upgrade gate verdict to REJECT.
+  * minimal/standard, score < tier_threshold -> CONDITIONAL (conditions =
+    the failing dimensions). These tiers never REJECT from the rubric alone.
+  * full rigor, HARD_REJECT_FLOOR <= score < 18 -> CONDITIONAL.
+  * full rigor, score < HARD_REJECT_FLOOR (12) -> REJECT. A spec this
+    incomplete (grade D/F) cannot be closed by conditions — rework needed.
+  * any tier, score >= tier_threshold -> APPROVE (base verdict preserved).
 
 Stdlib-only (no external deps). Canonical rubric description lives in
 ``skills/propose-process/refs/spec-quality-rubric.md`` — this module is the
@@ -156,6 +160,12 @@ TIER_THRESHOLDS: Dict[str, int] = {
     "full": 18,      # grade A
 }
 
+# Full-rigor REJECT floor — below this score at FULL tier the spec is
+# fundamentally incomplete (grade D/F). Conditions cannot close this many
+# dimension gaps; rework required. Minimal/standard tiers never REJECT
+# from rubric score alone (they top out at CONDITIONAL).
+HARD_REJECT_FLOOR: int = 12
+
 # Letter grades — inclusive lower bounds.
 GRADE_BOUNDS: List[Tuple[int, str]] = [
     (18, "A"),
@@ -266,12 +276,11 @@ def evaluate_verdict(
       * ``conditions`` is a list of condition strings derived from failing
         dimensions (empty on APPROVE/REJECT pass-through).
 
-    Rules:
+    Rules (graduated response — full-rigor only has a REJECT path):
       - If the base_verdict is already REJECT, return as-is.
-      - At full rigor, a score below the full threshold escalates to REJECT.
-      - At minimal/standard rigor, a score below the tier threshold downgrades
-        APPROVE to CONDITIONAL (CONDITIONAL stays CONDITIONAL).
-      - If score >= threshold, the base verdict is preserved.
+      - score >= tier_threshold: base verdict preserved.
+      - full rigor + score < HARD_REJECT_FLOOR (12): REJECT.
+      - otherwise (below tier threshold): CONDITIONAL.
     """
     normalized_base = (base_verdict or "APPROVE").upper()
     if normalized_base == "REJECT":
@@ -294,17 +303,18 @@ def evaluate_verdict(
             label = _dimension_label(dim_id)
             conditions.append(f"Strengthen '{label}' (currently scored 0).")
 
-    if tier == "full":
+    if tier == "full" and score < HARD_REJECT_FLOOR:
         reason = (
             f"Spec rubric score {score}/{MAX_SCORE} is below the full-rigor "
-            f"minimum of {threshold}. Rejected — rework required."
+            f"hard-reject floor of {HARD_REJECT_FLOOR}. Too many dimensions "
+            f"missing for conditions to close — rework required."
         )
         return "REJECT", reason, conditions
 
     reason = (
         f"Spec rubric score {score}/{MAX_SCORE} is below the {tier} minimum "
-        f"of {threshold}. Downgrading to CONDITIONAL — fix the listed "
-        f"dimensions before the next phase advances."
+        f"of {threshold}. Downgrading to CONDITIONAL — clear the listed "
+        f"dimension conditions before the next phase advances."
     )
     return "CONDITIONAL", reason, conditions
 
@@ -362,15 +372,16 @@ def score_breakdown_to_grid(
     lines.append("")
     if total >= threshold:
         lines.append(f"**Meets `{tier}` threshold.**")
-    elif tier == "full":
+    elif tier == "full" and total < HARD_REJECT_FLOOR:
         lines.append(
-            f"**Below `full` threshold — REJECT. Rework required before "
-            f"clarify advances.**"
+            f"**Below full-rigor hard-reject floor ({HARD_REJECT_FLOOR}/"
+            f"{MAX_SCORE}) — REJECT. Spec is fundamentally incomplete; "
+            f"rework required.**"
         )
     else:
         lines.append(
-            f"**Below `{tier}` threshold — CONDITIONAL. Address low-scored "
-            f"dimensions before the next phase advances.**"
+            f"**Below `{tier}` threshold — CONDITIONAL. Clear the listed "
+            f"dimension conditions before the next phase advances.**"
         )
     return "\n".join(lines)
 
