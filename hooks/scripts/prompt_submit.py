@@ -590,7 +590,7 @@ def _consume_facilitator_reeval(state) -> str | None:
 
     Reads ``state.facilitator_reeval_due`` and ``state.facilitator_reeval_chain``.
     When set, returns a systemMessage directive instructing Claude to invoke
-    ``wicked-garden:crew:propose-process`` in re-evaluation mode on that chain
+    ``wicked-garden:propose-process`` in re-evaluation mode on that chain
     BEFORE addressing the user's prompt.
 
     Clears the flag immediately (idempotent — fires exactly once per completion).
@@ -633,7 +633,7 @@ def _consume_facilitator_reeval(state) -> str | None:
         return (
             f"[Facilitator re-evaluation due] Chain `{chain_id}` had a task completion — "
             f"before addressing the user's prompt, invoke "
-            f"`wicked-garden:crew:propose-process` in re-evaluation mode on this chain. "
+            f"`wicked-garden:propose-process` in re-evaluation mode on this chain. "
             f"Update the process-plan.md and emit any task mutations "
             f"(prune, augment, re-tier) as TaskUpdate/TaskCreate calls with reasoning."
             f"{chain_block}"

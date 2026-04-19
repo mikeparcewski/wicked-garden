@@ -1,5 +1,30 @@
 # Changelog
 
+## [6.0.1] - 2026-04-18
+
+**Flatten skill paths so they actually register.** Claude Code's skill auto-discovery scans `skills/` for subdirectories containing `SKILL.md` — it does NOT recurse into sub-subdirectories. Skills at `skills/<domain>/<name>/SKILL.md` (two levels deep) never registered as model-invocable. The prior repo convention of nesting skills by domain was documentation-only; nobody had tried to invoke them via `Skill()` so the registration gap was invisible until v6.0 shipped `adopt-legacy` as a nested new skill.
+
+### Fixed
+
+Moved 5 skills from nested to flat paths so they actually register:
+
+| Old | New | Registered As |
+|---|---|---|
+| `skills/crew/adopt-legacy/` | `skills/adopt-legacy/` | `wicked-garden:adopt-legacy` |
+| `skills/crew/propose-process/` | `skills/propose-process/` | `wicked-garden:propose-process` |
+| `skills/crew/workflow/` | `skills/workflow/` | `wicked-garden:workflow` |
+| `skills/qe/acceptance-testing/` | `skills/acceptance-testing/` | `wicked-garden:acceptance-testing` |
+| `skills/search/unified-search/` | `skills/unified-search/` | `wicked-garden:unified-search` |
+
+All references throughout the codebase updated — commands, hooks, scripts, CHANGELOG, process-plans.
+
+### Impact
+
+- These 5 skills are now Skill()-invocable for the first time.
+- The 3 that carry `context: fork` (workflow, acceptance-testing, unified-search) can actually fork now.
+- `/wicked-garden:crew:start` routes to `wicked-garden:propose-process` (was Unknown skill).
+- `/wicked-garden:crew:adopt-legacy` becomes usable for beta.3 project upgrades.
+
 ## [6.0.0] - 2026-04-18
 
 **v6.0 production release.** Promotes beta.5 out of pre-release. The v6
@@ -26,17 +51,17 @@ a clean install, a 6.0.1 patch will follow.
 `disable-model-invocation: false` in frontmatter. Empirically that key —
 at any value including `false` — suppresses model-invocability (Claude Code
 appears to treat presence-of-key as opt-out). Removed the line from:
-- `skills/crew/adopt-legacy/SKILL.md`
-- `skills/crew/propose-process/SKILL.md`
-- `skills/crew/workflow/SKILL.md`
-- `skills/qe/acceptance-testing/SKILL.md`
-- `skills/search/unified-search/SKILL.md`
+- `skills/adopt-legacy/SKILL.md`
+- `skills/propose-process/SKILL.md`
+- `skills/workflow/SKILL.md`
+- `skills/acceptance-testing/SKILL.md`
+- `skills/unified-search/SKILL.md`
 
 `skills/persona/SKILL.md` retains `disable-model-invocation: true` (intentional — user-only).
 
 After this release:
-- `Skill(skill="wicked-garden:crew:adopt-legacy")` becomes invokable
-- `Skill(skill="wicked-garden:crew:propose-process")` becomes invokable (was unknown throughout the v6 rebuild)
+- `Skill(skill="wicked-garden:adopt-legacy")` becomes invokable
+- `Skill(skill="wicked-garden:propose-process")` becomes invokable (was unknown throughout the v6 rebuild)
 - `context: fork` on the 3 edited skills can finally activate on Skill() dispatch
 - Total invocable skill count should go up by 5 post-reload
 
@@ -57,23 +82,23 @@ first post-install session.
 
 **Breaking change**: `CREW_GATE_ENFORCEMENT=legacy` is deleted (D3 — no backward
 compat flag in 6.0). There is no env-var escape hatch. Use
-`/wicked-garden:crew:adopt-legacy` to upgrade projects started on beta.3.
+`/wicked-garden:adopt-legacy` to upgrade projects started on beta.3.
 
 ### Issue #332 partial delivery
 
 Originally scoped for 6 heavy skills; actually ships fork on 3:
-- ✓ `skills/crew/workflow/SKILL.md` — `context: fork` applied
-- ✓ `skills/qe/acceptance-testing/SKILL.md` — `context: fork` applied
-- ✓ `skills/search/unified-search/SKILL.md` — `context: fork` applied
+- ✓ `skills/workflow/SKILL.md` — `context: fork` applied
+- ✓ `skills/acceptance-testing/SKILL.md` — `context: fork` applied
+- ✓ `skills/unified-search/SKILL.md` — `context: fork` applied
 - ✗ `qe:automate` — deferred; thin skill wrapper was dead code (command took precedence). Would need command body moved into skill body to actually fork.
 - ✗ `crew:just-finish` — deferred; same structural pattern.
 - ✗ `engineering:debug` / `jam:brainstorm` — dropped from scope by clarify-phase triage (conversational + inline-consumed).
 
-3 stale `TODO (Issue #332): When Claude Code supports context: fork` blocks cleared from `skills/crew/workflow`, `skills/search/unified-search`, `skills/qe/acceptance-testing` — the feature is supported and documented in the official Claude Code skills docs.
+3 stale `TODO (Issue #332): When Claude Code supports context: fork` blocks cleared from `skills/workflow`, `skills/unified-search`, `skills/acceptance-testing` — the feature is supported and documented in the official Claude Code skills docs.
 
 ### Post-build fixes (from plugin-validator pass)
 
-- `skills/crew/propose-process/SKILL.md` trimmed 233 → 197 lines (re-eval section extracted to `refs/re-evaluation.md`).
+- `skills/propose-process/SKILL.md` trimmed 233 → 197 lines (re-eval section extracted to `refs/re-evaluation.md`).
 - `scripts/_session.py` — `phase_start_gate_due` added as a declared dataclass field (was a transient attr, silently dropped by `asdict()` serialization — AC-11 was broken in bytecode).
 - `scripts/crew/phase_manager.py` — 6 dead `GATE_ENFORCEMENT_MODE == "legacy"` branches deleted (R1 dead code + D3 contradiction from the 4-variable-hardcoded-strict constant left behind).
 - Deleted the 2 dead-wrapper SKILL.md files (`skills/qe/automate/SKILL.md`, `skills/crew/just-finish/SKILL.md`) that added no content their co-located commands didn't already have.
@@ -104,7 +129,7 @@ Originally scoped for 6 heavy skills; actually ships fork on 3:
   Rigor reviewer matrix (D1, D4). Carries dispatch semantics per entry: mode
   (`sequential`, `parallel`, `council`, `self-check`) and fallback agent.
 - **`adopt-legacy` skill + script** (`scripts/crew/adopt_legacy.py`,
-  `skills/crew/adopt-legacy/`) — detects three beta.3 legacy markers (missing
+  `skills/adopt-legacy/`) — detects three beta.3 legacy markers (missing
   `phase_plan_mode`, markdown re-eval addendums, legacy bypass env-var
   references) and transforms them in-place. Idempotent. Dry-run by default.
 - **Acceptance scenarios** (`scenarios/crew/phase-boundary-reeval.md`) — five
@@ -119,16 +144,16 @@ Originally scoped for 6 heavy skills; actually ships fork on 3:
 
 ### Changed
 
-- **`skills/crew/propose-process/SKILL.md`** — new `## Phase-boundary gates`
+- **`skills/propose-process/SKILL.md`** — new `## Phase-boundary gates`
   section lists all 6 gate names; new `## Re-evaluation mode (bidirectional, v6)`
   section describes the phase-start heuristic + phase-end full re-eval state
   machine; `## Interaction mode` updated to note D7 bidirectional rules.
-- **`skills/crew/propose-process/refs/gate-policy.md`** — rewritten as
+- **`skills/propose-process/refs/gate-policy.md`** — rewritten as
   human-readable description of `gate-policy.json` (documentation only; not read
   by code).
-- **`skills/crew/propose-process/refs/plan-template.md`** — task chain table
+- **`skills/propose-process/refs/plan-template.md`** — task chain table
   updated to surface per-phase gate names.
-- **`skills/crew/propose-process/refs/output-schema.md`** — gate-finding task
+- **`skills/propose-process/refs/output-schema.md`** — gate-finding task
   metadata documented (`verdict`, `min_score`, `score` keys).
 - **`commands/crew/migrate-gates.md`** — rewrites the beta-era migration guide
   to point at `adopt-legacy` instead of the now-deleted env-var bypass.
@@ -137,7 +162,7 @@ Originally scoped for 6 heavy skills; actually ships fork on 3:
 
 - `CREW_GATE_ENFORCEMENT=legacy` environment variable is **deleted**. Any script,
   alias, or CI job that sets it must be updated. Projects relying on the legacy
-  bypass must run `/wicked-garden:crew:adopt-legacy` before upgrading.
+  bypass must run `/wicked-garden:adopt-legacy` before upgrading.
 - Phase approve is now fail-closed on missing re-eval addendum. Beta.3 projects
   that never ran a phase-end re-eval will be blocked at the first approve call.
   Recovery: run `--skip-reeval --reason "<justification>"` once per phase to
@@ -153,7 +178,7 @@ session.
 ### Added
 
 - **Critical-skill smoke test (#434)** — `hooks/scripts/bootstrap.py` now
-  checks that `skills/crew/propose-process/SKILL.md` exists on disk at session
+  checks that `skills/propose-process/SKILL.md` exists on disk at session
   start. When present, emits a `[Skills]` briefing note telling Claude how to
   handle "Unknown skill" errors (run `/reload-plugins`). When missing, flags
   the plugin install as incomplete. Turns a cryptic class of errors into a
@@ -221,7 +246,7 @@ plan. All three now defer to the facilitator when `phase_plan_mode ==
 decisioning (`scripts/crew/smart_decisioning.py`, ~2,430 LOC) and the
 push-model tiered context-assembly orchestrator (`scripts/smaht/v2/`, 11
 files, ~2,950 LOC) are gone. In their place, a single progressive-disclosure
-rubric — the `wicked-garden:crew:propose-process` facilitator — reads the
+rubric — the `wicked-garden:propose-process` facilitator — reads the
 work, scores 9 factors, picks specialists by reading agent frontmatter
 directly, selects phases, sets rigor tier, and emits a full task chain. Context
 assembly shifts from "push a briefing every turn" to "subagents pull what they
@@ -259,7 +284,7 @@ need via wicked-brain + wicked-garden:search."
 
 ### Added
 
-- **Facilitator rubric** — `wicked-garden:crew:propose-process` skill, the v6
+- **Facilitator rubric** — `wicked-garden:propose-process` skill, the v6
   decision-making surface. Tier-1/2/3 progressive disclosure. 9 factors,
   phase catalog in refs/, plan template in refs/. Gate 1: 10 canonical
   scenarios measuring 10/10 PASS on quality output. Gate 3: wired into
@@ -303,8 +328,8 @@ behavior for production work, pin to `5.2.0` — it's a drop-in replacement.
   without a `process-plan.json` on disk will trigger a fresh `propose` invocation
   on the next checkpoint.
 - **Scripts calling `smart_decisioning.py --json`**: migrate to the
-  `wicked-garden:crew:propose-process` skill. The output schema is documented
-  in `skills/crew/propose-process/refs/output-schema.md`.
+  `wicked-garden:propose-process` skill. The output schema is documented
+  in `skills/propose-process/refs/output-schema.md`.
 - **Code referencing `smaht/v2/` modules**: migrate to pull-model. For session
   state, use `scripts/_session.py::SessionState`. For session facts, use
   `scripts/mem/session_fact_extractor.py`. For context, invoke

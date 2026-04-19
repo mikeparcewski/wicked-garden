@@ -627,7 +627,7 @@ def _probe_onedrive_path() -> str | None:
 # but a Skill() call fails with "Unknown skill", the plugin cache is stale
 # and needs `/reload-plugins`. Issue #434.
 _CRITICAL_V6_SKILLS = (
-    "skills/crew/propose-process/SKILL.md",
+    "skills/propose-process/SKILL.md",
 )
 
 

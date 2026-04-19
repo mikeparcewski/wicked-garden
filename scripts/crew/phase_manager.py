@@ -63,7 +63,7 @@ LEGACY_ALIASES = {"qe": "test-strategy"}
 # ---------------------------------------------------------------------------
 # v6.0 is strict-only. Gate enforcement is unconditionally active.
 # The legacy escape hatch was removed in v6.0 (D3 — no backward compat flag).
-# Legacy projects should be upgraded with /wicked-garden:crew:adopt-legacy.
+# Legacy projects should be upgraded with /wicked-garden:adopt-legacy.
 GATE_ENFORCEMENT_MODE: str = "strict"
 
 # Banned reviewer name patterns (AC-1.4)

@@ -28,7 +28,7 @@ Each input is a single markdown file with:
 For each input, the smoke suite:
 
 1. Loads the markdown file, extracts the `description` paragraph.
-2. Captures a facilitator plan by applying the rubric (`skills/crew/propose-process/SKILL.md` + refs). In this phase, the capture is a hand-curated JSON the operator (Claude) writes out by reasoning over the description as the facilitator would.
+2. Captures a facilitator plan by applying the rubric (`skills/propose-process/SKILL.md` + refs). In this phase, the capture is a hand-curated JSON the operator (Claude) writes out by reasoning over the description as the facilitator would.
 3. Writes the JSON to `scripts/ci/facilitator_outputs/smoke-NN-<slug>.json` matching `refs/output-schema.md`.
 4. Runs the legacy rule engine for comparison:
    ```bash

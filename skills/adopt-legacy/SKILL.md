@@ -48,7 +48,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
 Or invoke directly as a crew command:
 
 ```
-/wicked-garden:crew:adopt-legacy <project-dir>
+/wicked-garden:adopt-legacy <project-dir>
 ```
 
 ## Output example

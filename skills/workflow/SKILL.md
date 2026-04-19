@@ -44,7 +44,7 @@ Gate verdicts: **APPROVE** → proceed. **CONDITIONAL** → conditions-manifest.
 
 CONDITIONAL auto-resolution (AC-4.4): spec gaps fixed inline; intent changes escalate to user/council.
 
-Build depends on design (`depends_on: ["clarify", "design"]`). To migrate legacy beta.3 projects, use `/wicked-garden:crew:adopt-legacy`.
+Build depends on design (`depends_on: ["clarify", "design"]`). To migrate legacy beta.3 projects, use `/wicked-garden:adopt-legacy`.
 
 ## Smart Decisioning
 

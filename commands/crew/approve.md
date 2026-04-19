@@ -341,7 +341,7 @@ The `approve_phase` path in `phase_manager.py` is **fail-closed** on the re-eval
 - If the addendum file exists but the most recent record's `triggered_at` **predates the phase start** → blocked with a staleness message.
 - If the JSONL record **fails `validate_reeval_addendum.py`** → the re-eval must be re-run.
 
-**Recovery**: invoke `wicked-garden:crew:propose-process` in `re-evaluate` mode, then retry approve.
+**Recovery**: invoke `wicked-garden:propose-process` in `re-evaluate` mode, then retry approve.
 
 **Emergency bypass** (AC-14): use `--skip-reeval --reason "<justification>"`. This is a **deliberate, audited bypass**:
 - Writes a skip entry to `phases/{phase}/skip-reeval-log.json`.
@@ -379,7 +379,7 @@ To mark a skip-reeval entry as resolved, edit `phases/{phase}/skip-reeval-log.js
 }
 ```
 
-**Note on the legacy gate bypass (v6.0 breaking change)**: per D3, the env-var escape hatch is **deleted in v6.0**. The only per-invocation bypass is `--skip-reeval --reason`. See `/wicked-garden:crew:adopt-legacy` to upgrade beta.3 projects.
+**Note on the legacy gate bypass (v6.0 breaking change)**: per D3, the env-var escape hatch is **deleted in v6.0**. The only per-invocation bypass is `--skip-reeval --reason`. See `/wicked-garden:adopt-legacy` to upgrade beta.3 projects.
 
 ### 5. Process Approval
 

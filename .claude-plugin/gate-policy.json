@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "description": "Codified Gate x Rigor reviewer matrix (D1, D4). Source of truth loaded by phase_manager._resolve_gate_reviewer(). Human-readable description at skills/crew/propose-process/refs/gate-policy.md.",
+  "description": "Codified Gate x Rigor reviewer matrix (D1, D4). Source of truth loaded by phase_manager._resolve_gate_reviewer(). Human-readable description at skills/propose-process/refs/gate-policy.md.",
   "gates": {
     "requirements-quality": {
       "minimal": {

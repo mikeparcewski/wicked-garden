@@ -21,7 +21,7 @@ From `project.json`:
 - Remaining phases
 - What's been completed
 
-From `${project_dir}/process-plan.json` (schema: `skills/crew/propose-process/refs/output-schema.md`):
+From `${project_dir}/process-plan.json` (schema: `skills/propose-process/refs/output-schema.md`):
 - **factors**: 9 factor readings (reversibility, blast_radius, compliance_scope, etc.) — replaces `signals_detected`
 - **complexity**: 0-7 integer
 - **rigor_tier**: `minimal | standard | full`
@@ -183,7 +183,7 @@ When a checkpoint phase completes:
 2. Re-invoke the facilitator in `re-evaluate` mode:
    ```
    Skill(
-     skill="wicked-garden:crew:propose-process",
+     skill="wicked-garden:propose-process",
      args={
        "description": "{summary of deliverables}",
        "mode": "re-evaluate",
