@@ -10,9 +10,14 @@ description: |
   Prefer this over raw Grep/Glob for symbol search, impact analysis,
   code-doc cross-references, and understanding codebase structure.
 context: fork
+status: deprecated
 ---
 
 # Unified Search Skill
+
+> **Deprecated**: This skill was replaced in v6 by the `search` domain commands
+> (`/wicked-garden:search:code`, `/wicked-garden:search:docs`,
+> `/wicked-garden:search:blast-radius`). Use those commands instead.
 
 Search across code AND documents via the unified knowledge graph.
 

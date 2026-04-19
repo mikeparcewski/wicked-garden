@@ -1,5 +1,5 @@
 ---
-name: brainstorming
+name: jam
 description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
   This skill should be used when the user wants to brainstorm, explore ideas,

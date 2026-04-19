@@ -7,6 +7,10 @@ argument-hint: "<description> [--severity critical|high|medium|low] [--component
 
 Log an incident and create traceability links back to the crew project's requirements and code.
 
+> **Scope**: `crew:incident` **logs** a production incident against an active crew project with traceability links.
+> For **rapid triage** of an active incident (root cause, blast radius, remediation), use
+> `/wicked-garden:platform:incident` instead.
+
 ## Arguments
 
 - `description` (required): Description of the incident

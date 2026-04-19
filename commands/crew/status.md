@@ -6,6 +6,10 @@ description: Show current project status, phase, and next steps
 
 Display the current project state and available integrations.
 
+> **Scope**: `crew:status` is a **read-only state view** — no phase changes, no writes.
+> To **enter the post-delivery operate phase**, use `/wicked-garden:crew:operate`.
+> If the output is hard to parse, pipe it through `/wicked-garden:crew:explain`.
+
 ## Instructions
 
 ### 1. Find Active Project

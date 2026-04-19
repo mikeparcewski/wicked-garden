@@ -7,6 +7,9 @@ argument-hint: "<requirements/design path> [--story US-ID] [--feature name] [--f
 
 Generate testable acceptance criteria from requirements and design documents.
 
+> **Scope**: `product:acceptance` **defines criteria** — what done looks like (requirements → testable ACs).
+> To **run** acceptance tests against those criteria, use `/wicked-garden:qe:acceptance` (QE side).
+
 ## Usage
 
 ```bash

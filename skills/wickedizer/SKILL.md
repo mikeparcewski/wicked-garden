@@ -7,6 +7,7 @@ description: |
   "clean up the writing", "too AI-sounding", "write like a human",
   "draft PR description", "write commit message"
 portability: portable
+status: experimental
 ---
 
 # Wickedizer: Clear, Credible, Human Writing

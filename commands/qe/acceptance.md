@@ -7,6 +7,10 @@ argument-hint: "<scenario file or directory> [--phase write|execute|review|all] 
 
 Three-agent acceptance testing pipeline that separates test design, execution, and evaluation for higher-fidelity results than self-grading.
 
+> **Scope**: `qe:acceptance` **runs** the formal acceptance pipeline against existing scenario files.
+> To **generate** test scenarios first, use `/wicked-garden:qe:scenarios`.
+> See also: `/wicked-garden:product:acceptance` (defines acceptance criteria from requirements — product side).
+
 ## Architecture
 
 ```

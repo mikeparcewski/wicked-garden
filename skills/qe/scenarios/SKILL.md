@@ -1,5 +1,5 @@
 ---
-name: scenario-authoring
+name: scenarios
 description: |
   Guide for writing E2E test scenarios in the wicked-scenarios format.
   Covers scenario structure, frontmatter fields, step format, and best practices.

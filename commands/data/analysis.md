@@ -1,11 +1,15 @@
 ---
-description: "Exploratory data analysis and insight generation"
-argument-hint: "explore <path> — perform exploratory analysis on a dataset"
+description: "Alias for data:analyze — exploratory data analysis and insight generation"
+argument-hint: "<file-path> [--focus stats|quality|warehouse|ml]"
 ---
 
 # /wicked-garden:data:analysis
 
-Explore datasets, identify patterns, and generate actionable business insights.
+> **Alias**: This command redirects to `/wicked-garden:data:analyze`, which provides the
+> same exploratory analysis with additional `--focus` routing, `--refresh`, and `--context`
+> support. Prefer `data:analyze` for new usage.
+
+Invoke `/wicked-garden:data:analyze` with the provided arguments.
 
 ## Instructions
 

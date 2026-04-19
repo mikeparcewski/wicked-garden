@@ -5,6 +5,7 @@ description: |
   Generate test scenarios from code. Identifies happy paths, error cases,
   and edge cases. Updates the active task with findings via TaskUpdate.
   Use when: test planning, what to test, test scenarios, coverage strategy
+  Phase: test-strategy (primary), design (pre-build pass). Run BEFORE test-designer — strategist plans what to test; test-designer executes it.
 
   <example>
   Context: New feature needs a test strategy before implementation.

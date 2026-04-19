@@ -5,6 +5,7 @@ description: |
   Evaluate acceptance criteria quality at the clarify phase. Checks whether ACs
   are specific, measurable, and testable. Flags ambiguous scope and missing edge cases.
   Use when: clarify phase, acceptance criteria review, requirements quality gate, SMART criteria
+  Phase: clarify (primary). Runs at the clarify gate — after requirements-analyst writes ACs, before design begins.
 
   <example>
   Context: Acceptance criteria drafted and need quality review.

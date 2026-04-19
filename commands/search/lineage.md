@@ -7,6 +7,9 @@ argument-hint: "<symbol> [--direction upstream|downstream|both] [--depth N]"
 
 Trace data lineage paths through the codebase. Follow data flow from UI fields to database columns (downstream) or reverse (upstream).
 
+> **Scope**: `lineage` answers "where does this data come from / go to?" — data flow tracing (source → sink).
+> For **dependency impact** ("what breaks if I change X?"), use `/wicked-garden:search:blast-radius` instead.
+
 ## Arguments
 
 - `symbol` (required): The symbol to trace from

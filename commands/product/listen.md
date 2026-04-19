@@ -1,11 +1,15 @@
 ---
 description: Aggregate customer feedback from available sources
 argument-hint: "[--capability type] [--days N] [--tags x,y]"
+next-step: "product:analyze"
 ---
 
 # /wicked-garden:product:listen
 
 Aggregate customer feedback from discovered sources across support, surveys, social, and direct channels.
+
+> **Pipeline**: listen → analyze → synthesize. This is step 1 of 3.
+> Run `/wicked-garden:product:analyze` next to extract themes and sentiment from the aggregated data.
 
 ## Usage
 
