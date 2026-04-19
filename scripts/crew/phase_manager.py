@@ -2329,6 +2329,16 @@ def approve_phase(
                             gate-policy.json instead of raising. When None
                             (legacy callers), existing behavior is preserved —
                             "Gate not run" raises as before.
+
+                            IMPORTANT (review-gate condition a): the
+                            `handle_approve` CLI entry always passes
+                            dispatcher=None because raw CLI invocations
+                            cannot dispatch Claude Code subagents. Only
+                            Agent-driven callers (e.g. the `crew:approve`
+                            slash command running inside claude-code) can
+                            inject a real dispatcher. `handle_approve`
+                            logs an explicit warning in that case so the
+                            behaviour is honest rather than silent.
     """
     phase = resolve_phase(phase)
     warnings: List[str] = []
@@ -3650,6 +3660,19 @@ def main():
 
     elif args.action == "approve":
         phase = args.phase or state.current_phase
+        # BLEND-RULE honesty note (review-gate condition a):
+        # The CLI `approve` path cannot dispatch subagents — only an
+        # Agent-driven caller can inject a real dispatcher. We log an
+        # explicit warning so users aren't silently surprised when
+        # `_dispatch_gate_reviewer` returns a "dispatcher-unavailable"
+        # stub instead of running reviewers. Agent-driven callers should
+        # pass `dispatcher=...` to approve_phase() directly.
+        logger.warning(
+            "CLI approve path: no dispatcher available — gate reviewers "
+            "will NOT be auto-dispatched. Use `crew:approve` via the "
+            "wicked-garden agent path to invoke reviewers, or pre-stage "
+            "a gate-result.json before approval. (BLEND-RULE)"
+        )
         try:
             state, next_phase = approve_phase(
                 state,
@@ -3661,6 +3684,7 @@ def main():
                 override_deliverables_reason=args.reason or "",
                 skip_reeval=getattr(args, "skip_reeval", False),
                 skip_reeval_reason=args.reason or "",
+                dispatcher=None,
             )
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
