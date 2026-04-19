@@ -1128,7 +1128,7 @@ def _check_gate_run(project_dir: Path, phase: str, rigor_tier: Optional[str] = N
 
 
 def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
-    """Load and validate ``gate-result.json`` for a phase.
+    """Load, validate, and orphan-check ``gate-result.json`` for a phase.
 
     **Contract shift (design-addendum-1 D-7 / #479):** this function
     previously returned ``None`` on ``json.JSONDecodeError``. It now
@@ -1141,25 +1141,31 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
     The ``None`` return is preserved when the file does not exist —
     that path still means "no gate run for this phase".
 
-    Schema validation can be opted out at runtime with
-    ``WG_GATE_RESULT_SCHEMA_VALIDATION=off`` (auto-expiring emergency
-    lever per design-addendum-1 D-1); the file is still parsed so
-    callers see a dict, but the validator is skipped.
+    Layered defenses (all increments of #471 stack here):
+      1. Schema validator (AC-1..AC-4, AC-10 env-var bypass)
+      2. Content sanitizer (AC-5, AC-6)
+      3. Dispatch-log orphan detection (AC-7) — soft-window until
+         ``WG_GATE_RESULT_STRICT_AFTER``, then REJECT.
+      4. Audit-log write on every reject path (AC-8).
+      5. Content-hash memoization cache (AC-11; ``WG_GATE_RESULT_CACHE``
+         =off for debug).
     """
     gate_file = project_dir / "phases" / phase / "gate-result.json"
     if not gate_file.exists():
         return None
 
-    # Import lazily so circular-import risk stays low (gate_result_schema
-    # lives in scripts/crew/ alongside this module — direct import OK).
-    from gate_result_schema import GateResultSchemaError, validate_gate_result
+    # Lazy imports keep hook-path cost low and avoid cycles.
+    from gate_result_schema import (
+        GateResultAuthorizationError,
+        GateResultSchemaError,
+        validate_gate_result_from_file,
+    )
+    from gate_ingest_audit import append_audit_entry
+    from dispatch_log import check_orphan
 
     try:
-        raw_text = gate_file.read_text()
+        raw_bytes = gate_file.read_bytes()
     except OSError as exc:
-        # Disk read failures are categorically different from schema
-        # violations: treat as "no usable gate result". Caller sees
-        # None (preserving pre-existing behavior for I/O errors).
         logger.warning(
             "[phase-manager] gate-result.json unreadable for phase '%s': %s",
             phase, exc,
@@ -1167,17 +1173,57 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
         return None
 
     try:
-        parsed = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        # D-7 contract shift — previously `return None`, now raise so
-        # approve_phase cannot silently proceed as if the gate never ran.
-        raise GateResultSchemaError(
-            f"malformed-json:{str(exc)[:40]}",
-            offending_field="<root>",
-            violation_class="schema",
-        ) from exc
+        parsed = validate_gate_result_from_file(gate_file)
+    except GateResultSchemaError as exc:
+        # Audit the reject path (AC-8). Failures here are logged to
+        # stderr by the audit module — reject still propagates.
+        event = (
+            "sanitization_violation" if exc.violation_class == "content"
+            else (
+                "malformed_json"
+                if exc.reason.startswith("malformed-json:")
+                else "schema_violation"
+            )
+        )
+        append_audit_entry(
+            project_dir, phase,
+            event=event,
+            reason=exc.reason,
+            offending_field=exc.offending_field,
+            offending_value=exc.offending_value_excerpt,
+            raw_bytes=raw_bytes,
+        )
+        raise
 
-    validate_gate_result(parsed)
+    # Orphan detection (AC-7) — soft-window: warn + allow pre-cutover,
+    # REJECT post-cutover. Schema + content violations still REJECT
+    # unconditionally (caught above).
+    try:
+        check_orphan(parsed, project_dir, phase)
+    except GateResultAuthorizationError as exc:
+        today = datetime.now(timezone.utc).date()
+        from dispatch_log import _get_strict_after_date
+        if today >= _get_strict_after_date():
+            # Strict mode — hard reject, like schema/content violations.
+            append_audit_entry(
+                project_dir, phase,
+                event="unauthorized_dispatch",
+                reason=exc.reason,
+                offending_field=exc.offending_field,
+                offending_value=exc.offending_value_excerpt,
+                raw_bytes=raw_bytes,
+            )
+            raise
+        # Soft window — audit as "accepted_legacy" and fall through.
+        append_audit_entry(
+            project_dir, phase,
+            event="unauthorized_dispatch_accepted_legacy",
+            reason=exc.reason,
+            offending_field=exc.offending_field,
+            offending_value=exc.offending_value_excerpt,
+            raw_bytes=raw_bytes,
+        )
+
     return parsed
 
 

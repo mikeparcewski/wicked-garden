@@ -27,6 +27,8 @@ The module is stdlib-only and fail-open on env-var opt-out
 
 from __future__ import annotations
 
+import hashlib as _hashlib_top  # aliased to avoid duplicate symbol
+import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -586,6 +588,88 @@ def validate_gate_result(data: Any) -> None:
     sanitize_gate_result(data)
 
 
+# ---------------------------------------------------------------------------
+# Increment 3 — AC-11 content-hash cache (design-addendum-2 § CH-02)
+# ---------------------------------------------------------------------------
+
+
+_CACHE_MAX_ENTRIES: int = 512
+_VALIDATION_CACHE: Dict[Any, Dict[str, Any]] = {}
+
+
+def _cache_disabled() -> bool:
+    return os.environ.get("WG_GATE_RESULT_CACHE", "").strip().lower() == "off"
+
+
+def _cache_key(path: str, mtime_ns: int, sha256_hex: str) -> tuple:
+    return (path, mtime_ns, sha256_hex)
+
+
+def _cache_get(key: tuple) -> Optional[Dict[str, Any]]:
+    if _cache_disabled():
+        return None
+    return _VALIDATION_CACHE.get(key)
+
+
+def _cache_put(key: tuple, value: Dict[str, Any]) -> None:
+    if _cache_disabled():
+        return
+    # Simple bound — when full, drop the oldest insert (insertion order
+    # is preserved by Python dicts). This is an LRU-ish bound sufficient
+    # for the crew's "one project active at a time" process model.
+    if len(_VALIDATION_CACHE) >= _CACHE_MAX_ENTRIES:
+        try:
+            first_key = next(iter(_VALIDATION_CACHE))
+            _VALIDATION_CACHE.pop(first_key, None)
+        except StopIteration:  # pragma: no cover — defensive
+            pass  # intentional: empty cache means nothing to evict
+    _VALIDATION_CACHE[key] = value
+
+
+def _clear_cache_for_tests() -> None:
+    """Test helper — never called from production paths."""
+    _VALIDATION_CACHE.clear()
+
+
+def validate_gate_result_from_file(
+    gate_file: Path,
+) -> Dict[str, Any]:
+    """Parse + validate + sanitize a gate-result.json file, with a
+    content-hash memoization cache (AC-11 perf SLO).
+
+    Cache key is ``(abs_path, mtime_ns, sha256_of_bytes)`` — mtime
+    alone is not enough (concurrent writes with identical mtime are
+    possible); content-hash closes that gap. The cache short-circuits
+    the entire validate + sanitize chain; it NEVER bypasses
+    validation (that is what ``WG_GATE_RESULT_SCHEMA_VALIDATION=off``
+    and the sanitizer flag are for).
+
+    Raises :class:`GateResultSchemaError` on any violation. The cache
+    is populated only on successful validation.
+    """
+    raw_bytes = gate_file.read_bytes()
+    stat = gate_file.stat()
+    sha_hex = _hashlib_top.sha256(raw_bytes).hexdigest()
+    key = _cache_key(str(gate_file.resolve()), stat.st_mtime_ns, sha_hex)
+
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+
+    try:
+        parsed = json.loads(raw_bytes.decode("utf-8", errors="strict"))
+    except json.JSONDecodeError as exc:
+        raise GateResultSchemaError(
+            f"malformed-json:{str(exc)[:40]}",
+            offending_field="<root>",
+            violation_class="schema",
+        ) from exc
+
+    validate_gate_result(parsed)
+    _cache_put(key, parsed)
+    return parsed
+
+
 __all__ = [
     "BANNED_SOURCE_AGENTS",
     "BANNED_SOURCE_AGENT_PREFIXES",
@@ -593,4 +677,5 @@ __all__ = [
     "GateResultAuthorizationError",
     "GateResultSchemaError",
     "validate_gate_result",
+    "validate_gate_result_from_file",
 ]

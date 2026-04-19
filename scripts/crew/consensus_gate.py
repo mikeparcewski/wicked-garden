@@ -257,25 +257,58 @@ def evaluate_consensus_gate(
     strong_dissent_blocks = phase_config.get("strong_dissent_blocks", True)
     confidence_threshold = phase_config.get("confidence_threshold", 0.7)
 
-    # Load gate result
+    # Load gate result through phase_manager._load_gate_result so the
+    # same schema + sanitizer + orphan-detection defenses apply in the
+    # consensus path (design-addendum-1 § D-4). A malformed file that
+    # approve_phase would reject must NOT silently flow into consensus.
     project_path = Path(project_dir)
-    gate_file = project_path / "phases" / phase / "gate-result.json"
-    if not gate_file.exists():
-        logger.warning(
-            "[consensus-gate] No gate-result.json found for phase '%s' — "
-            "skipping consensus evaluation",
-            phase,
-        )
-        return None
-
     try:
-        gate_result = json.loads(gate_file.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
+        from phase_manager import _load_gate_result  # local import avoids cycles
+        from gate_result_schema import GateResultSchemaError
+    except ImportError as exc:  # pragma: no cover — defensive, should never happen
         logger.warning(
-            "[consensus-gate] Failed to load gate-result.json for phase '%s': %s",
+            "[consensus-gate] gate-result-schema module unavailable "
+            "(phase='%s'): %s — falling back to best-effort raw parse",
             phase, exc,
         )
-        return None
+        _load_gate_result = None
+        GateResultSchemaError = Exception  # type: ignore[assignment,misc]
+
+    if _load_gate_result is not None:
+        try:
+            gate_result = _load_gate_result(project_path, phase)
+        except GateResultSchemaError as exc:
+            logger.warning(
+                "[consensus-gate] gate-result.json for phase '%s' failed "
+                "validation: %s — skipping consensus evaluation",
+                phase, exc,
+            )
+            return None
+        if gate_result is None:
+            logger.warning(
+                "[consensus-gate] No gate-result.json found for phase '%s' — "
+                "skipping consensus evaluation",
+                phase,
+            )
+            return None
+    else:
+        # Defensive fallback — only reachable if the import above failed.
+        gate_file = project_path / "phases" / phase / "gate-result.json"
+        if not gate_file.exists():
+            logger.warning(
+                "[consensus-gate] No gate-result.json found for phase '%s' — "
+                "skipping consensus evaluation",
+                phase,
+            )
+            return None
+        try:
+            gate_result = json.loads(gate_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning(
+                "[consensus-gate] Failed to load gate-result.json "
+                "for phase '%s': %s", phase, exc,
+            )
+            return None
 
     # Build proposals from each specialist perspective
     proposals = build_gate_proposals(gate_result, phase, project_state, proposers)
