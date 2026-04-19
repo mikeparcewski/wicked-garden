@@ -1,5 +1,6 @@
 ---
 name: delivery-manager
+subagent_type: wicked-garden:delivery:delivery-manager
 description: |
   Sprint and project delivery management. Track velocity, plan sprints,
   manage scope, and coordinate cross-team dependencies.

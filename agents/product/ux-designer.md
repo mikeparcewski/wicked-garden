@@ -1,5 +1,6 @@
 ---
 name: ux-designer
+subagent_type: wicked-garden:product:ux-designer
 description: |
   Design and evaluate user flows, interaction patterns, and information architecture.
   Works generatively (create flows from requirements) and analytically (audit existing

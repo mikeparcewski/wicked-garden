@@ -1,5 +1,6 @@
 ---
 name: continuous-quality-monitor
+subagent_type: wicked-garden:qe:continuous-quality-monitor
 description: |
   Monitor quality signals during the build phase. Runs lint and static analysis,
   tracks complexity metrics, monitors test coverage, and coaches TDD rhythm.

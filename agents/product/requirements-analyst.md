@@ -1,5 +1,6 @@
 ---
 name: requirements-analyst
+subagent_type: wicked-garden:product:requirements-analyst
 description: |
   Elicit and document requirements with precision. Transform vague ideas into
   clear user stories with testable acceptance criteria.

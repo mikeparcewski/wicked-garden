@@ -1,5 +1,6 @@
 ---
 name: market-strategist
+subagent_type: wicked-garden:product:market-strategist
 description: |
   Combined business case + competitive strategy. Builds ROI analysis for technical
   investments AND analyzes competitive landscape, SWOT, Porter's Five Forces,

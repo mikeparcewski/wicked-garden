@@ -1,5 +1,6 @@
 ---
 name: chaos-engineer
+subagent_type: wicked-garden:platform:chaos-engineer
 description: |
   Failure-mode thinking and resilience testing specialist. Designs chaos
   experiments, plans game days, injects controlled failures (latency, errors,

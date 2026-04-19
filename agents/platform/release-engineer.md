@@ -1,5 +1,6 @@
 ---
 name: release-engineer
+subagent_type: wicked-garden:platform:release-engineer
 description: |
   Release management, versioning strategies, deployment coordination, and
   rollback procedures. Focus on semantic versioning, changelog generation,

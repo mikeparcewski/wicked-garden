@@ -1,5 +1,6 @@
 ---
 name: api-documentarian
+subagent_type: wicked-garden:engineering:api-documentarian
 description: |
   Specialize in API documentation - OpenAPI specs, endpoint documentation, request/response
   examples, and error documentation. Create comprehensive, accurate API reference materials.

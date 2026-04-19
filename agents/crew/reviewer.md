@@ -1,5 +1,6 @@
 ---
 name: reviewer
+subagent_type: wicked-garden:crew:reviewer
 description: |
   Perform basic code review and validation.
   Use when: general code review without a domain-specific specialist available.

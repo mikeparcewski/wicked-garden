@@ -1,5 +1,6 @@
 ---
 name: test-designer
+subagent_type: wicked-garden:qe:test-designer
 description: |
   End-to-end acceptance test designer. Owns the full Write → Execute → Analyze →
   Verdict loop in one role: reads scenarios, produces evidence-gated test plans,

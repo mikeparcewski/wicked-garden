@@ -1,5 +1,6 @@
 ---
 name: risk-monitor
+subagent_type: wicked-garden:delivery:risk-monitor
 description: |
   Risk tracking and escalation management. Identifies delivery risks,
   tracks mitigation progress, and manages dependency chains.

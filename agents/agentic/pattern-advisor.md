@@ -1,5 +1,6 @@
 ---
 name: pattern-advisor
+subagent_type: wicked-garden:agentic:pattern-advisor
 description: |
   Pattern recognition, anti-pattern detection, refactoring recommendations,
   design pattern application, and code quality for agentic systems.

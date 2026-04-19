@@ -1,5 +1,6 @@
 ---
 name: cloud-cost-intelligence
+subagent_type: wicked-garden:delivery:cloud-cost-intelligence
 description: |
   Cloud/infrastructure cost analysis AND optimization in one agent. Analyzes billing
   data to identify cost drivers, anomalies, budget variance, and untagged spend —

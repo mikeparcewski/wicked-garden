@@ -1,5 +1,6 @@
 ---
 name: ml-engineer
+subagent_type: wicked-garden:data:ml-engineer
 description: |
   ML model development, training pipeline design, feature engineering, and deployment guidance.
   Ensures ML systems are robust, monitored, and maintainable.

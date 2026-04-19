@@ -1,5 +1,6 @@
 ---
 name: ui-reviewer
+subagent_type: wicked-garden:product:ui-reviewer
 description: |
   Visual and UI design review. Evaluates design-system adherence, component patterns,
   spacing/typography/color correctness, responsive behavior, and visual polish.

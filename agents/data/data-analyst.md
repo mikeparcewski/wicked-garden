@@ -1,5 +1,6 @@
 ---
 name: data-analyst
+subagent_type: wicked-garden:data:data-analyst
 description: |
   Data exploration, statistical analysis, insight generation, and visualization guidance.
   Helps understand what the data is telling you.

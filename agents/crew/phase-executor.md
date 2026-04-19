@@ -1,5 +1,6 @@
 ---
 name: phase-executor
+subagent_type: wicked-garden:crew:phase-executor
 description: |
   Produce the current phase's deliverables and run phase-start / phase-end re-evaluations
   for a mode-3 wicked-crew project. Use when: phase_manager.execute() dispatches a phase

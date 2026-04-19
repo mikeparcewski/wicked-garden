@@ -1,5 +1,6 @@
 ---
 name: progress-tracker
+subagent_type: wicked-garden:delivery:progress-tracker
 description: |
   Track and report progress against milestones, goals, and deadlines.
   Monitor completion rates, identify slippage, and forecast outcomes.

@@ -1,5 +1,6 @@
 ---
 name: experiment-designer
+subagent_type: wicked-garden:delivery:experiment-designer
 description: |
   Design rigorous experiments with statistical analysis. Formulate hypotheses,
   select metrics, calculate sample sizes, and ensure experimental validity.

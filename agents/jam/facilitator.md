@@ -1,5 +1,6 @@
 ---
 name: facilitator
+subagent_type: wicked-garden:jam:facilitator
 description: |
   Role-plays as focus group personas and synthesizes brainstorming discussions.
   Use when: brainstorming, ideation, focus group, creative exploration

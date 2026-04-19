@@ -1,5 +1,6 @@
 ---
 name: contract-testing-engineer
+subagent_type: wicked-garden:qe:contract-testing-engineer
 description: |
   API contract testing specialist. Designs and reviews consumer-driven contracts,
   Pact-style tests, OpenAPI contract verification, schema versioning, and breaking

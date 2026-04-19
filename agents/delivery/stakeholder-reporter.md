@@ -1,5 +1,6 @@
 ---
 name: stakeholder-reporter
+subagent_type: wicked-garden:delivery:stakeholder-reporter
 description: |
   Generate multi-perspective stakeholder reports covering Delivery, Engineering,
   Product, QE, Architecture, and DevSecOps viewpoints.

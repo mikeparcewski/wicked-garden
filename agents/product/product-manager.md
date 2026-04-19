@@ -1,5 +1,6 @@
 ---
 name: product-manager
+subagent_type: wicked-garden:product:product-manager
 description: |
   Strategic product thinking: roadmap planning, prioritization, trade-offs,
   and business value alignment. Balances customer needs with delivery capacity.

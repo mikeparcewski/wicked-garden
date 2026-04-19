@@ -1,5 +1,6 @@
 ---
 name: gate-evaluator
+subagent_type: wicked-garden:crew:gate-evaluator
 description: |
   Fast-path objective gate evaluator for minimal-tier and self-check gates. Use when:
   a gate-policy.json entry declares `mode: self-check` OR has an empty `reviewers` list

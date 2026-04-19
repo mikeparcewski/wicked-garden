@@ -1,5 +1,6 @@
 ---
 name: independent-reviewer
+subagent_type: wicked-garden:crew:independent-reviewer
 description: |
   Independent phase reviewer with cold context. Audits crew phase
   deliverables, test coverage, and evidence quality — no prior

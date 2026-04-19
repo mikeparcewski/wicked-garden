@@ -1,5 +1,6 @@
 ---
 name: data-engineer
+subagent_type: wicked-garden:data:data-engineer
 description: |
   ETL pipeline design, data quality assessment, schema validation, and performance optimization.
   Reviews data architectures and ensures robust data engineering practices.

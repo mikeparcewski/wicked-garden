@@ -1,5 +1,6 @@
 ---
 name: value-strategist
+subagent_type: wicked-garden:product:value-strategist
 description: |
   Value-proposition design AND stakeholder alignment in one agent. Designs value
   propositions using Jobs-to-be-Done, pain/gain mapping, and differentiation axes;

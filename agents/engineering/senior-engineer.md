@@ -1,5 +1,6 @@
 ---
 name: senior-engineer
+subagent_type: wicked-garden:engineering:senior-engineer
 description: |
   Senior engineering perspective on code quality, architecture patterns,
   maintainability, and implementation guidance. Reviews from developer mindset

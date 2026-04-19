@@ -1,5 +1,6 @@
 ---
 name: backend-engineer
+subagent_type: wicked-garden:engineering:backend-engineer
 description: |
   Backend engineering specialist focusing on APIs, databases, server-side
   patterns, data modeling, scalability, and integration design.

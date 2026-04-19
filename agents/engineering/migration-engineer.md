@@ -1,5 +1,6 @@
 ---
 name: migration-engineer
+subagent_type: wicked-garden:engineering:migration-engineer
 description: |
   Schema migrations, data backfills, deprecation paths, rollback plans, and
   zero-downtime cutovers. Specializes in moving a live production system from

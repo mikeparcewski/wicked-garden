@@ -1,5 +1,6 @@
 ---
 name: memory-learner
+subagent_type: wicked-garden:mem:memory-learner
 description: |
   Extract and structure learnings from completed tasks.
   Use when: capturing decisions, patterns, and episodic memories after completing work.
