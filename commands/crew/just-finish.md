@@ -1,10 +1,28 @@
 ---
 description: Execute remaining work with maximum autonomy and guardrails
+argument-hint: "[--yolo --justification \"<text>\"]"
 ---
 
 # /wicked-garden:crew:just-finish
 
 Continue project with maximum autonomy, respecting safety guardrails.
+
+## When to use this vs the others
+
+| Command | What it does |
+|---------|-------------|
+| `crew:execute` | Run a **single phase** to completion |
+| `crew:just-finish` | Run **ALL remaining phases** to completion |
+| `crew:auto-approve` | Toggle the APPROVE-auto-advance flag (**no execution**) |
+
+## Flags
+
+- `--yolo`: Grant auto-approve inline before running remaining phases. Applies the same
+  guardrails as `crew:auto-approve --approve` (justification required at full rigor,
+  cooldown enforced, second-persona review sentinel required). CONDITIONAL and REJECT
+  verdicts always surface to the user regardless. Equivalent to running
+  `crew:auto-approve --approve` then `crew:just-finish` in sequence.
+- `--justification "<text>"`: Required with `--yolo` at full rigor (>= 40 chars).
 
 ## Instructions
 

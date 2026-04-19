@@ -7,6 +7,10 @@ argument-hint: "<target> [--focus flows|ui|a11y|research|all] [--quick]"
 
 Comprehensive UX and design quality review covering user flows, visual consistency, accessibility, and user research.
 
+> **Scope**: `ux-review` is for **broad design audits** — evaluating existing UI, flows,
+> accessibility, and research quality across a surface. For **generative flow design**
+> (creating user journeys from requirements), use `/wicked-garden:product:ux` instead.
+
 ## Usage
 
 ```bash

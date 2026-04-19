@@ -9,9 +9,15 @@ description: |
   "test this scenario", "acceptance criteria", "validate the feature"
 context: fork
 agent: test-designer
+status: deprecated
 ---
 
 # Acceptance Testing
+
+> **Deprecated**: This skill was replaced in v6 by `/wicked-garden:qe:acceptance`
+> (three-agent pipeline) and the `test-designer` agent. Use those instead.
+
+
 
 Three-agent pipeline that separates test writing, execution, and review for higher-fidelity acceptance testing.
 

@@ -5,6 +5,7 @@ description: |
   Discover and validate user needs. Create personas, map journeys, and ensure
   empathy-driven design. SOLE OWNER of user research activities.
   Use when: personas, user research, journey mapping, user needs
+  Boundary: user-researcher owns PRIMARY RESEARCH (creating personas, mapping journeys, conducting interviews). For FEEDBACK ANALYSIS on existing data (support tickets, surveys, reviews, NPS), use user-voice instead.
 
   <example>
   Context: Starting a new product and need to understand users.

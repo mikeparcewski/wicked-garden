@@ -10,6 +10,7 @@ description: |
   installed, available CLIs, building task execution strategies, or when unsure which tools,
   skills, or agents to use for current work.
 user-invocable: false
+status: experimental
 ---
 
 # Capability Router

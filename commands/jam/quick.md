@@ -5,7 +5,10 @@ argument-hint: "<idea or question>"
 
 # /wicked-garden:jam:quick
 
-Quick 60-second exploration with 4 personas and 1 round. Still gathers available evidence and stores a lightweight decision record after synthesis.
+Quick 60-second exploration with 4 personas and 1 round.
+
+> **Progression**: `quick` (60s gut-check) → `brainstorm` (full session with evidence) → `council` (structured verdict with external LLMs).
+> See also: `/wicked-garden:jam:brainstorm`, `/wicked-garden:jam:council` Still gathers available evidence and stores a lightweight decision record after synthesis.
 
 This command uses forced fast convergence: exactly 1 round, then immediately synthesize. Do NOT run additional rounds regardless of topic complexity. The point is speed to outcome.
 
