@@ -147,10 +147,48 @@ Rationale: per Issue #443 acceptance, common-cause variation must not trigger
 new process gates. Special-cause classification (outside 3σ) or a >=15% drop
 are the only signals worth escalating.
 
+### 6c. Show Convergence Lifecycle (Issue #445)
+
+Additive section — surfaces per-artifact convergence state. The script is
+fail-open: it returns an empty status dict when no convergence log exists,
+so this section stays silent for projects that have not started tracking.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/crew/convergence.py" status \
+  --project "$PROJECT" 2>/dev/null || true
+
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/crew/convergence.py" stall \
+  --project "$PROJECT" 2>/dev/null || true
+```
+
+If the status response has `total > 0`, render an additive section AFTER the
+existing Phase Progress table (do not restructure the existing output):
+
+```markdown
+### Convergence Lifecycle
+
+| Artifact | State | Sessions in state | Over budget? | Last phase |
+|----------|-------|-------------------|--------------|------------|
+| {id} | {state} | {n} | {yes/no} | {phase} |
+
+**Stalls** ({count}):
+- {artifact}: stuck in {state} for {n} sessions
+
+See `/wicked-garden:crew:convergence` for the raw lifecycle view and
+`convergence verify-gate` for the review-phase gate verdict.
+```
+
+If the convergence log does not exist (empty output or `total == 0`), skip
+this section entirely — no noise on projects that do not use convergence
+tracking yet.
+
 ### 7. Suggest Actions
 
 Based on current state:
 - If phase awaiting approval: suggest `/wicked-garden:crew:approve {phase}`
 - If phase in progress: suggest `/wicked-garden:crew:execute`
 - If operate phase active: suggest `/wicked-garden:crew:incident`, `/wicked-garden:crew:feedback`, or `/wicked-garden:crew:retro`
+- If convergence stalls surfaced: suggest `/wicked-garden:crew:convergence stall` for the full view
 - If project complete: show completion summary

@@ -1348,6 +1348,55 @@ def _check_final_audit_skip_logs(state: "ProjectState") -> List[str]:
     return findings
 
 
+def _check_convergence_gate(state: "ProjectState") -> List[str]:
+    """Evaluate the `convergence-verify` gate for the review phase (#445).
+
+    Pulls artifact convergence state from convergence.py and returns a list of
+    CONDITIONAL finding strings when any artifact is still in a pre-Integrated
+    state or stuck for >= stall-threshold sessions.
+
+    Fails open on:
+        - missing module (module not importable)
+        - missing log file (no convergence data recorded yet)
+        - `CREW_GATE_ENFORCEMENT=legacy`
+
+    Returns:
+        List of human-readable CONDITIONAL finding strings.  Empty means the
+        gate passed (or was bypassed).  These are warnings, not hard REJECTs —
+        they are appended to the approve_phase warnings list so the reviewer
+        sees them without the approval itself being blocked by this gate.
+    """
+    try:
+        from convergence import evaluate_review_gate as _eval_cv_gate
+    except ImportError:
+        logger.warning("[convergence-verify] convergence module not importable — skipping")
+        return []
+
+    try:
+        project_dir = get_project_dir(state.name)
+    except ValueError:
+        return []
+
+    try:
+        result = _eval_cv_gate(project_dir)
+    except Exception as exc:  # noqa: BLE001 — fail-open
+        logger.warning("[convergence-verify] evaluate_review_gate failed: %s", exc)
+        return []
+
+    # Legacy bypass already handled inside evaluate_review_gate.
+    if result.get("result") == "APPROVE":
+        return []
+
+    findings: List[str] = []
+    for finding in result.get("findings", []):
+        msg = finding.get("message") or ""
+        kind = finding.get("kind", "?")
+        if not msg:
+            continue
+        findings.append(f"[convergence-verify:{kind}] {msg}")
+    return findings
+
+
 def _load_session_dispatches() -> List[Dict[str, Any]]:
     """Load specialist dispatch records from session state file."""
     import os
@@ -1433,6 +1482,20 @@ def approve_phase(
                 "[final-audit] %d unresolved skip-reeval entries detected — "
                 "gate verdict is CONDITIONAL until entries are resolved.",
                 len(skip_log_findings),
+            )
+
+    # Check 0.2 (#445): convergence-verify gate surfaces pre-Integrated and
+    # stalled artifacts in the review phase. Additive CONDITIONAL findings —
+    # the reviewer sees them without the approval path blocking on them.
+    # Fails open on missing log / module import error / legacy enforcement.
+    if resolve_phase(phase) == "review":
+        convergence_findings = _check_convergence_gate(state)
+        if convergence_findings:
+            for finding in convergence_findings:
+                warnings.append(f"[convergence-verify CONDITIONAL] {finding}")
+            logger.warning(
+                "[convergence-verify] %d convergence gate finding(s) for review phase.",
+                len(convergence_findings),
             )
 
     # Check 1: deliverables for the phase being approved — BLOCKING

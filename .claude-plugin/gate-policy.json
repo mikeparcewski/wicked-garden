@@ -120,6 +120,23 @@
         "mode": "sequential",
         "fallback": "human"
       }
+    },
+    "convergence-verify": {
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "senior-engineer"
+      },
+      "standard": {
+        "reviewers": ["senior-engineer"],
+        "mode": "sequential",
+        "fallback": "senior-engineer"
+      },
+      "full": {
+        "reviewers": ["senior-engineer", "independent-reviewer"],
+        "mode": "parallel",
+        "fallback": "senior-engineer"
+      }
     }
   }
 }
