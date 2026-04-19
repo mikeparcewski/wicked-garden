@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.3.1] - 2026-04-19
+
+### Bug Fixes
+- fix(qe): semantic-review scans empty corpus when project_dir contains only phases/ — plumb impl_dir/test_dir from repo root (closes #530)
+- fix(crew): yolo CONDITIONAL block ignored --override-gate flag despite error message promising it worked (closes #531)
+
 ## [6.3.0] - 2026-04-19
 
 ### Features

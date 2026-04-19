@@ -2228,6 +2228,40 @@ def _check_semantic_alignment_gate(
             f"[semantic-alignment] advisory skip — import error: {exc}"
         ]
 
+    # Resolve impl/test dirs.
+    #
+    # The crew project_dir stores only spec artefacts under phases/* — scanning
+    # it directly yields an empty implementation corpus and causes every AC to
+    # be reported as MISSING (bug #530).  We detect this case and fall back to
+    # the plugin/repo root as the scan target.
+    #
+    # Detection heuristic: if project_dir has NO top-level children other than
+    # phases/ (and hidden dirs), treat it as a spec-only dir and use the repo
+    # root instead.  When project_dir does contain implementation files (e.g.
+    # tests that set up src/ alongside phases/), the old behaviour is preserved.
+    #
+    # Environment overrides (WG_SEMANTIC_IMPL_DIR / WG_SEMANTIC_TEST_DIR)
+    # always take priority, allowing operators to pin an exact scan root.
+    import os as _os
+    _repo_root = Path(__file__).resolve().parents[2]
+
+    if _os.environ.get("WG_SEMANTIC_IMPL_DIR"):
+        _impl_dir: Optional[Path] = Path(_os.environ["WG_SEMANTIC_IMPL_DIR"])
+    else:
+        # Check whether project_dir has any non-phases/ non-hidden top-level
+        # entries — if not, fall back to the repo root (bug #530 fix).
+        _non_phases = [
+            child for child in project_dir.iterdir()
+            if child.name != "phases" and not child.name.startswith(".")
+        ] if project_dir.is_dir() else []
+        _impl_dir = project_dir if _non_phases else _repo_root
+
+    _test_dir: Optional[Path] = (
+        Path(_os.environ["WG_SEMANTIC_TEST_DIR"])
+        if _os.environ.get("WG_SEMANTIC_TEST_DIR")
+        else None
+    )
+
     # Run the review, fail-safe on any exception.
     try:
         report = semantic_review.review_project(
@@ -2236,6 +2270,8 @@ def _check_semantic_alignment_gate(
             complexity=complexity,
             ac_file=ac_file if ac_file.exists() else None,
             objective_file=obj_file if obj_file.exists() else None,
+            impl_dir=_impl_dir,
+            test_dir=_test_dir,
         )
     except Exception as exc:  # noqa: BLE001 — see docstring: fail safe.
         logger.warning(
@@ -3319,21 +3355,54 @@ def approve_phase(
                     },
                 )
         elif _verdict == "CONDITIONAL":
-            # Surface CONDITIONAL to the user — do not silently advance
-            # under yolo. Conditions-manifest has already been written
-            # above (Check 2b). Raise so the CLI exits non-zero and the
-            # user sees the manifest path in the error text.
-            conditions_manifest = (
-                get_project_dir(state.name) / "phases" / phase
-                / "conditions-manifest.json"
-            )
-            raise ValueError(
-                f"Phase '{phase}' gate verdict is CONDITIONAL under yolo "
-                f"— auto-advance blocked. Review "
-                f"{conditions_manifest} and re-run approve after "
-                f"conditions are resolved, or pass --override-gate "
-                f"with a reason to bypass."
-            )
+            if override_gate:
+                # User has explicitly approved the CONDITIONAL advance under
+                # yolo via --override-gate.  Record the override + audit, then
+                # fall through to advance (do not raise).
+                if not override_reason:
+                    raise ValueError(
+                        f"Phase '{phase}' gate verdict is CONDITIONAL under yolo "
+                        f"with --override-gate: --reason must be non-empty."
+                    )
+                try:
+                    _project_dir_yolo = get_project_dir(state.name)
+                except Exception:
+                    _project_dir_yolo = None
+                if _project_dir_yolo is not None:
+                    _record_gate_override(
+                        _project_dir_yolo, phase, override_reason, approver
+                    )
+                    _append_yolo_audit(
+                        _project_dir_yolo,
+                        event="user-override-conditional",
+                        reason=f"phase:{phase} verdict:CONDITIONAL override:{override_reason}",
+                        prior_value=True,
+                        new_value=True,
+                        extra={
+                            "phase": phase,
+                            "verdict": "CONDITIONAL",
+                            "score": gate_result.get("score"),
+                            "reviewer": gate_result.get("reviewer"),
+                            "override_reason": override_reason,
+                        },
+                    )
+                # Do not raise — let advance proceed.
+            else:
+                # Surface CONDITIONAL to the user — do not silently advance
+                # under yolo. Conditions-manifest has already been written
+                # above (Check 2b). Raise so the CLI exits non-zero and the
+                # user sees the manifest path in the error text.
+                conditions_manifest = (
+                    get_project_dir(state.name) / "phases" / phase
+                    / "conditions-manifest.json"
+                )
+                raise ValueError(
+                    f"Phase '{phase}' gate verdict is CONDITIONAL under yolo "
+                    f"— auto-advance blocked. Review "
+                    f"{conditions_manifest} and re-run approve after "
+                    f"conditions are resolved, or pass --override-gate "
+                    f"with a reason to bypass."
+                )
 
     # Emit gate decision to wicked-bus
     if gate_result:
