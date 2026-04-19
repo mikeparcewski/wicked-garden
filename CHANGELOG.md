@@ -1,5 +1,24 @@
 # Changelog
 
+## [6.3.0] - 2026-04-19
+
+### Features
+- feat(crew): phase-boundary QE evaluator + archetype detection + gate-policy authority swap (closes #527, partial #528)
+  - New `agents/crew/qe-evaluator.md` (+ `scripts/crew/qe_evaluator.py` companion) replaces `test-strategist` at `gate-policy.json:testability.standard` and is added at `evidence-quality.standard` as sole reviewer at both gates.
+  - New `scripts/crew/archetype_detect.py` — stdlib-only heuristic, 7-archetype priority order (schema-migration > multi-repo > testing-only > config-infra > skill-agent-authoring > docs-only > code-repo), `DOMINANCE_RATIO=4` strict, negative signals first-class.
+  - Facilitator rubric (`skills/propose-process/SKILL.md` Step 6 + `refs/evidence-framing.md`) emits `archetype` in TaskCreate metadata at clarify time; per-archetype test_types/evidence_required guidance added (partial #528 fix).
+  - MVP ships 4 archetypes (code-repo, docs-only, skill-agent-authoring, config-infra); remaining 3 fall back to code-repo conservatively.
+  - Multi-repo missing `affected_repos` → CONDITIONAL with deterministic reason strings (`"multi-repo: affected_repos missing"` / `"... empty"`).
+  - `reeval_addendum` schema bumped 1.0→1.1.0 (additive archetype fields; backward-compat verified); new `_validate_record` rules enforce `qe-evaluator:` trigger cannot write `mutations`/`mutations_applied` or reference non-target-gate manifest paths.
+  - `scripts/_event_schema.py` TaskCreate metadata accepts optional `archetype` field with 7-value enum.
+
+### Removed
+- `scripts/qe/_bus_consumers.py` (qe:scenario-scaffold consumer) + entry 38 in `scripts/_bus_consumers.json` — superseded by qe-evaluator.
+
+### Tests
+- +69 new tests across `tests/crew/test_archetype_detect.py`, `test_reeval_addendum_schema.py`, `test_skill_docs_archetype_coverage.py`, `test_consumer_deletion.py`, `test_qe_evaluator_dispatch.py`, `test_atomic_landing_guard.py`, `tests/integration/test_qe_evaluator_lifecycle.py`, `tests/test_event_schema_archetype.py`.
+- 690 passed / 0 failed / 1 deselected (benchmark) in 1.99s.
+
 ## [6.2.0] - 2026-04-19
 
 ### Features

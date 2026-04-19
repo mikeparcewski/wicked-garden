@@ -83,19 +83,24 @@ crisp bugfix, insert `migrate` between `design` and `build` when state_complexit
 do not use facilitator judgment to skip it. For each phase, emit: `name`, `why` (one
 sentence), `primary: [specialist-name, ...]` (owners from Step 4). See `refs/phase-catalog.md`.
 
-### 6. Assign evidence metadata per task
+### 6. Select archetype + assign evidence metadata per task
 
-- `test_required` — bool. False only for pure docs, internal rename with no behavior
-  change, or config-only flag flips with no new code paths.
+**Archetype selection (clarify time)**: Select one archetype and emit it in every
+`TaskCreate` `metadata.archetype`. 7-value enum (priority order, first match wins):
+`schema-migration` → `multi-repo` → `testing-only` → `config-infra` →
+`skill-agent-authoring` → `docs-only` → `code-repo` (fallback). Call
+`archetype_detect.detect_archetype()` when available; see `refs/evidence-framing.md`.
+
+- `test_required` — bool. False only for pure docs, rename with no behavior change, or
+  config flag flips with no new code paths.
 - `test_types` — subset of `{unit, integration, api, ui, acceptance, migration, security,
   a11y, performance}`. Functional framing: **input → output → observable analysis**.
   Do NOT set coverage thresholds.
 - `evidence_required` — subset of `{unit-results, integration-results, acceptance-report,
   screenshot-before-after, api-contract-diff, migration-rollback-plan,
   compliance-traceability, security-scan, performance-baseline, a11y-report}`. Minimum
-  that proves the task did what it claims.
-
-See `refs/evidence-framing.md` for worked examples.
+  that proves the task did what it claims. Per-archetype defaults in
+  `refs/evidence-framing.md`.
 
 ### 7. Assign rigor tier
 
@@ -178,21 +183,16 @@ Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew
 
 ## Measurement hook
 
-`scripts/ci/measure_facilitator.py` invokes this rubric in dry-run. With `output=json`, emit one JSON object matching `refs/output-schema.md` instead of creating tasks.
-
-## Process memory (issue #447)
-
-Before Step 3 (factor scoring), read per-project process memory — unresolved retro AIs + open kaizen hypotheses change the plan. See [`refs/process-memory.md`](refs/process-memory.md).
+`scripts/ci/measure_facilitator.py` invokes this rubric in dry-run. With `output=json`, emit one JSON object matching `refs/output-schema.md` instead of creating tasks. Before Step 3 (factor scoring), read per-project process memory — unresolved retro AIs + open kaizen hypotheses change the plan. See [`refs/process-memory.md`](refs/process-memory.md).
 
 ## Navigation
 
-- [`refs/inputs.md`](refs/inputs.md) — prior-fetch queries, session state reads, and [`refs/process-memory.md`](refs/process-memory.md) — persistent process memory + uncertainty gate
+- [`refs/inputs.md`](refs/inputs.md) — prior-fetch queries, session state reads; [`refs/process-memory.md`](refs/process-memory.md) — process memory + uncertainty gate
 - [`refs/factor-definitions.md`](refs/factor-definitions.md) — the 9 factors + calibration
 - [`refs/specialist-selection.md`](refs/specialist-selection.md) — roster map
 - [`refs/phase-catalog.md`](refs/phase-catalog.md) — phase templates, soft deps
-- [`refs/evidence-framing.md`](refs/evidence-framing.md) — functional evidence rubric
+- [`refs/evidence-framing.md`](refs/evidence-framing.md) — functional evidence rubric + per-archetype contracts
 - [`refs/ambiguity.md`](refs/ambiguity.md) — when to stop and ask
 - [`refs/plan-template.md`](refs/plan-template.md) — `process-plan.md` template; [`refs/output-schema.md`](refs/output-schema.md) — JSON shape for measurement
-- [`refs/interaction-mode.md`](refs/interaction-mode.md) — normal vs. yolo, banned values
-- [`refs/gate-policy.md`](refs/gate-policy.md) — human-readable Gate × Rigor reviewer matrix
-- [`refs/re-eval-addendum-schema.md`](refs/re-eval-addendum-schema.md) — JSONL addendum schema; [`refs/spec-quality-rubric.md`](refs/spec-quality-rubric.md) — scored spec quality rubric (10 dims × 0-2 pts) + tier thresholds
+- [`refs/interaction-mode.md`](refs/interaction-mode.md) — normal vs. yolo, banned values; [`refs/gate-policy.md`](refs/gate-policy.md) — Gate × Rigor reviewer matrix
+- [`refs/re-eval-addendum-schema.md`](refs/re-eval-addendum-schema.md) — JSONL addendum schema; [`refs/spec-quality-rubric.md`](refs/spec-quality-rubric.md) — spec quality rubric

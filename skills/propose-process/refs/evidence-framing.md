@@ -144,3 +144,74 @@ Rules:
   the design, including the signature, lifecycle hooks, and error modes. Unit tests
   cover the registry; integration covers the end-to-end register → invoke flow.
   Treat the plugin API surface with the same evidence discipline as a public HTTP API.
+
+---
+
+## Per-Archetype Evidence Contracts (MVP — D6, AC-6)
+
+The qe-evaluator uses these contracts at the `testability` and `evidence-quality` gates.
+Absence of a required artifact triggers CONDITIONAL or REJECT per the score-band table in
+`phases/design/design.md §1`. Non-MVP archetypes (multi-repo, testing-only,
+schema-migration) fall through to the code-repo contract with a logged CONDITIONAL finding.
+
+### code-repo
+
+Standard source-code feature or bugfix. Production `.py`/`.ts`/`.go` files dominate.
+
+- **test_types**: `[unit, integration]` at minimum. Add `api` for new endpoints, `security`
+  for auth surfaces.
+- **evidence_required**: `[unit-results]` required. Add `api-contract-diff` for any task
+  whose diff touches a public API surface (HTTP endpoints, SDK exports, plugin APIs).
+  Add `integration-results` when multiple services coordinate.
+- **API-surface detection**: CLI touchpoints → `api`; test file edits alone do NOT trigger
+  `api-contract-diff` (test files excluded from surface detection, MINOR-3).
+
+### docs-only
+
+Changes only `.md`, `.rst`, `.txt`, or `docs/**` files. No production code changes.
+
+- **test_types**: `[acceptance]` when the doc describes a user-facing workflow; `[]` for
+  internal reference docs.
+- **evidence_required**: `[acceptance-report]` (≥100 bytes of non-whitespace content);
+  `unit-results` and `api-contract-diff` are NOT required.
+- **Score floor**: `acceptance-report` must be ≥ 100 bytes to count as evidence
+  (zero-byte or whitespace-only files score 0 at boundary, AC-10 / MINOR-3).
+
+### skill-agent-authoring
+
+New or modified agent definitions (`agents/**/*.md`), skill modules (`skills/**/*.md`),
+or command definitions (`commands/**/*.md`) with YAML frontmatter.
+
+- **test_types**: `[acceptance]` required. Add `ui` for command-touch changes (a command
+  invocation is a UI surface).
+- **evidence_required**: `[acceptance-report]` required. Add `screenshot-before-after`
+  for any task that modifies agent behavior (body below the frontmatter `---` changed).
+- **Touch-to-test_type mapping** (partial #528): CLI-touch → `api`; bus-touch → `event`;
+  hook-touch → `integration`; command-touch → `ui` or `acceptance`.
+
+### config-infra
+
+Changes to `.claude-plugin/**/*.json`, `hooks/hooks.json`, `scripts/_*.json`, CI configs,
+Dockerfiles, Terraform, or similar infrastructure files. No new production logic.
+
+- **test_types**: `[integration]` required. Pure config substitutions (no new code paths)
+  may use `unit` as a boundary substitute.
+- **evidence_required**: `[integration-results]` required. `unit-results` accepted as a
+  boundary substitute for small config-only tasks. `api-contract-diff` is NOT required.
+- **Schema/migration-touch** → `migration` test_type and `migration-rollback-plan` artifact
+  (partial #528).
+
+---
+
+## test_type → touch mapping (partial #528)
+
+| Touch type                            | test_type       | evidence artifact        |
+|---------------------------------------|-----------------|--------------------------|
+| CLI endpoint added/changed            | `api`           | `api-contract-diff`      |
+| wicked-bus event emitted/subscribed   | `event` (integration) | `integration-results` |
+| Hook script added/changed             | `integration`   | `integration-results`    |
+| Command/agent behavior modified       | `ui` or `acceptance` | `screenshot-before-after` or `acceptance-report` |
+| Schema/migration file changed         | `migration`     | `migration-rollback-plan` |
+
+Apply the minimum necessary — do not add `security` for a doc typo or `performance` for a
+small config change unless the change actually touches an auth surface or hot path.
