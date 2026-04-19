@@ -319,6 +319,67 @@ def _run_quality_telemetry(session_id: str) -> list:
     return messages
 
 
+# ---------------------------------------------------------------------------
+# Step 6: Autonomous guard pipeline (Issue #448)
+# ---------------------------------------------------------------------------
+#
+# Runs a tiered profile of surface-level verification at session close:
+#   * scalpel  (<1s)  — always runs when the pipeline is reachable
+#   * standard (~5s)  — build-phase just closed, or substantial changes
+#   * deep     (~30s) — release-branch sessions or explicit WG_GUARD_PROFILE=deep
+#
+# Always fails open — never hard-blocks session close.  Findings are written
+# to a session-scoped file that bootstrap.py can surface in the next briefing,
+# and emitted as a `wicked.guard.findings` event on wicked-bus.
+#
+# Ordering: runs AFTER telemetry (#443) so both can share the end-of-session
+# snapshot without blocking each other.
+
+def _run_guard_pipeline() -> list:
+    """Run the autonomous session-close guard pipeline.
+
+    Returns a list of human-readable message strings to prepend to the session
+    message.  Always fails open — any error returns an empty list.
+    """
+    try:
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "platform"))
+        from guard_pipeline import (
+            run_pipeline,
+            write_briefing_file,
+            emit_findings_event,
+            render_summary,
+        )
+    except Exception as exc:
+        print(f"[wicked-garden] guard pipeline unavailable: {exc}", file=sys.stderr)
+        return []
+
+    try:
+        # Detect whether build phase just closed — best-effort via session state
+        build_just_closed = False
+        try:
+            from _session import SessionState
+            state = SessionState.load()
+            build_just_closed = bool(
+                getattr(state, "last_phase_approved", None) == "build"
+            )
+        except Exception:
+            pass  # fail open — treat unknown phase as "not just closed"
+
+        report = run_pipeline(build_phase_just_closed=build_just_closed)
+
+        # Write briefing file (next session pickup)
+        write_briefing_file(report)
+
+        # Emit bus event (fire-and-forget)
+        emit_findings_event(report)
+
+        # Only return a summary line when we actually have findings or budget blew.
+        if report.total_findings > 0 or report.status != "ok":
+            return [render_summary(report)]
+        return []
+    except Exception as exc:
+        print(f"[wicked-garden] guard pipeline error: {exc}", file=sys.stderr)
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +451,10 @@ def main():
         # 5b. Cross-session quality telemetry + drift detection (Issue #443)
         telemetry_messages = _run_quality_telemetry(session_id)
 
+        # 6. Autonomous guard pipeline (Issue #448)
+        # Runs AFTER telemetry — additive, order-independent.
+        guard_messages = _run_guard_pipeline()
+
         # Read session state for task completion count (fail open)
         tasks_completed_this_session = 0
         try:
@@ -433,9 +498,9 @@ def main():
                 "Do NOT skip silently."
             )
 
-        # Combine all pre-reflection messages (outcome + promotion + consolidation notices)
+        # Combine all pre-reflection messages (outcome + promotion + consolidation + guard notices)
         # Note: decay_messages already included via decay_prefix in reflection
-        prepend_messages = outcome_messages + promotion_messages + consolidation_messages + telemetry_messages
+        prepend_messages = outcome_messages + promotion_messages + consolidation_messages + telemetry_messages + guard_messages
         if prepend_messages:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         else:

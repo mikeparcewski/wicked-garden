@@ -113,6 +113,11 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "platform.security",
         "description": "Security review raised a finding",
     },
+    "wicked.guard.findings": {
+        "domain": "wicked-garden",
+        "subdomain": "platform.guard",
+        "description": "Autonomous session-close guard pipeline surfaced findings (Issue #448)",
+    },
     "wicked.compliance.passed": {
         "domain": "wicked-garden",
         "subdomain": "platform.compliance",
