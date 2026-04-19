@@ -7,6 +7,8 @@ description: |
   Use when: "debug this error", "why is this failing", "root cause analysis",
   "fix this bug", "investigate crash", "stack trace", "not working"
 portability: portable
+context: fork
+agent: debugger
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
 #   paths: ["**/*.log", "**/error*.ts", "**/error*.py", "**/*debug*"]

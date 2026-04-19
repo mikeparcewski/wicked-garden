@@ -8,6 +8,7 @@ description: |
 
   Use when: "brainstorm this", "explore ideas", "get different perspectives",
   "focus group", "what do you think about", "pros and cons"
+context: fork
 ---
 
 # Brainstorming Skill
