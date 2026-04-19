@@ -392,6 +392,205 @@ def _count_commented_blocks(path: str, lines: List[str]) -> List[Finding]:
     return findings
 
 
+# ---------------------------------------------------------------------------
+# R3 + R5 AST heuristics (Python only) — #462, Item 3
+# ---------------------------------------------------------------------------
+
+# R3 allow-list: numeric literals that are "boring idioms" we don't flag.
+# 0, 1, -1 cover the vast majority of loop guards, sentinels, empty-checks,
+# and index math where a named constant would be overkill.
+_R3_ALLOWED_NUMBERS = frozenset({0, 1, -1})
+
+
+def _detect_magic_values_r3(path: str, tree: "ast.AST") -> List[Finding]:
+    """R3 — flag magic numeric literals in Compare nodes (Python AST).
+
+    Heuristic: walk every ast.Compare and flag right-hand-side comparators
+    whose value is a numeric literal NOT in {0, 1, -1}.  Examples:
+
+        if x > 42:        # flagged: 42 is magic
+        if n == 0:        # NOT flagged: 0 is allow-listed
+        if x == -1:       # NOT flagged: -1 is allow-listed
+        if count > THRESHOLD:  # NOT flagged: Name, not Constant
+
+    Conservative on purpose — we expect false positives (e.g. HTTP status
+    codes 200/400/404 in test fixtures) and treat them as info/warn
+    surface, not a blocker.  Engineering review owns final calls.
+
+    Performance: AST walk is O(nodes); on typical Python files this runs
+    in sub-millisecond time.  Pre-parsed tree is passed in so the caller
+    can reuse it across R3/R5 without re-parsing.
+    """
+    import ast  # stdlib — local import keeps module-level cost unchanged
+    findings: List[Finding] = []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare):
+            continue
+        # Each Compare can have multiple comparators (e.g. `a < b < c`);
+        # we scan each comparator, not just the first.
+        for comparator in node.comparators:
+            # ast.Constant covers int, float, bool.  We want numerics
+            # only (exclude bools — they are technically ints but are
+            # never "magic").
+            if isinstance(comparator, ast.Constant):
+                value = comparator.value
+                if isinstance(value, bool):
+                    continue
+                if isinstance(value, (int, float)) and value not in _R3_ALLOWED_NUMBERS:
+                    line_no = getattr(comparator, "lineno", getattr(node, "lineno", 0))
+                    findings.append(Finding(
+                        check="bulletproof_scan",
+                        rule_id="R3",
+                        severity=SEVERITY_WARN,
+                        message=f"R3: magic value {value} in conditional at {path}:{line_no}",
+                        file=path,
+                        line=line_no,
+                    ))
+            # Also handle ast.UnaryOp wrapping a Constant (e.g. `-42`).
+            # -1 is allow-listed above as a plain value; here we catch
+            # `-42`, `-100`, etc. that the parser emits as UnaryOp(USub).
+            elif isinstance(comparator, ast.UnaryOp) and isinstance(comparator.op, ast.USub):
+                operand = comparator.operand
+                if isinstance(operand, ast.Constant) and isinstance(operand.value, (int, float)) \
+                        and not isinstance(operand.value, bool):
+                    effective = -operand.value
+                    if effective in _R3_ALLOWED_NUMBERS:
+                        continue
+                    line_no = getattr(comparator, "lineno", getattr(node, "lineno", 0))
+                    findings.append(Finding(
+                        check="bulletproof_scan",
+                        rule_id="R3",
+                        severity=SEVERITY_WARN,
+                        message=f"R3: magic value {effective} in conditional at {path}:{line_no}",
+                        file=path,
+                        line=line_no,
+                    ))
+    return findings
+
+
+def _func_has_guard_before_call(func: "ast.AST", func_name: str) -> bool:
+    """Return True if the function body has an early-return / conditional-return
+    BEFORE any recursive self-call.  Heuristic used by R5.
+
+    Walks top-level statements in the function body in order.  A statement
+    counts as a "guard" if it is:
+        * a top-level `return` (bounded-exit early-out)
+        * an `If` whose body contains a `return` at any nested level
+        * a `raise` (exit path that prevents recursion from running)
+
+    Statements after the first recursive call do not count.
+    """
+    import ast
+
+    def _contains_recursive_call(node: "ast.AST") -> bool:
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Call):
+                callee = sub.func
+                if isinstance(callee, ast.Name) and callee.id == func_name:
+                    return True
+                # Also flag `self.func_name(...)` / `Class.func_name(...)`
+                if isinstance(callee, ast.Attribute) and callee.attr == func_name:
+                    return True
+        return False
+
+    def _contains_return(node: "ast.AST") -> bool:
+        for sub in ast.walk(node):
+            if isinstance(sub, (ast.Return, ast.Raise)):
+                return True
+        return False
+
+    for stmt in func.body:  # type: ignore[attr-defined]
+        # If the statement itself contains the recursive call, we've run
+        # out of guards — stop looking.
+        if _contains_recursive_call(stmt):
+            return False
+        # A bare `return` or `raise` at the top level is a guard.
+        if isinstance(stmt, (ast.Return, ast.Raise)):
+            return True
+        # An `if` whose body contains a return/raise is a guard.
+        if isinstance(stmt, ast.If) and _contains_return(stmt):
+            return True
+    return False
+
+
+def _detect_unbounded_recursion_r5(path: str, tree: "ast.AST") -> List[Finding]:
+    """R5 — flag functions that call themselves with no guard clause.
+
+    Heuristic: for each FunctionDef / AsyncFunctionDef, check whether the
+    function calls `<own_name>(...)` anywhere in its body AND the body
+    lacks any top-level return/raise/if-return guard BEFORE the first
+    recursive call.  Examples:
+
+        def f(n):                def f(n):
+            return f(n - 1)         if n <= 0:
+                                        return 0
+                                    return f(n - 1)
+        # flagged                # NOT flagged (guard clause)
+
+    Performance: O(nodes) AST walk; matches R3 cost.  Conservative — we
+    only look for same-name calls (not mutual recursion).  Documented
+    limitation: this is a structural hint, not a proof of unboundedness.
+    False positives possible when the guard is deep inside a try/except
+    or a for-else clause.  Engineering review owns final calls.
+    """
+    import ast
+    findings: List[Finding] = []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        name = node.name
+        # Does this function call itself anywhere?
+        calls_self = False
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Call):
+                callee = sub.func
+                if isinstance(callee, ast.Name) and callee.id == name:
+                    calls_self = True
+                    break
+                if isinstance(callee, ast.Attribute) and callee.attr == name:
+                    calls_self = True
+                    break
+        if not calls_self:
+            continue
+        # Guard present? — early return / raise / conditional return BEFORE
+        # the recursive call.
+        if _func_has_guard_before_call(node, name):
+            continue
+        line_no = getattr(node, "lineno", 0)
+        findings.append(Finding(
+            check="bulletproof_scan",
+            rule_id="R5",
+            severity=SEVERITY_WARN,
+            message=f"R5: possibly unbounded recursion in {name} at {path}:{line_no}",
+            file=path,
+            line=line_no,
+        ))
+    return findings
+
+
+def _run_python_ast_heuristics(path: str, lines: List[str]) -> List[Finding]:
+    """Parse Python source once, then run R3 + R5 over the shared tree.
+
+    Returns an empty list on parse error — we do not attempt to salvage
+    partial findings from a syntactically-broken file.  This respects the
+    per-check budget: a single parse failure costs ms, not seconds.
+    """
+    import ast
+    try:
+        source = "\n".join(lines)
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    except Exception:
+        return []
+    findings: List[Finding] = []
+    findings.extend(_detect_magic_values_r3(path, tree))
+    findings.extend(_detect_unbounded_recursion_r5(path, tree))
+    return findings
+
+
 def check_bulletproof_scan(
     files: List[str],
     *,
@@ -433,6 +632,10 @@ def check_bulletproof_scan(
         if ext == ".py":
             result.findings.extend(_count_python_god_functions(filepath, lines))
             result.findings.extend(_detect_multiline_swallow(filepath, lines))
+            # R3 + R5 AST heuristics (#462, Item 3).  Single parse shared
+            # across both rules.  Fails open on SyntaxError — a broken file
+            # contributes zero R3/R5 findings rather than a scan failure.
+            result.findings.extend(_run_python_ast_heuristics(filepath, lines))
         result.findings.extend(_count_commented_blocks(filepath, lines))
 
     result.duration_ms = int((time.monotonic() - t0) * 1000)
