@@ -631,7 +631,7 @@ def _collect_project_files(project_dir: Path) -> List[str]:
                     continue
                 result.append(rel)
     except OSError:
-        pass
+        pass  # fail open — return whatever was collected before the error
     return result
 
 
