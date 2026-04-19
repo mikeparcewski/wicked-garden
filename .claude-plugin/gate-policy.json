@@ -57,17 +57,19 @@
       "minimal": {
         "reviewers": [],
         "mode": "self-check",
-        "fallback": "test-strategist"
+        "fallback": "qe-evaluator"
       },
       "standard": {
-        "reviewers": ["test-strategist"],
+        "reviewers": ["qe-evaluator"],
         "mode": "sequential",
-        "fallback": "senior-engineer"
+        "fallback": "senior-engineer",
+        "context_fields": ["archetype"]
       },
       "full": {
-        "reviewers": ["test-strategist", "risk-assessor"],
+        "reviewers": ["qe-evaluator", "risk-assessor"],
         "mode": "parallel",
-        "fallback": "senior-engineer"
+        "fallback": "senior-engineer",
+        "context_fields": ["archetype"]
       }
     },
     "code-quality": {
@@ -91,17 +93,19 @@
       "minimal": {
         "reviewers": [],
         "mode": "self-check",
-        "fallback": "test-strategist"
+        "fallback": "qe-evaluator"
       },
       "standard": {
-        "reviewers": ["test-strategist"],
+        "reviewers": ["qe-evaluator"],
         "mode": "sequential",
-        "fallback": "senior-engineer"
+        "fallback": "senior-engineer",
+        "context_fields": ["archetype"]
       },
       "full": {
-        "reviewers": ["test-strategist", "production-quality-engineer"],
+        "reviewers": ["qe-evaluator", "production-quality-engineer"],
         "mode": "parallel",
-        "fallback": "senior-engineer"
+        "fallback": "senior-engineer",
+        "context_fields": ["archetype"]
       }
     },
     "final-audit": {
