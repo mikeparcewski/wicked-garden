@@ -63,6 +63,81 @@ def _save_session_state(state):
         pass
 
 
+def _check_prior_guard_findings():
+    """Load the most recent guard-pipeline findings and render a briefing note.
+
+    Reads ${TMPDIR}/wicked-guard/*/findings.json files written by stop.py's
+    guard pipeline (Issue #448).  Returns a briefing string or None.
+
+    Fail-open — never blocks bootstrap.
+    """
+    try:
+        import tempfile
+        guard_root = Path(tempfile.gettempdir()) / "wicked-guard"
+        if not guard_root.is_dir():
+            return None
+
+        newest = None  # type: ignore
+        newest_mtime = 0.0
+        for session_dir in guard_root.iterdir():
+            if not session_dir.is_dir():
+                continue
+            f = session_dir / "findings.json"
+            if not f.is_file():
+                continue
+            try:
+                mt = f.stat().st_mtime
+            except OSError:
+                continue
+            if mt > newest_mtime:
+                newest_mtime = mt
+                newest = f
+
+        if newest is None:
+            return None
+
+        # Only surface if report is recent (<24h) — stale reports are noise.
+        if (time.time() - newest_mtime) > 86400:
+            return None
+
+        with open(newest, "r", encoding="utf-8") as fh:
+            report = json.load(fh)
+
+        total = int(report.get("total_findings", 0) or 0)
+        if total == 0:
+            return None
+
+        by_sev = report.get("findings_by_severity", {}) or {}
+        profile = report.get("profile", "?")
+        lines = [
+            f"[Guard] Last session's {profile} guard pipeline surfaced {total} finding(s) "
+            f"(block={by_sev.get('block', 0)} warn={by_sev.get('warn', 0)} info={by_sev.get('info', 0)}). "
+            f"Report: {newest}"
+        ]
+        # Show up to 5 non-info findings for visibility
+        shown = 0
+        for check in report.get("checks", []) or []:
+            for f in check.get("findings", []) or []:
+                if shown >= 5:
+                    break
+                sev = f.get("severity", "info")
+                if sev == "info":
+                    continue
+                msg = f.get("message", "")[:140]
+                loc = ""
+                if f.get("file"):
+                    loc = f" @ {f['file']}"
+                    if f.get("line"):
+                        loc += f":{f['line']}"
+                lines.append(f"  - [{sev}] {f.get('rule_id', '?')}: {msg}{loc}")
+                shown += 1
+            if shown >= 5:
+                break
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+
 def _probe_plugin_readiness():
     """Dynamically discover installed plugins and probe their hook readiness.
 
@@ -833,6 +908,11 @@ def main():
             )
         if search_staleness_note:
             mode_notes.append(f"[Search] {search_staleness_note}")
+
+        # 6c. Surface prior session's guard-pipeline findings (Issue #448)
+        guard_note = _check_prior_guard_findings()
+        if guard_note:
+            mode_notes.append(guard_note)
 
         # 7. Check onboarding status (search index + memories)
         has_index, has_memories, onboarding_directive = _check_onboarding_status()
