@@ -264,6 +264,21 @@ class SessionState:
     # None when no approval has happened yet this session.
     last_phase_approved: str | None = None
 
+    # Telemetry producers (#459). Read optimistically by
+    # scripts/delivery/telemetry.py::_extract_session_extras at session-close.
+    # - skip_reeval_count: count of --skip-reeval approvals in this session.
+    #   Incremented by scripts/crew/phase_manager.py::approve_phase when the
+    #   addendum-freshness bypass path is taken.
+    # - complexity_at_session_open: ProjectState.complexity_score as observed
+    #   at session-start (bootstrap) when an active crew project exists, or on
+    #   the first approve_phase of the session. Used by telemetry to compute
+    #   complexity_delta = complexity_close - complexity_open.
+    # - complexity_score: current ProjectState.complexity_score mirror, kept
+    #   on the session for telemetry close-out.
+    skip_reeval_count: int = 0
+    complexity_at_session_open: int | None = None
+    complexity_score: int = 0
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

@@ -2243,6 +2243,41 @@ def _record_last_phase_approved(phase: str) -> None:
         logger.debug("[approve] last_phase_approved wiring skipped: %s", exc)
 
 
+def _increment_skip_reeval_count() -> None:
+    """Bump SessionState.skip_reeval_count producer for telemetry (#459).
+
+    Fires from approve_phase() whenever the --skip-reeval bypass path is
+    actually exercised (addendum present AND bypass flag set AND reason given).
+    Read at session close by scripts/delivery/telemetry.py.
+    Fail-open — telemetry producers must never block approval.
+    """
+    try:
+        from _session import SessionState  # type: ignore
+        sess = SessionState.load()
+        current = int(getattr(sess, "skip_reeval_count", 0) or 0)
+        sess.update(skip_reeval_count=current + 1)
+    except Exception as exc:
+        logger.debug("[approve] skip_reeval_count producer skipped: %s", exc)
+
+
+def _record_complexity_snapshot(complexity: int) -> None:
+    """Mirror ProjectState.complexity_score onto SessionState (#459).
+
+    Sets complexity_at_session_open on FIRST observation this session (so the
+    telemetry delta is anchored to session start) and always updates
+    complexity_score so close-out sees the latest value.  Fail-open.
+    """
+    try:
+        from _session import SessionState  # type: ignore
+        sess = SessionState.load()
+        updates: Dict[str, Any] = {"complexity_score": int(complexity or 0)}
+        if getattr(sess, "complexity_at_session_open", None) is None:
+            updates["complexity_at_session_open"] = int(complexity or 0)
+        sess.update(**updates)
+    except Exception as exc:
+        logger.debug("[approve] complexity snapshot producer skipped: %s", exc)
+
+
 def _run_build_phase_guard(project_dir: Path) -> List[str]:
     """Run the guard pipeline at build-phase approval (#462, Item 2).
 
@@ -2375,6 +2410,8 @@ def approve_phase(
                 )
             # Write the bypass to the audit log (AC-14)
             _write_skip_reeval_log(project_dir_reeval, phase, skip_reeval_reason)
+            # Producer for telemetry drift (#459): count skip-reeval usage.
+            _increment_skip_reeval_count()
             print(
                 f"WARNING: [skip-reeval] Phase '{phase}' addendum check bypassed. "
                 f"Reason: {skip_reeval_reason}. "
@@ -2801,6 +2838,12 @@ def approve_phase(
     # the guard pipeline profile (scalpel → standard) next cycle.
     # Idempotent + fail-open: re-approving the same phase is safe.
     _record_last_phase_approved(phase)
+
+    # --- #459 wiring: telemetry producers on SessionState ---
+    # Mirror the project's complexity_score onto SessionState so the
+    # session-close telemetry capture can compute complexity_delta.  First
+    # approve of the session also anchors complexity_at_session_open.
+    _record_complexity_snapshot(getattr(state, "complexity_score", 0))
 
     # Build-phase guard hook — additive, non-blocking.  Surfaces guard
     # findings as warnings in the approve output without gating approval.

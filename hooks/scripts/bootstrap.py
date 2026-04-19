@@ -1104,6 +1104,21 @@ def main():
                 is_active = active_phase not in ("", "complete", "done", "archived")
                 state.update(active_project_id=project_name if is_active else None)
 
+                # #459 telemetry producer: anchor complexity_at_session_open
+                # from the active project's complexity_score so session-close
+                # drift capture has a delta baseline.  Only set when not
+                # already populated this session (first SessionStart wins).
+                try:
+                    raw_complexity = project_data.get("complexity_score", 0)
+                    complexity_val = int(raw_complexity) if raw_complexity is not None else 0
+                    updates = {"complexity_score": complexity_val}
+                    if getattr(state, "complexity_at_session_open", None) is None:
+                        updates["complexity_at_session_open"] = complexity_val
+                    state.update(**updates)
+                except (TypeError, ValueError):
+                    # Malformed complexity_score — fail-open, don't block bootstrap.
+                    pass
+
             # Enable memory compliance directives for crew sessions.
             # task_completed.py reads this flag to decide whether to emit
             # per-task memory prompts; stop.py reads it for session summary.
