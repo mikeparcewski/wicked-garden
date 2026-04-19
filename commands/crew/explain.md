@@ -9,6 +9,9 @@ Take any crew output — gate findings, reviewer briefs, phase summaries, proces
 plans — and convert the specialist vocab into plain, grade-8 English. Output is
 2-4 sentences that tell the user what happened and what to do next.
 
+> **Common pattern**: Run `/wicked-garden:crew:status` first to see project state, then
+> pipe confusing output through `crew:explain` to get a plain-English summary.
+
 ## Arguments
 
 - `<text-or-path>` — the jargon-heavy block to explain. May be inline text or a

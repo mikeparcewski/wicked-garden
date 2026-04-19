@@ -9,6 +9,10 @@ Design and analyze user flows, interaction patterns, and information architectur
 Use `--mode create` to generate flows from requirements; `--mode analyze` to evaluate
 existing flows in code or documents.
 
+> **Scope**: `ux` is for **generative flow work** — designing and mapping user journeys.
+> For a **broad design audit** (UI, a11y, accessibility, research quality), use
+> `/wicked-garden:product:ux-review` instead.
+
 ## Usage
 
 ```bash

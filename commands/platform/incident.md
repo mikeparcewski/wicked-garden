@@ -7,6 +7,9 @@ argument-hint: "<error message, alert, or symptom description>"
 
 Rapid incident triage with root cause correlation, blast radius assessment, and remediation guidance.
 
+> **Scope**: `platform:incident` is for **rapid active triage** — root cause, blast radius, remediation steps.
+> To **log** an incident against a crew project with traceability, use `/wicked-garden:crew:incident` instead.
+
 ## Instructions
 
 ### 1. Gather Incident Context

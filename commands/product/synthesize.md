@@ -1,11 +1,15 @@
 ---
 description: Generate actionable recommendations from customer feedback insights
 argument-hint: "[--priority high|medium|low] [--feature X] [--format brief|detailed]"
+next-step: null
 ---
 
 # /wicked-garden:product:synthesize
 
 Generate actionable product recommendations from customer feedback analysis. Translates insights into prioritized action items.
+
+> **Pipeline**: listen → analyze → synthesize. This is step 3 of 3 (final step).
+> Run `/wicked-garden:product:listen` then `/wicked-garden:product:analyze` before this command.
 
 ## Usage
 

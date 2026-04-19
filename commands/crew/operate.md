@@ -7,6 +7,9 @@ argument-hint: "[--status]"
 
 Enter the operate phase for post-delivery monitoring, incident tracking, and feedback collection.
 
+> **Scope**: `crew:operate` **enters** the post-delivery operate phase and manages ongoing operations.
+> For a **read-only state view** without entering a new phase, use `/wicked-garden:crew:status` instead.
+
 ## Arguments
 
 - `--status` (optional): Show operational checklist status without entering the phase

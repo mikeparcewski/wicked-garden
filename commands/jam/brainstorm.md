@@ -5,7 +5,10 @@ argument-hint: "<topic> [--personas list] [--rounds n] [--converge fast]"
 
 # /wicked-garden:jam:brainstorm
 
-Start a full brainstorm with evidence-backed perspectives. The facilitator gathers evidence from the ecosystem (past decisions, code context, brainstorm outcomes) before assembling personas, so they argue from data — not just opinions. After synthesis, a structured decision record is automatically stored in wicked-garden:mem for organizational memory.
+Start a full brainstorm with evidence-backed perspectives.
+
+> **Progression**: `quick` (60s gut-check) → `brainstorm` (full session, this command) → `council` (structured verdict).
+> See also: `/wicked-garden:jam:quick`, `/wicked-garden:jam:council` The facilitator gathers evidence from the ecosystem (past decisions, code context, brainstorm outcomes) before assembling personas, so they argue from data — not just opinions. After synthesis, a structured decision record is automatically stored in wicked-garden:mem for organizational memory.
 
 ## Convergence Modes
 

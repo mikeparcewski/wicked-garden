@@ -7,6 +7,9 @@ argument-hint: "<symbol> [--depth N]"
 
 Analyze what would be affected if you changed a symbol. Shows both what this symbol depends on and what depends on it.
 
+> **Scope**: `blast-radius` answers "what breaks if I change X?" — impact of changing a symbol (dependents graph).
+> For **data flow tracing** (UI field → DB column or reverse), use `/wicked-garden:search:lineage` instead.
+
 ## Arguments
 
 - `symbol` (required): The symbol to analyze

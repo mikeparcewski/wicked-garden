@@ -6,6 +6,14 @@ description: Execute current phase work with adaptive role engagement
 
 Execute work for the current phase with adaptive role selection.
 
+## When to use this vs the others
+
+| Command | What it does |
+|---------|-------------|
+| `crew:execute` | Run a **single phase** to completion |
+| `crew:just-finish` | Run **ALL remaining phases** to completion |
+| `crew:auto-approve` | Toggle the APPROVE-auto-advance flag (**no execution**) |
+
 ## Instructions
 
 ### 0. Poll Bus Events (poll-on-invoke)

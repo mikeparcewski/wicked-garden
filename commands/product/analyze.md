@@ -1,11 +1,15 @@
 ---
 description: Analyze customer feedback for themes, sentiment, and trends
 argument-hint: "[--theme X] [--sentiment pos|neg] [--trend period]"
+next-step: "product:synthesize"
 ---
 
 # /wicked-garden:product:analyze
 
 Analyze aggregated customer feedback to extract themes, sentiment patterns, and trends over time.
+
+> **Pipeline**: listen → analyze → synthesize. This is step 2 of 3.
+> Run `/wicked-garden:product:listen` first to aggregate data, then `/wicked-garden:product:synthesize` to generate recommendations.
 
 ## Usage
 

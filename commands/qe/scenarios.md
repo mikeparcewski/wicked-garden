@@ -7,6 +7,9 @@ argument-hint: "<feature, function, or user story>"
 
 Generate comprehensive test scenarios for a feature, function, or user story. Covers happy paths, edge cases, error conditions, and boundary cases.
 
+> **Scope**: `qe:scenarios` **generates** test cases from a feature description.
+> To **run** those scenarios through the formal acceptance pipeline, use `/wicked-garden:qe:acceptance` next.
+
 ## Instructions
 
 ### 0. Poll Bus Events (poll-on-invoke)
