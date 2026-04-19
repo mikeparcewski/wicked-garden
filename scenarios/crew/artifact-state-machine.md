@@ -142,13 +142,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json bulk-check
   | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-print('ALL_PASSED:', d.get('all_passed', d.get('pass', False)))
-failed = d.get('failed', d.get('not_met', []))
-print('FAILURES:', len(failed))
+# CLI returns {pass: bool, total: int, passing: int, failing: [ids]}
+print('PASS:', d.get('pass', False))
+failing = d.get('failing', [])
+print('FAILING:', len(failing))
+print('TOTAL:', d.get('total', 0))
+print('PASSING:', d.get('passing', 0))
 "
 ```
 
-**Expected**: `ALL_PASSED: False`, `FAILURES:` >= 1 (bulk-3 not approved).
+**Expected**: `PASS: False`, `FAILING:` >= 1 (bulk-3 not approved), `TOTAL:` >= 3, `PASSING:` >= 2.
 
 ### 6. List with filters
 
@@ -157,8 +160,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json list \
   --project test-asm --state APPROVED \
   | python3 -c "
 import sys, json
-d = json.load(sys.stdin)
-items = d.get('artifacts', d if isinstance(d, list) else [])
+# CLI returns a JSON array of artifact records directly
+items = json.load(sys.stdin)
+if not isinstance(items, list):
+    items = items.get('artifacts', [])
 all_approved = all(a.get('state') == 'APPROVED' for a in items)
 print('ALL_APPROVED:', all_approved)
 print('COUNT:', len(items))
@@ -185,7 +190,7 @@ echo "Exit: $?"
 - [ ] State history grows with each transition
 - [ ] DRAFT -> APPROVED (skipping IN_REVIEW) is rejected
 - [ ] IN_REVIEW -> DRAFT revert works (gate reject path)
-- [ ] Bulk check reports failures when not all artifacts meet required state
+- [ ] Bulk check returns `pass: false` with a non-empty `failing` list when not all artifacts meet required state
 - [ ] List filter by state returns only matching artifacts
 - [ ] CLOSED is terminal — transitions from CLOSED are rejected
 
