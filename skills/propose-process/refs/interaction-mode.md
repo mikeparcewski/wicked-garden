@@ -14,7 +14,11 @@ Interaction mode controls ONLY whether the user is prompted at gate boundaries:
   - Silently accept CONDITIONAL gates when the conditions are self-resolving spec gaps.
   - Escalate to user on REJECT verdicts with no clear fix, or CONDITIONAL requiring
     intent changes.
-  - NEVER operate in yolo when `rigor_tier` is `full` — escalate to user with the plan.
+  - At `rigor_tier: full`, yolo is allowed **only when the user explicitly grants it**
+    (via `/wicked-garden:crew:yolo {project} --approve` or explicit instruction);
+    grant is tracked as the `yolo_approved_by_user` state field and appended to
+    `yolo-audit.jsonl`. Auto-revoked if a phase-boundary re-eval detects scope
+    increase or re-tier-up. Default: refused — escalate plan to user.
 
 "Just-finish" means **run to the end autonomously**, NOT "skip phases" or "do less
 work." The facilitator already picked the phase plan based on the factors; yolo mode
@@ -29,12 +33,14 @@ interaction mode — the enforcement lives in `scripts/_event_schema.py`.
 
 ## Relationship to rigor_tier
 
-| rigor_tier | normal           | yolo                                 |
-|------------|------------------|--------------------------------------|
-| minimal    | light confirm    | auto-proceed end-to-end              |
-| standard   | confirm + gates  | auto-proceed; escalate on REJECT     |
-| full       | confirm + gates  | REFUSE yolo — escalate plan to user  |
+| rigor_tier | normal           | yolo                                                |
+|------------|------------------|-----------------------------------------------------|
+| minimal    | light confirm    | auto-proceed end-to-end                             |
+| standard   | confirm + gates  | auto-proceed; escalate on REJECT                    |
+| full       | confirm + gates  | refused by default; allowed only with explicit user grant (`yolo_approved_by_user`) — auto-revoked on scope increase or re-tier-up at phase boundaries |
 
-The `full` tier's refusal is load-bearing: compliance and auth-rewrite work cannot be
-run unsupervised. Surface the plan and a short "why full rigor" note, then wait for
-the user to hand back control (which becomes `normal` mode from that point on).
+The `full` tier default-refusal is load-bearing: compliance and auth-rewrite work
+cannot be run unsupervised without affirmative consent. When refused, surface the plan
+and a short "why full rigor" note, then wait for the user to hand back control (which
+becomes `normal` mode from that point on). When granted, each grant + revocation is
+appended to `yolo-audit.jsonl` for audit trail.

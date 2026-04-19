@@ -58,16 +58,12 @@ gotchas) over wiki and chunks for planning. Record up to 3 priors that change th
 ### 3. Score the 9 factors (one sentence each)
 
 Prose, not numbers. See `refs/factor-definitions.md` for meaning + calibration.
-
-1. **Reversibility** — can we undo without customer impact?
-2. **Blast radius** — if this breaks, who / how many / what is affected?
-3. **Compliance scope** — regulated data or surface (GDPR, PCI, HIPAA, SOC2)?
-4. **User-facing impact** — does a human see or feel this?
-5. **Novelty** — have we done this before in this codebase? (use priors from Step 2)
-6. **Scope effort** — how many files / services / teams?
-7. **State complexity** — persistent state, migrations, schema changes?
-8. **Operational risk** — production runtime behavior change?
-9. **Coordination cost** — multiple specialists to agree or hand off?
+Factors: **reversibility** (undo without customer impact?), **blast_radius** (who/how
+many affected if broken?), **compliance_scope** (GDPR/PCI/HIPAA/SOC2?),
+**user_facing_impact** (human-visible?), **novelty** (done before in this codebase —
+use priors), **scope_effort** (files/services/teams), **state_complexity** (persistent
+state, migrations), **operational_risk** (production runtime change),
+**coordination_cost** (multiple specialists to agree/hand off?).
 
 ### 4. Select specialists
 
@@ -76,11 +72,7 @@ that covers the factor scores. One sentence of WHY per pick. Prefer ≤5 for sta
 ≤10 for full. See `refs/specialist-selection.md` for the ~70-agent roster map and
 tie-breakers.
 
-Core archetypes: `requirements-analyst`, `product-manager`, `solution-architect`,
-`senior-engineer`, `backend-engineer`, `frontend-engineer`, `migration-engineer`,
-`test-strategist`, `test-designer`, `security-engineer`, `compliance-officer`,
-`privacy-expert`, `auditor`, `sre`, `release-engineer`, `data-engineer`,
-`technical-writer`, `ux-designer`, `ui-reviewer`.
+Core archetypes: `requirements-analyst`, `product-manager`, `solution-architect`, `senior-engineer`, `backend-engineer`, `frontend-engineer`, `migration-engineer`, `test-strategist`, `test-designer`, `security-engineer`, `compliance-officer`, `privacy-expert`, `auditor`, `sre`, `release-engineer`, `data-engineer`, `technical-writer`, `ux-designer`, `ui-reviewer`.
 
 ### 5. Select phases
 
@@ -88,7 +80,8 @@ Pick from: `ideate`, `clarify`, `challenge`, `design`, `test-strategy`, `build`,
 `review`. Soft deps — skip `design` for a trivial typo, collapse `clarify`+`design` for a
 crisp bugfix, insert `migrate` between `design` and `build` when state_complexity is high.
 **MUST**: at complexity ≥ 4, `challenge` phase MUST be included between `design` and `build`;
-do not use facilitator judgment to skip it. One sentence WHY per phase. See `refs/phase-catalog.md`.
+do not use facilitator judgment to skip it. For each phase, emit: `name`, `why` (one
+sentence), `primary: [specialist-name, ...]` (owners from Step 4). See `refs/phase-catalog.md`.
 
 ### 6. Assign evidence metadata per task
 
@@ -130,22 +123,34 @@ In `yolo` mode, if questions exist, escalate to the user; never guess. See
 ## Task chain assembly
 
 One `TaskCreate` per task. Mirror the task list inside `process-plan.md` for
-auditability. Metadata schema:
+auditability. Each task has top-level `phase` AND `specialist` (idiomatic) plus a
+`metadata` dict that repeats `phase`. Example phase + task:
+
+```json
+{"name": "clarify", "why": "nail ambiguous scope", "primary": ["requirements-analyst"]}
+```
 
 ```json
 {
-  "chain_id": "<project-slug>.root",
-  "event_type": "task | coding-task | gate-finding | phase-transition",
-  "source_agent": "facilitator",
-  "phase": "<phase-name>",
-  "test_required": true,
-  "test_types": ["unit", "integration"],
-  "evidence_required": ["unit-results", "integration-results"],
-  "rigor_tier": "standard"
+  "id": "t1",
+  "title": "...",
+  "phase": "clarify",
+  "specialist": "requirements-analyst",
+  "blockedBy": [],
+  "metadata": {
+    "chain_id": "<project-slug>.root",
+    "event_type": "task | coding-task | gate-finding | phase-transition",
+    "source_agent": "facilitator",
+    "phase": "clarify",
+    "test_required": true,
+    "test_types": ["unit", "integration"],
+    "evidence_required": ["unit-results", "integration-results"],
+    "rigor_tier": "standard"
+  }
 }
 ```
 
-Use `blockedBy: [<ids>]` for dependencies. The chain is a DAG. Parallel-eligible tasks
+`blockedBy: [<ids>]` sets dependencies; the chain is a DAG. Parallel-eligible tasks
 within a phase share a `blockedBy` pointing to the same upstream.
 
 ## Phase-boundary gates
@@ -155,14 +160,7 @@ Every phase has one named gate. All six must appear in the plan's task chain as
 (codified per D1) — the facilitator does NOT choose reviewers; `phase_manager.py`
 reads the policy at approve time.
 
-| Phase | Gate name |
-|-------|-----------|
-| clarify | requirements-quality |
-| design | design-quality |
-| test-strategy | testability |
-| build | code-quality |
-| test | evidence-quality |
-| review | final-audit |
+Gates by phase: clarify→requirements-quality, design→design-quality, test-strategy→testability, build→code-quality, test→evidence-quality, review→final-audit.
 
 Gate verdicts: **APPROVE** → phase advances. **CONDITIONAL** → conditions written to
 `conditions-manifest.json`, must be cleared before next phase. **REJECT** → phase
@@ -176,7 +174,7 @@ Phase-start heuristic + phase-end full re-eval with bidirectional mutation (prun
 
 ## Interaction mode
 
-Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew:just-finish`) is orthogonal to the plan — controls only gate-boundary prompts. Yolo is REFUSED for `rigor_tier: full`. Banned `source_agent` values remain banned. D7 rules apply in all modes (re-tier UP auto, re-tier DOWN defers on user override). Full matrix in [`refs/interaction-mode.md`](refs/interaction-mode.md).
+Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew:just-finish`) is orthogonal to the plan — controls only gate-boundary prompts. Yolo is allowed at full rigor only when the user explicitly grants it (via `/wicked-garden:crew:yolo {project} --approve` or explicit instruction), tracked as `yolo_approved_by_user` + appended to `yolo-audit.jsonl`; auto-revoked if phase-boundary re-eval detects scope increase or re-tier-up. Default: refused. Banned `source_agent` values remain banned. D7 rules apply in all modes (re-tier UP auto, re-tier DOWN defers on user override). Full matrix in [`refs/interaction-mode.md`](refs/interaction-mode.md).
 
 ## Measurement hook
 
