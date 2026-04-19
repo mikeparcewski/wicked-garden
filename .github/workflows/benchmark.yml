@@ -1,0 +1,108 @@
+name: AC-11 Benchmark SLO
+
+# Enforces the 2x p95 SLO on _load_gate_result (AC-11). Triggers only on
+# PRs that touch the gate-result ingestion hot path so the normal PR
+# lane stays fast. See docs/threat-models/gate-result-ingestion.md §8
+# for the re-baselining procedure; tracked by issue #504.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/crew/phase_manager.py"
+      - "scripts/crew/gate_result_schema.py"
+      - "scripts/crew/content_sanitizer.py"
+      - "scripts/crew/dispatch_log.py"
+      - "tests/crew/test_gate_result_benchmark.py"
+      - "tests/crew/benchmark_baseline.json"
+      - ".github/workflows/benchmark.yml"
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: gate-result load p95 (2x SLO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync dev deps
+        run: uv sync
+
+      - name: Run AC-11 benchmark lane
+        id: benchmark
+        run: |
+          uv run pytest -m benchmark \
+            --benchmark-json=benchmark.json \
+            -v -s tests/crew/test_gate_result_benchmark.py
+
+      - name: Upload benchmark artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-result
+          path: benchmark.json
+          retention-days: 30
+
+      - name: Comment benchmark delta on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'benchmark.json';
+            if (!fs.existsSync(path)) {
+              core.warning('benchmark.json not produced — skipping PR comment.');
+              return;
+            }
+            const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const bench = (data.benchmarks || [])[0];
+            if (!bench) {
+              core.warning('No benchmark entries in JSON — skipping PR comment.');
+              return;
+            }
+            const extra = bench.extra_info || {};
+            const p95 = extra.p95_ns;
+            const baseline = extra.baseline_ns;
+            const slo = extra.slo_multiplier || 2.0;
+            const ratio = (baseline && p95) ? (p95 / baseline) : null;
+            const budget = baseline ? (slo * baseline) : null;
+            const verdict = (p95 && budget) ? (p95 <= budget ? 'PASS' : 'FAIL') : 'NO BASELINE';
+            const body = [
+              '### AC-11 benchmark — `_load_gate_result` p95 SLO',
+              '',
+              `| metric | value |`,
+              `|---|---|`,
+              `| current p95 (ns) | ${p95 ?? 'n/a'} |`,
+              `| baseline p95 (ns) | ${baseline ?? 'n/a'} |`,
+              `| ratio | ${ratio ? ratio.toFixed(2) + 'x' : 'n/a'} |`,
+              `| SLO | ${slo}x |`,
+              `| budget (ns) | ${budget ?? 'n/a'} |`,
+              `| verdict | **${verdict}** |`,
+              '',
+              'Re-baseline procedure: `docs/threat-models/gate-result-ingestion.md` §8.',
+              'Tracked by #504.'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
