@@ -8,7 +8,6 @@ description: |
   Use when: "crew phases", "phase plan", "workflow execution", "start a project",
   "clarify outcome", "design phase", "build phase", "approve phase", "crew workflow",
   "phase progression", "QE gate", "shift-left testing", or structured delivery guidance.
-disable-model-invocation: false
 context: fork
 ---
 

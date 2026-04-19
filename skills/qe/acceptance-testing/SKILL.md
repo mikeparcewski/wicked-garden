@@ -7,7 +7,6 @@ description: |
 
   Use when: "run acceptance tests", "verify it works", "did it pass",
   "test this scenario", "acceptance criteria", "validate the feature"
-disable-model-invocation: false
 context: fork
 ---
 

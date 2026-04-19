@@ -10,7 +10,6 @@ description: |
   Use when: upgrading a project from wicked-garden v6.0-beta.3 to v6.0; checking
   whether a project needs migration; transforming legacy artifacts before running
   crew:approve on a beta project.
-disable-model-invocation: false
 allowed-tools:
   - Read
   - Write

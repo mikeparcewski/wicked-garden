@@ -9,7 +9,6 @@ description: |
 
   Prefer this over raw Grep/Glob for symbol search, impact analysis,
   code-doc cross-references, and understanding codebase structure.
-disable-model-invocation: false
 context: fork
 ---
 
