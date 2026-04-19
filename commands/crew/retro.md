@@ -122,6 +122,22 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
   --json
 ```
 
+### 6b. Auto-Populate Action Items (additive side-effect, issue #461)
+
+After the retro markdown artifact is written, scan it and seed each
+action item into `delivery.process_memory` so they receive stable `AI-NNN`
+identifiers and surface at future session starts via the facilitator
+context. This is a side-effect only — the retro markdown itself is not
+modified. Fails open if `process_memory` is unavailable.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/retro_action_items.py" \
+  --project "{project-name}" \
+  --retro-md "{retro_md_path}" \
+  --session-id "${CLAUDE_SESSION_ID:-}" \
+  --json
+```
+
 ### 7. Display Retrospective
 
 ```markdown

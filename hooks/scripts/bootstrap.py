@@ -676,6 +676,64 @@ def _check_brain_dependency():
 # Discovery: contextual command suggestions based on project type (Issue #322)
 # ---------------------------------------------------------------------------
 
+def _check_facilitator_context(project_name: str | None) -> str | None:
+    """Return a briefing line for unresolved action items aged >= 2 sessions.
+
+    Lazily imports ``scripts.delivery.process_memory`` so environments that
+    do not ship that module (pre-#447 plugin installs) continue to boot.
+    Returns a short ``[ProcessMemory]`` line when the project has any
+    aging AIs, or ``None`` when:
+
+    - No active project was detected (nothing to surface for).
+    - ``delivery.process_memory`` is not importable (fail-open).
+    - The project has no unresolved action items at the aging threshold.
+    - Any exception is raised while reading the memory file.
+
+    Matches the fail-open pattern used by ``_run_quality_telemetry`` and
+    the guard pipeline in ``stop.py``.
+    """
+    if not project_name:
+        return None
+    try:
+        # Lazy import — absence must NOT break bootstrap on legacy installs.
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "delivery"))
+        try:
+            import process_memory as _pm  # type: ignore
+        except ImportError as exc:
+            print(
+                f"[wicked-garden] process_memory not importable ({exc!r}); "
+                "skipping facilitator context",
+                file=sys.stderr,
+            )
+            return None
+
+        ctx = _pm.facilitator_context(project_name)
+        aging = ctx.get("aging_action_items", []) if isinstance(ctx, dict) else []
+        if not aging:
+            return None
+
+        # Show up to 3 AIs inline so the line stays readable; rest are
+        # countable via the summary prefix and fully visible via
+        # process-memory.md on disk.
+        shown = aging[:3]
+        preview = ", ".join(
+            f"{ai.get('id', '?')} \"{(ai.get('title') or '')[:60]}\""
+            for ai in shown
+        )
+        more = f" (+{len(aging) - len(shown)} more)" if len(aging) > len(shown) else ""
+        return (
+            f"[ProcessMemory] {len(aging)} unresolved action item(s) "
+            f">=2 sessions old: {preview}{more}"
+        )
+    except Exception as exc:
+        # Fail-open: never block session start on process-memory errors.
+        print(
+            f"[wicked-garden] facilitator_context error: {exc!r}",
+            file=sys.stderr,
+        )
+        return None
+
+
 def _probe_onedrive_path() -> str | None:
     """Detect if cwd is under a OneDrive or CloudStorage path with spaces.
 
@@ -1077,6 +1135,13 @@ def main():
             discovery_lines = _suggest_commands_for_project()
             if discovery_lines:
                 briefing_parts.append(discovery_lines)
+
+        # Facilitator context: surface aging action items from process_memory.
+        # Additive briefing line (issue #461) — runs last of the informational
+        # notes and is independent of onboarding or setup state.
+        fc_note = _check_facilitator_context(project_name)
+        if fc_note:
+            briefing_parts.append(fc_note)
 
         # Onboarding directive goes LAST for highest priority
         if onboarding_directive:
