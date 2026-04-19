@@ -1,5 +1,56 @@
 # Changelog
 
+## [6.1.0] - 2026-04-19
+
+### Features
+- feat(drift,session): WE runs rules + SessionState telemetry producers (#459) (#489) (2bdcfa9)
+- feat(crew): enforce augment cap in _run_checkpoint_reanalysis (AC-9) (#487) (595f541)
+- feat(crew): convergence lifecycle scenario + agent codification (#491) (9205575)
+- feat(crew): mode-3 phase-executor + gate dispatch + #466 legacy audit (#472) (500cb75)
+- feat: wire SessionState + build-phase guard hook + R3/R5 AST heuristics (#462) (#469) (e600d96)
+- feat(#461): wire process_memory facilitator_context + retro auto-populate (#463) (3ceacf1)
+- feat(platform): autonomous session-close guard pipeline (#456) (4084664)
+- feat(delivery): persistent process memory + kaizen backlog (#454) (7658fb9)
+- feat(qe): semantic reviewer — spec-to-code alignment verification (#455) (9d5c114)
+- feat(crew): artifact convergence lifecycle with stall detection (#453) (ead6a63)
+- feat(delivery): cross-session quality telemetry + drift detection (#452) (d123b0b)
+- feat(crew): persistent contrarian agent + challenge gate (#442) (#451) (e2ad031)
+- feat(product): scored spec quality rubric + clarify-gate enforcement (#450) (0175fda)
+- feat(skills): add context: fork to heavy workflow skills (#332) (#449) (4418eb1)
+- feat(qe): coverage tracker + wicked.coverage.changed emit (#424) (#427) (8c0098c)
+- feat(platform): wire security + compliance bus emits via agent prompts (#426) (aa012e0)
+- feat(delivery): wire rollout + experiment bus emits via agent prompts (#425) (cac3f6b)
+- feat(jam): bus emit points + synthesis-trigger consumer (#409) (#419) (e22eeea)
+- feat(qe): scenario scaffold consumer on build->test-strategy (#410) (#418) (1f1b307)
+- feat(bus): close #407 emit gaps + #414 consumer budget enforcement (#421) (fb11e50)
+- feat(bus): platform + qe emit points (#412) (#420) (76aac32)
+- feat(smaht): pull-model context assembly — replace push briefings with on-demand pulls (80e024f)
+
+### Bug Fixes
+- fix(scenarios): refresh 05-qe-gate for v6 approval-check ordering (#490) (63bb67c)
+- fix(propose-process): auto-insert challenge phase at complexity >= 4 (#486) (4c011d0)
+- fix(scenarios): align artifact-state-machine assertions with CLI output shape (#485) (36228a9)
+- fix: match actual approve-blocked message in phase-boundary-reeval Case 2 (#484) (fec0a6c)
+- fix(crew): schema validator for facilitator plan JSON (closes #430) (#436) (74b5030)
+- fix(release): bump plugin.json + marketplace.json to 5.1.0 (4f454ea)
+
+### Tests
+- test(crew): add challenge-gate-enforcement acceptance scenario (#458) (#488) (3bd59ff)
+
+### Chores
+- release: v6.0.1 — flatten nested skill paths so they register (#441) (b8b0a59)
+- release: v6.0.0 — promote out of beta (#440) (1706a53)
+- release: v6.0.0-beta.5 — fix skill registration (#439) (a35d9be)
+- release: v6.0.0-beta.4 — autonomy mechanism + #332 partial (#438) (e7a68a3)
+- release: wicked-garden v6.0.0-beta.3 — v6 reliability drop (#437) (3d0da5a)
+- release: wicked-garden v6.0.0-beta.2 — v6 cutover fixes (7bddb8d)
+- chore(v6): cleanup — delete signal_library, rubric v1.1 tightening, phase_manager fix (7d9465a)
+- release: v6.0.0-beta.1 — facilitator replaces rule engine (#429) (f09264f)
+- release: wicked-garden v5.2.0 — complete wicked-bus phase-2 (f3ea192)
+- release: wicked-garden v5.1.0 — round out bus integration phase-2 (388dcf1)
+- release: v5.0.0 — retire kanban domain, migrate to native TaskCreate metadata (#417) (75faaeb)
+- release: wicked-garden v4.10.0 — pull-model context assembly (22da8ae)
+
 ## [6.0.1] - 2026-04-18
 
 **Flatten skill paths so they actually register.** Claude Code's skill auto-discovery scans `skills/` for subdirectories containing `SKILL.md` — it does NOT recurse into sub-subdirectories. Skills at `skills/<domain>/<name>/SKILL.md` (two levels deep) never registered as model-invocable. The prior repo convention of nesting skills by domain was documentation-only; nobody had tried to invoke them via `Skill()` so the registration gap was invisible until v6.0 shipped `adopt-legacy` as a nested new skill.
