@@ -14,6 +14,23 @@ when the gate was not run, blocking on REJECT results, and allowing bypass only 
 `--override-gate` while writing an audit record. It uses the gate-result.json mock mechanism
 to test REJECT and PASS outcomes without running the full QE orchestrator.
 
+## v6 approval-check ordering (important)
+
+`approve_phase` runs checks in this order and raises on the **first** failure:
+
+1. **re-eval addendum freshness** (AC-8) — `phases/{phase}/reeval-log.jsonl` must exist
+   and post-date `phase.started_at`. Bypass with `--skip-reeval --reason '<why>'`.
+2. **required deliverables** — files listed in `phases.json` for the phase (e.g.
+   `architecture.md` for design) must exist and meet `min_bytes`. Bypass with
+   `--override-deliverables --reason '<why>'`.
+3. **specialist engagement** recorded from the session dispatch log (post-gate
+   bookkeeping; not an error source for this scenario).
+4. **gate result** — `phases/{phase}/gate-result.json` must exist and not REJECT.
+   Bypass with `--override-gate --reason '<why>'`.
+
+To assert "gate is the first error", the scenario must pre-satisfy (1) and (2) so
+check (4) is the only remaining failure mode. Each step below does that in setup.
+
 ## Setup
 
 ```bash
@@ -54,6 +71,40 @@ mock_gate() {
   fi
 }
 
+# v6 prerequisites — must be satisfied BEFORE the gate check runs.
+# Writes reeval-log.jsonl (AC-8) and architecture.md (design deliverable)
+# so the only failure mode left is the gate itself.
+seed_preconditions() {
+  local phase="${1:-design}"
+  local phase_dir="${PROJECT_DIR}/phases/${phase}"
+  mkdir -p "${phase_dir}"
+
+  # 1. Re-eval addendum — must post-date phase.started_at. We write "now"
+  #    in ISO-8601 which is always >= the phase start recorded on entry.
+  python3 -c "
+import json, pathlib, datetime
+p = pathlib.Path('${phase_dir}/reeval-log.jsonl')
+now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+p.write_text(json.dumps({
+    'triggered_at': now,
+    'mode': 're-evaluate',
+    'phase': '${phase}',
+    'outcome': 'no-change',
+}) + '\n')
+"
+
+  # 2. Required deliverables for design phase (architecture.md, min_bytes=200).
+  #    For other phases this is a no-op; extend as needed.
+  if [ "${phase}" = "design" ]; then
+    python3 -c "
+import pathlib
+p = pathlib.Path('${phase_dir}/architecture.md')
+# 300+ bytes of plausible architecture content to clear the 200-byte floor
+p.write_text('# Architecture\n\n' + ('Design notes for gate-enforcement-test. ' * 10))
+"
+  fi
+}
+
 reset_phase() {
   python3 -c "
 import json, pathlib
@@ -63,22 +114,27 @@ d['current_phase'] = 'design'
 d['phases']['design'] = 'in_progress'
 p.write_text(json.dumps(d, indent=2))
 "
+  # Re-seed preconditions so earlier steps don't leave the phase in a state
+  # where the re-eval or deliverable check fires before the gate check.
+  seed_preconditions design
 }
 ```
 
 ## Steps
 
-### 1. Approval blocked when gate not run
+### 1. Approval blocked when gate not run (preconditions satisfied)
 
 ```bash
+seed_preconditions design
 mock_gate design NONE
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" design 2>&1
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
 **Expected**:
 - exit code 1
-- stderr contains "Gate not run for phase 'design'" or equivalent
+- stderr contains "Gate not run for phase 'design'" or equivalent (gate is the
+  first error only because re-eval + deliverables preconditions were seeded)
 - stderr contains "--override-gate"
 - project.json current_phase still "design" (not advanced)
 
@@ -98,7 +154,7 @@ print('PHASE_HELD' if d['current_phase'] == 'design' else 'PHASE_ADVANCED_UNEXPE
 reset_phase
 mock_gate design REJECT "test coverage below threshold"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" design 2>&1
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
@@ -123,7 +179,7 @@ print('PHASE_HELD' if d['current_phase'] == 'design' else 'PHASE_ADVANCED_UNEXPE
 reset_phase
 mock_gate design PASS
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" design 2>&1
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
@@ -147,7 +203,7 @@ print('ADVANCED' if d['current_phase'] == 'build' else 'NOT_ADVANCED')
 reset_phase
 mock_gate design REJECT "known issue tracked in JIRA-456"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" design \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design \
   --override-gate --reason "known issue tracked in JIRA-456, not blocking release" \
   2>&1
 echo "Exit: $?"
@@ -168,7 +224,7 @@ grep -A5 "Gate Override" "${PROJECT_DIR}/phases/design/status.md" 2>/dev/null ||
 reset_phase
 mock_gate design NONE
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" design \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design \
   --override-gate --reason "fast-pass waived for hotfix" \
   2>&1
 echo "Exit: $?"
@@ -193,10 +249,26 @@ p.write_text(json.dumps(d, indent=2))
 
 mkdir -p "${PROJECT_DIR}/phases/ideate"
 
+# ideate is gate_required=false, but the re-eval addendum check (AC-8) still
+# runs for every phase. Seed the addendum + the brainstorm-summary.md
+# deliverable so the only thing we're exercising is the "no gate" path.
+python3 -c "
+import json, pathlib, datetime
+phase_dir = pathlib.Path('${PROJECT_DIR}/phases/ideate')
+phase_dir.mkdir(parents=True, exist_ok=True)
+now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+(phase_dir / 'reeval-log.jsonl').write_text(
+    json.dumps({'triggered_at': now, 'mode': 're-evaluate', 'phase': 'ideate', 'outcome': 'no-change'}) + '\n'
+)
+(phase_dir / 'brainstorm-summary.md').write_text(
+    '# Brainstorm summary\n\n' + ('Exploration notes for gate-enforcement-test. ' * 5)
+)
+"
+
 # No gate-result.json present for ideate
 rm -f "${PROJECT_DIR}/phases/ideate/gate-result.json"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" ideate 2>&1
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase ideate 2>&1
 echo "Exit: $?"
 ```
 
@@ -208,11 +280,51 @@ echo "Exit: $?"
 reset_phase
 echo 'not valid json{' > "${PROJECT_DIR}/phases/design/gate-result.json"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" approve "${TEST_PROJECT}" design 2>&1
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
 **Expected**: exit code 1 (malformed = gate not run = blocking)
+
+### 8. v6 ordering: re-eval error surfaces BEFORE gate error
+
+This step documents the v6 ordering explicitly — when multiple checks would
+fail, the re-eval addendum error is surfaced first, not the gate error.
+
+```bash
+reset_phase
+# Delete the addendum that seed_preconditions wrote, but leave the
+# architecture.md deliverable + NONE gate in place.
+rm -f "${PROJECT_DIR}/phases/design/reeval-log.jsonl"
+mock_gate design NONE
+
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
+echo "Exit: $?"
+```
+
+**Expected**:
+- exit code 1
+- stderr contains "re-evaluation addendum" (or "reeval-log.jsonl") — NOT
+  "Gate not run". The addendum check is check 0 and fires first.
+
+### 9. v6 ordering: deliverable error surfaces BEFORE gate error
+
+```bash
+reset_phase
+# Addendum is present (from reset_phase → seed_preconditions), but delete
+# the architecture.md deliverable and leave gate NONE.
+rm -f "${PROJECT_DIR}/phases/design/architecture.md"
+mock_gate design NONE
+
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
+echo "Exit: $?"
+```
+
+**Expected**:
+- exit code 1
+- stderr contains "Missing required deliverables" and "architecture.md" — NOT
+  "Gate not run". The deliverable check is check 1 and fires before the
+  gate check.
 
 ## Expected Outcome
 
@@ -220,9 +332,15 @@ Gate enforcement is deterministic and non-bypassable without an explicit overrid
 bypass is recorded in the phase's status.md with a timestamp, approver, and reason. The mock
 mechanism (writing gate-result.json) makes these tests fast and infrastructure-free.
 
+The v6 check ordering (re-eval → deliverables → gate) is explicit and
+deterministic: tests that want to isolate gate behavior must seed the earlier
+preconditions, and tests 8/9 prove the ordering by removing one precondition at
+a time and observing which error surfaces first.
+
 ## Success Criteria
 
 - [ ] Approval blocked (exit 1) when no gate-result.json present for gate_required phase
+      (with re-eval + deliverable preconditions satisfied, so gate is the first error)
 - [ ] Approval blocked (exit 1) when gate-result.json contains REJECT
 - [ ] Approval succeeds (exit 0) when gate-result.json contains PASS and phase advances
 - [ ] --override-gate with --reason bypasses REJECT and phase advances
@@ -230,6 +348,8 @@ mechanism (writing gate-result.json) makes these tests fast and infrastructure-f
 - [ ] --override-gate bypasses gate-not-run state with audit trail
 - [ ] gate_required=false phases (e.g. ideate) approve without any gate check
 - [ ] Malformed gate-result.json treated as gate-not-run (blocking)
+- [ ] Missing re-eval addendum surfaces BEFORE gate error (v6 ordering, check 0)
+- [ ] Missing deliverable surfaces BEFORE gate error (v6 ordering, check 1)
 
 ## Value Demonstrated
 
