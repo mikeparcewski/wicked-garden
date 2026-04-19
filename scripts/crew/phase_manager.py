@@ -180,6 +180,18 @@ class ConfigError(ValueError):
     """
 
 
+class DispatchCountError(RuntimeError):
+    """Raised when a parallel / council dispatch invoked the dispatcher fewer
+    times than the reviewer list demands (issue #473).
+
+    Full-rigor gates MUST dispatch N distinct Agent calls for N reviewers —
+    one agent emulating N is an invariant violation. Helpers inject this
+    check against the call count observed by a test-supplied mock; in
+    production the dispatcher is a single function that always performs one
+    call per invocation, so the invariant reduces to "we called it N times".
+    """
+
+
 _GATE_POLICY_FULL_VALIDATED: bool = False
 
 
@@ -1380,6 +1392,99 @@ def _empty_verdict_stub(
     }
 
 
+# ---------------------------------------------------------------------------
+# #476 — Blind-reviewer context sanitization.
+#
+# A gate reviewer MUST NOT receive the executor's self-assessment in its
+# brief; the orchestrator compares scores AFTER both are independently
+# collected. Any of these keys leaking into the reviewer-brief context is
+# an integrity violation. Strip defensively at every dispatch site.
+# ---------------------------------------------------------------------------
+
+# Keys that identify executor self-assessment and must never reach a
+# reviewer brief. Matches #476 wording exactly.
+_EXECUTOR_SELF_SCORE_KEYS: frozenset = frozenset({
+    "self_score",
+    "self_verdict",
+    "executor_notes",
+})
+
+
+def _strip_executor_self_score(ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return a shallow copy of ``ctx`` with executor self-assessment keys
+    removed (#476 blind-reviewer invariant).
+
+    When ``ctx`` is None or not a dict, returns an empty dict — the helpers
+    that call this pass through the sanitized dict to the dispatcher, so a
+    non-None return keeps the call-site simple.
+    """
+    if not isinstance(ctx, dict):
+        return {}
+    sanitized: Dict[str, Any] = {}
+    for key, value in ctx.items():
+        if key in _EXECUTOR_SELF_SCORE_KEYS:
+            continue
+        sanitized[key] = value
+    return sanitized
+
+
+# #473 — Multi-reviewer dispatch-count invariant.
+#
+# Full-rigor parallel / council gates MUST dispatch N distinct Agent calls
+# for N reviewers. The BLEND helpers iterate the reviewer list and call the
+# dispatcher once per reviewer; we record the pre-call count, perform the
+# dispatches, then assert the post-call count increased by exactly
+# ``len(reviewers)``. A test-supplied mock with a ``.calls`` attribute
+# (see tests/crew/test_blend_rule_helpers.py::_mock_dispatcher_factory)
+# surfaces under-count as DispatchCountError. In production the real
+# dispatcher always performs one call per invocation, so the invariant is
+# a no-op there (fail-open path).
+
+
+def _dispatcher_call_count(dispatcher: Any) -> Optional[int]:
+    """Return the observed call count of a mock dispatcher, else None.
+
+    Mock dispatchers supplied by tests expose a ``.calls`` list. Production
+    dispatchers do not; in that case we return None and the invariant is
+    skipped (the dispatcher-per-reviewer iteration in Python is itself the
+    enforcement — there is no way a single call can return N distinct
+    verdicts without going through the batched-sentinel path).
+    """
+    calls = getattr(dispatcher, "calls", None)
+    if isinstance(calls, list):
+        return len(calls)
+    return None
+
+
+def _assert_dispatch_count(
+    dispatcher: Any,
+    *,
+    before: Optional[int],
+    expected_delta: int,
+    gate_name: str,
+    phase: str,
+    mode: str,
+) -> None:
+    """Raise DispatchCountError when the observed dispatcher call count did
+    not grow by ``expected_delta``.
+
+    Only meaningful when the dispatcher is instrumented (has a ``.calls``
+    list) AND ``before`` was captured before the dispatch loop. Both
+    conditions are guaranteed by the BLEND helpers that call this.
+    """
+    if before is None:
+        return  # production path — dispatcher not instrumented, nothing to check
+    after = _dispatcher_call_count(dispatcher)
+    if after is None:
+        return
+    actual = after - before
+    if actual != expected_delta:
+        raise DispatchCountError(
+            f"dispatch-count-mismatch: gate={gate_name!r} phase={phase!r} "
+            f"mode={mode!r} expected={expected_delta} actual={actual}"
+        )
+
+
 def _normalize_reviewer_result(
     raw: Any, *, reviewer: str
 ) -> Dict[str, Any]:
@@ -1512,12 +1617,12 @@ def _dispatch_fast_evaluator(
     # out-of-band gate-result written by a rogue agent fails the orphan
     # check. Fail-open — errors do not block dispatch.
     _record_dispatch(state, phase, gate_name, fallback_reviewer)
-    ctx = {
+    ctx = _strip_executor_self_score({
         "gate_name": gate_name,
         "phase": phase,
         "project": getattr(state, "name", None) if state is not None else None,
         "mode": "fast-evaluator",
-    }
+    })
     if dispatcher is None:
         return _empty_verdict_stub(
             gate_name, phase, "dispatcher-unavailable", reviewer=fallback_reviewer
@@ -1581,7 +1686,11 @@ def _dispatch_sequential(
                     f"Review gate '{gate_name}' for phase '{phase}' as {reviewer}. "
                     "Emit verdict + score + reason + conditions."
                 ),
-                {"gate_name": gate_name, "phase": phase, "reviewer": reviewer},
+                _strip_executor_self_score({
+                    "gate_name": gate_name,
+                    "phase": phase,
+                    "reviewer": reviewer,
+                }),
             )
         except Exception as exc:  # pragma: no cover — defensive
             raw = {"verdict": "CONDITIONAL", "score": 0.0,
@@ -1642,17 +1751,26 @@ def _dispatch_parallel_and_merge(
                 f"Dispatch reviewers in parallel for gate '{gate_name}' "
                 f"phase '{phase}'. reviewers={reviewers}"
             ),
-            {
+            _strip_executor_self_score({
                 "gate_name": gate_name,
                 "phase": phase,
                 "reviewers": reviewers,
                 "mode": "parallel",
-            },
+            }),
         )
     except Exception:
         batched = None
 
     if isinstance(batched, list) and batched:
+        # Batched path: the sentinel call returned one result per reviewer
+        # in a single invocation. The multi-reviewer invariant (#473) is
+        # satisfied by the list length — N results for N reviewers.
+        if len(batched) != len(reviewers):
+            raise DispatchCountError(
+                f"dispatch-count-mismatch: gate={gate_name!r} phase={phase!r} "
+                f"mode='parallel-batch' expected={len(reviewers)} "
+                f"actual={len(batched)}"
+            )
         for idx, raw in enumerate(batched):
             name = reviewers[idx] if idx < len(reviewers) else f"reviewer-{idx}"
             per_reviewer.append(
@@ -1661,6 +1779,12 @@ def _dispatch_parallel_and_merge(
     else:
         # Fallback: call the dispatcher once per reviewer. We still mark
         # dispatch_mode=parallel — the contract is the merge rule.
+        # #473: snapshot call count so we can assert we invoked the
+        # dispatcher exactly len(reviewers) more times after the loop.
+        # (The batched-sentinel call above counts as one; the snapshot
+        # is taken AFTER that sentinel so we only measure the fallback
+        # loop itself.)
+        count_before = _dispatcher_call_count(dispatcher)
         for reviewer in reviewers:
             try:
                 raw = dispatcher(
@@ -1669,12 +1793,12 @@ def _dispatch_parallel_and_merge(
                         f"Review gate '{gate_name}' for phase '{phase}' as "
                         f"{reviewer}. Emit verdict + score + reason + conditions."
                     ),
-                    {
+                    _strip_executor_self_score({
                         "gate_name": gate_name,
                         "phase": phase,
                         "reviewer": reviewer,
                         "mode": "parallel",
-                    },
+                    }),
                 )
             except Exception as exc:  # pragma: no cover
                 raw = {"verdict": "CONDITIONAL", "score": 0.0,
@@ -1682,6 +1806,15 @@ def _dispatch_parallel_and_merge(
             per_reviewer.append(
                 _normalize_reviewer_result(raw, reviewer=reviewer)
             )
+        # #473: enforce N-call invariant on the fallback loop.
+        _assert_dispatch_count(
+            dispatcher,
+            before=count_before,
+            expected_delta=len(reviewers),
+            gate_name=gate_name,
+            phase=phase,
+            mode="parallel",
+        )
 
     return _merge_reviewer_verdicts(
         per_reviewer,
@@ -3572,6 +3705,56 @@ class ExecuteResult(Dict[str, Any]):
     """
 
 
+# #482 — Code-level re-eval verification.
+#
+# AC-α4 strengthened: execute() samples the project-root
+# ``process-plan.addendum.jsonl`` line count before the phase runs and
+# again after. A phase-executor that honors #475 will have invoked the
+# propose-process skill in re-evaluate mode at both bookends, which
+# appends to this file via ``reeval_addendum.append``. If the line count
+# did not grow, we emit a warning (soft enforcement — does not fail the
+# phase). The contract is agent-side; this check surfaces silent drift
+# when an executor skips the skill call.
+
+
+def _count_addendum_lines(project_dir: Path) -> int:
+    """Return the number of non-empty lines in process-plan.addendum.jsonl.
+
+    Returns 0 when the file is absent or unreadable. Stdlib-only, fail-open.
+    """
+    path = project_dir / "process-plan.addendum.jsonl"
+    if not path.exists():
+        return 0
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return 0
+    return sum(1 for line in text.splitlines() if line.strip())
+
+
+def _verify_reeval_addendum_growth(
+    project_dir: Path,
+    *,
+    phase: str,
+    before_count: int,
+) -> Optional[str]:
+    """Soft-enforce that execute() saw a new addendum record appended.
+
+    Returns None when growth is detected (contract honored), else a short
+    warning string. Callers emit via ``logger.warning`` and attach the
+    string to the result dict as ``reeval_warning``. Never raises —
+    this is advisory per #482 ("code-level soft enforcement").
+    """
+    after_count = _count_addendum_lines(project_dir)
+    if after_count > before_count:
+        return None
+    return (
+        f"reeval-addendum-not-appended: phase={phase!r} "
+        f"before={before_count} after={after_count} — phase-executor did "
+        "not invoke propose-process skill in re-evaluate mode (see #475)"
+    )
+
+
 def _check_parallelization(check: Dict[str, Any]) -> Optional[str]:
     """Return a failure reason string when the parallelization_check is invalid.
 
@@ -3643,6 +3826,12 @@ def execute(
     reeval_start_path = phase_dir / "reeval-start.json"
     reeval_log_path = phase_dir / "reeval-log.jsonl"
     executor_status_path = phase_dir / "executor-status.json"
+
+    # #482 — Snapshot the addendum line count BEFORE any executor work so
+    # we can verify the phase-executor honored the #475 contract (invoke
+    # propose-process skill at phase-start and phase-end, each append
+    # growing process-plan.addendum.jsonl by >= 1 line).
+    addendum_lines_before = _count_addendum_lines(project_dir)
 
     # When executor-status.json was already written by the phase-executor
     # agent, apply post-dispatch enforcement to it.
@@ -3726,6 +3915,21 @@ def execute(
         print(f"WARNING: {cli_stub_warning}", file=sys.stderr)
         result["status"] = "cli-stub"
         result["warning"] = cli_stub_warning
+
+    # #482 — verify the phase-executor appended a re-eval addendum record
+    # between phase-start and phase-end. Soft enforcement: emit a warning
+    # on the result dict and stderr; do not fail the phase. The addendum
+    # is the on-disk evidence that the #475 skill-call contract was
+    # honored. Skipped on the CLI-stub path — the executor never ran, so
+    # the absence of growth there is expected, not a contract violation.
+    if result.get("status") != "cli-stub":
+        reeval_warning = _verify_reeval_addendum_growth(
+            project_dir, phase=phase, before_count=addendum_lines_before
+        )
+        if reeval_warning:
+            logger.warning("[execute] %s", reeval_warning)
+            print(f"WARNING: {reeval_warning}", file=sys.stderr)
+            result["reeval_warning"] = reeval_warning
 
     return result
 

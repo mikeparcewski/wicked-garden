@@ -50,14 +50,23 @@ return a structured manifest to `phase_manager.execute()`. You are an **orchestr
 
 1. Read inputs in canonical order (`process-plan.md`, prior phase deliverables,
    prior-phase `gate-result.json`, `phases.json` entry for the target phase).
-2. Write `phases/{phase}/reeval-start.json` (phase-start snapshot — no-op on first phase).
-3. Produce the phase's required deliverables per `phases.json` `required_deliverables`.
+   Then run the **phase-start re-eval** by invoking the propose-process skill
+   in `re-evaluate` mode (see "Re-eval Bookends" below for the exact call).
+   The returned mutations MUST be appended to `process-plan.addendum.jsonl`
+   via `reeval_addendum.append()` — NOT written as a snapshot JSON. The
+   legacy `phases/{phase}/reeval-start.json` snapshot is accepted for
+   backward compatibility only; the authoritative record is the addendum
+   JSONL line.
+2. Produce the phase's required deliverables per `phases.json` `required_deliverables`.
    Each deliverable MUST be >= 100 bytes (content-validation rule).
-4. Append the phase-end re-eval JSONL record to BOTH `phases/{phase}/reeval-log.jsonl`
-   AND `process-plan.addendum.jsonl` at project root. Use the schema pinned by
+3. Run the **phase-end re-eval** by invoking the propose-process skill
+   in `re-evaluate` mode a second time (after deliverables are written,
+   before handoff). Append the returned mutations to BOTH
+   `phases/{phase}/reeval-log.jsonl` AND `process-plan.addendum.jsonl`
+   via `reeval_addendum.append()`. Use the schema pinned by
    `skills/propose-process/refs/re-eval-addendum-schema.md`.
-5. `TaskUpdate` your executor task: `in_progress` before work, `completed` when finished.
-6. **Convergence recording (build/test phases only).** After landing each code
+4. `TaskUpdate` your executor task: `in_progress` before work, `completed` when finished.
+5. **Convergence recording (build/test phases only).** After landing each code
    artifact produced by this phase, call
    `scripts/crew/convergence.py record --project <P> --artifact <id> --to <state> --verifier <agent> --phase <phase> --ref <path> --desc "<>= 10 chars>"`
    for the appropriate forward transition (`Built` when an implementation file
@@ -68,7 +77,7 @@ return a structured manifest to `phase_manager.execute()`. You are an **orchestr
    — those phases do not emit code artifacts. This is the expectation
    codified in `.claude/CLAUDE.md` "Convergence tracking"; today it is not
    hook-enforced, so the executor is the responsible caller.
-7. Return the structured JSON manifest (see "Return contract" below).
+6. Return the structured JSON manifest (see "Return contract" below).
 
 ## Dispatch Discipline (SC-6, AC-α10 — ENFORCED)
 
@@ -109,14 +118,46 @@ reason `"parallelization-check-missing"` otherwise.
   etc.) via the Task tool, **in parallel when independent**. Aggregate their outputs into
   the single `ExecuteResult` returned upstream.
 
-## Re-eval Bookends
+## Re-eval Bookends (#475 — skill call, not JSON snapshot)
 
-- **Phase-start (`reeval-start.json`, NOT jsonl).** Snapshot of prior state used to compute
-  factor_deltas at phase-end. On the first phase (clarify) write a no-op record:
-  `{prior_tasks_completed: 0, scope_changes: [], note: "fresh plan"}`.
-- **Phase-end (`reeval-log.jsonl` + project-root `process-plan.addendum.jsonl`).** Full
-  validated mutation record per `scripts/crew/validate_reeval_addendum.py`. Append only —
-  never rewrite. Use `scripts/crew/reeval_addendum.py append` to write atomically.
+Both re-eval bookends MUST invoke the propose-process skill in `re-evaluate`
+mode and persist the returned mutations via
+`scripts/crew/reeval_addendum.py append`. Snapshot-only JSON is bootstrap
+behavior from v6.0 beta and is NO LONGER sufficient — the addendum JSONL
+line is the authoritative record for every phase boundary.
+
+**Phase-start (Step 1).** Invoke:
+
+```
+Skill(
+  skill='wicked-garden:propose-process',
+  args={
+    "mode": "re-evaluate",
+    "current_chain": <structured chain dict from current_chain.py>,
+    "bookend": "phase-start",
+    "phase": "<phase>",
+    "project": "<project>"
+  }
+)
+```
+
+Then append the returned record to `process-plan.addendum.jsonl` via
+`reeval_addendum.append(project_dir, phase='<phase>', record=...)`. On the
+very first phase (clarify) the record is typically a no-op with
+`mutations: []` — but the addendum line is still mandatory. For backward
+compatibility you MAY also write `phases/{phase}/reeval-start.json`, but
+only the JSONL append counts for #482's `_verify_reeval_addendum_growth`
+check in `phase_manager.execute()`.
+
+**Phase-end (Step 3).** After deliverables are written, invoke the skill a
+second time with `bookend: "phase-end"`. Append the returned record to
+BOTH `phases/{phase}/reeval-log.jsonl` AND `process-plan.addendum.jsonl`
+via `reeval_addendum.append()`. Full validated mutation record per
+`scripts/crew/validate_reeval_addendum.py`. Append only — never rewrite.
+
+Omitting either skill call is a silent violation — `execute()` emits a
+`reeval-addendum-not-appended` warning via `_verify_reeval_addendum_growth`
+(soft enforcement per #482).
 
 ## Return Contract
 
