@@ -295,6 +295,21 @@ _DEFAULT_MIN_TEST_COVERAGE: float = 0.80
 _DEFAULT_REQUIRED_SPECIALISTS: list = []
 _DEFAULT_REQUIRED_DELIVERABLES: list = []
 
+# Issue #493: per-phase hardcoded deliverable fallback used by
+# _check_phase_deliverables ONLY when phases.json has no required_deliverables
+# entry for the phase (e.g. older phases.json schema, missing config file).
+# phases.json is the source of truth; this dict is the backward-compat floor.
+# Keep additive and minimal — do not duplicate fields already in phases.json.
+_FALLBACK_REQUIRED_DELIVERABLES: Dict[str, List[Dict[str, Any]]] = {
+    "design": [{"file": "architecture.md", "min_bytes": 200}],
+    "test": [
+        {"file": "test-results.md", "min_bytes": 200},
+        {"file": "evidence/report.md", "min_bytes": 100},
+    ],
+    "review": [{"file": "review-findings.md", "min_bytes": 200}],
+    "clarify": [{"file": "objective.md", "min_bytes": 100}],
+}
+
 
 def get_min_test_coverage(phase_name: str) -> Optional[float]:
     """Return the minimum test coverage threshold for a phase.
@@ -1032,11 +1047,24 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
     and non-empty, they satisfy the phases.json required_deliverables check —
     the facilitator's factor readings + task metadata replace the legacy
     complexity.md / acceptance-criteria.md files. See issue #435.
+
+    Issue #493: the source of truth is phases.json's ``required_deliverables``
+    list. When phases.json is missing (or a particular phase has no entry) we
+    fall back to a small hardcoded map below so legacy phase names still get
+    a reasonable default check instead of silently approving a phase with no
+    deliverables at all. Edit phases.json first — the fallback map exists
+    purely for backward-compat with older phases.json files.
     """
     phase = resolve_phase(phase)
     issues = []
     phases_config = load_phases_config()
     deliverables = phases_config.get(phase, {}).get("required_deliverables", [])
+    if not deliverables:
+        # #493 backward-compat fallback: only applies when phases.json has no
+        # required_deliverables entry for this phase (missing config file, or
+        # older schema). Keep this list minimal and additive — phases.json is
+        # the preferred source.
+        deliverables = _FALLBACK_REQUIRED_DELIVERABLES.get(phase, [])
     if not deliverables:
         return issues
 
@@ -3298,6 +3326,17 @@ def create_project(
     if description:
         state.extras["description"] = description
 
+    # #498: Newly-created projects default to dispatch_mode="mode-3".
+    # Legacy detection (via _detect_dispatch_mode) only applies to projects
+    # loaded WITHOUT an explicit dispatch_mode in extras — those are the
+    # ones that predate mode-3 and should stay on v6-legacy. For fresh
+    # create_project() calls we stamp "mode-3" so the execute() / approve()
+    # paths opt in by default. Callers who need legacy behavior can pass
+    # initial_data={"dispatch_mode": "v6-legacy"} and it will be merged
+    # above and preserved here.
+    if "dispatch_mode" not in state.extras:
+        state.extras["dispatch_mode"] = "mode-3"
+
     # Start clarify phase
     state = start_phase(state, "clarify")
 
@@ -3671,6 +3710,22 @@ def execute(
             trigger="execute",
         )
         save_project_state(state)
+    else:
+        # #499: honest CLI stub. When execute() is invoked from the CLI
+        # (no dispatcher injection) and no phase-executor has written
+        # executor-status.json, we cannot dispatch reviewers ourselves.
+        # Return status="cli-stub" with a clear warning log so callers
+        # know the re-eval bookends were written but NO phase work was
+        # performed. Matches the pattern used for CLI approve (#492).
+        cli_stub_warning = (
+            "CLI execute does not dispatch phase-executor; invoke via "
+            "crew agent or provide a dispatcher. Re-eval bookends "
+            "written but no phase work performed."
+        )
+        logger.warning("[execute] %s", cli_stub_warning)
+        print(f"WARNING: {cli_stub_warning}", file=sys.stderr)
+        result["status"] = "cli-stub"
+        result["warning"] = cli_stub_warning
 
     return result
 
@@ -3949,13 +4004,29 @@ def main():
             return
 
         if args.json:
+            # #494: include rigor_tier, complexity_score, is_complete in the
+            # JSON payload so CLI consumers don't have to re-derive them.
+            # is_complete := every phase in phase_plan has status "approved".
+            phase_status_summary = get_phase_status_summary(state)
+            if state.phase_plan:
+                is_complete = all(
+                    phase_status_summary.get(resolve_phase(p)) == "approved"
+                    for p in state.phase_plan
+                )
+            else:
+                is_complete = False
             summary = {
                 "name": state.name,
                 "current_phase": state.current_phase,
                 "phase_plan": state.phase_plan,
-                "phases": get_phase_status_summary(state),
+                "phases": phase_status_summary,
                 "signals": state.signals_detected,
                 "complexity": state.complexity_score,
+                # New fields (#494): parity with the non-JSON output and
+                # propose-process rubric.
+                "complexity_score": state.complexity_score,
+                "rigor_tier": (state.extras or {}).get("rigor_tier"),
+                "is_complete": is_complete,
             }
             print(json.dumps(summary, indent=2))
         else:
@@ -3984,19 +4055,23 @@ def main():
 
     elif args.action == "approve":
         phase = args.phase or state.current_phase
-        # BLEND-RULE honesty note (review-gate condition a):
+        # BLEND-RULE honesty note (review-gate condition a / issue #492):
         # The CLI `approve` path cannot dispatch subagents — only an
         # Agent-driven caller can inject a real dispatcher. We log an
-        # explicit warning so users aren't silently surprised when
-        # `_dispatch_gate_reviewer` returns a "dispatcher-unavailable"
-        # stub instead of running reviewers. Agent-driven callers should
-        # pass `dispatcher=...` to approve_phase() directly.
-        logger.warning(
+        # explicit warning AND surface a structured
+        # `status: "cli-no-dispatcher"` marker in --json output so users
+        # aren't silently surprised when `_dispatch_gate_reviewer` returns
+        # a "dispatcher-unavailable" stub instead of running reviewers.
+        # Agent-driven callers should pass `dispatcher=...` to
+        # approve_phase() directly.
+        cli_dispatcher_warning = (
             "CLI approve path: no dispatcher available — gate reviewers "
             "will NOT be auto-dispatched. Use `crew:approve` via the "
             "wicked-garden agent path to invoke reviewers, or pre-stage "
             "a gate-result.json before approval. (BLEND-RULE)"
         )
+        logger.warning(cli_dispatcher_warning)
+        print(f"WARNING: {cli_dispatcher_warning}", file=sys.stderr)
         try:
             state, next_phase = approve_phase(
                 state,
@@ -4011,14 +4086,32 @@ def main():
                 dispatcher=None,
             )
         except ValueError as e:
-            print(f"Error: {e}", file=sys.stderr)
+            if args.json:
+                print(json.dumps({
+                    "ok": False,
+                    "status": "cli-no-dispatcher",
+                    "approved_phase": resolve_phase(phase),
+                    "error": str(e),
+                    "warning": cli_dispatcher_warning,
+                }))
+            else:
+                print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
         save_project_state(state)
-        print(f"Approved phase: {resolve_phase(phase)}")
-        if next_phase:
-            print(f"Next phase: {next_phase}")
+        if args.json:
+            print(json.dumps({
+                "ok": True,
+                "status": "cli-no-dispatcher",
+                "approved_phase": resolve_phase(phase),
+                "next_phase": next_phase,
+                "warning": cli_dispatcher_warning,
+            }, indent=2))
         else:
-            print("Project complete!")
+            print(f"Approved phase: {resolve_phase(phase)}")
+            if next_phase:
+                print(f"Next phase: {next_phase}")
+            else:
+                print("Project complete!")
 
     elif args.action == "skip":
         phase = args.phase
