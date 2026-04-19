@@ -36,6 +36,23 @@
         "fallback": "senior-engineer"
       }
     },
+    "challenge-resolution": {
+      "minimal": {
+        "reviewers": [],
+        "mode": "self-check",
+        "fallback": "contrarian"
+      },
+      "standard": {
+        "reviewers": ["contrarian"],
+        "mode": "sequential",
+        "fallback": "reviewer"
+      },
+      "full": {
+        "reviewers": ["contrarian", "independent-reviewer"],
+        "mode": "parallel",
+        "fallback": "reviewer"
+      }
+    },
     "testability": {
       "minimal": {
         "reviewers": [],
