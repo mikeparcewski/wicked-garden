@@ -1,5 +1,25 @@
 # Changelog
 
+## [6.0.0] - 2026-04-18
+
+**v6.0 production release.** Promotes beta.5 out of pre-release. The v6
+autonomy mechanism + issue #332 context:fork shipped cleanly at the code
+level (66/66 unit tests, 10/10 facilitator measurement scenarios, validator
+selftests all green). Skill-registration behavior on the build machine
+showed intermittent issues that appeared to be local install-state, not
+packaging — promoting to 6.0 and expecting fresh installs to pick up all
+5 newly-registering skills. If the skill-registration issue reproduces on
+a clean install, a 6.0.1 patch will follow.
+
+**Everything from beta.4 + beta.5 ships:**
+- v6 autonomy mechanism (shift-left phase-boundary gates, bidirectional
+  re-eval, codified reviewer matrix, JSONL addendum log, adopt-legacy skill)
+- Issue #332 partial — `context: fork` on 3 heavy skills (crew:workflow,
+  qe:acceptance-testing, search:unified-search)
+- Breaking change — `CREW_GATE_ENFORCEMENT=legacy` deleted
+- Skill-frontmatter cleanup — removed `disable-model-invocation: false`
+  from 5 SKILL.md files that appeared to suppress registration
+
 ## [6.0.0-beta.5] - 2026-04-18
 
 **Skill-registration fix.** Beta.4 shipped 5 SKILL.md files with
