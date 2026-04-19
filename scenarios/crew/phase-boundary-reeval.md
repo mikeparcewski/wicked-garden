@@ -142,7 +142,9 @@ echo "Exit code: $?"
 ```
 
 **Pass criterion**: Exit code is non-zero AND stderr/stdout contains a message
-matching `re-evaluation required` (case-insensitive). Phase advance must be blocked.
+matching `re-evaluation` (case-insensitive) — the actual approve-blocked messages
+emitted by `phase_manager.py` are `Re-evaluation is required before approval.`
+and `Re-evaluation required before approval.`. Phase advance must be blocked.
 
 ### Assertion
 
@@ -152,7 +154,7 @@ output=$(sh "${PLUGIN_ROOT}/scripts/_python.sh" \
   scripts/crew/phase_manager.py "${TEST_PROJECT}" approve \
   --phase design 2>&1)
 exit_code=$?
-if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qi "re-evaluation required"; then
+if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qiE "re-evaluation (is )?required"; then
   echo "PASS blocked-approve-without-reeval"
 else
   echo "FAIL blocked-approve-without-reeval (exit=$exit_code, output=$output)"
