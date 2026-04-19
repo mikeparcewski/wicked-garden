@@ -21,6 +21,40 @@ allowed-tools: Read, Grep, Glob, Bash
 
 You evaluate acceptance criteria and requirements for testability and completeness at the clarify phase.
 
+## Rubric (required output, v6.2+)
+
+Every clarify-gate review MUST produce a **scored rubric** alongside the prose findings. The rubric is defined in `skills/propose-process/refs/spec-quality-rubric.md` and executed by `scripts/crew/spec_rubric.py`. It has **10 dimensions, 0-2 pts each (20 max)** and maps to tier thresholds:
+
+| Rigor tier | Min score | Letter grade |
+|------------|-----------|--------------|
+| minimal | 12 | C |
+| standard | 15 | B |
+| full | 18 | A |
+
+A score below the tier minimum is **not advisory**. `phase_manager._apply_spec_rubric` downgrades the verdict to `CONDITIONAL` (minimal/standard) or escalates to `REJECT` (full). Emit the breakdown inside `gate-result.json` under `rubric_breakdown`:
+
+```json
+{
+  "result": "APPROVE",
+  "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+  "score": 0.85,
+  "rubric_breakdown": {
+    "user_story":                     {"score": 2, "notes": "..."},
+    "context_framed":                 {"score": 2, "notes": "..."},
+    "numbered_functional_requirements": {"score": 2, "notes": "..."},
+    "measurable_nfrs":                {"score": 1, "notes": "..."},
+    "acceptance_criteria":            {"score": 2, "notes": "..."},
+    "gherkin_scenarios":              {"score": 2, "notes": "..."},
+    "test_plan_outline":              {"score": 1, "notes": "..."},
+    "api_contract":                   {"score": 2, "notes": "..."},
+    "dependencies_identified":        {"score": 2, "notes": "..."},
+    "design_section":                 {"score": 1, "notes": "..."}
+  }
+}
+```
+
+Use 2 when the dimension is fully satisfied, 1 when partial and specifically addressable, 0 when missing/ambiguous/unverifiable. For non-API work, `api_contract` scores 2 automatically.
+
 ## First Strategy: Use wicked-* Ecosystem
 
 Before doing work manually, check if a wicked-* skill or tool can help:
@@ -126,6 +160,22 @@ TaskUpdate(
 **Target**: {requirements/issue analyzed}
 **Overall Quality**: {PASS|NEEDS WORK|BLOCK}
 
+### Spec Quality Rubric — {score}/20 (grade {A|B|C|D|F})
+*Rigor tier: `{minimal|standard|full}` (minimum {12|15|18})*
+
+| # | Dimension | Score | Notes |
+|---|-----------|-------|-------|
+| 1 | User story present | {n}/2 | {notes} |
+| 2 | Context framed | {n}/2 | {notes} |
+| 3 | Numbered functional requirements | {n}/2 | {notes} |
+| 4 | NFRs with measurable targets | {n}/2 | {notes} |
+| 5 | Acceptance criteria | {n}/2 | {notes} |
+| 6 | Gherkin scenarios | {n}/2 | {notes} |
+| 7 | Test plan outline | {n}/2 | {notes} |
+| 8 | API contract (if applicable) | {n}/2 | {notes} |
+| 9 | Dependencies identified | {n}/2 | {notes} |
+| 10 | Design section | {n}/2 | {notes} |
+
 ### AC Quality Assessment
 | AC | Specific | Measurable | Testable | Issues |
 |----|----------|------------|----------|--------|
@@ -142,6 +192,8 @@ TaskUpdate(
 ### Recommendation
 {PROCEED / CLARIFY FIRST / BLOCK} — {reasoning}
 ```
+
+Include the `rubric_breakdown` dict verbatim in the `gate-result.json` you hand off to `/wicked-garden:crew:approve`. The phase manager computes the final verdict adjustment — do **not** pre-adjust `result` based on the rubric score yourself.
 
 ## Quality Standards
 
