@@ -1068,6 +1068,96 @@ def _validate_min_gate_score(
     return None
 
 
+# ---------------------------------------------------------------------------
+# Spec-quality rubric enforcement (clarify phase) — see spec_rubric.py
+# ---------------------------------------------------------------------------
+
+
+def _apply_spec_rubric(
+    gate_result: Dict[str, Any],
+    phase: str,
+    rigor_tier: Optional[str],
+) -> Dict[str, Any]:
+    """Apply the spec-quality rubric to a clarify-phase gate result.
+
+    Mutates a *copy* of ``gate_result`` so the caller can decide whether to
+    persist the adjusted verdict (and conditions) back to disk.
+
+    Only fires when:
+      - ``phase == 'clarify'``
+      - ``gate_result`` carries a ``rubric_breakdown`` dict (produced by the
+        requirements-quality reviewer agent).
+
+    When the rubric breakdown is missing or invalid the original result is
+    returned unchanged — the classic ``min_gate_score`` check still runs
+    alongside and catches pure-prose gate results. This preserves backward
+    compatibility with pre-rubric projects.
+
+    Returns a new dict, never mutates the input.
+    """
+    if resolve_phase(phase) != "clarify":
+        return gate_result
+
+    breakdown = gate_result.get("rubric_breakdown") if isinstance(gate_result, dict) else None
+    if not isinstance(breakdown, dict):
+        return gate_result
+
+    try:
+        # Late import so the module stays optional for non-clarify callers.
+        from crew import spec_rubric  # type: ignore
+    except ImportError:
+        try:
+            import spec_rubric  # type: ignore
+        except ImportError:
+            return gate_result
+
+    ok, err = spec_rubric.validate_breakdown(breakdown)
+    if not ok:
+        logger.warning(
+            "[approve] Ignoring malformed rubric_breakdown on clarify gate: %s",
+            err,
+        )
+        return gate_result
+
+    score = spec_rubric.total_score(breakdown)
+    tier = (rigor_tier or "standard").lower()
+    base_verdict = str(gate_result.get("result", "APPROVE")).upper()
+
+    verdict, reason, conditions = spec_rubric.evaluate_verdict(
+        score=score,
+        rigor_tier=tier,
+        base_verdict=base_verdict,
+        breakdown=breakdown,
+    )
+
+    adjusted = dict(gate_result)
+    adjusted["rubric_score"] = score
+    adjusted["rubric_max_score"] = spec_rubric.MAX_SCORE
+    adjusted["rubric_grade"] = spec_rubric.grade_for_score(score)
+    adjusted["rubric_rigor_tier"] = tier
+    adjusted["rubric_threshold"] = spec_rubric.TIER_THRESHOLDS.get(tier)
+
+    # Persist the score-driven verdict + annotations. When the rubric changed
+    # the verdict record a rubric_adjustment block; either way merge any
+    # rubric-derived conditions so CONDITIONAL manifests include them.
+    if verdict != base_verdict:
+        adjusted["result"] = verdict
+        adjusted["rubric_adjustment"] = {
+            "from": base_verdict,
+            "to": verdict,
+            "reason": reason,
+        }
+
+    if conditions:
+        existing_conditions = list(adjusted.get("conditions", []) or [])
+        for c in conditions:
+            if c not in existing_conditions:
+                existing_conditions.append(c)
+        adjusted["conditions"] = existing_conditions
+
+    return adjusted
+
+
 def _bump_rework_iteration(project_dir: Path, phase: str) -> int:
     """Increment the per-phase rework iteration counter and return the new value.
 
@@ -1404,6 +1494,15 @@ def approve_phase(
         else:
             # Gate was run — check if it passed or failed
             gate_result = _load_gate_result(project_dir, phase)
+
+            # Check 2a.0: spec-quality rubric (clarify phase only). Adjust the
+            # verdict up (to CONDITIONAL/REJECT) when the rubric score is below
+            # the tier threshold. Safe no-op for non-clarify phases or when the
+            # reviewer did not attach a rubric_breakdown.
+            if gate_result:
+                gate_result = _apply_spec_rubric(
+                    gate_result, phase, state.extras.get("rigor_tier")
+                )
 
             # Check 2a: banned reviewer names (AC-1.4) — no override allowed
             if gate_result:
