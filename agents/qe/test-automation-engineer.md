@@ -1,5 +1,6 @@
 ---
 name: test-automation-engineer
+subagent_type: wicked-garden:qe:test-automation-engineer
 description: |
   Generate test code and configure test automation infrastructure. Creates unit,
   integration, and e2e tests. Configures test runners, CI pipelines, and coverage.

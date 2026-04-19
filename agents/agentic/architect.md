@@ -1,5 +1,6 @@
 ---
 name: architect
+subagent_type: wicked-garden:agentic:architect
 description: |
   Five-layer architecture validation, agent topology analysis, orchestration patterns,
   and framework selection for agentic systems. Focus on structural soundness and scalability.

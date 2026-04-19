@@ -1,5 +1,6 @@
 ---
 name: infrastructure-engineer
+subagent_type: wicked-garden:platform:infrastructure-engineer
 description: |
   Cloud infrastructure design, Infrastructure-as-Code, scalability, and
   platform reliability. Focus on AWS/GCP/Azure, Terraform, Kubernetes,

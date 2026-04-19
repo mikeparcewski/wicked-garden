@@ -1,5 +1,6 @@
 ---
 name: data-architect
+subagent_type: wicked-garden:data:data-architect
 description: |
   Unified data architecture role — owns both operational/transactional data
   modeling (OLTP schemas, domain entities, data flow, caching, consistency) AND

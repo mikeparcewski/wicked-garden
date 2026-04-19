@@ -1,5 +1,6 @@
 ---
 name: devex-engineer
+subagent_type: wicked-garden:engineering:devex-engineer
 description: |
   Developer experience and internal tooling specialist. Owns the quality of the
   inner dev loop — local environment setup, CI ergonomics, build/test speed,

@@ -1,5 +1,6 @@
 ---
 name: incident-responder
+subagent_type: wicked-garden:platform:incident-responder
 description: |
   Incident response specialist focused on rapid triage, root cause correlation,
   timeline reconstruction, and blast radius assessment during production incidents.

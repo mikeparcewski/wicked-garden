@@ -1,5 +1,6 @@
 ---
 name: sre
+subagent_type: wicked-garden:platform:sre
 description: |
   Site Reliability Engineer focused on system health, capacity planning,
   performance correlation, and reliability improvement.

@@ -1,5 +1,6 @@
 ---
 name: debugger
+subagent_type: wicked-garden:engineering:debugger
 description: |
   Debugging specialist focused on root cause analysis, error investigation,
   profiling, and systematic debugging strategies. Helps diagnose complex issues.

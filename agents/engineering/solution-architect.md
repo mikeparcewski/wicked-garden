@@ -1,5 +1,6 @@
 ---
 name: solution-architect
+subagent_type: wicked-garden:engineering:solution-architect
 description: |
   Design end-to-end solutions with appropriate patterns, technology choices, and trade-offs.
   Focus on high-level architecture that balances requirements, constraints, and maintainability.

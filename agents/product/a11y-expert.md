@@ -1,5 +1,6 @@
 ---
 name: a11y-expert
+subagent_type: wicked-garden:product:a11y-expert
 description: |
   Audit accessibility compliance - WCAG guidelines, keyboard navigation,
   screen readers, semantic HTML, and inclusive design patterns.

@@ -1,5 +1,6 @@
 ---
 name: council
+subagent_type: wicked-garden:jam:council
 description: |
   Runs structured multi-model council evaluations using external LLM CLIs.
   Each model responds independently to a fixed question scaffold, then Claude synthesizes.

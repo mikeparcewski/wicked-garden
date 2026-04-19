@@ -1,5 +1,6 @@
 ---
 name: user-voice
+subagent_type: wicked-garden:product:user-voice
 description: |
   User/customer voice specialist. Combines sentiment & theme analysis over raw
   feedback data with empathy-driven advocacy that translates that signal into

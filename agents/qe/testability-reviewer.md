@@ -1,5 +1,6 @@
 ---
 name: testability-reviewer
+subagent_type: wicked-garden:qe:testability-reviewer
 description: |
   Review design artifacts for testability. Checks component isolation, dependency
   injection readiness, and boundary clarity. Flags designs that will be hard to test.

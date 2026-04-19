@@ -38,7 +38,7 @@ Also check for design token definitions:
 
 ```
 Task(
-  subagent_type="wicked-garden:product:visual-reviewer",
+  subagent_type="wicked-garden:product:ui-reviewer",
   prompt="""Perform a visual design review of the following UI code.
 
 ## Target

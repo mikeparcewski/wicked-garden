@@ -1,5 +1,6 @@
 ---
 name: risk-assessor
+subagent_type: wicked-garden:qe:risk-assessor
 description: |
   Identify risks and failure modes. Assesses security, reliability,
   and operational risks. Updates the active task with the risk matrix via TaskUpdate.

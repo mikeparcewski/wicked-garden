@@ -1,5 +1,6 @@
 ---
 name: test-strategist
+subagent_type: wicked-garden:qe:test-strategist
 description: |
   Generate test scenarios from code. Identifies happy paths, error cases,
   and edge cases. Updates the active task with findings via TaskUpdate.

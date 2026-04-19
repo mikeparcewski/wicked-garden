@@ -1,5 +1,6 @@
 ---
 name: qe-orchestrator
+subagent_type: wicked-garden:crew:qe-orchestrator
 description: |
   Route to appropriate quality gate. Determines gate type from context,
   dispatches to gate-specific orchestrators, consolidates results.

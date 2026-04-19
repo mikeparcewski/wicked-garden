@@ -1,5 +1,6 @@
 ---
 name: auditor
+subagent_type: wicked-garden:platform:auditor
 description: |
   Audit evidence collector and control verifier. Gathers artifacts,
   validates controls, maintains audit trails, and generates compliance

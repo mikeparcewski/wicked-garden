@@ -1,5 +1,6 @@
 ---
 name: implementer
+subagent_type: wicked-garden:crew:implementer
 description: |
   Execute implementation tasks according to approved designs and test strategies.
   Use when: building features, implementing approved designs, tracked development work.

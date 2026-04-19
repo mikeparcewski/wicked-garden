@@ -12,7 +12,7 @@ This command uses forced fast convergence: exactly 1 round, then immediately syn
 Delegate to the facilitator agent:
 
 ```
-Task(subagent_type="wicked-garden:jam:facilitator",
+Task(subagent_type="wicked-garden:jam:brainstorm-facilitator",
      prompt="Run a quick jam session on: {topic}. Use 4 personas, EXACTLY 1 round, then synthesize IMMEDIATELY. Do not run a second round under any circumstances — this is fast convergence mode. Brief synthesis with 2-3 insights max. Still gather evidence if available (but keep it fast — 2 sources max). Store a lightweight decision record after synthesis.
 
 Native-task tracking (fail open on any tool errors):

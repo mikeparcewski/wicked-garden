@@ -1,5 +1,6 @@
 ---
 name: rollout-manager
+subagent_type: wicked-garden:delivery:rollout-manager
 description: |
   Coordinate progressive rollouts with risk management. Plan canary deployments,
   monitor metrics, define rollback criteria, and communicate with stakeholders.

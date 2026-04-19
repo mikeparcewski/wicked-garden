@@ -1,5 +1,6 @@
 ---
 name: memory-archivist
+subagent_type: wicked-garden:mem:memory-archivist
 description: |
   Maintain memory health — decay, archive, and cleanup operations.
   Use when: memory maintenance, cleanup, decay lifecycle (active -> archived -> decayed -> deleted).
