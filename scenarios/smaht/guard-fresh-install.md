@@ -10,7 +10,7 @@ estimated_minutes: 8
 # Setup Guard — Fresh Install (No Config)
 
 This scenario tests the hard-block path in `_check_setup_gate` (AC-277-1, AC-277-3, AC-277-4,
-AC-277-5). When `~/.something-wicked/wicked-garden/config.json` does not exist, any prompt that
+AC-277-5). When the wicked-garden config (path resolved via `scripts/resolve_path.py`) does not exist, any prompt that
 is not a setup/help command must exit 2. Setup commands must always pass through, and once a
 config with `setup_complete=true` plus a session sentinel exist, normal prompts must be allowed.
 

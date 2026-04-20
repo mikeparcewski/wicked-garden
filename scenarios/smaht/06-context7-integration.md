@@ -42,8 +42,9 @@ The v6 entry point for library cheatsheet fetching is
 **Expected**:
 
 - If context7 MCP is installed: a cheatsheet is written under
-  `~/.something-wicked/wicked-garden/local/wicked-smaht/libs/react.md` (or
-  equivalent local path — read via `scripts/resolve_path.py`).
+  a cheatsheet under the script-resolved libs path
+  (`sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-smaht libs`
+  → `react.md` inside that directory).
 - If context7 MCP is NOT installed: a friendly "context7 MCP not available"
   message is emitted. No stack trace.
 
