@@ -70,7 +70,7 @@ echo "Assert: bootstrap output does NOT contain full 'wicked-garden:setup' invoc
 
 **Note**: Full verification of this step requires running bootstrap.py in an environment where
 the search database is absent but wicked-mem has onboarding memories. In automated testing,
-this is done by removing `~/.something-wicked/wicked-garden/local/search/index.db` and
+this is done by removing the search index under `~/.something-wicked/wicked-garden/projects/{project-slug}/` and
 confirming memories exist in the local memory store before running bootstrap.py.
 
 ### 3. No directive fires when both memories and index present

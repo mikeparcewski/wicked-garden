@@ -14,8 +14,8 @@ Validates that wicked-garden is fully self-contained when no external integratio
 configured. The plugin must work with nothing but Python and a local filesystem.
 
 Core storage layer: `DomainStore` (`scripts/_domain_store.py`) writes JSON files under
-`~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.json`. No external
-services, no SQLite migrations, no brain server required.
+`~/.something-wicked/wicked-garden/projects/{project-slug}/{domain}/{source}/{id}.json`.
+No external services, no SQLite migrations, no brain server required.
 
 ## Setup
 
@@ -39,7 +39,7 @@ echo "Sandbox ready: $WG_TMP"
 **Given**: No external MCP tools configured, no brain server, no external services
 **When**: `DomainStore.create` is called for the `wicked-mem` domain
 **Then**:
-  - The JSON file is written to `$WG_TMP/.something-wicked/wicked-garden/local/wicked-mem/memories/{id}.json`
+  - The JSON file is written under the project-scoped local storage path for the sandbox
   - The file contains the correct payload fields
 
 ```bash
@@ -315,6 +315,6 @@ All five test cases pass with `PASS` in their output and exit code 0.
 
 `DomainStore` makes wicked-garden fully self-contained for individuals and air-gapped
 environments. No network server to install, no Docker, no Node — just JSON files under
-`~/.something-wicked/wicked-garden/local/`. All wicked-garden features (crew,
-mem, search) use the same `DomainStore` API. External integrations (Linear, Jira, Notion)
-are optional; the plugin works identically without them.
+`~/.something-wicked/wicked-garden/projects/{project-slug}/`. All wicked-garden features
+(crew, mem, search) use the same `DomainStore` API. External integrations (Linear,
+Jira, Notion) are optional; the plugin works identically without them.

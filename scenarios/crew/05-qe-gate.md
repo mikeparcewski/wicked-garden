@@ -35,7 +35,12 @@ check (4) is the only remaining failure mode. Each step below does that in setup
 
 ```bash
 export TEST_PROJECT="gate-enforcement-test"
-export PROJECT_DIR="${HOME}/.something-wicked/wicked-garden/local/wicked-crew/projects/${TEST_PROJECT}"
+export PROJECT_DIR=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+from _paths import get_local_path
+print(get_local_path('wicked-crew', 'projects') / '${TEST_PROJECT}')
+")
 
 mkdir -p "${PROJECT_DIR}/phases/design"
 mkdir -p "${PROJECT_DIR}/phases/clarify"
