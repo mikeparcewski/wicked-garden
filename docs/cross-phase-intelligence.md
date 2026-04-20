@@ -1,17 +1,20 @@
 # Cross-Phase Intelligence
 
-v3.4.0 added 9 modules across 5 domains that make crew phases aware of each other. Requirements trace forward to tests. Artifacts enforce lifecycle transitions. Verification checks run automatically at gates. Impact analysis reveals what breaks when something changes.
+Crew phases are aware of each other. Requirements trace forward to tests. Artifacts enforce lifecycle transitions. Verification checks run automatically at gates. Impact analysis reveals what breaks when something changes. v6 adds convergence tracking and archetype-aware evidence evaluation on top of the v3.4 foundation.
 
 ## Overview
 
-Before v3.4.0, crew phases were isolated -- clarify produced requirements, design produced architecture docs, build produced code, and each phase started fresh with whatever the previous phase left behind. Cross-phase intelligence connects them:
+Before v3.4, crew phases were isolated — clarify produced requirements, design produced architecture docs, build produced code, and each phase started fresh with whatever the previous phase left behind. Cross-phase intelligence connects them:
 
 - A requirement created in clarify is **traced** to a design decision, which is traced to code, which is traced to a test
-- Artifacts move through enforced **lifecycle states** (DRAFT, IN_REVIEW, APPROVED, IMPLEMENTED, VERIFIED, CLOSED)
+- Artifacts move through enforced **lifecycle states** (DRAFT → IN_REVIEW → APPROVED → IMPLEMENTED → VERIFIED → CLOSED)
 - Review gates run **6 automated checks** against real evidence before allowing phase advancement
 - Changing a requirement triggers **impact analysis** showing every downstream artifact affected
 - Memory **recall prioritizes context** relevant to the current phase
 - Council **decisions preserve dissent** so future phases know what was contested
+- **Convergence lifecycle** (v6): every build/test artifact additionally tracks wire-in state (Designed → Built → Wired → Tested → Integrated → Verified). Completion ≠ wired into production
+- **Archetype awareness** (v6.3): the phase-boundary QE evaluator reads the detected archetype and picks per-type test + evidence expectations
+- **Semantic review** (v6.1): at the review gate, a gap report checks code against numbered acceptance criteria — not just whether tests pass
 
 ## Traceability Links
 
@@ -405,6 +408,74 @@ memory_record = format_for_memory(result)
 ```
 
 Strong dissents are preserved in metadata so future phases know what was contested.
+
+## Convergence Lifecycle (v6.1+)
+
+`scripts/crew/convergence.py` — artifact convergence states for build/test phases. Completion tracking at the task level (`completed`) is not the same as a deliverable being wired into the production path. Convergence tracks the second, finer-grained state.
+
+### States
+
+```
+Designed -> Built -> Wired -> Tested -> Integrated -> Verified
+```
+
+| State | Meaning |
+|-------|---------|
+| Designed | Spec exists |
+| Built | Code landed |
+| Wired | Hooked into the call path (not just authored) |
+| Tested | Covered by a green test |
+| Integrated | Runs end-to-end through real entry points |
+| Verified | Reviewer signed off against clarify acceptance criteria |
+
+### Usage
+
+Implementers and test-designers call `scripts/crew/convergence.py record` after landing each artifact. The **`convergence-verify`** review gate refuses to flip to APPROVE until every tracked artifact has reached at least Integrated. Stalls at the same state for three sessions are surfaced as findings.
+
+```bash
+# Record a state transition
+convergence.py record --project my-project --artifact-id feature-x --state Wired
+
+# Show current convergence for a project
+convergence.py status --project my-project
+
+# Verify gate readiness
+convergence.py verify --project my-project
+```
+
+Scenario: `scenarios/crew/convergence-lifecycle.md`.
+
+## Archetype Detection (v6.3+)
+
+`scripts/crew/archetype_detect.py` — stdlib-only heuristic over the project description + changed files. Classifies work into one of seven archetypes with a `DOMINANCE_RATIO` of 4 (one archetype must be 4× stronger than the next, else falls back to `code-repo`).
+
+Priority order (first match wins):
+
+1. **schema-migration** — database DDL, alembic/flyway
+2. **multi-repo** — spans multiple repos or submodules
+3. **testing-only** — changes live entirely under test dirs
+4. **config-infra** — Terraform, Kubernetes, workflow YAML, config files
+5. **skill-agent-authoring** — touches `agents/` / `skills/` / `commands/`
+6. **docs-only** — only markdown / docs/ changes
+7. **code-repo** — default fallback
+
+The archetype is injected into `TaskCreate` metadata at clarify time. The **phase-boundary QE evaluator** (`agents/crew/qe-evaluator.md`) reads it at the `testability` and `evidence-quality` gates to pick archetype-specific `test_types` and `evidence_required` expectations — a docs-only project isn't asked for unit test coverage; a schema-migration is asked for dry-run + rollback evidence.
+
+### Re-eval Addendum (schema 1.1.0)
+
+`phases/{phase}/reeval-log.jsonl` now carries archetype-aware fields. Additive change — legacy 1.0 readers still work. Emitted by `skills/re-eval/` during checkpoint re-evaluation.
+
+## Semantic Review (v6.1+)
+
+`agents/qe/semantic-reviewer.md` — runs at the review gate for complexity ≥ 3. Extracts numbered acceptance criteria (`AC-*`, `FR-*`, `REQ-*`) from clarify artifacts and emits a **Gap Report** per item with one of three statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `aligned` | Code implements the intent of the criterion |
+| `divergent` | Code does something related but not what the criterion specified |
+| `missing` | No code found that implements the criterion |
+
+Tests passing is not the same as spec intent being satisfied. The semantic reviewer closes that gap before the review gate signs off.
 
 ## How They Work Together
 

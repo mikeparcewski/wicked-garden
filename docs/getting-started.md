@@ -20,7 +20,7 @@ For any non-trivial task, crew orchestrates the entire delivery:
 /wicked-garden:crew:start "Add user authentication with OAuth2"
 ```
 
-Crew analyzes your description, detects signals (security, architecture, etc.), scores complexity, selects phases, and routes to the right specialists. For simple tasks (complexity 0-2), it auto-finishes without prompting you. For complex work, it walks you through clarify, design, test-strategy, build, test, and review phases.
+The facilitator (`skills/propose-process/`) scores 9 factors, detects one of 7 project archetypes, picks specialists by reading their `subagent_type` frontmatter, and selects phases from `phases.json`. A minimal-rigor task gets advisory self-check gates and finishes fast. A full-rigor task (compliance scope, high blast radius, schema migrations) gets multi-reviewer panels, per-archetype evidence demands, and a convergence-verify gate that blocks sign-off until every artifact is integrated.
 
 ### 2. Get a Code Review
 
@@ -134,15 +134,18 @@ Every domain also has a help command:
 
 ## What Happens Behind the Scenes
 
-When you run a command, a context assembly layer called **smaht** intercepts your prompt and enriches it with relevant context — recent memory, active crew projects, kanban tasks, and code intelligence. This happens automatically on every prompt, not just wicked-garden commands.
+When you run a command, a context assembly layer called **smaht** intercepts your prompt and enriches it with relevant context — recent memory, active crew projects, native tasks, and code intelligence. This happens automatically on every prompt, not just wicked-garden commands.
 
-During crew workflows, the system also tracks **traceability links** between phase deliverables (so a clarify decision connects forward to design artifacts and implementation), manages **artifact states** through a 6-state lifecycle (draft, review, approved, rework, superseded, closed), and runs a **verification protocol** at quality gates to ensure evidence-based advancement.
+Every `TaskCreate` / `TaskUpdate` carries a structured metadata envelope (`chain_id`, `event_type`, `source_agent`, `phase`, `archetype`) validated by a PreToolUse hook. A SubagentStart hook reads the event type and injects the matching procedure bundle — R1–R6 bulletproof standards for coding-tasks, the Gate Finding Protocol for gate-findings, and per-role procedures for other types.
+
+During crew workflows, the system also tracks **traceability links** between phase deliverables (so a clarify decision connects forward to design artifacts and implementation), manages **artifact states** through a 6-state convergence lifecycle (Designed → Built → Wired → Tested → Integrated → Verified) with stall detection, and runs a **verification protocol** at quality gates to ensure evidence-based advancement.
 
 Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON files, scoped per working directory. No data leaves your machine unless you configure external integrations.
 
 ## Next Steps
 
-- [Domains](domains.md) — browse all 14 domains and their commands
-- [Crew Workflow](crew-workflow.md) — understand the signal-driven workflow engine
-- [Architecture](architecture.md) — how storage, routing, and context assembly work
-- [Advanced Usage](advanced.md) — multi-model reviews, customization, dev tools
+- [Domains](domains.md) — browse all 13 domains and their commands
+- [Crew Workflow](crew-workflow.md) — facilitator rubric, archetype detection, gates, convergence
+- [Architecture](architecture.md) — storage, native task metadata, gate policy, context assembly
+- [Advanced Usage](advanced.md) — multi-model reviews, yolo mode, customization, dev tools
+- [Cross-Phase Intelligence](cross-phase-intelligence.md) — traceability, verification, convergence, knowledge graph

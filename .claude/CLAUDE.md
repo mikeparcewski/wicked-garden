@@ -87,7 +87,7 @@ Agent subagent_type uses colons: `wicked-garden:{domain}:{agent-name}`
 
 Task tracking uses Claude Code's native `TaskCreate`/`TaskUpdate` with enriched `metadata` — no separate kanban domain. The PreToolUse validator in `hooks/scripts/pre_tool.py` enforces the envelope per `scripts/_event_schema.py`.
 
-Specialists define personas in `.claude-plugin/specialist.json`. Crew discovers them at runtime and routes based on signal analysis.
+Specialists define role categories in `.claude-plugin/specialist.json` as a lean manifest. Crew discovers specialists at runtime by reading `agents/**/*.md` frontmatter and matching the facilitator's 9-factor rubric readings + detected archetype to each agent's description and `subagent_type`. The v5 static `enhances` map was removed in v6.
 
 ### Cross-Domain Communication
 
@@ -146,11 +146,19 @@ Dynamic multi-phase workflows with facilitator-driven specialist routing (v6):
 
 Review tiers map from complexity: 0-2 → minimal (advisory gates), 3-5 → standard (enforced gates), 6-7 → full (multi-reviewer). Security/compliance signals override to full regardless of complexity.
 
+**Archetype detection (v6.3)**: `scripts/crew/archetype_detect.py` classifies every project into 1 of 7 archetypes (priority order, first match wins): `schema-migration`, `multi-repo`, `testing-only`, `config-infra`, `skill-agent-authoring`, `docs-only`, `code-repo`. `DOMINANCE_RATIO=4` — one archetype must be 4× stronger than the next or it falls back to `code-repo`. Archetype is injected into `TaskCreate` metadata at clarify time (facilitator rubric Step 6) and consumed by the phase-boundary QE evaluator to pick per-archetype `test_types` + `evidence_required`.
+
+**Phase-boundary QE evaluator (v6.3)**: `agents/crew/qe-evaluator.md` replaces `test-strategist` at `gate-policy.json:testability.standard` and is added at `evidence-quality.standard` as sole reviewer. Reads `ctx["archetype"]` from state injection and applies per-archetype score-band tables. Missing/invalid archetype triggers a structured warning + explicit `code-repo` fallback with audit markers — never silent-degrades.
+
+**Challenge gate + contrarian (v6.1)**: `agents/crew/contrarian.md` runs a structured steelman of the alternative path. Challenge phase auto-inserts at complexity ≥ 4 (`propose-process` rubric). Output feeds the review-gate evidence bundle and can block advancement.
+
+**Semantic reviewer (v6.1)**: `agents/qe/semantic-reviewer.md` runs at the review gate for complexity ≥ 3. Extracts numbered `AC-*` / `FR-*` / `REQ-*` items from clarify artifacts and emits a Gap Report (aligned/divergent/missing) per item.
+
 **Convergence tracking (build/test phases)**: implementers and test-designers SHOULD call `scripts/crew/convergence.py record` after landing each artifact (Designed -> Built -> Wired -> Tested -> Integrated -> Verified). A task marked `completed` is not the same as an artifact being wired into the production path. The `convergence-verify` review gate flips from REJECT to APPROVE only when every tracked artifact reaches at least `Integrated` - stalls at threshold 3 sessions surface as findings. Scenario: `scenarios/crew/convergence-lifecycle.md`.
 
 Fallback agents (facilitator, researcher, implementer, reviewer) handle phases when specialist agents aren't matched.
 
-### Gate Enforcement (v2.5.0+)
+### Gate Enforcement (v2.5.0+, hardened in v6.2)
 
 Quality gates are hard enforcement mechanisms, not advisory:
 
@@ -165,6 +173,20 @@ Quality gates are hard enforcement mechanisms, not advisory:
 - **Non-skippable test-strategy**: `skip_complexity_threshold: 3` prevents skipping at complexity >= 3
 - **Rollback**: git revert on the PR; no runtime toggle.
 - **Cross-session learning**: crew agents store learnings in wicked-garden:mem at project completion and gate failures
+
+**Gate-policy.json (v6.0)**: `.claude-plugin/gate-policy.json` codifies reviewer × rigor × dispatch-mode. Each gate × tier entry declares `reviewers` (ordered `subagent_type` list), `mode` (`self-check` | `sequential` | `parallel` | `council` | `advisory`), `min_score`, and `evidence_required`. Dispatch mechanics live in `scripts/crew/gate_dispatch.py`.
+
+**BLEND multi-reviewer aggregation (v6.2)**: panel score = `0.4 × min + 0.6 × avg`. One strong dissent pulls the combined score down proportionally. Applies to `council` mode.
+
+**Blind reviewer + partial-panel invariant (v6.2)**: reviewers run with session context stripped of prior gate verdicts. If a reviewer fails to respond in a panel, the gate stays `pending` — never silently approved.
+
+**HMAC dispatch log (v6.2)**: every specialist dispatch appends an HMAC-signed entry to `phases/{phase}/dispatch-log.jsonl`. Orphan gate-results (verdict without matching dispatch) → CONDITIONAL. Log rotates at the configured size threshold.
+
+**Pre-flip monitoring (v6.2)**: auto-advance counter `T`. `T>7` silent; `1≤T≤7` emits `PreFlipNotice WARN`; `T=0` flips to StrictMode with `strict_mode_active_announced` post-flip latch.
+
+**Yolo guardrails (v6.2)**: standard-rigor grants require justification; full-rigor grants require justification length + sentinel; CONDITIONAL verdicts require explicit `--override-gate`. Cooldown window blocks re-grant after revoke.
+
+**Re-eval artifacts**: checkpoint re-evaluations append to `phases/{phase}/reeval-log.jsonl` (schema 1.1.0, archetype-aware, additive over 1.0), `phases/{phase}/amendments.jsonl` (per-gate, append-only), and `phases/{phase}/process-plan.addendum.jsonl` (plan mutations). Phases can be added mid-flight, never silently removed.
 
 ### Bulletproof Standards
 
