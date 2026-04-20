@@ -114,12 +114,10 @@ Storage paths: `~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.j
 
 ### Context Assembly (smaht domain)
 
-The "brain" of the plugin. Intercepts every prompt via UserPromptSubmit hook and routes through four tiers:
+The "brain" of the plugin. Intercepts every prompt via UserPromptSubmit hook. v6 replaced the v5 HOT/FAST/SLOW/SYNTHESIZE tiered orchestrator (deleted in #428) with a pull-model:
 
-- **HOT path** (<100ms): Continuation/confirmation responses → session state only
-- **FAST path** (<1s): Pattern-based adapter fan-out by intent type
-- **SLOW path** (2-5s): Full adapter fan-out for complex/ambiguous/novel prompts + history condenser
-- **SYNTHESIZE path**: Agentic synthesis via `wicked-garden:smaht:synthesize` skill for complex+risky prompts — triggers before orchestrator
+- **Default**: inject a short pull directive telling the model to query wicked-brain on demand.
+- **Complex / risky prompts**: inject an expanded pull directive (complexity or risk keywords scored by inline heuristic in `hooks/scripts/prompt_submit.py`) that explicitly routes through `wicked-brain:query` + `wicked-brain:search` before the model answers. v6.3.6 retired the standalone `wicked-garden:smaht:synthesize` skill — brain now covers what it did.
 
 Six adapters query domain scripts directly: `domain`, `brain`, `events`, `context7`, `tools`, `delegation`.
 
@@ -137,7 +135,7 @@ Six adapters query domain scripts directly: `domain`, `brain`, `events`, `contex
 
 Dynamic multi-phase workflows with facilitator-driven specialist routing (v6):
 
-1. `wicked-garden:crew:propose-process` facilitator rubric reads the project description → scores 9 factors (reversibility, blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort, state_complexity, operational_risk, coordination_cost) → picks specialists by reading `agents/**/*.md` frontmatter → picks phases from catalog → sets rigor_tier (minimal/standard/full) → emits `process-plan.md` + full task chain
+1. `wicked-garden:propose-process` facilitator rubric reads the project description → scores 9 factors (reversibility, blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort, state_complexity, operational_risk, coordination_cost) → picks specialists by reading `agents/**/*.md` frontmatter → picks phases from catalog → sets rigor_tier (minimal/standard/full) → emits `process-plan.md` + full task chain
 2. `phases.json` defines phase catalog with gate config (min scores, evidence requirements, dependencies). The facilitator decides which phases to pick; phases.json supplies their gate configuration.
 3. Phase selection: rubric-driven, not rule-based. Facilitator decides inline based on factor readings.
 4. Checkpoints at clarify/design/build re-invoke the facilitator in `re-evaluate` mode to adjust the plan

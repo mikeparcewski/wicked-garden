@@ -15,7 +15,7 @@ through design (testability) and into production (monitoring), alongside the exi
 ## Scenario 1: Facilitator Routes Quality-Themed Work to QE
 
 v6 replaced the v5 `SIGNAL_KEYWORDS` / `SIGNAL_TO_SPECIALISTS` maps with the
-`wicked-garden:crew:propose-process` facilitator rubric (#428). This scenario
+`wicked-garden:propose-process` facilitator rubric (#428). This scenario
 validates that quality-themed descriptions still route to QE specialists and
 phases in the facilitator's output plan.
 
@@ -71,7 +71,7 @@ For each, invoke:
 
 ```
 Skill(
-  skill="wicked-garden:crew:propose-process",
+  skill="wicked-garden:propose-process",
   args={"description": "<prompt>", "mode": "propose", "output": "json"}
 )
 ```

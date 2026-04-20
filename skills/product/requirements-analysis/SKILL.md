@@ -122,7 +122,7 @@ Check:
 
 ```bash
 # Search for similar requirements
-/wicked-garden:search:doc "user story" --context requirements
+/wicked-garden:search:docs "user story" --context requirements
 
 # Store requirements on the active clarify task via native TaskUpdate
 # TaskUpdate(taskId="{task_id}", description="{previous}\n\n## Requirements\n{user_stories}")

@@ -48,25 +48,27 @@ From explicit `--gate` argument or infer from context:
 - If target is implemented code post-build → **Execution Gate**
 - Default: **Strategy Gate**
 
-### 2. Route to Gate Orchestrator
+### 2. Dispatch Specialists Inline
 
-**Value Gate**:
-```
-Task(subagent_type="wicked-garden:crew:value-orchestrator",
-     prompt="Run Value Gate on {target}")
-```
+The v5 `value-orchestrator` and `execution-orchestrator` routing agents are
+deprecated (see `skills/propose-process/refs/specialist-selection.md` §6).
+Dispatch specialists directly per gate type:
 
-**Strategy Gate** (inline - uses test-strategist + risk-assessor):
-1. Check wicked-garden:qe:test-strategist availability for testability review
-2. Dispatch test-strategist for scenario generation
-3. Dispatch risk-assessor for risk matrix
-4. Consolidate findings
+**Value Gate** (post-clarify):
+1. Dispatch `wicked-garden:product:requirements-analyst` to check requirement clarity and testability.
+2. Dispatch `wicked-garden:qe:requirements-quality-analyst` to score acceptance criteria quality.
+3. Consolidate findings.
 
-**Execution Gate**:
-```
-Task(subagent_type="wicked-garden:crew:execution-orchestrator",
-     prompt="Run Execution Gate on {target}")
-```
+**Strategy Gate** (post-design):
+1. Dispatch `wicked-garden:qe:testability-reviewer` for design-testability review.
+2. Dispatch `wicked-garden:qe:test-strategist` for scenario coverage.
+3. Dispatch `wicked-garden:qe:risk-assessor` for the risk matrix.
+4. Consolidate findings.
+
+**Execution Gate** (post-build):
+1. Dispatch `wicked-garden:qe:code-analyzer` for static analysis and coverage gaps.
+2. Dispatch `wicked-garden:qe:semantic-reviewer` for spec-to-code alignment (complexity ≥ 3).
+3. Consolidate findings.
 
 ### 3. Track Gate Task
 

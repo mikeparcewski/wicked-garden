@@ -261,7 +261,7 @@ For teams shipping to production multiple times per week, this discipline is the
 
 **With native tasks**: Tracks rollout stages via TaskCreate with `metadata.event_type="task"` and per-stage progress in descriptions
 **With wicked-mem**: Recalls past rollout learnings and patterns
-**With wicked-garden:delivery:analyze**: Uses experiment results to inform rollout confidence
+**With wicked-garden:delivery:experiment**: Uses experiment results to inform rollout confidence
 **Standalone**: Works with provided context documents
 
 ## Cleanup

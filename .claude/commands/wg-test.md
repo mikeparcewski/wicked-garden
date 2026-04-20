@@ -224,7 +224,7 @@ When `--batch N` is specified with `--all`:
 # Launch up to N scenarios in parallel
 for each scenario in current_batch:
   Task(
-    subagent_type="wicked-garden:qe:acceptance-test-executor",
+    subagent_type="wicked-garden:qe:test-designer",
     prompt="Execute scenario: {scenario_path}. Return structured results."
   )
 ```

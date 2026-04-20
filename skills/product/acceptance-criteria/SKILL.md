@@ -138,7 +138,7 @@ Acceptance criteria feed directly into test scenarios:
 /wicked-garden:product:acceptance phases/design/
 
 # QE generates test scenarios from AC
-/wicked-garden:qe:analyze --gate strategy
+/wicked-garden:qe:qe --gate strategy
 ```
 
 **Flow**:

@@ -1,5 +1,38 @@
 # Changelog
 
+## [6.3.6] - 2026-04-20
+
+### Bug Fixes
+- fix: retire `wicked-garden:smaht:synthesize` — the UserPromptSubmit hook
+  had been injecting a `Skill()` directive for a skill that never
+  registered. Claude Code's skill auto-discovery doesn't recurse into
+  `skills/<domain>/<name>/` (commit b8b0a59 / v6.0.1 flattened 5 nested
+  skills for this reason but missed `smaht/synthesize/`). Rather than
+  flatten a skill that now duplicates wicked-brain's FTS5 index, retired
+  it — the complexity/risk gate in `hooks/scripts/prompt_submit.py` now
+  injects a terse pull-directive pointing at `wicked-brain:query` /
+  `:search` / `:read` (5c8c843)
+- fix(crew): `agents/crew/qe-orchestrator.md` dispatched the deprecated v5
+  routing agents `value-orchestrator` and `execution-orchestrator`.
+  Replaced with inline specialist dispatch per gate type
+  (requirements-analyst + requirements-quality-analyst for Value;
+  testability-reviewer + test-strategist + risk-assessor for Strategy;
+  code-analyzer + semantic-reviewer for Execution)
+- fix(qe): `wicked-garden:qe:acceptance-test-executor` →
+  `wicked-garden:qe:test-designer` in `.claude/commands/wg-test.md` +
+  `skills/acceptance-testing/refs/evidence-validation.md` — test-designer
+  owns the write-execute-review loop in v6
+- fix: 10 doc-only broken command refs — `qe:analyze` → `qe:qe`,
+  `delivery:analyze` → `delivery:experiment`, `search:doc` →
+  `search:docs`, `search:research` → `search:code`, `product:context` →
+  `product:elicit`, `platform:check` → `platform:compliance`,
+  `crew:propose-process` → `propose-process` (stale from v6.0.1 flatten)
+
+### Documentation
+- docs(CLAUDE.md): rewrote the "Context Assembly (smaht domain)" section
+  to reflect v6 pull-model reality — push-model orchestrator deleted in
+  #428, synthesize skill retired in this release
+
 ## [6.3.5] - 2026-04-19
 
 ### Documentation

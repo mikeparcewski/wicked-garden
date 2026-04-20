@@ -366,82 +366,26 @@ def _score_complexity_and_risk(prompt: str, state) -> tuple[float, bool]:
     return min(complexity, 1.0), is_risky
 
 
-def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, state,
-                               context_briefing: str = "") -> str:
-    """Build the synthesis skill invocation directive for complex/risky prompts.
+def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, state) -> str:
+    """Build a pull-directive for complex/risky prompts.
 
-    Args:
-        prompt: The user's original prompt.
-        complexity: Float 0-1 hook scoring.
-        is_risky: Whether high-risk keywords were detected.
-        state: Current session state.
-        context_briefing: Optional orchestrator briefing from SLOW-path pre-run.
-            When provided, written to a temp file and passed as a path reference
-            so the briefing content doesn't accumulate in conversation history.
+    v6.3.6: the wicked-garden:smaht:synthesize skill was retired — it duplicated
+    wicked-brain (FTS5 over code, docs, wiki, memories) and never registered
+    anyway because Claude Code's skill auto-discovery doesn't recurse into
+    skills/<domain>/<name>/. This directive now tells the model to gather
+    context via wicked-brain before answering.
     """
-    import tempfile as _tempfile
-
-    # Compact recent turns summary for the skill.
-    # v6: the v5 HistoryCondenser ticket rail is gone; pull what SessionState
-    # exposes (session_goal + active chain) as a minimal substitute.
-    turns_summary = ""
-    try:
-        from _session import SessionState
-        s = SessionState.load()
-        parts = []
-        goal = getattr(s, "session_goal", "") or ""
-        if goal:
-            parts.append(f"goal={goal[:80]}")
-        chain = getattr(s, "active_chain_id", "") or ""
-        if chain:
-            parts.append(f"chain={chain}")
-        turns_summary = " | ".join(parts)
-    except Exception:
-        pass
-
-    # Encode args as JSON so the skill can unambiguously parse all fields.
-    # Context briefing is written to a temp file (not inlined) to prevent
-    # accumulation in conversation history (Issue #416).
-    import json as _json
-    args_dict = {
-        "complexity": round(complexity, 2),
-        "risk": is_risky,
-        "prompt": prompt[:500],
-    }
-    if turns_summary:
-        args_dict["turns"] = turns_summary[:300]
-
-    # Write context briefing to temp file instead of inlining
-    briefing_path = ""
-    if context_briefing:
-        try:
-            tmpdir = _tempfile.gettempdir()
-            session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
-            briefing_file = Path(tmpdir) / f"wg-synthesis-{session_id}.md"
-            briefing_file.write_text(context_briefing, encoding="utf-8")
-            briefing_path = str(briefing_file)
-            args_dict["context_briefing_path"] = briefing_path
-        except Exception:
-            # Fallback: inline a truncated version if file write fails
-            args_dict["context_briefing"] = context_briefing[:800]
-
-    args_str = _json.dumps(args_dict)
-
-    # Build the directive — tell the model to read the briefing file if available
-    read_hint = ""
-    if briefing_path:
-        read_hint = (
-            f"\n\nPre-gathered context is available at: {briefing_path}\n"
-            "Read it with the Read tool BEFORE invoking the synthesis skill."
-        )
-
+    signal = "RISKY" if is_risky else f"complexity={round(complexity, 2)}"
     return (
-        "[Context Assembly] This prompt requires deep context synthesis.\n"
-        "BEFORE answering, invoke the synthesis skill:\n\n"
-        f"  Skill(skill='wicked-garden:smaht:synthesize', args='{args_str}')\n\n"
-        "Read the CONTEXT BRIEFING it produces. Use it to ground your response. "
-        "Answer the original prompt only after the briefing is complete."
-        f"{read_hint}"
+        f"[Context Assembly — {signal}] Deep context needed before answering.\n"
+        "BEFORE drafting a response:\n"
+        "1. Call wicked-brain:query for conceptual grounding ('how does X work', "
+        "'what are the constraints around Y').\n"
+        "2. Call wicked-brain:search for specific symbols, files, or past decisions. "
+        "Drill into wiki hits with wicked-brain:read depth=2.\n"
+        "3. If results cite a wicked-garden:crew project, check its phase and "
+        "active_chain_id before committing to an approach.\n"
+        "Only after grounding is complete, answer the original prompt."
     )
 
 
@@ -1068,11 +1012,11 @@ def main():
     # Session goal capture on turns 1-2
     _capture_session_goal(prompt, turn_count, project, session_id)
 
-    # Complexity + risk gate — inject synthesis skill directive for complex/risky prompts.
+    # Complexity + risk gate — inject a deep-context pull directive for complex/risky prompts.
     # v6: the v5 Router + Orchestrator pre-fetch were deleted in #428. Classification
-    # is now an inline heuristic; the synthesize skill is expected to pull its own
-    # context via brain+search if it needs more than the raw prompt.
-    # Synthesis is skipped if onboarding is pending (no context yet to synthesize from).
+    # is an inline heuristic; v6.3.6 retired the wicked-garden:smaht:synthesize skill
+    # and replaced it with a directive pointing at wicked-brain directly.
+    # Skipped if onboarding is pending (no context yet to pull from).
     if not onboarding_directive:
         complexity, is_risky = _score_complexity_and_risk(prompt, state)
         _word_count = len(prompt.split())
@@ -1093,11 +1037,11 @@ def main():
         )
 
         if _should_synthesize:
-            # v6: synthesize without a pre-fetched briefing. The synthesize skill
-            # pulls context on demand via brain + search rather than having a
-            # push orchestrator run first.
+            # v6.3.6: synthesis is a pull-directive pointing at wicked-brain.
+            # The former wicked-garden:smaht:synthesize skill was retired —
+            # brain's FTS5 index already covers what the skill was doing.
             synthesis_directive = _build_synthesis_directive(
-                prompt, complexity, is_risky, state, context_briefing=""
+                prompt, complexity, is_risky, state
             )
             _log("smaht", "debug", "synthesis.triggered",
                  detail={"complexity": complexity, "risk": is_risky, "turn": turn_count})
@@ -1128,8 +1072,8 @@ def main():
         # demand via wicked-brain:query/search.
         #
         # v6: the smaht/v2 orchestrator (and its HOT/FAST/SLOW tiers) was
-        # deleted in #428. The synthesize skill remains as the one path that
-        # still pulls a briefing — see the complexity+risk gate above.
+        # deleted in #428. v6.3.6 also retired the smaht:synthesize skill — the
+        # complexity+risk gate above now injects a direct wicked-brain directive.
 
         # Build the pull directive
         pull_directive = _build_pull_directive(turn_count, state)
