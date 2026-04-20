@@ -459,7 +459,7 @@ Priority order (first match wins):
 6. **docs-only** — only markdown / docs/ changes
 7. **code-repo** — default fallback
 
-The archetype is injected into `TaskCreate` metadata at clarify time. The **phase-boundary QE evaluator** (`agents/crew/qe-evaluator.md`) reads it at the `testability` and `evidence-quality` gates to pick archetype-specific `test_types` and `evidence_required` expectations — a docs-only project isn't asked for unit test coverage; a schema-migration is asked for dry-run + rollback evidence.
+The archetype is injected into `TaskCreate` metadata at clarify time. The **phase-boundary gate adjudicator** (`agents/crew/gate-adjudicator.md`) reads it at the `testability` and `evidence-quality` gates to pick archetype-specific `test_types` and `evidence_required` expectations — a docs-only project isn't asked for unit test coverage; a schema-migration is asked for dry-run + rollback evidence.
 
 ### Re-eval Addendum (schema 1.1.0)
 

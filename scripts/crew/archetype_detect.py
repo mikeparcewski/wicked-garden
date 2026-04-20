@@ -140,7 +140,7 @@ _AGENT_SKILL_CMD_PATH = re.compile(
 
 _SKILL_AGENT_KW = re.compile(
     r"agent authoring|skill authoring|new agent|new skill|command definition|"
-    r"subagent_type|crew agent|qe-evaluator|test-strategist",
+    r"subagent_type|crew agent|gate-adjudicator|qe-evaluator|test-strategist",
     re.IGNORECASE,
 )
 

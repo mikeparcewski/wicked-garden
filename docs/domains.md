@@ -36,7 +36,7 @@ The orchestrator. Runs the facilitator (`skills/propose-process/`) to score 9 fa
 **v6 Capabilities**:
 - **Facilitator rubric** — 9-factor scoring picks specialists and phases inline, no keyword signals
 - **Archetype detection** — 7 archetypes (`archetype_detect.py`) drive per-archetype evidence expectations
-- **Phase-boundary QE evaluator** — `qe-evaluator` agent replaces `test-strategist` at `testability` and `evidence-quality` gates; reads archetype for per-type test/evidence guidance
+- **Phase-boundary gate adjudicator** — `gate-adjudicator` agent replaces `test-strategist` at `testability` and `evidence-quality` gates; reads archetype for per-type test/evidence guidance
 - **Challenge gate + contrarian agent** — auto-inserted at complexity ≥ 4; runs a structured steelman of the alternative path
 - **Convergence lifecycle** — Designed → Built → Wired → Tested → Integrated → Verified with stall detection; `convergence-verify` gate blocks review approval until every artifact reaches Integrated
 - **Semantic reviewer** — extracts numbered AC/FR/REQ from clarify artifacts, emits a Gap Report (`aligned`/`divergent`/`missing`) at the review gate for complexity ≥ 3
@@ -49,7 +49,7 @@ The orchestrator. Runs the facilitator (`skills/propose-process/`) to score 9 fa
 - **Gate-result security** — schema validator, content sanitizer, orphan detection, append-only audit log (rollback via `WG_GATE_RESULT_*` env vars)
 - **Persistent process memory + kaizen backlog** — operate retro auto-populates facilitator-context digest for future projects
 
-**Agents (10)**: `facilitator`, `phase-executor`, `gate-evaluator`, `independent-reviewer`, `contrarian`, `qe-evaluator`, `qe-orchestrator`, `implementer`, `researcher`, `reviewer`
+**Agents (10)**: `facilitator`, `phase-executor`, `gate-evaluator`, `independent-reviewer`, `contrarian`, `gate-adjudicator`, `qe-orchestrator`, `implementer`, `researcher`, `reviewer`
 
 **When to use**: Any task that benefits from structured delivery — features, migrations, refactors, bug investigations, compliance work. The facilitator adapts rigor to the work: a docs-only change gets minimal tier and self-check gates; a schema migration gets full tier, multi-reviewer panels, and per-archetype evidence demands.
 
@@ -229,7 +229,7 @@ SRE, security, compliance, incident response, infrastructure, DevOps, release, a
 
 ### qe — Quality Engineering
 
-Test strategist, test designer, automation engineer, risk assessor, testability reviewer, code analyzer, continuous quality monitor, production quality engineer, requirements quality analyst, contract testing engineer, and the v6 additions: `semantic-reviewer` (spec-to-code alignment) and `qe-evaluator` (phase-boundary evidence evaluator).
+Test strategist, test designer, automation engineer, risk assessor, testability reviewer, code analyzer, continuous quality monitor, production quality engineer, requirements quality analyst, contract testing engineer, and the v6 additions: `semantic-reviewer` (spec-to-code alignment) and `gate-adjudicator` (phase-boundary evidence evaluator).
 
 v6 consolidated the former three-agent acceptance pipeline (`acceptance-test-writer` / `executor` / `reviewer`) into a single `test-designer` that owns Write → Execute → Analyze → Verdict in one role. `tdd-coach` folded into `test-strategist`.
 

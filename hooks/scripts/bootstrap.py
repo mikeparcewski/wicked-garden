@@ -936,6 +936,106 @@ def _check_pre_flip_notice(state, today=None) -> None:
 
 
 # ---------------------------------------------------------------------------
+# #544 — wicked-testing peer-plugin probe (AC-1 through AC-6)
+# ---------------------------------------------------------------------------
+
+# Module-level list of blocking notices to inject into session briefing.
+# Populated by _probe_wicked_testing(); consumed by main() before building
+# the briefing. At most one entry per session (the probe runs once).
+_wt_blocking_notices: list = []
+
+
+def _probe_wicked_testing(state) -> None:
+    """Run the wicked-testing availability probe once per session.
+
+    Caches the result in SessionState.extras["wicked_testing_probe"] so
+    crew_command_gate() can read it without re-running the subprocess.
+
+    Session cache semantics:
+      - Probe runs exactly once at SessionStart (first call after fresh state).
+      - SessionState is cleared on session reset (session_ended path above),
+        so a new session always re-probes. No cross-session persistence.
+      - Re-entrant guard: if the probe key is already present, return early.
+
+    Fail-open boundary: exceptions that escape this function are caught by
+    the calling try/except in main() which returns {"continue": true}.
+    This matches every other probe in bootstrap.py.
+
+    CH-02 hardening: the exception handler logs actionable detail, NOT just
+    the bare exception string. crew_command_gate() closes the fail-open gap
+    at the crew layer by treating an absent probe key as missing.
+    """
+    try:
+        # Re-entrant guard: probe runs at most once per session.
+        extras = getattr(state, "extras", None) or {}
+        if "wicked_testing_probe" in extras:
+            return
+
+        # Import the probe from the scripts/ directory (already on sys.path
+        # from the top of bootstrap.py).
+        from _wicked_testing_probe import probe
+
+        result = probe(state)
+
+        missing = result["status"] != "ok"
+        new_extras = {**extras, "wicked_testing_probe": result}
+
+        if state is not None:
+            state.update(
+                wicked_testing_missing=missing,
+                extras=new_extras,
+            )
+
+        # Emit a blocking notice into the session briefing (once per session).
+        # crew_command_gate() only emits a pointer back, suppressing the full
+        # notice on repeat invocations within the same session (AC-2).
+        if result["status"] == "missing":
+            _wt_blocking_notices.append(
+                "[wicked-testing] wicked-testing is not installed.\n"
+                "wicked-testing required — run: npx wicked-testing install\n"
+                "Crew commands (start, execute, just-finish) are blocked until "
+                "wicked-testing is installed."
+            )
+        elif result["status"] == "out-of-range":
+            ver = result.get("version", "unknown")
+            pin = result.get("pin", "unknown")
+            _wt_blocking_notices.append(
+                f"[wicked-testing] wicked-testing {ver} does not satisfy required range {pin}.\n"
+                "wicked-testing required — run: npx wicked-testing install\n"
+                "Crew commands (start, execute, just-finish) are blocked until "
+                "the correct version is installed."
+            )
+        elif result["status"] == "error":
+            err = result.get("error", "unknown error")
+            _wt_blocking_notices.append(
+                f"[wicked-testing] probe error: {err}\n"
+                "Crew commands are blocked. If this is a transient error, "
+                "restart the session. Use WG_SKIP_WICKED_TESTING_CHECK=1 for "
+                "offline dev mode (CONTRIBUTING.md)."
+            )
+        # "ok" and "skipped" → silent (AC-6, AC-5)
+
+    except Exception as exc:
+        # CH-02 hardening: log actionable context so operators can diagnose.
+        # Include what failed and where (not just the bare exception string).
+        print(
+            f"[wicked-garden] wicked-testing probe failed: "
+            f"exception={exc!r} "
+            f"probe_module='_wicked_testing_probe' "
+            f"action='npx wicked-testing --version' "
+            f"note='crew_command_gate will treat absent probe key as missing'",
+            file=sys.stderr,
+        )
+        # Fail-open at this boundary: do NOT block bootstrap.
+        # crew_command_gate() is fail-closed for the absent-key case (CH-02).
+        if state is not None:
+            try:
+                state.update(wicked_testing_missing=False)
+            except Exception:
+                pass  # session-state write failure — acceptable
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1030,6 +1130,13 @@ def main():
         # stderr INFO once per session post-flip.
         _check_pre_flip_notice(state)
 
+        # 2d. Probe wicked-testing availability (AC-1 through AC-6, #544).
+        # Runs once per session; result cached in SessionState.extras.
+        # Fail-open: any unhandled exception in _probe_wicked_testing() returns
+        # gracefully so bootstrap continues. The crew layer (crew_command_gate)
+        # is fail-closed — it treats an absent probe key as missing (CH-02).
+        _probe_wicked_testing(state)
+
         # 3. Load dynamic agents
         agents_loaded, agents_dict = _load_agents()
         if state is not None:
@@ -1050,6 +1157,10 @@ def main():
         # 6b. Check search index staleness and auto-reindex if needed
         search_staleness_note = _check_search_staleness()
         mode_notes = []
+        # Inject wicked-testing blocking notices first (high-priority, AC-2).
+        # These were populated by _probe_wicked_testing() in step 2d above.
+        for _wt_notice in _wt_blocking_notices:
+            mode_notes.append(_wt_notice)
         if onedrive_path:
             mode_notes.append(
                 f"[Path] OneDrive directory detected. Resolved base: {onedrive_path}. "

@@ -106,6 +106,96 @@ If `uv sync` fails, warn that search indexing will be unavailable but setup can 
 
 **Note**: The PostToolUseFailure hook also detects missing tools at runtime. If a tool is skipped here, the hook will catch the failure later and suggest installing via the prereq-doctor skill. So it's safe to skip.
 
+### 2.5 Verify wicked-testing (Required)
+
+wicked-testing is a required peer plugin for v7.0+. Probe the installed version:
+
+```bash
+npx wicked-testing --version 2>/dev/null || echo "MISSING"
+```
+
+**Evaluate the result:**
+
+- If output is `MISSING`: wicked-testing is not installed. This is a blocking requirement.
+  - Show:
+    ```
+    wicked-testing is not installed.
+    wicked-garden v7.0+ requires wicked-testing >= 0.1 as a peer plugin.
+    Install it now to enable test and review phases.
+
+    Upgrading from v6.x? See docs/MIGRATION-v7.md for the full migration guide,
+    grace-period timeline, and rollback instructions.
+    ```
+  - **INTERACTIVE mode**: Use AskUserQuestion with header "wicked-testing Required", options:
+    - "Install now (Required)" = "Run: npx wicked-testing install"
+    - "Exit setup" = "Cancel — I'll install it manually and re-run setup"
+  - **PLAIN_TEXT mode**: Ask in plain text and STOP:
+    ```
+    wicked-testing is required.
+    
+    Options:
+    1) Install now — npx wicked-testing install
+    2) Exit setup — I'll install manually and run /wicked-garden:setup again
+    ```
+  - If user selects install: Run `npx wicked-testing install` via Bash. On success, re-probe with `npx wicked-testing --version` and confirm the installed version. On failure, show the error output and exit setup with instructions to install manually.
+  - If user exits: Stop setup. Show: "Run `npx wicked-testing install` then restart with `/wicked-garden:setup`."
+
+- If output is a version string (e.g. `0.1.2`): Parse the version. Check it satisfies `^0.1.0` (the pin from `plugin.json`).
+  - **In range**: Show "wicked-testing {version} — ready." and continue.
+  - **Out of range**: Show a warning:
+    ```
+    wicked-testing {version} is outside the supported range (^0.1.0).
+    Update with: npx wicked-testing install
+    ```
+    Ask whether to update now (same INTERACTIVE / PLAIN_TEXT pattern as the missing case). Updating is strongly recommended but not a hard block at setup time — the SessionStart hook will continue to warn each session.
+
+### 2.6 Migrate Legacy qe-evaluator References (AC-39)
+
+Scan all crew project directories for legacy `qe-evaluator` entries in reeval and amendment logs:
+
+```bash
+PYTHON_CMD=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+"$PYTHON_CMD" -c "
+import os, sys
+from pathlib import Path
+
+projects_root = Path.home() / '.something-wicked' / 'wicked-garden' / 'projects'
+legacy_patterns = ['\"reviewer\": \"qe-evaluator\"', '\"trigger\": \"qe-evaluator:']
+target_globs = ['phases/*/reeval-log.jsonl', 'phases/*/amendments.jsonl']
+found = []
+if projects_root.exists():
+    for pattern in target_globs:
+        for f in projects_root.glob('*/' + pattern):
+            try:
+                text = f.read_text(encoding='utf-8')
+                if any(p in text for p in legacy_patterns):
+                    found.append(str(f))
+            except OSError:
+                pass
+print('LEGACY_FOUND' if found else 'CLEAN')
+for p in found:
+    print(p)
+"
+```
+
+**Evaluate the result:**
+
+- If output starts with `CLEAN`: No legacy entries. Skip silently and proceed to Step 3.
+- If output starts with `LEGACY_FOUND`: Legacy `qe-evaluator` entries were found. This is a one-time migration.
+  - Show:
+    ```
+    Legacy qe-evaluator references found in crew project logs.
+    Running migrate_qe_evaluator_name.py to update to gate-adjudicator...
+    ```
+  - Run the migration (blocking — must complete before continuing):
+    ```bash
+    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/migrate_qe_evaluator_name.py"
+    ```
+  - If exit code 0: Show "Migration complete — all legacy entries updated."
+  - If exit code 1: Show a warning listing any skipped files (from script stderr) and continue. Do not block setup.
+
+This step is idempotent — re-running setup on an already-migrated tree exits immediately with no writes.
+
 ### 3. Ask the User (batched questions)
 
 Ask questions upfront. The method depends on question mode detected above.
@@ -456,12 +546,13 @@ Show a summary with all detected information:
 ```
 wicked-garden is ready!
 
-Storage:      Local (DomainStore)
-Onboarding:   {Full | Quick scout | Skipped}
-Directories:  {paths onboarded}
-Project type: {DETECTED_LANGS} / {DETECTED_FWS} (or "Not detected" if scan was skipped)
-Integrations: {list tools where detected=true, e.g. "gh, docker" or "None detected"}
-Preferences:  Delivery → {selected issue tracker}
+Storage:         Local (DomainStore)
+wicked-testing:  {version, e.g. "0.1.2 — ready" or "MISSING — install required"}
+Onboarding:      {Full | Quick scout | Skipped}
+Directories:     {paths onboarded}
+Project type:    {DETECTED_LANGS} / {DETECTED_FWS} (or "Not detected" if scan was skipped)
+Integrations:    {list tools where detected=true, e.g. "gh, docker" or "None detected"}
+Preferences:     Delivery → {selected issue tracker}
 
 Quick start:
 - /wicked-garden:help — see all domains and commands

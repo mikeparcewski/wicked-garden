@@ -1,4 +1,4 @@
-"""tests/crew/test_qe_evaluator_dispatch.py — Suite B: dispatch wiring + multi-repo safety.
+"""tests/crew/test_gate_adjudicator_dispatch.py — Suite B: dispatch wiring + multi-repo safety.
 
 Provenance: AC-3, AC-14a, AC-14b, AC-15a, AC-15b
 T1: deterministic — no randomness, no wall-clock, no sleep
@@ -28,7 +28,7 @@ for _p in [str(_SCRIPTS_CREW), str(_SCRIPTS_DIR)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import qe_evaluator as qe  # noqa: E402
+import gate_adjudicator as qe  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Gate-policy.json fixture (loaded once)
@@ -46,17 +46,22 @@ def _load_gate_policy() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def test_gate_policy_testability_reviewer_is_qe_evaluator():
+def test_gate_policy_testability_reviewer_is_gate_adjudicator():
     """
-    AC-3 — gate-policy.json static assertion.
-    gates.testability.standard.reviewers must equal ['qe-evaluator'].
+    AC-3 + AC-17 — gate-policy.json static assertion.
+    gates.testability.standard.reviewers must contain gate-adjudicator,
+    expressed as the fully-qualified 'wicked-garden:crew:gate-adjudicator' (AC-17,
+    post-t10 rename) or the bare form for backward compat with pre-t10 snapshots.
     test-strategist must be absent from all testability reviewer lists.
     """
     gp = _load_gate_policy()
     testability = gp["gates"]["testability"]
 
-    assert testability["standard"]["reviewers"] == ["qe-evaluator"], (
-        f"Expected ['qe-evaluator'], got {testability['standard']['reviewers']}"
+    _GA_NAMES = {"gate-adjudicator", "wicked-garden:crew:gate-adjudicator"}
+    std_reviewers = testability["standard"]["reviewers"]
+    assert any(r in _GA_NAMES for r in std_reviewers), (
+        f"Expected gate-adjudicator (bare or FQ) in testability.standard.reviewers, "
+        f"got {std_reviewers}"
     )
     for tier in ("minimal", "standard", "full"):
         reviewers = testability[tier].get("reviewers", [])
@@ -65,17 +70,21 @@ def test_gate_policy_testability_reviewer_is_qe_evaluator():
         )
 
 
-def test_gate_policy_evidence_quality_reviewer_is_qe_evaluator():
+def test_gate_policy_evidence_quality_reviewer_is_gate_adjudicator():
     """
-    AC-3 — gate-policy.json static assertion.
-    gates.evidence-quality.standard.reviewers must equal ['qe-evaluator'].
+    AC-3 + AC-17 — gate-policy.json static assertion.
+    gates.evidence-quality.standard.reviewers must contain gate-adjudicator
+    (bare or fully-qualified wicked-garden:crew:gate-adjudicator).
     test-strategist must be absent from all evidence-quality reviewer lists.
     """
     gp = _load_gate_policy()
     eq = gp["gates"]["evidence-quality"]
 
-    assert eq["standard"]["reviewers"] == ["qe-evaluator"], (
-        f"Expected ['qe-evaluator'], got {eq['standard']['reviewers']}"
+    _GA_NAMES = {"gate-adjudicator", "wicked-garden:crew:gate-adjudicator"}
+    std_reviewers = eq["standard"]["reviewers"]
+    assert any(r in _GA_NAMES for r in std_reviewers), (
+        f"Expected gate-adjudicator (bare or FQ) in evidence-quality.standard.reviewers, "
+        f"got {std_reviewers}"
     )
     for tier in ("minimal", "standard", "full"):
         reviewers = eq[tier].get("reviewers", [])
@@ -100,33 +109,33 @@ def test_gate_policy_context_bundle_contains_archetype():
             )
 
 
-def test_qe_evaluator_absent_from_requirements_quality():
+def test_gate_adjudicator_absent_from_requirements_quality():
     """
     AC-15a static check.
     Parse gate-policy.json. Inspect gates.requirements-quality at all rigor tiers.
-    'qe-evaluator' must not appear in any reviewers list.
+    'gate-adjudicator' must not appear in any reviewers list.
     """
     gp = _load_gate_policy()
     rq = gp["gates"]["requirements-quality"]
     for tier in ("minimal", "standard", "full"):
         reviewers = rq[tier].get("reviewers", [])
-        assert "qe-evaluator" not in reviewers, (
-            f"qe-evaluator found in requirements-quality.{tier}.reviewers: {reviewers}"
+        assert "gate-adjudicator" not in reviewers, (
+            f"gate-adjudicator found in requirements-quality.{tier}.reviewers: {reviewers}"
         )
 
 
-def test_qe_evaluator_absent_from_design_quality():
+def test_gate_adjudicator_absent_from_design_quality():
     """
     AC-15a static check.
     Parse gate-policy.json. Inspect gates.design-quality at all rigor tiers.
-    'qe-evaluator' must not appear in any reviewers list.
+    'gate-adjudicator' must not appear in any reviewers list.
     """
     gp = _load_gate_policy()
     dq = gp["gates"]["design-quality"]
     for tier in ("minimal", "standard", "full"):
         reviewers = dq[tier].get("reviewers", [])
-        assert "qe-evaluator" not in reviewers, (
-            f"qe-evaluator found in design-quality.{tier}.reviewers: {reviewers}"
+        assert "gate-adjudicator" not in reviewers, (
+            f"gate-adjudicator found in design-quality.{tier}.reviewers: {reviewers}"
         )
 
 
@@ -205,10 +214,10 @@ def test_single_repo_no_false_multi_repo_conditional():
 # ---------------------------------------------------------------------------
 
 
-def test_dispatcher_never_invokes_qe_evaluator_at_non_target_gates():
+def test_dispatcher_never_invokes_gate_adjudicator_at_non_target_gates():
     """
     AC-15b — runtime dispatcher recording test.
-    Verify that qe-evaluator's own non-target-gate refusal fires when gate_name
+    Verify that gate-adjudicator's own non-target-gate refusal fires when gate_name
     is set to requirements-quality or design-quality. This is the agent-side
     backstop (AC-15b) independent of gate-policy.json.
 

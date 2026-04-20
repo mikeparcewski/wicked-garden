@@ -1,4 +1,4 @@
-"""tests/integration/test_qe_evaluator_lifecycle.py — Suite C: full lifecycle paths.
+"""tests/integration/test_gate_adjudicator_lifecycle.py — Suite C: full lifecycle paths.
 
 Provenance: AC-7, AC-9, AC-10, AC-11, AC-12, AC-13, AC-15b, AC-16, design.md §3.3
 T1: deterministic — no randomness, no wall-clock, no sleep
@@ -30,7 +30,7 @@ for _p in [str(_SCRIPTS_CREW), str(_SCRIPTS_DIR)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import qe_evaluator as qe  # noqa: E402
+import gate_adjudicator as qe  # noqa: E402
 
 # Import reeval_addendum for addendum backward-compat test
 import reeval_addendum as ra  # noqa: E402
@@ -241,7 +241,7 @@ def test_reeval_addendum_backward_compat_mixed_file():
     _v11_record = {
         **_v10_base,
         "chain_id": "my-project.test-strategy.testability",
-        "trigger": "qe-evaluator:testability",
+        "trigger": "gate-adjudicator:testability",
         "validator_version": "1.1.0",
         "archetype": "code-repo",
         "archetype_evidence": {
@@ -365,7 +365,7 @@ def test_qe_evaluator_non_target_gate_refusal():
     assert result["score"] == 0.60, (
         f"Expected score=0.60 for non-target gate refusal, got {result['score']}"
     )
-    expected_substr = "qe-evaluator: invoked at non-target gate 'requirements-quality' — refusing"
+    expected_substr = "gate-adjudicator: invoked at non-target gate 'requirements-quality' — refusing"
     assert expected_substr in result["reason"], (
         f"Expected refusal reason substring, got: {result['reason']!r}"
     )

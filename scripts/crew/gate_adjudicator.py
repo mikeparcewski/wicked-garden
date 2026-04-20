@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""qe_evaluator.py — Archetype-aware evidence evaluator (D2 Python companion).
+"""gate_adjudicator.py — Archetype-aware evidence evaluator (D2 Python companion).
 
 Encodes the per-archetype score-band tables from design.md §1 (CQ-3).
-This module is the testable Python companion to agents/crew/qe-evaluator.md.
+This module is the testable Python companion to agents/crew/gate-adjudicator.md.
 The agent spec is the authoritative human-readable contract; this module
 provides deterministic, stdlib-only evaluation logic for unit/integration tests.
 
 Public API:
     evaluate(ctx: dict, plan: dict | None = None) -> dict
 
-    ctx keys (QeEvaluatorContext):
+    ctx keys (GateAdjudicatorContext):
         gate_name:    "testability" | "evidence-quality"  (REQUIRED)
         phase:        str                                  (REQUIRED)
         archetype:    str | absent                         (triggers CQ-5 if missing/invalid)
-        reviewer:     "qe-evaluator"
+        reviewer:     "gate-adjudicator"
         project:      str (optional)
         shared_context_path: str (optional)
 
-    Returns QeEvaluatorVerdict dict with keys:
+    Returns GateAdjudicatorVerdict dict with keys:
         verdict, score, reason, conditions, reviewer, archetype, min_score
 
 Stdlib-only. No side effects on import.
@@ -60,7 +60,7 @@ DEFERRED_ARCHETYPES = frozenset({
 # ---------------------------------------------------------------------------
 
 def _condition(cid: str, severity: str, reason: str, phase: str) -> Dict[str, Any]:
-    """Build a QeEvaluatorCondition dict."""
+    """Build a GateAdjudicatorCondition dict."""
     return {
         "id": cid,
         "severity": severity,
@@ -76,13 +76,13 @@ def _verdict(
     conditions: List[Dict[str, Any]],
     archetype: str,
 ) -> Dict[str, Any]:
-    """Build a QeEvaluatorVerdict dict."""
+    """Build a GateAdjudicatorVerdict dict."""
     return {
         "verdict": verdict,
         "score": score,
         "reason": reason,
         "conditions": conditions,
-        "reviewer": "qe-evaluator",
+        "reviewer": "gate-adjudicator",
         "archetype": archetype,
         "min_score": MIN_SCORE,
     }
@@ -382,7 +382,7 @@ def _apply_cq5_fallback(
     # Emit structured warning (non-silent)
     warning = {
         "level": "warn",
-        "event": "qe-evaluator.archetype-missing",
+        "event": "gate-adjudicator.archetype-missing",
         "phase": phase,
         "gate": gate,
         "project": project,
@@ -403,15 +403,15 @@ def evaluate(
     ctx: Dict[str, Any],
     plan: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Evaluate evidence for a gate invocation and return a QeEvaluatorVerdict.
+    """Evaluate evidence for a gate invocation and return a GateAdjudicatorVerdict.
 
     Args:
-        ctx:  QeEvaluatorContext dict — gate_name, phase, archetype (optional), etc.
+        ctx:  GateAdjudicatorContext dict — gate_name, phase, archetype (optional), etc.
         plan: Parsed process-plan.json dict (used for multi-repo safety check).
               Pass None when not available; multi-repo safety fires on absence.
 
     Returns:
-        QeEvaluatorVerdict dict.
+        GateAdjudicatorVerdict dict.
 
     This function NEVER raises. All exceptions are caught and returned as
     CONDITIONAL-0.60 with a structured reason.
@@ -421,9 +421,9 @@ def evaluate(
     except Exception as exc:  # R4 — no swallowed errors
         return _verdict(
             "CONDITIONAL", 0.60,
-            f"qe-evaluator: internal error — {exc}",
+            f"gate-adjudicator: internal error — {exc}",
             [_condition("QE-EVAL-internal-error", "major",
-                        f"qe-evaluator: internal error — {exc}",
+                        f"gate-adjudicator: internal error — {exc}",
                         ctx.get("phase", "unknown"))],
             ctx.get("archetype", "unknown"),
         )
@@ -442,9 +442,9 @@ def _evaluate_inner(
     if gate not in VALID_TARGET_GATES:
         return _verdict(
             "CONDITIONAL", 0.60,
-            f"qe-evaluator: invoked at non-target gate '{gate}' — refusing",
+            f"gate-adjudicator: invoked at non-target gate '{gate}' — refusing",
             [_condition("QE-EVAL-non-target-gate", "major",
-                        f"qe-evaluator: invoked at non-target gate '{gate}' — refusing",
+                        f"gate-adjudicator: invoked at non-target gate '{gate}' — refusing",
                         phase)],
             str(raw_archetype or "unknown"),
         )
@@ -458,7 +458,7 @@ def _evaluate_inner(
     if fallback_marker == "bundle-missing":
         cq5_conditions.append(_condition(
             "QE-EVAL-bundle-missing", "major",
-            f"qe-evaluator: archetype missing from bundle (reason: {fallback_reason}); "
+            f"gate-adjudicator: archetype missing from bundle (reason: {fallback_reason}); "
             "code-repo fallback applied",
             phase,
         ))

@@ -63,7 +63,7 @@ Priority order (first match wins):
 6. **docs-only** — only markdown / docs/ changes
 7. **code-repo** — default fallback
 
-Archetype is injected into `TaskCreate` metadata at clarify time. The **phase-boundary QE evaluator** (`agents/crew/qe-evaluator.md`) reads it at the `testability` and `evidence-quality` gates to pick per-archetype `test_types` and `evidence_required` expectations. A docs-only project isn't asked for unit test coverage; a schema-migration is asked for dry-run + rollback evidence.
+Archetype is injected into `TaskCreate` metadata at clarify time. The **phase-boundary gate adjudicator** (`agents/crew/gate-adjudicator.md`) reads it at the `testability` and `evidence-quality` gates to pick per-archetype `test_types` and `evidence_required` expectations. A docs-only project isn't asked for unit test coverage; a schema-migration is asked for dry-run + rollback evidence.
 
 ## Rigor Tiers
 
@@ -199,7 +199,7 @@ Roles, grouped by discipline (75 agents as of v6.3.4):
 | jam (2) | brainstorm-facilitator, council |
 | persona (1) | persona-agent |
 | mem (3) | memory-archivist, memory-learner, memory-recaller |
-| crew (10) | facilitator, phase-executor, gate-evaluator, independent-reviewer, contrarian, qe-evaluator, qe-orchestrator, implementer, researcher, reviewer |
+| crew (10) | facilitator, phase-executor, gate-evaluator, independent-reviewer, contrarian, gate-adjudicator, qe-orchestrator, implementer, researcher, reviewer |
 
 ### Fallback Agents
 

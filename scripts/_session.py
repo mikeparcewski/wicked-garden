@@ -299,6 +299,20 @@ class SessionState:
     # callbacks in the same session.
     strict_mode_active_announced: bool = False
 
+    # #544 — wicked-testing peer-plugin gate (SessionStart hard-block).
+    # Set by bootstrap.py after running _wicked_testing_probe.probe().
+    # True  — probe returned status != "ok"; crew commands are blocked.
+    # False — probe returned "ok" (or escape hatch active); crew may proceed.
+    # None  — probe has not run yet this session (early-exit before setup).
+    wicked_testing_missing: bool | None = None
+
+    # Cached probe result dict from _wicked_testing_probe.probe().
+    # Persisted as part of session extras for crew_command_gate() reads.
+    # Lives in extras["wicked_testing_probe"] per the design spec.
+    # extras is a general-purpose dict for probe / diagnostic results that
+    # don't warrant individual dataclass fields.
+    extras: dict | None = None
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
