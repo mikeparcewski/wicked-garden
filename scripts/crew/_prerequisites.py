@@ -8,6 +8,10 @@ crew_command_gate() must be called at the top of:
   - /wicked-garden:crew:just-finish (commands/crew/just-finish.md)
   - gate_dispatch (before dispatching any reviewer)
 
+testability_gate_check() must be called at the top of the testability gate
+dispatch path (_dispatch_gate_reviewer when gate_name == "testability") as a
+defense-in-depth check against mid-session wicked-testing removal (AC-23).
+
 Raises PrerequisiteError (subclass of RuntimeError) on failure.
 The caller catches PrerequisiteError and returns it to the user as a
 structured refusal message — no stack trace.
@@ -21,6 +25,10 @@ CH-02 hardening (challenge-resolution requirement):
     notice was emitted once by bootstrap, so repeat is suppressed here.
   - Document the fail-open boundary in CONTRIBUTING.md.
 """
+
+import logging
+
+_logger = logging.getLogger("wicked-crew.prerequisites")
 
 
 class PrerequisiteError(RuntimeError):
@@ -99,4 +107,58 @@ def crew_command_gate(session_state) -> None:
     # "missing", "error", or any other non-ok status.
     raise PrerequisiteError(
         "wicked-testing required — run: npx wicked-testing install"
+    )
+
+
+# ---------------------------------------------------------------------------
+# AC-23 — testability gate defense-in-depth check
+# ---------------------------------------------------------------------------
+
+def check_testability_gate(session_state) -> None:
+    """Defense-in-depth check at testability-gate dispatch (AC-23).
+
+    Called by _dispatch_gate_reviewer() in phase_manager.py when
+    gate_name == "testability", BEFORE any QE reviewer is dispatched.
+    This is a belt-and-suspenders layer: crew_command_gate() at SessionStart
+    is the primary enforcement; this check catches mid-session removal and
+    stale session state that bypass the primary gate.
+
+    Raises PrerequisiteError when wicked-testing is unavailable or the probe
+    result is absent. Returns None silently when the probe status is "ok".
+
+    Logs a single structured error line before raising (actionable, no stack
+    trace) so the refusal is visible in session logs.
+
+    Args:
+        session_state: A SessionState instance (or any object with an
+            ``extras`` dict). None is treated as probe-not-run → missing.
+    """
+    extras = getattr(session_state, "extras", None) or {} if session_state is not None else {}
+
+    probe = extras.get("wicked_testing_probe") if extras else None
+
+    # Probe key absent: fail-closed (same policy as crew_command_gate CH-02).
+    if probe is None:
+        _logger.error(
+            "testability-gate: wicked_testing_probe absent in session_state — "
+            "failing closed. Run: npx wicked-testing install"
+        )
+        raise PrerequisiteError(
+            "wicked-testing unavailable at testability-gate dispatch: probe absent. "
+            "Run: npx wicked-testing install"
+        )
+
+    status = probe.get("status", "missing") if isinstance(probe, dict) else "missing"
+
+    if status == "ok":
+        return  # All checks pass — dispatch may proceed.
+
+    _logger.error(
+        "testability-gate: wicked_testing_probe.status=%r — refusing gate dispatch. "
+        "Run: npx wicked-testing install",
+        status,
+    )
+    raise PrerequisiteError(
+        f"wicked-testing unavailable at testability-gate dispatch: {status}. "
+        "Run: npx wicked-testing install"
     )

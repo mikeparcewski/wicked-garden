@@ -84,11 +84,13 @@ class TestSearchPair:
 
 
 class TestQePair:
-    def test_acceptance_mentions_scenarios(self):
-        _assert_mentions("qe", "acceptance", "scenarios")
+    def test_acceptance_removed_v71(self):
+        """qe:acceptance removed in v7.1 — use /wicked-testing:execution instead."""
+        pass  # commands/qe/acceptance.md deleted in v7.1 (#551, #553)
 
-    def test_scenarios_mentions_acceptance(self):
-        _assert_mentions("qe", "scenarios", "acceptance")
+    def test_scenarios_removed_v71(self):
+        """qe:scenarios removed in v7.1 — use /wicked-testing:authoring instead."""
+        pass  # commands/qe/scenarios.md deleted in v7.1 (#551, #553)
 
 
 class TestCrewOperateStatus:
@@ -114,8 +116,8 @@ class TestIncidentPair:
 
 
 class TestProductQeAcceptancePair:
-    def test_product_acceptance_mentions_qe_acceptance(self):
-        _assert_mentions("product", "acceptance", "qe:acceptance")
+    def test_product_acceptance_mentions_wicked_testing(self):
+        _assert_mentions("product", "acceptance", "wicked-testing:execution")
 
 
 class TestCrewAliasRedirect:

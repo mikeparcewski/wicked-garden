@@ -827,7 +827,7 @@ def _suggest_commands_for_project() -> str | None:
 
         # Project-type-specific
         if has_tests:
-            suggestions.append("`/wicked-garden:qe:scenarios` — generate test scenarios")
+            suggestions.append("`/wicked-testing:plan` — generate test plan and scenarios")
         if has_dockerfile or has_terraform:
             suggestions.append("`/wicked-garden:platform:security` — security review")
         if has_csv_data:
@@ -1036,6 +1036,65 @@ def _probe_wicked_testing(state) -> None:
 
 
 # ---------------------------------------------------------------------------
+# CH-02: SessionStart legacy reeval-log scan
+#
+# Scans known crew project directories for reeval-log.jsonl and amendments.jsonl
+# files containing legacy 'qe-evaluator' reviewer names or trigger prefixes.
+# Advisory only — does NOT block session startup.
+# If legacy entries are found, adds a structured migration notice to mode_notes.
+# ---------------------------------------------------------------------------
+
+def _scan_for_legacy_reeval_entries() -> str | None:
+    """Scan crew project dirs for reeval-log.jsonl / amendments.jsonl with legacy qe-evaluator entries.
+
+    Light scan — greps for literal strings; does not parse full JSON.
+    Fails open — any exception returns None so session is never blocked.
+
+    Returns a formatted migration notice string when legacy entries are found,
+    or None when the tree is clean or unreadable.
+    """
+    try:
+        projects_root = Path.home() / ".something-wicked" / "wicked-garden" / "projects"
+        if not projects_root.exists():
+            return None
+
+        _LEGACY_STRINGS = ('"reviewer": "qe-evaluator"', '"trigger": "qe-evaluator:')
+        dirty_files: list[str] = []
+
+        for log_file in projects_root.rglob("phases/*/reeval-log.jsonl"):
+            try:
+                text = log_file.read_text(encoding="utf-8", errors="replace")
+                if any(s in text for s in _LEGACY_STRINGS):
+                    dirty_files.append(str(log_file))
+            except OSError:
+                continue
+
+        for log_file in projects_root.rglob("phases/*/amendments.jsonl"):
+            try:
+                text = log_file.read_text(encoding="utf-8", errors="replace")
+                if any(s in text for s in _LEGACY_STRINGS):
+                    dirty_files.append(str(log_file))
+            except OSError:
+                continue
+
+        if not dirty_files:
+            return None
+
+        file_list = "\n".join(f"  - {f}" for f in dirty_files[:10])
+        more = f"\n  ... and {len(dirty_files) - 10} more" if len(dirty_files) > 10 else ""
+        return (
+            "[Migration Required] Legacy 'qe-evaluator' entries detected in reeval-log.jsonl "
+            "or amendments.jsonl. These will cause errors when crew gates run.\n"
+            f"Affected files:\n{file_list}{more}\n"
+            "Run the migration script before starting a crew workflow:\n"
+            "  python scripts/crew/migrate_qe_evaluator_name.py --project-dir PATH/TO/PROJECT\n"
+            "See docs/MIGRATION-v7.md for full guidance."
+        )
+    except Exception:
+        return None  # fail open — never block session start
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1137,6 +1196,14 @@ def main():
         # is fail-closed — it treats an absent probe key as missing (CH-02).
         _probe_wicked_testing(state)
 
+        # 2e. CH-02 safeguard: scan for legacy qe-evaluator entries in reeval-log.jsonl
+        # and amendments.jsonl. Advisory only — does NOT block session startup.
+        # Emits a migration notice when legacy entries are found so the user is
+        # informed at a clean session boundary (not mid-gate).
+        _legacy_reeval_notice = _scan_for_legacy_reeval_entries()
+        if _legacy_reeval_notice and state is not None:
+            state.update(legacy_reeval_entries_detected=True)
+
         # 3. Load dynamic agents
         agents_loaded, agents_dict = _load_agents()
         if state is not None:
@@ -1161,6 +1228,9 @@ def main():
         # These were populated by _probe_wicked_testing() in step 2d above.
         for _wt_notice in _wt_blocking_notices:
             mode_notes.append(_wt_notice)
+        # CH-02: inject legacy reeval-log migration notice when legacy entries are found.
+        if _legacy_reeval_notice:
+            mode_notes.append(_legacy_reeval_notice)
         if onedrive_path:
             mode_notes.append(
                 f"[Path] OneDrive directory detected. Resolved base: {onedrive_path}. "

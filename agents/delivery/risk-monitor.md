@@ -63,7 +63,7 @@ Recall past risks:
 
 Leverage QE if available:
 ```
-/wicked-garden:qe:qe --gate risk
+/wicked-testing:review --gate risk
 ```
 
 Or search manually:

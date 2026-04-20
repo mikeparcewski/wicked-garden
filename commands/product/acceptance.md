@@ -8,7 +8,7 @@ argument-hint: "<requirements/design path> [--story US-ID] [--feature name] [--f
 Generate testable acceptance criteria from requirements and design documents.
 
 > **Scope**: `product:acceptance` **defines criteria** — what done looks like (requirements → testable ACs).
-> To **run** acceptance tests against those criteria, use `/wicked-garden:qe:acceptance` (QE side).
+> To **run** acceptance tests against those criteria, use `/wicked-testing:execution` (wicked-testing plugin).
 
 ## Usage
 
@@ -214,14 +214,14 @@ timeout: 60
 - Non-functional criteria map to their canonical categories: performance→perf (k6/hey), accessibility→a11y (pa11y), browser/UX→browser (playwright)
 - If an AC can't be converted to CLI (e.g., manual judgment call), note it as a comment
 
-## QE Handoff
+## Testing Handoff
 
 Acceptance criteria feed into:
 ```bash
-/wicked-garden:qe:qe --gate strategy
+/wicked-testing:plan
 ```
 
-QE uses AC to:
+wicked-testing uses AC to:
 - Generate test scenarios (or use `--scenarios` to generate wicked-scenarios format directly)
 - Create test cases
 - Validate coverage

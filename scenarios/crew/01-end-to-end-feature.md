@@ -157,11 +157,11 @@ phases/design/architecture.md containing:
 /wicked-garden:crew:execute
 ```
 
-**With wicked-qe available**:
-- Dispatches to `/wicked-garden:qe:qe` for test strategy
+**With wicked-testing available**:
+- Dispatches to `/wicked-testing:review` for test strategy
 - Reviews design artifacts from QE perspective
 
-**Without wicked-qe (standalone)**:
+**Without wicked-testing (standalone)**:
 - Creates test strategy inline
 - Identifies edge cases and test scenarios
 
@@ -220,11 +220,11 @@ phases/test-strategy/test-strategy.md containing:
 /wicked-garden:crew:execute
 ```
 
-**With wicked-qe available**:
-- Dispatches to `/wicked-garden:qe:acceptance` for test execution
+**With wicked-testing available**:
+- Dispatches to `/wicked-testing:execution` for test execution
 - Runs test scenarios from test-strategy phase
 
-**Without wicked-qe (standalone)**:
+**Without wicked-testing (standalone)**:
 - Executes tests inline
 - Validates against test-strategy scenarios
 

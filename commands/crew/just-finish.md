@@ -244,7 +244,7 @@ Read project.json `phase_plan` for the ordered list of phases. For each remainin
 2. **Auto-engage specialists** based on phase and signals (use dynamic routing from execute.md — signal analysis + specialist.json `enhances` declarations)
 3. Execute phase work via specialists or built-in fallbacks
 4. **Run mandatory quality gate** (see Section 5.5 below)
-5. **Get sign-off** using the **Gate Reviewer Policy** (see `skills/qe/qe-strategy/SKILL.md` and execute.md section 8):
+5. **Get sign-off** using the **Gate Reviewer Policy** (see `.claude-plugin/gate-policy.json` and execute.md section 8):
    - Route reviewer by gate type × complexity score (not a flat priority chain)
    - Council required at complexity >= 5 execution gates, >= 4 strategy gates
    - Escalate to council on security/compliance signals, CONDITIONAL gates, or prior REJECT

@@ -64,7 +64,7 @@ Structure as: Approach, Alternatives, Risks
 )
 
 Task(
-    subagent_type="wicked-garden:qe:risk-assessor",
+    subagent_type="wicked-garden:platform:security-engineer",
     prompt="""Assess risks for this proposed change.
 
 ## Change Summary

@@ -48,7 +48,7 @@
     "workflow":              ["workflow"],
     "platform":              ["audit", "compliance", "errors", "gh-cli", "github-actions", "gitlab-ci", "glab-cli", "health", "observability", "policy", "prereq-doctor", "traces"],
     "product":               ["acceptance-criteria", "accessibility", "analyze", "design-review", "imagery", "listen", "mockup", "product-management", "requirements-analysis", "requirements-graph", "requirements-migrate", "requirements-navigate", "screenshot", "strategy", "synthesize", "ux-flow", "ux-review", "visual-review"],
-    "qe":                    ["agent-browser", "qe-strategy", "scenario-executor", "scenarios", "tdd-coach"],
+    "qe":                    [],
     "runtime-exec":          ["runtime-exec"],
     "search":                ["codebase-narrator"],
     "smaht":                 ["discovery", "smaht"],

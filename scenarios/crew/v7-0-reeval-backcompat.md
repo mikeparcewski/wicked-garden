@@ -216,7 +216,7 @@ if not os.path.exists(migration_script):
 import subprocess
 result = subprocess.run(
     ['${PLUGIN_ROOT}/scripts/_python.sh', migration_script, '--dry-run',
-     str(reeval_path)],
+     '--project-dir', str(reeval_path.parent.parent.parent)],
     capture_output=True, text=True
 )
 stdout = result.stdout
@@ -278,7 +278,8 @@ if not os.path.exists(migration_script):
 else:
     import subprocess
     r1 = subprocess.run(
-        ['${PLUGIN_ROOT}/scripts/_python.sh', migration_script, str(reeval_path)],
+        ['${PLUGIN_ROOT}/scripts/_python.sh', migration_script,
+         '--project-dir', str(reeval_path.parent.parent.parent)],
         capture_output=True, text=True
     )
     if r1.returncode not in (0, 2):  # 2 = already migrated
@@ -319,7 +320,8 @@ if os.path.exists(migration_script):
     import subprocess
     migrated_hash_before = hashlib.sha256(reeval_path.read_bytes()).hexdigest()
     r2 = subprocess.run(
-        ['${PLUGIN_ROOT}/scripts/_python.sh', migration_script, str(reeval_path)],
+        ['${PLUGIN_ROOT}/scripts/_python.sh', migration_script,
+         '--project-dir', str(reeval_path.parent.parent.parent)],
         capture_output=True, text=True
     )
     migrated_hash_after = hashlib.sha256(reeval_path.read_bytes()).hexdigest()

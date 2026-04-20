@@ -420,7 +420,7 @@ class TestPhaseManagerIntegration(unittest.TestCase):
 
     def test_missing_breakdown_passthrough(self):
         """T-P1.2: clarify phase with no rubric_breakdown is no-op."""
-        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:qe:requirements-quality-analyst"}
+        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:product:requirements-analyst"}
         out = phase_manager._apply_spec_rubric(gate_result, "clarify", "standard")
         self.assertEqual(out, gate_result)
 
@@ -433,7 +433,7 @@ class TestPhaseManagerIntegration(unittest.TestCase):
         })
         gate_result = {
             "result": "APPROVE",
-            "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+            "reviewer": "wicked-garden:product:requirements-analyst",
             "rubric_breakdown": breakdown,
         }
         out = phase_manager._apply_spec_rubric(gate_result, "clarify", "standard")
@@ -464,7 +464,7 @@ class TestPhaseManagerIntegration(unittest.TestCase):
         })
         gate_result = {
             "result": "APPROVE",
-            "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+            "reviewer": "wicked-garden:product:requirements-analyst",
             "rubric_breakdown": breakdown,
         }
         out = phase_manager._apply_spec_rubric(gate_result, "clarify", "full")
@@ -481,7 +481,7 @@ class TestPhaseManagerIntegration(unittest.TestCase):
         breakdown = _make_breakdown({d["id"]: 2 for d in spec_rubric.DIMENSION_DEFINITIONS})
         gate_result = {
             "result": "APPROVE",
-            "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+            "reviewer": "wicked-garden:product:requirements-analyst",
             "rubric_breakdown": breakdown,
         }
         out = phase_manager._apply_spec_rubric(gate_result, "clarify", "full")
@@ -499,7 +499,7 @@ class TestPhaseManagerIntegration(unittest.TestCase):
         })
         gate_result = {
             "result": "APPROVE",
-            "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+            "reviewer": "wicked-garden:product:requirements-analyst",
             "rubric_breakdown": breakdown,
         }
         out = phase_manager._apply_spec_rubric(gate_result, "clarify", "minimal")
@@ -510,7 +510,7 @@ class TestPhaseManagerIntegration(unittest.TestCase):
         """T-P1.7: malformed breakdown is logged-and-skipped, not raised."""
         gate_result = {
             "result": "APPROVE",
-            "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+            "reviewer": "wicked-garden:product:requirements-analyst",
             # score 99 is invalid; validate_breakdown rejects.
             "rubric_breakdown": {"user_story": {"score": 99}},
         }
@@ -524,7 +524,7 @@ class TestPhaseManagerIntegration(unittest.TestCase):
         breakdown = _make_breakdown({d["id"]: 2 for d in spec_rubric.DIMENSION_DEFINITIONS})
         gate_result = {
             "result": "APPROVE",
-            "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+            "reviewer": "wicked-garden:product:requirements-analyst",
             "rubric_breakdown": breakdown,
         }
         out = phase_manager._apply_spec_rubric(gate_result, "clarify", "standard")
@@ -537,7 +537,7 @@ class TestPhaseManagerIntegration(unittest.TestCase):
         breakdown = _make_breakdown({"user_story": 2, "context_framed": 2})
         gate_result = {
             "result": "CONDITIONAL",
-            "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+            "reviewer": "wicked-garden:product:requirements-analyst",
             "rubric_breakdown": breakdown,
             "conditions": ["Original condition"],
         }

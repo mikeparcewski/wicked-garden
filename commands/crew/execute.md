@@ -454,7 +454,7 @@ For each phase, follow this pattern:
 |-------|---------------|----------------|
 | clarify | `wicked-garden:crew:facilitator` | "Guide outcome clarification for: {description}" |
 | design | `wicked-garden:crew:researcher` | "Research existing patterns and design approaches for: {outcome}" |
-| test-strategy | `wicked-garden:qe:test-strategist` | "Generate test strategy from outcome criteria: {outcome summary}. Project: {project-name}." |
+| test-strategy | `wicked-garden:crew:gate-adjudicator` | "Generate test strategy from outcome criteria: {outcome summary}. Project: {project-name}." |
 | build | `wicked-garden:crew:implementer` | "Implement according to design: {design summary}" |
 | test | `wicked-garden:crew:reviewer` | "Execute product-level tests (E2E first, then integration, then regression). Verify against test strategy: {test-strategy summary}. Compile evidence package to phases/test/evidence/report.md." |
 | review | `wicked-garden:crew:reviewer` | "Review implementation against outcome: {outcome summary}. MUST evaluate evidence package at phases/test/evidence/report.md — check screenshots, execution traces, and spec comparison. Missing evidence = gate failure." |
@@ -471,11 +471,11 @@ For each phase, follow this pattern:
 
 1. **E2E / Product-level tests** — Playwright, Cypress, or browser-based tests that verify real user flows
 2. **Live endpoint verification** — curl/fetch against running services to verify API contracts
-3. **Scenario validation** — `/wicked-garden:qe:run` or `/wicked-garden:qe:acceptance` for structured E2E
+3. **Scenario validation** — `/wicked-testing:execution` for structured E2E
 4. **Integration tests** — contract/schema validation between services
 5. **Unit test suite** — run existing suite as regression baseline (do NOT write new unit tests in this phase)
 
-Layer definitions, agent routing, parallel dispatch rules, and evidence collection details are defined in the canonical source: **`skills/qe/qe-strategy/refs/test-type-taxonomy.md` → "Testing Pyramid Execution Layers"**.
+Layer definitions, agent routing, parallel dispatch rules, and evidence collection details are defined in the canonical source: **`.claude-plugin/gate-policy.json` → testing pyramid and dispatch rules**.
 
 **Step 1: Detect available E2E infrastructure.**
 
@@ -522,7 +522,7 @@ If `phases/build/change-type.json` does not exist OR all tasks have `change_type
 Use the **Layer → Change Type Mapping** table from the taxonomy to determine which layers are required. Then dispatch in **product-first order**:
 
 **Group P (Product-level — run FIRST):**
-- Layer 5 (Scenario/E2E): If Playwright/Cypress detected → run E2E suite. If live endpoints detected → curl/fetch verification. If scenarios available → `/wicked-garden:qe:acceptance`. At least ONE of these must execute.
+- Layer 5 (Scenario/E2E): If Playwright/Cypress detected → run E2E suite. If live endpoints detected → curl/fetch verification. If scenarios available → `/wicked-testing:execution`. At least ONE of these must execute.
 - Layer 3 (Visual): If UI changes detected → screenshots + a11y checks.
 
 **Group I (Integration — run SECOND, parallel):**
@@ -655,7 +655,7 @@ Write evidence quality assessment to `phases/review/review-findings.md`:
 {List any missing evidence and impact on review confidence}
 ```
 
-If using `/wicked-garden:qe:report` for structured evidence, include its output in the evidence evaluation.
+If using `/wicked-testing:insight` for structured evidence, include its output in the evidence evaluation.
 
 #### Build Phase: TDD Enforcement (Issue #255)
 
@@ -668,14 +668,14 @@ For each build task, check its complexity (from the task description or the proj
 1. **Red phase** (write failing tests first):
    ```
    Task(
-     subagent_type="wicked-garden:qe:test-strategist",
+     subagent_type="wicked-garden:crew:implementer",
      prompt="Write failing tests (red phase) for: {task description}.
      Project: {project-name}. Design: {relevant design excerpt}.
      Output: failing test files that define the acceptance criteria.
      Do NOT implement the feature yet."
    )
    ```
-   If `wicked-garden:qe:test-strategist` is unavailable, include TDD red-phase instructions in the implementer prompt instead.
+   If no implementer is available, include TDD red-phase instructions inline.
 
 2. **Green phase** (implement to pass tests):
    ```
@@ -691,7 +691,7 @@ For each build task, check its complexity (from the task description or the proj
 3. **Refactor verification** (clean up without breaking tests):
    ```
    Task(
-     subagent_type="wicked-garden:qe:test-strategist",
+     subagent_type="wicked-garden:crew:reviewer",
      prompt="Verify and guide the refactor phase for: {task description}.
      Project: {project-name}. Tests should remain passing after refactor.
      Check: code quality, duplication, naming, test coverage completeness."
@@ -1125,7 +1125,7 @@ Log all conditions and resolutions in status.md before proceeding to sign-off.
 
 ### 8. Phase Sign-Off
 
-**EVERY phase MUST have sign-off before advancing.** Reviewer selection is determined by the **Gate Reviewer Policy** (see `skills/qe/qe-strategy/SKILL.md`) which routes based on gate type and complexity score.
+**EVERY phase MUST have sign-off before advancing.** Reviewer selection is determined by the **Gate Reviewer Policy** (see `.claude-plugin/gate-policy.json`) which routes based on gate type and complexity score.
 
 #### Gate Reviewer Policy (Quick Reference)
 
@@ -1220,10 +1220,10 @@ TaskUpdate(taskId="{id}", status="completed",
 |-------|------------------------|----------------------|
 | clarify | `wicked-garden:product:requirements-analyst` | — |
 | design | `wicked-garden:engineering:solution-architect` | `wicked-garden:agentic:architect` (if agentic signals) |
-| test-strategy | `wicked-garden:qe:test-strategist` | — |
+| test-strategy | `wicked-garden:crew:gate-adjudicator` | — |
 | build | `wicked-garden:engineering:senior-engineer` | `wicked-garden:platform:security-engineer` (if security signals) |
-| test | `wicked-garden:qe:test-automation-engineer` | — |
-| review | `wicked-garden:engineering:senior-engineer` + `wicked-garden:qe:code-analyzer` | `wicked-garden:platform:security-engineer` (if security signals) |
+| test | `wicked-garden:crew:reviewer` | — |
+| review | `wicked-garden:engineering:senior-engineer` + `wicked-garden:engineering:senior-engineer` | `wicked-garden:platform:security-engineer` (if security signals) |
 
 #### Reviewer Separation Enforcement
 

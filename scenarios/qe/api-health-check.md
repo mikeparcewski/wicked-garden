@@ -42,7 +42,7 @@ curl -sfL --max-time 10 "${API_URL}/get" -H "Accept: application/json" | python3
 
 ```bash
 if ! command -v hurl &>/dev/null; then
-  echo "SKIP: hurl not installed. Run /wicked-garden:qe:setup to install."
+  echo "SKIP: hurl not installed. Run /wicked-testing:execution to install."
   exit 0
 fi
 cat > "${TMPDIR:-/tmp}/wicked-scenario-hurl.hurl" << 'HURL_EOF'

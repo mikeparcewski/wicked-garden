@@ -5,14 +5,14 @@ This directory contains acceptance test scenarios for the wicked-garden plugin e
 ## Running Scenarios
 
 ```bash
-# Interactive selection
-/wicked-garden:qe:run
+# Run scenarios via wicked-testing or wg-test dev tool
+/wg-test scenarios/crew
 
 # Specific scenario
-/wicked-garden:qe:run 01-fresh-install
+/wg-test scenarios/crew/01-end-to-end-feature
 
-# List all scenarios
-/wicked-garden:qe:list
+# All scenarios
+/wg-test --all
 ```
 
 ## Scenario Format

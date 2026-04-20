@@ -142,7 +142,7 @@ EOF
 ### 1. Generate Test Scenarios
 
 ```bash
-/wicked-garden:qe:scenarios Shopping cart with discounts
+/wicked-testing:authoring Shopping cart with discounts
 ```
 
 **Expected**: Comprehensive scenarios covering:
@@ -154,7 +154,7 @@ EOF
 ### 2. Create Test Plan
 
 ```bash
-/wicked-garden:qe:qe-plan src/cart.py
+/wicked-testing:plan src/cart.py
 ```
 
 **Expected**: Prioritized test plan with:
@@ -165,7 +165,7 @@ EOF
 ### 3. Generate Automated Tests
 
 ```bash
-/wicked-garden:qe:automate --framework pytest
+/wicked-testing:authoring --framework pytest
 ```
 
 **Expected**: Working pytest test file with:
@@ -176,7 +176,7 @@ EOF
 ### 4. Review Test Quality
 
 ```bash
-/wicked-garden:qe:qe-review tests/
+/wicked-testing:review tests/
 ```
 
 **Expected**: Test quality review covering:

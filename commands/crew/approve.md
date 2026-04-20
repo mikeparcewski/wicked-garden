@@ -106,7 +106,7 @@ if signoff.get("result") == "rejected":
     BLOCK_APPROVAL("Sign-off was REJECTED. Address findings and re-execute.")
 ```
 
-**Sign-off routing** follows the **Gate Reviewer Policy** (see `skills/qe/qe-strategy/SKILL.md`):
+**Sign-off routing** follows the **Gate Reviewer Policy** (see `.claude-plugin/gate-policy.json`):
 - Routes by gate type × complexity score (not a flat priority chain)
 - Council required at complexity >= 6 execution, >= 5 strategy, or on escalation triggers
 - Fallback chain: Council → Third-party CLI → Specialist → Generic → Human

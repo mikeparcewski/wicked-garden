@@ -88,7 +88,7 @@ print('OK: wicked_testing_version = \"' + field + '\"')
 ### 1b. Gate Policy — wicked-testing Tier-1 Allowlist
 
 Validate that every `wicked-testing:*` reviewer reference in `gate-policy.json` is
-a Tier-1 agent from INTEGRATION.md §3, and that no stale `wicked-garden:qe:*` or
+a Tier-1 agent from INTEGRATION.md §3, and that no stale legacy qe reviewer names or
 bare `qe-evaluator` references remain.
 
 ```bash

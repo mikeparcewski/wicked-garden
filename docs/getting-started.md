@@ -92,9 +92,9 @@ Plain English to SQL results via DuckDB. Works on CSV, Excel, Parquet — files 
 ### "I need to write and run tests"
 
 ```bash
-/wicked-garden:qe:scenarios "checkout flow"  # generate test scenarios
-/wicked-garden:qe:acceptance                  # evidence-gated acceptance testing
-/wicked-garden:qe:automate                    # generate test code
+/wicked-testing:authoring "checkout flow"  # generate test scenarios
+/wicked-testing:execution                  # evidence-gated acceptance testing
+/wicked-testing:authoring                  # generate test code
 ```
 
 ### "I want to remember decisions across sessions"

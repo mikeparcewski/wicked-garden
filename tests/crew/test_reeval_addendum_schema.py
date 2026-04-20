@@ -18,7 +18,13 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from crew.reeval_addendum import _validate_record, append, read, VALID_ARCHETYPES  # noqa: E402
+from crew.reeval_addendum import (  # noqa: E402
+    LegacyReviewerNameError,
+    _validate_record,
+    append,
+    read,
+    VALID_ARCHETYPES,
+)
 from crew.validate_reeval_addendum import validate_record  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -168,3 +174,88 @@ def test_valid_gate_adjudicator_trigger_passes_validation():
     }
     err = _validate_record(good)
     assert err is None, f"Valid gate-adjudicator record should pass, got: {err}"
+
+
+# ---------------------------------------------------------------------------
+# AC-21 (v7.1.0): LegacyReviewerNameError raised on legacy qe-evaluator entries
+# ---------------------------------------------------------------------------
+
+def test_legacy_reviewer_name_raises_on_read(tmp_path):
+    """AC-21: reading a process-plan.addendum.jsonl with 'reviewer': 'qe-evaluator' raises LegacyReviewerNameError."""
+    # read() reads from project_dir/process-plan.addendum.jsonl (the project-level log)
+    log_path = tmp_path / "process-plan.addendum.jsonl"
+    legacy_record = {
+        **_V10_RECORD,
+        "reviewer": "qe-evaluator",
+    }
+    log_path.write_text(json.dumps(legacy_record) + "\n", encoding="utf-8")
+
+    from crew.reeval_addendum import read as reeval_read
+    with pytest.raises(LegacyReviewerNameError) as exc_info:
+        reeval_read(tmp_path)
+    msg = str(exc_info.value)
+    assert "qe-evaluator" in msg
+    assert "migrate_qe_evaluator_name.py" in msg
+    assert "docs/MIGRATION-v7.md" in msg
+
+
+def test_legacy_fq_reviewer_name_raises_on_read(tmp_path):
+    """AC-21: fully-qualified legacy reviewer 'wicked-garden:crew:qe-evaluator' raises LegacyReviewerNameError."""
+    log_path = tmp_path / "process-plan.addendum.jsonl"
+    legacy_record = {
+        **_V10_RECORD,
+        "reviewer": "wicked-garden:crew:qe-evaluator",
+    }
+    log_path.write_text(json.dumps(legacy_record) + "\n", encoding="utf-8")
+
+    from crew.reeval_addendum import read as reeval_read
+    with pytest.raises(LegacyReviewerNameError) as exc_info:
+        reeval_read(tmp_path)
+    msg = str(exc_info.value)
+    assert "wicked-garden:crew:qe-evaluator" in msg
+    assert "migrate_qe_evaluator_name.py" in msg
+
+
+def test_legacy_trigger_prefix_raises_on_read(tmp_path):
+    """AC-21: 'trigger': 'qe-evaluator:testability' raises LegacyReviewerNameError on read."""
+    log_path = tmp_path / "process-plan.addendum.jsonl"
+    legacy_record = {
+        **_V10_RECORD,
+        "trigger": "qe-evaluator:testability",
+    }
+    log_path.write_text(json.dumps(legacy_record) + "\n", encoding="utf-8")
+
+    from crew.reeval_addendum import read as reeval_read
+    with pytest.raises(LegacyReviewerNameError) as exc_info:
+        reeval_read(tmp_path)
+    msg = str(exc_info.value)
+    assert "qe-evaluator:testability" in msg
+    assert "migrate_qe_evaluator_name.py" in msg
+
+
+def test_legacy_trigger_rejected_by_validator():
+    """AC-21: validate_reeval_addendum rejects 'qe-evaluator:' trigger prefix as invalid schema."""
+    bad = {
+        **_V10_RECORD,
+        "trigger": "qe-evaluator:testability",
+    }
+    errors = validate_record(bad)
+    assert errors, "Validator should reject legacy qe-evaluator: trigger prefix"
+    assert any("qe-evaluator" in e or "legacy" in e for e in errors), (
+        f"Expected legacy-name error, got: {errors}"
+    )
+
+
+def test_canonical_reviewer_name_passes_through_on_read(tmp_path):
+    """AC-21: 'reviewer': 'gate-adjudicator' is already canonical — no error raised."""
+    log_path = tmp_path / "process-plan.addendum.jsonl"
+    canonical_record = {
+        **_V10_RECORD,
+        "reviewer": "gate-adjudicator",
+    }
+    log_path.write_text(json.dumps(canonical_record) + "\n", encoding="utf-8")
+
+    from crew.reeval_addendum import read as reeval_read
+    records = reeval_read(tmp_path)
+    assert len(records) == 1
+    assert records[0]["reviewer"] == "gate-adjudicator"

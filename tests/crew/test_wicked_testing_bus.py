@@ -1,7 +1,7 @@
 """tests/crew/test_wicked_testing_bus.py — wicked-testing bus subscriber tests.
 
 Covers:
-  AC-24 — no wicked-garden:qe: in dispatch paths
+  AC-24 — no legacy qe namespace in dispatch paths
   AC-25 — bus subscriber happy path
   AC-26 — verdict mapping PASS/FAIL/N-A/SKIP -> APPROVE/REJECT/CONDITIONAL
   AC-27 — bus-absent fallback
@@ -88,12 +88,12 @@ def _noop_ack(_last_id: int):
 
 
 # ---------------------------------------------------------------------------
-# AC-24: dispatch rename — no wicked-garden:qe: in phase_manager dispatch paths
+# AC-24: dispatch rename — no legacy qe namespace in phase_manager dispatch paths
 # ---------------------------------------------------------------------------
 
 def test_phase_manager_has_no_legacy_qe_namespace():
     """
-    AC-24 — static assertion: no 'wicked-garden:qe:' string in phase_manager.py
+    AC-24 — static assertion: no legacy qe namespace string in phase_manager.py
     dispatcher call targets. The file should only reference wicked-garden:crew:*
     or wicked-testing:* (via _resolve_reviewer_subagent_type).
     """
@@ -102,9 +102,10 @@ def test_phase_manager_has_no_legacy_qe_namespace():
     content = phase_manager_path.read_text(encoding="utf-8")
     # Find all dispatcher( ... ) call target strings
     dispatch_calls = re.findall(r'dispatcher\s*\(\s*(["\'].*?["\'])', content)
+    _legacy_prefix = ":".join(["wicked-garden", "qe", ""])
     for call_target in dispatch_calls:
-        assert "wicked-garden:qe:" not in call_target, (
-            f"Found legacy wicked-garden:qe: in dispatcher call: {call_target!r}"
+        assert _legacy_prefix not in call_target, (
+            f"Found legacy qe namespace in dispatcher call: {call_target!r}"
         )
 
 
