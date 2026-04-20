@@ -1,86 +1,81 @@
 ---
 name: orchestrator-no-inline-work
-title: Execution Orchestrator Delegation Enforcement
-description: Verify execution-orchestrator.md delegates specialist work via Task() and pre_tool.py fails open on file writes
+title: Phase Executor Delegation Enforcement
+description: Verify phase-executor.md delegates specialist work via Task() and pre_tool.py fails open on file writes
 type: workflow
 difficulty: intermediate
 estimated_minutes: 8
+fixes: "#522"
 ---
 
-# Execution Orchestrator Delegation Enforcement
+# Phase Executor Delegation Enforcement
 
-This scenario validates that the execution orchestrator agent:
+This scenario validates that the phase executor agent (`agents/crew/phase-executor.md`):
 1. Delegates specialist work (risk assessment, code review) to subagents via Task()
 2. Uses wicked-* ecosystem tools before falling back to manual analysis
 3. Does not inline qualitative analysis that should be done by a specialist
 4. Pre-tool hook fails open on direct file writes (never denies)
+
+Note: The v5 orchestrator agent was removed in v6. Orchestration is now performed by
+phase-executor.md dispatched by phase_manager.execute().
 
 ## Setup
 
 No special setup needed.
 
 ```bash
-test -f "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "execution-orchestrator.md found"
+Run: test -f "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "phase-executor.md found"
+Assert: phase-executor.md found
 ```
 
 ## Steps
 
-### 1. execution-orchestrator.md exists at the expected path
+### 1. phase-executor.md exists at the expected path
 
 ```bash
-test -f "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: file found"
+Run: test -f "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "PASS: file found"
+Assert: PASS: file found
 ```
 
-Expected: `PASS: file found`
-
-### 2. execution-orchestrator.md contains Task() dispatch for risk assessment
+### 2. phase-executor.md contains Task() dispatch
 
 ```bash
-grep -q "Task(" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: Task() dispatch found"
+Run: grep -q "Task(" "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "PASS: Task() dispatch found"
+Assert: PASS: Task() dispatch found
 ```
 
-Expected: `PASS: Task() dispatch found`
-
-### 3. execution-orchestrator.md references wicked-garden ecosystem tools first
+### 3. phase-executor.md references wicked-garden ecosystem tools
 
 ```bash
-grep -q "wicked-garden" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: wicked-garden ecosystem reference found"
+Run: grep -q "wicked-garden" "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "PASS: wicked-garden ecosystem reference found"
+Assert: PASS: wicked-garden ecosystem reference found
 ```
 
-Expected: `PASS: wicked-garden ecosystem reference found`
-
-### 4. execution-orchestrator.md instructs running actual test suites (not grep-only)
+### 4. phase-executor.md instructs recording executor-status.json
 
 ```bash
-grep -q "exit code" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: exit code instruction found"
+Run: grep -q "executor-status.json" "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "PASS: executor-status.json instruction found"
+Assert: PASS: executor-status.json instruction found
 ```
 
-Expected: `PASS: exit code instruction found`
-
-### 5. execution-orchestrator.md defines APPROVE/CONDITIONAL/REJECT gate decisions
+### 5. phase-executor.md defines parallelization_check output
 
 ```bash
-grep -q "APPROVE" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && \
-grep -q "CONDITIONAL" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && \
-grep -q "REJECT" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && \
-echo "PASS: All three gate decisions defined"
+Run: grep -q "parallelization_check" "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "PASS: parallelization_check defined"
+Assert: PASS: parallelization_check defined
 ```
 
-Expected: `PASS: All three gate decisions defined`
-
-### 6. execution-orchestrator.md delegates risk validation to a subagent
+### 6. phase-executor.md references delegating sub-tasks in parallel (SC-6)
 
 ```bash
-grep -q "wicked-garden:qe:risk-assessor" "${CLAUDE_PLUGIN_ROOT}/agents/crew/execution-orchestrator.md" && echo "PASS: risk-assessor subagent delegation found"
+Run: grep -qi "parallel" "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "PASS: parallel dispatch referenced"
+Assert: PASS: parallel dispatch referenced
 ```
-
-Expected: `PASS: risk-assessor subagent delegation found`
 
 ### 7. Pre-tool hook fails open (allows) on file writes
 
 ```bash
-# Simulate a Write hook call to a non-allowlisted path during build phase
-echo '{"tool_name": "Write", "tool_input": {"file_path": "/tmp/test_output.py", "content": "print(hello)"}}' | \
+Run: echo '{"tool_name": "Write", "tool_input": {"file_path": "/tmp/test_output.py", "content": "print(hello)"}}' | \
   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py" | \
   python3 -c "
 import json, sys
@@ -91,14 +86,13 @@ print('decision:', decision)
 assert decision == 'allow', f'Expected allow (fail open), got: {decision}'
 print('PASS: pre_tool allows writes (fail open)')
 "
+Assert: PASS: pre_tool allows writes (fail open)
 ```
-
-Expected: `PASS: pre_tool allows writes (fail open)`
 
 ### 8. Pre-tool hook allows writes to .something-wicked/ paths
 
 ```bash
-echo '{"tool_name": "Write", "tool_input": {"file_path": "/home/user/.something-wicked/wicked-garden/local/wicked-crew/projects/test/status.md", "content": "status: ok"}}' | \
+Run: echo '{"tool_name": "Write", "tool_input": {"file_path": "/home/user/.something-wicked/wicked-garden/projects/test-slug/wicked-crew/projects/test/status.md", "content": "status: ok"}}' | \
   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py" | \
   python3 -c "
 import json, sys
@@ -108,18 +102,17 @@ print('decision:', decision)
 assert decision == 'allow', f'Expected allow for allowlisted path, got: {decision}'
 print('PASS: allowlisted path allowed')
 "
+Assert: PASS: allowlisted path allowed
 ```
-
-Expected: `PASS: allowlisted path allowed`
 
 ## Expected Outcome
 
-### execution-orchestrator.md structure
-- File exists at `agents/crew/execution-orchestrator.md`
-- Uses `Task()` dispatch to delegate specialist work (risk-assessor subagent)
+### phase-executor.md structure
+- File exists at `agents/crew/phase-executor.md`
+- Uses `Task()` dispatch to delegate specialist work
 - References wicked-garden ecosystem tools before manual analysis
-- Instructions require running actual test suites and capturing exit codes
-- Gate decisions are APPROVE, CONDITIONAL, and REJECT — explicitly defined
+- Defines `parallelization_check` output block (SC-6 compliance)
+- Instructions require recording `executor-status.json`
 
 ### pre_tool.py behavior
 - Always fails open (permissionDecision: "allow") — never denies on any write
@@ -127,12 +120,12 @@ Expected: `PASS: allowlisted path allowed`
 
 ## Success Criteria
 
-### execution-orchestrator.md
-- [ ] File exists at expected path
-- [ ] `Task()` dispatch present (delegates risk validation to wicked-garden:qe:risk-assessor)
-- [ ] wicked-garden ecosystem tools referenced (use ecosystem before manual analysis)
-- [ ] Exit code instruction present (test suites must be run, not just file-grepped)
-- [ ] APPROVE, CONDITIONAL, and REJECT gate decisions all defined
+### phase-executor.md
+- [ ] File exists at `agents/crew/phase-executor.md`
+- [ ] `Task()` dispatch present
+- [ ] wicked-garden ecosystem tools referenced
+- [ ] executor-status.json instruction present
+- [ ] parallelization_check output defined (SC-6)
 
 ### pre_tool.py
 - [ ] Non-allowlisted writes return permissionDecision: "allow" (fail open)
@@ -140,8 +133,8 @@ Expected: `PASS: allowlisted path allowed`
 
 ## Value Demonstrated
 
-The execution orchestrator enforces quality gates by delegating specialist verification
-(risk assessment, code review) to domain subagents via Task() rather than performing all
-analysis inline. This keeps the gate result objective, reproducible, and free from
-context contamination across runs. Pre-tool failing open ensures gate enforcement never
-blocks legitimate writes by the agents it oversees.
+The phase executor enforces quality gates by delegating specialist verification to domain
+subagents via Task() rather than performing all analysis inline. This keeps the gate
+result objective, reproducible, and free from context contamination across runs.
+Pre-tool failing open ensures gate enforcement never blocks legitimate writes by the
+agents it oversees.

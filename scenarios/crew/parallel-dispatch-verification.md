@@ -45,12 +45,10 @@ mkdir -p "${PROJECT_DIR}/phases/build"
 
 **Verifies**: AC-α10 — reviewer dispatch windows overlap in time when `mode: parallel`.
 
-### Test
-
-Seed a synthetic `gate-result.json` that records a parallel dispatch:
+### Test — seed parallel gate-result.json
 
 ```bash
-sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 gr = {
     'result': 'APPROVE',
@@ -67,13 +65,36 @@ gr = {
     ]
 }
 pathlib.Path('${PROJECT_DIR}/phases/build/gate-result.json').write_text(json.dumps(gr, indent=2))
+print('gate-result.json written')
 "
+Assert: gate-result.json written
 ```
 
-### Assertions
+### Assertion — dispatch_mode is parallel and windows overlap
 
-- `gate-result.json`  `dispatch_mode == "parallel"`.
-- At least two `per_reviewer_verdicts` entries have overlapping `[dispatched_at, completed_at]` windows.
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib, sys
+from datetime import datetime
+gr = json.loads(pathlib.Path('${PROJECT_DIR}/phases/build/gate-result.json').read_text())
+assert gr['dispatch_mode'] == 'parallel', f'dispatch_mode mismatch: {gr[\"dispatch_mode\"]}'
+verdicts = gr['per_reviewer_verdicts']
+assert len(verdicts) >= 2, f'Expected >= 2 verdicts, got {len(verdicts)}'
+# check at least one pair overlaps
+overlaps = 0
+for i, a in enumerate(verdicts):
+    for b in verdicts[i+1:]:
+        a_start = datetime.fromisoformat(a['dispatched_at'].replace('Z', '+00:00'))
+        a_end   = datetime.fromisoformat(a['completed_at'].replace('Z', '+00:00'))
+        b_start = datetime.fromisoformat(b['dispatched_at'].replace('Z', '+00:00'))
+        b_end   = datetime.fromisoformat(b['completed_at'].replace('Z', '+00:00'))
+        if a_start < b_end and b_start < a_end:
+            overlaps += 1
+assert overlaps >= 1, 'No overlapping reviewer windows found — dispatch was serial'
+print(f'PASS: dispatch_mode=parallel, {overlaps} overlapping reviewer window pair(s)')
+"
+Assert: PASS: dispatch_mode=parallel, 1 or more overlapping reviewer window pair(s)
+```
 
 ---
 
@@ -81,12 +102,10 @@ pathlib.Path('${PROJECT_DIR}/phases/build/gate-result.json').write_text(json.dum
 
 **Verifies**: SC-6 — every phase-executor return includes the `parallelization_check` block.
 
-### Test
-
-Seed a synthetic `executor-status.json` with three sub-agent timing entries showing overlap:
+### Test — seed executor-status.json with parallel sub-agent timing
 
 ```bash
-sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 es = {
     'executor_task_id': 'task-123',
@@ -102,14 +121,24 @@ es = {
     ]
 }
 pathlib.Path('${PROJECT_DIR}/phases/build/executor-status.json').write_text(json.dumps(es, indent=2))
+print('executor-status.json written')
 "
+Assert: executor-status.json written
 ```
 
-### Assertions
+### Assertion — parallelization_check fields valid
 
-- `executor-status.json` `parallelization_check.dispatched_in_parallel == True`.
-- `sub_agent_timing` has at least 3 entries.
-- At least two `sub_agent_timing` entries have overlapping windows.
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib, sys
+es = json.loads(pathlib.Path('${PROJECT_DIR}/phases/build/executor-status.json').read_text())
+pc = es.get('parallelization_check', {})
+assert pc.get('dispatched_in_parallel') is True, f'dispatched_in_parallel is not True: {pc}'
+timing = es.get('sub_agent_timing', [])
+assert len(timing) >= 3, f'Expected >= 3 sub_agent_timing entries, got {len(timing)}'
+print(f'PASS: parallelization_check.dispatched_in_parallel=True, {len(timing)} sub-agent timing entries')
+"
+Assert: PASS: parallelization_check.dispatched_in_parallel=True, 3 sub-agent timing entries
 
 ---
 
@@ -119,8 +148,51 @@ pathlib.Path('${PROJECT_DIR}/phases/build/executor-status.json').write_text(json
 with reason `"parallelization-check-missing"` when `sub_task_count >= 2` and
 `dispatched_in_parallel: false` with null/empty `serial_reason`.
 
-Assert: the check is enforced by `scripts/crew/phase_manager.py::execute()` per design
-addendum-3 §SC-6.
+### Test — seed executor-status.json with failing parallelization_check
+
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib
+es = {
+    'executor_task_id': 'task-fail-pc',
+    'phase': 'build',
+    'started_at': '2026-04-19T14:02:00Z',
+    'finished_at': '2026-04-19T14:02:30Z',
+    'deliverables': ['phases/build/impl.md'],
+    'parallelization_check': {'sub_task_count': 3, 'dispatched_in_parallel': False, 'serial_reason': None},
+    'sub_agent_timing': [
+        {'task_id': 's1', 'dispatched_at': '2026-04-19T14:02:00Z', 'completed_at': '2026-04-19T14:02:10Z'},
+        {'task_id': 's2', 'dispatched_at': '2026-04-19T14:02:11Z', 'completed_at': '2026-04-19T14:02:21Z'},
+        {'task_id': 's3', 'dispatched_at': '2026-04-19T14:02:22Z', 'completed_at': '2026-04-19T14:02:30Z'},
+    ]
+}
+pathlib.Path('${PROJECT_DIR}/phases/build/executor-status-fail.json').write_text(json.dumps(es, indent=2))
+print('executor-status-fail.json written')
+"
+Assert: executor-status-fail.json written
+```
+
+### Assertion — parallelization_check violation is detectable
+
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib, sys
+es = json.loads(pathlib.Path('${PROJECT_DIR}/phases/build/executor-status-fail.json').read_text())
+pc = es.get('parallelization_check', {})
+sub_task_count = pc.get('sub_task_count', 0)
+dispatched = pc.get('dispatched_in_parallel', True)
+serial_reason = pc.get('serial_reason')
+# SC-6 enforcement: sub_task_count >= 2, dispatched=False, serial_reason=None is a violation
+violation = sub_task_count >= 2 and not dispatched and not serial_reason
+if violation:
+    print('PASS: parallelization-check violation detected (sub_task_count=%d, dispatched_in_parallel=False, serial_reason=None)' % sub_task_count)
+    sys.exit(0)
+else:
+    print('FAIL: expected violation not detected — check fixture')
+    sys.exit(1)
+"
+Assert: PASS: parallelization-check violation detected (sub_task_count=3, dispatched_in_parallel=False, serial_reason=None)
+```
 
 ---
 

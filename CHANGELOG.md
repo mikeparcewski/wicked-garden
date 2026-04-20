@@ -1,5 +1,48 @@
 # Changelog
 
+## [6.3.4] - 2026-04-19
+
+### Bug Fixes (scenario drift — closes #521, #522, #523, #524, #525, #526)
+- fix(#522): `orchestrator-no-inline-work.md` — replace nonexistent `execution-orchestrator.md`
+  references with current `phase-executor.md` (v6 renamed agent)
+- fix(#523): `cross-module-integration.md` — remove `scripts/search/lifecycle_scoring.py`
+  (removed in v6); replace step 6 with smaht DomainAdapter fan-out test
+- fix(#524): replace hardcoded `~/.something-wicked/wicked-garden/local/` old path layout with
+  current `projects/{project-slug}/` layout in `05-multi-project-management.md`,
+  `07-autonomous-assumptions.md`, `local-mode.md`, `05-qe-gate.md`, `02-onboarding.md`
+- fix(#525): add explicit `Run:`/`Assert:` steps to `mode3-execution.md` and
+  `parallel-dispatch-verification.md` (Case 3 was prose-only; all cases now have runnable assertions)
+- fix(#526): minor drift — stale phase-executor path reference in qe-gate setup
+- fix(#521/1): `scenarios/engineering/03-refactoring-strategy.md:119` — `/wicked-garden:jam:jam`
+  → `/wicked-garden:jam:brainstorm` (command was removed; brainstorm is the correct alias)
+- fix(#521/2): `scenarios/mem/memory-promotion.md:38,49` — replace hardcoded
+  `~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/` paths with `resolve_path.py` equivalents
+- fix(#521/3): `scenarios/smaht/guard-fresh-install.md:13` — replace
+  `~/.something-wicked/wicked-garden/config.json` literal with resolve_path.py prose reference
+- fix(#521/4): `scenarios/smaht/06-context7-integration.md:45` — replace hardcoded
+  `~/.something-wicked/wicked-garden/local/wicked-smaht/libs/react.md` with `resolve_path.py` invocation
+
+### Features (v6.2 acceptance scenarios — closes #514–#520)
+- feat(#514): add `scenarios/crew/yolo-grant-revoke-guardrails.md` — 7 cases covering
+  standard rigor grant, full rigor rejections (short justification, missing sentinel),
+  full guardrails grant, revoke, status read-only, and cooldown
+- feat(#515): add `scenarios/crew/blind-reviewer-multi-reviewer-invariant.md` — 4 cases
+  covering blind reviewer context stripping, partial-panel pending invariant,
+  BLEND-rule aggregation (0.4×min + 0.6×avg), and CONDITIONAL verdict escalation
+- feat(#516): add `scenarios/crew/dispatch-log-hmac-orphan-detection-rotation.md` — 4 cases
+  covering HMAC-signed append, orphan detection → CONDITIONAL, matched-entry pass, log rotation
+- feat(#517): add `scenarios/crew/gate-result-schema-validator-env-bypasses.md` — 6 cases
+  covering missing fields, banned reviewers, oversized reason/conditions, valid pass,
+  and `WG_GATE_RESULT_SCHEMA_VALIDATION=off` bypass
+- feat(#518): add `scenarios/crew/re-eval-skill-amendments-jsonl.md` — 5 cases covering
+  addendum.jsonl first-append, append-only growth, amendments.jsonl, schema validation,
+  and chain_id prefix enforcement
+- feat(#519): add `scenarios/crew/plain-language-translation-skill.md` — 5 cases covering
+  skill file existence/size, output rules, jargon ban list, Plain: convention, and discoverability
+- feat(#520): add `scenarios/crew/pre-flip-monitoring-strict-mode-banner.md` — 5 cases
+  covering silent (T>7), PreFlipNotice WARN (1≤T≤7), boundary T=7, StrictMode at T=0,
+  and post-flip latch via `strict_mode_active_announced`
+
 ## [6.3.2] - 2026-04-19
 
 ### Features

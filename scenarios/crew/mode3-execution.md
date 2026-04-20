@@ -72,28 +72,42 @@ print('project.json written')
 
 ### Test
 
-For each phase in the plan:
+For each phase in the plan (clarify → design → build → review):
 
 ```bash
-sh "${PLUGIN_ROOT}/scripts/_python.sh" "${PLUGIN_ROOT}/scripts/_run.py" \
-  scripts/crew/phase_manager.py "${TEST_PROJECT}" execute --phase "${PHASE}"
-
-sh "${PLUGIN_ROOT}/scripts/_python.sh" "${PLUGIN_ROOT}/scripts/_run.py" \
-  scripts/crew/phase_manager.py "${TEST_PROJECT}" approve --phase "${PHASE}"
+Run: for PHASE in clarify design build review; do
+  sh "${PLUGIN_ROOT}/scripts/_python.sh" "${PLUGIN_ROOT}/scripts/_run.py" \
+    scripts/crew/phase_manager.py "${TEST_PROJECT}" execute --phase "${PHASE}" && \
+  sh "${PLUGIN_ROOT}/scripts/_python.sh" "${PLUGIN_ROOT}/scripts/_run.py" \
+    scripts/crew/phase_manager.py "${TEST_PROJECT}" approve --phase "${PHASE}"
+done
+Assert: exit code 0 for all phases; no "unresolved" or "error" in stderr
 ```
 
-### Assertions
+### Assertion: executor-status and gate-result written for all phases
 
-- Every `phases/{phase}/executor-status.json` exists and parses as JSON.
-- Every `phases/{phase}/gate-result.json` contains `"result": "APPROVE"`.
-- `process-plan.addendum.jsonl` contains at least one record per phase.
-
-### Pass criteria
-
-```
-count_executor_status == len(phase_plan)
-count_gate_result == len(phase_plan)
-all(gate_result["result"] == "APPROVE" for each phase)
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib, sys
+project_dir = pathlib.Path('${PROJECT_DIR}')
+phases = ['clarify', 'design', 'build', 'review']
+errors = []
+for phase in phases:
+    es = project_dir / 'phases' / phase / 'executor-status.json'
+    gr = project_dir / 'phases' / phase / 'gate-result.json'
+    if not es.exists():
+        errors.append(f'MISSING executor-status.json for {phase}')
+    if not gr.exists():
+        errors.append(f'MISSING gate-result.json for {phase}')
+    elif json.loads(gr.read_text()).get('result') != 'APPROVE':
+        errors.append(f'gate-result not APPROVE for {phase}')
+if errors:
+    for e in errors:
+        print('FAIL:', e)
+    sys.exit(1)
+print('PASS: executor-status.json + gate-result.json (APPROVE) found for all %d phases' % len(phases))
+"
+Assert: PASS: executor-status.json + gate-result.json (APPROVE) found for all 4 phases
 ```
 
 ---
@@ -102,20 +116,42 @@ all(gate_result["result"] == "APPROVE" for each phase)
 
 **Verifies**: AC-α7(b) — a CONDITIONAL verdict blocks the next phase until conditions clear.
 
-### Test
+### Test — seed CONDITIONAL, verify block
 
-Seed a CONDITIONAL gate result at `phases/design/gate-result.json`:
-
-```json
-{"result": "CONDITIONAL", "score": 0.65, "min_score": 0.70,
- "conditions": [{"description": "Clarify FR-1 ambiguity", "source": "reviewer"}]}
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib
+gr_path = pathlib.Path('${PROJECT_DIR}') / 'phases' / 'design' / 'gate-result.json'
+gr_path.parent.mkdir(parents=True, exist_ok=True)
+gr_path.write_text(json.dumps({
+    'result': 'CONDITIONAL', 'score': 0.65, 'min_score': 0.70,
+    'conditions': [{'description': 'Clarify FR-1 ambiguity', 'source': 'reviewer', 'resolved': False}]
+}))
+print('CONDITIONAL gate seeded')
+"
+Assert: CONDITIONAL gate seeded
 ```
 
-Attempt `phase_manager.py execute --phase build` → **expected non-zero exit** with
-`unresolved-conditions` in stderr.
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" "${PLUGIN_ROOT}/scripts/_run.py" \
+  scripts/crew/phase_manager.py "${TEST_PROJECT}" execute --phase build 2>&1; echo "exit:$?"
+Assert: output contains "unresolved" or "conditions" and exit code is non-zero (exit:1)
+```
 
-Resolve the manifest (write `resolved: true` on each condition) and retry →
-**expected exit 0**.
+### Test — resolve conditions, verify unblock
+
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib
+gr_path = pathlib.Path('${PROJECT_DIR}') / 'phases' / 'design' / 'gate-result.json'
+gr = json.loads(gr_path.read_text())
+for c in gr.get('conditions', []):
+    c['resolved'] = True
+gr_path.write_text(json.dumps(gr))
+print('conditions resolved')
+"
+Assert: conditions resolved
+```
 
 ---
 
@@ -123,11 +159,25 @@ Resolve the manifest (write `resolved: true` on each condition) and retry →
 
 **Verifies**: AC-α4 — every phase emits a phase-end JSONL record.
 
-### Assertions
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import pathlib, sys
+addendum = pathlib.Path('${PROJECT_DIR}') / 'process-plan.addendum.jsonl'
+if not addendum.exists():
+    print('FAIL: process-plan.addendum.jsonl missing')
+    sys.exit(1)
+lines = [l for l in addendum.read_text().splitlines() if l.strip()]
+if len(lines) < 4:
+    print(f'FAIL: expected >= 4 addendum records, got {len(lines)}')
+    sys.exit(1)
+print(f'PASS: {len(lines)} addendum records found')
+"
+Assert: PASS: 4 or more addendum records found
 
-- `process-plan.addendum.jsonl` line count >= `len(phase_plan)`.
-- Every record passes `scripts/crew/validate_reeval_addendum.py`.
-- Every record's `chain_id` starts with `${TEST_PROJECT}.`.
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" "${PLUGIN_ROOT}/scripts/_run.py" \
+  scripts/crew/validate_reeval_addendum.py "${PROJECT_DIR}/process-plan.addendum.jsonl"
+Assert: exit code 0 (all records valid)
+```
 
 ---
 

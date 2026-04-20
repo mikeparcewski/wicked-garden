@@ -35,7 +35,7 @@ No additional plugins required. This scenario tests wicked-smaht's built-in cros
 
 3. **Verify session state before ending**
    ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/summary.json
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-smaht sessions | xargs -I{} sh -c 'cat {}/**/summary.json 2>/dev/null || ls {}/'
    ```
 
    Should show `decisions`, `topics`, and `file_scope` populated.
@@ -46,7 +46,7 @@ No additional plugins required. This scenario tests wicked-smaht's built-in cros
 
 5. **Verify session_meta.json was written**
    ```bash
-   cat ~/.something-wicked/wicked-garden/local/wicked-smaht/sessions/*/session_meta.json
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-smaht sessions | xargs -I{} sh -c 'cat {}/**/session_meta.json 2>/dev/null || ls {}/'
    ```
 
    Expected structure:

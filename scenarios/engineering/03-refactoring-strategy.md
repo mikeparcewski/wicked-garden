@@ -116,7 +116,7 @@ EOF
 
 6. **Test Quick Gut-Check**
    ```bash
-   /wicked-garden:jam:jam "should we rewrite the payment processor or refactor incrementally?"
+   /wicked-garden:jam:brainstorm "should we rewrite the payment processor or refactor incrementally?"
    ```
 
    Expected: Quick take with 4 personas, brief recommendation

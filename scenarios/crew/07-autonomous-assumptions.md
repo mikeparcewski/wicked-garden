@@ -49,16 +49,26 @@ Expected:
 Assumptions are stored in `project.json` by the just-finish orchestrator. Read them directly from the project file (assumptions bypass the status summary):
 
 ```bash
-python3 -c "
-import json, os
-proj_dir = os.path.expanduser('~/.something-wicked/wicked-garden/local/wicked-crew/projects/improve-the-search-results-page')
-with open(os.path.join(proj_dir, 'project.json')) as f:
+Run: python3 -c "
+import json, sys
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+from _paths import get_local_path
+proj_root = get_local_path('wicked-crew', 'projects')
+# find the improve-the-search-results-page project dir (name prefix match)
+import pathlib
+matches = [p for p in proj_root.iterdir() if 'improve-the-search-results-page' in p.name or 'improve' in p.name]
+if not matches:
+    print('ERROR: project directory not found under', proj_root)
+    sys.exit(1)
+proj_dir = matches[0]
+with open(proj_dir / 'project.json') as f:
     d = json.load(f)
 assumptions = d.get('assumptions', [])
 print(f'{len(assumptions)} assumption(s) tracked')
 for a in assumptions:
     print(f'  - [{a[\"phase\"]}] {a[\"assumption\"]}')
 "
+Assert: "2 assumption(s) tracked" or more, each with phase and assumption fields
 ```
 
 Expected:
