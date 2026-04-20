@@ -260,8 +260,7 @@ def _emit_flip_announcement_once(flip_date: date) -> None:
         f"of {flip_date.isoformat()}. Missing dispatch-log entries will "
         "REJECT gate-results. Override with "
         "WG_GATE_RESULT_STRICT_AFTER=<future-date> if production rollback "
-        "is needed. See docs/threat-models/gate-result-ingestion.md §6 "
-        "for owner handoff.\n"
+        "is needed.\n"
     )
 
 

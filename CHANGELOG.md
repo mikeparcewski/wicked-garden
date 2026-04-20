@@ -1,5 +1,26 @@
 # Changelog
 
+## [6.3.5] - 2026-04-19
+
+### Documentation
+- docs: remove `docs/competitor-analysis/` (6 files), `docs/audits/` (1 file),
+  and `docs/threat-models/` (1 file) — marketing / one-off audit / auditor
+  reference material that no longer earns its keep in the user-facing tree
+- feat(skills): add `skills/platform/gate-benchmark-rebaseline/SKILL.md` —
+  preserves the AC-11 benchmark re-baseline procedure (formerly §8 of the
+  deleted threat model) as a Claude-invokable skill that triggers on
+  "re-baseline AC-11 benchmark" / "gate-result benchmark regression"
+- refactor: redirect all operational pointers from
+  `docs/threat-models/gate-result-ingestion.md` to the new skill —
+  `.github/workflows/benchmark.yml` (PR comment + header comment),
+  `tests/crew/benchmark_baseline.json` (`rebaseline_procedure` field +
+  `recorded_env.note`), `tests/crew/test_gate_result_benchmark.py`
+  (module docstring + assertion message), `scripts/crew/gate_result_schema.py`
+  (module docstring), `scripts/crew/dispatch_log.py` (strict-flip stderr
+  message), `.claude/CLAUDE.md`, `docs/architecture.md`, `docs/advanced.md`
+- marketplace.json: sync description with plugin.json (was still showing
+  the pre-v6-sweep "69 specialist agents" copy)
+
 ## [6.3.4] - 2026-04-19
 
 ### Bug Fixes (scenario drift — closes #521, #522, #523, #524, #525, #526)

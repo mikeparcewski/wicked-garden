@@ -2,7 +2,7 @@ name: AC-11 Benchmark SLO
 
 # Enforces the 2x p95 SLO on _load_gate_result (AC-11). Triggers only on
 # PRs that touch the gate-result ingestion hot path so the normal PR
-# lane stays fast. See docs/threat-models/gate-result-ingestion.md §8
+# lane stays fast. See skill `wicked-garden:platform:gate-benchmark-rebaseline`
 # for the re-baselining procedure; tracked by issue #504.
 
 on:
@@ -97,7 +97,7 @@ jobs:
               `| budget (ns) | ${budget ?? 'n/a'} |`,
               `| verdict | **${verdict}** |`,
               '',
-              'Re-baseline procedure: `docs/threat-models/gate-result-ingestion.md` §8.',
+              'Re-baseline procedure: invoke skill `wicked-garden:platform:gate-benchmark-rebaseline`.',
               'Tracked by #504.'
             ].join('\n');
             await github.rest.issues.createComment({

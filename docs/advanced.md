@@ -235,7 +235,7 @@ Every specialist dispatch appends an HMAC-signed entry to `phases/{phase}/dispat
 - **Orphan gate-result** (verdict without a matching dispatch) → downgraded to CONDITIONAL
 - Log rotates at the configured size threshold
 
-Inspect in place — it's plain JSONL under the project directory. Gate-result ingestion also runs a layered defense floor: schema validator, content sanitizer, dispatch-log orphan detection, append-only audit log. See `docs/threat-models/gate-result-ingestion.md` for the full trust boundary and the `WG_GATE_RESULT_*` rollback env vars.
+Inspect in place — it's plain JSONL under the project directory. Gate-result ingestion also runs a layered defense floor: schema validator, content sanitizer, dispatch-log orphan detection, append-only audit log. Rollback levers: `WG_GATE_RESULT_SCHEMA_VALIDATION=off`, `WG_GATE_RESULT_CONTENT_SANITIZATION=off`, `WG_GATE_RESULT_DISPATCH_CHECK=off` — all auto-expire at `WG_GATE_RESULT_STRICT_AFTER`. When the AC-11 benchmark lane needs re-baselining, invoke the `wicked-garden:platform:gate-benchmark-rebaseline` skill.
 
 ## Amendments Log (v6.2+)
 

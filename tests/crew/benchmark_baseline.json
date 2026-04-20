@@ -9,9 +9,9 @@
   "recorded_env": {
     "platform": "darwin",
     "python": "3.14",
-    "note": "Establishment run on Apple Silicon dev host. CI baseline (ubuntu-latest) will converge after the first scheduled run on main; re-baseline per docs/threat-models/gate-result-ingestion.md §8 if CI p95 diverges by >20%."
+    "note": "Establishment run on Apple Silicon dev host. CI baseline (ubuntu-latest) will converge after the first scheduled run on main; re-baseline via the wicked-garden:platform:gate-benchmark-rebaseline skill if CI p95 diverges by >20%."
   },
   "slo_multiplier": 2.0,
   "tracked_by_issue": 504,
-  "rebaseline_procedure": "docs/threat-models/gate-result-ingestion.md §8"
+  "rebaseline_procedure": "wicked-garden:platform:gate-benchmark-rebaseline"
 }
