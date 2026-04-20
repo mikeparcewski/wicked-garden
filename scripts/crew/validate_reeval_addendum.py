@@ -39,11 +39,21 @@ REQUIRED_TOP_KEYS = frozenset({
     "validator_version",
 })
 
-# v1.0 known triggers; v1.1.0 extends with qe-evaluator prefix (checked separately).
+# v1.0 known triggers; v1.1.0 extends with gate-adjudicator prefix (checked separately).
 VALID_TRIGGERS = frozenset({"phase-end", "task-completion"})
 
-# v1.1.0: qe-evaluator triggers use a prefix convention "qe-evaluator:<gate>".
-QE_EVALUATOR_TRIGGER_PREFIX = "qe-evaluator:"
+# v1.1.0: gate-adjudicator triggers use a prefix convention "gate-adjudicator:<gate>".
+# Legacy: "qe-evaluator:" prefix accepted for backward-compat read window (v7.0.x only).
+QE_EVALUATOR_TRIGGER_PREFIX = "qe-evaluator:"      # legacy — compat window only
+GATE_ADJUDICATOR_TRIGGER_PREFIX = "gate-adjudicator:"  # canonical (v7.0+)
+
+
+def _is_adjudicator_trigger(trigger: str) -> bool:
+    """Return True if trigger is a gate-adjudicator (or legacy qe-evaluator) trigger."""
+    return (
+        trigger.startswith(GATE_ADJUDICATOR_TRIGGER_PREFIX)
+        or trigger.startswith(QE_EVALUATOR_TRIGGER_PREFIX)
+    )
 
 # v1.1.0: archetype enum (AC-5).
 VALID_ARCHETYPES = frozenset({
@@ -56,7 +66,7 @@ VALID_ARCHETYPES = frozenset({
     "schema-migration",
 })
 
-# v1.1.0: allowed manifest_path prefixes for qe-evaluator triggers (MINOR-1).
+# v1.1.0: allowed manifest_path prefixes for gate-adjudicator triggers (MINOR-1).
 ALLOWED_QE_MANIFEST_PREFIXES = ("phases/testability/", "phases/evidence-quality/")
 DISALLOWED_QE_MANIFEST_PREFIXES = ("phases/clarify/", "phases/design/")
 
@@ -123,32 +133,31 @@ def validate_record(record: object, line_num: "int | None" = None) -> "list[str]
     for key in sorted(missing):
         errors.append(f"{prefix}: missing required key '{key}'")
 
-    # trigger enum — v1.1.0 extends with qe-evaluator:<gate> prefix convention.
+    # trigger enum — v1.1.0 extends with gate-adjudicator:<gate> prefix convention.
+    # Legacy "qe-evaluator:" prefix also accepted for backward-compat read window.
     trigger = record.get("trigger")
     if trigger is not None:
-        is_qe_trigger = isinstance(trigger, str) and trigger.startswith(
-            QE_EVALUATOR_TRIGGER_PREFIX
-        )
+        is_qe_trigger = isinstance(trigger, str) and _is_adjudicator_trigger(trigger)
         if not is_qe_trigger and trigger not in VALID_TRIGGERS:
             errors.append(
                 f"{prefix}.trigger: '{trigger}' is not one of {sorted(VALID_TRIGGERS)} "
-                f"and does not start with '{QE_EVALUATOR_TRIGGER_PREFIX}'"
+                f"and does not start with '{GATE_ADJUDICATOR_TRIGGER_PREFIX}'"
             )
 
-    # v1.1.0: qe-evaluator triggers must have empty mutations and mutations_applied.
+    # v1.1.0: gate-adjudicator triggers must have empty mutations and mutations_applied.
     trigger_str = trigger if isinstance(trigger, str) else ""
-    is_qe_trigger = trigger_str.startswith(QE_EVALUATOR_TRIGGER_PREFIX)
+    is_qe_trigger = _is_adjudicator_trigger(trigger_str)
     if is_qe_trigger:
         mutations_val = record.get("mutations")
         if isinstance(mutations_val, list) and mutations_val:
             errors.append(
-                f"{prefix}: qe-evaluator trigger must have empty mutations list; "
+                f"{prefix}: gate-adjudicator trigger must have empty mutations list; "
                 f"got {len(mutations_val)} item(s)"
             )
         applied_val = record.get("mutations_applied")
         if isinstance(applied_val, list) and applied_val:
             errors.append(
-                f"{prefix}: qe-evaluator trigger must have empty mutations_applied list; "
+                f"{prefix}: gate-adjudicator trigger must have empty mutations_applied list; "
                 f"got {len(applied_val)} item(s)"
             )
 
@@ -179,14 +188,14 @@ def validate_record(record: object, line_num: "int | None" = None) -> "list[str]
                     errors.append(
                         f"{prefix}.archetype_evidence.conditions_deferred[{i}]"
                         f".manifest_path '{manifest_path}' must start with one of "
-                        f"{list(ALLOWED_QE_MANIFEST_PREFIXES)} for qe-evaluator triggers"
+                        f"{list(ALLOWED_QE_MANIFEST_PREFIXES)} for gate-adjudicator triggers"
                     )
                 for disallowed in DISALLOWED_QE_MANIFEST_PREFIXES:
                     if manifest_path.startswith(disallowed):
                         errors.append(
                             f"{prefix}.archetype_evidence.conditions_deferred[{i}]"
                             f".manifest_path '{manifest_path}' must not start with "
-                            f"'{disallowed}' for qe-evaluator triggers"
+                            f"'{disallowed}' for gate-adjudicator triggers"
                         )
 
     # rigor tiers

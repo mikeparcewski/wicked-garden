@@ -255,7 +255,7 @@ def test_mixed_config_and_skill_agent_md():
     """AC-8.1: config-infra MUST be disqualified when YAML-frontmatter .md present.
 
     A synthetic PR with gate-policy.json edit (config-infra positive signal) AND a new
-    agents/crew/qe-evaluator.md (skill-agent-authoring positive signal).
+    agents/crew/gate-adjudicator.md (skill-agent-authoring positive signal).
     config-infra's negative signal fires on the YAML-frontmatter .md file, so
     skill-agent-authoring wins.
 
@@ -265,12 +265,12 @@ def test_mixed_config_and_skill_agent_md():
     """
     tmp = _make_project({
         ".claude-plugin/gate-policy.json": '{"gates": {}}',
-        "agents/crew/qe-evaluator.md": _frontmatter_md(
-            body="The qe-evaluator does archetype-aware evidence evaluation.",
-            fields="subagent_type: wicked-garden:crew:qe-evaluator\ndescription: qe evaluator",
+        "agents/crew/gate-adjudicator.md": _frontmatter_md(
+            body="The gate-adjudicator does archetype-aware evidence evaluation.",
+            fields="subagent_type: wicked-garden:crew:gate-adjudicator\ndescription: gate adjudicator",
         ),
     })
-    files = [".claude-plugin/gate-policy.json", "agents/crew/qe-evaluator.md"]
+    files = [".claude-plugin/gate-policy.json", "agents/crew/gate-adjudicator.md"]
     result = detect_archetype({"files": files, "project_dir": str(tmp)})
     assert result["archetype"] == "skill-agent-authoring", (
         f"Expected skill-agent-authoring because config-infra negative signal fires "

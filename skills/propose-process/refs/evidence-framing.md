@@ -149,7 +149,7 @@ Rules:
 
 ## Per-Archetype Evidence Contracts (MVP — D6, AC-6)
 
-The qe-evaluator uses these contracts at the `testability` and `evidence-quality` gates.
+The gate-adjudicator uses these contracts at the `testability` and `evidence-quality` gates.
 Absence of a required artifact triggers CONDITIONAL or REJECT per the score-band table in
 `phases/design/design.md §1`. Non-MVP archetypes (multi-repo, testing-only,
 schema-migration) fall through to the code-repo contract with a logged CONDITIONAL finding.

@@ -1,5 +1,69 @@
 # Changelog
 
+## [7.0.0] - UNRELEASED
+
+This release extracts the QE discipline into a dedicated **wicked-testing** peer plugin
+(`https://github.com/mikeparcewski/wicked-testing`). The "zero external dependencies"
+claim was already obsolete since wicked-bus became a recommended companion at v4.8.0;
+v7.0 makes the peer-plugin model explicit and enforced.
+
+Migration guide: `docs/WICKED-GARDEN.md` in the wicked-testing repository.
+
+### Breaking Changes
+
+- **BREAKING(extraction)**: QE discipline extracted to wicked-testing peer plugin.
+  All QE agents, skills, commands, and scenarios now live in
+  `https://github.com/mikeparcewski/wicked-testing`. The wicked-garden plugin delegates
+  all quality-gate execution to wicked-testing via the wicked-bus event bus.
+- **BREAKING(peer-dependency)**: `wicked-testing >= 0.1` is now a **required** peer
+  dependency. Install with:
+  `npm install npx wicked-testing install`
+  Crews will not start without it.
+- **BREAKING(session-guard)**: SessionStart hook hard-blocks crew invocations when
+  wicked-testing is absent or its version falls outside the declared range
+  (`wicked_testing_version: "^0.1.0"` in `plugin.json`). Error is surfaced inline
+  with install instructions before any phase work begins.
+- **BREAKING(gate-adjudicator)**: `scripts/crew/qe_evaluator.py` renamed to
+  `scripts/crew/gate_adjudicator.py`; 134 in-repo references updated. The gate
+  adjudicator replaces `qe-evaluator` as the authoritative verdict engine.
+  Backward-compat read: `reeval-log.jsonl` entries accept both `qe-evaluator` and
+  `gate-adjudicator` as `source_agent` values during the v7.0.x window; this
+  compatibility shim is removed in v7.1.
+- **BREAKING(gate-policy)**: `gate-policy.json` QE reviewer entries renamed from
+  `wicked-garden:qe:*` to `wicked-testing:*` Tier-1 (11 reviewer names updated).
+  Any custom gate-policy overlays referencing the old namespace must be migrated
+  before upgrading.
+- **BREAKING(specialist-routing)**: `specialist.json` QE routing updated from
+  `wicked-garden:qe:*` to `wicked-testing:*` Tier-1 entries. Persona-as invocations
+  using the old `wicked-garden:qe:*` subagent_type will fall back to wicked-testing
+  Tier-1 during v7.0.x and stop resolving in v7.1.
+- **BREAKING(command-aliases)**: `/wicked-garden:qe:*` commands are deprecated aliases
+  in v7.0 — they proxy to `wicked-testing:*` equivalents. Deprecated aliases are
+  removed in v7.1 (see #551, #552, #553).
+
+### Features
+
+- **feat(plugin.json)**: gains `wicked_testing_version` field pinning the accepted
+  wicked-testing semver range (`^0.1.0`). SessionStart and the pre-flight validator
+  both read this field.
+- **feat(phase_manager)**: subscribes to `wicked.verdict.recorded` bus events when
+  wicked-bus is present; falls back to polling the dispatch-log when absent.
+  Existing dispatch-log consumers are unaffected.
+- **feat(gate_dispatch)**: `gate_dispatch.collect(clock=None)` seam added. Passing a
+  custom clock enables fully deterministic verdict-window tests without real-time
+  sleeps.
+- **feat(migration)**: one-shot migration script `scripts/crew/migrate_qe_evaluator_name.py`
+  rewrites legacy `qe-evaluator` entries in existing `reeval-log.jsonl` files
+  in-place, writing a `.bak` backup before modification. Safe to run multiple times
+  (idempotent).
+
+### Deprecated — removed in v7.1 (issues #551, #552, #553)
+
+- `agents/qe/` — deprecated in v7.0; removed in v7.1
+- `skills/qe/` — deprecated in v7.0; removed in v7.1
+- `skills/acceptance-testing/` — deprecated in v7.0; removed in v7.1
+- `commands/qe/` (all `/wicked-garden:qe:*` aliases) — deprecated in v7.0; removed in v7.1
+
 ## [6.3.6] - 2026-04-20
 
 ### Bug Fixes

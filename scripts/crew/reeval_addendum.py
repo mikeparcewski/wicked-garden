@@ -66,10 +66,46 @@ VALID_ARCHETYPES = frozenset({
     "schema-migration",
 })
 
-# Allowed manifest_path prefixes for qe-evaluator triggers (MINOR-1).
-_QE_EVALUATOR_TRIGGER_PREFIX = "qe-evaluator:"
+# Trigger prefix constants (R3 — no magic values).
+# Legacy kept for backward-compat read window (v7.0.x only; removed in v7.1.0).
+_QE_EVALUATOR_TRIGGER_PREFIX = "qe-evaluator:"    # legacy — compat window only
+_GATE_ADJUDICATOR_TRIGGER_PREFIX = "gate-adjudicator:"  # canonical (v7.0+)
+
+# Reviewer name constants for normalize_reviewer_name.
+_LEGACY_NAME = "qe-evaluator"
+_CANONICAL_NAME = "gate-adjudicator"
+_LEGACY_FQ = "wicked-garden:crew:qe-evaluator"
+_CANONICAL_FQ = "wicked-garden:crew:gate-adjudicator"
+
+# Allowed manifest_path prefixes for gate-adjudicator triggers (MINOR-1).
 _ALLOWED_QE_MANIFEST_PREFIXES = ("phases/testability/", "phases/evidence-quality/")
 _DISALLOWED_QE_MANIFEST_PREFIXES = ("phases/clarify/", "phases/design/")
+
+
+def normalize_reviewer_name(raw: str) -> str:
+    """Map legacy reviewer names to canonical form (read-time only).
+
+    Mappings:
+      "qe-evaluator"                     -> "gate-adjudicator"
+      "wicked-garden:crew:qe-evaluator"  -> "wicked-garden:crew:gate-adjudicator"
+      "gate-adjudicator"                 -> "gate-adjudicator"  (pass-through)
+      <anything else>                    -> unchanged           (pass-through)
+
+    Deprecation: v7.0.x compat window only — removed in v7.1.0.
+    """
+    if raw == _LEGACY_NAME:
+        return _CANONICAL_NAME
+    if raw == _LEGACY_FQ:
+        return _CANONICAL_FQ
+    return raw
+
+
+def _is_qe_trigger(trigger: str) -> bool:
+    """Return True if trigger is a gate-adjudicator (or legacy qe-evaluator) trigger."""
+    return (
+        trigger.startswith(_GATE_ADJUDICATOR_TRIGGER_PREFIX)
+        or trigger.startswith(_QE_EVALUATOR_TRIGGER_PREFIX)
+    )
 
 
 def _validate_record(record: Dict[str, Any]) -> Optional[str]:
@@ -79,9 +115,10 @@ def _validate_record(record: Dict[str, Any]) -> Optional[str]:
     validated when present; their absence is always valid (backward-compat).
 
     v1.1.0 enforcement rules (MINOR-1, AC-4):
-    - When trigger starts with "qe-evaluator:", mutations MUST be [].
-    - When trigger starts with "qe-evaluator:", mutations_applied MUST be [].
-    - When trigger starts with "qe-evaluator:", conditions_deferred[*].manifest_path
+    - When trigger starts with "gate-adjudicator:" (or legacy "qe-evaluator:"),
+      mutations MUST be [].
+    - When trigger starts with "gate-adjudicator:", mutations_applied MUST be [].
+    - When trigger starts with "gate-adjudicator:", conditions_deferred[*].manifest_path
       MUST have prefix "phases/testability/" or "phases/evidence-quality/".
 
     This is a lightweight structural check — the full schema validation
@@ -111,18 +148,18 @@ def _validate_record(record: Dict[str, Any]) -> Optional[str]:
 
     trigger = record.get("trigger", "") or ""
 
-    # v1.1.0 rules: qe-evaluator triggers must have empty mutations lists.
-    if trigger.startswith(_QE_EVALUATOR_TRIGGER_PREFIX):
+    # v1.1.0 rules: gate-adjudicator triggers (and legacy qe-evaluator) must have empty mutations lists.
+    if _is_qe_trigger(trigger):
         mutations = record.get("mutations", [])
         if mutations:
             return (
-                f"qe-evaluator trigger must have empty mutations list; "
+                f"gate-adjudicator trigger must have empty mutations list; "
                 f"got {len(mutations)} item(s)"
             )
         mutations_applied = record.get("mutations_applied", [])
         if mutations_applied:
             return (
-                f"qe-evaluator trigger must have empty mutations_applied list; "
+                f"gate-adjudicator trigger must have empty mutations_applied list; "
                 f"got {len(mutations_applied)} item(s)"
             )
 
@@ -136,13 +173,11 @@ def _validate_record(record: Dict[str, Any]) -> Optional[str]:
             )
 
     # v1.1.0: validate archetype_evidence.conditions_deferred[*].manifest_path
-    # prefix enforcement for qe-evaluator triggers.
+    # prefix enforcement for gate-adjudicator triggers (and legacy qe-evaluator triggers).
     archetype_evidence = record.get("archetype_evidence")
     if archetype_evidence is not None and isinstance(archetype_evidence, dict):
         conditions_deferred = archetype_evidence.get("conditions_deferred", [])
-        if isinstance(conditions_deferred, list) and trigger.startswith(
-            _QE_EVALUATOR_TRIGGER_PREFIX
-        ):
+        if isinstance(conditions_deferred, list) and _is_qe_trigger(trigger):
             for i, cond in enumerate(conditions_deferred):
                 if not isinstance(cond, dict):
                     continue
@@ -157,14 +192,14 @@ def _validate_record(record: Dict[str, Any]) -> Optional[str]:
                     return (
                         f"conditions_deferred[{i}].manifest_path {manifest_path!r} "
                         f"must start with one of {list(_ALLOWED_QE_MANIFEST_PREFIXES)} "
-                        f"for qe-evaluator triggers (indirect authority creep guard)"
+                        f"for gate-adjudicator triggers (indirect authority creep guard)"
                     )
                 # Must not start with a disallowed prefix.
                 for disallowed in _DISALLOWED_QE_MANIFEST_PREFIXES:
                     if manifest_path.startswith(disallowed):
                         return (
                             f"conditions_deferred[{i}].manifest_path {manifest_path!r} "
-                            f"must not start with {disallowed!r} for qe-evaluator triggers"
+                            f"must not start with {disallowed!r} for gate-adjudicator triggers"
                         )
 
     return None
@@ -238,6 +273,12 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
         try:
             rec = json.loads(stripped)
             if isinstance(rec, dict):
+                # Normalize legacy reviewer/trigger names on read (v7.0 compat window).
+                if "reviewer" in rec:
+                    rec["reviewer"] = normalize_reviewer_name(rec["reviewer"])
+                trigger_val = rec.get("trigger", "")
+                if isinstance(trigger_val, str) and trigger_val.startswith(_QE_EVALUATOR_TRIGGER_PREFIX):
+                    rec["trigger"] = _GATE_ADJUDICATOR_TRIGGER_PREFIX + trigger_val[len(_QE_EVALUATOR_TRIGGER_PREFIX):]
                 out.append(rec)
         except json.JSONDecodeError:
             # Skip corrupt lines; validator will surface them on next approve.

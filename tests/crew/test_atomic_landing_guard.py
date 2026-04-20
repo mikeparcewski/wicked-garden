@@ -24,8 +24,8 @@ def test_atomic_landing_co_presence():
     to avoid the D2/D3 wedge state (design.md §8.1):
 
     1. scripts/crew/archetype_detect.py must exist (D1).
-    2. agents/crew/qe-evaluator.md must exist (D2).
-    3. .claude-plugin/gate-policy.json must reference 'qe-evaluator' at both
+    2. agents/crew/gate-adjudicator.md must exist (D2).
+    3. .claude-plugin/gate-policy.json must reference 'gate-adjudicator' at both
        testability and evidence-quality stanzas (D3).
 
     If any check fails, the atomic landing is incomplete and the wedge state
@@ -37,13 +37,13 @@ def test_atomic_landing_co_presence():
         f"scripts/crew/archetype_detect.py missing — D1 not landed: {archetype_detect}"
     )
 
-    # 2. qe-evaluator.md exists
-    qe_agent = _REPO_ROOT / "agents" / "crew" / "qe-evaluator.md"
+    # 2. gate-adjudicator.md exists
+    qe_agent = _REPO_ROOT / "agents" / "crew" / "gate-adjudicator.md"
     assert qe_agent.exists(), (
-        f"agents/crew/qe-evaluator.md missing — D2 not landed: {qe_agent}"
+        f"agents/crew/gate-adjudicator.md missing — D2 not landed: {qe_agent}"
     )
 
-    # 3. gate-policy.json references qe-evaluator at testability + evidence-quality
+    # 3. gate-policy.json references gate-adjudicator at testability + evidence-quality
     gate_policy_path = _REPO_ROOT / ".claude-plugin" / "gate-policy.json"
     assert gate_policy_path.exists(), (
         f".claude-plugin/gate-policy.json missing: {gate_policy_path}"
@@ -52,7 +52,7 @@ def test_atomic_landing_co_presence():
     gp = json.loads(gate_policy_path.read_text(encoding="utf-8"))
     gates = gp.get("gates", {})
 
-    # testability must have qe-evaluator in at least one reviewer list
+    # testability must have gate-adjudicator in at least one reviewer list
     testability = gates.get("testability", {})
     testability_reviewers = set()
     for tier in ("minimal", "standard", "full"):
@@ -61,12 +61,16 @@ def test_atomic_landing_co_presence():
         fallback = testability.get(tier, {}).get("fallback", "")
         if fallback:
             testability_reviewers.add(fallback)
-    assert "qe-evaluator" in testability_reviewers, (
-        f"qe-evaluator not found in testability gate (any tier or fallback): "
-        f"{testability_reviewers}"
+    # AC-17: fully-qualified name is the canonical form post-t10 rename.
+    # Accept both bare and fully-qualified for backward compat with any
+    # pre-t10 gate-policy snapshots in CI.
+    _GA_NAMES = {"gate-adjudicator", "wicked-garden:crew:gate-adjudicator"}
+    assert testability_reviewers & _GA_NAMES, (
+        f"gate-adjudicator (bare or FQ) not found in testability gate "
+        f"(any tier or fallback): {testability_reviewers}"
     )
 
-    # evidence-quality must have qe-evaluator in at least one reviewer list
+    # evidence-quality must have gate-adjudicator in at least one reviewer list
     eq = gates.get("evidence-quality", {})
     eq_reviewers = set()
     for tier in ("minimal", "standard", "full"):
@@ -74,7 +78,7 @@ def test_atomic_landing_co_presence():
         fallback = eq.get(tier, {}).get("fallback", "")
         if fallback:
             eq_reviewers.add(fallback)
-    assert "qe-evaluator" in eq_reviewers, (
-        f"qe-evaluator not found in evidence-quality gate (any tier or fallback): "
-        f"{eq_reviewers}"
+    assert eq_reviewers & _GA_NAMES, (
+        f"gate-adjudicator (bare or FQ) not found in evidence-quality gate "
+        f"(any tier or fallback): {eq_reviewers}"
     )

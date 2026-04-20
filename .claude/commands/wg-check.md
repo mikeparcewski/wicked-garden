@@ -39,6 +39,131 @@ fi
 if ! python3 -m json.tool ".claude-plugin/plugin.json" > /dev/null 2>&1; then
   echo "ERROR: Invalid JSON in plugin.json"
 fi
+
+# Validate wicked_testing_version field exists and is a valid semver range
+python3 -c "
+import json, re, sys
+data = json.load(open('.claude-plugin/plugin.json'))
+field = data.get('wicked_testing_version')
+if field is None:
+    print('ERROR: plugin.json missing required field: wicked_testing_version (expected a semver range string, e.g. \"^0.1.0\")')
+    sys.exit(1)
+if not isinstance(field, str):
+    print(f'ERROR: plugin.json wicked_testing_version must be a string, got {type(field).__name__}')
+    sys.exit(1)
+# Accept caret, tilde, exact, X-ranges, comparison operators, hyphen ranges, and logical-or (||)
+semver_range = re.compile(
+    r'^'
+    r'(\|\||\s*&&\s*)?'  # allow combining operators
+    r'(\s*'
+    r'([~^]?[0-9*x]+(\.[0-9*x]+){0,2}(-[A-Za-z0-9.-]+)?(\+[A-Za-z0-9.-]+)?'  # caret/tilde/exact/X-range
+    r'|[<>]=?\s*[0-9]+(\.[0-9]+){0,2}(-[A-Za-z0-9.-]+)?'  # comparison range
+    r'|\*'  # wildcard any
+    r')'
+    r'\s*(\|\|\s*[~^]?[0-9*x]+(\.[0-9*x]+){0,2}(-[A-Za-z0-9.-]+)?)*'  # or-clauses
+    r')+\$'
+)
+if not semver_range.match(field.strip()):
+    print(f'ERROR: plugin.json wicked_testing_version \"{field}\" is not a valid semver range (accepted forms: ^1.0.0, ~1.2, 1.x, >=1.0.0, 1.0.0 - 2.0.0, *)')
+    sys.exit(1)
+print(f'OK: wicked_testing_version = \"{field}\"')
+" 2>/dev/null || python -c "
+import json, re, sys
+data = json.load(open('.claude-plugin/plugin.json'))
+field = data.get('wicked_testing_version')
+if field is None:
+    print('ERROR: plugin.json missing required field: wicked_testing_version (expected a semver range string, e.g. \"^0.1.0\")')
+    sys.exit(1)
+if not isinstance(field, str):
+    print('ERROR: plugin.json wicked_testing_version must be a string')
+    sys.exit(1)
+semver_range = re.compile(r'^[~^]?[0-9*xX]+(\.[0-9*xX]+){0,2}(-[A-Za-z0-9.-]+)?(\+[A-Za-z0-9.-]+)?(\s*\|\|\s*[~^]?[0-9*xX]+(\.[0-9*xX]+){0,2}(-[A-Za-z0-9.-]+)?)*\$|^[<>]=?\s*[0-9]+(\.[0-9]+){0,2}(-[A-Za-z0-9.-]+)?(\s*\|\|\s*[<>]=?\s*[0-9]+(\.[0-9]+){0,2}(-[A-Za-z0-9.-]+)?)*\$|^\*\$')
+if not semver_range.match(field.strip()):
+    print('ERROR: plugin.json wicked_testing_version is not a valid semver range')
+    sys.exit(1)
+print('OK: wicked_testing_version = \"' + field + '\"')
+"
+```
+
+### 1b. Gate Policy — wicked-testing Tier-1 Allowlist
+
+Validate that every `wicked-testing:*` reviewer reference in `gate-policy.json` is
+a Tier-1 agent from INTEGRATION.md §3, and that no stale `wicked-garden:qe:*` or
+bare `qe-evaluator` references remain.
+
+```bash
+python3 -c "
+import json, sys
+sys.path.insert(0, 'scripts')
+from _wicked_testing_tier1 import validate_gate_policy, TIER2_AGENTS
+import re
+
+# --- 1. gate-policy.json Tier-1 check ---
+try:
+    gp = json.loads(open('.claude-plugin/gate-policy.json').read())
+except Exception as e:
+    print(f'ERROR: Could not parse gate-policy.json: {e}')
+    sys.exit(1)
+
+violations = validate_gate_policy(gp)
+for v in violations:
+    print(f'ERROR: [gate-policy] Unknown or stale reviewer: \"{v}\" — not in INTEGRATION.md §3 Tier-1 list')
+
+# --- 2. Scan key files for any wicked-testing:* references ---
+scan_paths = [
+    '.claude-plugin/gate-policy.json',
+    '.claude-plugin/specialist.json',
+    'scripts/crew/phase_manager.py',
+    'scripts/crew/gate_dispatch.py',
+]
+
+import os, glob as glob_mod
+for pattern in ['agents/**/*.md', 'commands/**/*.md']:
+    for p in glob_mod.glob(pattern, recursive=True):
+        scan_paths.append(p)
+
+wt_pattern = re.compile(r'wicked-testing:[a-z0-9:-]+')
+found_violations = []
+for path in scan_paths:
+    if not os.path.exists(path):
+        continue
+    try:
+        text = open(path).read()
+    except Exception:
+        continue
+    for m in wt_pattern.finditer(text):
+        name = m.group(0)
+        from _wicked_testing_tier1 import is_valid_wt_reviewer
+        if not is_valid_wt_reviewer(name):
+            found_violations.append((path, name))
+    # Flag Tier-2 names in gate-policy.json and specialist.json (not in agent/command docs)
+    if path in ('.claude-plugin/gate-policy.json', '.claude-plugin/specialist.json'):
+        for t2 in TIER2_AGENTS:
+            if t2 in text:
+                found_violations.append((path, f'{t2} (Tier-2 — not a valid gate reviewer)'))
+
+for path, name in found_violations:
+    print(f'ERROR: [wg-check] Unknown wicked-testing reviewer: \"{name}\" in {path}')
+
+total_errors = len(violations) + len(found_violations)
+if total_errors == 0:
+    print('OK: gate-policy.json wicked-testing Tier-1 allowlist — PASS')
+else:
+    sys.exit(1)
+" 2>/dev/null || python -c "
+import json, sys, os, re
+sys.path.insert(0, 'scripts')
+try:
+    from _wicked_testing_tier1 import validate_gate_policy
+    gp = json.loads(open('.claude-plugin/gate-policy.json').read())
+    violations = validate_gate_policy(gp)
+    for v in violations:
+        print('ERROR: [gate-policy] Unknown or stale reviewer: \"' + v + '\"')
+    if not violations:
+        print('OK: gate-policy.json wicked-testing Tier-1 allowlist -- PASS')
+except Exception as e:
+    print('WARNING: Could not validate wicked-testing Tier-1 allowlist: ' + str(e))
+"
 ```
 
 ### 2. JSON Validity
@@ -610,6 +735,8 @@ for domain in domains:
 |-------|--------|
 | plugin.json | ✓/✗ |
 | Version (semver) | ✓/✗ |
+| wicked_testing_version (semver range) | ✓/✗ |
+| gate-policy.json Tier-1 allowlist | ✓/✗ |
 | JSON validity | ✓/✗ |
 | Skills ≤200 lines | ✓/✗ |
 | Agent frontmatter | ✓/✗ |

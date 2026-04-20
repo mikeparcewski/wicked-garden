@@ -23,7 +23,20 @@
     {
       "name": "qe",
       "role": "quality-engineering",
-      "description": "Quality Engineering specialist for test strategy, scenario generation, test automation, and shift-left quality practices.",
+      "description": "Quality Engineering specialist powered by wicked-testing peer plugin. Crew dispatches QE agents by their wicked-testing:* subagent_type names. Covers test strategy, scenario generation, testability review, semantic alignment, risk assessment, test automation, and shift-left quality practices. Requires wicked-testing ^0.1 installed.",
+      "tier1_agents": [
+        "wicked-testing:requirements-quality-analyst",
+        "wicked-testing:risk-assessor",
+        "wicked-testing:testability-reviewer",
+        "wicked-testing:production-quality-engineer",
+        "wicked-testing:semantic-reviewer",
+        "wicked-testing:test-designer",
+        "wicked-testing:test-strategist",
+        "wicked-testing:test-automation-engineer",
+        "wicked-testing:contract-testing-engineer",
+        "wicked-testing:continuous-quality-monitor",
+        "wicked-testing:code-analyzer"
+      ],
       "enhances": ["clarify", "design", "qe", "build", "review", "operate", "*"]
     },
     {

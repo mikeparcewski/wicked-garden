@@ -158,6 +158,12 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "facts",
         "description": "Structured fact extracted from conversation (consumed by wicked-brain auto-memorize)",
     },
+    # wicked-testing integration — verdict events (#549, AC-25)
+    "wicked.verdict.recorded": {
+        "domain": "wicked-testing",
+        "subdomain": "gate.verdict",
+        "description": "wicked-testing reviewer recorded a gate verdict (PASS/FAIL/N-A/SKIP)",
+    },
     # Delivery domain — telemetry.py + drift.py (Issue #443)
     "wicked.quality.drift_detected": {
         "domain": "wicked-garden",

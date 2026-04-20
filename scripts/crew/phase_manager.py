@@ -1297,6 +1297,29 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
 #   - Score = min of per-reviewer scores (conservative)
 # ---------------------------------------------------------------------------
 
+# AC-24 — reviewer namespace routing:
+# Reviewers from gate-policy.json may be either bare names (e.g. "gate-adjudicator")
+# which are crew-domain agents, or fully-qualified names that already encode the
+# plugin namespace (e.g. "wicked-testing:testability-reviewer",
+# "wicked-garden:crew:gate-adjudicator"). Bare names are assumed to belong to the
+# wicked-garden:crew: namespace. Fully-qualified names (containing ":") are used
+# as-is so that wicked-testing:* Tier-1 agents route correctly.
+
+_WICKED_GARDEN_CREW_PREFIX = "wicked-garden:crew:"
+
+
+def _resolve_reviewer_subagent_type(reviewer: str) -> str:
+    """Return the fully-qualified subagent_type for a reviewer.
+
+    - Already fully-qualified (contains ':'): return unchanged.
+    - Bare name: prepend 'wicked-garden:crew:'.
+
+    AC-24: ensures wicked-testing:* Tier-1 names are NOT double-prefixed.
+    """
+    if ":" in reviewer:
+        return reviewer
+    return f"{_WICKED_GARDEN_CREW_PREFIX}{reviewer}"
+
 
 def _record_dispatch(
     state: Optional["ProjectState"],
@@ -1808,7 +1831,7 @@ def _dispatch_sequential(
         ctx = _strip_executor_self_score(ctx)
         try:
             raw = dispatcher(
-                f"wicked-garden:crew:{reviewer}",
+                _resolve_reviewer_subagent_type(reviewer),
                 (
                     f"Review gate '{gate_name}' for phase '{phase}' as {reviewer}. "
                     "Emit verdict + score + reason + conditions." + shared_line
@@ -1935,7 +1958,7 @@ def _dispatch_parallel_and_merge(
             ctx = _strip_executor_self_score(ctx)
             try:
                 raw = dispatcher(
-                    f"wicked-garden:crew:{reviewer}",
+                    _resolve_reviewer_subagent_type(reviewer),
                     (
                         f"Review gate '{gate_name}' for phase '{phase}' as "
                         f"{reviewer}. Emit verdict + score + reason + conditions."

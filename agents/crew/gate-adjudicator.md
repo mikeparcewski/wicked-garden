@@ -1,5 +1,5 @@
 ---
-name: qe-evaluator
+name: gate-adjudicator
 description: |
   Archetype-aware phase-boundary evidence evaluator for crew projects.
   Use when: dispatched at the `testability` or `evidence-quality` gate via gate-policy.json.
@@ -9,7 +9,7 @@ description: |
   the reeval addendum. NEVER silent-degrades — missing/invalid archetype triggers a
   structured warning and explicit code-repo fallback with audit markers.
   Not for: requirements-quality, design-quality, or any non-target gates.
-subagent_type: wicked-garden:crew:qe-evaluator
+subagent_type: wicked-garden:crew:gate-adjudicator
 model: sonnet
 required_context:
   - archetype
@@ -18,7 +18,7 @@ domain: crew
 owner_domain: crew
 ---
 
-# QE Evaluator
+# Gate Adjudicator
 
 Crew-owned phase-boundary evidence evaluator. Dispatched by the gate-policy.json dispatcher
 at `testability` and `evidence-quality` gates. Implements archetype-aware evidence contracts
@@ -38,7 +38,7 @@ per design.md §1 (CQ-3 score-bands).
 | `gate_name` | Yes | Dispatcher — must be `"testability"` or `"evidence-quality"` |
 | `phase` | Yes | Dispatcher |
 | `archetype` | Yes* | `state.extras["archetype"]` via `_enrich_ctx_from_policy` (context_fields allow-list) |
-| `reviewer` | Yes | `"qe-evaluator"` |
+| `reviewer` | Yes | `"gate-adjudicator"` |
 | `project` | Optional | `state.name` |
 | `shared_context_path` | Optional | Reviewer-context.md path |
 | `mode` | Optional | Dispatch mode string |
@@ -56,11 +56,11 @@ if gate_name not in VALID_TARGET_GATES:
     return {
         "verdict": "CONDITIONAL",
         "score": 0.60,
-        "reason": f"qe-evaluator: invoked at non-target gate '{gate_name}' — refusing",
+        "reason": f"gate-adjudicator: invoked at non-target gate '{gate_name}' — refusing",
         "conditions": [{"id": "QE-EVAL-non-target-gate", "severity": "major",
-                        "reason": f"qe-evaluator: invoked at non-target gate '{gate_name}' — refusing",
+                        "reason": f"gate-adjudicator: invoked at non-target gate '{gate_name}' — refusing",
                         "manifest_path": f"phases/{phase}/conditions-manifest.json"}],
-        "reviewer": "qe-evaluator",
+        "reviewer": "gate-adjudicator",
         "archetype": archetype,
         "min_score": 0.70,
     }
@@ -78,7 +78,7 @@ Check `ctx["archetype"]`:
 
 1. Emit structured warning to stderr:
 ```json
-{"level":"warn","event":"qe-evaluator.archetype-missing","phase":"<phase>","gate":"<gate_name>","project":"<project>","source":"bundle","reason":"<one-of: absent | empty | invalid-enum:{value}>","fallback_applied":"code-repo"}
+{"level":"warn","event":"gate-adjudicator.archetype-missing","phase":"<phase>","gate":"<gate_name>","project":"<project>","source":"bundle","reason":"<one-of: absent | empty | invalid-enum:{value}>","fallback_applied":"code-repo"}
 ```
 
 2. Set `effective_archetype = "code-repo"`.
@@ -191,7 +191,7 @@ planned deferral, not a missing-bundle event).
 
 ## Step 6 — Output Contract
 
-Return a `QeEvaluatorVerdict` dict to the dispatcher:
+Return a `GateAdjudicatorVerdict` dict to the dispatcher:
 
 ```python
 {
@@ -199,7 +199,7 @@ Return a `QeEvaluatorVerdict` dict to the dispatcher:
     "score":      float,          # [0.0, 1.0]
     "reason":     str,            # single-line, matches AC reason-substring
     "conditions": list,           # empty when APPROVE; non-empty otherwise
-    "reviewer":   "qe-evaluator",
+    "reviewer":   "gate-adjudicator",
     "archetype":  str,            # effective_archetype (fallback value when CQ-5 fired)
     "min_score":  0.70,
 }
@@ -218,10 +218,10 @@ Write exactly **one** `AddendumEntry_1_1_0` record per invocation via `reeval_ad
 reeval_addendum.append(project_dir, phase, record={
     "chain_id":            f"{project}.{phase}.{gate_name}",
     "triggered_at":        "<ISO-8601 UTC Z>",
-    "trigger":             f"qe-evaluator:{gate_name}",
+    "trigger":             f"gate-adjudicator:{gate_name}",
     "prior_rigor_tier":    rigor_tier,
     "new_rigor_tier":      rigor_tier,
-    "mutations":           [],           # MUST be empty for qe-evaluator trigger (MINOR-1)
+    "mutations":           [],           # MUST be empty for gate-adjudicator trigger (MINOR-1)
     "mutations_applied":   [],           # MUST be empty
     "mutations_deferred":  [],
     "validator_version":   "1.1.0",
@@ -253,23 +253,23 @@ Multiple findings are serialized into `archetype_evidence.conditions_deferred[]`
 ### code-repo / testability / APPROVE
 
 ```json
-{"chain_id":"add-budget-enforcer.test-strategy.testability","triggered_at":"2026-05-01T12:00:00Z","trigger":"qe-evaluator:testability","prior_rigor_tier":"standard","new_rigor_tier":"standard","mutations":[],"mutations_applied":[],"mutations_deferred":[],"validator_version":"1.1.0","archetype":"code-repo","archetype_evidence":{"source":"bundle","bundle_present":true,"phase":"test-strategy","gate":"testability","verdict":"APPROVE","score":0.92,"reason":"code-repo: unit-results present + tests passing; api-contract-diff present","min_score":0.70,"evidence_required":["unit-results","api-contract-diff"],"evidence_present":["unit-results","api-contract-diff"],"evidence_absent":[],"test_types_declared":["unit","integration"],"conditions_cleared":[],"conditions_deferred":[],"fallback_marker":null}}
+{"chain_id":"add-budget-enforcer.test-strategy.testability","triggered_at":"2026-05-01T12:00:00Z","trigger":"gate-adjudicator:testability","prior_rigor_tier":"standard","new_rigor_tier":"standard","mutations":[],"mutations_applied":[],"mutations_deferred":[],"validator_version":"1.1.0","archetype":"code-repo","archetype_evidence":{"source":"bundle","bundle_present":true,"phase":"test-strategy","gate":"testability","verdict":"APPROVE","score":0.92,"reason":"code-repo: unit-results present + tests passing; api-contract-diff present","min_score":0.70,"evidence_required":["unit-results","api-contract-diff"],"evidence_present":["unit-results","api-contract-diff"],"evidence_absent":[],"test_types_declared":["unit","integration"],"conditions_cleared":[],"conditions_deferred":[],"fallback_marker":null}}
 ```
 
 ### docs-only / evidence-quality / APPROVE
 
 ```json
-{"chain_id":"update-readme.test.evidence-quality","triggered_at":"2026-05-02T09:30:00Z","trigger":"qe-evaluator:evidence-quality","prior_rigor_tier":"minimal","new_rigor_tier":"minimal","mutations":[],"mutations_applied":[],"mutations_deferred":[],"validator_version":"1.1.0","archetype":"docs-only","archetype_evidence":{"source":"bundle","bundle_present":true,"phase":"test","gate":"evidence-quality","verdict":"APPROVE","score":0.90,"reason":"docs-only: acceptance-report present (size ok)","min_score":0.70,"evidence_required":["acceptance-report"],"evidence_present":["acceptance-report"],"evidence_absent":[],"test_types_declared":["acceptance"],"conditions_cleared":[],"conditions_deferred":[],"fallback_marker":null}}
+{"chain_id":"update-readme.test.evidence-quality","triggered_at":"2026-05-02T09:30:00Z","trigger":"gate-adjudicator:evidence-quality","prior_rigor_tier":"minimal","new_rigor_tier":"minimal","mutations":[],"mutations_applied":[],"mutations_deferred":[],"validator_version":"1.1.0","archetype":"docs-only","archetype_evidence":{"source":"bundle","bundle_present":true,"phase":"test","gate":"evidence-quality","verdict":"APPROVE","score":0.90,"reason":"docs-only: acceptance-report present (size ok)","min_score":0.70,"evidence_required":["acceptance-report"],"evidence_present":["acceptance-report"],"evidence_absent":[],"test_types_declared":["acceptance"],"conditions_cleared":[],"conditions_deferred":[],"fallback_marker":null}}
 ```
 
 ### skill-agent-authoring / testability / CONDITIONAL (screenshot missing for behavior change)
 
 ```json
-{"chain_id":"new-qe-evaluator.test-strategy.testability","triggered_at":"2026-05-03T15:10:00Z","trigger":"qe-evaluator:testability","prior_rigor_tier":"full","new_rigor_tier":"full","mutations":[],"mutations_applied":[],"mutations_deferred":[],"validator_version":"1.1.0","archetype":"skill-agent-authoring","archetype_evidence":{"source":"bundle","bundle_present":true,"phase":"test-strategy","gate":"testability","verdict":"CONDITIONAL","score":0.55,"reason":"skill-agent-authoring: screenshot-before-after required for behavior change","min_score":0.70,"evidence_required":["acceptance-report","screenshot-before-after"],"evidence_present":["acceptance-report"],"evidence_absent":["screenshot-before-after"],"test_types_declared":["acceptance"],"conditions_cleared":[],"conditions_deferred":[{"id":"QE-EVAL-screenshot-missing","severity":"major","reason":"skill-agent-authoring: screenshot-before-after required for behavior change","manifest_path":"phases/test-strategy/conditions-manifest.json"}],"fallback_marker":null}}
+{"chain_id":"new-gate-adjudicator.test-strategy.testability","triggered_at":"2026-05-03T15:10:00Z","trigger":"gate-adjudicator:testability","prior_rigor_tier":"full","new_rigor_tier":"full","mutations":[],"mutations_applied":[],"mutations_deferred":[],"validator_version":"1.1.0","archetype":"skill-agent-authoring","archetype_evidence":{"source":"bundle","bundle_present":true,"phase":"test-strategy","gate":"testability","verdict":"CONDITIONAL","score":0.55,"reason":"skill-agent-authoring: screenshot-before-after required for behavior change","min_score":0.70,"evidence_required":["acceptance-report","screenshot-before-after"],"evidence_present":["acceptance-report"],"evidence_absent":["screenshot-before-after"],"test_types_declared":["acceptance"],"conditions_cleared":[],"conditions_deferred":[{"id":"QE-EVAL-screenshot-missing","severity":"major","reason":"skill-agent-authoring: screenshot-before-after required for behavior change","manifest_path":"phases/test-strategy/conditions-manifest.json"}],"fallback_marker":null}}
 ```
 
 ### config-infra / evidence-quality / REJECT (both artifacts absent)
 
 ```json
-{"chain_id":"tweak-hooks.test.evidence-quality","triggered_at":"2026-05-04T18:45:00Z","trigger":"qe-evaluator:evidence-quality","prior_rigor_tier":"standard","new_rigor_tier":"standard","mutations":[],"mutations_applied":[],"mutations_deferred":[],"validator_version":"1.1.0","archetype":"config-infra","archetype_evidence":{"source":"bundle","bundle_present":true,"phase":"test","gate":"evidence-quality","verdict":"REJECT","score":0.35,"reason":"config-infra: integration-results required","min_score":0.70,"evidence_required":["integration-results"],"evidence_present":[],"evidence_absent":["integration-results","unit-results"],"test_types_declared":[],"conditions_cleared":[],"conditions_deferred":[{"id":"QE-EVAL-integration-absent","severity":"blocker","reason":"config-infra: integration-results required","manifest_path":"phases/test/conditions-manifest.json"}],"fallback_marker":null}}
+{"chain_id":"tweak-hooks.test.evidence-quality","triggered_at":"2026-05-04T18:45:00Z","trigger":"gate-adjudicator:evidence-quality","prior_rigor_tier":"standard","new_rigor_tier":"standard","mutations":[],"mutations_applied":[],"mutations_deferred":[],"validator_version":"1.1.0","archetype":"config-infra","archetype_evidence":{"source":"bundle","bundle_present":true,"phase":"test","gate":"evidence-quality","verdict":"REJECT","score":0.35,"reason":"config-infra: integration-results required","min_score":0.70,"evidence_required":["integration-results"],"evidence_present":[],"evidence_absent":["integration-results","unit-results"],"test_types_declared":[],"conditions_cleared":[],"conditions_deferred":[{"id":"QE-EVAL-integration-absent","severity":"blocker","reason":"config-infra: integration-results required","manifest_path":"phases/test/conditions-manifest.json"}],"fallback_marker":null}}
 ```

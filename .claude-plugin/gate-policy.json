@@ -9,7 +9,7 @@
         "fallback": "requirements-analyst"
       },
       "standard": {
-        "reviewers": ["requirements-quality-analyst"],
+        "reviewers": ["wicked-testing:requirements-quality-analyst"],
         "mode": "sequential",
         "fallback": "requirements-analyst"
       },
@@ -31,7 +31,7 @@
         "fallback": "senior-engineer"
       },
       "full": {
-        "reviewers": ["solution-architect", "security-engineer", "product-manager", "risk-assessor"],
+        "reviewers": ["solution-architect", "security-engineer", "product-manager", "wicked-testing:risk-assessor"],
         "mode": "council",
         "fallback": "senior-engineer"
       }
@@ -57,17 +57,22 @@
       "minimal": {
         "reviewers": [],
         "mode": "self-check",
-        "fallback": "qe-evaluator"
+        "fallback": "wicked-garden:crew:gate-adjudicator"
       },
       "standard": {
-        "reviewers": ["qe-evaluator"],
+        "reviewers": ["wicked-garden:crew:gate-adjudicator"],
         "mode": "sequential",
         "fallback": "senior-engineer",
         "context_fields": ["archetype"]
       },
       "full": {
-        "reviewers": ["qe-evaluator", "risk-assessor"],
-        "mode": "parallel",
+        "reviewers": [
+          "wicked-garden:crew:gate-adjudicator",
+          "wicked-testing:testability-reviewer",
+          "wicked-testing:risk-assessor"
+        ],
+        "mode": "council",
+        "min_score": 0.70,
         "fallback": "senior-engineer",
         "context_fields": ["archetype"]
       }
@@ -93,16 +98,16 @@
       "minimal": {
         "reviewers": [],
         "mode": "self-check",
-        "fallback": "qe-evaluator"
+        "fallback": "wicked-garden:crew:gate-adjudicator"
       },
       "standard": {
-        "reviewers": ["qe-evaluator"],
+        "reviewers": ["wicked-garden:crew:gate-adjudicator"],
         "mode": "sequential",
         "fallback": "senior-engineer",
         "context_fields": ["archetype"]
       },
       "full": {
-        "reviewers": ["qe-evaluator", "production-quality-engineer"],
+        "reviewers": ["wicked-garden:crew:gate-adjudicator", "wicked-testing:production-quality-engineer"],
         "mode": "parallel",
         "fallback": "senior-engineer",
         "context_fields": ["archetype"]
@@ -147,15 +152,15 @@
       "minimal": {
         "reviewers": [],
         "mode": "advisory",
-        "fallback": "semantic-reviewer"
+        "fallback": "wicked-testing:semantic-reviewer"
       },
       "standard": {
-        "reviewers": ["semantic-reviewer"],
+        "reviewers": ["wicked-testing:semantic-reviewer"],
         "mode": "sequential",
         "fallback": "senior-engineer"
       },
       "full": {
-        "reviewers": ["semantic-reviewer", "requirements-quality-analyst"],
+        "reviewers": ["wicked-testing:semantic-reviewer", "wicked-testing:requirements-quality-analyst"],
         "mode": "parallel",
         "fallback": "senior-engineer"
       }
@@ -173,7 +178,7 @@
         "fallback": "senior-engineer"
       },
       "full": {
-        "reviewers": ["facilitator", "risk-assessor"],
+        "reviewers": ["facilitator", "wicked-testing:risk-assessor"],
         "mode": "parallel",
         "fallback": "senior-engineer"
       }

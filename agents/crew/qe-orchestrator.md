@@ -56,18 +56,18 @@ Dispatch specialists directly per gate type:
 
 **Value Gate** (post-clarify):
 1. Dispatch `wicked-garden:product:requirements-analyst` to check requirement clarity and testability.
-2. Dispatch `wicked-garden:qe:requirements-quality-analyst` to score acceptance criteria quality.
+2. Dispatch `wicked-testing:requirements-quality-analyst` to score acceptance criteria quality.
 3. Consolidate findings.
 
 **Strategy Gate** (post-design):
-1. Dispatch `wicked-garden:qe:testability-reviewer` for design-testability review.
-2. Dispatch `wicked-garden:qe:test-strategist` for scenario coverage.
-3. Dispatch `wicked-garden:qe:risk-assessor` for the risk matrix.
+1. Dispatch `wicked-testing:testability-reviewer` for design-testability review.
+2. Dispatch `wicked-testing:test-strategist` for scenario coverage.
+3. Dispatch `wicked-testing:risk-assessor` for the risk matrix.
 4. Consolidate findings.
 
 **Execution Gate** (post-build):
-1. Dispatch `wicked-garden:qe:code-analyzer` for static analysis and coverage gaps.
-2. Dispatch `wicked-garden:qe:semantic-reviewer` for spec-to-code alignment (complexity ≥ 3).
+1. Dispatch `wicked-testing:code-analyzer` for static analysis and coverage gaps.
+2. Dispatch `wicked-testing:semantic-reviewer` for spec-to-code alignment (complexity ≥ 3).
 3. Consolidate findings.
 
 ### 3. Track Gate Task

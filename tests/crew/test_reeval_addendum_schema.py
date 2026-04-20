@@ -102,38 +102,38 @@ def test_backward_compat_mixed_file():
 
 
 # ---------------------------------------------------------------------------
-# AC-4: qe-evaluator trigger validation (MINOR-1 from challenge)
+# AC-4: gate-adjudicator trigger validation (MINOR-1 from challenge)
 # ---------------------------------------------------------------------------
 
-def test_qe_evaluator_trigger_forbids_mutations():
-    """AC-4 / MINOR-1: qe-evaluator trigger must have empty mutations list."""
+def test_gate_adjudicator_trigger_forbids_mutations():
+    """AC-4 / MINOR-1: gate-adjudicator trigger must have empty mutations list."""
     bad = {
         **_V10_RECORD,
-        "trigger": "qe-evaluator:testability",
+        "trigger": "gate-adjudicator:testability",
         "mutations": [{"op": "prune", "why": "sneaky authority creep"}],
     }
     err = _validate_record(bad)
-    assert err is not None, "Should reject qe-evaluator trigger with non-empty mutations"
+    assert err is not None, "Should reject gate-adjudicator trigger with non-empty mutations"
     assert "mutations" in err.lower()
 
 
-def test_qe_evaluator_trigger_forbids_mutations_applied():
-    """AC-4 / MINOR-1: qe-evaluator trigger must have empty mutations_applied list."""
+def test_gate_adjudicator_trigger_forbids_mutations_applied():
+    """AC-4 / MINOR-1: gate-adjudicator trigger must have empty mutations_applied list."""
     bad = {
         **_V10_RECORD,
-        "trigger": "qe-evaluator:evidence-quality",
+        "trigger": "gate-adjudicator:evidence-quality",
         "mutations_applied": [{"op": "augment", "why": "sneaky"}],
     }
     err = _validate_record(bad)
-    assert err is not None, "Should reject qe-evaluator trigger with non-empty mutations_applied"
+    assert err is not None, "Should reject gate-adjudicator trigger with non-empty mutations_applied"
     assert "mutations_applied" in err.lower()
 
 
-def test_qe_evaluator_conditions_manifest_path_prefix_enforced():
+def test_gate_adjudicator_conditions_manifest_path_prefix_enforced():
     """AC-4 / MINOR-1: conditions_deferred manifest_path must be phases/testability/ or phases/evidence-quality/."""
     bad = {
         **_V10_RECORD,
-        "trigger": "qe-evaluator:testability",
+        "trigger": "gate-adjudicator:testability",
         "archetype_evidence": {
             "conditions_deferred": [
                 {
@@ -146,15 +146,15 @@ def test_qe_evaluator_conditions_manifest_path_prefix_enforced():
         },
     }
     err = _validate_record(bad)
-    assert err is not None, "Should reject manifest_path under phases/clarify/ for qe-evaluator trigger"
+    assert err is not None, "Should reject manifest_path under phases/clarify/ for gate-adjudicator trigger"
     assert "phases/clarify" in err or "manifest_path" in err
 
 
-def test_valid_qe_evaluator_trigger_passes_validation():
-    """AC-4: valid qe-evaluator:testability trigger with correct manifest_path passes."""
+def test_valid_gate_adjudicator_trigger_passes_validation():
+    """AC-4: valid gate-adjudicator:testability trigger with correct manifest_path passes."""
     good = {
         **_V10_RECORD,
-        "trigger": "qe-evaluator:testability",
+        "trigger": "gate-adjudicator:testability",
         "archetype_evidence": {
             "conditions_deferred": [
                 {
@@ -167,4 +167,4 @@ def test_valid_qe_evaluator_trigger_passes_validation():
         },
     }
     err = _validate_record(good)
-    assert err is None, f"Valid qe-evaluator record should pass, got: {err}"
+    assert err is None, f"Valid gate-adjudicator record should pass, got: {err}"
