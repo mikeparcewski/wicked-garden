@@ -1,16 +1,17 @@
 # Wicked Garden Documentation
 
-Detailed guides for getting the most out of wicked-garden.
+Detailed guides for getting the most out of wicked-garden (v6).
 
 ## Guides
 
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](getting-started.md) | Installation, first session, common workflows |
-| [Domains](domains.md) | All 14 domains with commands, agents, and use cases |
-| [Crew Workflow](crew-workflow.md) | Signal-driven workflow engine — phases, specialists, checkpoints |
-| [Architecture](architecture.md) | Storage, integration discovery, context assembly, plugin structure |
-| [Advanced Usage](advanced.md) | Multi-model reviews, customization, development commands |
+| [Domains](domains.md) | All 13 domains with commands, agents, and use cases |
+| [Crew Workflow](crew-workflow.md) | Facilitator rubric, archetype detection, gates, convergence |
+| [Architecture](architecture.md) | Storage, native task metadata, gate policy, context assembly |
+| [Advanced Usage](advanced.md) | Multi-model reviews, yolo mode, customization, dev commands |
+| [Cross-Phase Intelligence](cross-phase-intelligence.md) | Traceability, verification, convergence, knowledge graph |
 
 ## Quick Links
 
@@ -18,6 +19,7 @@ Detailed guides for getting the most out of wicked-garden.
 - **Want to understand the workflow engine?** Read [Crew Workflow](crew-workflow.md)
 - **Looking for a specific command?** Browse [Domains](domains.md)
 - **Building on top of wicked-garden?** See [Architecture](architecture.md)
+- **Curious what v6 changed?** The [README changelog](../README.md#changelog) summarizes v6.0 → v6.3.
 
 ## Need Help?
 

@@ -1,65 +1,90 @@
 # Domains
 
-Wicked Garden is organized into 14 domains. Each domain brings its own commands, agents, skills, and scenarios. Every domain works independently — the ecosystem is additive, not required.
+Wicked Garden is organized into **13 domains**. Each domain ships its own commands, agents, skills, and scenarios. Every domain works independently — the ecosystem is additive, not required.
+
+**Specialist discovery is dynamic.** v6 removed the static `enhances` map. The facilitator skill reads `agents/**/*.md` frontmatter at runtime and matches each agent's description + `subagent_type` to the 9-factor rubric. Add an agent to disk with a `subagent_type: wicked-garden:{domain}:{name}` front-matter line and the facilitator can route to it next session.
 
 ## Workflow & Intelligence
 
 ### crew — Workflow Engine
 
-The orchestrator. Analyzes your project description, detects signals, scores complexity, selects phases, and routes to specialists automatically. v3.4 adds cross-phase traceability, artifact lifecycle management, verification protocols at gates, project isolation, and impact analysis across phases.
+The orchestrator. Runs the facilitator (`skills/propose-process/`) to score 9 factors, detect 1 of 7 archetypes, pick specialists from agent frontmatter, select phases from `phases.json`, and set rigor tier. Enforces quality gates via `gate-policy.json`. Tracks artifact convergence through 6 states.
 
 | Command | What It Does |
 |---------|-------------|
-| `crew:start` | Start a signal-driven workflow for any task |
+| `crew:start` | Start a facilitator-driven workflow for any task |
 | `crew:execute` | Execute the current phase with adaptive routing |
-| `crew:just-finish` | Execute remaining work with maximum autonomy |
+| `crew:just-finish` | Execute remaining work with maximum autonomy + guardrails |
 | `crew:status` | Show project state, phase, and next steps |
 | `crew:approve` | Approve a phase gate and advance |
-| `crew:gate` | Run QE analysis on a target |
+| `crew:gate` | Run QE analysis on a target at configurable rigor |
 | `crew:archive` | Archive or unarchive a project |
 | `crew:evidence` | Show evidence summary for a task |
+| `crew:convergence` | Show artifact convergence lifecycle — states, stalls, verdict |
+| `crew:swarm` | Check for quality-crisis swarm trigger |
+| `crew:yolo` / `crew:auto-approve` | Grant or revoke APPROVE-verdict auto-advance with guardrails |
+| `crew:explain` | Translate jargon-heavy crew output into plain, grade-8 English |
+| `crew:retro` | Generate a retrospective from operate-phase data |
+| `crew:incident` | Log a production incident linked to the current project |
+| `crew:feedback` | Capture user or stakeholder feedback |
+| `crew:operate` | Enter and manage the operate phase |
 | `crew:profile` | Configure crew preferences |
+| `crew:cutover` | Cut an in-flight project to mode-3 formal dispatch |
+| `crew:migrate-gates` | Migrate in-flight projects to strict gate enforcement |
 | `crew:help` | Show available crew commands |
 
-**v3.4 Capabilities**:
-- **Traceability**: `traceability.py` creates cross-phase links between artifacts, decisions, and deliverables. BFS traversal finds transitive dependencies. Coverage reports identify orphaned artifacts.
-- **Artifact State Machine**: `artifact_state.py` tracks every artifact through a 6-state lifecycle: DRAFT, IN_REVIEW, APPROVED, IMPLEMENTED, VERIFIED, CLOSED.
-- **Verification Protocol**: `verification_protocol.py` runs 6-point review checks at gates — completeness, consistency, traceability, quality metrics, dependency satisfaction, and evidence validation.
-- **Project Isolation**: `project_registry.py` provides `get_project_filter()` for strict project-scoped queries, preventing cross-project data leakage.
-- **Impact Analysis**: `impact_analyzer.py` performs cross-phase impact analysis when artifacts change, identifying downstream effects before they cascade.
+**v6 Capabilities**:
+- **Facilitator rubric** — 9-factor scoring picks specialists and phases inline, no keyword signals
+- **Archetype detection** — 7 archetypes (`archetype_detect.py`) drive per-archetype evidence expectations
+- **Phase-boundary QE evaluator** — `qe-evaluator` agent replaces `test-strategist` at `testability` and `evidence-quality` gates; reads archetype for per-type test/evidence guidance
+- **Challenge gate + contrarian agent** — auto-inserted at complexity ≥ 4; runs a structured steelman of the alternative path
+- **Convergence lifecycle** — Designed → Built → Wired → Tested → Integrated → Verified with stall detection; `convergence-verify` gate blocks review approval until every artifact reaches Integrated
+- **Semantic reviewer** — extracts numbered AC/FR/REQ from clarify artifacts, emits a Gap Report (`aligned`/`divergent`/`missing`) at the review gate for complexity ≥ 3
+- **Gate enforcement** — `gate-policy.json` codifies reviewer × rigor × dispatch-mode. APPROVE / CONDITIONAL / REJECT verdicts are binding
+- **BLEND aggregation** — multi-reviewer score = `0.4 × min + 0.6 × avg`
+- **Blind reviewer** — reviewers see deliverables + evidence, not prior gate verdicts
+- **HMAC dispatch log** — every specialist dispatch signed and appended; orphan gate-results → CONDITIONAL
+- **Pre-flip monitoring** — T>7 silent, 1≤T≤7 `PreFlipNotice WARN`, T=0 StrictMode with post-flip latch
+- **Yolo guardrails** — full-rigor grants require justification + sentinel; CONDITIONAL needs explicit `--override-gate`
+- **Gate-result security** — schema validator, content sanitizer, orphan detection, append-only audit log (rollback via `WG_GATE_RESULT_*` env vars)
+- **Persistent process memory + kaizen backlog** — operate retro auto-populates facilitator-context digest for future projects
 
-**Agents** (7): execution-orchestrator, facilitator, implementer, qe-orchestrator, researcher, reviewer, value-orchestrator
+**Agents (10)**: `facilitator`, `phase-executor`, `gate-evaluator`, `independent-reviewer`, `contrarian`, `qe-evaluator`, `qe-orchestrator`, `implementer`, `researcher`, `reviewer`
 
-**When to use**: Any task that benefits from structured delivery — features, migrations, refactors, bug investigations. Crew auto-detects complexity: simple tasks finish in minutes, complex ones get the full pipeline.
+**When to use**: Any task that benefits from structured delivery — features, migrations, refactors, bug investigations, compliance work. The facilitator adapts rigor to the work: a docs-only change gets minimal tier and self-check gates; a schema migration gets full tier, multi-reviewer panels, and per-archetype evidence demands.
 
 ### smaht — Context Assembly
 
-The brain. Intercepts every prompt and injects relevant context from all domains. You rarely call it directly — it works automatically. v3.4 adds a knowledge graph for entity-relationship tracking across sessions.
+The "brain" of the plugin. Intercepts every prompt via `UserPromptSubmit` and assembles context on demand. v6 replaced v5's push-based briefings with **pull-model** adapters that answer only what the current prompt needs.
 
 | Command | What It Does |
 |---------|-------------|
-| `smaht:onboard` | Guided codebase walkthrough |
-| `smaht:context` | Build structured context for subagents |
-| `smaht:debug` | Show what context was assembled |
-| `smaht:learn` | Learn a library via ContextSeven docs |
+| `smaht:onboard` | Guided codebase walkthrough + brain ingest |
+| `smaht:smaht` | On-demand context pull for the current topic |
+| `smaht:context` | Build a structured context package for subagents |
+| `smaht:debug` | Show what context was assembled and why |
+| `smaht:learn` | Cache library docs via Context7 |
 | `smaht:libs` | List cached library cheatsheets |
 | `smaht:briefing` | Session briefing — what happened since last time |
 | `smaht:events-query` | Query the unified event log for cross-domain activity |
 | `smaht:events-import` | Import existing domain JSON records into the event log |
-| `smaht:collaborate` | Orchestrate multi-AI CLI collaboration (discover, review, council) |
-| `smaht:smaht` | Manually trigger context gathering |
+| `smaht:collaborate` | Multi-AI CLI collaboration (discover, review, council) |
+| `smaht:onboard` | Intelligent codebase onboarding |
 | `smaht:help` | Show available smaht commands |
 
-**Behind the scenes**: Every prompt goes through a three-tier routing system:
-- **HOT** (<100ms): Continuation responses get session state only
-- **FAST** (<1s): Short prompts with clear intent get 2-5 relevant adapters
-- **SLOW** (2-5s): Complex or ambiguous prompts get all 6 adapters + history
+**Behind the scenes**: four-tier routing keeps simple prompts fast and complex ones thorough:
+- **HOT** (<100ms): continuations / confirmations → session state only
+- **FAST** (<1s): clear-intent prompts → pattern-based adapter fan-out
+- **SLOW** (2–5s): complex / ambiguous → full adapter fan-out + history condenser
+- **SYNTHESIZE**: complex + risky → agentic synthesis skill before the orchestrator
 
-**v3.4**: `knowledge_graph.py` maintains a SQLite-backed entity+relationship graph. BFS subgraph traversal connects related concepts across domains and sessions, giving smaht deeper structural awareness beyond keyword matching.
+**Six adapters** (v6): `domain`, `brain`, `events`, `context7`, `tools`, `delegation`. The v4 `mem` / `search` / `kanban` / `crew` / `jam` adapters were consolidated into `domain` + `brain` + `events`. Intent classification is an inline heuristic in `hooks/scripts/prompt_submit.py` (the v5 `router.py` intent classifier was deleted in #428).
+
+**Brain as primary knowledge layer**: when wicked-brain is installed, the brain adapter queries the FTS5 index first. Budget enforcer source priority: `mem=10, search=9, brain=8, crew=6, context7=4, jam=3, tools=2, delegation=1`.
 
 ### mem — Cross-Session Memory
 
-Decisions, patterns, and preferences persist across sessions. Memories auto-decay based on age and importance. v3.4 adds phase-aware recall for crew integration.
+Decisions, patterns, and preferences persist across sessions. 3-tier store with auto-consolidation. Phase-aware recall weights memories by affinity to the current crew phase.
 
 | Command | What It Does |
 |---------|-------------|
@@ -68,108 +93,94 @@ Decisions, patterns, and preferences persist across sessions. Memories auto-deca
 | `mem:review` | Browse and manage memories |
 | `mem:stats` | Show memory statistics |
 | `mem:forget` | Archive or delete a memory |
+| `mem:consolidate` | Manually trigger cross-tier consolidation |
+| `mem:retag` | Backfill search tags on existing memories |
 | `mem:help` | Show available memory commands |
 
-**Agents** (3): memory-archivist, memory-learner, memory-recaller
+**Agents (3)**: `memory-archivist`, `memory-learner`, `memory-recaller`
 
-**v3.4**: `phase_scoring.py` provides a phase affinity matrix for crew-context recall. When crew is active, memory recall is weighted by phase relevance — architecture decisions surface during design, test patterns surface during test-strategy, deployment notes surface during build.
-
-**Example**: Store "Chose Postgres for transactions" in session 1. In session 47, ask about database decisions and it surfaces automatically. During a crew design phase, it surfaces with higher priority than during build.
+**3 tiers**: working (transient, auto-consolidates) → episodic (sprint-level) → semantic (durable project knowledge, prioritized in recall). Phase affinity: during `build`, `design` and `clarify` memories boost 1.5×; during `test-strategy`, test patterns boost.
 
 ### search — Code Intelligence
 
-Structural understanding of your codebase across 73 languages via tree-sitter. Not text search — symbol-level intelligence. v3.4 adds lifecycle-aware scoring for crew-integrated searches.
+Structural understanding across 73 languages via tree-sitter. Not text search — symbol-level intelligence with blast radius, lineage, and service-map detection.
 
 | Command | What It Does |
 |---------|-------------|
 | `search:code` | Find functions, classes, methods by name |
 | `search:refs` | Find where a symbol is referenced |
-| `search:blast-radius` | Analyze dependencies and dependents |
-| `search:lineage` | Trace data from UI to database (or reverse) |
+| `search:blast-radius` | Dependencies and dependents of a symbol |
+| `search:impact` | Reverse-lineage analysis for a change |
+| `search:lineage` | Trace data from UI to DB (or reverse) |
 | `search:service-map` | Detect service architecture from infra files |
-| `search:hotspots` | Find most-referenced symbols |
-| `search:impact` | Analyze what changing a symbol would affect |
+| `search:hotspots` | Most-referenced symbols |
+| `search:categories` | Symbol categories, layers, and directory groupings |
 | `search:docs` | Search documents (PDF, markdown, Office) |
-| `search:index` | Build/rebuild the code index |
-| `search:scout` | Quick pattern reconnaissance |
+| `search:impl` | Find code implementing a documented feature |
+| `search:scout` | Quick pattern reconnaissance (no index required) |
 | `search:sources` | Manage external content sources |
-| `search:categories` | Show symbol categories and layers |
-| `search:coverage` | Report lineage coverage |
+| `search:index` | Build/rebuild the code index |
 | `search:stats` | Show index statistics |
 | `search:validate` | Validate index consistency |
-| `search:quality` | Run quality crew on the index |
-| `search:impl` | Find code that implements a documented feature |
+| `search:quality` | Run quality crew to improve index accuracy |
+| `search:coverage` | Report lineage coverage |
 | `search:search` | Search across all code and documents |
 | `search:help` | Show available search commands |
 
-**v3.4**: `lifecycle_scoring.py` brings 5 scoring strategies for crew-context searches: phase_weighted (boost results relevant to current crew phase), recency_decay (favor recent changes), traceability_boost (promote traced artifacts), gate_status (weight by gate outcomes), and RRF (reciprocal rank fusion across all scorers).
+Lifecycle scoring (`lifecycle_scoring.py`) ranks results by phase affinity, recency, traceability, and gate status. RRF is opt-in for multi-ranker fusion.
 
 **Requires**: tree-sitter (auto-detected). Falls back to grep-based search without it.
 
 ### jam — AI Brainstorming
 
-Dynamic focus groups with 4-6 AI personas. Technical, user, business, and process perspectives debate your question. v3.4 adds a structured consensus protocol with dissent tracking.
+Dynamic focus groups with AI personas plus structured multi-model council sessions using external LLM CLIs.
 
 | Command | What It Does |
 |---------|-------------|
 | `jam:brainstorm` | Full multi-perspective session |
-| `jam:quick` | Lightweight exploration (fewer personas) |
+| `jam:quick` | Lightweight exploration (fewer personas, one round) |
 | `jam:council` | Multi-model evaluation using external LLM CLIs |
 | `jam:perspectives` | Get multiple perspectives on a decision |
-| `jam:thinking` | View individual persona perspectives |
+| `jam:thinking` | View individual persona perspectives pre-synthesis |
 | `jam:transcript` | View full conversation transcript |
 | `jam:persona` | View a specific persona's contributions |
 | `jam:revisit` | Revisit a past brainstorm decision |
 | `jam:help` | Show available jam commands |
 
-**Agents** (2): council, facilitator
+**Agents (2)**: `brainstorm-facilitator` (renamed from `facilitator` in v6.3.2 to avoid collision with crew's facilitator), `council`
 
-**v3.4**: `consensus.py` implements a structured 3-stage consensus protocol: (1) proposals — each persona submits independent positions, (2) cross-review — personas critique each other's proposals with confidence scoring, (3) synthesis — areas of agreement are merged, dissenting views are tracked explicitly with reasoning rather than silently dropped. The result includes a confidence score and a dissent register so you can see where genuine disagreement exists.
-
-### kanban — Task Management
-
-Persistent task board that survives sessions. Auto-syncs with Claude's native task tools via hooks.
-
-| Command | What It Does |
-|---------|-------------|
-| `kanban:board-status` | View current board state |
-| `kanban:new-task` | Create a task |
-| `kanban:initiative` | Manage project initiatives |
-| `kanban:comment` | Add comments to tasks |
-| `kanban:name-session` | Name the current session |
-| `kanban:start-api` | Check storage health |
-| `kanban:help` | Show available kanban commands |
+Structured consensus protocol with explicit dissent tracking: proposals → cross-review → synthesis with clustered agreements + classified dissents (strong / moderate / mild).
 
 ---
 
 ## Specialist Disciplines
 
-Eight specialist domains, each with focused agents that crew routes to automatically based on detected signals.
+Specialists are discovered by the facilitator reading `agents/**/*.md` frontmatter. Every agent declares `subagent_type: wicked-garden:{domain}:{name}` for Task-tool routing.
 
 ### engineering — Software Engineering
 
-Senior engineer, solution architect, debugger, technical writer, frontend/backend specialists. Handles implementation, architecture, code quality, and code transformations.
+Senior engineer, solution architect, system designer, backend/frontend specialists, debugger, technical writer, API documentarian, developer-experience engineer, migration engineer.
 
 | Command | What It Does |
 |---------|-------------|
-| `engineering:review` | Multi-pass code review |
+| `engineering:review` | Multi-pass code review with domain routing |
 | `engineering:arch` | Architecture analysis and recommendations |
 | `engineering:debug` | Systematic debugging with root cause analysis |
 | `engineering:docs` | Generate or improve documentation |
-| `engineering:plan` | Review changes against codebase and plan |
+| `engineering:plan` | Review changes against codebase and plan steps |
 | `engineering:rename` | Rename a field/symbol across all usages |
 | `engineering:add-field` | Add a field to an entity and propagate |
 | `engineering:remove` | Remove a field and all its usages |
 | `engineering:apply` | Apply patches from a saved JSON file |
 | `engineering:patch-plan` | Show what a change would affect without patching |
-| `engineering:new-generator` | Create a new language generator for wicked-patch |
+| `engineering:new-generator` | Create a language generator for wicked-patch |
 | `engineering:help` | Show available engineering commands |
 
-**Agents** (9): senior-engineer, solution-architect, system-designer, data-architect, debugger, technical-writer, frontend-engineer, backend-engineer, api-documentarian
+**Agents (10)**: `senior-engineer`, `solution-architect`, `system-designer`, `backend-engineer`, `frontend-engineer`, `debugger`, `technical-writer`, `api-documentarian`, `devex-engineer`, `migration-engineer`
 
 ### product — Product Management & Design
 
-Requirements, UX, customer voice, business strategy, accessibility, visual design review. The largest specialist domain with 16 focused agents.
+Requirements analysis, UX, customer voice, market / value strategy, accessibility, visual design review. v6 consolidated several overlapping roles (business-strategist → market-strategist, value-analyst + alignment-lead → value-strategist, feedback-analyst + customer-advocate → user-voice, visual-reviewer → ui-reviewer) and added `ux-analyst`.
 
 | Command | What It Does |
 |---------|-------------|
@@ -183,16 +194,16 @@ Requirements, UX, customer voice, business strategy, accessibility, visual desig
 | `product:ux-review` | UX and design quality review |
 | `product:review` | Design system consistency review |
 | `product:mockup` | Wireframe and prototype generation |
-| `product:ux` | UX flow analysis |
-| `product:screenshot` | Screenshot-based UI review |
-| `product:a11y` | WCAG accessibility audit |
+| `product:ux` | UX flow design and analysis |
+| `product:screenshot` | Screenshot-based UI review (multimodal) |
+| `product:a11y` | WCAG 2.1 AA accessibility audit |
 | `product:help` | Show available product commands |
 
-**Agents** (16): product-manager, requirements-analyst, ux-designer, customer-advocate, user-researcher, competitive-analyst, value-analyst, market-analyst, feedback-analyst, business-strategist, alignment-lead, a11y-expert, ui-reviewer, mockup-generator, visual-reviewer, ux-analyst
+**Agents (11)**: `product-manager`, `requirements-analyst`, `ux-designer`, `ux-analyst`, `user-researcher`, `user-voice`, `market-strategist`, `value-strategist`, `a11y-expert`, `ui-reviewer`, `mockup-generator`
 
 ### platform — DevSecOps
 
-SRE, security engineer, compliance officer, incident responder, infrastructure engineer, release engineer, and auditor. Covers security, infrastructure, compliance, observability, and GitHub operations.
+SRE, security, compliance, incident response, infrastructure, DevOps, release, auditing, privacy. v6 added `chaos-engineer` and `observability-engineer` for resilience and SLI/SLO work.
 
 | Command | What It Does |
 |---------|-------------|
@@ -208,23 +219,25 @@ SRE, security engineer, compliance officer, incident responder, infrastructure e
 | `platform:gh` | GitHub CLI power utilities |
 | `platform:toolchain` | Discover and query monitoring tools |
 | `platform:logs` | View operational logs |
-| `platform:plugin-debug` | View/set log verbosity |
-| `platform:plugin-health` | Run health probes against installed plugins |
+| `platform:plugin-debug` | View/set plugin log verbosity |
+| `platform:plugin-health` | Health probes against installed plugins |
 | `platform:plugin-traces` | Query hook execution traces |
-| `platform:assert` | Run contract assertions against subprocess outputs |
+| `platform:assert` | Contract assertions against subprocess outputs |
 | `platform:help` | Show available platform commands |
 
-**Agents** (9): security-engineer, sre, compliance-officer, incident-responder, infrastructure-engineer, devops-engineer, release-engineer, auditor, privacy-expert
+**Agents (11)**: `security-engineer`, `sre`, `compliance-officer`, `incident-responder`, `infrastructure-engineer`, `devops-engineer`, `release-engineer`, `auditor`, `privacy-expert`, `chaos-engineer`, `observability-engineer`
 
 ### qe — Quality Engineering
 
-Test strategist, automation engineer, risk assessor, TDD coach, and a full acceptance test pipeline (write, execute, review).
+Test strategist, test designer, automation engineer, risk assessor, testability reviewer, code analyzer, continuous quality monitor, production quality engineer, requirements quality analyst, contract testing engineer, and the v6 additions: `semantic-reviewer` (spec-to-code alignment) and `qe-evaluator` (phase-boundary evidence evaluator).
+
+v6 consolidated the former three-agent acceptance pipeline (`acceptance-test-writer` / `executor` / `reviewer`) into a single `test-designer` that owns Write → Execute → Analyze → Verdict in one role. `tdd-coach` folded into `test-strategist`.
 
 | Command | What It Does |
 |---------|-------------|
 | `qe:qe` | Full quality engineering review |
 | `qe:scenarios` | Generate test scenarios from requirements |
-| `qe:acceptance` | Evidence-gated acceptance testing (write, execute, review) |
+| `qe:acceptance` | Evidence-gated acceptance testing (Write → Execute → Review) |
 | `qe:automate` | Generate test code from scenarios |
 | `qe:qe-plan` | Comprehensive test plan generation |
 | `qe:qe-review` | Review test quality and coverage |
@@ -235,38 +248,39 @@ Test strategist, automation engineer, risk assessor, TDD coach, and a full accep
 | `qe:report` | File issues from test failures |
 | `qe:help` | Show available qe commands |
 
-**Agents** (13): test-strategist, test-automation-engineer, risk-assessor, tdd-coach, acceptance-test-writer, acceptance-test-executor, acceptance-test-reviewer, testability-reviewer, continuous-quality-monitor, production-quality-engineer, requirements-quality-analyst, code-analyzer, scenario-executor
+**Agents (11)**: `test-strategist`, `test-designer`, `test-automation-engineer`, `testability-reviewer`, `semantic-reviewer`, `risk-assessor`, `requirements-quality-analyst`, `code-analyzer`, `continuous-quality-monitor`, `production-quality-engineer`, `contract-testing-engineer`
 
 ### data — Data Engineering
 
-Data engineer, ML engineer, analytics architect, data analyst. Handles profiling, pipelines, ML, ontology, and interactive analysis via DuckDB.
+Data analyst, data engineer, ML engineer, unified data architect (v6 merged `engineering:data-architect` + `data:analytics-architect` into `data:data-architect` for the full OLTP + OLAP design).
 
 | Command | What It Does |
 |---------|-------------|
 | `data:analyze` | Interactive data analysis on files |
 | `data:numbers` | DuckDB SQL on CSV/Excel (10GB+, plain English) |
 | `data:data` | Data profiling and schema validation |
-| `data:analysis` | Exploratory data analysis |
+| `data:analysis` | Alias for `data:analyze` |
 | `data:pipeline` | Data pipeline design and review |
 | `data:ml` | ML model review and training pipeline |
 | `data:ontology` | Dataset ontology recommendations |
 | `data:help` | Show available data commands |
 
-**Agents** (4): data-analyst, data-engineer, ml-engineer, analytics-architect
+**Agents (4)**: `data-analyst`, `data-engineer`, `data-architect`, `ml-engineer`
 
 ### delivery — Delivery Management
 
-Delivery manager, cost analyst, experiment designer, rollout coordinator, forecast specialist, and codebase narrator. The second-largest agent roster at 11 agents.
+Delivery manager, stakeholder reporter, rollout manager, experiment designer, risk monitor, progress tracker, and unified cloud-cost intelligence (v6 merged `finops-analyst` + `cost-optimizer`).
 
 | Command | What It Does |
 |---------|-------------|
 | `delivery:report` | Multi-perspective stakeholder reports |
-| `delivery:setup` | Configure delivery metrics |
+| `delivery:setup` | Configure delivery metrics (cost model, sprint cadence) |
 | `delivery:rollout` | Progressive rollout plans with risk management |
 | `delivery:experiment` | A/B test design with statistical rigor |
+| `delivery:process-health` | Surface process memory — kaizen status, unresolved action items |
 | `delivery:help` | Show available delivery commands |
 
-**Agents** (11): delivery-manager, stakeholder-reporter, rollout-manager, experiment-designer, risk-monitor, progress-tracker, forecast-specialist, finops-analyst, cost-optimizer, onboarding-guide, codebase-narrator
+**Agents (7)**: `delivery-manager`, `stakeholder-reporter`, `rollout-manager`, `experiment-designer`, `risk-monitor`, `progress-tracker`, `cloud-cost-intelligence`
 
 ### agentic — Agentic Architecture
 
@@ -281,7 +295,7 @@ Architecture reviewer, safety auditor, pattern advisor, performance analyst, fra
 | `agentic:frameworks` | Research and compare frameworks |
 | `agentic:help` | Show available agentic commands |
 
-**Agents** (5): architect, safety-reviewer, pattern-advisor, performance-analyst, framework-researcher
+**Agents (5)**: `architect`, `safety-reviewer`, `pattern-advisor`, `performance-analyst`, `framework-researcher`
 
 ### persona — On-Demand Personas
 
@@ -294,7 +308,7 @@ Invoke any specialist persona directly without crew or jam. Define custom person
 | `persona:list` | List all available personas |
 | `persona:submit` | PR a persona to the built-in registry |
 
-**Agents** (1): persona-agent
+**Agents (1)**: `persona-agent`
 
 ---
 
@@ -304,11 +318,13 @@ Skills and modules that apply across all domains:
 
 | Capability | What It Does |
 |-----------|-------------|
-| **deliberate** | Five-lens critical thinking before implementation. Challenges premises, finds root causes, spots adjacent opportunities. |
-| **multi-model** | Multi-LLM council reviews using external CLI tools (Codex, Gemini, OpenCode). Invoke via `smaht:collaborate`. |
-| **issue-reporting** | Automated GitHub issue detection with duplicate checking, codebase research, and SMART validation. |
-| **imagery** | Visual asset lifecycle — review, create, and alter images using AI providers. |
-| **cross-phase intelligence** | Traceability links, artifact state tracking, and impact analysis connect all crew phases into a coherent dependency graph. Changes in one phase automatically surface downstream effects. |
-| **lifecycle scoring** | Phase-weighted, recency-aware, traceability-boosted ranking for search results. Crew-context searches return results ordered by relevance to the current workflow phase. |
-| **knowledge graph** | SQLite-backed entity+relationship graph with BFS traversal. Connects concepts across domains and sessions for deeper structural awareness in context assembly. |
-| **phase-aware memory** | Affinity matrix weights memory recall by crew phase. Architecture decisions surface during design, test patterns during test-strategy, deployment notes during build. |
+| **propose-process** | The facilitator rubric. Scores 9 factors, detects archetype, picks specialists + phases, sets rigor tier, emits `process-plan.md` and the full task chain |
+| **adopt-legacy** | Detects v5 project markers and transforms them idempotently to v6 format |
+| **workflow** | v6 entry-point skill documenting interaction modes, rigor tiers, phase plan, and gate-policy reviewer assignment |
+| **acceptance-testing** | Evidence-gated three-stage pipeline: Writer designs plans, Executor runs + captures evidence, Reviewer renders verdict |
+| **unified-search** | Routes code + document queries to the right backend (brain FTS5, tree-sitter, grep) |
+| **deliberate** | Critical-thinking framework applied before work. Challenges assumptions, finds root causes, spots adjacent opportunities |
+| **multi-model** | Multi-LLM council reviews using external CLIs (Codex, Gemini, OpenCode) |
+| **smaht** | On-demand context assembly over wicked-brain + unified-search |
+| **cross-phase intelligence** | Traceability, artifact states, verification protocol, impact analysis, convergence lifecycle, knowledge graph, phase-aware memory |
+| **deliberate** | Five-lens critical thinking — use before committing to an approach |

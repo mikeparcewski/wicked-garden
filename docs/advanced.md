@@ -59,7 +59,64 @@ Selectively clear local state for a fresh start:
 /wicked-garden:reset                   # interactive reset
 ```
 
-Choose which domains to reset — crew projects, kanban boards, memories, search index, or everything.
+Choose which domains to reset — crew projects, memories, search index, or everything.
+
+## Interaction Modes (v6)
+
+### Yolo Mode
+
+Grant APPROVE-verdict auto-advance on the active project:
+
+```bash
+/wicked-garden:crew:yolo                    # alias for crew:auto-approve
+/wicked-garden:crew:auto-approve --grant
+/wicked-garden:crew:auto-approve --revoke
+/wicked-garden:crew:auto-approve --status   # read-only
+```
+
+**Guardrails** (commit `c883271`):
+
+- **Standard rigor**: simple grant with a short justification
+- **Full rigor**: the grant is rejected unless the justification meets length + sentinel requirements; CONDITIONAL verdicts also require `--override-gate` to advance
+- **Cooldown**: after a revoke, re-grant is blocked for a cooldown window
+
+**Pre-flip monitoring**: an auto-advance counter tracks consecutive auto-approvals.
+
+| T | Behavior |
+|---|----------|
+| >7 | Silent |
+| 1–7 | Emits a `PreFlipNotice WARN` system message |
+| 0 | Flips to StrictMode with a post-flip latch — `strict_mode_active_announced` stays set until explicitly cleared |
+
+Scenario: `scenarios/crew/pre-flip-monitoring-strict-mode-banner.md`.
+
+### Just-Finish Mode
+
+Maximum autonomy — run every remaining phase under the same guardrails as yolo at full rigor:
+
+```bash
+/wicked-garden:crew:just-finish
+```
+
+### Rigor Tiers
+
+The facilitator picks a tier per project. You can override on a per-gate basis via `crew:gate --rigor <tier>`.
+
+| Tier | Gate Mode | Reviewer Count |
+|------|-----------|----------------|
+| minimal | advisory / self-check | 0–1 |
+| standard | enforced | 1 |
+| full | enforced + BLEND | 2+ (panel) |
+
+## Semantic Review
+
+`agents/qe/semantic-reviewer.md` runs at the review gate for complexity ≥ 3. It extracts numbered acceptance criteria (`AC-*`, `FR-*`, `REQ-*`) from clarify artifacts and emits a **Gap Report** per item — `aligned`, `divergent`, or `missing`.
+
+Tests passing is not the same as spec intent being satisfied. The semantic reviewer closes that gap.
+
+## Challenge Gate + Contrarian
+
+At complexity ≥ 4 the facilitator auto-inserts a **challenge phase** (commit `4c011d0`). The `agents/crew/contrarian.md` agent runs a structured steelman of the alternative path you didn't pick. Challenge deliverables feed the review-gate evidence bundle and can block advancement if the contrarian surfaces a concern the reviewer upholds.
 
 ## Search Index Management
 
@@ -170,6 +227,30 @@ Every domain write is logged to a unified event store. Query cross-domain activi
 
 The event log is consumed automatically by smaht context assembly, mem:recall (cross-domain supplementation), and the briefing command. Events are retained for 90 days.
 
+## Dispatch Log (v6.2+)
+
+Every specialist dispatch appends an HMAC-signed entry to `phases/{phase}/dispatch-log.jsonl`. On gate evaluation:
+
+- **Matched entry** → pass
+- **Orphan gate-result** (verdict without a matching dispatch) → downgraded to CONDITIONAL
+- Log rotates at the configured size threshold
+
+Inspect in place — it's plain JSONL under the project directory. Gate-result ingestion also runs a layered defense floor: schema validator, content sanitizer, dispatch-log orphan detection, append-only audit log. See `docs/threat-models/gate-result-ingestion.md` for the full trust boundary and the `WG_GATE_RESULT_*` rollback env vars.
+
+## Amendments Log (v6.2+)
+
+Per-gate amendments are appended to `phases/{phase}/amendments.jsonl` as the re-eval skill updates conditions, scope, or evidence after the initial verdict. The file is append-only with schema validation on each entry — useful for auditing "what changed after APPROVE" on long-running projects.
+
+## Plain-Language Explain
+
+Jargon-heavy crew output can be translated for stakeholders:
+
+```bash
+/wicked-garden:crew:explain phases/build/design.md
+```
+
+The skill enforces output rules: grade-8 English, jargon ban list (no `BLEND`, `CONDITIONAL`, `APPROVE` etc. leaking through), `Plain:` convention for rewrites. Scenario: `scenarios/crew/plain-language-translation-skill.md`.
+
 ### Knowledge Graph Integration (v3.4.0+)
 
 Events are also consumed by the knowledge graph (`scripts/smaht/knowledge_graph.py`), which maintains typed entities (requirements, designs, tasks, tests, decisions, incidents, acceptance criteria, evidence) and their relationships. The knowledge graph provides structured traversal that complements the event log's chronological view. See [Architecture: Knowledge Graph](architecture.md#knowledge-graph-v340) for details.
@@ -256,7 +337,7 @@ You don't need to explicitly call context commands before working. The smaht con
 
 ### Use crew for anything non-trivial
 
-Even if you think a task is simple, `crew:start` auto-detects complexity. Simple tasks auto-finish in minutes. Complex ones get the rigor they need. The overhead for simple work is near zero.
+Even if you think a task is simple, `crew:start` runs the facilitator rubric. Minimal-rigor work finishes in minutes with advisory self-check gates. Full-rigor work gets multi-reviewer panels and per-archetype evidence demands. The overhead for simple work is near zero.
 
 ### Store decisions, not facts
 
