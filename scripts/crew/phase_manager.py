@@ -2099,6 +2099,7 @@ def _dispatch_gate_reviewer(
     gate_policy_entry: Dict[str, Any],
     *,
     dispatcher: Optional[Any] = None,
+    session_state: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Main BLEND-RULE entry point.
 
@@ -2115,7 +2116,33 @@ def _dispatch_gate_reviewer(
         dispatcher:         Optional injectable callable
                             `(subagent_type, prompt, context) -> dict`.
                             When None, returns a CONDITIONAL stub.
+        session_state:      Optional SessionState for the AC-23 defense-in-depth
+                            testability check. When None, falls back to loading
+                            from SessionState.load() for the testability gate.
     """
+    # AC-23: defense-in-depth check at testability gate dispatch. Runs before
+    # any reviewer is dispatched so the failure surfaces at the clean gate
+    # boundary, not deep inside a wicked-testing:* agent call.
+    if gate_name == "testability":
+        _ss = session_state
+        if _ss is None:
+            # Attempt live load so the check works in production without callers
+            # having to thread session_state down the call stack.
+            try:
+                from _session import SessionState  # type: ignore
+                _ss = SessionState.load()
+            except Exception:  # pragma: no cover — defensive; fail-closed below
+                _ss = None
+        try:
+            from crew._prerequisites import check_testability_gate  # type: ignore
+            check_testability_gate(_ss)
+        except Exception as _exc:
+            # Re-raise PrerequisiteError unchanged; wrap any unexpected error.
+            from crew._prerequisites import PrerequisiteError  # type: ignore
+            if isinstance(_exc, PrerequisiteError):
+                raise
+            raise PrerequisiteError(str(_exc)) from _exc  # pragma: no cover
+
     if not isinstance(gate_policy_entry, dict):
         return _empty_verdict_stub(
             gate_name, phase, "missing-gate-policy-entry"

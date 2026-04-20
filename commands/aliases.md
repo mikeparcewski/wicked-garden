@@ -68,14 +68,14 @@ If you typed an old command name, here are the new equivalents:
 | `/wicked-garden:product:ux-review` | `/wicked-garden:product:ux-review` |
 | `/wicked-garden:product:strategy` | `/wicked-garden:product:strategy` |
 
-## QE
+## QE (removed in v7.1 — use wicked-testing)
 | Old | New |
 |-----|-----|
-| `/wicked-qe:qe` | `/wicked-garden:qe:qe` |
-| `/wicked-qe:scenarios` | `/wicked-garden:qe:scenarios` |
-| `/wicked-qe:automate` | `/wicked-garden:qe:automate` |
-| `/wicked-qe:qe-plan` | `/wicked-garden:qe:qe-plan` |
-| `/wicked-qe:acceptance` | `/wicked-garden:qe:acceptance` |
+| `/wicked-qe:qe` | `/wicked-testing:review` |
+| `/wicked-qe:scenarios` | `/wicked-testing:authoring` |
+| `/wicked-qe:automate` | `/wicked-testing:authoring` |
+| `/wicked-qe:qe-plan` | `/wicked-testing:plan` |
+| `/wicked-qe:acceptance` | `/wicked-testing:execution` |
 
 ## Data
 | Old | New |
@@ -106,17 +106,17 @@ If you typed an old command name, here are the new equivalents:
 | `/wicked-agentic:frameworks` | `/wicked-garden:agentic:frameworks` |
 | `/wicked-agentic:ask` | `/wicked-garden:agentic:ask` |
 
-## Scenarios (consolidated into qe)
+## Scenarios (moved to wicked-testing in v7.1)
 | Old | New |
 |-----|-----|
-| `/wicked-scenarios:run` | `/wicked-garden:qe:run` |
-| `/wicked-scenarios:list` | `/wicked-garden:qe:list` |
-| `/wicked-scenarios:check` | `/wicked-garden:qe:check` |
-| `/wicked-garden:scenarios:run` | `/wicked-garden:qe:run` |
-| `/wicked-garden:scenarios:list` | `/wicked-garden:qe:list` |
-| `/wicked-garden:scenarios:check` | `/wicked-garden:qe:check` |
-| `/wicked-garden:scenarios:report` | `/wicked-garden:qe:report` |
-| `/wicked-garden:scenarios:setup` | `/wicked-garden:qe:setup` |
+| `/wicked-scenarios:run` | `/wicked-testing:execution` |
+| `/wicked-scenarios:list` | `/wicked-testing:execution` |
+| `/wicked-scenarios:check` | `/wicked-testing:authoring` |
+| `/wicked-garden:scenarios:run` | `/wicked-testing:execution` |
+| `/wicked-garden:scenarios:list` | `/wicked-testing:execution` |
+| `/wicked-garden:scenarios:check` | `/wicked-testing:authoring` |
+| `/wicked-garden:scenarios:report` | `/wicked-testing:insight` |
+| `/wicked-garden:scenarios:setup` | `/wicked-testing:execution` |
 
 ## Design (consolidated into product)
 | Old | New |

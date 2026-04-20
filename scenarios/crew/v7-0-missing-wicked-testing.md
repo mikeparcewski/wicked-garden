@@ -12,7 +12,7 @@ covers:
   - G1-C (crew:approve blocked)
   - G1-D (escape hatch WG_SKIP_WICKED_TESTING_CHECK=1 allows proceed + emits stderr)
   - G1-E (session-briefing does NOT contain block when probe passes)
-ac_ref: "v7.0 #544 | scripts/_wicked_testing_probe.py + hooks/scripts/session_start.py"
+ac_ref: "v7.0 #544 | scripts/_wicked_testing_probe.py + hooks/scripts/bootstrap.py"
 ---
 
 # v7.0 SessionStart Hard-Block When wicked-testing Is Missing
@@ -111,29 +111,29 @@ if imported:
             sys.exit(1)
 else:
     # Module not yet present — verify the session-start hook at least declares the probe key
-    hook_path = os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'session_start.py')
+    hook_path = os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'bootstrap.py')
     if os.path.exists(hook_path):
         content = open(hook_path).read()
         if 'wicked_testing' in content:
-            print('PASS: session_start.py references wicked_testing (probe wired)')
+            print('PASS: bootstrap.py references wicked_testing (probe wired)')
         else:
-            print('FAIL: session_start.py does not reference wicked_testing')
+            print('FAIL: bootstrap.py does not reference wicked_testing')
             sys.exit(1)
     else:
-        print('FAIL: neither _wicked_testing_probe module nor session_start.py found')
+        print('FAIL: neither _wicked_testing_probe module nor bootstrap.py found')
         sys.exit(1)
 " 2>/dev/null || python -c "
 import sys, os
 sys.path.insert(0, os.environ.get('CLAUDE_PLUGIN_ROOT','') + '/hooks/scripts')
-hook_path = os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT',''), 'hooks', 'scripts', 'session_start.py')
+hook_path = os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT',''), 'hooks', 'scripts', 'bootstrap.py')
 if os.path.exists(hook_path):
     content = open(hook_path).read()
     if 'wicked_testing' in content:
-        print('PASS: session_start.py references wicked_testing (probe wired)')
+        print('PASS: bootstrap.py references wicked_testing (probe wired)')
     else:
-        print('FAIL: session_start.py missing wicked_testing reference'); sys.exit(1)
+        print('FAIL: bootstrap.py missing wicked_testing reference'); sys.exit(1)
 else:
-    print('FAIL: session_start.py not found'); sys.exit(1)
+    print('FAIL: bootstrap.py not found'); sys.exit(1)
 "
 Assert: PASS
 ```
@@ -153,7 +153,7 @@ sys.path.insert(0, '${PLUGIN_ROOT}/hooks/scripts')
 # Search for the required block message text in hook/probe sources
 search_paths = [
     os.path.join('${PLUGIN_ROOT}', 'scripts', '_wicked_testing_probe.py'),
-    os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'session_start.py'),
+    os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'bootstrap.py'),
     os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'prompt_submit.py'),
 ]
 required_phrases = [
@@ -181,7 +181,7 @@ else:
     sys.exit(1)
 " 2>/dev/null || python -c "
 import sys, os
-paths = [os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT',''), p) for p in ['scripts/_wicked_testing_probe.py','hooks/scripts/session_start.py']]
+paths = [os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT',''), p) for p in ['scripts/_wicked_testing_probe.py','hooks/scripts/bootstrap.py']]
 found = [os.path.basename(p) for p in paths if os.path.exists(p) and 'wicked-testing required' in open(p).read() and 'npx wicked-testing install' in open(p).read()]
 if found: print('PASS: found in', ', '.join(found))
 else: print('FAIL: message not found'); sys.exit(1)
@@ -313,7 +313,7 @@ except ImportError:
     sys.stderr = original_stderr
     # Module not yet present — verify escape hatch is documented in source
     probe_path = os.path.join('${PLUGIN_ROOT}', 'scripts', '_wicked_testing_probe.py')
-    hook_path = os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'session_start.py')
+    hook_path = os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'bootstrap.py')
     found = False
     for p in [probe_path, hook_path]:
         if os.path.exists(p) and 'WG_SKIP_WICKED_TESTING_CHECK' in open(p).read():
@@ -332,7 +332,7 @@ finally:
 " 2>/dev/null || python -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
-paths = [os.path.join(root, 'scripts', '_wicked_testing_probe.py'), os.path.join(root, 'hooks', 'scripts', 'session_start.py')]
+paths = [os.path.join(root, 'scripts', '_wicked_testing_probe.py'), os.path.join(root, 'hooks', 'scripts', 'bootstrap.py')]
 found = any(os.path.exists(p) and 'WG_SKIP_WICKED_TESTING_CHECK' in open(p).read() for p in paths)
 print('PASS: escape hatch wired' if found else 'FAIL: escape hatch not found'); sys.exit(0 if found else 1)
 "
@@ -377,7 +377,7 @@ try:
 except ImportError:
     # Module not present — structural check: probe key is mentioned in source
     probe_src = os.path.join('${PLUGIN_ROOT}', 'scripts', '_wicked_testing_probe.py')
-    session_src = os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'session_start.py')
+    session_src = os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'bootstrap.py')
     for src in [probe_src, session_src]:
         if os.path.exists(src):
             content = open(src).read()
@@ -389,7 +389,7 @@ except ImportError:
 " 2>/dev/null || python -c "
 import sys, os
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
-paths = [os.path.join(root, 'scripts', '_wicked_testing_probe.py'), os.path.join(root, 'hooks', 'scripts', 'session_start.py')]
+paths = [os.path.join(root, 'scripts', '_wicked_testing_probe.py'), os.path.join(root, 'hooks', 'scripts', 'bootstrap.py')]
 found = any(os.path.exists(p) and 'wicked_testing_probe' in open(p).read() for p in paths)
 print('PASS' if found else 'FAIL: wicked_testing_probe key not found'); sys.exit(0 if found else 1)
 "

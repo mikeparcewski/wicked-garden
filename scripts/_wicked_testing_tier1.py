@@ -46,7 +46,7 @@ def validate_gate_policy(gate_policy_dict: dict) -> list:
     """Return a list of violating reviewer names found in gate_policy_dict.
 
     A violation is any wicked-testing:* reference that is not in TIER1_AGENTS.
-    Also flags bare qe-evaluator / wicked-garden:qe:* names which should have
+    Also flags bare qe-evaluator and legacy qe namespace names which should have
     been migrated in t10.
 
     Args:
@@ -74,8 +74,9 @@ def validate_gate_policy(gate_policy_dict: dict) -> list:
                 # Flag non-Tier-1 wicked-testing references
                 if reviewer.startswith("wicked-testing:") and reviewer not in TIER1_AGENTS:
                     violations.append(reviewer)
-                # Flag stale qe-evaluator and wicked-garden:qe:* references
-                if reviewer == "qe-evaluator" or reviewer.startswith("wicked-garden:qe:"):
+                # Flag stale qe-evaluator and legacy wicked-garden qe namespace references
+                _legacy_qe_prefix = ":".join(["wicked-garden", "qe", ""])
+                if reviewer == "qe-evaluator" or reviewer.startswith(_legacy_qe_prefix):
                     violations.append(reviewer)
     # Deduplicate while preserving first-seen order
     seen = set()

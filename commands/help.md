@@ -28,24 +28,8 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | **mem** | Persistent memory — store decisions, recall context | `/wicked-garden:mem:help` |
 | **platform** | Security, infrastructure, compliance, CI/CD, incidents, and plugin diagnostics | `/wicked-garden:platform:help` |
 | **product** | Requirements, customer feedback, strategy, UX, and design review | `/wicked-garden:product:help` |
-| **qe** | Test planning, scenarios, E2E testing, acceptance testing, and automation | `/wicked-garden:qe:help` |
 | **search** | Structural code search, lineage, and codebase intelligence | `/wicked-garden:search:help` |
 | **smaht** | Intelligent context assembly from all sources | `/wicked-garden:smaht:help` |
-
-## Deprecated — removed in v7.1
-
-These commands are aliases that forward to wicked-testing. Upgrade before v7.1.
-
-| Alias | Replacement |
-|-------|-------------|
-| /wicked-garden:qe:qe | /wicked-testing:review |
-| /wicked-garden:qe:qe-plan | /wicked-testing:plan |
-| /wicked-garden:qe:scenarios | /wicked-testing:authoring |
-| /wicked-garden:qe:automate | /wicked-testing:authoring |
-| /wicked-garden:qe:run | /wicked-testing:execution |
-| /wicked-garden:qe:acceptance | /wicked-testing:execution |
-| /wicked-garden:qe:qe-review | /wicked-testing:review |
-| /wicked-garden:qe:report | /wicked-testing:insight |
 
 ## Quick Start
 

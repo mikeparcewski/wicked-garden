@@ -177,7 +177,7 @@ If `--focus` specified:
 **security**: Security review
 ```python
 Task(
-    subagent_type="wicked-garden:qe:code-analyzer",
+    subagent_type="wicked-garden:engineering:senior-engineer",
     prompt="""Security-focused analysis of code.
 
 ## Target
@@ -240,7 +240,7 @@ Evaluate each pattern with examples from code.
 **tests**: Test quality and value
 ```python
 Task(
-    subagent_type="wicked-garden:qe:code-analyzer",
+    subagent_type="wicked-garden:engineering:senior-engineer",
     prompt="""Evaluate test quality. Fewer, higher-quality tests beat many low-value ones.
 
 ## Target

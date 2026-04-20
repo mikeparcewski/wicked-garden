@@ -24,7 +24,7 @@ export TARGET_URL="https://httpbin.org/get"
 
 ```bash
 if ! command -v hey &>/dev/null; then
-  echo "SKIP: hey not installed. Run /wicked-garden:qe:setup to install."
+  echo "SKIP: hey not installed. Run /wicked-testing:execution to install."
   exit 0
 fi
 hey -n 100 -c 10 -t 10 "${TARGET_URL}" 2>&1 | tee "${TMPDIR:-/tmp}/hey-results.txt" && grep -q "Status code distribution" "${TMPDIR:-/tmp}/hey-results.txt"
@@ -36,7 +36,7 @@ hey -n 100 -c 10 -t 10 "${TARGET_URL}" 2>&1 | tee "${TMPDIR:-/tmp}/hey-results.t
 
 ```bash
 if ! command -v k6 &>/dev/null; then
-  echo "SKIP: k6 not installed. Run /wicked-garden:qe:setup to install."
+  echo "SKIP: k6 not installed. Run /wicked-testing:execution to install."
   exit 0
 fi
 cat > "${TMPDIR:-/tmp}/wicked-scenario-k6.js" << 'K6_EOF'

@@ -94,7 +94,7 @@ The `requirements-quality-analyst` agent emits a gate result with these fields
 ```json
 {
   "result": "APPROVE",
-  "reviewer": "wicked-garden:qe:requirements-quality-analyst",
+  "reviewer": "wicked-garden:product:requirements-analyst",
   "score": 0.78,
   "rubric_breakdown": {
     "user_story":                     {"score": 2, "notes": "clear role + outcome"},

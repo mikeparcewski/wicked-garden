@@ -74,13 +74,13 @@ import os, sys
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 sys.path.insert(0, '${PLUGIN_ROOT}/hooks/scripts')
 
-# Check that session_start hook wires the probe
-session_hook = os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'session_start.py')
+# Check that bootstrap hook wires the probe (_probe_wicked_testing lives in bootstrap.py ~line 948)
+session_hook = os.path.join('${PLUGIN_ROOT}', 'hooks', 'scripts', 'bootstrap.py')
 probe_module = os.path.join('${PLUGIN_ROOT}', 'scripts', '_wicked_testing_probe.py')
 
 checks = {
-    'session_start.py exists': os.path.exists(session_hook),
-    'session_start.py references wicked_testing': (
+    'bootstrap.py exists': os.path.exists(session_hook),
+    'bootstrap.py references wicked_testing': (
         os.path.exists(session_hook) and
         'wicked_testing' in open(session_hook).read()
     ),
@@ -101,11 +101,11 @@ for k, v in checks.items():
 " 2>/dev/null || python -c "
 import os
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '')
-hook = os.path.join(root, 'hooks', 'scripts', 'session_start.py')
+hook = os.path.join(root, 'hooks', 'scripts', 'bootstrap.py')
 if os.path.exists(hook) and 'wicked_testing' in open(hook).read():
-    print('PASS (Smoke-1): session_start.py wires wicked_testing probe')
+    print('PASS (Smoke-1): bootstrap.py wires wicked_testing probe')
 else:
-    print('FAIL: session_start.py missing or wicked_testing not referenced'); import sys; sys.exit(1)
+    print('FAIL: bootstrap.py missing or wicked_testing not referenced'); import sys; sys.exit(1)
 "
 Assert: PASS (Smoke-1)
 ```
@@ -257,38 +257,62 @@ wg_check = os.path.join('${PLUGIN_ROOT}', '.claude', 'commands', 'wg-check.md')
 import re, pathlib
 
 root = pathlib.Path('${PLUGIN_ROOT}')
-EXCLUDE_PATHS = {'CHANGELOG.md', 'scenarios'}
+# Paths with legitimate qe-evaluator occurrences (historical, migration, compat, docs)
+EXEMPT_PATHS = {
+    'CHANGELOG.md',
+    os.path.join('docs', 'MIGRATION-v7.md'),
+    os.path.join('scripts', 'crew', 'migrate_qe_evaluator_name.py'),
+    os.path.join('scripts', 'crew', 'reeval_addendum.py'),
+    os.path.join('scripts', 'crew', 'validate_reeval_addendum.py'),
+    os.path.join('scripts', 'crew', 'archetype_detect.py'),
+    os.path.join('scripts', '_wicked_testing_tier1.py'),
+    os.path.join('commands', 'setup.md'),
+    os.path.join('.claude', 'commands', 'wg-check.md'),
+    # bootstrap.py contains the CH-02 legacy-scan logic which intentionally
+    # references 'qe-evaluator' as the string it scans for in reeval-log.jsonl
+    os.path.join('hooks', 'scripts', 'bootstrap.py'),
+}
+
+def is_exempt(rel_path):
+    rel_str = str(rel_path)
+    if 'CHANGELOG' in rel_path.name: return True
+    if 'scenario' in rel_str.lower(): return True
+    if rel_path.parts[0] == 'tests': return True
+    normalized = os.path.join(*rel_path.parts)
+    return normalized in EXEMPT_PATHS
 
 stray = []
 for ext in ('*.md', '*.py', '*.json'):
     for p in root.rglob(ext):
-        # Skip changelog, test fixtures, and our own scenario files
         rel = p.relative_to(root)
-        parts = rel.parts
-        if any(exc in parts[0] for exc in EXCLUDE_PATHS): continue
-        if 'CHANGELOG' in p.name: continue
-        if 'scenario' in str(p).lower(): continue
-        content = p.read_text(errors='replace')
-        # qe-evaluator is legacy name; must be absent outside CHANGELOG + scenarios
+        if is_exempt(rel): continue
+        try:
+            content = p.read_text(errors='replace')
+        except Exception:
+            continue
+        # qe-evaluator is legacy name; must be absent outside exempt files
         for m in re.finditer(r'qe-evaluator', content):
             line_no = content[:m.start()].count('\n') + 1
             stray.append(f'{rel}:{line_no}')
 
 if stray:
-    print(f'FAIL (Smoke-5): {len(stray)} stray qe-evaluator references outside CHANGELOG/scenarios:')
+    print(f'FAIL (Smoke-5): {len(stray)} stray qe-evaluator references outside exempt paths:')
     for s in stray[:10]: print(' ', s)
     sys.exit(1)
-print('PASS (Smoke-5): no stray qe-evaluator references outside CHANGELOG and scenarios')
+print('PASS (Smoke-5): no stray qe-evaluator references outside CHANGELOG/migration/compat/docs paths')
 " 2>/dev/null || python -c "
 import os, pathlib, re, sys
 root = pathlib.Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'))
+EXEMPT = {'CHANGELOG.md', os.path.join('docs','MIGRATION-v7.md'), os.path.join('scripts','crew','migrate_qe_evaluator_name.py'), os.path.join('scripts','crew','reeval_addendum.py'), os.path.join('scripts','crew','validate_reeval_addendum.py'), os.path.join('scripts','crew','archetype_detect.py'), os.path.join('scripts','_wicked_testing_tier1.py'), os.path.join('commands','setup.md'), os.path.join('.claude','commands','wg-check.md'), os.path.join('hooks','scripts','bootstrap.py')}
 stray = []
 for ext in ('*.md', '*.py', '*.json'):
     for p in root.rglob(ext):
-        if 'CHANGELOG' in p.name or 'scenario' in str(p).lower(): continue
+        rel = p.relative_to(root)
+        if 'CHANGELOG' in p.name or 'scenario' in str(rel).lower() or rel.parts[0]=='tests': continue
+        if os.path.join(*rel.parts) in EXEMPT: continue
         try:
             c = p.read_text(errors='replace')
-            if 'qe-evaluator' in c: stray.append(str(p.relative_to(root)))
+            if 'qe-evaluator' in c: stray.append(str(rel))
         except: pass
 if stray: print('FAIL: stray qe-evaluator in', stray[:5]); sys.exit(1)
 print('PASS (Smoke-5): no stray qe-evaluator references')

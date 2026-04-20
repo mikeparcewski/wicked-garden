@@ -98,7 +98,7 @@ class TestMinGateScore(unittest.TestCase):
     def test_score_below_threshold_blocked(self):
         """T-1.3a: score 0.4 against min_gate_score 0.7 is blocked."""
         pm = self._import_fresh()
-        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:qe:test-strategist", "score": 0.4}
+        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:crew:gate-adjudicator", "score": 0.4}
         phases_config = {"design": {"min_gate_score": 0.7}}
         error = pm._validate_min_gate_score(gate_result, "design", phases_config)
         self.assertIsNotNone(error, "Score 0.4 should fail min_gate_score 0.7")
@@ -109,7 +109,7 @@ class TestMinGateScore(unittest.TestCase):
     def test_score_at_threshold_passes(self):
         """T-1.3b: score exactly at threshold passes."""
         pm = self._import_fresh()
-        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:qe:test-strategist", "score": 0.7}
+        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:crew:gate-adjudicator", "score": 0.7}
         phases_config = {"design": {"min_gate_score": 0.7}}
         error = pm._validate_min_gate_score(gate_result, "design", phases_config)
         self.assertIsNone(error, f"Score at threshold should pass: {error}")
@@ -118,7 +118,7 @@ class TestMinGateScore(unittest.TestCase):
     def test_null_score_treated_as_zero(self):
         """T-1.3c: null/absent score treated as 0.0."""
         pm = self._import_fresh()
-        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:qe:test-strategist"}
+        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:crew:gate-adjudicator"}
         phases_config = {"build": {"min_gate_score": 0.7}}
         error = pm._validate_min_gate_score(gate_result, "build", phases_config)
         self.assertIsNotNone(error, "Absent score should fail min_gate_score 0.7")
@@ -127,7 +127,7 @@ class TestMinGateScore(unittest.TestCase):
     def test_no_min_score_config_passes(self):
         """T-1.3d: phase with no min_gate_score config passes."""
         pm = self._import_fresh()
-        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:qe:test-strategist", "score": 0.1}
+        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:crew:gate-adjudicator", "score": 0.1}
         phases_config = {"ideate": {"min_gate_score": None}}
         error = pm._validate_min_gate_score(gate_result, "ideate", phases_config)
         self.assertIsNone(error, f"None min_gate_score should not block: {error}")
@@ -164,7 +164,7 @@ class TestLegacyModeDeleted(unittest.TestCase):
     def test_min_score_always_enforced(self):
         """T-1.6c: min_gate_score check is always active in v6.0."""
         import phase_manager as _pm
-        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:qe:test-strategist", "score": 0.1}
+        gate_result = {"result": "APPROVE", "reviewer": "wicked-garden:crew:gate-adjudicator", "score": 0.1}
         phases_config = {"design": {"min_gate_score": 0.7}}
         error = _pm._validate_min_gate_score(gate_result, "design", phases_config)
         self.assertIsNotNone(

@@ -43,17 +43,15 @@ REQUIRED_TOP_KEYS = frozenset({
 VALID_TRIGGERS = frozenset({"phase-end", "task-completion"})
 
 # v1.1.0: gate-adjudicator triggers use a prefix convention "gate-adjudicator:<gate>".
-# Legacy: "qe-evaluator:" prefix accepted for backward-compat read window (v7.0.x only).
-QE_EVALUATOR_TRIGGER_PREFIX = "qe-evaluator:"      # legacy — compat window only
 GATE_ADJUDICATOR_TRIGGER_PREFIX = "gate-adjudicator:"  # canonical (v7.0+)
+
+# Literal string used to detect and reject legacy entries (not a normalization target).
+_REJECTED_LEGACY_TRIGGER_PREFIX = "qe-evaluator:"
 
 
 def _is_adjudicator_trigger(trigger: str) -> bool:
-    """Return True if trigger is a gate-adjudicator (or legacy qe-evaluator) trigger."""
-    return (
-        trigger.startswith(GATE_ADJUDICATOR_TRIGGER_PREFIX)
-        or trigger.startswith(QE_EVALUATOR_TRIGGER_PREFIX)
-    )
+    """Return True if trigger is a canonical gate-adjudicator trigger."""
+    return trigger.startswith(GATE_ADJUDICATOR_TRIGGER_PREFIX)
 
 # v1.1.0: archetype enum (AC-5).
 VALID_ARCHETYPES = frozenset({
@@ -134,15 +132,23 @@ def validate_record(record: object, line_num: "int | None" = None) -> "list[str]
         errors.append(f"{prefix}: missing required key '{key}'")
 
     # trigger enum — v1.1.0 extends with gate-adjudicator:<gate> prefix convention.
-    # Legacy "qe-evaluator:" prefix also accepted for backward-compat read window.
+    # "qe-evaluator:" prefix is rejected as a legacy schema violation in v7.1.0.
     trigger = record.get("trigger")
     if trigger is not None:
-        is_qe_trigger = isinstance(trigger, str) and _is_adjudicator_trigger(trigger)
-        if not is_qe_trigger and trigger not in VALID_TRIGGERS:
+        if isinstance(trigger, str) and trigger.startswith(_REJECTED_LEGACY_TRIGGER_PREFIX):
             errors.append(
-                f"{prefix}.trigger: '{trigger}' is not one of {sorted(VALID_TRIGGERS)} "
-                f"and does not start with '{GATE_ADJUDICATOR_TRIGGER_PREFIX}'"
+                f"{prefix}.trigger: '{trigger}' uses the legacy 'qe-evaluator:' prefix "
+                f"(renamed to 'gate-adjudicator:' in v7.0). "
+                f"Run: python scripts/crew/migrate_qe_evaluator_name.py --project-dir PATH/TO/PROJECT. "
+                f"See docs/MIGRATION-v7.md for guidance."
             )
+        else:
+            is_qe_trigger = isinstance(trigger, str) and _is_adjudicator_trigger(trigger)
+            if not is_qe_trigger and trigger not in VALID_TRIGGERS:
+                errors.append(
+                    f"{prefix}.trigger: '{trigger}' is not one of {sorted(VALID_TRIGGERS)} "
+                    f"and does not start with '{GATE_ADJUDICATOR_TRIGGER_PREFIX}'"
+                )
 
     # v1.1.0: gate-adjudicator triggers must have empty mutations and mutations_applied.
     trigger_str = trigger if isinstance(trigger, str) else ""

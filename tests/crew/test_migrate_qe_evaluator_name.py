@@ -1,5 +1,5 @@
 """tests/crew/test_migrate_qe_evaluator_name.py — Unit + integration tests for
-migrate_qe_evaluator_name.py and reeval_addendum.normalize_reviewer_name.
+migrate_qe_evaluator_name.py reviewer-name rewriting.
 
 Provenance: AC-36, AC-38 (design doc §6)
 T1: deterministic — no randomness, no wall-clock, no sleep
@@ -31,7 +31,6 @@ for _p in [str(_SCRIPTS_CREW), str(_SCRIPTS_DIR)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from reeval_addendum import normalize_reviewer_name  # noqa: E402
 from migrate_qe_evaluator_name import (  # noqa: E402
     _has_legacy_entry,
     _migrate_file,
@@ -43,27 +42,29 @@ from migrate_qe_evaluator_name import (  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Unit: normalize_reviewer_name — 4 variants (AC-36, design §6)
+# Unit: _rewrite_reviewer — 4 variants (AC-36, design §6)
+# Tests the migration script's canonical rewriter (normalize_reviewer_name
+# was removed from reeval_addendum in v7.1.0; migration script is the source).
 # ---------------------------------------------------------------------------
 
-def test_normalize_reviewer_name_legacy_short():
-    """AC-36: 'qe-evaluator' maps to 'gate-adjudicator'."""
-    assert normalize_reviewer_name("qe-evaluator") == "gate-adjudicator"
+def test_rewrite_reviewer_legacy_short():
+    """AC-36: 'qe-evaluator' maps to 'gate-adjudicator' in the migration script."""
+    assert _rewrite_reviewer("qe-evaluator") == "gate-adjudicator"
 
 
-def test_normalize_reviewer_name_legacy_fq():
+def test_rewrite_reviewer_legacy_fq():
     """AC-36: 'wicked-garden:crew:qe-evaluator' maps to 'wicked-garden:crew:gate-adjudicator'."""
-    assert normalize_reviewer_name("wicked-garden:crew:qe-evaluator") == "wicked-garden:crew:gate-adjudicator"
+    assert _rewrite_reviewer("wicked-garden:crew:qe-evaluator") == "wicked-garden:crew:gate-adjudicator"
 
 
-def test_normalize_reviewer_name_canonical_pass_through():
+def test_rewrite_reviewer_canonical_pass_through():
     """AC-36: 'gate-adjudicator' is already canonical — pass-through."""
-    assert normalize_reviewer_name("gate-adjudicator") == "gate-adjudicator"
+    assert _rewrite_reviewer("gate-adjudicator") == "gate-adjudicator"
 
 
-def test_normalize_reviewer_name_canonical_fq_pass_through():
+def test_rewrite_reviewer_canonical_fq_pass_through():
     """AC-36: 'wicked-garden:crew:gate-adjudicator' is already canonical — pass-through."""
-    assert normalize_reviewer_name("wicked-garden:crew:gate-adjudicator") == "wicked-garden:crew:gate-adjudicator"
+    assert _rewrite_reviewer("wicked-garden:crew:gate-adjudicator") == "wicked-garden:crew:gate-adjudicator"
 
 
 # ---------------------------------------------------------------------------

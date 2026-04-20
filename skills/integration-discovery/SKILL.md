@@ -88,7 +88,7 @@ Task: "Implement user authentication"
 | Need | Capability | Recommendation |
 |------|------------|----------------|
 | Security review | wicked-garden:platform:security-engineer | Use for auth review |
-| Test strategy | wicked-garden:qe:test-strategist | Use for test planning |
+| Test strategy | wicked-garden:crew:gate-adjudicator | Use for test planning |
 | Store decisions | wicked-garden:mem | Store auth decisions |
 | Track work | MCP:atlassian or native TaskCreate | Track implementation |
 ```
@@ -105,7 +105,7 @@ Output a clear recommendation the main agent can act on:
 2. **MCP:atlassian** - Link work to Jira ticket AUTH-123
 
 **Available but optional**:
-- wicked-garden:qe:test-strategist - If test planning needed
+- wicked-garden:crew:gate-adjudicator - If test planning needed
 - wicked-garden:mem - Store decisions for future reference
 
 **Not available** (consider installing):

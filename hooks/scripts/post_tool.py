@@ -329,41 +329,40 @@ def _track_qe_change(file_path: str):
 
             # No crew project: classify files and suggest specific QE tools
             # Full testing pyramid: unit → integration → functional → E2E
-            # See: skills/qe/qe-strategy/refs/test-type-taxonomy.md
             change_type = _classify_changed_files(stale)
 
             if change_type == "ui":
                 return (
                     f"[QE] {unique_count} UI files changed this session. "
-                    "Recommended testing (per test-type-taxonomy):\n"
-                    "- **Unit**: `/wicked-garden:qe:automate` — generate unit tests for changed components\n"
+                    "Recommended testing:\n"
+                    "- **Unit**: `/wicked-testing:authoring` — generate unit tests for changed components\n"
                     "- **Visual**: `/wicked-garden:product:screenshot` — capture UI state + visual diff\n"
-                    "- **Scenario**: `/wicked-garden:qe:scenarios` — generate user journey test scenarios\n"
+                    "- **Scenario**: `/wicked-testing:plan` — generate user journey test scenarios\n"
                     "- **Regression**: run existing test suite to verify no breakage\n"
-                    "- **Acceptance**: `/wicked-garden:qe:acceptance` — evidence-gated acceptance tests"
+                    "- **Acceptance**: `/wicked-testing:execution` — evidence-gated acceptance tests"
                 )
             elif change_type == "api":
                 return (
                     f"[QE] {unique_count} API files changed this session. "
-                    "Recommended testing (per test-type-taxonomy):\n"
-                    "- **Unit**: `/wicked-garden:qe:automate` — generate unit tests for changed logic\n"
+                    "Recommended testing:\n"
+                    "- **Unit**: `/wicked-testing:authoring` — generate unit tests for changed logic\n"
                     "- **Integration**: test API contracts — request/response schema validation\n"
                     "- **Security**: `/wicked-garden:platform:security` — auth boundaries + input validation\n"
-                    "- **Scenario**: `/wicked-garden:qe:scenarios` — generate endpoint test scenarios\n"
+                    "- **Scenario**: `/wicked-testing:plan` — generate endpoint test scenarios\n"
                     "- **Regression**: run existing test suite to verify no breakage\n"
-                    "- **Acceptance**: `/wicked-garden:qe:acceptance` — evidence-gated acceptance tests"
+                    "- **Acceptance**: `/wicked-testing:execution` — evidence-gated acceptance tests"
                 )
             elif change_type == "both":
                 return (
                     f"[QE] {unique_count} files changed (UI + API) this session. "
-                    "Recommended testing (per test-type-taxonomy):\n"
-                    "- **Unit**: `/wicked-garden:qe:automate` — generate unit tests for changed code\n"
+                    "Recommended testing:\n"
+                    "- **Unit**: `/wicked-testing:authoring` — generate unit tests for changed code\n"
                     "- **Integration**: test API contracts + component integration\n"
                     "- **Visual**: `/wicked-garden:product:screenshot` — capture UI state + visual diff\n"
                     "- **Security**: `/wicked-garden:platform:security` — auth + input validation\n"
-                    "- **Scenario**: `/wicked-garden:qe:scenarios` — generate E2E user journey scenarios\n"
+                    "- **Scenario**: `/wicked-testing:plan` — generate E2E user journey scenarios\n"
                     "- **Regression**: run existing test suite to verify no breakage\n"
-                    "- **Acceptance**: `/wicked-garden:qe:acceptance` — evidence-gated acceptance tests"
+                    "- **Acceptance**: `/wicked-testing:execution` — evidence-gated acceptance tests"
                 )
             else:
                 short_paths = [Path(f).name for f in sorted(stale)]
@@ -371,9 +370,9 @@ def _track_qe_change(file_path: str):
                     f"[QE] {unique_count} files changed this session "
                     f"({', '.join(short_paths[:5])}). "
                     "Recommended testing:\n"
-                    "- **Unit**: `/wicked-garden:qe:automate` — generate unit tests\n"
+                    "- **Unit**: `/wicked-testing:authoring` — generate unit tests\n"
                     "- **Regression**: run existing test suite\n"
-                    "- **Scenario**: `/wicked-garden:qe:scenarios` — generate test scenarios"
+                    "- **Scenario**: `/wicked-testing:plan` — generate test scenarios"
                 )
         return None
     except Exception:
@@ -466,7 +465,7 @@ def _check_scenario_staleness(file_path: str):
         return (
             f"[Scenarios] Command/skill in '{domain}' changed — "
             f"{scenario_count} scenario(s) in scenarios/{domain}/ may need updating. "
-            f"Run `/wg-test {domain}` or `/wicked-garden:qe:acceptance scenarios/{domain}/ --all` to validate."
+            f"Run `/wg-test {domain}` or `/wicked-testing:execution scenarios/{domain}/ --all` to validate."
         )
     except Exception:
         return None

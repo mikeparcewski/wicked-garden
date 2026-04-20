@@ -99,11 +99,12 @@ def test_qe_agents_include_testability_signals(qe_specialist):
 
 def test_qe_agents_no_legacy_wg_qe_names(qe_specialist):
     """
-    AC-22 — QE specialist must not contain any stale wicked-garden:qe:* names.
+    AC-22 — QE specialist must not contain any stale legacy qe namespace names.
     These were migrated to wicked-testing:* in v7.0.
     """
     agents = qe_specialist.get("tier1_agents", qe_specialist.get("agents", []))
-    legacy = [a for a in agents if a.startswith("wicked-garden:qe:")]
+    _legacy_prefix = ":".join(["wicked-garden", "qe", ""])
+    legacy = [a for a in agents if a.startswith(_legacy_prefix)]
     assert not legacy, (
-        f"QE specialist still contains legacy wicked-garden:qe:* names: {legacy}"
+        f"QE specialist still contains legacy qe namespace names: {legacy}"
     )

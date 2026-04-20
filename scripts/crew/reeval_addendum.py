@@ -67,45 +67,37 @@ VALID_ARCHETYPES = frozenset({
 })
 
 # Trigger prefix constants (R3 — no magic values).
-# Legacy kept for backward-compat read window (v7.0.x only; removed in v7.1.0).
-_QE_EVALUATOR_TRIGGER_PREFIX = "qe-evaluator:"    # legacy — compat window only
 _GATE_ADJUDICATOR_TRIGGER_PREFIX = "gate-adjudicator:"  # canonical (v7.0+)
-
-# Reviewer name constants for normalize_reviewer_name.
-_LEGACY_NAME = "qe-evaluator"
-_CANONICAL_NAME = "gate-adjudicator"
-_LEGACY_FQ = "wicked-garden:crew:qe-evaluator"
-_CANONICAL_FQ = "wicked-garden:crew:gate-adjudicator"
 
 # Allowed manifest_path prefixes for gate-adjudicator triggers (MINOR-1).
 _ALLOWED_QE_MANIFEST_PREFIXES = ("phases/testability/", "phases/evidence-quality/")
 _DISALLOWED_QE_MANIFEST_PREFIXES = ("phases/clarify/", "phases/design/")
 
 
-def normalize_reviewer_name(raw: str) -> str:
-    """Map legacy reviewer names to canonical form (read-time only).
+class LegacyReviewerNameError(ValueError):
+    """Raised when a reeval-log.jsonl entry contains a legacy reviewer name.
 
-    Mappings:
-      "qe-evaluator"                     -> "gate-adjudicator"
-      "wicked-garden:crew:qe-evaluator"  -> "wicked-garden:crew:gate-adjudicator"
-      "gate-adjudicator"                 -> "gate-adjudicator"  (pass-through)
-      <anything else>                    -> unchanged           (pass-through)
-
-    Deprecation: v7.0.x compat window only — removed in v7.1.0.
+    The backward-compatibility reader was removed in wicked-garden v7.1.0.
+    Run the migration script to repair the log file before resuming.
     """
-    if raw == _LEGACY_NAME:
-        return _CANONICAL_NAME
-    if raw == _LEGACY_FQ:
-        return _CANONICAL_FQ
-    return raw
+
+
+def _raise_legacy_name_error(legacy_value: str, index: int, log_path: Path) -> None:
+    """Raise LegacyReviewerNameError with the structured AC-21 message."""
+    raise LegacyReviewerNameError(
+        f"LegacyReviewerNameError: reeval-log.jsonl contains legacy agent name "
+        f"'{legacy_value}' at\n"
+        f"  record index {index} in {log_path}\n\n"
+        f"  This backward-compatibility reader was removed in wicked-garden v7.1.0.\n"
+        f"  To repair your log file, run the migration script:\n\n"
+        f"    python scripts/crew/migrate_qe_evaluator_name.py --project-dir PATH/TO/PROJECT\n\n"
+        f"  See docs/MIGRATION-v7.md for full late-upgrader guidance."
+    )
 
 
 def _is_qe_trigger(trigger: str) -> bool:
-    """Return True if trigger is a gate-adjudicator (or legacy qe-evaluator) trigger."""
-    return (
-        trigger.startswith(_GATE_ADJUDICATOR_TRIGGER_PREFIX)
-        or trigger.startswith(_QE_EVALUATOR_TRIGGER_PREFIX)
-    )
+    """Return True if trigger is a gate-adjudicator trigger."""
+    return trigger.startswith(_GATE_ADJUDICATOR_TRIGGER_PREFIX)
 
 
 def _validate_record(record: Dict[str, Any]) -> Optional[str]:
@@ -148,7 +140,7 @@ def _validate_record(record: Dict[str, Any]) -> Optional[str]:
 
     trigger = record.get("trigger", "") or ""
 
-    # v1.1.0 rules: gate-adjudicator triggers (and legacy qe-evaluator) must have empty mutations lists.
+    # v1.1.0 rules: gate-adjudicator triggers must have empty mutations lists.
     if _is_qe_trigger(trigger):
         mutations = record.get("mutations", [])
         if mutations:
@@ -173,7 +165,7 @@ def _validate_record(record: Dict[str, Any]) -> Optional[str]:
             )
 
     # v1.1.0: validate archetype_evidence.conditions_deferred[*].manifest_path
-    # prefix enforcement for gate-adjudicator triggers (and legacy qe-evaluator triggers).
+    # prefix enforcement for gate-adjudicator triggers.
     archetype_evidence = record.get("archetype_evidence")
     if archetype_evidence is not None and isinstance(archetype_evidence, dict):
         conditions_deferred = archetype_evidence.get("conditions_deferred", [])
@@ -266,19 +258,23 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return out
-    for line in text.splitlines():
+    _LEGACY_REVIEWER_NAMES = ("qe-evaluator", "wicked-garden:crew:qe-evaluator")
+    _LEGACY_TRIGGER_PREFIX = "qe-evaluator:"
+    for idx, line in enumerate(text.splitlines()):
         stripped = line.strip()
         if not stripped:
             continue
         try:
             rec = json.loads(stripped)
             if isinstance(rec, dict):
-                # Normalize legacy reviewer/trigger names on read (v7.0 compat window).
-                if "reviewer" in rec:
-                    rec["reviewer"] = normalize_reviewer_name(rec["reviewer"])
+                # Raise on legacy reviewer names — backward-compat reader removed in v7.1.0.
+                reviewer_val = rec.get("reviewer", "")
+                if reviewer_val in _LEGACY_REVIEWER_NAMES:
+                    _raise_legacy_name_error(reviewer_val, idx, path)
+                # Raise on legacy trigger prefix.
                 trigger_val = rec.get("trigger", "")
-                if isinstance(trigger_val, str) and trigger_val.startswith(_QE_EVALUATOR_TRIGGER_PREFIX):
-                    rec["trigger"] = _GATE_ADJUDICATOR_TRIGGER_PREFIX + trigger_val[len(_QE_EVALUATOR_TRIGGER_PREFIX):]
+                if isinstance(trigger_val, str) and trigger_val.startswith(_LEGACY_TRIGGER_PREFIX):
+                    _raise_legacy_name_error(trigger_val, idx, path)
                 out.append(rec)
         except json.JSONDecodeError:
             # Skip corrupt lines; validator will surface them on next approve.

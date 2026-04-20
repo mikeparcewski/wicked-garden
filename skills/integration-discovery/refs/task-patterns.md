@@ -11,7 +11,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | PR context | MCP | github, gitlab |
 | Code quality | Agent | wicked-garden:engineering:senior-engineer |
 | Security check | Agent | wicked-garden:platform:security-engineer |
-| Test coverage | Agent | wicked-garden:qe:code-analyzer |
+| Test coverage | Agent | wicked-garden:engineering:senior-engineer |
 | Link to ticket | MCP | atlassian, linear |
 
 **Recommended flow**:
@@ -31,7 +31,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Security expertise | Agent | wicked-garden:platform:security-engineer |
 | Compliance check | Agent | wicked-garden:platform:compliance-officer |
 | Privacy review | Agent | wicked-garden:platform:privacy-expert |
-| Test scenarios | Agent | wicked-garden:qe:test-strategist |
+| Test scenarios | Agent | wicked-garden:crew:gate-adjudicator |
 | Store findings | Skill | wicked-garden:mem |
 
 **Recommended flow**:
@@ -90,13 +90,13 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Requirements clarity | Agent | wicked-garden:product:requirements-analyst |
 | Design guidance | Agent | wicked-garden:engineering:solution-architect |
 | Implementation | Agent | wicked-garden:engineering:senior-engineer |
-| Test strategy | Agent | wicked-garden:qe:test-strategist |
+| Test strategy | Agent | wicked-garden:crew:gate-adjudicator |
 | Track progress | MCP/Native | atlassian, TaskCreate/TaskUpdate |
 
 **Recommended flow**:
 1. Clarify requirements with requirements-analyst if vague
 2. Get design guidance from solution-architect
-3. Plan tests with test-strategist
+3. Plan tests with gate-adjudicator
 4. Track via native TaskCreate or issue tracker
 
 ---
@@ -164,15 +164,15 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Test strategy | Agent | wicked-garden:qe:test-strategist |
-| Test generation | Agent | wicked-garden:qe:test-automation-engineer |
-| TDD guidance | Agent | wicked-garden:qe:tdd-coach |
-| Risk assessment | Agent | wicked-garden:qe:risk-assessor |
+| Test strategy | Agent | wicked-garden:crew:gate-adjudicator |
+| Test generation | Agent | wicked-garden:crew:implementer |
+| TDD guidance | Agent | wicked-testing:test-strategist |
+| Risk assessment | Agent | wicked-garden:platform:security-engineer |
 
 **Recommended flow**:
-1. Spawn test-strategist to identify what to test
-2. Use risk-assessor for priority
-3. Generate tests with test-automation-engineer
+1. Spawn gate-adjudicator to identify what to test
+2. Use security-engineer for risk priority
+3. Generate tests with implementer
 
 ---
 

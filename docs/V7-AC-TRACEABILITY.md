@@ -28,7 +28,7 @@ Crew project: `wicked-testing-extraction-v7-0`. This file provides AC-N ↔ impl
 
 ## gate-policy.json Tier-1 + polyglot
 
-- **AC-16** — no `wicked-garden:qe:` in `.claude-plugin/gate-policy.json` — verified by grep
+- **AC-16** — no legacy qe dispatch targets in `.claude-plugin/gate-policy.json` — verified by grep
 - **AC-17** — `gate-adjudicator` fully qualified — `.claude-plugin/gate-policy.json`
 - **AC-18** — polyglot panel — `phases/design/polyglot-gate-policy.md`; tests: `tests/crew/test_wicked_testing_bus.py`
 - **AC-19** — `/wg-check` Tier-1 allowlist — `scripts/_wicked_testing_tier1.py::validate_gate_policy`
@@ -42,7 +42,7 @@ Crew project: `wicked-testing-extraction-v7-0`. This file provides AC-N ↔ impl
 
 ## phase_manager dispatch + bus
 
-- **AC-24** — no `wicked-garden:qe:` in dispatch — verified by grep
+- **AC-24** — no legacy qe dispatch targets in dispatch paths — verified by grep
 - **AC-25** — `_wicked_testing_bus.py` subscribes to `wicked.verdict.recorded` — `scripts/crew/_wicked_testing_bus.py`
 - **AC-26** — verdict mapping PASS/FAIL/N-A/SKIP — `scripts/crew/_wicked_testing_bus.py`; tests: `tests/crew/test_wicked_testing_bus.py`
 - **AC-27** — bus-absent fallback — `scripts/crew/gate_dispatch.py::_collect_bus_verdicts`; tests: `tests/crew/test_wicked_testing_bus.py::test_bus_absent_fallback`

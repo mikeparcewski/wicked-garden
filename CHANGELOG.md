@@ -1,5 +1,48 @@
 # Changelog
 
+## [7.1.0] - UNRELEASED
+
+v7.1 completes the QE extraction by removing all deprecated surfaces (agents, skills, commands) and landing the deferred v7.0.1 backward-compat reader removal. wicked-testing remains a required peer plugin, unchanged from v7.0.
+
+### Breaking Changes
+
+- **BREAKING(agents/qe/)**: All 11 files under `agents/qe/` removed. Dispatch via `wicked-testing:*` Tier-1 agent names per INTEGRATION.md §3.
+- **BREAKING(skills/qe/)**: `skills/qe/` directory (agent-browser, qe-strategy, scenario-executor, scenarios, tdd-coach) fully removed. Use wicked-testing Tier-1 skills: `plan`, `authoring`, `execution`, `review`, `insight`.
+- **BREAKING(skills/acceptance-testing/)**: `skills/acceptance-testing/` directory fully removed. Use wicked-testing Tier-1 skills.
+- **BREAKING(commands/qe/)**: All 12 files under `commands/qe/` removed (8 deprecated aliases + check/list/setup/help). Use `/wicked-testing:*` commands directly. `/wicked-garden:qe:help` is gone — see `docs/MIGRATION-v7.md` for the rename map.
+- **BREAKING(reeval-backcompat)**: Backward-compat two-name reader in `reeval_addendum.py` and `validate_reeval_addendum.py` removed. Legacy `"reviewer": "qe-evaluator"` entries in `reeval-log.jsonl` now raise `LegacyReviewerNameError`. Run `scripts/crew/migrate_qe_evaluator_name.py` before upgrading if you have existing crew project dirs.
+
+### Features
+
+- **feat(#558)**: Facilitator fails-closed on missing `wicked_testing_probe` at testability-gate dispatch. Belt-and-suspenders defense beyond the SessionStart block: `specialist_resolver.py` raises `PrerequisiteError` (with install instruction) when `wicked_testing_missing == true` or the probe key is absent from session state.
+- **feat(session-start)**: SessionStart legacy-scan added. Scans known crew project dirs for legacy `reeval-log.jsonl` entries on session open and emits an actionable migration notice pointing to `scripts/crew/migrate_qe_evaluator_name.py`.
+
+### Bug Fixes
+
+- **fix(#559)**: Scenario file probe assertion target corrected from `hooks/scripts/session_start.py` to `hooks/scripts/bootstrap.py` where `_probe_wicked_testing` actually lives.
+- **fix(#559)**: `v7-0-reeval-backcompat.md` Case 4 migration script invocation updated from positional path argument to `--project-dir PATH` form, matching the actual CLI interface.
+- **fix(#559)**: `v7-0-cross-plugin-smoke.md` Smoke-5 exclusion list widened to cover all legitimate `qe-evaluator` string occurrences (CHANGELOG.md, docs/MIGRATION-v7.md, archetype_detect.py, migrate_qe_evaluator_name.py, reeval_addendum.py, validate_reeval_addendum.py). No false-positive failures after fix.
+
+### Deprecated — removed in v7.2
+
+None. v7.1 completes the QE extraction. No new deprecations at this release.
+
+### Migration notes (late upgraders)
+
+**Upgrading from v7.0 to v7.1:**
+1. The alias window is now closed. Run `scripts/crew/migrate_qe_evaluator_name.py` for any existing crew project dirs before deploying v7.1:
+   ```
+   python scripts/crew/migrate_qe_evaluator_name.py --project-dir <your-crew-project>
+   ```
+2. Switch all command usage from `/wicked-garden:qe:*` to `/wicked-testing:*` equivalents. See `docs/MIGRATION-v7.md` for the rename map.
+
+**Upgrading from v6.x directly to v7.1 (skipping v7.0):**
+The v7.0 alias window never existed for you. Run `npx wicked-testing install` first, then run the migration script for any crew project dirs before starting any crew workflows.
+
+**wicked-testing pin**: `plugin.json:wicked_testing_version` unchanged at `^0.1.0`. See [INTEGRATION.md §8](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/INTEGRATION.md#8-version--compatibility).
+
+---
+
 ## [7.0.0] - UNRELEASED
 
 This release extracts the QE discipline into a dedicated **wicked-testing** peer plugin
