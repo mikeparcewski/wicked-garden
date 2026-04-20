@@ -7,8 +7,8 @@
     {
       "name": "wicked-garden",
       "source": "./",
-      "description": "AI-Native SDLC \u2014 executable infrastructure, not passive guidance. Hooks enforce workflow gates, assemble context from memory and code search on every prompt, and persist decisions across sessions. 13 domains with 69 specialist agents cover the full lifecycle: facilitator-driven crew workflows with hard quality gates, 3-tier persistent memory with auto-consolidation, structural code intelligence, multi-model brainstorming, and domain experts for security, architecture, QE, product, data, and delivery. Zero external dependencies \u2014 runs standalone with local SQLite storage.",
-      "version": "6.3.4"
+      "description": "AI-Native SDLC \u2014 executable infrastructure, not passive guidance. Leverages Claude Code's native surface: TaskCreate metadata envelope validated by PreToolUse, 75 specialists routed dynamically by subagent_type frontmatter, skills with progressive disclosure, 14 lifecycle hook events. A facilitator skill scores 9 factors, detects 1 of 7 project archetypes, and picks specialists + phases per project. Hard quality gates with BLEND multi-reviewer aggregation, convergence lifecycle tracking, challenge gate + contrarian at complexity \u2265 4, phase-boundary QE evaluator with per-archetype evidence demands, semantic reviewer for spec-to-code alignment, and 3-tier persistent memory with auto-consolidation. 13 domains across the full lifecycle: crew workflows, context assembly, memory, code intelligence, brainstorming, and domain experts for security, architecture, QE, product, data, delivery, agentic, and personas. Zero external dependencies \u2014 runs standalone with local SQLite storage.",
+      "version": "6.3.5"
     }
   ],
   "version": "2.0.0"

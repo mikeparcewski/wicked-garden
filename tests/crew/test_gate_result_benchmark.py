@@ -10,7 +10,7 @@ the ``benchmark`` marker so local `pytest` runs are unaffected:
     # CI benchmark lane (runs only this file):
     uv run pytest -m benchmark --benchmark-json=benchmark.json
 
-Baseline methodology (docs/threat-models/gate-result-ingestion.md §8):
+Baseline methodology (see skill ``wicked-garden:platform:gate-benchmark-rebaseline``):
     1. Measurement is p95 of ``validate_gate_result_from_file`` across
        50 deterministic fixtures at sizes 1KB, 4KB, 16KB, 60KB (clamped
        to ``MAX_SUMMARY_BYTES``).
@@ -19,7 +19,7 @@ Baseline methodology (docs/threat-models/gate-result-ingestion.md §8):
        this is the path AC-11 pins. Cache-hit timing is not the SLO.
     3. Baseline p95 is stored in ``tests/crew/benchmark_baseline.json``.
        It is recomputed on main after any deliberate perf change and
-       committed via the re-baselining procedure in the threat model.
+       committed via the re-baselining skill referenced above.
     4. The assertion is ``p95_current <= 2.0 * p95_baseline``. A tight
        fail-early lane — 2x is the AC-11 gate, not advisory.
 
@@ -145,6 +145,7 @@ def test_load_gate_result_p95_within_2x_baseline(benchmark, fixture_files):
         f"AC-11 perf regression: p95={p95_ns:.0f}ns exceeds "
         f"{_SLO_MULTIPLIER}x baseline budget={budget_ns:.0f}ns "
         f"(baseline={baseline_ns}ns). "
-        "Re-baseline on main (see docs/threat-models/"
-        "gate-result-ingestion.md §8) if the regression is intentional."
+        "Re-baseline on main via skill "
+        "`wicked-garden:platform:gate-benchmark-rebaseline` if the "
+        "regression is intentional."
     )

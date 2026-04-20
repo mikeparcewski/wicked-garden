@@ -4,12 +4,10 @@ This module defines the typed-exception contract and the recursive
 schema validator called by ``phase_manager._load_gate_result``. It is
 a **floor** against accidental content drift and trivial prompt-injection
 in reviewer-authored free-text fields — NOT comprehensive security
-against a motivated attacker with local disk write access (see
-``docs/threat-models/gate-result-ingestion.md`` for the full trust
-boundary).
+against a motivated attacker with local disk write access.
 
-Framing (per challenge-phase mutation CH-01): **integrity + prompt-injection
-containment**, not "security hardening" in the absolute sense.
+Framing: **integrity + prompt-injection containment**, not "security
+hardening" in the absolute sense.
 
 Imports:
   - ``gate_result_constants`` for every byte / count cap (no magic literals)

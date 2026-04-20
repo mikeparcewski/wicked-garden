@@ -383,7 +383,7 @@ This applies to ALL commands that use `AskUserQuestion`: setup, delivery/setup, 
 
 ### Gate-result security (AC-9 §5.4)
 
-`gate-result.json` ingestion runs a layered defense floor: schema validator, content sanitizer (codepoint allow-list + injection patterns), dispatch-log orphan detection, and append-only audit log. This is a **floor** against content drift and trivial prompt-injection — not a wall against local disk-write attackers. See [`docs/threat-models/gate-result-ingestion.md`](../docs/threat-models/gate-result-ingestion.md) for the full trust boundary, residual risks, and rollback levers (`WG_GATE_RESULT_*` env vars).
+`gate-result.json` ingestion runs a layered defense floor: schema validator, content sanitizer (codepoint allow-list + injection patterns), dispatch-log orphan detection, and append-only audit log. This is a **floor** against content drift and trivial prompt-injection — not a wall against local disk-write attackers. Rollback levers: `WG_GATE_RESULT_SCHEMA_VALIDATION=off`, `WG_GATE_RESULT_CONTENT_SANITIZATION=off`, `WG_GATE_RESULT_DISPATCH_CHECK=off` — all auto-expire at `WG_GATE_RESULT_STRICT_AFTER`. Benchmark SLO re-baseline is owned by the `wicked-garden:platform:gate-benchmark-rebaseline` skill.
 
 ## wicked-brain
 

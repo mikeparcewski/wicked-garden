@@ -139,14 +139,14 @@ Every dispatch appends an HMAC-signed entry to `phases/{phase}/dispatch-log.json
 
 ### Gate-Result Security
 
-`gate-result.json` ingestion runs a layered defense floor (see `docs/threat-models/gate-result-ingestion.md`):
+`gate-result.json` ingestion runs a layered defense floor:
 
 1. Schema validator
 2. Content sanitizer (codepoint allow-list + injection patterns)
 3. Dispatch-log orphan detection
 4. Append-only audit log
 
-Rollback levers via `WG_GATE_RESULT_*` env vars. This is a floor against content drift and trivial prompt-injection, not a wall against local disk-write attackers.
+Rollback levers via `WG_GATE_RESULT_*` env vars (schema, content, dispatch — all auto-expire at `WG_GATE_RESULT_STRICT_AFTER`). This is a floor against content drift and trivial prompt-injection, not a wall against local disk-write attackers. Benchmark SLO re-baseline is owned by the `wicked-garden:platform:gate-benchmark-rebaseline` skill.
 
 ## Re-evaluation Artifacts
 
