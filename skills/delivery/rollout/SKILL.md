@@ -177,10 +177,10 @@ Gracefully degrades to manual procedures when capabilities unavailable.
 **With native tasks**: Tracks rollout progress per stage via TaskCreate/TaskUpdate with `metadata.event_type="task"`
 **With qe**: Uses test scenarios for validation
 **With wicked-garden:mem**: Recalls past rollout learnings
-**With wicked-garden:delivery:analyze**: Uses experiment results for confidence
+**With wicked-garden:delivery:experiment**: Uses experiment results for confidence
 
 ## See Also
 
 - [strategies-core.md](refs/strategies-core.md) and [strategies-operations.md](refs/strategies-operations.md) - Detailed rollout strategies
 - `/wicked-garden:delivery:design` - Design experiments
-- `/wicked-garden:delivery:analyze` - Analyze results before rollout
+- `/wicked-garden:delivery:experiment` - Analyze results before rollout

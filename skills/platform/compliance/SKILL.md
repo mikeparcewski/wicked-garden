@@ -37,7 +37,7 @@ See [refs/frameworks.md](refs/frameworks.md) for detailed framework requirements
 ## Commands
 
 ```bash
-/wicked-garden:platform:check [--framework soc2|hipaa|gdpr|pci] [--quick]
+/wicked-garden:platform:compliance [--framework soc2|hipaa|gdpr|pci] [--quick]
 ```
 
 ## Analysis Process

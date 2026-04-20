@@ -125,7 +125,7 @@ phases/clarify/complexity.md containing:
 ```
 
 **With wicked-search available**:
-- Dispatches to `/wicked-garden:search:research "OAuth2 implementation patterns passport.js"`
+- Dispatches to `/wicked-garden:search:code "OAuth2 implementation patterns passport.js"`
 - Finds existing auth patterns in codebase
 
 **Without wicked-search (standalone)**:

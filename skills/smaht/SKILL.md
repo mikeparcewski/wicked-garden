@@ -58,7 +58,6 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 ## Sub-Skills
 
 - [discovery/SKILL.md](discovery/SKILL.md) — Integration discovery and adapter configuration
-- [synthesize/SKILL.md](synthesize/SKILL.md) — Agentic synthesis for complex/risky prompts
 
 ## v5 → v6 Notes
 

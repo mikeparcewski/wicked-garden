@@ -83,7 +83,7 @@ The artifact registry is the authoritative record of what evidence was captured.
   "schema_version": "1.0",
   "scenario_slug": "kebab-case-scenario-name",
   "created_at": "ISO 8601 timestamp",
-  "executor": "wicked-garden:qe:acceptance-test-executor",
+  "executor": "wicked-garden:qe:test-designer",
   "artifacts": [
     {
       "id": "step-N-output",

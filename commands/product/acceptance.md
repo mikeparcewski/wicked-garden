@@ -218,7 +218,7 @@ timeout: 60
 
 Acceptance criteria feed into:
 ```bash
-/wicked-garden:qe:analyze --gate strategy
+/wicked-garden:qe:qe --gate strategy
 ```
 
 QE uses AC to:
