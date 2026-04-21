@@ -60,15 +60,20 @@ _PROBE_TIMEOUT_S = 3
 def is_version_in_range(installed: str, pin: str) -> bool:
     """Evaluate a caret semver range.
 
-    Supports caret range only: "^X.Y.Z" means:
-      - X > 0:  >=X.Y.Z and <(X+1).0.0
-      - X == 0: >=0.Y.Z and <0.(Y+1).0
+    Supports:
+      - "*" wildcard: accepts any non-empty installed version string.
+      - Caret range "^X.Y.Z":
+        - X > 0:  >=X.Y.Z and <(X+1).0.0
+        - X == 0: >=0.Y.Z and <0.(Y+1).0
 
-    Prerelease tags (e.g. "0.1.1-beta.1") are rejected — strip the prerelease
-    suffix from installed before the numeric comparison.
+    Prerelease tags (e.g. "0.1.1-beta.1") are rejected for caret ranges —
+    strip the prerelease suffix from installed before the numeric comparison.
 
     Returns False for any malformed input.
     """
+    if pin == "*":
+        return bool(installed)
+
     if not pin.startswith("^"):
         return False
 

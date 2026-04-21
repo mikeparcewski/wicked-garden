@@ -1,5 +1,11 @@
 # Changelog
 
+## [7.1.1] - UNRELEASED
+
+### Bug Fixes
+
+- **fix(wicked-testing-probe)**: Relax `wicked_testing_version` pin to `"*"` so the probe no longer blocks crew commands when `npx wicked-testing --version` emits installer output rather than a plain semver string. `is_version_in_range` now short-circuits on the `"*"` wildcard before the caret parser. Marketplace version re-synced from 6.3.6 to 7.1.1 (was stale on the v6 line).
+
 ## [7.1.0] - UNRELEASED
 
 v7.1 completes the QE extraction by removing all deprecated surfaces (agents, skills, commands) and landing the deferred v7.0.1 backward-compat reader removal. wicked-testing remains a required peer plugin, unchanged from v7.0.
