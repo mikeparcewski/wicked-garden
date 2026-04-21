@@ -46,7 +46,7 @@ import json, re, sys
 data = json.load(open('.claude-plugin/plugin.json'))
 field = data.get('wicked_testing_version')
 if field is None:
-    print('ERROR: plugin.json missing required field: wicked_testing_version (expected a semver range string, e.g. \"^0.1.0\")')
+    print('ERROR: plugin.json missing required field: wicked_testing_version (expected a semver range string, e.g. \"^0.2.0\")')
     sys.exit(1)
 if not isinstance(field, str):
     print(f'ERROR: plugin.json wicked_testing_version must be a string, got {type(field).__name__}')
@@ -72,7 +72,7 @@ import json, re, sys
 data = json.load(open('.claude-plugin/plugin.json'))
 field = data.get('wicked_testing_version')
 if field is None:
-    print('ERROR: plugin.json missing required field: wicked_testing_version (expected a semver range string, e.g. \"^0.1.0\")')
+    print('ERROR: plugin.json missing required field: wicked_testing_version (expected a semver range string, e.g. \"^0.2.0\")')
     sys.exit(1)
 if not isinstance(field, str):
     print('ERROR: plugin.json wicked_testing_version must be a string')

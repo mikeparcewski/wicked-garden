@@ -385,11 +385,11 @@ This applies to ALL commands that use `AskUserQuestion`: setup, delivery/setup, 
 
 ## wicked-brain
 
-Digital brain: **wicked-garden** | 9,352 indexed items | 9,352 chunks, 0 wiki articles, 0 memories | server port 4243
+Digital brain: **wicked-garden** | 11,269 indexed items | 11,208 chunks, 23 wiki articles, 15 memories | server port 4243
 
-**Domain expertise:** review, integration, requirements, architecture, analysis, evidence, context, patterns, quality, documentation, scenarios, agents, acceptance, system, criteria, structure
+**Domain expertise:** wicked-garden, crew, design, review, test, search, code, scripts, data, analysis, patterns, context
 
-**Knowledge gaps:** none recorded yet (fresh ingest — gaps will be logged as `search_miss` entries on unanswered queries)
+**Knowledge gaps:** none recorded yet — gaps are logged as `search_miss` entries in `_meta/log.jsonl` on unanswered queries
 
 **Linked brains:** none (sibling `wicked-bus` brain lives at `~/.wicked-brain/projects/wicked-bus` on port 4242 but is not linked)
 

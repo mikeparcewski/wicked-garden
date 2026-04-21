@@ -140,11 +140,11 @@ npx wicked-testing --version 2>/dev/null || echo "MISSING"
   - If user selects install: Run `npx wicked-testing install` via Bash. On success, re-probe with `npx wicked-testing --version` and confirm the installed version. On failure, show the error output and exit setup with instructions to install manually.
   - If user exits: Stop setup. Show: "Run `npx wicked-testing install` then restart with `/wicked-garden:setup`."
 
-- If output is a version string (e.g. `0.1.2`): Parse the version. Check it satisfies `^0.1.0` (the pin from `plugin.json`).
+- If output is a version string (e.g. `0.2.1`): Parse the version. Check it satisfies `^0.2.0` (the pin from `plugin.json`).
   - **In range**: Show "wicked-testing {version} — ready." and continue.
   - **Out of range**: Show a warning:
     ```
-    wicked-testing {version} is outside the supported range (^0.1.0).
+    wicked-testing {version} is outside the supported range (^0.2.0).
     Update with: npx wicked-testing install
     ```
     Ask whether to update now (same INTERACTIVE / PLAIN_TEXT pattern as the missing case). Updating is strongly recommended but not a hard block at setup time — the SessionStart hook will continue to warn each session.

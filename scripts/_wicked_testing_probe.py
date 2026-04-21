@@ -145,7 +145,7 @@ def read_pin_from_plugin_json(plugin_json_path: str) -> str:
     if value is None:
         raise ValueError(
             f"plugin.json missing wicked_testing_version field ({plugin_json_path}). "
-            "Add: \"wicked_testing_version\": \"^0.1.0\""
+            "Add: \"wicked_testing_version\": \"^0.2.0\""
         )
     if not isinstance(value, str):
         raise ValueError(

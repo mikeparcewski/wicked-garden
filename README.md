@@ -40,11 +40,11 @@ v6 leans hard on Claude Code's native surface — it doesn't replace Claude's pr
 
 - **Python 3.9+** — required for hook scripts and storage layer
 - **Node.js 18+** — required for wicked-testing
-- **[wicked-testing](https://github.com/mikeparcewski/wicked-testing) `^0.1`** — required peer plugin; QE behavior lives here in v7.0+
+- **[wicked-testing](https://github.com/mikeparcewski/wicked-testing) `^0.2`** — required peer plugin; QE behavior lives here in v7.0+
 
 ### Version pinning policy
 
-`plugin.json:wicked_testing_version` pins a caret-range (`^0.1.0` for v7.0.x). Patch releases are backward-compatible bug fixes — always drop-in. Minor releases may add new Tier-1 agents (additive only) — compatible for consumers, no wicked-garden changes needed. A wicked-testing major bump requires wicked-garden to update its pin, coordinated with the next wicked-garden major release. See [INTEGRATION.md §8](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/INTEGRATION.md#8-version--compatibility) for the full policy.
+`plugin.json:wicked_testing_version` pins a caret-range (`^0.2.0` for v7.1.x). Patch releases are backward-compatible bug fixes — always drop-in. Minor releases may add new Tier-1 agents (additive only) — compatible for consumers, no wicked-garden changes needed. A wicked-testing major bump requires wicked-garden to update its pin, coordinated with the next wicked-garden major release. See [INTEGRATION.md §8](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/INTEGRATION.md#8-version--compatibility) for the full policy.
 
 ## Quick Start
 
@@ -192,7 +192,7 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 ## Troubleshooting
 
 - **wicked-testing not installed** — test and review phases will fail with "unknown subagent_type: wicked-testing:xxx". Run `npx wicked-testing install`, then confirm with `npx wicked-testing status`. See the [wicked-garden integration guide](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/WICKED-GARDEN.md) for full migration steps.
-- **Version mismatch** — wicked-garden `^7.0` requires wicked-testing `^0.1`. The SessionStart hook warns if the installed version falls outside the pinned range in `plugin.json`.
+- **Version mismatch** — wicked-garden `^7.1` requires wicked-testing `^0.2`. The SessionStart hook warns if the installed version falls outside the pinned range in `plugin.json`.
 - **Gate returns empty verdicts** — wicked-bus may not be running. wicked-bus is optional but wicked-garden's crew gate subscribes to `wicked.verdict.recorded` to advance phases. Run `npx wicked-bus status`.
 - **Node.js not installed** — `npx wicked-testing install` requires Node.js 18 or later. Download and install from [nodejs.org](https://nodejs.org), then re-run the install command.
 - **npm/npx auth failure during install** — common causes: corporate npm proxy not configured, VPN blocking the registry, or a stale `~/.npmrc` auth token. Fix: run `npm config get registry` to verify the registry URL, clear the token with `npm logout`, and re-run. If behind a proxy, set `npm config set proxy http://your-proxy` first.

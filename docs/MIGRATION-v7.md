@@ -35,7 +35,7 @@ Update before v7.1 to avoid broken commands.
 
 ## Version Compatibility
 
-wicked-garden `^7.0` requires wicked-testing `^0.1`. The `wicked_testing_version`
+wicked-garden `^7.1` requires wicked-testing `^0.2`. The `wicked_testing_version`
 field in `plugin.json` carries the pinned range. The SessionStart hook reads the
 installed version and warns each session if it falls outside the range.
 
@@ -77,7 +77,7 @@ v6.x ships its own QE layer and does not require wicked-testing.
 - **"unknown subagent_type: wicked-testing:xxx"** — wicked-testing is not
   installed. Run `npx wicked-testing install`.
 - **Version mismatch warning at session start** — installed version is outside
-  `^0.1.0`. Run `npx wicked-testing install` to update.
+  `^0.2.0`. Run `npx wicked-testing install` to update.
 - **Empty gate verdicts** — wicked-bus may not be running. wicked-garden's crew
   gate subscribes to `wicked.verdict.recorded`. Run `npx wicked-bus status`.
 - **Old `/wicked-garden:qe:*` commands missing** — you are on v7.1+; aliases
