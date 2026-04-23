@@ -89,3 +89,25 @@ def test_completion_handles_missing_phase_state():
     is_complete, remaining = compute_project_completion(state)
     assert is_complete is False
     assert remaining == ["build"]
+
+
+def test_completion_treats_skipped_as_terminal():
+    """Copilot #568 review: 'skipped' phases satisfy completion alongside 'approved'."""
+    state = _state(
+        ["clarify", "design", "build"],
+        {"clarify": "approved", "design": "skipped", "build": "approved"},
+    )
+    is_complete, remaining = compute_project_completion(state)
+    assert is_complete is True
+    assert remaining == []
+
+
+def test_completion_skipped_first_then_remaining():
+    """A skipped phase doesn't appear as remaining; pending later phases still do."""
+    state = _state(
+        ["clarify", "design", "build"],
+        {"clarify": "skipped", "design": "approved", "build": "pending"},
+    )
+    is_complete, remaining = compute_project_completion(state)
+    assert is_complete is False
+    assert remaining == ["build"]
