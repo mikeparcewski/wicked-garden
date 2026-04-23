@@ -3697,6 +3697,59 @@ def get_phase_status_summary(state: ProjectState) -> Dict[str, str]:
     return summary
 
 
+def get_phase_spec(phase_name: str) -> Dict[str, Any]:
+    """Return a structured phase specification suitable for --json inspection.
+
+    Aggregates phases.json + gate-policy.json into a single read-only view so
+    callers can decide what to attempt before attempting it (issue #566).
+    Never mutates state; purely derives from config files.
+    """
+    resolved = resolve_phase(phase_name)
+    phases_cfg = load_phases_config()
+    phase_cfg = phases_cfg.get(resolved, {})
+
+    gate_name = _gate_name_for_phase(resolved)
+    gate_policy = _load_gate_policy() if phase_cfg.get("gate_required") else {}
+    gate_tiers = (gate_policy.get("gates", {}) or {}).get(gate_name, {}) if gate_policy else {}
+
+    # Surface reviewers per rigor tier when a gate is declared.
+    gate_by_tier: Dict[str, Dict[str, Any]] = {}
+    for tier, entry in gate_tiers.items():
+        if not isinstance(entry, dict):
+            continue
+        gate_by_tier[tier] = {
+            "reviewers": list(entry.get("reviewers", [])),
+            "mode": entry.get("mode"),
+            "fallback": entry.get("fallback"),
+            "min_score": entry.get("min_score"),
+        }
+
+    return {
+        "phase": resolved,
+        "known": bool(phase_cfg),
+        "description": phase_cfg.get("description"),
+        "is_skippable": phase_cfg.get("is_skippable", True),
+        "skip_complexity_threshold": phase_cfg.get("skip_complexity_threshold"),
+        "valid_skip_reasons": list(phase_cfg.get("valid_skip_reasons", [])),
+        "gate_required": phase_cfg.get("gate_required", False),
+        "gate_name": gate_name if phase_cfg.get("gate_required") else None,
+        "gate_type": phase_cfg.get("gate_type"),
+        "min_gate_score": phase_cfg.get("min_gate_score"),
+        "min_test_coverage": phase_cfg.get("min_test_coverage"),
+        "required_deliverables": get_required_deliverables(resolved),
+        "optional_deliverables": list(phase_cfg.get("optional_deliverables", [])),
+        "depends_on": list(phase_cfg.get("depends_on", [])),
+        "triggers": list(phase_cfg.get("triggers", [])),
+        "specialists": list(phase_cfg.get("specialists", [])),
+        "required_specialists": list(phase_cfg.get("required_specialists", [])),
+        "fallback_agent": phase_cfg.get("fallback_agent"),
+        "checkpoint": phase_cfg.get("checkpoint", False),
+        "conditions_manifest_required": phase_cfg.get("conditions_manifest_required", False),
+        "phase_executor_may_delegate": phase_cfg.get("phase_executor_may_delegate", False),
+        "gate_policy": gate_by_tier,
+    }
+
+
 def compute_project_completion(state: ProjectState) -> Tuple[bool, List[str]]:
     """Return (is_complete, remaining_phases).
 
@@ -4580,7 +4633,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode", "phase-spec"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -4665,7 +4718,7 @@ def main():
             sys.exit(1)
 
     state = load_project_state(args.project)
-    if not state and args.action not in ("status", "create"):
+    if not state and args.action not in ("status", "create", "phase-spec"):
         print(json.dumps({"ok": False, "error": f"Project not found: {args.project}"}) if args.json else f"Project not found: {args.project}")
         return
 
@@ -4682,6 +4735,40 @@ def main():
                 return
         except (json.JSONDecodeError, OSError):
             pass  # fail open: invalid project state skipped
+
+    if args.action == "phase-spec":
+        # Read-only config inspector — derives entirely from
+        # phases.json + gate-policy.json. Does not require project state.
+        phase = args.phase or state.current_phase if state else args.phase
+        if not phase:
+            msg = "Error: --phase is required for phase-spec (no current project to infer from)"
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr if not args.json else sys.stdout)
+            sys.exit(1)
+        spec = get_phase_spec(phase)
+        if args.json:
+            print(json.dumps(spec, indent=2))
+        else:
+            print(f"Phase: {spec['phase']}")
+            if not spec["known"]:
+                print("  (unknown phase — not defined in phases.json)")
+            print(f"  description: {spec.get('description') or '(none)'}")
+            print(f"  is_skippable: {spec['is_skippable']}")
+            if spec["skip_complexity_threshold"] is not None:
+                print(f"  skip_complexity_threshold: {spec['skip_complexity_threshold']}")
+            if spec["valid_skip_reasons"]:
+                print(f"  valid_skip_reasons: {', '.join(spec['valid_skip_reasons'])}")
+            print(f"  gate_required: {spec['gate_required']}")
+            if spec["gate_required"]:
+                print(f"  gate_name: {spec['gate_name']}")
+                print(f"  min_gate_score: {spec['min_gate_score']}")
+            if spec["min_test_coverage"] is not None:
+                print(f"  min_test_coverage: {spec['min_test_coverage']}")
+            if spec["required_deliverables"]:
+                files = ", ".join(d["file"] for d in spec["required_deliverables"])
+                print(f"  required_deliverables: {files}")
+            if spec["depends_on"]:
+                print(f"  depends_on: {', '.join(spec['depends_on'])}")
+        return
 
     if args.action == "status":
         if not state:
