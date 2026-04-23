@@ -32,6 +32,31 @@ REQUIRED_TASK_METADATA_KEYS = {
     "chain_id", "event_type", "source_agent", "phase", "rigor_tier",
 }
 
+# Issue #563: every violation cites this doc so callers don't have to grep
+# to find the authoritative schema.
+SCHEMA_DOC = "skills/propose-process/refs/output-schema.md"
+
+# Per-section anchors within SCHEMA_DOC. Key is the violation-message prefix
+# (the text before ' — ', with [] / . suffixes stripped).
+_SECTION_ANCHORS = {
+    "top-level": "§ Required vs. optional fields",
+    "factors": "§ Schema — factors block",
+    "specialists": "§ Schema — specialists",
+    "phases": "§ Schema — phases",
+    "tasks": "§ Schema — tasks",
+    "rigor_tier": "§ rigor_tier enum (minimal|standard|full)",
+    "complexity": "§ complexity bounds (0..7)",
+}
+
+
+def _schema_pointer_for(violation: str) -> str:
+    """Return a 'See: <doc> § <anchor>' hint for a given violation message."""
+    head = violation.split(" — ", 1)[0]
+    # Strip index / dotted suffix so "tasks[0].metadata" → "tasks".
+    section = head.split(".", 1)[0].split("[", 1)[0]
+    anchor = _SECTION_ANCHORS.get(section, "")
+    return f"See: {SCHEMA_DOC}" + (f" {anchor}" if anchor else "")
+
 
 def _check_top_level(plan: dict, violations: list) -> None:
     missing = REQUIRED_TOP_LEVEL_KEYS - plan.keys()
@@ -280,6 +305,7 @@ def main() -> None:
     if violations:
         for v in violations:
             sys.stderr.write(f"ERROR: {path} — {v}\n")
+            sys.stderr.write(f"  {_schema_pointer_for(v)}\n")
         sys.exit(1)
 
     sys.exit(0)
