@@ -1,5 +1,24 @@
 # Changelog
 
+## [7.2.0] - UNRELEASED
+
+Six crew-path fixes surfaced by an agent dogfooding `/wicked-garden:crew:*` on a real delivery (issues #561–#566). Each is filed as a GitHub issue with the reporter's verbatim feedback; this release closes all six with targeted fixes and 46 new regression tests covering the corrected behavior and the invariant checks added in response to gemini + Copilot PR review.
+
+### Bug Fixes
+
+- **fix(#561) `specialist_discovery.py --json` stdout contract**: Moved `logging.basicConfig` out of module import and into `main()`; `--json` now raises log level to `WARNING` and pins `stream=sys.stderr` so INFO chatter never leaks onto stdout (stream-merge safe). Removes the import-time side effect that forced logging config on library consumers.
+- **fix(#562) "Project complete!" misleading message**: `phase_manager approve` / `advance` only print "Project complete!" when `compute_project_completion(state)` returns True. Skipped phases count as terminal alongside approved (matches `can_transition`). `--json` output gains `is_complete` and `remaining_phases` so callers don't re-derive.
+
+### Features
+
+- **feat(#564) per-project gate dispatch overrides**: Precedence `state.extras.gate_overrides[gate_name]` > `gate_overrides["*"]` > `gate_method` > `gate-policy.json` default. Unknown modes, invariant-violating combinations (council with <2 reviewers, sequential with 0) log a WARN and revert to the policy default — project metadata can't silently corrupt dispatch. Wildcard and specific overrides layer field-by-field so a partial specific can extend wildcard defaults.
+- **feat(#565) adopt-clarify fast-path**: `phase_manager.py <project> adopt-clarify --from <memo> [--memo-as <label>]` writes clarify deliverables from a source design memo with `adopted_from` provenance frontmatter and records a re-eval addendum citing the memo. User-confirm pause preserved — adoption does NOT auto-approve. Refuses missing/empty memo, clobbered files without `--force`, skipped/approved clarify, current_phase past clarify, and materializes a missing `PhaseState` on demand for legacy projects.
+- **feat(#566) `phase-spec` inspector**: `phase_manager.py <project> phase-spec --phase <name> [--json]` returns a read-only structured view of `phases.json` + `gate-policy.json` for the phase: `is_skippable`, `skip_complexity_threshold`, `valid_skip_reasons`, `gate_required`, `gate_name`, `min_gate_score`, `required_deliverables`, `depends_on`, `gate_policy` keyed by rigor tier. Works without a loaded project.
+
+### Documentation
+
+- **docs(#563) validator errors cite schema docs**: `validate_plan.py` emits `See: skills/propose-process/refs/output-schema.md § <anchor>` under every violation, with per-section anchors for top-level / factors / specialists / phases / tasks / rigor_tier / complexity. `GateResultSchemaError` gains a `schema_doc` attribute and `str(exc)` self-cites the schema source of truth.
+
 ## [7.1.1] - UNRELEASED
 
 ### Bug Fixes
