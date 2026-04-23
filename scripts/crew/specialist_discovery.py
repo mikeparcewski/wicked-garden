@@ -23,16 +23,14 @@ this module, so the circular-dependency hazard is gone.
 import json
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Logger only — handler/level configured in main() so library imports don't
+# force logging config on callers and --json stays parseable on stdout.
 logger = logging.getLogger('wicked-crew.specialist-discovery')
 
 # Cache configuration
@@ -489,6 +487,14 @@ def main():
     parser.add_argument("--path", type=Path, action="append", help="Additional search path")
 
     args = parser.parse_args()
+
+    # --json contract: exactly one parseable JSON object on stdout. Raise the
+    # log level so the INFO chatter doesn't leak when callers merge streams.
+    logging.basicConfig(
+        level=logging.WARNING if args.json else logging.INFO,
+        stream=sys.stderr,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    )
 
     search_paths = get_default_search_paths()
     if args.path:
