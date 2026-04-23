@@ -3835,6 +3835,155 @@ def get_phase_spec(phase_name: str) -> Dict[str, Any]:
     }
 
 
+def adopt_clarify_from_memo(
+    state: ProjectState,
+    memo_path: Path,
+    *,
+    memo_as: str = "deliberation",
+    force: bool = False,
+) -> Dict[str, Any]:
+    """Clone a design memo into clarify's required deliverables (issue #565).
+
+    When the substantive clarify+design work already happened in a document,
+    this action writes phase-local stub deliverables that cite the memo as
+    the source of truth. The user-confirm pause is preserved — this does NOT
+    approve the phase; the caller still runs `approve --phase clarify`.
+
+    Args:
+        state:     Project state (must be at clarify phase).
+        memo_path: Path to the memo file (absolute or relative to CWD).
+        memo_as:   Provenance label written into addendum and deliverable frontmatter.
+                   Caller-visible hint about why the memo satisfies clarify.
+        force:     If True, overwrite existing deliverable files. Default False
+                   means a prior deliverable file causes an error so the user
+                   doesn't accidentally clobber their own work.
+
+    Returns:
+        Dict with keys: adopted_deliverables, memo, addendum_written.
+
+    Raises:
+        ValueError: Memo unreadable/empty, project not at clarify phase, or
+                    existing deliverables would be clobbered without --force.
+    """
+    clarify_phase = state.phases.get("clarify")
+    if clarify_phase is None or clarify_phase.status == "approved":
+        raise ValueError(
+            "adopt-clarify requires clarify to be pending or in_progress; "
+            f"current status is {clarify_phase.status if clarify_phase else 'missing'}."
+        )
+
+    if not memo_path.exists() or not memo_path.is_file():
+        raise ValueError(f"Memo not found: {memo_path}")
+    try:
+        memo_text = memo_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"Memo unreadable: {memo_path} — {exc}")
+    if not memo_text.strip():
+        raise ValueError(f"Memo is empty: {memo_path}")
+
+    project_dir = get_project_dir(state.name)
+    phase_dir = project_dir / "phases" / "clarify"
+    phase_dir.mkdir(parents=True, exist_ok=True)
+
+    deliverables = get_required_deliverables("clarify")
+    adopted_at = get_utc_timestamp()
+    written: List[str] = []
+
+    # Check for clobbering before writing anything.
+    if not force:
+        existing = [
+            d["file"] for d in deliverables
+            if (phase_dir / d["file"]).exists() and (phase_dir / d["file"]).stat().st_size > 0
+        ]
+        if existing:
+            raise ValueError(
+                f"clarify deliverables already exist: {existing}. "
+                "Pass --force to overwrite (will preserve the memo as source of truth "
+                "but clobber your current files)."
+            )
+
+    # Compose each deliverable. Content must clear min_bytes; include an excerpt
+    # of the memo so the artifact is substantive, not a placeholder.
+    excerpt = memo_text[:2000]
+    excerpt_suffix = "\n\n… (truncated — see source memo)" if len(memo_text) > 2000 else ""
+    memo_ref = str(memo_path)
+
+    for deliverable in deliverables:
+        fname = deliverable["file"]
+        label_from_file = fname.removesuffix(".md").replace("-", " ").title()
+        frontmatter_lines = [
+            "---",
+            f"adopted_from: {memo_ref}",
+            f"adopted_at: {adopted_at}",
+            f"adopted_as: {fname.removesuffix('.md')}",
+            f"memo_as: {memo_as}",
+        ]
+        # acceptance-criteria.md declares case_count in its frontmatter contract.
+        if fname == "acceptance-criteria.md":
+            frontmatter_lines.append("case_count: TBD")
+        frontmatter_lines.append("---")
+
+        body = [
+            "",
+            f"# {label_from_file} (adopted from design memo)",
+            "",
+            f"**Source memo**: `{memo_ref}`  ",
+            f"**Adopted at**: {adopted_at}  ",
+            f"**Role**: {memo_as} — the memo captured the clarify deliberation; this file",
+            "is the phase-local pointer that satisfies the clarify deliverable contract",
+            "while preserving the memo as the authoritative source.",
+            "",
+            "## Excerpt",
+            "",
+            "> " + excerpt.replace("\n", "\n> ") + excerpt_suffix,
+            "",
+        ]
+        (phase_dir / fname).write_text("\n".join(frontmatter_lines) + "\n".join(body))
+        written.append(fname)
+
+    # Record the adoption as a re-eval addendum entry — the memo IS the
+    # deliberation evidence, and the addendum preserves that provenance.
+    try:
+        import reeval_addendum
+        rigor_tier = (state.extras or {}).get("rigor_tier", "standard")
+        record = {
+            "chain_id": f"{state.name}.clarify",
+            "triggered_at": adopted_at,
+            "trigger": "adopt-clarify:memo-adoption",
+            "prior_rigor_tier": rigor_tier,
+            "new_rigor_tier": rigor_tier,
+            "mutations": [],
+            "mutations_applied": [],
+            "mutations_deferred": [],
+            "validator_version": "1.1.0",
+            "adoption_evidence": {
+                "memo": memo_ref,
+                "memo_as": memo_as,
+                "deliverables_written": written,
+            },
+        }
+        reeval_addendum.append(project_dir, phase="clarify", record=record)
+        addendum_written = True
+    except (ImportError, ValueError, OSError) as exc:
+        logger.warning(
+            "[adopt-clarify] addendum write failed (non-fatal): %s", exc
+        )
+        addendum_written = False
+
+    logger.info(
+        "[adopt-clarify] project '%s' adopted clarify deliverables from %s "
+        "(wrote %d files; user-confirm still required via `approve`).",
+        state.name, memo_ref, len(written),
+    )
+
+    return {
+        "adopted_deliverables": written,
+        "memo": memo_ref,
+        "memo_as": memo_as,
+        "addendum_written": addendum_written,
+    }
+
+
 def compute_project_completion(state: ProjectState) -> Tuple[bool, List[str]]:
     """Return (is_complete, remaining_phases).
 
@@ -4718,7 +4867,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode", "phase-spec"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode", "phase-spec", "adopt-clarify"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -4738,6 +4887,24 @@ def main():
     parser.add_argument("--description", default="", help="Project description (for create)")
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
     parser.add_argument("--to", default=None, help="Target dispatch mode for cutover (e.g. mode-3)")
+    parser.add_argument(
+        "--from",
+        dest="adopt_from",
+        default=None,
+        help="Memo path for adopt-clarify (design memo that captured the deliberation).",
+    )
+    parser.add_argument(
+        "--memo-as",
+        dest="memo_as",
+        default="deliberation",
+        help="Provenance label for adopt-clarify (default: 'deliberation').",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Overwrite existing deliverables during adopt-clarify.",
+    )
     parser.add_argument(
         "--yolo-action", dest="yolo_action",
         default=None, choices=["approve", "revoke", "status"],
@@ -4820,6 +4987,36 @@ def main():
                 return
         except (json.JSONDecodeError, OSError):
             pass  # fail open: invalid project state skipped
+
+    if args.action == "adopt-clarify":
+        if not args.adopt_from:
+            msg = "Error: adopt-clarify requires --from <memo-path>"
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr if not args.json else sys.stdout)
+            sys.exit(1)
+        try:
+            result = adopt_clarify_from_memo(
+                state,
+                Path(args.adopt_from),
+                memo_as=args.memo_as or "deliberation",
+                force=args.force,
+            )
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        save_project_state(state)
+        if args.json:
+            print(json.dumps({"ok": True, **result, "next_step": "approve --phase clarify"}, indent=2))
+        else:
+            print(f"Adopted clarify deliverables from: {result['memo']}")
+            print(f"  Wrote: {', '.join(result['adopted_deliverables'])}")
+            print(f"  Addendum written: {result['addendum_written']}")
+            print("")
+            print("Next: review the adopted files and run:")
+            print(f"  phase_manager.py {args.project} approve --phase clarify")
+        return
 
     if args.action == "phase-spec":
         # Read-only config inspector — derives entirely from
