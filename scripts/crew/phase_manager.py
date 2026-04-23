@@ -9,6 +9,7 @@ Handles:
 4. Project state persistence
 """
 
+import copy
 import json
 import logging
 import os
@@ -155,9 +156,11 @@ def _apply_project_gate_overrides(
       3. gate_method: "council"     legacy shorthand = gate_overrides["*"]["mode"]
 
     Unknown modes trigger a WARN and the override is ignored — issue #564's
-    "fail-loud" invariant. Returns a NEW dict; never mutates the input.
+    "fail-loud" invariant. Returns a NEW dict with deep-copied nested
+    containers (gemini #569 review) so caller mutations to e.g. reviewers
+    can never leak back into the gate-policy cache.
     """
-    result = dict(entry)
+    result = copy.deepcopy(entry)
     if state is None:
         return result
     extras = state.extras or {}
@@ -242,7 +245,7 @@ def _apply_project_gate_overrides(
             getattr(state, "name", "<unknown>"),
             gate_name, invariant_violation,
         )
-        return dict(entry)
+        return copy.deepcopy(entry)
 
     return result
 
@@ -5116,15 +5119,11 @@ def main():
         if args.json:
             # #494: include rigor_tier, complexity_score, is_complete in the
             # JSON payload so CLI consumers don't have to re-derive them.
-            # is_complete := every phase in phase_plan has status "approved".
+            # Copilot #569 review: is_complete must share one definition with
+            # approve/advance — route through compute_project_completion so
+            # 'skipped' phases count as terminal here too.
             phase_status_summary = get_phase_status_summary(state)
-            if state.phase_plan:
-                is_complete = all(
-                    phase_status_summary.get(resolve_phase(p)) == "approved"
-                    for p in state.phase_plan
-                )
-            else:
-                is_complete = False
+            is_complete, remaining_phases = compute_project_completion(state)
             summary = {
                 "name": state.name,
                 "current_phase": state.current_phase,
@@ -5137,6 +5136,7 @@ def main():
                 "complexity_score": state.complexity_score,
                 "rigor_tier": (state.extras or {}).get("rigor_tier"),
                 "is_complete": is_complete,
+                "remaining_phases": remaining_phases,
             }
             print(json.dumps(summary, indent=2))
         else:

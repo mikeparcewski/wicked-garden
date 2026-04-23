@@ -111,3 +111,34 @@ def test_completion_skipped_first_then_remaining():
     is_complete, remaining = compute_project_completion(state)
     assert is_complete is False
     assert remaining == ["build"]
+
+
+def test_status_json_uses_shared_completion_helper(tmp_path, monkeypatch, capsys):
+    """Copilot #569 review: `status --json` must use compute_project_completion
+    so is_complete has ONE definition across commands — previously it inlined
+    'all approved' which ignored skipped phases, making is_complete inconsistent
+    with approve/advance.
+    """
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    monkeypatch.setattr(phase_manager, "get_project_dir", lambda name: workdir)
+
+    state = _state(
+        ["clarify", "design", "build"],
+        {"clarify": "approved", "design": "skipped", "build": "approved"},
+    )
+    monkeypatch.setattr(phase_manager, "load_project_state", lambda name: state)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["phase_manager.py", "t", "status", "--json"],
+    )
+    try:
+        phase_manager.main()
+    except SystemExit:
+        pass
+    out = capsys.readouterr().out
+
+    import json as _json
+    data = _json.loads(out)
+    assert data["is_complete"] is True
+    assert data["remaining_phases"] == []

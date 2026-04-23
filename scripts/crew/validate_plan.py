@@ -50,12 +50,19 @@ _SECTION_ANCHORS = {
 
 
 def _schema_pointer_for(violation: str) -> str:
-    """Return a 'See: <doc> § <anchor>' hint for a given violation message."""
+    """Return a 'See: <doc> § <anchor>' hint for a given violation, or an
+    empty string for file-level failures where the schema doc isn't the
+    right reference (missing file, invalid JSON, non-object root).
+
+    Copilot #569 review: don't mislead the user by citing the schema doc
+    on errors whose fix is the file path or the JSON itself.
+    """
     head = violation.split(" — ", 1)[0]
     # Strip index / dotted suffix so "tasks[0].metadata" → "tasks".
     section = head.split(".", 1)[0].split("[", 1)[0]
-    anchor = _SECTION_ANCHORS.get(section, "")
-    return f"See: {SCHEMA_DOC}" + (f" {anchor}" if anchor else "")
+    if section not in _SECTION_ANCHORS:
+        return ""
+    return f"See: {SCHEMA_DOC} {_SECTION_ANCHORS[section]}"
 
 
 def _check_top_level(plan: dict, violations: list) -> None:
@@ -305,7 +312,9 @@ def main() -> None:
     if violations:
         for v in violations:
             sys.stderr.write(f"ERROR: {path} — {v}\n")
-            sys.stderr.write(f"  {_schema_pointer_for(v)}\n")
+            pointer = _schema_pointer_for(v)
+            if pointer:
+                sys.stderr.write(f"  {pointer}\n")
         sys.exit(1)
 
     sys.exit(0)

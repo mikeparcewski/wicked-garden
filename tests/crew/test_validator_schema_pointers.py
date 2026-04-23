@@ -54,10 +54,13 @@ def test_validate_plan_tasks_pointer_strips_index_suffix():
     assert "tasks" in ptr.lower()
 
 
-def test_validate_plan_unknown_section_still_returns_doc():
-    """Even an unrecognized section gets the top-level doc pointer (no anchor)."""
-    ptr = validate_plan._schema_pointer_for("newthing — invalid")
-    assert validate_plan.SCHEMA_DOC in ptr
+def test_validate_plan_file_level_errors_return_empty_pointer():
+    """Copilot #569 review: file-level failures (invalid JSON, missing file)
+    and unknown sections return empty so the CLI doesn't misleadingly cite
+    a schema doc whose fix is elsewhere."""
+    assert validate_plan._schema_pointer_for("invalid JSON — Expecting value") == ""
+    assert validate_plan._schema_pointer_for("cannot read file — Permission denied") == ""
+    assert validate_plan._schema_pointer_for("newthing — invalid") == ""
 
 
 # ---------------------------------------------------------------------------
