@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.2.1] - UNRELEASED
+
+Council roster expansion. Adds four new external LLM CLIs to `/wicked-garden:jam:council` and refreshes Pi to match its current CLI (the retired Inflection `pi-mono` is gone; the current `pi` is `@mariozechner/pi-coding-agent` on npm). Pure documentation + discovery change — no behavior change for existing single-CLI paths.
+
+### Features
+
+- **feat(jam:council) roster expansion**: `agents/jam/council.md` now detects `aider`, `llm`, `aichat`, and `goose` in addition to the existing `codex`, `copilot`, `gemini`, `opencode`, and `pi`. Per-CLI dispatch recipes landed for each new member, chosen to respect each tool's idiomatic invocation: `aider --message-file` with `--no-git --yes-always --no-auto-commits` for read-only one-shot; `cat scaffold | llm` / `| aichat -S` for pipe-native aggregators; `cat scaffold | goose run -i -` with `--system` for agentic framing.
+- **feat(skills/multi-model) refs**: Added `refs/aider.md`, `refs/llm.md`, `refs/aichat.md`, `refs/goose.md` with install, invocation, council role, strengths, flag reference, and caveats per CLI.
+
+### Documentation
+
+- **docs(skills/multi-model/refs/pi.md)**: Install source changed from `brew install pi-mono` to `npm install -g @mariozechner/pi-coding-agent`. Invocation updated from `pi exec` to `pi -p … @file`. Options reference rewritten to match the actual CLI (provider/model/thinking flags, `@file` attach syntax). Role framing loosened — Pi is now provider-configurable so its "voice" depends on which model is selected.
+- **docs(skills/multi-model/SKILL.md)**: Supported-CLIs table expanded to nine entries; discovery `which` line updated; dispatch diagram updated with new pipe recipes; refs section lists all nine providers.
+
 ## [7.2.0] - UNRELEASED
 
 Six crew-path fixes surfaced by an agent dogfooding `/wicked-garden:crew:*` on a real delivery (issues #561–#566). Each is filed as a GitHub issue with the reporter's verbatim feedback; this release closes all six with targeted fixes and 46 new regression tests covering the corrected behavior and the invariant checks added in response to gemini + Copilot PR review.

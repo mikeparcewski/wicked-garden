@@ -1,7 +1,8 @@
 # Pi CLI — Usage Patterns
 
-Inflection Pi-Mono CLI for conversational reasoning and multi-model collaboration.
-Pi excels at empathetic perspective-taking, nuanced reasoning, and user-focused analysis.
+`pi` is a coding-agent CLI (`@mariozechner/pi-coding-agent` on npm). Configurable across Google, OpenAI, Anthropic, and more; works as a council member via non-interactive `-p` mode with `@file` attachments.
+
+> **Note:** This is *not* the retired Inflection Pi-Mono CLI. That project ended; `pi` today is Mario Zechner's coding agent.
 
 ## Installation and Setup
 
@@ -9,29 +10,43 @@ Pi excels at empathetic perspective-taking, nuanced reasoning, and user-focused 
 # Check if installed
 which pi
 
-# Install
-brew install pi-mono  # or see https://github.com/inflection-ai/pi-mono
+# Install (npm global)
+npm install -g @mariozechner/pi-coding-agent
 
-# Set API key
-export PI_API_KEY="your-key"  # https://developers.inflection.ai
+# Configure provider — picks Google by default
+# Set provider API keys as env vars
+export GEMINI_API_KEY="..."       # default provider
+export OPENAI_API_KEY="..."
+export ANTHROPIC_API_KEY="..."
+
+# Override default provider/model per call
+pi --provider anthropic --model claude-sonnet-4-5 "..."
+pi --model openai/gpt-4o "..."
+pi --model sonnet:high "..."      # thinking-level shorthand
 ```
 
 ## Core Usage Patterns
 
-### Non-Interactive (exec)
+### Non-Interactive (`-p` / `--print`)
 
 ```bash
 # Simple query
-pi exec "Evaluate this user onboarding flow for clarity and warmth"
+pi -p "Evaluate this user onboarding flow for clarity and warmth"
 
-# With file context (pipe content)
-cat src/emails/welcome.md | pi exec "Review this welcome email for tone and empathy"
+# Attach files via @file syntax
+pi -p "Review this welcome email for tone and empathy" @src/emails/welcome.md
 
-# Specific model
-pi exec -m pi-3.5 "Analyze the trade-offs between these two approaches" < options.md
+# Multiple attachments
+pi -p "Answer the 4 questions in the attached scaffold." @scaffold.md
 
-# With file flag
-pi exec -f design.md "How will users experience this change?"
+# Specific provider + model
+pi --provider anthropic --model claude-sonnet-4-5 -p "Analyze trade-offs" @options.md
+
+# Thinking level
+pi --thinking high -p "Solve this complex decision" @context.md
+
+# Ephemeral — do not save session
+pi --no-session -p "One-off question" @scaffold.md
 ```
 
 ### Interactive Session
@@ -41,38 +56,42 @@ pi exec -f design.md "How will users experience this change?"
 pi
 
 # Start with initial prompt
-pi -i "Let's discuss the user experience implications of this design"
+pi "Let's discuss the user experience implications of this design"
 
-# Resume previous session
-pi resume --last
+# Continue previous session
+pi --continue "What did we decide?"
+
+# Select a session to resume
+pi --resume
 ```
 
 ### Decision Evaluation
 
 ```bash
 # Human factors analysis
-cat decision.md | pi exec "What are the human factors in this technical decision?"
+pi -p "What are the human factors in this technical decision?" @decision.md
 
 # Communication review
-cat announcement.md | pi exec "How will different stakeholders interpret this announcement?"
+pi -p "How will different stakeholders interpret this announcement?" @announcement.md
 
 # User journey review
-cat flows/checkout.md | pi exec "Where will users get confused or frustrated?"
+pi -p "Where will users get confused or frustrated?" @flows/checkout.md
 ```
 
 ## Pi's Distinct Role in Multi-Model Sessions
 
-Pi provides a perspective that technical-first models often miss: the human and empathetic angle.
+Pi is configurable across providers, so its "voice" depends on which model is selected. When pointed at a capable conversational model, it contributes empathetic perspective-taking and stakeholder framing — a useful counterweight to the code-editor framing of `aider` or the architectural framing of `codex`.
 
 ```bash
-# Technical review: Codex + Claude cover code quality
+# Technical review via codex
 cat src/auth.py | codex exec "Technical security review"
 
-# User impact review: Pi covers human factors
-cat src/auth.py | pi exec "How will error states and edge cases affect the user experience?"
+# Human-factor framing via pi (anthropic Sonnet)
+pi --provider anthropic --model claude-sonnet-4-5 -p \
+  "How will error states and edge cases affect the user experience?" @src/auth.py
 
-# Communication review: Pi evaluates tone
-cat docs/deprecation-notice.md | pi exec "Is this message clear and empathetic to affected users?"
+# Communication review via pi (google)
+pi -p "Is this message clear and empathetic to affected users?" @docs/deprecation-notice.md
 ```
 
 ## Strengths
@@ -127,16 +146,24 @@ TaskCreate(
 | Command | Description |
 |---------|-------------|
 | `pi [PROMPT]` | Interactive session |
-| `pi exec PROMPT` | Non-interactive, one-shot |
-| `pi resume` | Resume previous session |
+| `pi -p PROMPT` | Non-interactive, one-shot |
+| `pi -p PROMPT @FILE` | Non-interactive with file attached |
+| `pi --continue` | Continue previous session |
+| `pi --resume` | Select a session to resume |
 
 ## Options Reference
 
 | Option | Description |
 |--------|-------------|
-| `-m MODEL` | Model: `pi-3.5`, `pi-3` |
-| `-i PROMPT` | Start interactive with initial prompt |
-| `-f FILE` | Attach file to prompt |
+| `-p`, `--print` | Non-interactive mode |
+| `--provider NAME` | `google` (default), `openai`, `anthropic`, `github-copilot`, etc. |
+| `--model PATTERN` | e.g. `claude-sonnet-4-5`, `openai/gpt-4o`, `sonnet:high` |
+| `--thinking LEVEL` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `--system-prompt TEXT` | Override default system prompt |
+| `--append-system-prompt TEXT` | Append to default system prompt |
+| `--no-tools` | Disable tool use (pure Q&A) |
+| `--no-session` | Do not persist this session |
+| `@FILE` | Attach file content to the message |
 
 ## Council Sessions
 
@@ -161,20 +188,17 @@ user empathy and human-centered design in a panel of technical perspectives:
 
 ```bash
 # Error message review
-cat src/errors.ts | pi exec "Are these error messages helpful and non-alarming for users?"
+pi -p "Are these error messages helpful and non-alarming for users?" @src/errors.ts
 
 # Onboarding flow
-cat docs/onboarding.md | pi exec "Where will new users get confused? What's missing?"
+pi -p "Where will new users get confused? What's missing?" @docs/onboarding.md
 
 # Technical decision — user impact
-cat decision.md | pi exec "What is the user impact of this technical choice? \
-  Who is most affected and how?"
+pi -p "What is the user impact of this technical choice? Who is most affected and how?" @decision.md
 
 # Stakeholder communication
-cat announcement.md | pi exec "How will engineers, managers, and end-users \
-  each interpret this announcement? What's unclear or alarming?"
+pi -p "How will engineers, managers, and end-users each interpret this announcement? What's unclear or alarming?" @announcement.md
 
 # Trade-off analysis
-cat options.md | pi exec "Analyze these options from a human perspective. \
-  Which is more intuitive? Which creates more user burden?"
+pi --thinking high -p "Analyze these options from a human perspective. Which is more intuitive? Which creates more user burden?" @options.md
 ```

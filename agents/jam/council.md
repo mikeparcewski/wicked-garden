@@ -54,6 +54,10 @@ which copilot 2>/dev/null && echo "copilot:available" || echo "copilot:missing"
 which gemini 2>/dev/null && echo "gemini:available" || echo "gemini:missing"
 which opencode 2>/dev/null && echo "opencode:available" || echo "opencode:missing"
 which pi 2>/dev/null && echo "pi:available" || echo "pi:missing"
+which aider 2>/dev/null && echo "aider:available" || echo "aider:missing"
+which llm 2>/dev/null && echo "llm:available" || echo "llm:missing"
+which aichat 2>/dev/null && echo "aichat:available" || echo "aichat:missing"
+which goose 2>/dev/null && echo "goose:available" || echo "goose:missing"
 ```
 
 ### 3. Quorum Check
@@ -70,7 +74,7 @@ Council requires 2+ independent external LLM CLIs for meaningful multi-model del
 Found: {count} external CLI(s).
 
 Suggestion: Use /wicked-garden:jam:brainstorm for single-model exploration,
-or install additional CLIs (codex, copilot, gemini, opencode, pi).
+or install additional CLIs (codex, copilot, gemini, opencode, pi, aider, llm, aichat, goose).
 ```
 
 ### 4. Build Question Scaffold
@@ -129,9 +133,29 @@ cat "$SCAFFOLD_FILE" | gemini "You are evaluating options for a technical decisi
 cat "$SCAFFOLD_FILE" | opencode run "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
 ```
 
-**Pi:**
+**Pi** (npm `@mariozechner/pi-coding-agent` — uses `@file` attach + `-p` for non-interactive):
 ```bash
-cat "$SCAFFOLD_FILE" | pi exec "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
+pi -p "You are evaluating options for a technical decision. Answer the 4 questions in the attached file precisely and concisely." @"$SCAFFOLD_FILE"
+```
+
+**Aider** (code-editor orientation — use `--no-git --yes-always --no-auto-commits` to answer without touching files; needs a writable cwd):
+```bash
+aider --message-file "$SCAFFOLD_FILE" --no-git --yes-always --no-auto-commits --no-stream --no-analytics 2>&1
+```
+
+**llm** (Simon Willison's `llm` — pipe-native; picks up default model from `llm models default`):
+```bash
+cat "$SCAFFOLD_FILE" | llm "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
+```
+
+**aichat** (multi-provider aggregator — `-S` disables streaming so output is captured cleanly):
+```bash
+cat "$SCAFFOLD_FILE" | aichat -S "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
+```
+
+**Goose** (Block Goose agent — `run -i -` reads instructions from stdin):
+```bash
+cat "$SCAFFOLD_FILE" | goose run -i - --system "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
 ```
 
 Run ALL available CLIs in parallel using multiple Bash tool calls in a single message.
@@ -163,7 +187,7 @@ Each model's response becomes one entry:
 }
 ```
 
-- Use `persona_name` = model name (e.g., "Claude", "Codex", "Copilot", "Gemini", "OpenCode", "Pi").
+- Use `persona_name` = model name (e.g., "Claude", "Codex", "Copilot", "Gemini", "OpenCode", "Pi", "Aider", "llm", "aichat", "Goose").
 - `persona_type` is always `council` for these entries.
 - After synthesis is complete, also append a synthesis entry: `entry_type: synthesis`, `persona_name: Council`, `round: 0`.
 
