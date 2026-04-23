@@ -3697,6 +3697,25 @@ def get_phase_status_summary(state: ProjectState) -> Dict[str, str]:
     return summary
 
 
+def compute_project_completion(state: ProjectState) -> Tuple[bool, List[str]]:
+    """Return (is_complete, remaining_phases).
+
+    is_complete is True only when every phase in phase_plan is 'approved'.
+    remaining_phases lists phases that are not yet approved, in plan order.
+    Used by the CLI approve/advance paths so we don't print "Project complete!"
+    while phases are still pending (issue #562).
+    """
+    if not state.phase_plan:
+        return False, []
+    status_map = get_phase_status_summary(state)
+    remaining = [
+        resolve_phase(p)
+        for p in state.phase_plan
+        if status_map.get(resolve_phase(p)) != "approved"
+    ]
+    return (not remaining), remaining
+
+
 def create_project(
     name: str,
     description: str = "",
@@ -4764,20 +4783,28 @@ def main():
                 print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
         save_project_state(state)
+        is_complete, remaining = compute_project_completion(state)
         if args.json:
             print(json.dumps({
                 "ok": True,
                 "status": "cli-no-dispatcher",
                 "approved_phase": resolve_phase(phase),
                 "next_phase": next_phase,
+                "is_complete": is_complete,
+                "remaining_phases": remaining,
                 "warning": cli_dispatcher_warning,
             }, indent=2))
         else:
             print(f"Approved phase: {resolve_phase(phase)}")
-            if next_phase:
-                print(f"Next phase: {next_phase}")
-            else:
+            if is_complete:
                 print("Project complete!")
+            elif next_phase:
+                print(f"Next phase in plan: {next_phase}")
+            elif remaining:
+                print(f"Next phase in plan: {remaining[0]} (remaining: {', '.join(remaining)})")
+            else:
+                # Phase plan empty or unresolvable — honest fallback.
+                print("No next phase resolved — run 'status' to verify state.")
 
     elif args.action == "skip":
         phase = args.phase
@@ -4923,16 +4950,28 @@ def main():
 
         if next_phase is None:
             save_project_state(state)
+            is_complete, remaining = compute_project_completion(state)
             if args.json:
                 print(json.dumps({
                     "ok": True,
                     "approved_phase": approved_phase,
                     "next_phase": None,
-                    "message": "Project complete — no next phase",
+                    "is_complete": is_complete,
+                    "remaining_phases": remaining,
+                    "message": (
+                        "Project complete — no next phase"
+                        if is_complete
+                        else f"Approved {approved_phase}; no successor resolved but phases still pending: {', '.join(remaining)}"
+                    ),
                 }))
             else:
                 print(f"Approved phase: {approved_phase}")
-                print("Project complete!")
+                if is_complete:
+                    print("Project complete!")
+                elif remaining:
+                    print(f"Next phase in plan: {remaining[0]} (remaining: {', '.join(remaining)})")
+                else:
+                    print("No next phase resolved — run 'status' to verify state.")
             return
 
         state = start_phase(state, next_phase)
