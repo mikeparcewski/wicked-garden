@@ -38,7 +38,10 @@ _DEFAULT_POLICY = {
     "gates": {
         "requirements-quality": {
             "standard": {
-                "reviewers": ["requirements-analyst"],
+                # 2 reviewers in the default lets council mode overrides
+                # satisfy the >=2 invariant without forcing every test to
+                # ship its own reviewers list.
+                "reviewers": ["requirements-analyst", "senior-engineer"],
                 "mode": "sequential",
                 "fallback": "senior-engineer",
             }
@@ -116,11 +119,26 @@ def test_specific_override_beats_wildcard():
     state = _state({
         "gate_overrides": {
             "*": {"mode": "parallel"},
-            "requirements-quality": {"mode": "council"},
+            "requirements-quality": {"mode": "council", "reviewers": ["a", "b"]},
         }
     })
     entry = _resolve_gate_reviewer("requirements-quality", "standard", state=state)
     assert entry["mode"] == "council"
+
+
+def test_partial_specific_override_layers_on_wildcard(caplog):
+    """gemini #568 review: a specific override that only sets 'reviewers' must
+    still inherit 'mode' from the wildcard, not silently bypass it."""
+    state = _state({
+        "gate_overrides": {
+            "*": {"mode": "council"},
+            "requirements-quality": {"reviewers": ["product-manager", "senior-engineer"]},
+        }
+    })
+    entry = _resolve_gate_reviewer("requirements-quality", "standard", state=state)
+    # Specific layer set reviewers, wildcard layer set mode — both apply.
+    assert entry["mode"] == "council"
+    assert entry["reviewers"] == ["product-manager", "senior-engineer"]
 
 
 def test_reviewers_override_applies():
@@ -155,14 +173,61 @@ def test_non_list_reviewers_override_is_rejected(caplog):
     })
     with caplog.at_level("WARNING"):
         entry = _resolve_gate_reviewer("requirements-quality", "standard", state=state)
-    assert entry["reviewers"] == ["requirements-analyst"]
+    assert entry["reviewers"] == ["requirements-analyst", "senior-engineer"]
 
 
 def test_override_does_not_mutate_policy_entry():
     """The returned entry is a new dict — the in-memory policy cache is untouched."""
-    state = _state({"gate_method": "council"})
+    state = _state({"gate_method": "council", "gate_overrides": {
+        "requirements-quality": {"reviewers": ["a", "b"]}
+    }})
     _resolve_gate_reviewer("requirements-quality", "standard", state=state)
     # Fetch default again — should still be 'sequential', proving no mutation.
     state2 = _state({})
     entry2 = _resolve_gate_reviewer("requirements-quality", "standard", state=state2)
     assert entry2["mode"] == "sequential"
+
+
+# ---------------------------------------------------------------------------
+# Semantic invariants — Copilot #568 review
+# ---------------------------------------------------------------------------
+
+
+def test_council_with_lt_2_reviewers_reverts_to_policy_default(caplog):
+    """council mode requires >=2 reviewers; an invalid override is rejected."""
+    state = _state({
+        "gate_overrides": {
+            "requirements-quality": {"mode": "council", "reviewers": ["only-one"]}
+        }
+    })
+    with caplog.at_level("WARNING"):
+        entry = _resolve_gate_reviewer("requirements-quality", "standard", state=state)
+    # Reverted to policy default (sequential / [requirements-analyst]).
+    assert entry["mode"] == "sequential"
+    assert entry["reviewers"] == ["requirements-analyst", "senior-engineer"]
+    assert any("invariants" in rec.message for rec in caplog.records)
+
+
+def test_sequential_with_empty_reviewers_reverts_to_policy_default(caplog):
+    """sequential mode requires >=1 reviewer; empty reviewers list is invalid."""
+    state = _state({
+        "gate_overrides": {
+            "requirements-quality": {"mode": "sequential", "reviewers": []}
+        }
+    })
+    with caplog.at_level("WARNING"):
+        entry = _resolve_gate_reviewer("requirements-quality", "standard", state=state)
+    assert entry["mode"] == "sequential"
+    assert entry["reviewers"] == ["requirements-analyst", "senior-engineer"]
+
+
+def test_self_check_with_empty_reviewers_is_allowed():
+    """self-check mode legitimately runs without reviewers — must NOT be rejected."""
+    state = _state({
+        "gate_overrides": {
+            "requirements-quality": {"mode": "self-check", "reviewers": []}
+        }
+    })
+    entry = _resolve_gate_reviewer("requirements-quality", "standard", state=state)
+    assert entry["mode"] == "self-check"
+    assert entry["reviewers"] == []

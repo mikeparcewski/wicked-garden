@@ -162,17 +162,20 @@ def _apply_project_gate_overrides(
         return result
     extras = state.extras or {}
 
+    # Layer overrides bottom-up so partial specifics can extend wildcard
+    # defaults (gemini #568 review): apply legacy shorthand → wildcard →
+    # specific. Each layer adds its declared fields; later layers win on
+    # the keys they touch but never erase keys they don't.
     override: Dict[str, Any] = {}
+    legacy_method = extras.get("gate_method")
+    if isinstance(legacy_method, str) and legacy_method.strip():
+        override["mode"] = legacy_method.strip()
     overrides_map = extras.get("gate_overrides")
     if isinstance(overrides_map, dict):
+        if isinstance(overrides_map.get("*"), dict):
+            override.update(overrides_map["*"])
         if isinstance(overrides_map.get(gate_name), dict):
             override.update(overrides_map[gate_name])
-        elif isinstance(overrides_map.get("*"), dict):
-            override.update(overrides_map["*"])
-    # Legacy shorthand — exactly the shape the reporter used in #564.
-    legacy_method = extras.get("gate_method")
-    if "mode" not in override and isinstance(legacy_method, str) and legacy_method.strip():
-        override["mode"] = legacy_method.strip()
 
     if not override:
         return result
@@ -211,6 +214,36 @@ def _apply_project_gate_overrides(
                 getattr(state, "name", "<unknown>"),
                 gate_name,
             )
+
+    # Copilot #568 review: enforce the same semantic invariants the CI
+    # gate-policy coverage check enforces against gate-policy.json:
+    #   - empty reviewers list is only valid for self-check / advisory modes
+    #   - council mode requires >=2 reviewers
+    # If the merged result violates these, revert to the unmodified policy
+    # entry so a typo in project metadata can never silently corrupt dispatch.
+    final_mode = result.get("mode")
+    final_reviewers = result.get("reviewers") or []
+    invariant_violation: Optional[str] = None
+    if final_mode == "council" and len(final_reviewers) < 2:
+        invariant_violation = (
+            f"mode='council' requires >=2 reviewers (got {len(final_reviewers)})"
+        )
+    elif (
+        final_mode in {"sequential", "parallel"}
+        and len(final_reviewers) == 0
+    ):
+        invariant_violation = (
+            f"mode={final_mode!r} requires at least 1 reviewer (got 0)"
+        )
+    if invariant_violation:
+        logger.warning(
+            "[gate-override] project '%s' gate '%s' override violates "
+            "dispatch invariants (%s) — reverting to policy default.",
+            getattr(state, "name", "<unknown>"),
+            gate_name, invariant_violation,
+        )
+        return dict(entry)
+
     return result
 
 
@@ -3798,12 +3831,14 @@ def get_phase_spec(phase_name: str) -> Dict[str, Any]:
     gate_tiers = (gate_policy.get("gates", {}) or {}).get(gate_name, {}) if gate_policy else {}
 
     # Surface reviewers per rigor tier when a gate is declared.
+    # `or []` guards against an explicit JSON null on the reviewers field
+    # (gemini #568 review — list(None) would crash).
     gate_by_tier: Dict[str, Dict[str, Any]] = {}
     for tier, entry in gate_tiers.items():
         if not isinstance(entry, dict):
             continue
         gate_by_tier[tier] = {
-            "reviewers": list(entry.get("reviewers", [])),
+            "reviewers": list(entry.get("reviewers") or []),
             "mode": entry.get("mode"),
             "fallback": entry.get("fallback"),
             "min_score": entry.get("min_score"),
@@ -3865,11 +3900,23 @@ def adopt_clarify_from_memo(
         ValueError: Memo unreadable/empty, project not at clarify phase, or
                     existing deliverables would be clobbered without --force.
     """
+    # Copilot #568 review: a missing PhaseState is implicitly 'pending'
+    # (matches get_phase_status_summary), so materialize it on demand
+    # rather than rejecting projects that never instantiated it.
     clarify_phase = state.phases.get("clarify")
-    if clarify_phase is None or clarify_phase.status == "approved":
+    if clarify_phase is None:
+        clarify_phase = PhaseState(status="pending")
+        state.phases["clarify"] = clarify_phase
+    if clarify_phase.status in _TERMINAL_PHASE_STATUSES:
         raise ValueError(
-            "adopt-clarify requires clarify to be pending or in_progress; "
-            f"current status is {clarify_phase.status if clarify_phase else 'missing'}."
+            f"adopt-clarify requires clarify to be pending or in_progress; "
+            f"current status is {clarify_phase.status!r}."
+        )
+    if state.current_phase != "clarify":
+        raise ValueError(
+            f"adopt-clarify requires the project to be on the clarify phase; "
+            f"current_phase={state.current_phase!r}. Adopting deliverables for a "
+            f"phase the project has already moved past would corrupt provenance."
         )
 
     if not memo_path.exists() or not memo_path.is_file():
@@ -3938,7 +3985,10 @@ def adopt_clarify_from_memo(
             "> " + excerpt.replace("\n", "\n> ") + excerpt_suffix,
             "",
         ]
-        (phase_dir / fname).write_text("\n".join(frontmatter_lines) + "\n".join(body))
+        (phase_dir / fname).write_text(
+            "\n".join(frontmatter_lines) + "\n".join(body),
+            encoding="utf-8",
+        )
         written.append(fname)
 
     # Record the adoption as a re-eval addendum entry — the memo IS the
@@ -3984,13 +4034,19 @@ def adopt_clarify_from_memo(
     }
 
 
+_TERMINAL_PHASE_STATUSES = frozenset({"approved", "skipped"})
+
+
 def compute_project_completion(state: ProjectState) -> Tuple[bool, List[str]]:
     """Return (is_complete, remaining_phases).
 
-    is_complete is True only when every phase in phase_plan is 'approved'.
-    remaining_phases lists phases that are not yet approved, in plan order.
-    Used by the CLI approve/advance paths so we don't print "Project complete!"
-    while phases are still pending (issue #562).
+    is_complete is True only when every phase in phase_plan reached a terminal
+    status — 'approved' or 'skipped'. Skipped phases satisfy the plan the same
+    way can_transition treats them (Copilot #568 review).
+
+    remaining_phases lists phases that have not reached a terminal status,
+    in plan order. Used by the CLI approve/advance paths so we don't print
+    "Project complete!" while phases are still pending (issue #562).
     """
     if not state.phase_plan:
         return False, []
@@ -3998,7 +4054,7 @@ def compute_project_completion(state: ProjectState) -> Tuple[bool, List[str]]:
     remaining = [
         resolve_phase(p)
         for p in state.phase_plan
-        if status_map.get(resolve_phase(p)) != "approved"
+        if status_map.get(resolve_phase(p)) not in _TERMINAL_PHASE_STATUSES
     ]
     return (not remaining), remaining
 

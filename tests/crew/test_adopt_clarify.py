@@ -179,3 +179,33 @@ def test_adopt_refuses_when_clarify_already_approved(isolated_project, memo):
     state.phases["clarify"].status = "approved"
     with pytest.raises(ValueError, match="clarify"):
         adopt_clarify_from_memo(state, memo)
+
+
+def test_adopt_refuses_when_clarify_skipped(isolated_project, memo):
+    """A skipped clarify is also terminal — adoption would conflict with the skip."""
+    state = _state_at_clarify()
+    state.phases["clarify"].status = "skipped"
+    with pytest.raises(ValueError, match="clarify"):
+        adopt_clarify_from_memo(state, memo)
+
+
+def test_adopt_materializes_missing_clarify_phase_state(isolated_project, memo):
+    """Copilot #568 review: a project without an explicit clarify PhaseState
+    (legacy/minimal projects) is implicitly pending — adopt-clarify should
+    create the entry on demand instead of erroring."""
+    state = _state_at_clarify()
+    del state.phases["clarify"]
+    result = adopt_clarify_from_memo(state, memo)
+    assert "clarify" in state.phases
+    assert state.phases["clarify"].status == "pending"
+    assert "objective.md" in result["adopted_deliverables"]
+
+
+def test_adopt_refuses_when_current_phase_moved_past_clarify(isolated_project, memo):
+    """Copilot #568 review: enforce current_phase=='clarify' so projects that
+    already moved to design/build can't have clarify deliverables backfilled,
+    which would corrupt phase provenance."""
+    state = _state_at_clarify()
+    state.current_phase = "design"
+    with pytest.raises(ValueError, match="clarify"):
+        adopt_clarify_from_memo(state, memo)
