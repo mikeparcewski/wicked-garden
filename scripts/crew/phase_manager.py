@@ -137,12 +137,97 @@ def _load_gate_policy() -> dict:
     return _GATE_POLICY_CACHE
 
 
-def _resolve_gate_reviewer(gate_name: str, rigor_tier: str) -> dict:
+# Issue #564: valid gate dispatch modes. Used to reject bogus per-project
+# overrides so misconfiguration fails loud instead of silently falling through.
+_VALID_GATE_MODES: frozenset = frozenset(
+    {"self-check", "advisory", "sequential", "parallel", "council", "fast-evaluator"}
+)
+
+
+def _apply_project_gate_overrides(
+    entry: dict, state: Optional["ProjectState"], gate_name: str
+) -> dict:
+    """Merge per-project gate overrides from state.extras over the policy entry.
+
+    Supports three shapes in state.extras (precedence: specific → wildcard → legacy):
+      1. gate_overrides[gate_name]: {"mode": "...", "reviewers": [...]}
+      2. gate_overrides["*"]:       same shape, applies to every gate
+      3. gate_method: "council"     legacy shorthand = gate_overrides["*"]["mode"]
+
+    Unknown modes trigger a WARN and the override is ignored — issue #564's
+    "fail-loud" invariant. Returns a NEW dict; never mutates the input.
+    """
+    result = dict(entry)
+    if state is None:
+        return result
+    extras = state.extras or {}
+
+    override: Dict[str, Any] = {}
+    overrides_map = extras.get("gate_overrides")
+    if isinstance(overrides_map, dict):
+        if isinstance(overrides_map.get(gate_name), dict):
+            override.update(overrides_map[gate_name])
+        elif isinstance(overrides_map.get("*"), dict):
+            override.update(overrides_map["*"])
+    # Legacy shorthand — exactly the shape the reporter used in #564.
+    legacy_method = extras.get("gate_method")
+    if "mode" not in override and isinstance(legacy_method, str) and legacy_method.strip():
+        override["mode"] = legacy_method.strip()
+
+    if not override:
+        return result
+
+    # Validate mode; unknown values never silently apply.
+    mode = override.get("mode")
+    if mode is not None:
+        if not isinstance(mode, str) or mode not in _VALID_GATE_MODES:
+            logger.warning(
+                "[gate-override] project '%s' requested mode=%r for gate '%s' "
+                "but that mode is not one of %s — ignoring override.",
+                getattr(state, "name", "<unknown>"),
+                mode, gate_name, sorted(_VALID_GATE_MODES),
+            )
+        else:
+            logger.info(
+                "[gate-override] project '%s' overriding gate '%s' mode: %s -> %s",
+                getattr(state, "name", "<unknown>"),
+                gate_name, result.get("mode"), mode,
+            )
+            result["mode"] = mode
+
+    reviewers = override.get("reviewers")
+    if reviewers is not None:
+        if isinstance(reviewers, list) and all(isinstance(r, str) for r in reviewers):
+            logger.info(
+                "[gate-override] project '%s' overriding gate '%s' reviewers",
+                getattr(state, "name", "<unknown>"),
+                gate_name,
+            )
+            result["reviewers"] = list(reviewers)
+        else:
+            logger.warning(
+                "[gate-override] project '%s' gate '%s' reviewers override must be "
+                "a list of strings — ignoring.",
+                getattr(state, "name", "<unknown>"),
+                gate_name,
+            )
+    return result
+
+
+def _resolve_gate_reviewer(
+    gate_name: str,
+    rigor_tier: str,
+    state: Optional["ProjectState"] = None,
+) -> dict:
     """Return the dispatch block for a (gate_name, rigor_tier) pair (D1, D4).
 
     Args:
         gate_name:  One of the 6 defined gates (e.g. 'requirements-quality').
         rigor_tier: One of 'minimal', 'standard', 'full'.
+        state:      Optional project state — per-project overrides from
+                    ``state.extras['gate_overrides']`` or legacy
+                    ``state.extras['gate_method']`` are layered on top of the
+                    gate-policy.json default (issue #564).
 
     Returns:
         dict with keys: reviewers (list), mode (str), fallback (str).
@@ -164,7 +249,7 @@ def _resolve_gate_reviewer(gate_name: str, rigor_tier: str) -> dict:
             f"Unknown rigor_tier '{rigor_tier}' for gate '{gate_name}'. "
             f"Valid tiers: {sorted(tier_map.keys())}"
         )
-    return tier_map[rigor_tier]
+    return _apply_project_gate_overrides(tier_map[rigor_tier], state, gate_name)
 
 
 # ---------------------------------------------------------------------------
@@ -3196,7 +3281,7 @@ def approve_phase(
             try:
                 gate_name = _gate_name_for_phase(phase)
                 gate_entry = _resolve_gate_reviewer(
-                    gate_name, rigor_tier or "standard"
+                    gate_name, rigor_tier or "standard", state=state
                 )
                 synthesized = _dispatch_gate_reviewer(
                     state, phase, gate_name, gate_entry,
