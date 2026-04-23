@@ -32,6 +32,38 @@ REQUIRED_TASK_METADATA_KEYS = {
     "chain_id", "event_type", "source_agent", "phase", "rigor_tier",
 }
 
+# Issue #563: every violation cites this doc so callers don't have to grep
+# to find the authoritative schema.
+SCHEMA_DOC = "skills/propose-process/refs/output-schema.md"
+
+# Per-section anchors within SCHEMA_DOC. Key is the violation-message prefix
+# (the text before ' — ', with [] / . suffixes stripped).
+_SECTION_ANCHORS = {
+    "top-level": "§ Required vs. optional fields",
+    "factors": "§ Schema — factors block",
+    "specialists": "§ Schema — specialists",
+    "phases": "§ Schema — phases",
+    "tasks": "§ Schema — tasks",
+    "rigor_tier": "§ rigor_tier enum (minimal|standard|full)",
+    "complexity": "§ complexity bounds (0..7)",
+}
+
+
+def _schema_pointer_for(violation: str) -> str:
+    """Return a 'See: <doc> § <anchor>' hint for a given violation, or an
+    empty string for file-level failures where the schema doc isn't the
+    right reference (missing file, invalid JSON, non-object root).
+
+    Copilot #569 review: don't mislead the user by citing the schema doc
+    on errors whose fix is the file path or the JSON itself.
+    """
+    head = violation.split(" — ", 1)[0]
+    # Strip index / dotted suffix so "tasks[0].metadata" → "tasks".
+    section = head.split(".", 1)[0].split("[", 1)[0]
+    if section not in _SECTION_ANCHORS:
+        return ""
+    return f"See: {SCHEMA_DOC} {_SECTION_ANCHORS[section]}"
+
 
 def _check_top_level(plan: dict, violations: list) -> None:
     missing = REQUIRED_TOP_LEVEL_KEYS - plan.keys()
@@ -280,6 +312,9 @@ def main() -> None:
     if violations:
         for v in violations:
             sys.stderr.write(f"ERROR: {path} — {v}\n")
+            pointer = _schema_pointer_for(v)
+            if pointer:
+                sys.stderr.write(f"  {pointer}\n")
         sys.exit(1)
 
     sys.exit(0)

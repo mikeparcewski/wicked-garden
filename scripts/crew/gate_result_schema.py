@@ -82,6 +82,13 @@ BANNED_SOURCE_AGENT_PREFIXES = tuple(set(_EVENT_BANNED_PREFIXES) | {
 # ---------------------------------------------------------------------------
 
 
+# Issue #563: authoritative pointer to the schema source of truth. The code
+# IS the schema — there is no separate JSON-Schema doc — so point callers at
+# the module. Exposed via GateResultSchemaError.schema_doc and str(exc) so
+# users don't have to grep to learn where the rules live.
+SCHEMA_DOC = "scripts/crew/gate_result_schema.py § validate_gate_result (schema source of truth)"
+
+
 class GateResultSchemaError(Exception):
     """Raised by ``validate_gate_result`` on any schema or content violation.
 
@@ -92,6 +99,7 @@ class GateResultSchemaError(Exception):
       offending_value_excerpt: first 256 bytes of the raw violating value
                                (UTF-8 lossy decoded)
       violation_class:         one of ``{"schema", "content", "authorization"}``
+      schema_doc:              pointer to the schema reference (default SCHEMA_DOC)
     """
 
     def __init__(
@@ -101,12 +109,22 @@ class GateResultSchemaError(Exception):
         offending_field: Optional[str] = None,
         offending_value_excerpt: Optional[str] = None,
         violation_class: str = "schema",
+        schema_doc: Optional[str] = None,
     ) -> None:
         super().__init__(reason)
         self.reason = reason
         self.offending_field = offending_field
         self.offending_value_excerpt = offending_value_excerpt
         self.violation_class = violation_class
+        self.schema_doc = schema_doc or SCHEMA_DOC
+
+    def __str__(self) -> str:
+        # Issue #563: str(exc) surfaces the schema pointer so callers that log
+        # or re-raise don't need extra wiring to cite the source of truth.
+        base = self.reason
+        if self.offending_field:
+            base = f"{base} (field: {self.offending_field})"
+        return f"{base} — See: {self.schema_doc}"
 
 
 class GateResultAuthorizationError(GateResultSchemaError):

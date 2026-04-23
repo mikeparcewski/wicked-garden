@@ -9,6 +9,7 @@ Handles:
 4. Project state persistence
 """
 
+import copy
 import json
 import logging
 import os
@@ -137,12 +138,132 @@ def _load_gate_policy() -> dict:
     return _GATE_POLICY_CACHE
 
 
-def _resolve_gate_reviewer(gate_name: str, rigor_tier: str) -> dict:
+# Issue #564: valid gate dispatch modes. Used to reject bogus per-project
+# overrides so misconfiguration fails loud instead of silently falling through.
+_VALID_GATE_MODES: frozenset = frozenset(
+    {"self-check", "advisory", "sequential", "parallel", "council", "fast-evaluator"}
+)
+
+
+def _apply_project_gate_overrides(
+    entry: dict, state: Optional["ProjectState"], gate_name: str
+) -> dict:
+    """Merge per-project gate overrides from state.extras over the policy entry.
+
+    Supports three shapes in state.extras (precedence: specific → wildcard → legacy):
+      1. gate_overrides[gate_name]: {"mode": "...", "reviewers": [...]}
+      2. gate_overrides["*"]:       same shape, applies to every gate
+      3. gate_method: "council"     legacy shorthand = gate_overrides["*"]["mode"]
+
+    Unknown modes trigger a WARN and the override is ignored — issue #564's
+    "fail-loud" invariant. Returns a NEW dict with deep-copied nested
+    containers (gemini #569 review) so caller mutations to e.g. reviewers
+    can never leak back into the gate-policy cache.
+    """
+    result = copy.deepcopy(entry)
+    if state is None:
+        return result
+    extras = state.extras or {}
+
+    # Layer overrides bottom-up so partial specifics can extend wildcard
+    # defaults (gemini #568 review): apply legacy shorthand → wildcard →
+    # specific. Each layer adds its declared fields; later layers win on
+    # the keys they touch but never erase keys they don't.
+    override: Dict[str, Any] = {}
+    legacy_method = extras.get("gate_method")
+    if isinstance(legacy_method, str) and legacy_method.strip():
+        override["mode"] = legacy_method.strip()
+    overrides_map = extras.get("gate_overrides")
+    if isinstance(overrides_map, dict):
+        if isinstance(overrides_map.get("*"), dict):
+            override.update(overrides_map["*"])
+        if isinstance(overrides_map.get(gate_name), dict):
+            override.update(overrides_map[gate_name])
+
+    if not override:
+        return result
+
+    # Validate mode; unknown values never silently apply.
+    mode = override.get("mode")
+    if mode is not None:
+        if not isinstance(mode, str) or mode not in _VALID_GATE_MODES:
+            logger.warning(
+                "[gate-override] project '%s' requested mode=%r for gate '%s' "
+                "but that mode is not one of %s — ignoring override.",
+                getattr(state, "name", "<unknown>"),
+                mode, gate_name, sorted(_VALID_GATE_MODES),
+            )
+        else:
+            logger.info(
+                "[gate-override] project '%s' overriding gate '%s' mode: %s -> %s",
+                getattr(state, "name", "<unknown>"),
+                gate_name, result.get("mode"), mode,
+            )
+            result["mode"] = mode
+
+    reviewers = override.get("reviewers")
+    if reviewers is not None:
+        if isinstance(reviewers, list) and all(isinstance(r, str) for r in reviewers):
+            logger.info(
+                "[gate-override] project '%s' overriding gate '%s' reviewers",
+                getattr(state, "name", "<unknown>"),
+                gate_name,
+            )
+            result["reviewers"] = list(reviewers)
+        else:
+            logger.warning(
+                "[gate-override] project '%s' gate '%s' reviewers override must be "
+                "a list of strings — ignoring.",
+                getattr(state, "name", "<unknown>"),
+                gate_name,
+            )
+
+    # Copilot #568 review: enforce the same semantic invariants the CI
+    # gate-policy coverage check enforces against gate-policy.json:
+    #   - empty reviewers list is only valid for self-check / advisory modes
+    #   - council mode requires >=2 reviewers
+    # If the merged result violates these, revert to the unmodified policy
+    # entry so a typo in project metadata can never silently corrupt dispatch.
+    final_mode = result.get("mode")
+    final_reviewers = result.get("reviewers") or []
+    invariant_violation: Optional[str] = None
+    if final_mode == "council" and len(final_reviewers) < 2:
+        invariant_violation = (
+            f"mode='council' requires >=2 reviewers (got {len(final_reviewers)})"
+        )
+    elif (
+        final_mode in {"sequential", "parallel"}
+        and len(final_reviewers) == 0
+    ):
+        invariant_violation = (
+            f"mode={final_mode!r} requires at least 1 reviewer (got 0)"
+        )
+    if invariant_violation:
+        logger.warning(
+            "[gate-override] project '%s' gate '%s' override violates "
+            "dispatch invariants (%s) — reverting to policy default.",
+            getattr(state, "name", "<unknown>"),
+            gate_name, invariant_violation,
+        )
+        return copy.deepcopy(entry)
+
+    return result
+
+
+def _resolve_gate_reviewer(
+    gate_name: str,
+    rigor_tier: str,
+    state: Optional["ProjectState"] = None,
+) -> dict:
     """Return the dispatch block for a (gate_name, rigor_tier) pair (D1, D4).
 
     Args:
         gate_name:  One of the 6 defined gates (e.g. 'requirements-quality').
         rigor_tier: One of 'minimal', 'standard', 'full'.
+        state:      Optional project state — per-project overrides from
+                    ``state.extras['gate_overrides']`` or legacy
+                    ``state.extras['gate_method']`` are layered on top of the
+                    gate-policy.json default (issue #564).
 
     Returns:
         dict with keys: reviewers (list), mode (str), fallback (str).
@@ -164,7 +285,7 @@ def _resolve_gate_reviewer(gate_name: str, rigor_tier: str) -> dict:
             f"Unknown rigor_tier '{rigor_tier}' for gate '{gate_name}'. "
             f"Valid tiers: {sorted(tier_map.keys())}"
         )
-    return tier_map[rigor_tier]
+    return _apply_project_gate_overrides(tier_map[rigor_tier], state, gate_name)
 
 
 # ---------------------------------------------------------------------------
@@ -3196,7 +3317,7 @@ def approve_phase(
             try:
                 gate_name = _gate_name_for_phase(phase)
                 gate_entry = _resolve_gate_reviewer(
-                    gate_name, rigor_tier or "standard"
+                    gate_name, rigor_tier or "standard", state=state
                 )
                 synthesized = _dispatch_gate_reviewer(
                     state, phase, gate_name, gate_entry,
@@ -3695,6 +3816,250 @@ def get_phase_status_summary(state: ProjectState) -> Dict[str, str]:
         phase_state = state.phases.get(phase)
         summary[phase] = phase_state.status if phase_state else "pending"
     return summary
+
+
+def get_phase_spec(phase_name: str) -> Dict[str, Any]:
+    """Return a structured phase specification suitable for --json inspection.
+
+    Aggregates phases.json + gate-policy.json into a single read-only view so
+    callers can decide what to attempt before attempting it (issue #566).
+    Never mutates state; purely derives from config files.
+    """
+    resolved = resolve_phase(phase_name)
+    phases_cfg = load_phases_config()
+    phase_cfg = phases_cfg.get(resolved, {})
+
+    gate_name = _gate_name_for_phase(resolved)
+    gate_policy = _load_gate_policy() if phase_cfg.get("gate_required") else {}
+    gate_tiers = (gate_policy.get("gates", {}) or {}).get(gate_name, {}) if gate_policy else {}
+
+    # Surface reviewers per rigor tier when a gate is declared.
+    # `or []` guards against an explicit JSON null on the reviewers field
+    # (gemini #568 review — list(None) would crash).
+    gate_by_tier: Dict[str, Dict[str, Any]] = {}
+    for tier, entry in gate_tiers.items():
+        if not isinstance(entry, dict):
+            continue
+        gate_by_tier[tier] = {
+            "reviewers": list(entry.get("reviewers") or []),
+            "mode": entry.get("mode"),
+            "fallback": entry.get("fallback"),
+            "min_score": entry.get("min_score"),
+        }
+
+    return {
+        "phase": resolved,
+        "known": bool(phase_cfg),
+        "description": phase_cfg.get("description"),
+        "is_skippable": phase_cfg.get("is_skippable", True),
+        "skip_complexity_threshold": phase_cfg.get("skip_complexity_threshold"),
+        "valid_skip_reasons": list(phase_cfg.get("valid_skip_reasons", [])),
+        "gate_required": phase_cfg.get("gate_required", False),
+        "gate_name": gate_name if phase_cfg.get("gate_required") else None,
+        "gate_type": phase_cfg.get("gate_type"),
+        "min_gate_score": phase_cfg.get("min_gate_score"),
+        "min_test_coverage": phase_cfg.get("min_test_coverage"),
+        "required_deliverables": get_required_deliverables(resolved),
+        "optional_deliverables": list(phase_cfg.get("optional_deliverables", [])),
+        "depends_on": list(phase_cfg.get("depends_on", [])),
+        "triggers": list(phase_cfg.get("triggers", [])),
+        "specialists": list(phase_cfg.get("specialists", [])),
+        "required_specialists": list(phase_cfg.get("required_specialists", [])),
+        "fallback_agent": phase_cfg.get("fallback_agent"),
+        "checkpoint": phase_cfg.get("checkpoint", False),
+        "conditions_manifest_required": phase_cfg.get("conditions_manifest_required", False),
+        "phase_executor_may_delegate": phase_cfg.get("phase_executor_may_delegate", False),
+        "gate_policy": gate_by_tier,
+    }
+
+
+def adopt_clarify_from_memo(
+    state: ProjectState,
+    memo_path: Path,
+    *,
+    memo_as: str = "deliberation",
+    force: bool = False,
+) -> Dict[str, Any]:
+    """Clone a design memo into clarify's required deliverables (issue #565).
+
+    When the substantive clarify+design work already happened in a document,
+    this action writes phase-local stub deliverables that cite the memo as
+    the source of truth. The user-confirm pause is preserved — this does NOT
+    approve the phase; the caller still runs `approve --phase clarify`.
+
+    Args:
+        state:     Project state (must be at clarify phase).
+        memo_path: Path to the memo file (absolute or relative to CWD).
+        memo_as:   Provenance label written into addendum and deliverable frontmatter.
+                   Caller-visible hint about why the memo satisfies clarify.
+        force:     If True, overwrite existing deliverable files. Default False
+                   means a prior deliverable file causes an error so the user
+                   doesn't accidentally clobber their own work.
+
+    Returns:
+        Dict with keys: adopted_deliverables, memo, addendum_written.
+
+    Raises:
+        ValueError: Memo unreadable/empty, project not at clarify phase, or
+                    existing deliverables would be clobbered without --force.
+    """
+    # Copilot #568 review: a missing PhaseState is implicitly 'pending'
+    # (matches get_phase_status_summary), so materialize it on demand
+    # rather than rejecting projects that never instantiated it.
+    clarify_phase = state.phases.get("clarify")
+    if clarify_phase is None:
+        clarify_phase = PhaseState(status="pending")
+        state.phases["clarify"] = clarify_phase
+    if clarify_phase.status in _TERMINAL_PHASE_STATUSES:
+        raise ValueError(
+            f"adopt-clarify requires clarify to be pending or in_progress; "
+            f"current status is {clarify_phase.status!r}."
+        )
+    if state.current_phase != "clarify":
+        raise ValueError(
+            f"adopt-clarify requires the project to be on the clarify phase; "
+            f"current_phase={state.current_phase!r}. Adopting deliverables for a "
+            f"phase the project has already moved past would corrupt provenance."
+        )
+
+    if not memo_path.exists() or not memo_path.is_file():
+        raise ValueError(f"Memo not found: {memo_path}")
+    try:
+        memo_text = memo_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"Memo unreadable: {memo_path} — {exc}")
+    if not memo_text.strip():
+        raise ValueError(f"Memo is empty: {memo_path}")
+
+    project_dir = get_project_dir(state.name)
+    phase_dir = project_dir / "phases" / "clarify"
+    phase_dir.mkdir(parents=True, exist_ok=True)
+
+    deliverables = get_required_deliverables("clarify")
+    adopted_at = get_utc_timestamp()
+    written: List[str] = []
+
+    # Check for clobbering before writing anything.
+    if not force:
+        existing = [
+            d["file"] for d in deliverables
+            if (phase_dir / d["file"]).exists() and (phase_dir / d["file"]).stat().st_size > 0
+        ]
+        if existing:
+            raise ValueError(
+                f"clarify deliverables already exist: {existing}. "
+                "Pass --force to overwrite (will preserve the memo as source of truth "
+                "but clobber your current files)."
+            )
+
+    # Compose each deliverable. Content must clear min_bytes; include an excerpt
+    # of the memo so the artifact is substantive, not a placeholder.
+    excerpt = memo_text[:2000]
+    excerpt_suffix = "\n\n… (truncated — see source memo)" if len(memo_text) > 2000 else ""
+    memo_ref = str(memo_path)
+
+    for deliverable in deliverables:
+        fname = deliverable["file"]
+        label_from_file = fname.removesuffix(".md").replace("-", " ").title()
+        frontmatter_lines = [
+            "---",
+            f"adopted_from: {memo_ref}",
+            f"adopted_at: {adopted_at}",
+            f"adopted_as: {fname.removesuffix('.md')}",
+            f"memo_as: {memo_as}",
+        ]
+        # acceptance-criteria.md declares case_count in its frontmatter contract.
+        if fname == "acceptance-criteria.md":
+            frontmatter_lines.append("case_count: TBD")
+        frontmatter_lines.append("---")
+
+        body = [
+            "",
+            f"# {label_from_file} (adopted from design memo)",
+            "",
+            f"**Source memo**: `{memo_ref}`  ",
+            f"**Adopted at**: {adopted_at}  ",
+            f"**Role**: {memo_as} — the memo captured the clarify deliberation; this file",
+            "is the phase-local pointer that satisfies the clarify deliverable contract",
+            "while preserving the memo as the authoritative source.",
+            "",
+            "## Excerpt",
+            "",
+            "> " + excerpt.replace("\n", "\n> ") + excerpt_suffix,
+            "",
+        ]
+        (phase_dir / fname).write_text(
+            "\n".join(frontmatter_lines) + "\n".join(body),
+            encoding="utf-8",
+        )
+        written.append(fname)
+
+    # Record the adoption as a re-eval addendum entry — the memo IS the
+    # deliberation evidence, and the addendum preserves that provenance.
+    try:
+        import reeval_addendum
+        rigor_tier = (state.extras or {}).get("rigor_tier", "standard")
+        record = {
+            "chain_id": f"{state.name}.clarify",
+            "triggered_at": adopted_at,
+            "trigger": "adopt-clarify:memo-adoption",
+            "prior_rigor_tier": rigor_tier,
+            "new_rigor_tier": rigor_tier,
+            "mutations": [],
+            "mutations_applied": [],
+            "mutations_deferred": [],
+            "validator_version": "1.1.0",
+            "adoption_evidence": {
+                "memo": memo_ref,
+                "memo_as": memo_as,
+                "deliverables_written": written,
+            },
+        }
+        reeval_addendum.append(project_dir, phase="clarify", record=record)
+        addendum_written = True
+    except (ImportError, ValueError, OSError) as exc:
+        logger.warning(
+            "[adopt-clarify] addendum write failed (non-fatal): %s", exc
+        )
+        addendum_written = False
+
+    logger.info(
+        "[adopt-clarify] project '%s' adopted clarify deliverables from %s "
+        "(wrote %d files; user-confirm still required via `approve`).",
+        state.name, memo_ref, len(written),
+    )
+
+    return {
+        "adopted_deliverables": written,
+        "memo": memo_ref,
+        "memo_as": memo_as,
+        "addendum_written": addendum_written,
+    }
+
+
+_TERMINAL_PHASE_STATUSES = frozenset({"approved", "skipped"})
+
+
+def compute_project_completion(state: ProjectState) -> Tuple[bool, List[str]]:
+    """Return (is_complete, remaining_phases).
+
+    is_complete is True only when every phase in phase_plan reached a terminal
+    status — 'approved' or 'skipped'. Skipped phases satisfy the plan the same
+    way can_transition treats them (Copilot #568 review).
+
+    remaining_phases lists phases that have not reached a terminal status,
+    in plan order. Used by the CLI approve/advance paths so we don't print
+    "Project complete!" while phases are still pending (issue #562).
+    """
+    if not state.phase_plan:
+        return False, []
+    status_map = get_phase_status_summary(state)
+    remaining = [
+        resolve_phase(p)
+        for p in state.phase_plan
+        if status_map.get(resolve_phase(p)) not in _TERMINAL_PHASE_STATUSES
+    ]
+    return (not remaining), remaining
 
 
 def create_project(
@@ -4561,7 +4926,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode", "phase-spec", "adopt-clarify"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -4581,6 +4946,24 @@ def main():
     parser.add_argument("--description", default="", help="Project description (for create)")
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
     parser.add_argument("--to", default=None, help="Target dispatch mode for cutover (e.g. mode-3)")
+    parser.add_argument(
+        "--from",
+        dest="adopt_from",
+        default=None,
+        help="Memo path for adopt-clarify (design memo that captured the deliberation).",
+    )
+    parser.add_argument(
+        "--memo-as",
+        dest="memo_as",
+        default="deliberation",
+        help="Provenance label for adopt-clarify (default: 'deliberation').",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Overwrite existing deliverables during adopt-clarify.",
+    )
     parser.add_argument(
         "--yolo-action", dest="yolo_action",
         default=None, choices=["approve", "revoke", "status"],
@@ -4646,7 +5029,7 @@ def main():
             sys.exit(1)
 
     state = load_project_state(args.project)
-    if not state and args.action not in ("status", "create"):
+    if not state and args.action not in ("status", "create", "phase-spec"):
         print(json.dumps({"ok": False, "error": f"Project not found: {args.project}"}) if args.json else f"Project not found: {args.project}")
         return
 
@@ -4664,6 +5047,70 @@ def main():
         except (json.JSONDecodeError, OSError):
             pass  # fail open: invalid project state skipped
 
+    if args.action == "adopt-clarify":
+        if not args.adopt_from:
+            msg = "Error: adopt-clarify requires --from <memo-path>"
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr if not args.json else sys.stdout)
+            sys.exit(1)
+        try:
+            result = adopt_clarify_from_memo(
+                state,
+                Path(args.adopt_from),
+                memo_as=args.memo_as or "deliberation",
+                force=args.force,
+            )
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        save_project_state(state)
+        if args.json:
+            print(json.dumps({"ok": True, **result, "next_step": "approve --phase clarify"}, indent=2))
+        else:
+            print(f"Adopted clarify deliverables from: {result['memo']}")
+            print(f"  Wrote: {', '.join(result['adopted_deliverables'])}")
+            print(f"  Addendum written: {result['addendum_written']}")
+            print("")
+            print("Next: review the adopted files and run:")
+            print(f"  phase_manager.py {args.project} approve --phase clarify")
+        return
+
+    if args.action == "phase-spec":
+        # Read-only config inspector — derives entirely from
+        # phases.json + gate-policy.json. Does not require project state.
+        phase = args.phase or state.current_phase if state else args.phase
+        if not phase:
+            msg = "Error: --phase is required for phase-spec (no current project to infer from)"
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr if not args.json else sys.stdout)
+            sys.exit(1)
+        spec = get_phase_spec(phase)
+        if args.json:
+            print(json.dumps(spec, indent=2))
+        else:
+            print(f"Phase: {spec['phase']}")
+            if not spec["known"]:
+                print("  (unknown phase — not defined in phases.json)")
+            print(f"  description: {spec.get('description') or '(none)'}")
+            print(f"  is_skippable: {spec['is_skippable']}")
+            if spec["skip_complexity_threshold"] is not None:
+                print(f"  skip_complexity_threshold: {spec['skip_complexity_threshold']}")
+            if spec["valid_skip_reasons"]:
+                print(f"  valid_skip_reasons: {', '.join(spec['valid_skip_reasons'])}")
+            print(f"  gate_required: {spec['gate_required']}")
+            if spec["gate_required"]:
+                print(f"  gate_name: {spec['gate_name']}")
+                print(f"  min_gate_score: {spec['min_gate_score']}")
+            if spec["min_test_coverage"] is not None:
+                print(f"  min_test_coverage: {spec['min_test_coverage']}")
+            if spec["required_deliverables"]:
+                files = ", ".join(d["file"] for d in spec["required_deliverables"])
+                print(f"  required_deliverables: {files}")
+            if spec["depends_on"]:
+                print(f"  depends_on: {', '.join(spec['depends_on'])}")
+        return
+
     if args.action == "status":
         if not state:
             print(f"No project: {args.project}")
@@ -4672,15 +5119,11 @@ def main():
         if args.json:
             # #494: include rigor_tier, complexity_score, is_complete in the
             # JSON payload so CLI consumers don't have to re-derive them.
-            # is_complete := every phase in phase_plan has status "approved".
+            # Copilot #569 review: is_complete must share one definition with
+            # approve/advance — route through compute_project_completion so
+            # 'skipped' phases count as terminal here too.
             phase_status_summary = get_phase_status_summary(state)
-            if state.phase_plan:
-                is_complete = all(
-                    phase_status_summary.get(resolve_phase(p)) == "approved"
-                    for p in state.phase_plan
-                )
-            else:
-                is_complete = False
+            is_complete, remaining_phases = compute_project_completion(state)
             summary = {
                 "name": state.name,
                 "current_phase": state.current_phase,
@@ -4693,6 +5136,7 @@ def main():
                 "complexity_score": state.complexity_score,
                 "rigor_tier": (state.extras or {}).get("rigor_tier"),
                 "is_complete": is_complete,
+                "remaining_phases": remaining_phases,
             }
             print(json.dumps(summary, indent=2))
         else:
@@ -4764,20 +5208,28 @@ def main():
                 print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
         save_project_state(state)
+        is_complete, remaining = compute_project_completion(state)
         if args.json:
             print(json.dumps({
                 "ok": True,
                 "status": "cli-no-dispatcher",
                 "approved_phase": resolve_phase(phase),
                 "next_phase": next_phase,
+                "is_complete": is_complete,
+                "remaining_phases": remaining,
                 "warning": cli_dispatcher_warning,
             }, indent=2))
         else:
             print(f"Approved phase: {resolve_phase(phase)}")
-            if next_phase:
-                print(f"Next phase: {next_phase}")
-            else:
+            if is_complete:
                 print("Project complete!")
+            elif next_phase:
+                print(f"Next phase in plan: {next_phase}")
+            elif remaining:
+                print(f"Next phase in plan: {remaining[0]} (remaining: {', '.join(remaining)})")
+            else:
+                # Phase plan empty or unresolvable — honest fallback.
+                print("No next phase resolved — run 'status' to verify state.")
 
     elif args.action == "skip":
         phase = args.phase
@@ -4923,16 +5375,28 @@ def main():
 
         if next_phase is None:
             save_project_state(state)
+            is_complete, remaining = compute_project_completion(state)
             if args.json:
                 print(json.dumps({
                     "ok": True,
                     "approved_phase": approved_phase,
                     "next_phase": None,
-                    "message": "Project complete — no next phase",
+                    "is_complete": is_complete,
+                    "remaining_phases": remaining,
+                    "message": (
+                        "Project complete — no next phase"
+                        if is_complete
+                        else f"Approved {approved_phase}; no successor resolved but phases still pending: {', '.join(remaining)}"
+                    ),
                 }))
             else:
                 print(f"Approved phase: {approved_phase}")
-                print("Project complete!")
+                if is_complete:
+                    print("Project complete!")
+                elif remaining:
+                    print(f"Next phase in plan: {remaining[0]} (remaining: {', '.join(remaining)})")
+                else:
+                    print("No next phase resolved — run 'status' to verify state.")
             return
 
         state = start_phase(state, next_phase)

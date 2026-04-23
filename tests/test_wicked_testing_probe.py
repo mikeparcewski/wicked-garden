@@ -97,6 +97,15 @@ class TestIsVersionInRange:
     def test_non_numeric_parts(self):
         assert is_version_in_range("0.x.0", "^0.1.0") is False
 
+    def test_wildcard_pin_accepts_any_version(self):
+        assert is_version_in_range("0.1.0", "*") is True
+        assert is_version_in_range("9.9.9", "*") is True
+        assert is_version_in_range("0.1.1-beta.1", "*") is True
+        assert is_version_in_range("not-a-version", "*") is True
+
+    def test_wildcard_pin_rejects_empty(self):
+        assert is_version_in_range("", "*") is False
+
 
 # ---------------------------------------------------------------------------
 # read_pin_from_plugin_json
