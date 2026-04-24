@@ -256,8 +256,8 @@ def _handle_write_guard(tool_input: dict) -> str:
 
     TODO (Issue #329): When Claude Code supports updatedInput for PreToolUse hooks
     to redirect tool calls, change the MEMORY.md deny into an updatedInput redirect
-    that rewrites the Write/Edit call into a mem:store invocation instead. This
-    would be less disruptive than a hard deny — the intent to persist data would
+    that rewrites the Write/Edit call into a wicked-brain:memory invocation instead.
+    This would be less disruptive than a hard deny — the intent to persist data would
     still succeed, just through the correct channel.
     """
     file_path = tool_input.get("file_path", "")

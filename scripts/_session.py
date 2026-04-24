@@ -139,7 +139,7 @@ class SessionState:
     context_hash: str = ""
 
     # Escalation counter: incremented by task_completed.py on each deliverable completion.
-    # Reset by post_tool.py when a mem:store Write/Edit is detected.
+    # Reset by post_tool.py when a wicked-brain:memory Skill call succeeds.
     memory_compliance_escalations: int = 0
 
     # Written by bootstrap.py when onboarding is confirmed complete (both memories and index).
