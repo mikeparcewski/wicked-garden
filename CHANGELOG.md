@@ -1,5 +1,36 @@
 # Changelog
 
+## [8.0.0] - 2026-04-24
+
+### Features
+- feat(v8-PR-8): typed hook subscribers with filter + debounce (#592) (#624) (68651b2)
+- feat(v8-PR-7): auto-engage wicked-testing on test phases (#595) (#621) (9757daf)
+- feat(v8-PR-6): single --autonomy flag replaces 5 old surfaces (#593) (#619) (4c15e2e)
+- feat(v8-PR-5): structured AC records with typed evidence maps (#591) (#617) (d46126e)
+- feat(v8-PR-4): council orchestrator daemon binary (#594) (#615) (c363f6b)
+- feat(v8-PR-3): typed phase state machine — bans floating 'completed' (#590) (#613) (1c7df86)
+- feat(v8-PR-2): task state projection through daemon (#596) (#611) (1e1b5f8)
+- feat(v9-PR-5): drop-in plugin contract + wicked-testing exemplar (#601) (#609) (231d115)
+- feat(v9-PR-3): sharpen + merge + data:numbers cut (#601) (#605) (1fce5c1)
+- feat(v9-PR-4): ground keystone skill + discovery conventions doc (#601) (#606) (9a5b855)
+- feat(v9-cut): smaht domain remaining cuts + cross-ref fixups (#601) (#604) (7dafbf4)
+- feat(v9-PR-2): execute 85 surface cuts (#601) (#603) (fd9517d)
+- feat: v8 PR-1 read-only projection daemon (#589) (#599) (3b29a56)
+
+### Bug Fixes
+- fix: #587 AC literal-matcher cosmetic-rejection (normalize + parent-id + WARN) (#598) (382f698)
+- fix: grain-riding bundle — #576 #578 #581 #583 #584 (epic #585) (#586) (c781c83)
+- fix: P0 bundle — re-eval debounce + bus drain, specialist resolver, HITL judge, factors-shape doc (#582) (2c76914)
+- fix: gate-finding lifecycle validation (#570) (#571) (6fff830)
+
+### Documentation
+- docs(v9): surface audit + kill/keep verdict (#601) (#602) (d71a9b7)
+
+### Chores
+- cleanup(v9): remove dead mem:store hook detection — command cut in #603 (#601) (#607) (ee2bb7d)
+- release: v7.2.1 — expand council roster (aider, llm, aichat, goose) (0de1907)
+- release: v7.2.0 — agent-feedback batch (#561–#566) (#569) (b2052a3)
+
 ## [7.2.1] - UNRELEASED
 
 Council roster expansion. Adds four new external LLM CLIs to `/wicked-garden:jam:council` and refreshes Pi to match its current CLI (the retired Inflection `pi-mono` is gone; the current `pi` is `@mariozechner/pi-coding-agent` on npm). Pure documentation + discovery change — no behavior change for existing single-CLI paths.
