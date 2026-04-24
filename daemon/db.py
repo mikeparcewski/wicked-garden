@@ -216,6 +216,38 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_ac_evidence_project_ac
             ON ac_evidence(project_id, ac_id);
+
+        -- Test dispatch audit table (v8-PR-7 #595): each row records one
+        -- wicked-testing skill dispatch attempt.
+        --
+        -- MUTATION CARVE-OUT from PR-1 decision #6 (daemon read-only):
+        -- test dispatches are *originated* here (not projected from bus events)
+        -- because the daemon decides when to fire based on phase detection.
+        -- The read-only principle still applies to all projection tables.
+        -- This is the third explicit write path after council (PR-4) and event
+        -- ingestion (PR-2).  Documented in daemon/test_dispatch.py module
+        -- docstring.
+        CREATE TABLE IF NOT EXISTS test_dispatches (
+            dispatch_id     TEXT PRIMARY KEY,
+            session_id      TEXT NOT NULL,
+            project_id      TEXT NOT NULL,
+            phase           TEXT NOT NULL,
+            skill           TEXT NOT NULL,
+            verdict         TEXT NOT NULL,
+            evidence_path   TEXT,
+            latency_ms      INTEGER NOT NULL DEFAULT 0,
+            emitted_at      INTEGER NOT NULL,
+            notes           TEXT NOT NULL DEFAULT ''
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_test_dispatches_project
+            ON test_dispatches(project_id, emitted_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_test_dispatches_phase_skill
+            ON test_dispatches(project_id, phase, skill, emitted_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_test_dispatches_verdict
+            ON test_dispatches(verdict);
     """)
     conn.commit()
 
