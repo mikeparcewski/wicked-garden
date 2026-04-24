@@ -52,5 +52,6 @@ derandomize = true
 [tool.pytest.ini_options]
 markers = [
     "benchmark: AC-11 gate-result ingestion perf SLO lane (opt-in via `-m benchmark`). See .github/workflows/benchmark.yml.",
+    "slow: integration tests that invoke real subprocesses and take >1s (excluded from fast-CI runs with `-m 'not slow'`).",
 ]
 addopts = "-m 'not benchmark'"

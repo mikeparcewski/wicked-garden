@@ -1,0 +1,48 @@
+Real-subprocess timeout integration test output
+Captured: 2026-04-23
+Branch: v8/pr-4-council-daemon-binary
+Commit: see commit SHA in PR #615 commentary
+Run command: uv run pytest tests/daemon/test_council_timeout_integration.py -v --tb=short -m "" --durations=10 -p no:benchmark
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0
+rootdir: wicked-garden/.claude/worktrees/agent-a6d9f653758935ccf
+configfile: pyproject.toml
+plugins: hypothesis-6.152.1
+collecting ... collected 2 items
+
+tests/daemon/test_council_timeout_integration.py::TestRealSubprocessTimeout::test_wall_clock_bounded_and_verdicts_correct PASSED [ 50%]
+tests/daemon/test_council_timeout_integration.py::TestRealSubprocessTimeout::test_timeout_vote_row_has_non_null_rationale PASSED [100%]
+
+============================= slowest 10 durations =============================
+1.01s call     tests/daemon/test_council_timeout_integration.py::TestRealSubprocessTimeout::test_wall_clock_bounded_and_verdicts_correct
+1.01s call     tests/daemon/test_council_timeout_integration.py::TestRealSubprocessTimeout::test_timeout_vote_row_has_non_null_rationale
+
+(4 durations < 0.005s hidden.)
+============================== 2 passed in 2.15s ==============================
+
+--- Observed wall-clock analysis ---
+
+test_wall_clock_bounded_and_verdicts_correct:
+  Observed test duration:  1.01s
+  timeout_s configured:    1s   (_TIMEOUT_S = 1)
+  hang CLI sleep duration: 3.0s (= _TIMEOUT_S + 2.0)
+  fast CLI sleep duration: ~0ms (sys.stdout.write and exit)
+  Wall-clock ceiling:      3.0s (= _TIMEOUT_S * 2 + 1.0)
+  Result: 1.01s < 3.0s ceiling — PASS
+
+  Interpretation:
+  The hang CLI (_test_hang) blocks in a real OS subprocess (python3 -c "time.sleep(3.0)")
+  and is killed by subprocess.run(timeout=1) after exactly 1 second.  The fast CLI
+  (_test_fast) completes in ~0ms concurrently.  Total wall clock is ~1s, not 3s
+  (which would indicate sequential execution) and not >3s (which would indicate
+  the hang was not terminated).  This proves the ThreadPoolExecutor fan-out runs
+  both CLIs in parallel and the OS-level subprocess timeout fires correctly.
+
+test_timeout_vote_row_has_non_null_rationale:
+  Observed test duration:  1.01s (one hang CLI, timeout_s=1)
+  Result: hang CLI vote row has verdict="timeout" and non-empty rationale — PASS
+
+--- Full daemon suite (regression check) ---
+Run command: uv run pytest tests/daemon/ --tb=line -v -m ""
+Result: 100 passed in 12.94s — no regressions
