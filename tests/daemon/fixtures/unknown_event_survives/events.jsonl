@@ -1,0 +1,4 @@
+{"event_id": 1, "event_type": "wicked.project.created", "created_at": 1700005001, "chain_id": "zeta-lib.root", "payload": {"project_id": "zeta-lib", "complexity_score": 2.0}}
+{"event_id": 2, "event_type": "wicked.totally.fake_event", "created_at": 1700005050, "chain_id": null, "payload": {"project_id": "zeta-lib", "some_field": "should be ignored"}}
+{"event_id": 3, "event_type": "wicked.gate.decided", "created_at": 1700005100, "chain_id": "zeta-lib.clarify", "payload": {"project_id": "zeta-lib", "phase": "clarify", "result": "APPROVE", "score": 0.88, "reviewer": "wicked-garden:crew:gate-adjudicator"}}
+{"event_id": 4, "event_type": "wicked.phase.transitioned", "created_at": 1700005110, "chain_id": "zeta-lib.clarify", "payload": {"project_id": "zeta-lib", "phase_from": "clarify", "phase_to": null, "approver": "wicked-garden:crew:gate-adjudicator", "gate_result": "APPROVE"}}

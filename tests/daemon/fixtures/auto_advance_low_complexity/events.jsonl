@@ -1,0 +1,3 @@
+{"event_id": 1, "event_type": "wicked.project.created", "created_at": 1700003001, "chain_id": "delta-tool.root", "payload": {"project_id": "delta-tool", "complexity_score": 1.5}}
+{"event_id": 2, "event_type": "wicked.gate.decided", "created_at": 1700003050, "chain_id": "delta-tool.clarify", "payload": {"project_id": "delta-tool", "phase": "clarify", "result": "APPROVE", "score": 0.82, "reviewer": "wicked-garden:crew:gate-adjudicator"}}
+{"event_id": 3, "event_type": "wicked.phase.auto_advanced", "created_at": 1700003060, "chain_id": "delta-tool.clarify", "payload": {"project_id": "delta-tool", "phase": "clarify", "complexity_score": 1.5, "gate_result": "APPROVE"}}

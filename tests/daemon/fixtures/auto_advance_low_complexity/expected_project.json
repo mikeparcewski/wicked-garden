@@ -1,0 +1,16 @@
+{
+  "id": "delta-tool",
+  "name": "delta-tool",
+  "workspace": null,
+  "directory": null,
+  "archetype": null,
+  "complexity_score": 1.5,
+  "rigor_tier": null,
+  "current_phase": "clarify",
+  "status": "active",
+  "chain_id": "delta-tool.root",
+  "yolo_revoked_count": 0,
+  "last_revoke_reason": null,
+  "created_at": 0,
+  "updated_at": 0
+}

@@ -1,0 +1,16 @@
+{
+  "id": "beta-api",
+  "name": "beta-api",
+  "workspace": null,
+  "directory": null,
+  "archetype": null,
+  "complexity_score": 4.5,
+  "rigor_tier": null,
+  "current_phase": "",
+  "status": "active",
+  "chain_id": "beta-api.root",
+  "yolo_revoked_count": 0,
+  "last_revoke_reason": null,
+  "created_at": 0,
+  "updated_at": 0
+}

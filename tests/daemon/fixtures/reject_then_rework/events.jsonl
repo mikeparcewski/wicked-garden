@@ -1,0 +1,4 @@
+{"event_id": 1, "event_type": "wicked.project.created", "created_at": 1700001001, "chain_id": "beta-api.root", "payload": {"project_id": "beta-api", "complexity_score": 4.5}}
+{"event_id": 2, "event_type": "wicked.gate.decided", "created_at": 1700001100, "chain_id": "beta-api.design", "payload": {"project_id": "beta-api", "phase": "design", "result": "REJECT", "score": 0.45, "reviewer": "wicked-garden:qe:semantic-reviewer"}}
+{"event_id": 3, "event_type": "wicked.gate.blocked", "created_at": 1700001101, "chain_id": "beta-api.design", "payload": {"project_id": "beta-api", "phase": "design", "blocking_reason": "Missing acceptance criteria for FR-001 and FR-002"}}
+{"event_id": 4, "event_type": "wicked.rework.triggered", "created_at": 1700001102, "chain_id": "beta-api.design", "payload": {"project_id": "beta-api", "phase": "design", "iteration_count": 1, "chain_id": "beta-api.design"}}
