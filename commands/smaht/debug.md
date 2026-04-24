@@ -1,5 +1,7 @@
 ---
-description: Show session state and recent context for debugging
+description: |
+  Use when context assembly seems wrong or you need to inspect live SessionState, adapter outputs, or
+  smaht directive settings. NOT for what-happened-since-last-session (use smaht:briefing).
 argument-hint: "[--state] [--events N] [--json]"
 ---
 

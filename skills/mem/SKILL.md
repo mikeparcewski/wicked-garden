@@ -46,12 +46,14 @@ This skill provides guidance on effectively using Claude's memory system to pers
 
 ## Quick Reference
 
-| Task | Command |
-|------|---------|
-| Store a decision | `/wicked-garden:mem:store "..." --type decision` |
-| Find past context | `/wicked-garden:mem:recall "query"` |
-| Check memory health | `/wicked-garden:mem:stats` |
-| Archive old memory | `/wicked-garden:mem:forget mem_id` |
+In v9 the `mem:*` commands are removed. All memory operations go through `wicked-brain:memory` directly.
+
+| Task | How |
+|------|-----|
+| Store a decision | `Skill(skill="wicked-brain:memory", args="store \"...\" --type decision")` |
+| Find past context | `Skill(skill="wicked-brain:memory", args="recall \"query\"")` |
+| Check memory health | `Skill(skill="wicked-brain-status", args="")` |
+| Archive old memory | `Skill(skill="wicked-brain:forget", args="mem_id")` |
 
 ## On-Demand Recall
 
@@ -60,7 +62,7 @@ Memories are pulled on-demand, not preloaded. When context is needed:
 1. **Auto-triggered**: Prompts like "why did we decide..." auto-search memories
 2. **Manual fallback**: If no context is injected and you need history, use:
    ```
-   /wicked-garden:mem:recall "query terms"
+   Skill(skill="wicked-brain:memory", args="recall \"query terms\"")
    ```
 
 **When to proactively recall:**

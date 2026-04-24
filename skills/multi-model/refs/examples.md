@@ -207,21 +207,14 @@ and architectural issues. Be specific and actionable."
 [Final decision and rationale]
 ```
 
-## Storing Decisions in wicked-garden:mem
+## Storing Decisions in wicked-brain:memory
 
 After synthesis, persist the decision:
 
-```bash
+```
 # Store the decision
-/wicked-garden:mem:store "Payment gateway: Stripe with async webhooks.
-All models agreed on idempotency requirement.
-Circuit breaker recommended by OpenCode." \
-  --type decision \
-  --tags payments,architecture,multi-model-review
+Skill(skill="wicked-brain:memory", args="store \"Payment gateway: Stripe with async webhooks.\nAll models agreed on idempotency requirement.\nCircuit breaker recommended by OpenCode.\" --type decision --tags payments,architecture,multi-model-review")
 
 # Store specific learnings
-/wicked-garden:mem:store "JWT tokens: Use 15min access / 7day refresh.
-24h access tokens flagged as security risk by Claude." \
-  --type procedural \
-  --tags auth,jwt,security
+Skill(skill="wicked-brain:memory", args="store \"JWT tokens: Use 15min access / 7day refresh.\n24h access tokens flagged as security risk by Claude.\" --type procedural --tags auth,jwt,security")
 ```

@@ -1,5 +1,8 @@
 ---
-description: Architecture analysis and design recommendations
+description: |
+  Use when reviewing an existing system's architecture — evaluating component boundaries, coupling, layer
+  violations, or recommending design patterns. Outputs ADR-style analysis with trade-offs.
+  NOT for greenfield design (use the architecture skill) or code-level review (use engineering:review).
 argument-hint: "[component or system] [--scope module|service|system]"
 ---
 

@@ -1,5 +1,8 @@
 ---
-description: GitHub CLI power utilities for workflows, PRs, and releases
+description: |
+  Use when you need advanced gh CLI operations — debugging failed workflow runs, bulk PR management,
+  or release automation — that go beyond what a plain `gh` man-page example covers.
+  NOT for simple git operations (use Bash) or repo health (use platform:health).
 argument-hint: "<operation: workflows|prs|releases|repo> [args]"
 ---
 

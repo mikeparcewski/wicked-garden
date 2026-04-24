@@ -1,5 +1,8 @@
 ---
-description: Report on lineage coverage and identify symbols without full traceability
+description: |
+  Use when auditing how much of the codebase has source-to-sink lineage tracing — identifies orphan symbols
+  with no upstream or downstream connections. Unique to the wicked-garden graph index.
+  NOT for general code search (use wicked-brain:search) or impact analysis (use search:blast-radius).
 argument-hint: "[--type <symbol_type>] [--show-orphans]"
 ---
 

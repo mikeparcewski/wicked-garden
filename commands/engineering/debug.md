@@ -1,5 +1,8 @@
 ---
-description: Systematic debugging session with root cause analysis
+description: |
+  Use when you have a bug, error, or unexpected behavior and need structured hypothesis-driven diagnosis —
+  root cause, reproduction steps, fix, and prevention. NOT for code review (use engineering:review)
+  or architecture analysis (use engineering:arch).
 argument-hint: "<error message, symptom, or issue description>"
 ---
 

@@ -1,5 +1,7 @@
 ---
-description: Log a production incident linked to the current crew project
+description: |
+  Use when logging a production incident that needs traceability back to an active crew project's requirements and code.
+  NOT for live incident triage (use platform:incident) or post-mortems without a crew project.
 argument-hint: "<description> [--severity critical|high|medium|low] [--components comp1,comp2]"
 ---
 

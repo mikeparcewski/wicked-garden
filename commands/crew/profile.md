@@ -1,5 +1,7 @@
 ---
-description: Configure wicked-crew preferences and working style
+description: |
+  Use when adjusting how wicked-crew engages — autonomy level, verbosity, or plan mode — before starting or mid-project.
+  NOT for project-level configuration (use crew:start) or gate configuration (use crew:gate).
 argument-hint: "[--autonomy ask-first|balanced|just-finish] [--style verbose|balanced|concise] [--plan-mode on|off]"
 ---
 

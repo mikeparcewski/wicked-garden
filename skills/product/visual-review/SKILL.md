@@ -1,18 +1,15 @@
 ---
 name: visual-review
 description: |
-  Systematic visual design analysis for UI consistency, design system adherence,
-  spacing, typography, color, and component patterns.
-
-  Use when: "visual checklist", "score the UI", "spacing audit",
-  "typography check", "color palette review", "component pattern audit", "evidence-based design review"
+  Use when auditing visual design for consistency — design system adherence, spacing tokens, typography
+  scale, color palette, component patterns, and responsive polish. Structured checklist + scoring.
+  NOT for UX flows or user research (use ux-review) or accessibility code audits (use product/accessibility).
 portability: portable
 ---
 
 # Visual Review Skill
 
-Systematic, evidence-based visual design analysis. Complements `product/design-review`
-(which focuses on critique) by providing structured checklists and scoring.
+Systematic, evidence-based visual design analysis. Provides structured checklists and scoring.
 
 ## What This Evaluates
 
@@ -127,6 +124,6 @@ Typography violations:
 
 - **screenshot skill**: Capture visuals for before/after comparison
 - **accessibility skill**: Color contrast overlaps with a11y
-- **product/design-review**: Shares criteria; this provides the checklist structure
+- **product/ux-review**: For UX flows, user research, and usability evaluation
 - **wicked-garden:search**: `wicked-garden:search "#[0-9a-fA-F]{3,6}"` finds hardcoded colors
 - **imagery/review skill**: For comprehensive image analysis with quality gates (brand, accessibility, production, sensitivity), see the `imagery/review` skill

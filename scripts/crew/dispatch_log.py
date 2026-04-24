@@ -246,7 +246,7 @@ def _emit_deprecation_once(project_dir: Path, phase: str, *, reason: str) -> Non
         f"({reason}). Accepting under the soft-deprecation window; "
         "the result will REJECT after "
         f"{_get_strict_after_date().isoformat()}. "
-        "Run /wicked-garden:crew:migrate-gates to backfill.\n"
+        "See adopt-legacy skill for backfill guidance.\n"
     )
 
 

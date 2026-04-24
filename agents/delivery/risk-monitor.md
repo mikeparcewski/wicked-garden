@@ -239,9 +239,9 @@ For each risk, track:
 
 ## Memory Integration
 
-Store risk patterns:
+Store risk patterns via wicked-brain:memory (store mode):
 ```
-/wicked-garden:mem:store "risk pattern: {risk type} in {context} led to {impact} - mitigated by {action}"
+Skill(skill="wicked-brain:memory", args="store \"risk pattern: {risk type} in {context} led to {impact} - mitigated by {action}\"")
 ```
 
 Recall for new projects:

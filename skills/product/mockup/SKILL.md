@@ -1,12 +1,8 @@
 ---
 name: mockup
 description: |
-  Digital mockup and wireframe generation. Outputs ASCII wireframes for quick
-  ideation, HTML/CSS previews for interactive review, or component specs for
-  developer handoff.
-
-  Use when: "mockup", "wireframe", "prototype", "lo-fi design", "component spec",
-  "design sketch", "UI layout", "layout draft", "design handoff"
+  Use when you need a quick ASCII wireframe or HTML mockup in-chat without Figma overhead.
+  NOT for production design work — use the figma plugin for that.
 portability: portable
 ---
 
@@ -172,7 +168,7 @@ Before delivering a mockup:
 
 ## Integration
 
-- **ux-flow skill**: Pair mockups with the flow they support
+- **ux-review skill**: Pair mockups with the UX flow they support
 - **screenshot skill**: Compare mockup against built implementation
 - **visual-review skill**: Mockups set the standard for visual review
 - **engineering/frontend-design skill**: Coordinate component implementation

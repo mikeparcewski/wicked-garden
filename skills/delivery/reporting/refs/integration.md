@@ -77,7 +77,7 @@ Cache stored via wicked-garden:mem
 ### With data
 ```python
 # Data analysis queries
-/wicked-garden:data:numbers input.csv --query "SELECT status, COUNT(*) FROM data GROUP BY status"
+/wicked-garden:data:analyze input.csv --focus stats
 ```
 
 ### With utils:persona

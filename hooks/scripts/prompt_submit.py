@@ -255,7 +255,7 @@ _DISCOVERY_PATTERNS = [
                      "look at the data", "explore this dataset", "analyze the spreadsheet"],
         "hint": (
             "[Tip] For interactive data analysis with DuckDB, "
-            "try `/wicked-garden:data:numbers` or `/wicked-garden:data:analyze`."
+            "try `/wicked-garden:data:analyze`."
         ),
     },
 ]

@@ -1,5 +1,8 @@
 ---
-description: Show symbol categories — types, layers, directory groupings, and cross-category relationships
+description: |
+  Use when you want a structural map of the codebase — which symbol types (functions, classes, configs) dominate
+  and how they relate across architectural layers. Unique graph-shape output from the wicked-garden index.
+  NOT for finding a specific symbol (use wicked-brain:search) or counting files (use Bash).
 argument-hint: "[--project <name>]"
 ---
 

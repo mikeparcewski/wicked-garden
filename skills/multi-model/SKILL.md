@@ -111,15 +111,12 @@ Council responses are persisted as transcript entries:
 - Synthesis appended as `entry_type: synthesis`
 - Retrievable via `/jam:transcript` and `/jam:thinking`
 
-### Manual (via wicked-garden:mem)
+### Manual (via wicked-brain:memory)
 
 Store decisions with full attribution:
 
-```bash
-/wicked-garden:mem:store "Auth: JWT with 15min/7day expiry.
-Consensus: Claude, Gemini, Codex (idempotency critical).
-Unique: Gemini flagged session store scaling concern.
-Dissent: none." --type decision --tags auth,multi-model-review
+```
+Skill(skill="wicked-brain:memory", args="store \"Auth: JWT with 15min/7day expiry.\nConsensus: Claude, Gemini, Codex (idempotency critical).\nUnique: Gemini flagged session store scaling concern.\nDissent: none.\" --type decision --tags auth,multi-model-review")
 ```
 
 ## When to Use Multi-Model

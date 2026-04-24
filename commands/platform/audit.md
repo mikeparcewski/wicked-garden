@@ -1,5 +1,8 @@
 ---
-description: Audit evidence collection and compliance verification
+description: |
+  Use when gathering audit evidence for a compliance framework (SOC2, HIPAA, GDPR, PCI) — collects control
+  artifacts, verifies state, and generates compliance reports. NOT for defining compliance policies
+  (use platform:compliance) or ad hoc security checks (use platform:security).
 argument-hint: "<framework: soc2|hipaa|gdpr|pci> [control ID]"
 ---
 

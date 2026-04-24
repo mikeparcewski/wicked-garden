@@ -21,26 +21,20 @@ Guidelines for capturing memories that provide lasting value.
 
 ### Decision Memories
 
-```bash
-/wicked-garden:mem:store "Chose PostgreSQL over MongoDB for payment system. \
-Reasons: ACID compliance, complex joins for reporting, team experience. \
-Trade-off: Less schema flexibility." --type decision --tags database,architecture
+```
+Skill(skill="wicked-brain:memory", args="store \"Chose PostgreSQL over MongoDB for payment system. Reasons: ACID compliance, complex joins for reporting, team experience. Trade-off: Less schema flexibility.\" --type decision --tags database,architecture")
 ```
 
 ### Procedural Memories
 
-```bash
-/wicked-garden:mem:store "Authentication flow: 1) Validate JWT on backend, \
-2) Check token not revoked, 3) Extract claims, 4) Set request context. \
-Never trust client-side token validation." --type procedural --tags auth,security
+```
+Skill(skill="wicked-brain:memory", args="store \"Authentication flow: 1) Validate JWT on backend, 2) Check token not revoked, 3) Extract claims, 4) Set request context. Never trust client-side token validation.\" --type procedural --tags auth,security")
 ```
 
 ### Episodic Memories
 
-```bash
-/wicked-garden:mem:store "Session bug 2026-01-18: JWT migration broke session \
-middleware. Root cause: validation order changed. Fix: moved token check \
-before session lookup." --type episodic --tags auth,bug-fix
+```
+Skill(skill="wicked-brain:memory", args="store \"Session bug 2026-01-18: JWT migration broke session middleware. Root cause: validation order changed. Fix: moved token check before session lookup.\" --type episodic --tags auth,bug-fix")
 ```
 
 ## Tagging Strategy

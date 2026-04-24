@@ -134,7 +134,7 @@ inject_context(prior)
 At session end:
 ```python
 if user_approves:
-    mem_store(insights, type="decision", tags=[topic])  # via /wicked-garden:mem:store
+    mem_store(insights, type="decision", tags=[topic])  # via wicked-brain:memory (store mode)
 ```
 
 ### With native tasks

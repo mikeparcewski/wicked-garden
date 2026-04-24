@@ -1,5 +1,8 @@
 ---
-description: Run health probes against all installed plugins
+description: |
+  Use when diagnosing wicked-garden plugin health — runs readiness probes, views operational logs,
+  queries hook traces, or adjusts log verbosity. Single entry point for all plugin-level diagnostics.
+  NOT for distributed tracing (use platform:traces) or system-wide health (use platform:health).
 argument-hint: "[--plugin name] [--retry-auth] [--json]"
 ---
 

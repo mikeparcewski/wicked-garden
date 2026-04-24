@@ -1,15 +1,9 @@
 ---
 name: data
 description: |
-  This skill should be used when profiling datasets, validating schemas, or assessing data quality.
-  Covers dataset profiling, schema validation, and quality assessment.
-
-  Use when:
-  - "profile this dataset"
-  - "validate schema"
-  - "check data quality"
-  - "what's in this CSV/Excel file"
-  - "describe this data"
+  Use when profiling a dataset's structure, validating it against a schema, or generating a data quality
+  report (completeness, uniqueness, validity constraints). Runs the data_profiler.py and schema_validator.py scripts.
+  NOT for exploratory pattern analysis (use data/analysis) or SQL queries (use data:analyze).
 ---
 
 # Data Engineering Skill
@@ -95,16 +89,16 @@ See [examples](refs/examples.md) for schema format.
 
 | Plugin | Enhancement |
 |--------|-------------|
-| wicked-garden:data:numbers | Use for SQL-based profiling of large files |
+| wicked-garden:data:analyze | Use for SQL-based profiling of large files via DuckDB |
 | Native tasks | Document quality issues via TaskCreate with `metadata.event_type="task"` |
 | wicked-garden:mem | Store quality patterns across sessions |
 
 ## Large Files
 
-For files >1GB, use wicked-garden:data:numbers for efficient SQL-based profiling:
+For files >1GB, use wicked-garden:data:analyze for efficient SQL-based profiling:
 
 ```bash
-/wicked-garden:data:numbers large_file.csv
+/wicked-garden:data:analyze large_file.csv
 ```
 
 ## Output Standards

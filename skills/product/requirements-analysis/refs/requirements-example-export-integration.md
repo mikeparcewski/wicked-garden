@@ -71,10 +71,10 @@ TaskCreate(
 )
 ```
 
-### With Wicked Mem
+### With wicked-brain:memory
 Store for pattern recall:
-```bash
-/wicked-garden:mem:store "auth-requirements-2026" "$(cat requirements.md)"
+```
+Skill(skill="wicked-brain:memory", args="store \"auth-requirements-2026\" \"$(cat requirements.md)\"")
 ```
 
 ### With Wicked QE

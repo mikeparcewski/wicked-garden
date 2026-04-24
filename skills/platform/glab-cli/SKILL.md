@@ -1,11 +1,9 @@
 ---
 name: glab-cli
 description: |
-  This skill should be used when working with GitLab CLI (glab) for pipeline debugging,
-  MR management, and release automation.
-
-  Use when: "glab", "GitLab pipeline", "MR review", "GitLab CI",
-  "merge request", "GitLab release", "glab CLI"
+  Use when you need glab CLI patterns for GitLab — pipeline debugging, MR management, or release
+  automation. Provides composable glab invocations for power users.
+  NOT for GitHub (use the gh-cli skill) or simple git commands (use Bash).
 ---
 
 # GitLab CLI Power Utilities

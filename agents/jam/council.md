@@ -264,10 +264,10 @@ The verdict should be copy-pasteable into a Slack message or ticket.
 
 ### 8. Store Decision Record
 
-If wicked-garden:mem is available, store the council outcome:
+Store the council outcome via wicked-brain:memory (store mode, if available):
 
 ```
-/wicked-garden:mem:store "Council: {topic} → {verdict_summary}" --type decision --tags "council,{topic_slug}" --importance high
+Skill(skill="wicked-brain:memory", args="store \"Council: {topic} → {verdict_summary}\" --type decision --tags \"council,{topic_slug}\" --importance high")
 ```
 
 ## Important Rules

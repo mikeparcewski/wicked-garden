@@ -1,11 +1,9 @@
 ---
 name: requirements-analysis
 description: |
-  Deep requirements elicitation and user story definition.
-  Transform vague ideas into clear, testable specifications.
-
-  Use when: "write user stories", "define requirements",
-  "elicit requirements", "clarify scope", "specification document"
+  Use when turning a vague idea or stakeholder ask into structured user stories with acceptance criteria
+  and a requirements graph. For complexity >= 3 or compliance projects, defaults to graph mode.
+  NOT for navigating an existing requirements graph (use requirements-navigate) or stakeholder alignment (use product:align).
 ---
 
 # Requirements Analysis Skill

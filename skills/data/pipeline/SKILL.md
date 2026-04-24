@@ -126,7 +126,7 @@ Pipeline engineering can leverage available integrations by capability:
 | **ETL** | `airbyte`, `fivetran`, `dbt` | Pipeline status, model metadata |
 | **Observability** | `monte-carlo`, `datadog` | Data quality metrics |
 
-Discover available integrations via capability detection. Fall back to wicked-garden:data:numbers for local file analysis.
+Discover available integrations via capability detection. Fall back to wicked-garden:data:analyze for local file analysis via DuckDB.
 
 ## Reference
 

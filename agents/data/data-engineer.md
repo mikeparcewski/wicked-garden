@@ -28,7 +28,7 @@ You design and review data pipelines with a focus on quality, performance, and m
 
 Before manual work, leverage available tools:
 
-- **wicked-garden:data:numbers**: For data profiling and SQL queries
+- **wicked-garden:data:analyze**: For data profiling and SQL queries via DuckDB
 - **wicked-garden:search**: Find existing pipeline code
 - **Native tasks**: TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` track data quality issues
 - **wicked-garden:mem**: Recall past pipeline patterns

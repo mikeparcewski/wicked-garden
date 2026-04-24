@@ -1,8 +1,10 @@
 ---
 name: review-methodology
 description: |
-  Systematic review methodology for agentic codebases with issue detection, analysis, and reporting.
-  Use when: "review agentic code", "audit agent system", "check agent quality", "agentic code review"
+  Use when reviewing an agentic codebase for issues, risks, and maturity gaps — covers the four-phase review
+  process (Detect → Analyze → Prioritize → Report) and the five-level maturity model (Prototype → Functional →
+  Reliable → Production → Optimized) for assessing production readiness.
+  NOT for architecture design (use agentic-patterns) or live agentic review with a subagent (use agentic:review command).
 portability: portable
 ---
 

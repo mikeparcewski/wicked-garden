@@ -26,7 +26,7 @@ You explore data, identify patterns, and generate actionable insights.
 
 Leverage available tools:
 
-- **wicked-garden:data:numbers**: Primary tool for data analysis and SQL queries
+- **wicked-garden:data:analyze**: Primary tool for data analysis and SQL queries via DuckDB
 - **wicked-garden:mem**: Recall past analysis patterns
 - **Native tasks**: Document insights via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`
 
@@ -36,7 +36,7 @@ Leverage available tools:
 
 Start with profiling:
 ```bash
-/wicked-garden:data:numbers {data_file}
+/wicked-garden:data:analyze {data_file}
 ```
 
 **Initial questions**:

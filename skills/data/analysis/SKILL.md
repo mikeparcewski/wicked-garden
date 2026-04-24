@@ -1,15 +1,9 @@
 ---
 name: analysis
 description: |
-  This skill should be used when exploring datasets for patterns and generating business insights —
-  exploratory analysis, statistical methods, and visualization guidance.
-
-  Use when:
-  - "analyze this data"
-  - "what patterns are in the data"
-  - "generate insights from"
-  - "exploratory data analysis"
-  - "what does this data tell us"
+  Use when exploring a dataset for patterns, trends, and business insights — EDA, segmentation,
+  anomaly detection, and visualization guidance. Generates the Observation → Insight → Action chain.
+  NOT for schema validation or data quality scoring (use the data/data skill) or SQL queries (use data:analyze).
 ---
 
 # Data Analysis Skill
@@ -39,7 +33,7 @@ After exploration, ask specific questions:
 ### 1. Profile & Understand
 
 ```bash
-/wicked-garden:data:numbers sales.csv
+/wicked-garden:data:analyze sales.csv
 ```
 
 **Key questions**:
@@ -101,9 +95,9 @@ After exploration, ask specific questions:
 
 ## Integration
 
-**wicked-garden:data:numbers** - Primary tool for data queries:
+**wicked-garden:data:analyze** - Primary tool for data queries via DuckDB:
 ```bash
-/wicked-garden:data:numbers data.csv
+/wicked-garden:data:analyze data.csv
 ```
 
 **Native tasks** - Document insights via TaskCreate with `metadata.event_type="task"`
