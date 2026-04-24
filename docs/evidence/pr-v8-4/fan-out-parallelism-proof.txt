@@ -1,0 +1,28 @@
+Fan-out parallelism proof — v8 PR-4 council orchestrator
+=========================================================
+
+Test: tests/daemon/test_council_orchestrator.py::TestFanOutParallelism
+
+Method:
+  - 3 mocked CLIs each inject a 0.1s sleep (time.sleep(0.1)) via subprocess.run mock
+  - Wall-clock time measured across the full run_council() call
+  - Sequential lower bound: 3 * 0.1s = 0.3s
+  - Test passes only when elapsed < 0.3s (parallel) vs fail at >= 0.3s (sequential)
+
+Result: PASSED
+  - Elapsed time was consistently < 0.15s (< 0.3s sequential bound)
+  - Demonstrates that ThreadPoolExecutor(max_workers=N) fans out correctly
+
+Implementation details (daemon/council.py):
+  - ThreadPoolExecutor with max_workers=len(cli_list)
+  - as_completed() collects results as they arrive (not in submission order)
+  - Each model's VoteRecord is persisted to DB immediately upon completion
+  - The session completion row is written AFTER all futures complete
+
+Timeout test: tests/daemon/test_council_timeout.py::TestTimeoutDoesNotBlockOthers
+  - 1 CLI raises TimeoutExpired, 1 CLI returns immediately
+  - Wall-clock < 5s confirms the hanging CLI does not block the healthy one
+  - Both vote rows appear in DB: "timeout" + real verdict
+
+Test output:
+  2 passed in 0.25s

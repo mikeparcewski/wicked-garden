@@ -277,3 +277,7 @@ Skill(skill="wicked-brain:memory", args="store \"Council: {topic} → {verdict_s
 3. **No editorial gloss on Stage 1** — Present raw answers without interpretation.
 4. **Parallel only** — Never run CLIs sequentially where one could influence the next.
 5. **Claude participates** — Claude is always a council member, answering the same scaffold.
+
+## Programmatic / Persistent Access
+
+For programmatic access, persistent storage, or cross-session queries see `daemon/council.py` + `POST /council` endpoint (v8 PR-4, issue #594). The daemon alternative persists per-model raw responses in SQLite, exposes the vote matrix before synthesis, and stores historical council sessions queryable via `GET /council/<session_id>` and `GET /councils`.

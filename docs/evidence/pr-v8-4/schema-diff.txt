@@ -1,0 +1,48 @@
+Schema diff for v8 PR-4 — council tables added to daemon/db.py
+==============================================================
+
+NEW TABLES (added to init_schema via executescript):
+
+    council_sessions (
+        id                  TEXT PRIMARY KEY,
+        topic               TEXT NOT NULL,
+        question            TEXT NOT NULL,
+        started_at          INTEGER NOT NULL,
+        completed_at        INTEGER,
+        synthesized_verdict TEXT,
+        agreement_ratio     REAL,
+        hitl_paused         INTEGER NOT NULL DEFAULT 0,
+        hitl_rule_id        TEXT
+    )
+
+    council_votes (
+        session_id      TEXT NOT NULL,
+        model           TEXT NOT NULL,
+        verdict         TEXT,
+        confidence      REAL,
+        rationale       TEXT,
+        raw_response    TEXT,
+        latency_ms      INTEGER,
+        emitted_at      INTEGER NOT NULL,
+        PRIMARY KEY (session_id, model),
+        FOREIGN KEY (session_id) REFERENCES council_sessions(id) ON DELETE CASCADE
+    )
+
+NEW INDEXES:
+    idx_council_sessions_started   ON council_sessions(started_at DESC)
+    idx_council_sessions_verdict   ON council_sessions(synthesized_verdict)
+    idx_council_sessions_hitl_rule ON council_sessions(hitl_rule_id)
+    idx_council_votes_session      ON council_votes(session_id)
+
+NEW CRUD FUNCTIONS:
+    insert_council_session(conn, session_id, topic, question, started_at?)
+    upsert_council_vote(conn, session_id, model, verdict, confidence,
+                        rationale, raw_response, latency_ms, emitted_at?)
+    complete_council_session(conn, session_id, synthesized_verdict,
+                             agreement_ratio, hitl_paused, hitl_rule_id, completed_at?)
+    get_council_session(conn, session_id) -> dict | None
+    list_council_sessions(conn, topic_prefix?, since, limit) -> list[dict]
+    list_council_votes(conn, session_id) -> list[dict]
+
+All existing tables and indexes are UNCHANGED (additive only).
+init_schema remains idempotent — safe to call on every startup.

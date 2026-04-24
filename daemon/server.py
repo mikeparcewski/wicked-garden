@@ -1,13 +1,22 @@
 """
-daemon/server.py — Read-only HTTP projection server for wicked-garden v8 daemon.
+daemon/server.py — HTTP server for the wicked-garden v8 daemon.
 
-Exposes 5 GET endpoints backed by the SQLite projection DB (daemon/db.py).
+Exposes GET endpoints backed by the SQLite projection DB (daemon/db.py), plus
+the council POST endpoint which is an explicit mutation carve-out from PR-1
+decision #6 (see Stream 3 comment below).
+
+PR-1 decision #6 (daemon read-only) applies to all projection tables
+(projects, phases, tasks, cursor, event_log).  Council sessions are *originated*
+here — not projected from bus events — so POST /council is a deliberate, bounded
+exception.  PR-2 introduced the first write path (event ingestion).  PR-4 adds
+the second: council orchestration.  Both are documented at their call sites.
+
 Defaults to 127.0.0.1 per locked decision #10; WG_DAEMON_HOST can override but
 is documented as not encouraged. Default port 4244.
 
 Public API
 ----------
-ProjectionRequestHandler  — BaseHTTPRequestHandler subclass; implements do_GET.
+ProjectionRequestHandler  — BaseHTTPRequestHandler subclass; implements do_GET/do_POST.
 make_server(host, port, db_path) -> ThreadingHTTPServer
 run(host, port, db_path) -> int  — blocking entrypoint, returns exit code.
 """
@@ -25,6 +34,7 @@ from typing import Any
 
 import daemon.consumer as consumer
 import daemon.db as db
+import daemon.council as council_module
 from daemon import VERSION as DAEMON_VERSION
 
 # ---------------------------------------------------------------------------
@@ -42,6 +52,11 @@ EVENTS_LIMIT_MAX: int = 1000
 # Stream 1 — #596 v8-PR-2: /tasks endpoint limits
 TASKS_LIMIT_DEFAULT: int = 200
 TASKS_LIMIT_MAX: int = 500
+# Stream 3 — #594 v8-PR-4: /councils list limits
+COUNCILS_LIMIT_DEFAULT: int = 50
+COUNCILS_LIMIT_MAX: int = 200
+# Maximum request body size for POST /council (R5: no unbounded reads)
+COUNCIL_POST_MAX_BODY_BYTES: int = 65_536
 
 ENV_HOST: str = "WG_DAEMON_HOST"
 ENV_PORT: str = "WG_DAEMON_PORT"
@@ -103,10 +118,44 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                     self._handle_get_task(task_id, query)
                 else:
                     self._send_not_found("Unknown endpoint")
+            # Stream 3 — #594 v8-PR-4: council read endpoints
+            elif path == "/councils":
+                self._handle_list_councils(query)
+            elif path.startswith("/council/"):
+                session_id = path[len("/council/"):]
+                if session_id and "/" not in session_id:
+                    self._handle_get_council(session_id, query)
+                else:
+                    self._send_not_found("Unknown endpoint")
             else:
                 self._send_not_found("Unknown endpoint")
         except Exception:
             logger.error("Unhandled exception in do_GET:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+
+    def do_POST(self) -> None:  # noqa: D102
+        """Dispatch incoming POST requests to endpoint helpers.
+
+        Stream 3 — #594 v8-PR-4.
+
+        POST /council is an explicit mutation carve-out from PR-1 decision #6
+        (daemon read-only for projection tables).  Council sessions are *originated*
+        by the daemon — not projected from bus events — so mutation is required.
+        The caller POSTs a question and synchronously receives the full council
+        result including raw votes, synthesis, and HITL decision.
+
+        See daemon/council.py module docstring for the full carve-out rationale.
+        """
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path.rstrip("/")
+
+        try:
+            if path == "/council":
+                self._handle_post_council()
+            else:
+                self._send_not_found("Unknown POST endpoint")
+        except Exception:
+            logger.error("Unhandled exception in do_POST:\n%s", traceback.format_exc())
             self._send_error(500, "Internal server error")
 
     # ------------------------------------------------------------------ #
@@ -278,6 +327,145 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                 conn.close()
 
     # ------------------------------------------------------------------ #
+    # Council endpoints (Stream 3 — #594 v8-PR-4)
+    # ------------------------------------------------------------------ #
+
+    def _handle_post_council(self) -> None:
+        """POST /council — Run a council session synchronously.
+
+        Body: {"topic": str, "question": str, "criteria"?: str,
+               "cli_list"?: list[str], "timeout_s"?: int}
+        Returns: CouncilResult envelope {session_id, raw_votes, synthesized,
+                                          hitl_decision, agreement_ratio}
+
+        MUTATION CARVE-OUT: This endpoint writes to council_sessions + council_votes.
+        It is the explicit exception to the daemon read-only principle from PR-1
+        decision #6.  All projection tables remain read-only.
+
+        NOTE: POST /council can be long-running (up to timeout_s * parallel CLIs
+        wall-clock time on slow hardware, though in practice CLIs run in parallel
+        so the ceiling is timeout_s + scheduling overhead).  Clients should set
+        an appropriate HTTP client timeout.
+        """
+        content_length_str = self.headers.get("Content-Length", "0")
+        try:
+            content_length = int(content_length_str)
+        except (ValueError, TypeError):
+            self._send_error(400, "Invalid Content-Length")
+            return
+
+        if content_length > COUNCIL_POST_MAX_BODY_BYTES:
+            self._send_error(413, f"Request body exceeds limit of {COUNCIL_POST_MAX_BODY_BYTES} bytes")
+            return
+
+        if content_length == 0:
+            self._send_error(400, "Request body required")
+            return
+
+        raw_body = self.rfile.read(content_length)
+        try:
+            body = json.loads(raw_body.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            self._send_error(400, f"Invalid JSON body: {exc}")
+            return
+
+        if not isinstance(body, dict):
+            self._send_error(400, "Body must be a JSON object")
+            return
+
+        topic = body.get("topic", "")
+        question = body.get("question", "")
+        if not topic or not isinstance(topic, str):
+            self._send_error(400, "Field 'topic' (non-empty string) is required")
+            return
+        if not question or not isinstance(question, str):
+            self._send_error(400, "Field 'question' (non-empty string) is required")
+            return
+
+        criteria = body.get("criteria", "") or ""
+        cli_list = body.get("cli_list")
+        timeout_s = body.get("timeout_s", council_module.DEFAULT_TIMEOUT_S)
+
+        if cli_list is not None:
+            if not isinstance(cli_list, list) or not all(isinstance(c, str) for c in cli_list):
+                self._send_error(400, "'cli_list' must be a list of strings")
+                return
+
+        try:
+            timeout_s = int(timeout_s)
+            if timeout_s < 1:
+                raise ValueError("timeout_s must be >= 1")
+        except (ValueError, TypeError) as exc:
+            self._send_error(400, f"Invalid timeout_s: {exc}")
+            return
+
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            result = council_module.run_council(
+                conn=conn,
+                topic=topic,
+                question=question,
+                criteria=criteria,
+                cli_list=cli_list,
+                timeout_s=timeout_s,
+            )
+            self._send_json(200, result.to_dict())
+        except Exception:
+            logger.error("POST /council error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _handle_get_council(self, session_id: str, _query: dict[str, list[str]]) -> None:
+        """GET /council/<session_id> — Retrieve a historical council session + votes."""
+        if not session_id:
+            self._send_error(400, "Missing session id")
+            return
+
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            row = db.get_council_session(conn, session_id)
+            if row is None:
+                self._send_not_found(f"Council session '{session_id}' not found")
+                return
+            votes = db.list_council_votes(conn, session_id)
+            self._send_json(200, _council_detail_shape(row, votes))
+        except Exception:
+            logger.error("get_council DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _handle_list_councils(self, query: dict[str, list[str]]) -> None:
+        """GET /councils[?since=<epoch>&topic_prefix=<str>&limit=<N>].
+
+        Returns recent council sessions ordered by started_at DESC.
+        """
+        try:
+            since, topic_prefix, limit = self._parse_councils_query(query)
+        except ValueError as exc:
+            self._send_error(400, str(exc))
+            return
+
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            rows = db.list_council_sessions(
+                conn, topic_prefix=topic_prefix, since=since, limit=limit,
+            )
+            self._send_json(200, [_council_list_shape(r) for r in rows])
+        except Exception:
+            logger.error("list_councils DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    # ------------------------------------------------------------------ #
     # Query-param parsers (raise ValueError on bad input → 400)
     # ------------------------------------------------------------------ #
 
@@ -384,6 +572,39 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                 )
 
         return session_id, status_filter, chain_id_filter, limit
+
+    @staticmethod
+    def _parse_councils_query(
+        query: dict[str, list[str]],
+    ) -> tuple[int, str | None, int]:
+        """Parse and validate /councils query params.
+
+        Returns (since, topic_prefix, limit).
+        Raises ValueError for invalid values.
+        """
+        since = 0
+        if "since" in query:
+            raw = query["since"][0]
+            if not raw.lstrip("-").isdigit():
+                raise ValueError(f"Invalid since '{raw}'; must be an integer epoch")
+            since = int(raw)
+            if since < 0:
+                raise ValueError(f"since must be >= 0; got {since}")
+
+        topic_prefix: str | None = query["topic_prefix"][0] if "topic_prefix" in query else None
+
+        limit = COUNCILS_LIMIT_DEFAULT
+        if "limit" in query:
+            raw_limit = query["limit"][0]
+            if not raw_limit.isdigit():
+                raise ValueError(f"Invalid limit '{raw_limit}'; must be a positive integer")
+            limit = int(raw_limit)
+            if limit < 1 or limit > COUNCILS_LIMIT_MAX:
+                raise ValueError(
+                    f"limit must be between 1 and {COUNCILS_LIMIT_MAX}; got {limit}"
+                )
+
+        return since, topic_prefix, limit
 
     # ------------------------------------------------------------------ #
     # Response helpers
@@ -494,6 +715,51 @@ def _task_shape(row: dict) -> dict:
         "metadata": row.get("metadata"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
+    }
+
+
+def _council_list_shape(row: dict) -> dict:
+    """Narrow council_sessions row to the /councils list response shape."""
+    return {
+        "id": row.get("id"),
+        "topic": row.get("topic"),
+        "started_at": row.get("started_at"),
+        "completed_at": row.get("completed_at"),
+        "synthesized_verdict": row.get("synthesized_verdict"),
+        "agreement_ratio": row.get("agreement_ratio"),
+        "hitl_paused": bool(row.get("hitl_paused", 0)),
+        "hitl_rule_id": row.get("hitl_rule_id"),
+    }
+
+
+def _council_detail_shape(session_row: dict, vote_rows: list[dict]) -> dict:
+    """Full council session + votes for GET /council/<session_id>."""
+    return {
+        "id": session_row.get("id"),
+        "topic": session_row.get("topic"),
+        "question": session_row.get("question"),
+        "started_at": session_row.get("started_at"),
+        "completed_at": session_row.get("completed_at"),
+        "synthesized_verdict": session_row.get("synthesized_verdict"),
+        "agreement_ratio": session_row.get("agreement_ratio"),
+        "hitl_paused": bool(session_row.get("hitl_paused", 0)),
+        "hitl_rule_id": session_row.get("hitl_rule_id"),
+        "votes": [_council_vote_shape(v) for v in vote_rows],
+    }
+
+
+def _council_vote_shape(row: dict) -> dict:
+    """Vote row for council detail response."""
+    return {
+        "model": row.get("model"),
+        "verdict": row.get("verdict"),
+        "confidence": row.get("confidence"),
+        "rationale": row.get("rationale"),
+        "latency_ms": row.get("latency_ms"),
+        "emitted_at": row.get("emitted_at"),
+        # raw_response is intentionally excluded from the HTTP response —
+        # it can be arbitrarily large.  Callers that need the raw text
+        # should query the DB directly or we add a dedicated endpoint.
     }
 
 
