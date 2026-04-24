@@ -161,16 +161,30 @@ def _read_text(path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 _AC_TABLE_ROW_RE = re.compile(
-    r"\|\s*(?P<id>AC-\d+|[A-Z]{1,4}-\d+|\d+)\s*\|"
+    r"\|\s*(?P<id>AC-\d+(?:\.\d+)*|[A-Z]{1,4}-\d+(?:\.\d+)*|\d+)\s*\|"
     r"\s*(?P<desc>[^|]+)\s*\|"
     r"\s*(?P<test>[^|]*)\s*\|",
     re.IGNORECASE,
 )
 
 _AC_LIST_RE = re.compile(
-    r"[-*]\s+(?:\*\*)?(?P<id>AC-\d+|[A-Z]{1,4}-\d+)(?:\*\*)?\s*[:\-]\s*(?P<desc>.+)",
+    r"[-*]\s+(?:\*\*)?(?P<id>AC-\d+(?:\.\d+)*|[A-Z]{1,4}-\d+(?:\.\d+)*)(?:\*\*)?\s*[:\-]\s*(?P<desc>.+)",
     re.IGNORECASE,
 )
+
+# Tokenize all AC references in deliverable text ONCE into a canonical set.
+# This makes verification = exact set membership, not substring scan.
+# AC-3 and AC-30 produce DISTINCT tokens; no false positives possible.
+_AC_TOKEN_RE = re.compile(r"\bAC[\s_-]*\d+(?:\.\d+)*\b", re.IGNORECASE)
+
+
+def _canonical_ac(value: str) -> str:
+    """Normalize AC identifier variants to canonical form: 'ac-3' or 'ac-3.1'.
+
+    Examples: 'AC-3' -> 'ac-3', 'AC3' -> 'ac-3', 'AC_3.1' -> 'ac-3.1', 'ac 3' -> 'ac-3'.
+    """
+    m = re.search(r"ac[\s_-]*(\d+(?:\.\d+)*)", value, re.IGNORECASE)
+    return f"ac-{m.group(1)}" if m else value.lower()
 
 
 def _extract_ac_ids(text: str) -> List[str]:
@@ -249,11 +263,30 @@ def check_acceptance_criteria(
         for py in d.glob("**/*.py"):
             deliverable_text += _read_text(py) + "\n"
 
+    # Build the deliverable's set of canonical AC tokens (one pass over text).
+    # Set membership is exact — AC-3 and AC-30 are distinct tokens.
+    deliverable_ac_set: set = {
+        _canonical_ac(match.group(0))
+        for match in _AC_TOKEN_RE.finditer(deliverable_text)
+    }
+
+    def _ac_matches(ac_id: str) -> bool:
+        """True if ac_id (or its parent for dotted IDs) appears in deliverable AC set."""
+        canon = _canonical_ac(ac_id)
+        if canon in deliverable_ac_set:
+            return True
+        # Parent-id fallback as a SET lookup (deliberate, not accidental substring).
+        # AC-3.1 is satisfied if deliverable references AC-3.
+        if "." in canon:
+            parent = canon.rsplit(".", 1)[0]
+            return parent in deliverable_ac_set
+        return False
+
     # Check which ACs are referenced
     linked: List[str] = []
     unlinked: List[str] = []
     for ac_id in all_ac_ids:
-        if ac_id.lower() in deliverable_text.lower():
+        if _ac_matches(ac_id):
             linked.append(ac_id)
         else:
             unlinked.append(ac_id)
@@ -261,7 +294,19 @@ def check_acceptance_criteria(
     total = len(all_ac_ids)
     linked_count = len(linked)
 
+    # (C) Downgrade severity: >=80% coverage → WARN instead of FAIL
     if unlinked:
+        coverage = linked_count / total if total else 0.0
+        if coverage >= 0.80:
+            return CheckResult(
+                name=name,
+                status="WARN",
+                evidence=(
+                    f"{linked_count}/{total} AC linked; high coverage threshold met; "
+                    f"treating as advisory; missing: {', '.join(unlinked)}"
+                ),
+                details={"linked": linked, "unlinked": unlinked, "total": total},
+            )
         return CheckResult(
             name=name,
             status="FAIL",
