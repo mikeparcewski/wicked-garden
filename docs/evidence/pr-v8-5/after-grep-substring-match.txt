@@ -1,0 +1,19 @@
+# grep -rn "in deliverable_text\|deliverable_text.lower\|substring" scripts/crew/ — POST PR-5
+#
+# All occurrences are COMMENTS or module-level docstrings explaining the design.
+# There are ZERO production-path substring operations on AC content.
+#
+# Primary path (structured): loads acceptance-criteria.json, checks satisfied_by tuple.
+# Fallback path (canonical-token): uses _AC_TOKEN_RE regex + set membership lookup —
+#   this is the #598 canonical-token approach preserved for backward compat.
+#   It is clearly documented as "set membership, not substring" in verification_protocol.py:311.
+#
+# content_sanitizer.py and migrate_qe_evaluator_name.py are unrelated to AC verification.
+
+scripts/crew/acceptance_criteria.py:5:  (module docstring — "Replaces the #587 / #598 substring / canonical-token path")
+scripts/crew/verification_protocol.py:176:# (comment — "exact set membership, not substring scan")
+scripts/crew/verification_protocol.py:311:  (comment — "set membership, not substring")
+scripts/crew/verification_protocol.py:362:  (comment — "SET lookup, not accidental substring")
+scripts/crew/content_sanitizer.py:17:  (unrelated — injection-intent detection, not AC verification)
+scripts/crew/migrate_qe_evaluator_name.py:71:  (unrelated — qe-evaluator name migration)
+scripts/crew/migrate_qe_evaluator_name.py:108:  (unrelated — qe-evaluator name migration)

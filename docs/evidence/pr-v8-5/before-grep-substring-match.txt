@@ -1,0 +1,16 @@
+# grep -rn "in deliverable_text\|deliverable_text.lower\|substring" scripts/crew/ at HEAD (pre-PR-5)
+#
+# Result: no production-path substring matches exist. The #598 canonical-token-set
+# fix already eliminated the literal substring match. What remains are:
+#   - A comment on line 176 of verification_protocol.py ("not substring scan")
+#   - A comment on line 278 ("not accidental substring")
+# These are EXPLANATORY COMMENTS, not code. The production path is clean.
+#
+# This confirms the #598 fix is the fallback preserved in PR-5. The new primary
+# path (Stream 3) routes through load_acs() structured evidence — no substring.
+
+/scripts/crew/verification_protocol.py:176:# This makes verification = exact set membership, not substring scan.
+/scripts/crew/verification_protocol.py:278:        # Parent-id fallback as a SET lookup (deliberate, not accidental substring).
+/scripts/crew/content_sanitizer.py:17:Both modes additionally scan for injection-intent substrings
+/scripts/crew/migrate_qe_evaluator_name.py:71:    """Replace qe-evaluator substrings in manifest_path values."""
+/scripts/crew/migrate_qe_evaluator_name.py:108:    """Quick check: return True if the file contains any legacy entry (JSON-parsed, not raw substring)."""

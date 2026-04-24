@@ -182,6 +182,40 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_council_votes_session
             ON council_votes(session_id);
+
+        -- AC structured records (v8-PR-5 #591): typed acceptance criteria rows.
+        -- Projected from wicked.ac.declared bus events (read-only principle per
+        -- Decision #6 — ACs are NOT mutated via HTTP; only bus events write here).
+        CREATE TABLE IF NOT EXISTS acceptance_criteria (
+            project_id      TEXT NOT NULL,
+            ac_id           TEXT NOT NULL,
+            statement       TEXT NOT NULL DEFAULT '',
+            verification    TEXT,
+            created_at      INTEGER NOT NULL,
+            PRIMARY KEY (project_id, ac_id),
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ac_project
+            ON acceptance_criteria(project_id);
+
+        -- AC evidence map (v8-PR-5 #591): each row links one evidence reference
+        -- (file path, test ID, issue ref, check name) to an AC.
+        -- Projected from wicked.ac.evidence_linked bus events.
+        CREATE TABLE IF NOT EXISTS ac_evidence (
+            project_id      TEXT NOT NULL,
+            ac_id           TEXT NOT NULL,
+            evidence_ref    TEXT NOT NULL,
+            evidence_type   TEXT NOT NULL DEFAULT 'unknown',
+            created_at      INTEGER NOT NULL,
+            PRIMARY KEY (project_id, ac_id, evidence_ref),
+            FOREIGN KEY (project_id, ac_id)
+                REFERENCES acceptance_criteria(project_id, ac_id)
+                ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ac_evidence_project_ac
+            ON ac_evidence(project_id, ac_id);
     """)
     conn.commit()
 
@@ -803,3 +837,163 @@ def list_council_votes(
         (session_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Acceptance-criteria CRUD (v8-PR-5 #591)
+# ---------------------------------------------------------------------------
+# Projected from wicked.ac.declared / wicked.ac.evidence_linked bus events.
+# All writes are through bus-event projections — no HTTP write paths exist
+# for these tables (Decision #6 read-only principle, carve-out documented in
+# PR-4 only covers POST /council).
+
+_MAX_LIST_ACS: int = 500
+_MAX_LIST_AC_EVIDENCE: int = 1_000
+
+# Evidence type inference: maps evidence_ref prefix patterns to a type label.
+_EVIDENCE_TYPE_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("tests/", "test"),
+    ("test_", "test"),
+    ("http", "url"),
+    ("#", "issue"),
+    ("gh#", "issue"),
+    ("check:", "check"),
+)
+
+_DEFAULT_EVIDENCE_TYPE = "file"
+
+
+def _infer_evidence_type(evidence_ref: str) -> str:
+    """Infer an evidence_type label from the reference string.
+
+    This is a hint for display purposes, not a gate condition.
+    """
+    low = evidence_ref.lstrip().lower()
+    for prefix, label in _EVIDENCE_TYPE_PATTERNS:
+        if low.startswith(prefix):
+            return label
+    return _DEFAULT_EVIDENCE_TYPE
+
+
+def upsert_ac(
+    conn: sqlite3.Connection,
+    project_id: str,
+    ac_id: str,
+    statement: str,
+    verification: str | None = None,
+    created_at: int | None = None,
+) -> None:
+    """Insert or update an acceptance_criteria row.
+
+    UPSERT semantics: re-projecting the same wicked.ac.declared event is
+    idempotent.  ``statement`` is updated on conflict so a re-emitted event
+    can correct a previously declared statement.
+    """
+    ts = created_at if created_at is not None else int(time.time())
+    conn.execute(
+        """
+        INSERT INTO acceptance_criteria
+            (project_id, ac_id, statement, verification, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(project_id, ac_id) DO UPDATE SET
+            statement    = excluded.statement,
+            verification = COALESCE(excluded.verification, verification)
+        """,
+        (project_id, ac_id, statement, verification, ts),
+    )
+    conn.commit()
+
+
+def add_ac_evidence(
+    conn: sqlite3.Connection,
+    project_id: str,
+    ac_id: str,
+    evidence_ref: str,
+    evidence_type: str | None = None,
+    created_at: int | None = None,
+) -> None:
+    """Insert an ac_evidence row; idempotent on (project_id, ac_id, evidence_ref).
+
+    ``evidence_type`` is inferred from ``evidence_ref`` when omitted.
+    The FK (project_id, ac_id) requires the AC to exist first; callers must
+    project wicked.ac.declared before wicked.ac.evidence_linked.
+    """
+    ts = created_at if created_at is not None else int(time.time())
+    ev_type = evidence_type or _infer_evidence_type(evidence_ref)
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO ac_evidence
+            (project_id, ac_id, evidence_ref, evidence_type, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (project_id, ac_id, evidence_ref, ev_type, ts),
+    )
+    conn.commit()
+
+
+def list_acs(
+    conn: sqlite3.Connection,
+    project_id: str,
+) -> list[dict[str, Any]]:
+    """Return all acceptance_criteria rows for a project.
+
+    Capped at _MAX_LIST_ACS (R5: no unbounded reads).
+    """
+    rows = conn.execute(
+        """
+        SELECT * FROM acceptance_criteria
+        WHERE project_id = ?
+        ORDER BY ac_id ASC
+        LIMIT ?
+        """,
+        (project_id, _MAX_LIST_ACS),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_ac_evidence(
+    conn: sqlite3.Connection,
+    project_id: str,
+    ac_id: str,
+) -> list[dict[str, Any]]:
+    """Return ac_evidence rows for a single (project_id, ac_id) pair.
+
+    Capped at _MAX_LIST_AC_EVIDENCE (R5: no unbounded reads).
+    """
+    rows = conn.execute(
+        """
+        SELECT * FROM ac_evidence
+        WHERE project_id = ? AND ac_id = ?
+        ORDER BY created_at ASC
+        LIMIT ?
+        """,
+        (project_id, ac_id, _MAX_LIST_AC_EVIDENCE),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def ac_coverage_summary(
+    conn: sqlite3.Connection,
+    project_id: str,
+) -> dict[str, int]:
+    """Return counts {total, linked, unlinked} for a project's ACs.
+
+    ``linked`` = ACs that have at least one ac_evidence row.
+    ``unlinked`` = ACs with no evidence yet.
+    """
+    total_row = conn.execute(
+        "SELECT COUNT(*) FROM acceptance_criteria WHERE project_id = ?",
+        (project_id,),
+    ).fetchone()
+    total: int = total_row[0] if total_row else 0
+
+    linked_row = conn.execute(
+        """
+        SELECT COUNT(DISTINCT ac_id) FROM ac_evidence
+        WHERE project_id = ?
+        """,
+        (project_id,),
+    ).fetchone()
+    linked: int = linked_row[0] if linked_row else 0
+
+    return {"total": total, "linked": linked, "unlinked": total - linked}

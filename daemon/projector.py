@@ -458,6 +458,90 @@ def _crew_yolo_revoked(conn: sqlite3.Connection, event: dict) -> None:
     )
 
 
+# --- AC handlers (v8-PR-5 #591) -------------------------------------------
+
+def _ac_declared(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.ac.declared → upsert into acceptance_criteria.
+
+    Payload shape:
+      project_id   TEXT — required
+      ac_id        TEXT — required; canonical identifier (e.g. "AC-3")
+      statement    TEXT — human-readable description
+      verification TEXT — optional check function name
+
+    Idempotent: re-projecting the same event updates statement + verification
+    (see db.upsert_ac UPSERT semantics).
+    """
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    ac_id, ok = _require(payload, "ac_id", et)
+    if not ok:
+        return
+    ts = _to_epoch(event.get("created_at")) or _now()
+    db.upsert_ac(
+        conn,
+        str(project_id),
+        str(ac_id),
+        statement=str(_opt(payload, "statement") or ""),
+        verification=_opt(payload, "verification") or None,  # type: ignore[arg-type]
+        created_at=ts,
+    )
+    logger.debug(
+        "projector: applied wicked.ac.declared project_id=%r ac_id=%r",
+        project_id, ac_id,
+    )
+
+
+def _ac_evidence_linked(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.ac.evidence_linked → add row to ac_evidence.
+
+    Payload shape:
+      project_id    TEXT — required
+      ac_id         TEXT — required
+      evidence_ref  TEXT — required; file path, test ID, issue ref, or check name
+      evidence_type TEXT — optional; inferred from evidence_ref when absent
+
+    The AC row must exist (FK constraint).  If it doesn't — e.g. because
+    wicked.ac.declared arrived out of order — the event is logged as ignored
+    rather than raising.
+    """
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    ac_id, ok = _require(payload, "ac_id", et)
+    if not ok:
+        return
+    evidence_ref, ok = _require(payload, "evidence_ref", et)
+    if not ok:
+        return
+    ts = _to_epoch(event.get("created_at")) or _now()
+    try:
+        db.add_ac_evidence(
+            conn,
+            str(project_id),
+            str(ac_id),
+            str(evidence_ref),
+            evidence_type=_opt(payload, "evidence_type") or None,  # type: ignore[arg-type]
+            created_at=ts,
+        )
+    except Exception as exc:  # noqa: BLE001 — FK violation or other integrity error
+        logger.warning(
+            "projector: wicked.ac.evidence_linked skipped — AC row missing or integrity "
+            "error (project_id=%r, ac_id=%r, evidence_ref=%r): %s",
+            project_id, ac_id, evidence_ref, exc,
+        )
+        return
+    logger.debug(
+        "projector: applied wicked.ac.evidence_linked project_id=%r ac_id=%r ref=%r",
+        project_id, ac_id, evidence_ref,
+    )
+
+
 # --- dispatch table --------------------------------------------------------
 
 _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
@@ -473,6 +557,9 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     "wicked.task.created": _task_created,
     "wicked.task.updated": _task_updated,
     "wicked.task.completed": _task_completed,
+    # Stream 2 — #591 v8-PR-5: AC structured records
+    "wicked.ac.declared": _ac_declared,
+    "wicked.ac.evidence_linked": _ac_evidence_linked,
 }
 
 

@@ -215,14 +215,102 @@ def _extract_ac_ids(text: str) -> List[str]:
 # Check 1: acceptance_criteria
 # ---------------------------------------------------------------------------
 
+# Coverage threshold: >= this fraction → WARN (advisory), below → FAIL (blocking).
+_AC_COVERAGE_WARN_THRESHOLD = 0.80  # 80%
+
+
 def check_acceptance_criteria(
     project_id: str,
     phases_dir: Path,
     **kwargs: Any,
 ) -> CheckResult:
-    """Cross-reference AC from clarify/test-strategy against deliverables."""
+    """Verify acceptance-criteria coverage via structured evidence maps.
+
+    Primary path (v8-PR-5 #591):
+      Load typed AcceptanceCriterion records from
+      phases/clarify/acceptance-criteria.json.  Each AC with a non-empty
+      satisfied_by tuple is LINKED; empty = UNLINKED.  No text scanning.
+
+    Fallback path (#598 backward-compat):
+      If acceptance-criteria.json does not exist, fall back to the canonical-
+      token-set approach (AC-N regex extraction + set-membership lookup in
+      deliverable files).  Preserves behaviour for projects that have not yet
+      been migrated.
+
+    Coverage thresholds (from #598, preserved):
+      100% → PASS
+      >= 80% → WARN (advisory, does not block phase advancement)
+      < 80%  → FAIL (blocks phase advancement)
+    """
     name = "acceptance_criteria"
 
+    # --- Primary path: structured AC file -----------------------------------
+    json_path = phases_dir / "clarify" / "acceptance-criteria.json"
+    if json_path.is_file():
+        return _check_acs_structured(name, phases_dir, json_path)
+
+    # --- Fallback path: canonical-token set (#598) --------------------------
+    return _check_acs_canonical_tokens(name, phases_dir)
+
+
+def _check_acs_structured(
+    name: str,
+    phases_dir: Path,
+    json_path: Path,
+) -> CheckResult:
+    """Primary path: evaluate coverage from acceptance-criteria.json.
+
+    Each AC's satisfied_by is checked directly — no text scanning.
+    An AC with at least one satisfied_by entry is LINKED.
+    """
+    try:
+        raw = json.loads(json_path.read_text(encoding="utf-8"))
+        ac_dicts = raw.get("acs", [])
+    except (json.JSONDecodeError, OSError) as exc:
+        return CheckResult(
+            name=name,
+            status="SKIP",
+            evidence=f"acceptance-criteria.json is unreadable: {exc}",
+        )
+
+    if not ac_dicts:
+        return CheckResult(
+            name=name,
+            status="SKIP",
+            evidence="acceptance-criteria.json exists but contains no AC records",
+        )
+
+    linked: List[str] = []
+    unlinked: List[str] = []
+    for d in ac_dicts:
+        ac_id = str(d.get("id", ""))
+        if not ac_id:
+            continue
+        evidence = d.get("satisfied_by") or []
+        if evidence:
+            linked.append(ac_id)
+        else:
+            unlinked.append(ac_id)
+
+    total = len(linked) + len(unlinked)
+    if total == 0:
+        return CheckResult(
+            name=name,
+            status="SKIP",
+            evidence="No valid AC records found in acceptance-criteria.json",
+        )
+
+    linked_count = len(linked)
+    return _build_coverage_result(name, linked, unlinked, total, source="structured")
+
+
+def _check_acs_canonical_tokens(name: str, phases_dir: Path) -> CheckResult:
+    """Fallback path: canonical-token-set approach (post-#598 behaviour).
+
+    Preserved for backward compatibility with projects that have not yet
+    migrated to acceptance-criteria.json.  Uses set membership, not substring
+    matching — AC-3 and AC-30 remain distinct tokens.
+    """
     # Locate AC source files
     ac_sources: List[Path] = []
     for subdir in ("clarify", "test-strategy", "qe"):
@@ -237,7 +325,7 @@ def check_acceptance_criteria(
             evidence="No clarify/test-strategy phase directory found",
         )
 
-    # Extract all AC IDs
+    # Extract all AC IDs from clarify sources
     all_ac_ids: List[str] = []
     for src in ac_sources:
         text = _read_text(src)
@@ -250,12 +338,11 @@ def check_acceptance_criteria(
             evidence="No acceptance criteria IDs found in phase files",
         )
 
-    # Search for AC references across all deliverable directories
+    # Build canonical token set from deliverable files (one pass).
     deliverable_dirs = [
         d for d in phases_dir.iterdir()
         if d.is_dir() and d.name not in ("clarify", "test-strategy", "qe")
     ]
-
     deliverable_text = ""
     for d in deliverable_dirs:
         for md in d.glob("**/*.md"):
@@ -263,26 +350,21 @@ def check_acceptance_criteria(
         for py in d.glob("**/*.py"):
             deliverable_text += _read_text(py) + "\n"
 
-    # Build the deliverable's set of canonical AC tokens (one pass over text).
-    # Set membership is exact — AC-3 and AC-30 are distinct tokens.
     deliverable_ac_set: set = {
-        _canonical_ac(match.group(0))
-        for match in _AC_TOKEN_RE.finditer(deliverable_text)
+        _canonical_ac(m.group(0))
+        for m in _AC_TOKEN_RE.finditer(deliverable_text)
     }
 
     def _ac_matches(ac_id: str) -> bool:
-        """True if ac_id (or its parent for dotted IDs) appears in deliverable AC set."""
         canon = _canonical_ac(ac_id)
         if canon in deliverable_ac_set:
             return True
         # Parent-id fallback as a SET lookup (deliberate, not accidental substring).
-        # AC-3.1 is satisfied if deliverable references AC-3.
         if "." in canon:
             parent = canon.rsplit(".", 1)[0]
             return parent in deliverable_ac_set
         return False
 
-    # Check which ACs are referenced
     linked: List[str] = []
     unlinked: List[str] = []
     for ac_id in all_ac_ids:
@@ -292,32 +374,44 @@ def check_acceptance_criteria(
             unlinked.append(ac_id)
 
     total = len(all_ac_ids)
-    linked_count = len(linked)
+    return _build_coverage_result(name, linked, unlinked, total, source="canonical-token")
 
-    # (C) Downgrade severity: >=80% coverage → WARN instead of FAIL
-    if unlinked:
-        coverage = linked_count / total if total else 0.0
-        if coverage >= 0.80:
-            return CheckResult(
-                name=name,
-                status="WARN",
-                evidence=(
-                    f"{linked_count}/{total} AC linked; high coverage threshold met; "
-                    f"treating as advisory; missing: {', '.join(unlinked)}"
-                ),
-                details={"linked": linked, "unlinked": unlinked, "total": total},
-            )
+
+def _build_coverage_result(
+    name: str,
+    linked: List[str],
+    unlinked: List[str],
+    total: int,
+    source: str,
+) -> CheckResult:
+    """Convert linked/unlinked counts to a CheckResult with threshold logic."""
+    linked_count = len(linked)
+    if not unlinked:
         return CheckResult(
             name=name,
-            status="FAIL",
-            evidence=f"{linked_count}/{total} AC linked; missing: {', '.join(unlinked)}",
-            details={"linked": linked, "unlinked": unlinked, "total": total},
+            status="PASS",
+            evidence=f"{linked_count}/{total} AC linked [{source}]",
+            details={"linked": linked, "total": total, "source": source},
+        )
+
+    coverage = linked_count / total if total else 0.0
+    if coverage >= _AC_COVERAGE_WARN_THRESHOLD:
+        return CheckResult(
+            name=name,
+            status="WARN",
+            evidence=(
+                f"{linked_count}/{total} AC linked [{source}]; high coverage threshold met; "
+                f"treating as advisory; missing: {', '.join(unlinked)}"
+            ),
+            details={"linked": linked, "unlinked": unlinked, "total": total, "source": source},
         )
     return CheckResult(
         name=name,
-        status="PASS",
-        evidence=f"{linked_count}/{total} AC linked",
-        details={"linked": linked, "total": total},
+        status="FAIL",
+        evidence=(
+            f"{linked_count}/{total} AC linked [{source}]; missing: {', '.join(unlinked)}"
+        ),
+        details={"linked": linked, "unlinked": unlinked, "total": total, "source": source},
     )
 
 

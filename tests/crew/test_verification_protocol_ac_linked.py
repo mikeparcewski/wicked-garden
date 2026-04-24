@@ -270,5 +270,132 @@ class TestDataShapeMatching(unittest.TestCase):
                                  msg=f"Variant '{variant}' failed: {result.status}: {result.evidence}")
 
 
+# ---------------------------------------------------------------------------
+# (E) Structured-AC primary path (v8-PR-5 #591)
+# ---------------------------------------------------------------------------
+
+class TestStructuredACPrimaryPath(unittest.TestCase):
+    """Primary path: acceptance-criteria.json fully drives coverage; no text scan."""
+
+    def _make_structured_phases(
+        self,
+        tmp: Path,
+        acs: list[dict],
+        build_text: str = "",
+    ) -> Path:
+        """Create phases/ with acceptance-criteria.json and an optional build deliverable."""
+        phases = tmp / "phases"
+        clarify = phases / "clarify"
+        clarify.mkdir(parents=True, exist_ok=True)
+        json_path = clarify / "acceptance-criteria.json"
+        json_path.write_text(
+            __import__("json").dumps({"version": "1", "acs": acs}),
+            encoding="utf-8",
+        )
+        if build_text:
+            build = phases / "build"
+            build.mkdir(parents=True, exist_ok=True)
+            (build / "impl.md").write_text(build_text, encoding="utf-8")
+        return phases
+
+    def test_all_linked_is_pass(self):
+        """All ACs with non-empty satisfied_by → PASS."""
+        with tempfile.TemporaryDirectory() as td:
+            acs = [
+                {"id": "AC-1", "statement": "Login", "satisfied_by": ["tests/test_login.py"]},
+                {"id": "AC-2", "statement": "Logout", "satisfied_by": ["tests/test_logout.py"]},
+            ]
+            phases = self._make_structured_phases(Path(td), acs)
+            result = check_acceptance_criteria("proj", phases)
+        self.assertEqual(result.status, "PASS")
+
+    def test_empty_satisfied_by_is_unlinked(self):
+        """AC with empty satisfied_by counts as UNLINKED."""
+        with tempfile.TemporaryDirectory() as td:
+            acs = [
+                {"id": "AC-1", "statement": "Login", "satisfied_by": []},
+            ]
+            phases = self._make_structured_phases(Path(td), acs)
+            result = check_acceptance_criteria("proj", phases)
+        # 0/1 → below threshold → FAIL
+        self.assertEqual(result.status, "FAIL")
+
+    def test_source_label_is_structured(self):
+        """Evidence string reports 'structured' path."""
+        with tempfile.TemporaryDirectory() as td:
+            acs = [{"id": "AC-1", "statement": "S", "satisfied_by": ["t.py"]}]
+            phases = self._make_structured_phases(Path(td), acs)
+            result = check_acceptance_criteria("proj", phases)
+        self.assertIn("structured", result.evidence)
+
+    def test_no_substring_scan_on_prose(self):
+        """Deliverable text with AC-1 literal does NOT satisfy unlinked AC-1.
+
+        This is the root-cause fix for #587: satisfied_by is empty → UNLINKED,
+        regardless of what appears in the deliverable text.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            acs = [{"id": "AC-1", "statement": "Login", "satisfied_by": []}]
+            # Build file explicitly mentions AC-1 — this should NOT satisfy it
+            phases = self._make_structured_phases(
+                Path(td), acs, build_text="Implements AC-1 login flow."
+            )
+            result = check_acceptance_criteria("proj", phases)
+        # Structured path sees empty satisfied_by → UNLINKED → FAIL
+        self.assertEqual(result.status, "FAIL", (
+            "BUG: structured path fell through to text scanning. "
+            f"Got {result.status}: {result.evidence}"
+        ))
+
+    def test_80_percent_warn(self):
+        """4/5 structured ACs linked → WARN."""
+        with tempfile.TemporaryDirectory() as td:
+            acs = [
+                {"id": f"AC-{i}", "statement": f"S{i}", "satisfied_by": [f"t{i}.py"]}
+                for i in range(1, 5)
+            ] + [{"id": "AC-5", "statement": "S5", "satisfied_by": []}]
+            phases = self._make_structured_phases(Path(td), acs)
+            result = check_acceptance_criteria("proj", phases)
+        self.assertEqual(result.status, "WARN")
+
+    def test_empty_acs_array_skips(self):
+        """JSON with empty acs array → SKIP (no ACs declared)."""
+        with tempfile.TemporaryDirectory() as td:
+            phases = self._make_structured_phases(Path(td), [])
+            result = check_acceptance_criteria("proj", phases)
+        self.assertEqual(result.status, "SKIP")
+
+
+class TestBackwardCompatFallback(unittest.TestCase):
+    """Projects WITHOUT acceptance-criteria.json fall back to canonical-token path."""
+
+    def test_no_json_falls_back_to_canonical(self):
+        """Fallback: clarify markdown + deliverable → canonical-token match still works."""
+        with tempfile.TemporaryDirectory() as td:
+            phases = Path(td) / "phases"
+            _write(phases / "clarify" / "ac.md", "- **AC-3**: User can log in\n")
+            _write(phases / "build" / "impl.md", "Implements AC-3 login flow.")
+            result = check_acceptance_criteria("proj", phases)
+        self.assertEqual(result.status, "PASS")
+
+    def test_fallback_source_label_is_canonical_token(self):
+        """Fallback evidence string reports 'canonical-token' path."""
+        with tempfile.TemporaryDirectory() as td:
+            phases = Path(td) / "phases"
+            _write(phases / "clarify" / "ac.md", "- **AC-3**: User can log in\n")
+            _write(phases / "build" / "impl.md", "Implements AC-3 login flow.")
+            result = check_acceptance_criteria("proj", phases)
+        self.assertIn("canonical-token", result.evidence)
+
+    def test_fallback_unlinked_still_fails(self):
+        """Fallback: AC-3 in clarify, no mention in deliverable → FAIL."""
+        with tempfile.TemporaryDirectory() as td:
+            phases = Path(td) / "phases"
+            _write(phases / "clarify" / "ac.md", "- **AC-3**: User can log in\n")
+            _write(phases / "build" / "impl.md", "No references here.")
+            result = check_acceptance_criteria("proj", phases)
+        self.assertEqual(result.status, "FAIL")
+
+
 if __name__ == "__main__":
     unittest.main()
