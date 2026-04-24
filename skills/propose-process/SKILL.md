@@ -57,21 +57,10 @@ gotchas) over wiki and chunks for planning. Record up to 3 priors that change th
 
 ### 3. Score the 9 factors (one sentence each)
 
-Prose reasoning, not numbers — but the output **must** be a dict per factor, not a
-bare string. Each factor emits `{"reading": "LOW|MEDIUM|HIGH", "why": "one
-sentence"}`. The validator (`scripts/crew/validate_plan.py`) rejects flat-string
-shapes on first emission and forces a retry. See `refs/factor-definitions.md` for
-what LOW/MEDIUM/HIGH mean per factor; see `refs/output-schema.md` for the full JSON
-envelope.
-
-**Minimal inline example — use this shape, not a flat string (Issue #574)**:
-
-```json
-"factors": {
-  "reversibility": {"reading": "HIGH", "why": "pure doc edit, git revert undoes it"},
-  "blast_radius":  {"reading": "LOW",  "why": "scoped to one skill file"}
-}
-```
+Prose, not numbers — but each factor emits the dict shape
+`{"reading": "LOW|MEDIUM|HIGH", "why": "..."}`, not a flat string (Issue #574).
+See `refs/factor-definitions.md` for calibration and `refs/output-schema.md`
+for the envelope.
 
 Factors: **reversibility** (undo without customer impact?), **blast_radius** (who/how
 many affected if broken?), **compliance_scope** (GDPR/PCI/HIPAA/SOC2?),
@@ -82,29 +71,11 @@ state, migrations), **operational_risk** (production runtime change),
 
 ### 4. Select specialists
 
-Read `agents/**/*.md` frontmatter (descriptions + "Use when"). Pick the smallest set
-that covers the factor scores. One sentence of WHY per pick. Prefer ≤5 for standard,
-≤10 for full. See `refs/specialist-selection.md` for the ~70-agent roster map and
-tie-breakers.
+Read `agents/**/*.md` frontmatter. Pick the smallest set that covers the
+factor scores with one-sentence WHY each (≤5 for standard, ≤10 for full).
+Roster map + core archetypes in `refs/specialist-selection.md`.
 
-Core archetypes: `requirements-analyst`, `product-manager`, `solution-architect`, `senior-engineer`, `backend-engineer`, `frontend-engineer`, `migration-engineer`, `test-strategist`, `test-designer`, `security-engineer`, `compliance-officer`, `privacy-expert`, `auditor`, `sre`, `release-engineer`, `data-engineer`, `technical-writer`, `ux-designer`, `ui-reviewer`.
-
-**Pick shape (Issue #573)**: Each entry in `specialists[]` may be emitted in either
-form, and both are accepted by `scripts/crew/validate_plan.py`:
-
-- **Short form** — `{"name": "requirements-analyst", "why": "..."}`. The resolver
-  (`scripts/crew/specialist_resolver.py`) expands the bare role to the full
-  `wicked-garden:{domain}:{role}` subagent_type at validation and dispatch time.
-- **Expanded form** — `{"name": "requirements-analyst", "domain": "product",
-  "subagent_type": "wicked-garden:product:requirements-analyst", "why": "..."}`.
-  When `domain` or `subagent_type` is present, it must agree with what the resolver
-  derives from `agents/**/*.md` frontmatter — silent drift between the expanded form
-  and the on-disk agent is rejected.
-
-Picks whose `name` does not resolve via the frontmatter index are rejected as
-validation errors. The validator runs `difflib.get_close_matches` and surfaces the
-three closest matches so the facilitator can correct a typo without re-running the
-whole rubric.
+Pick shape: short (`{"name", "why"}`) or expanded with `domain`/`subagent_type`; the resolver expands bare roles and rejects unresolvable names with close-match suggestions (Issue #573). Schema in `refs/output-schema.md`.
 
 ### 5. Select phases
 
@@ -219,12 +190,10 @@ Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew
 
 ## Navigation
 
-- [`refs/inputs.md`](refs/inputs.md) — prior-fetch queries, session state reads; [`refs/process-memory.md`](refs/process-memory.md) — process memory + uncertainty gate
-- [`refs/factor-definitions.md`](refs/factor-definitions.md) — the 9 factors + calibration
-- [`refs/specialist-selection.md`](refs/specialist-selection.md) — roster map
-- [`refs/phase-catalog.md`](refs/phase-catalog.md) — phase templates, soft deps
-- [`refs/evidence-framing.md`](refs/evidence-framing.md) — functional evidence rubric + per-archetype contracts
-- [`refs/ambiguity.md`](refs/ambiguity.md) — when to stop and ask
-- [`refs/plan-template.md`](refs/plan-template.md) — `process-plan.md` template; [`refs/output-schema.md`](refs/output-schema.md) — JSON shape for measurement
-- [`refs/interaction-mode.md`](refs/interaction-mode.md) — normal vs. yolo, banned values; [`refs/gate-policy.md`](refs/gate-policy.md) — Gate × Rigor reviewer matrix
-- [`refs/re-eval-addendum-schema.md`](refs/re-eval-addendum-schema.md) — JSONL addendum schema; [`refs/spec-quality-rubric.md`](refs/spec-quality-rubric.md) — spec quality rubric
+`refs/` — `inputs.md` (prior-fetch + session state), `process-memory.md`
+(uncertainty gate), `factor-definitions.md` (9 factors), `specialist-selection.md`
+(roster), `phase-catalog.md` (phase templates), `evidence-framing.md`
+(per-archetype contracts), `ambiguity.md` (when to stop), `plan-template.md`
+(process-plan), `output-schema.md` (JSON shape), `interaction-mode.md`
+(yolo + banned values), `gate-policy.md` (reviewer matrix),
+`re-eval-addendum-schema.md`, `spec-quality-rubric.md`.
