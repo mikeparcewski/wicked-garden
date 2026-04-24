@@ -345,6 +345,66 @@ def test_unknown_event_survives_known_event_still_projects(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Rework state-transition test (council C1 fix-up — #590 #613)
+# ---------------------------------------------------------------------------
+
+
+def test_rework_transitions_rejected_to_active(
+    mem_conn,
+    load_fixture,
+) -> None:
+    """wicked.rework.triggered must flip a REJECTED phase back to ACTIVE.
+
+    Event sequence: project.created → phase.transitioned(active) →
+    gate.decided(REJECT) → rework.triggered.
+
+    Expected end state: phase row state='active', rework_iterations=1.
+
+    Pre-fix this test FAILS because _rework_triggered only sets rework_iterations
+    and leaves state='rejected'.  Post-fix it passes.
+
+    Provenance: #590 #613 council C1 — projector._rework_triggered missing
+    upsert_phase(state=PhaseState.ACTIVE) call.
+    """
+    from daemon.db import get_project, list_phases  # type: ignore[import]
+
+    events, expected_project, expected_phases = load_fixture(
+        "rework_transitions_to_active"
+    )
+    project_id = expected_project["id"]
+
+    _replay_events(mem_conn, events)
+
+    actual_phases = list_phases(mem_conn, project_id)
+    actual_build = next(
+        (p for p in actual_phases if p["phase"] == "build"), None
+    )
+
+    assert actual_build is not None, (
+        "Phase 'build' not found after replay. "
+        "Check that gate.decided handler creates the phase row."
+    )
+    assert actual_build["state"] == "active", (
+        f"After rework.triggered the phase must be state='active' "
+        f"(REJECTED → ACTIVE transition). Got state={actual_build['state']!r}. "
+        "Bug: _rework_triggered in projector.py does not call "
+        "upsert_phase(state=PhaseState.ACTIVE)."
+    )
+    assert actual_build["rework_iterations"] == 1, (
+        f"rework_iterations expected 1, got {actual_build['rework_iterations']!r}"
+    )
+
+    # Full parity assertion via fixture comparator.
+    actual_phases_sorted = sorted(actual_phases, key=lambda p: p.get("phase", ""))
+    expected_phases_sorted = sorted(expected_phases, key=lambda p: p.get("phase", ""))
+    _assert_projection_equals(
+        _normalize_timestamps(actual_phases_sorted),
+        _normalize_timestamps(expected_phases_sorted),
+        path="rework_transitions_to_active/phases",
+    )
+
+
 def test_cursor_can_be_set_and_retrieved(mem_conn) -> None:
     """db.set_cursor + db.get_cursor roundtrip works with the in-memory schema.
 
