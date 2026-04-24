@@ -1,0 +1,23 @@
+{
+  "$schema": "./autonomy-policy.schema.json",
+  "modes": {
+    "ask": {
+      "clarify_halt": "always_pause",
+      "council_verdict": "show_and_pause",
+      "challenge_phase": "require_approval",
+      "destructive_ops": "confirm"
+    },
+    "balanced": {
+      "clarify_halt": "hitl_judge",
+      "council_verdict": "pause_on_split",
+      "challenge_phase": "hitl_judge",
+      "destructive_ops": "confirm"
+    },
+    "full": {
+      "clarify_halt": "auto_unless_judge_pauses",
+      "council_verdict": "auto_if_unanimous",
+      "challenge_phase": "auto",
+      "destructive_ops": "confirm"
+    }
+  }
+}

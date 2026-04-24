@@ -5,6 +5,23 @@ argument-hint: "<project-name> --approve --justification \"<text>\" | --revoke |
 
 # /wicked-garden:crew:auto-approve
 
+> **Deprecation notice (v8-PR-6, Issue #593)**: `crew:auto-approve` is a
+> compatibility shim. Prefer `--autonomy=full` on `crew:execute` or
+> `crew:just-finish`. This command routes through the new autonomy layer
+> (`scripts/crew/autonomy.py`) with mode `full`. It will be removed in a
+> future version. Emit the one-shot warning and continue.
+>
+> **Autonomy layer shim step** — before executing the flow below, emit the
+> deprecation warning once per session:
+> ```bash
+> sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+> import sys
+> sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+> from crew.autonomy import emit_deprecation_warning
+> emit_deprecation_warning('crew:auto-approve', '--autonomy=full')
+> "
+> ```
+
 Grant, revoke, or inspect **auto-approval** for a crew project. When granted,
 `phase_manager.approve_phase()` auto-advances on APPROVE verdicts without user
 confirmation. CONDITIONAL and REJECT always surface to the user regardless.
