@@ -276,7 +276,7 @@ def main():
                 )
                 system_message = (
                     f"{escalation_prefix}[Memory] Task {task_label} completed. "
-                    f"REQUIRED: Call /wicked-garden:mem:store with type={mem_type} "
+                    f"REQUIRED: Call wicked-brain:memory with type={mem_type} "
                     "to capture any decision, gotcha, or pattern from this work. "
                     "If genuinely nothing is worth storing, respond with 'No memory stored: <reason>'."
                 )
@@ -284,7 +284,7 @@ def main():
                 system_message = (
                     f"[Memory] Task {task_label} completed. "
                     "If this produced a decision, gotcha, or reusable pattern, "
-                    f"store it with /wicked-garden:mem:store (type={mem_type})."
+                    f"store it with wicked-brain:memory (type={mem_type})."
                 )
 
         # Evidence nudge for crew tasks (Issue #253).

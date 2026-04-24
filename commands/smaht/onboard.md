@@ -33,7 +33,7 @@ If `--skip-index` was passed, skip this step and note: "Indexing skipped — Pha
 Recall previous onboarding sessions for this path:
 
 ```
-/wicked-garden:mem:recall "onboarding {path}" --limit 3
+wicked-brain:memory "onboarding {path}" --limit 3
 ```
 
 If `--resume` and prior memories exist, show what was already discovered and skip to Phase 2 gaps.
@@ -49,7 +49,7 @@ The background index is already running. Now build understanding while it builds
 While indexing runs, do a fast reconnaissance:
 
 ```
-/wicked-garden:search:scout {path}
+wicked-brain:search {path}
 ```
 
 This gives immediate results without waiting for the index.
@@ -147,32 +147,32 @@ the entire onboarding dump to match a keyword.
 
 **Technology stack** (one per layer):
 ```
-/wicked-garden:mem:store "{project-name} is a {language} project using {framework}" --type procedural --tags onboarding,{project-name},stack,{language}
-/wicked-garden:mem:store "{project-name} uses {database} for persistence" --type procedural --tags onboarding,{project-name},stack,database
-/wicked-garden:mem:store "{project-name} tests use {test-framework} — {ratio} test/source ratio" --type procedural --tags onboarding,{project-name},testing
+wicked-brain:memory "{project-name} is a {language} project using {framework}" --type procedural --tags onboarding,{project-name},stack,{language}
+wicked-brain:memory "{project-name} uses {database} for persistence" --type procedural --tags onboarding,{project-name},stack,database
+wicked-brain:memory "{project-name} tests use {test-framework} — {ratio} test/source ratio" --type procedural --tags onboarding,{project-name},testing
 ```
 
 **Architecture** (one per insight):
 ```
-/wicked-garden:mem:store "{project-name} follows {pattern} architecture — {key insight}" --type procedural --tags onboarding,{project-name},architecture
-/wicked-garden:mem:store "{project-name} main entry point: {entry} at {file:line}" --type procedural --tags onboarding,{project-name},entry-point
+wicked-brain:memory "{project-name} follows {pattern} architecture — {key insight}" --type procedural --tags onboarding,{project-name},architecture
+wicked-brain:memory "{project-name} main entry point: {entry} at {file:line}" --type procedural --tags onboarding,{project-name},entry-point
 ```
 
 **Key flows** (one per flow):
 ```
-/wicked-garden:mem:store "{project-name} {flow-name} flow: {source} → {handler} → {storage}" --type procedural --tags onboarding,{project-name},flow,{flow-name}
+wicked-brain:memory "{project-name} {flow-name} flow: {source} → {handler} → {storage}" --type procedural --tags onboarding,{project-name},flow,{flow-name}
 ```
 Repeat for each significant flow discovered.
 
 **Quality signals** (one per finding):
 ```
-/wicked-garden:mem:store "{project-name} has {count} TODOs/FIXMEs — tech debt concentrated in {area}" --type episodic --tags onboarding,{project-name},tech-debt
-/wicked-garden:mem:store "{project-name} CI/CD: {present/absent} — {details}" --type procedural --tags onboarding,{project-name},ci
+wicked-brain:memory "{project-name} has {count} TODOs/FIXMEs — tech debt concentrated in {area}" --type episodic --tags onboarding,{project-name},tech-debt
+wicked-brain:memory "{project-name} CI/CD: {present/absent} — {details}" --type procedural --tags onboarding,{project-name},ci
 ```
 
 **Gaps** (one per gap):
 ```
-/wicked-garden:mem:store "{project-name} gap: {description} — {severity}" --type episodic --tags onboarding,{project-name},gap
+wicked-brain:memory "{project-name} gap: {description} — {severity}" --type episodic --tags onboarding,{project-name},gap
 ```
 Repeat for each gap found.
 
@@ -213,13 +213,13 @@ Run this for 2-3 key symbols from the exploration to populate the lineage graph.
 Run validation checks against the fully-linked index:
 
 ```
-/wicked-garden:search:stats
+wicked-brain-status
 ```
 
 Then verify the discovered architecture matches the indexed data:
 
-- Can we find the entry points we discovered? → `/wicked-garden:search:code "{main function/class}"`
-- Can we trace the flows we identified? → `/wicked-garden:search:refs "{key symbol}"`
+- Can we find the entry points we discovered? → `wicked-brain:search "{main function/class}"`
+- Can we trace the flows we identified? → `wicked-brain:lsp "{key symbol}"`
 - Do the layers map correctly? → (service-map already generated above)
 
 Report validation results:
@@ -238,7 +238,7 @@ Report validation results:
 If validation reveals gaps (symbols not indexed, flows not traceable), store as memories:
 
 ```
-/wicked-garden:mem:store "Onboarding gap: {project-name} - {gap description}. Files not indexed or symbols missing." --type episodic --tags onboarding,{project-name},gap
+wicked-brain:memory "Onboarding gap: {project-name} - {gap description}. Files not indexed or symbols missing." --type episodic --tags onboarding,{project-name},gap
 ```
 
 ### 6. Generate Onboarding Report

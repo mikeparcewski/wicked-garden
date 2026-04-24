@@ -113,7 +113,7 @@ def _handle_context_limit(payload: dict) -> str:
             "2. Prefer delegation to subagents via Task() over inline execution\n"
             "3. Keep responses concise — avoid large code dumps\n"
             "4. If in a crew project, consider completing the current phase before starting new work\n"
-            "5. Use /wicked-garden:mem:store to save critical context before compaction"
+            "5. Use wicked-brain:memory to save critical context before compaction"
         ),
         "continue": True,
     })

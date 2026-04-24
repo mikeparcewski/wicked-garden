@@ -28,7 +28,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | **mem** | Persistent memory — store decisions, recall context | `/wicked-garden:mem:help` |
 | **platform** | Security, infrastructure, compliance, CI/CD, incidents, and plugin diagnostics | `/wicked-garden:platform:help` |
 | **product** | Requirements, customer feedback, strategy, UX, and design review | `/wicked-garden:product:help` |
-| **search** | Structural code search, lineage, and codebase intelligence | `/wicked-garden:search:help` |
+| **search** | Structural code search, lineage, and codebase intelligence | `/wicked-garden:help` |
 | **smaht** | Intelligent context assembly from all sources | `/wicked-garden:smaht:help` |
 
 ## Quick Start
@@ -45,7 +45,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 
 ### Search Code
 ```
-/wicked-garden:search:code "handlePayment"
+wicked-brain:search "handlePayment"
 ```
 
 ### Review Code
@@ -59,9 +59,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 ```
 
 ### Store a Decision
-```
-/wicked-garden:mem:store "chose PostgreSQL for user data" --type decision
-```
+Use `wicked-brain:memory` to store a decision directly.
 
 ## How It Works
 

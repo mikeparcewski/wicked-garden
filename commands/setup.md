@@ -441,7 +441,7 @@ This writes/updates the `## wicked-brain` section in the project's CLAUDE.md wit
 Store an enriched onboarding memory with detected context from Step 5.0:
 
 ```
-Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.\" --type procedural --tags onboarding,project-context,{project}")
+Skill(skill="wicked-brain:memory", args="\"Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.\" --type procedural --tags onboarding,project-context,{project}")
 ```
 
 Where `{DETECTED_TOOLS_SUMMARY}` lists only the tools where the value is `true` (e.g., "gh, docker").
@@ -455,13 +455,13 @@ Ask which directories to scout (same question mode pattern as 5.1 — use AskUse
 Run a fast scout:
 
 ```
-Skill(skill="wicked-garden:search:scout")
+Skill(skill="wicked-brain:search")
 ```
 
 Then store an enriched onboarding memory with detected context from Step 5.0:
 
 ```
-Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.\" --type procedural --tags onboarding,project-context,{project}")
+Skill(skill="wicked-brain:memory", args="\"Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.\" --type procedural --tags onboarding,project-context,{project}")
 ```
 
 #### 5.3 Skip
@@ -469,7 +469,7 @@ Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} quick-scout
 Store a skip memory so the bootstrap directive doesn't fire again:
 
 ```
-Skill(skill="wicked-garden:mem:store", args="\"Onboarding: {project} skipped by user on {date}. Run /wicked-garden:setup to onboard later.\" --type procedural --tags onboarding,{project}")
+Skill(skill="wicked-brain:memory", args="\"Onboarding: {project} skipped by user on {date}. Run /wicked-garden:setup to onboard later.\" --type procedural --tags onboarding,{project}")
 ```
 
 ### 6. Clear Onboarding Gate
@@ -558,7 +558,7 @@ Quick start:
 - /wicked-garden:help — see all domains and commands
 - /wicked-garden:crew:start — start a project with crew workflow
 - /wicked-garden:engineering:review — code review
-- /wicked-garden:search:search "query" — search code and docs
+- wicked-brain:search "query" — search code and docs
 ```
 
 ## Graceful Degradation

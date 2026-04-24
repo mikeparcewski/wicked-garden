@@ -9,9 +9,7 @@ Grant, revoke, or inspect **auto-approval** for a crew project. When granted,
 `phase_manager.approve_phase()` auto-advances on APPROVE verdicts without user
 confirmation. CONDITIONAL and REJECT always surface to the user regardless.
 
-> **Renamed from `crew:yolo`** (v6.3.3). The alias `/wicked-garden:crew:yolo` still
-> works — it redirects here. The `yolo` subcommand name in `phase_manager.py` is
-> unchanged for backward compatibility.
+> **Previously named `crew:yolo`** (v6.3.3). The alias was removed in v9. Use this command directly. The `yolo` subcommand name in `phase_manager.py` is unchanged for backward compatibility.
 
 ## When to use this vs the others
 

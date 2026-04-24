@@ -47,7 +47,7 @@ If no CLIs are detected: inform the user and offer to install. For each missing 
 Check wicked-garden:mem for stored AI collaboration preferences:
 
 ```bash
-/wicked-garden:mem:recall "ai cli preferences"
+wicked-brain:memory "ai cli preferences"
 ```
 
 Use stored preferences to weight or order models (e.g., "use gemini for long docs, codex for code").
@@ -91,7 +91,7 @@ Use stored preferences to weight or order models (e.g., "use gemini for long doc
 4. Synthesize consensus and disagreements
 5. Ask user for their decision; offer to store it:
    ```bash
-   /wicked-garden:mem:store "Decision: ${QUESTION}. [summary]" --type decision --tags multi-model-review
+   wicked-brain:memory "Decision: ${QUESTION}. [summary]" --type decision --tags multi-model-review
    ```
 
 **Mode: `--prompt "PROMPT"` (custom)**
@@ -125,7 +125,7 @@ After gathering all perspectives, present synthesis:
 Offer to store the decision in wicked-garden:mem:
 
 ```bash
-/wicked-garden:mem:store "[topic]: [decision summary].
+wicked-brain:memory "[topic]: [decision summary].
 Consensus: [models]. Unique: [notable unique insights]." \
   --type decision --tags multi-model-review
 ```

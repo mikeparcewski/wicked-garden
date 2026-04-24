@@ -177,7 +177,7 @@ its factor readings.
    AGENTS.md, CLAUDE.md, README.md, package.json (load AGENTS.md first, CLAUDE.md overrides).
 2. **Query memories** for prior patterns:
    ```
-   /wicked-garden:mem:recall "project type and quality dimensions for {project-name}"
+   Skill(skill="wicked-brain:memory", args={"action": "recall", "query": "project type and quality dimensions for {project-name}"})
    ```
 3. **Read `${project_dir}/process-plan.json`** to load the facilitator's cached plan.
 4. If the plan is missing (legacy project created before v6), invoke the facilitator
@@ -406,24 +406,24 @@ When all phases complete:
 **At every gate that returns CONDITIONAL or REJECT**, store the learning:
 
 ```
-/wicked-garden:mem:store "Crew learning: {what went wrong and why}" --type procedural --tags "crew,learning" --importance medium
+Skill(skill="wicked-brain:memory", args={"content": "Crew learning: {what went wrong and why}", "type": "procedural", "tags": "crew,learning", "importance": "medium"})
 ```
 
 **At project completion (review phase approved)**, store:
 
 1. **User preferences observed** (if any new patterns noticed):
    ```
-   /wicked-garden:mem:store "{preference observed}" --type preference --tags "crew,user-preference" --importance medium
+   Skill(skill="wicked-brain:memory", args={"content": "{preference observed}", "type": "preference", "tags": "crew,user-preference", "importance": "medium"})
    ```
 
 2. **What worked well** (reusable patterns):
    ```
-   /wicked-garden:mem:store "Crew pattern: {what worked and why}" --type procedural --tags "crew,pattern,success" --importance medium
+   Skill(skill="wicked-brain:memory", args={"content": "Crew pattern: {what worked and why}", "type": "procedural", "tags": "crew,pattern,success", "importance": "medium"})
    ```
 
 3. **What to avoid** (anti-patterns discovered):
    ```
-   /wicked-garden:mem:store "Crew anti-pattern: {what failed and why}" --type procedural --tags "crew,anti-pattern" --importance high
+   Skill(skill="wicked-brain:memory", args={"content": "Crew anti-pattern: {what failed and why}", "type": "procedural", "tags": "crew,anti-pattern", "importance": "high"})
    ```
 
 These are GENERAL learnings, not project-specific. They inform future projects.

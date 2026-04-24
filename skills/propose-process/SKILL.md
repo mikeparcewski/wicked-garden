@@ -186,7 +186,7 @@ Phase-start heuristic + phase-end full re-eval with bidirectional mutation (prun
 
 ## Interaction mode
 
-Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew:just-finish`) is orthogonal to the plan — controls only gate-boundary prompts. Yolo is allowed at full rigor only when the user explicitly grants it (via `/wicked-garden:crew:yolo {project} --approve` or explicit instruction), tracked as `yolo_approved_by_user` + appended to `yolo-audit.jsonl`; auto-revoked if phase-boundary re-eval detects scope increase or re-tier-up. Default: refused. Banned `source_agent` values remain banned. D7 rules apply in all modes (re-tier UP auto, re-tier DOWN defers on user override). Full matrix in [`refs/interaction-mode.md`](refs/interaction-mode.md).
+Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew:just-finish`) is orthogonal to the plan — controls only gate-boundary prompts. Yolo is allowed at full rigor only when the user explicitly grants it (via `/wicked-garden:crew:auto-approve {project} --approve` or explicit instruction), tracked as `yolo_approved_by_user` + appended to `yolo-audit.jsonl`; auto-revoked if phase-boundary re-eval detects scope increase or re-tier-up. Default: refused. Banned `source_agent` values remain banned. D7 rules apply in all modes (re-tier UP auto, re-tier DOWN defers on user override). Full matrix in [`refs/interaction-mode.md`](refs/interaction-mode.md).
 
 ## Measurement hook
 

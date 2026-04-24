@@ -109,7 +109,7 @@ If the delivery manager agent is not available, generate the retrospective inlin
 Store the retrospective summary in wicked-garden:mem for future crew projects:
 
 ```
-/wicked-garden:mem:store "{retro_summary}" --type learning --tags "crew,retro,{project-name},operate" --importance 7
+Skill(skill="wicked-brain:memory", args={"content": "{retro_summary}", "type": "learning", "tags": "crew,retro,{project-name},operate", "importance": "7"})
 ```
 
 This ensures future projects in the same area benefit from operational learnings.

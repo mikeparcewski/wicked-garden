@@ -103,7 +103,7 @@ Files likely relevant to this issue:
 Recall any past context about this area from the memory store:
 
 ```
-Skill(skill="wicked-garden:mem:recall", args="{issue title keywords}")
+Skill(skill="wicked-brain:memory", args="{issue title keywords}")
 ```
 
 If memories are returned that are relevant to the issue, summarize them as **Prior Context**. If no relevant memories exist, omit this section.

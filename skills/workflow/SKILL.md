@@ -41,7 +41,7 @@ All phase selection is judgment-driven by the facilitator, not rule-based.
 | Mode | How | Effect |
 |------|-----|--------|
 | **normal** | Default | Each phase gate requires explicit user approval before advancing |
-| **yolo** | `/wicked-garden:crew:yolo` | Auto-advance through gates; gates still run, findings still logged |
+| **yolo** | `/wicked-garden:crew:auto-approve` | Auto-advance through gates; gates still run, findings still logged |
 
 ## Rigor Tiers
 
@@ -92,7 +92,7 @@ Gate reviewer assignment happens at approve time, not at phase start. Banned
 reviewer values: `just-finish-auto`, `fast-pass`, `auto-approve-*`.
 
 Build depends on design (`depends_on: ["clarify", "design"]`). To migrate
-legacy beta.3 projects, use `/wicked-garden:adopt-legacy`.
+legacy beta.3 projects: the `adopt-legacy` migration guide was removed in v9 — v6 is the baseline.
 
 ## Specialist Discovery
 
@@ -117,7 +117,7 @@ artifact reaches `Integrated`. Stalls at threshold 3 sessions surface as finding
 | `/wicked-garden:crew:just-finish` | Autonomous completion (yolo-equivalent) |
 | `/wicked-garden:crew:gate` | Run a specific quality gate |
 | `/wicked-garden:crew:evidence` | Query evidence for a task |
-| `/wicked-garden:crew:yolo` | Switch to auto-advance mode |
+| `/wicked-garden:crew:auto-approve` | Switch to auto-advance mode |
 
 ## Storage
 
