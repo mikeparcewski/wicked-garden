@@ -276,12 +276,18 @@ def init_schema(conn: sqlite3.Connection) -> None:
         -- Hook invocation audit log (v8-PR-8 #592): one row per subscriber dispatch
         -- attempt, including debounced and filtered-out outcomes.
         -- Per-invocation stdout_digest / stderr_digest are capped at 1000 chars.
+        --
+        -- B1 fix (#624): debounce_key stores the composite dedup key computed at
+        -- dispatch time (e.g. "phase-boundary:sub-1:proj-1:build").  Debounce
+        -- queries filter by this column rather than constructing a fake composite
+        -- event_type value that was never stored in the original implementation.
         CREATE TABLE IF NOT EXISTS hook_invocations (
             invocation_id   TEXT PRIMARY KEY,
             subscription_id TEXT NOT NULL,
             event_id        INTEGER NOT NULL,
             event_type      TEXT NOT NULL,
             verdict         TEXT NOT NULL,
+            debounce_key    TEXT,
             stdout_digest   TEXT,
             stderr_digest   TEXT,
             latency_ms      INTEGER NOT NULL,
@@ -295,12 +301,19 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_hook_invocations_subscription
             ON hook_invocations(subscription_id, emitted_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_hook_invocations_debounce_key
+            ON hook_invocations(debounce_key);
     """)
     conn.commit()
 
     # Run one-time migrations registered above.
     _run_migration(conn, "phase_state_completed_to_canonical",
                    _migrate_phase_state_completed_to_canonical)
+    # B1 fix (#624): add debounce_key column to existing hook_invocations tables
+    # that were created before this column was introduced.
+    _run_migration(conn, "hook_invocations_add_debounce_key",
+                   _migrate_hook_invocations_add_debounce_key)
 
 
 # ---------------------------------------------------------------------------
@@ -360,6 +373,24 @@ def _migrate_phase_state_completed_to_canonical(conn: sqlite3.Connection) -> Non
             "WHERE project_id = ? AND phase = ? AND state = 'completed'",
             (new_state, now, project_id, phase),
         )
+    # Commit is handled by _run_migration after the migration row is written.
+
+
+def _migrate_hook_invocations_add_debounce_key(conn: sqlite3.Connection) -> None:
+    """Add the ``debounce_key`` column to hook_invocations if it does not exist.
+
+    B1 fix (#624): hook_invocations tables created before this migration lack
+    the ``debounce_key`` column that ``append_hook_invocation`` now writes.
+    ALTER TABLE ADD COLUMN is idempotent-safe via the _migrations guard.
+    Existing rows get NULL for debounce_key, which is correct — they predate
+    the fix and would not have had a key stored anyway.
+    """
+    # Only add the column when hook_invocations exists (it may not on fresh DBs
+    # that went through CREATE TABLE IF NOT EXISTS with the column already present).
+    cols_info = conn.execute("PRAGMA table_info(hook_invocations)").fetchall()
+    col_names = {r[1] for r in cols_info}
+    if "debounce_key" not in col_names:
+        conn.execute("ALTER TABLE hook_invocations ADD COLUMN debounce_key TEXT")
     # Commit is handled by _run_migration after the migration row is written.
 
 
@@ -1214,12 +1245,17 @@ def append_hook_invocation(
     stdout_digest: str | None = None,
     stderr_digest: str | None = None,
     emitted_at: int | None = None,
+    debounce_key: str | None = None,
 ) -> None:
     """Append one hook invocation audit row.
 
     ``stdout_digest`` and ``stderr_digest`` are automatically truncated to
     _INVOCATION_DIGEST_LENGTH characters if longer (R5: no unbounded storage).
     Idempotent via INSERT OR IGNORE — re-recording the same invocation_id is a no-op.
+
+    ``debounce_key`` (B1 fix #624): stores the composite dedup key computed at
+    dispatch time so future debounce lookups can query by this column instead of
+    constructing a fake composite event_type that was never stored.
     """
     ts = emitted_at if emitted_at is not None else int(time.time())
     # Truncate digests to bounded length (R5: no unbounded storage).
@@ -1231,11 +1267,11 @@ def append_hook_invocation(
         """
         INSERT OR IGNORE INTO hook_invocations
             (invocation_id, subscription_id, event_id, event_type,
-             verdict, stdout_digest, stderr_digest, latency_ms, emitted_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             verdict, debounce_key, stdout_digest, stderr_digest, latency_ms, emitted_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (invocation_id, subscription_id, event_id, event_type,
-         verdict, stdout_digest, stderr_digest, latency_ms, ts),
+         verdict, debounce_key, stdout_digest, stderr_digest, latency_ms, ts),
     )
     conn.commit()
 

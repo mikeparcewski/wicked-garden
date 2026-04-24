@@ -147,10 +147,12 @@ class TestDebouncePhaseBoundary:
         sid = hd.register_subscription(conn, "wicked.gate.*", "h.py",
                                         {"type": "phase-boundary"}, "sub-1")
         ev = _event(event_type="wicked.gate.decided", event_id=1, project_id="p1", phase="design")
-        # Simulate a prior DISPATCHED row with the boundary key
+        # Simulate a prior DISPATCHED row with the boundary key stored in debounce_key
+        # (B1 fix #624: composite key is now stored in debounce_key, not event_type)
         from daemon.db import append_hook_invocation
-        boundary_key = f"wicked.gate.decided:p1:design"
-        append_hook_invocation(conn, "inv-prior", sid, 1, boundary_key, hd.VERDICT_DISPATCHED, 100)
+        boundary_key = f"phase-boundary:{sid}:p1:design"
+        append_hook_invocation(conn, "inv-prior", sid, 1, "wicked.gate.decided",
+                               hd.VERDICT_DISPATCHED, 100, debounce_key=boundary_key)
         result = hd._check_debounce(conn, sid, ev, {"type": "phase-boundary"})
         assert result is True  # debounced
 
@@ -160,10 +162,11 @@ class TestDebouncePhaseBoundary:
                                         {"type": "phase-boundary"}, "sub-1")
         ev_design = _event(phase="design", event_id=1)
         ev_build = _event(phase="build", event_id=2)
-        # Record a DISPATCHED for design
+        # Record a DISPATCHED for design (B1 fix: key stored in debounce_key column)
         from daemon.db import append_hook_invocation
-        boundary_key_design = f"wicked.gate.decided:proj-1:design"
-        append_hook_invocation(conn, "inv-d", sid, 1, boundary_key_design, hd.VERDICT_DISPATCHED, 100)
+        boundary_key_design = f"phase-boundary:{sid}:proj-1:design"
+        append_hook_invocation(conn, "inv-d", sid, 1, "wicked.gate.decided",
+                               hd.VERDICT_DISPATCHED, 100, debounce_key=boundary_key_design)
         # Check build is not debounced
         result = hd._check_debounce(conn, sid, ev_build, {"type": "phase-boundary"})
         assert result is False
@@ -183,9 +186,12 @@ class TestDebounceOncePerSession:
         sid = hd.register_subscription(conn, "wicked.*", "h.py",
                                         {"type": "once-per-session"}, "sub-1")
         ev = _event(event_type="wicked.gate.decided", session_id="session-abc")
+        # Simulate a prior DISPATCHED row with the session key stored in debounce_key
+        # (B1 fix #624: composite key is now stored in debounce_key, not event_type)
         from daemon.db import append_hook_invocation
-        session_key = f"wicked.gate.decided:session:session-abc"
-        append_hook_invocation(conn, "inv-s", sid, 1, session_key, hd.VERDICT_DISPATCHED, 100)
+        session_key = f"once-per-session:{sid}:session-abc"
+        append_hook_invocation(conn, "inv-s", sid, 1, "wicked.gate.decided",
+                               hd.VERDICT_DISPATCHED, 100, debounce_key=session_key)
         result = hd._check_debounce(conn, sid, ev, {"type": "once-per-session"})
         assert result is True
 
@@ -193,9 +199,11 @@ class TestDebounceOncePerSession:
         conn = _mem()
         sid = hd.register_subscription(conn, "wicked.*", "h.py",
                                         {"type": "once-per-session"}, "sub-1")
+        # Record a DISPATCHED for session-abc (B1 fix: key stored in debounce_key column)
         from daemon.db import append_hook_invocation
-        session_key_abc = "wicked.gate.decided:session:session-abc"
-        append_hook_invocation(conn, "inv-abc", sid, 1, session_key_abc, hd.VERDICT_DISPATCHED, 100)
+        session_key_abc = f"once-per-session:{sid}:session-abc"
+        append_hook_invocation(conn, "inv-abc", sid, 1, "wicked.gate.decided",
+                               hd.VERDICT_DISPATCHED, 100, debounce_key=session_key_abc)
         ev_xyz = _event(event_type="wicked.gate.decided", session_id="session-xyz")
         result = hd._check_debounce(conn, sid, ev_xyz, {"type": "once-per-session"})
         assert result is False
@@ -745,3 +753,225 @@ class TestSubscriptionHTTPEndpoints:
                 assert status == 404
             finally:
                 server.shutdown()
+
+
+# ===========================================================================
+# B1 E2E — dispatch_event_to_subscribers deduplication via real dispatch path
+#
+# Provenance: issue #624 — B1 fix verification.
+#
+# HARD RULE: These tests must NOT manually insert into hook_invocations.
+# All rows must be produced by dispatch_event_to_subscribers itself so that
+# the real production path is exercised end-to-end.
+# ===========================================================================
+
+class TestPhaseBoundaryDebounceE2E:
+    """E2E: phase-boundary debounce deduplicates across real dispatches."""
+
+    @patch("daemon.hook_dispatch.subprocess.run")
+    def test_phase_boundary_debounce_dedups_across_real_dispatches(self, mock_run):
+        """First dispatch → 'dispatched'; second identical dispatch → 'debounced'.
+
+        Exercises the full dispatch_event_to_subscribers production path —
+        no manual hook_invocations inserts.  Verifies B1 fix: debounce_key is
+        written on the first dispatch and found on the second.
+        """
+        mock_run.return_value = _mock_run(stdout=_ok_result())
+        conn = _mem()
+        hd.register_subscription(
+            conn, "wicked.gate.*", "some/handler.py",
+            {"type": "phase-boundary"}, "sub-pb-e2e",
+        )
+
+        ev1 = _event(event_type="wicked.gate.decided", event_id=1,
+                     project_id="proj-e2e", phase="build", session_id="s1")
+        records_1 = hd.dispatch_event_to_subscribers(conn, ev1)
+
+        assert len(records_1) == 1
+        assert records_1[0].verdict == hd.VERDICT_DISPATCHED, (
+            f"First dispatch should be DISPATCHED, got {records_1[0].verdict!r}"
+        )
+        mock_run.reset_mock()
+
+        ev2 = _event(event_type="wicked.gate.decided", event_id=2,
+                     project_id="proj-e2e", phase="build", session_id="s1")
+        records_2 = hd.dispatch_event_to_subscribers(conn, ev2)
+
+        assert len(records_2) == 1
+        assert records_2[0].verdict == hd.VERDICT_DEBOUNCED, (
+            f"Second dispatch (same project+phase) should be DEBOUNCED, "
+            f"got {records_2[0].verdict!r}. "
+            "B1 fix: debounce_key must be written by _persist_invocation."
+        )
+        mock_run.assert_not_called()  # handler must NOT run on second dispatch
+        conn.close()
+
+    @patch("daemon.hook_dispatch.subprocess.run")
+    def test_phase_boundary_handler_runs_once_total(self, mock_run):
+        """Handler subprocess is invoked exactly once across two real dispatches."""
+        mock_run.return_value = _mock_run(stdout=_ok_result())
+        conn = _mem()
+        hd.register_subscription(
+            conn, "wicked.gate.*", "some/handler.py",
+            {"type": "phase-boundary"}, "sub-pb-count",
+        )
+
+        ev1 = _event(event_type="wicked.gate.decided", event_id=10,
+                     project_id="proj-count", phase="review")
+        hd.dispatch_event_to_subscribers(conn, ev1)
+
+        ev2 = _event(event_type="wicked.gate.decided", event_id=11,
+                     project_id="proj-count", phase="review")
+        hd.dispatch_event_to_subscribers(conn, ev2)
+
+        assert mock_run.call_count == 1, (
+            f"Handler should run ONCE total, ran {mock_run.call_count} times. "
+            "B1 fix: second dispatch must be debounced."
+        )
+        conn.close()
+
+
+class TestOncePerSessionDebounceE2E:
+    """E2E: once-per-session debounce deduplicates across real dispatches."""
+
+    @patch("daemon.hook_dispatch.subprocess.run")
+    def test_once_per_session_debounce_dedups_across_real_dispatches(self, mock_run):
+        """First dispatch → 'dispatched'; second with same session_id → 'debounced'.
+
+        No manual hook_invocations inserts — real production dispatch path only.
+        """
+        mock_run.return_value = _mock_run(stdout=_ok_result())
+        conn = _mem()
+        hd.register_subscription(
+            conn, "wicked.*", "some/handler.py",
+            {"type": "once-per-session"}, "sub-ops-e2e",
+        )
+
+        ev1 = _event(event_type="wicked.gate.decided", event_id=20, session_id="sess-e2e")
+        records_1 = hd.dispatch_event_to_subscribers(conn, ev1)
+        assert records_1[0].verdict == hd.VERDICT_DISPATCHED
+        mock_run.reset_mock()
+
+        ev2 = _event(event_type="wicked.gate.decided", event_id=21, session_id="sess-e2e")
+        records_2 = hd.dispatch_event_to_subscribers(conn, ev2)
+        assert records_2[0].verdict == hd.VERDICT_DEBOUNCED, (
+            f"Second dispatch (same session_id) should be DEBOUNCED, "
+            f"got {records_2[0].verdict!r}. "
+            "B1 fix: composite debounce_key must be persisted on first dispatch."
+        )
+        mock_run.assert_not_called()
+        conn.close()
+
+    @patch("daemon.hook_dispatch.subprocess.run")
+    def test_once_per_session_different_session_is_not_debounced(self, mock_run):
+        """A different session_id on the same subscription must NOT be debounced."""
+        mock_run.return_value = _mock_run(stdout=_ok_result())
+        conn = _mem()
+        hd.register_subscription(
+            conn, "wicked.*", "some/handler.py",
+            {"type": "once-per-session"}, "sub-ops-diff",
+        )
+
+        ev_a = _event(event_type="wicked.gate.decided", event_id=30, session_id="sess-A")
+        hd.dispatch_event_to_subscribers(conn, ev_a)
+
+        ev_b = _event(event_type="wicked.gate.decided", event_id=31, session_id="sess-B")
+        records_b = hd.dispatch_event_to_subscribers(conn, ev_b)
+        assert records_b[0].verdict == hd.VERDICT_DISPATCHED
+        conn.close()
+
+
+# ===========================================================================
+# B2 — Recursion depth guard
+#
+# Provenance: issue #624 — B2 fix verification.
+# ===========================================================================
+
+class TestChainDepthGuard:
+    def test_chain_depth_guard_caps_at_max(self):
+        """Dispatching at _depth == _MAX_CHAIN_DEPTH returns chain_depth_exceeded.
+
+        Simulates a handler that would emit an event matching its own filter
+        (would infinite-loop without the guard).
+        """
+        conn = _mem()
+        hd.register_subscription(conn, "wicked.gate.*", "some/handler.py",
+                                  None, "sub-recursive")
+        ev = _event(event_id=100)
+
+        records = hd.dispatch_event_to_subscribers(conn, ev, _depth=hd._MAX_CHAIN_DEPTH)
+
+        assert len(records) == 1
+        assert records[0].verdict == hd._VERDICT_CHAIN_DEPTH_EXCEEDED, (
+            f"Expected chain_depth_exceeded at depth {hd._MAX_CHAIN_DEPTH}, "
+            f"got {records[0].verdict!r}. B2 fix: guard must cap the chain."
+        )
+        assert records[0].subscription_id == "_depth_guard"
+        conn.close()
+
+    def test_chain_depth_guard_fires_warning_log(self, caplog):
+        """Depth guard must emit a warning log with the event_type."""
+        import logging
+
+        conn = _mem()
+        ev = _event(event_id=101)
+
+        with caplog.at_level(logging.WARNING, logger="daemon.hook_dispatch"):
+            hd.dispatch_event_to_subscribers(conn, ev, _depth=hd._MAX_CHAIN_DEPTH)
+
+        assert any(
+            "chain depth" in r.message.lower() or "depth" in r.message.lower()
+            for r in caplog.records
+        ), "Depth guard must log a warning"
+        conn.close()
+
+    def test_chain_depth_resets_per_dispatch_call(self):
+        """Two separate top-level dispatches can each recurse to depth 3 without guard.
+
+        Verifies the depth counter is per-call, not cumulative across calls.
+        """
+        conn = _mem()
+        hd.register_subscription(conn, "wicked.gate.*", "some/handler.py",
+                                  None, "sub-deep")
+
+        with patch("daemon.hook_dispatch.subprocess.run") as mock_run:
+            mock_run.return_value = _mock_run(stdout=_ok_result())
+
+            ev1 = _event(event_id=200)
+            records_a = hd.dispatch_event_to_subscribers(conn, ev1, _depth=3)
+
+        assert not any(r.verdict == hd._VERDICT_CHAIN_DEPTH_EXCEEDED for r in records_a), (
+            "Depth 3 is below the ceiling — should NOT trigger chain_depth_exceeded"
+        )
+
+        with patch("daemon.hook_dispatch.subprocess.run") as mock_run:
+            mock_run.return_value = _mock_run(stdout=_ok_result())
+
+            ev2 = _event(event_id=201)
+            records_b = hd.dispatch_event_to_subscribers(conn, ev2, _depth=3)
+
+        assert not any(r.verdict == hd._VERDICT_CHAIN_DEPTH_EXCEEDED for r in records_b), (
+            "Second dispatch at depth 3 should also NOT trigger the guard — "
+            "depth is per-call, not cumulative"
+        )
+        conn.close()
+
+    def test_dispatch_at_depth_below_max_is_not_capped(self):
+        """Dispatching at _depth == _MAX_CHAIN_DEPTH - 1 must not trigger the guard."""
+        conn = _mem()
+        hd.register_subscription(conn, "wicked.gate.*", "some/handler.py",
+                                  None, "sub-near-max")
+
+        with patch("daemon.hook_dispatch.subprocess.run") as mock_run:
+            mock_run.return_value = _mock_run(stdout=_ok_result())
+            ev = _event(event_id=300)
+            records = hd.dispatch_event_to_subscribers(
+                conn, ev, _depth=hd._MAX_CHAIN_DEPTH - 1
+            )
+
+        assert not any(r.verdict == hd._VERDICT_CHAIN_DEPTH_EXCEEDED for r in records)
+        conn.close()
+
+    def test_max_chain_depth_constant_is_five(self):
+        """_MAX_CHAIN_DEPTH must be 5 per the spec."""
+        assert hd._MAX_CHAIN_DEPTH == 5

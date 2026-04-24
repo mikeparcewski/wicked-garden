@@ -124,6 +124,19 @@ _RATE_LIMIT_DEFAULT_MAX: int = 1
 #: Config file glob pattern for subscription declarations.
 _SUBSCRIPTION_CONFIG_GLOB: str = "*.json"
 
+# B1 fix (#624): composite debounce key prefixes — must match what
+# _debounce_phase_boundary and _debounce_once_per_session query for.
+_DEBOUNCE_KEY_PREFIX_PHASE: str = "phase-boundary"
+_DEBOUNCE_KEY_PREFIX_SESSION: str = "once-per-session"
+
+# B2 fix (#624): maximum recursive dispatch depth.  Handlers may emit
+# child events; without a ceiling the chain can overflow the call stack.
+# 5 is a generous upper bound — legitimate workflows rarely need > 2-3 hops.
+_MAX_CHAIN_DEPTH: int = 5
+
+#: Verdict written when the depth guard terminates the chain.
+_VERDICT_CHAIN_DEPTH_EXCEEDED: str = "chain_depth_exceeded"
+
 _log = logging.getLogger(__name__)
 
 
@@ -255,6 +268,7 @@ def dispatch_event_to_subscribers(
     event: dict[str, Any],
     *,
     plugin_root: str | Path | None = None,
+    _depth: int = 0,
 ) -> list[InvocationRecord]:
     """Dispatch a bus event to all matching, non-debounced subscribers.
 
@@ -270,7 +284,31 @@ def dispatch_event_to_subscribers(
 
     ``plugin_root`` resolves relative handler_path values.  Defaults to the
     repository root (2 levels up from this file).
+
+    ``_depth`` (B2 fix #624): internal recursion depth counter threaded through
+    hook-chaining recursive calls.  Callers must NOT supply this argument;
+    it is managed by dispatch itself.  When ``_depth >= _MAX_CHAIN_DEPTH`` the
+    function refuses to recurse further and returns a single
+    ``chain_depth_exceeded`` sentinel record — preventing stack overflow when
+    a handler emits an event that matches its own subscription.
     """
+    # B2 fix: depth guard — refuse further dispatch at the ceiling.
+    if _depth >= _MAX_CHAIN_DEPTH:
+        event_type_g = event.get("event_type", "")
+        _log.warning(
+            "hook_dispatch: chain depth %d reached; refusing further dispatch "
+            "for event_type=%r. This is a DoS guard.",
+            _depth, event_type_g,
+        )
+        return [InvocationRecord(
+            invocation_id=str(uuid.uuid4()),
+            subscription_id="_depth_guard",
+            event_id=event.get("event_id", 0),
+            event_type=event_type_g,
+            verdict=_VERDICT_CHAIN_DEPTH_EXCEEDED,
+            latency_ms=0,
+        )]
+
     event_type: str = event.get("event_type", "")
     event_id: int = event.get("event_id", 0)
 
@@ -311,7 +349,7 @@ def dispatch_event_to_subscribers(
                     verdict=VERDICT_DEBOUNCED,
                     latency_ms=latency_ms,
                 )
-                _persist_invocation(conn, record)
+                _persist_invocation(conn, record, debounce_rule=debounce_rule, event=event)
                 records.append(record)
                 _log.debug("dispatch: debounced sub=%s event_id=%d", sid, event_id)
                 continue
@@ -326,15 +364,19 @@ def dispatch_event_to_subscribers(
             resolved_root=resolved_root,
             start_ms=start_ms,
         )
-        _persist_invocation(conn, record)
+        _persist_invocation(conn, record, debounce_rule=debounce_rule, event=event)
         records.append(record)
 
-        # Step 4: hook chaining — recurse for each emitted event
+        # Step 4: hook chaining — recurse for each emitted event (B2: pass depth)
         if record.emit_events:
             for emitted in record.emit_events:
                 if not isinstance(emitted, dict):
                     continue
-                chained = dispatch_event_to_subscribers(conn, emitted, plugin_root=resolved_root)
+                chained = dispatch_event_to_subscribers(
+                    conn, emitted,
+                    plugin_root=resolved_root,
+                    _depth=_depth + 1,
+                )
                 records.extend(chained)
 
     return records
@@ -403,6 +445,10 @@ def _debounce_phase_boundary(
 
     Returns True (debounce) if a DISPATCHED invocation already exists for this
     exact (subscription_id, project_id, phase) combination today (within 24h).
+
+    B1 fix (#624): queries the ``debounce_key`` column instead of constructing
+    a fake composite event_type.  The composite key stored by _persist_invocation
+    is ``"{_DEBOUNCE_KEY_PREFIX_PHASE}:{subscription_id}:{project_id}:{phase}"``.
     """
     payload = event.get("payload", {})
     project_id = payload.get("project_id") or payload.get("project") or ""
@@ -412,41 +458,19 @@ def _debounce_phase_boundary(
         # Cannot key on boundary; allow the invocation
         return False
 
+    debounce_key = f"{_DEBOUNCE_KEY_PREFIX_PHASE}:{subscription_id}:{project_id}:{phase}"
     window_start = int(time.time()) - _PHASE_BOUNDARY_WINDOW_S
     row = conn.execute(
         """
-        SELECT COUNT(*) FROM hook_invocations
-        WHERE subscription_id = ?
+        SELECT invocation_id FROM hook_invocations
+        WHERE debounce_key = ?
           AND verdict = ?
           AND emitted_at >= ?
-          AND json_extract(
-            (SELECT payload_json FROM event_log WHERE event_id = hook_invocations.event_id),
-            '$.project_id'
-          ) = ?
+        LIMIT 1
         """,
-        (subscription_id, VERDICT_DISPATCHED, window_start, project_id),
+        (debounce_key, VERDICT_DISPATCHED, window_start),
     ).fetchone()
-
-    # The json_extract query may not always work (event_log may not have the row yet).
-    # Fall back to a simpler check: look for any DISPATCHED invocation for the same
-    # event_type + subscription within the window that had the same phase boundary key.
-    # We store the phase-boundary key in event_type for lookup.
-    event_type = event.get("event_type", "")
-    count_row = conn.execute(
-        """
-        SELECT COUNT(*) FROM hook_invocations
-        WHERE subscription_id = ?
-          AND event_type = ?
-          AND verdict = ?
-          AND emitted_at >= ?
-        """,
-        (subscription_id, f"{event_type}:{project_id}:{phase}", VERDICT_DISPATCHED, window_start),
-    ).fetchone()
-
-    if count_row and count_row[0] > 0:
-        return True  # already fired for this boundary
-
-    return False
+    return row is not None
 
 
 #: Phase-boundary debounce window (24 hours in seconds).
@@ -462,6 +486,10 @@ def _debounce_once_per_session(
 
     Returns True (debounce) if a DISPATCHED invocation already exists for
     this (subscription_id, session_id) pair within the session window.
+
+    B1 fix (#624): queries the ``debounce_key`` column instead of constructing
+    a fake composite event_type.  The composite key stored by _persist_invocation
+    is ``"{_DEBOUNCE_KEY_PREFIX_SESSION}:{subscription_id}:{session_id}"``.
     """
     payload = event.get("payload", {})
     session_id = payload.get("session_id") or event.get("session_id") or ""
@@ -469,20 +497,19 @@ def _debounce_once_per_session(
     if not session_id:
         return False  # no session_id to key on; allow
 
+    debounce_key = f"{_DEBOUNCE_KEY_PREFIX_SESSION}:{subscription_id}:{session_id}"
     window_start = int(time.time()) - _SESSION_WINDOW_S
-    # We embed session_id into the stored event_type key for lookup.
-    event_type = event.get("event_type", "")
     row = conn.execute(
         """
-        SELECT COUNT(*) FROM hook_invocations
-        WHERE subscription_id = ?
-          AND event_type = ?
+        SELECT invocation_id FROM hook_invocations
+        WHERE debounce_key = ?
           AND verdict = ?
           AND emitted_at >= ?
+        LIMIT 1
         """,
-        (subscription_id, f"{event_type}:session:{session_id}", VERDICT_DISPATCHED, window_start),
+        (debounce_key, VERDICT_DISPATCHED, window_start),
     ).fetchone()
-    return bool(row and row[0] > 0)
+    return row is not None
 
 
 #: Once-per-session debounce window (8 hours — generous session boundary).
@@ -642,18 +669,30 @@ def _invoke_handler(
 def _persist_invocation(
     conn: sqlite3.Connection,
     record: InvocationRecord,
+    *,
+    debounce_rule: dict[str, Any] | None = None,
+    event: dict[str, Any] | None = None,
 ) -> None:
     """Write the invocation record to hook_invocations.
+
+    B1 fix (#624): computes and stores the composite ``debounce_key`` when a
+    debounce rule and event are provided.  The key is used by
+    _debounce_phase_boundary and _debounce_once_per_session to look up prior
+    invocations — they now query ``debounce_key`` directly rather than a fake
+    composite event_type that was never stored in the original implementation.
 
     Errors are logged at WARNING and swallowed — a persistence failure must
     not cascade to blocking the hook chain (R4: log and continue when the
     function contract allows partial failure).
     """
-    # For phase-boundary and once-per-session debounce rules, embed the
-    # boundary key in the stored event_type so future debounce checks can
-    # find it with a simple WHERE clause.  Dispatched records keep the
-    # canonical event_type — the boundary key is only stored for debounced rows
-    # and for future dispatched lookups in _debounce_phase_boundary.
+    debounce_key: str | None = None
+    if debounce_rule is not None and event is not None:
+        debounce_key = _compute_debounce_key(
+            subscription_id=record.subscription_id,
+            debounce_rule=debounce_rule,
+            event=event,
+        )
+
     try:
         db.append_hook_invocation(
             conn,
@@ -665,9 +704,43 @@ def _persist_invocation(
             latency_ms=record.latency_ms,
             stdout_digest=record.stdout_digest,
             stderr_digest=record.stderr_digest,
+            debounce_key=debounce_key,
         )
     except Exception as exc:  # noqa: BLE001 — log and continue; hook chain must not be blocked
         _log.warning(
             "Failed to persist invocation row %s: %s",
             record.invocation_id, exc,
         )
+
+
+def _compute_debounce_key(
+    subscription_id: str,
+    debounce_rule: dict[str, Any],
+    event: dict[str, Any],
+) -> str | None:
+    """Compute the composite debounce_key for a (subscription, rule, event) triple.
+
+    B1 fix (#624): returns a stable string key that _debounce_phase_boundary
+    and _debounce_once_per_session can use to find prior invocations.  Returns
+    None when the rule type has no composite key (e.g. rate-limit uses only the
+    subscription_id + window, no per-event key needed).
+    """
+    rule_type = debounce_rule.get("type", "")
+
+    if rule_type == _DEBOUNCE_PHASE_BOUNDARY:
+        payload = event.get("payload", {})
+        project_id = payload.get("project_id") or payload.get("project") or ""
+        phase = payload.get("phase") or ""
+        if project_id and phase:
+            return f"{_DEBOUNCE_KEY_PREFIX_PHASE}:{subscription_id}:{project_id}:{phase}"
+        return None
+
+    if rule_type == _DEBOUNCE_ONCE_PER_SESSION:
+        payload = event.get("payload", {})
+        session_id = payload.get("session_id") or event.get("session_id") or ""
+        if session_id:
+            return f"{_DEBOUNCE_KEY_PREFIX_SESSION}:{subscription_id}:{session_id}"
+        return None
+
+    # rate-limit and unknown types: no per-event key
+    return None
