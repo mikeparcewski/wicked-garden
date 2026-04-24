@@ -42,4 +42,4 @@ Build a searchable index of code symbols and document content. Indexing is now h
 ## Notes
 
 - Re-running only updates changed files (incremental)
-- Check `/wicked-garden:search:stats` to verify indexing results
+- Check `wicked-brain-status` to verify indexing results

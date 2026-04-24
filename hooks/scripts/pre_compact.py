@@ -270,7 +270,7 @@ def main():
         "systemMessage": (
             "[Memory] Context compression imminent. WIP state has been auto-saved. "
             "After compaction, your WIP will be automatically restored on the next prompt. "
-            "Store any additional decisions or patterns NOW with /wicked-garden:mem:store."
+            "Store any additional decisions or patterns NOW with wicked-brain:memory."
         ),
     }))
 

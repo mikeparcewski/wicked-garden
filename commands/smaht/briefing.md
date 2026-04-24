@@ -48,7 +48,7 @@ This returns events from ALL domains in one timeline — mem decisions, crew pha
 
 If the event log returns no results (new install, events.db not yet populated), fall back to individual queries:
 
-**Memory:** `/wicked-garden:mem:recall "recent decisions and learnings" --limit 10`
+**Memory:** `wicked-brain:memory "recent decisions and learnings" --limit 10`
 
 **Native tasks:** read task JSON under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` and summarize counts by `status` and `metadata.event_type`.
 

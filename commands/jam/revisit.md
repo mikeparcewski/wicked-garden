@@ -52,7 +52,7 @@ How did this decision work out?
 Store the outcome in wicked-garden:mem
 
 ```
-/wicked-garden:mem:store "Outcome: {topic}\nOriginal decision: {chosen}\nResult: {validated/invalidated/modified}\nReason: {user's explanation}\nLessons: {what we learned}"
+wicked-brain:memory "Outcome: {topic}\nOriginal decision: {chosen}\nResult: {validated/invalidated/modified}\nReason: {user's explanation}\nLessons: {what we learned}"
   --type decision
   --tags jam,outcome,{topic-keywords}
   --importance high

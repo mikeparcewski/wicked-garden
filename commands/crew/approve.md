@@ -379,7 +379,7 @@ To mark a skip-reeval entry as resolved, edit `phases/{phase}/skip-reeval-log.js
 }
 ```
 
-**Note on the legacy gate bypass (v6.0 breaking change)**: per D3, the env-var escape hatch is **deleted in v6.0**. The only per-invocation bypass is `--skip-reeval --reason`. See `/wicked-garden:adopt-legacy` to upgrade beta.3 projects.
+**Note on the legacy gate bypass (v6.0 breaking change)**: per D3, the env-var escape hatch is **deleted in v6.0**. The only per-invocation bypass is `--skip-reeval --reason`. (The `adopt-legacy` migration skill was removed in v9 — v6 is the baseline.)
 
 ### 5. Process Approval
 

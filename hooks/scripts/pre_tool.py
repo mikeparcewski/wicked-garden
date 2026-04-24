@@ -273,7 +273,7 @@ def _handle_write_guard(tool_input: dict) -> str:
         return _deny(
             "Do not write to MEMORY.md or the auto memory directory. "
             "This project uses wicked-garden memory for persistence. "
-            "Use /wicked-garden:mem:store to save decisions, patterns, and gotchas instead."
+            "Use wicked-brain:memory to save decisions, patterns, and gotchas instead."
         )
 
     # Issue #442: challenge-artifacts gate for build-phase writes

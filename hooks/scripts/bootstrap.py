@@ -517,7 +517,7 @@ def _read_config():
 
 _MEMORY_INSTRUCTIONS = (
     "[Memory] This project uses wicked-garden memory for persistence. "
-    "Never write to MEMORY.md directly — use /wicked-garden:mem:store. "
+    "Never write to MEMORY.md directly — use wicked-brain:memory to store decisions. "
     "MEMORY.md is auto-generated and read-only. "
     "When editing CLAUDE.md or AGENTS.md, keep both files in sync — "
     "a PostToolUse hook will remind you. "

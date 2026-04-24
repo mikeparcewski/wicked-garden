@@ -1396,7 +1396,7 @@ def main():
         _STORAGE_NUDGE_INTERVAL = 10
         if turn_count > 0 and turn_count % _STORAGE_NUDGE_INTERVAL == 0:
             all_parts.append(
-                "[Memory] Checkpoint: store decisions/gotchas with /wicked-garden:mem:store."
+                "[Memory] Checkpoint: store decisions/gotchas with wicked-brain:memory."
             )
 
         # Jam suggestion: when ambiguity signals present

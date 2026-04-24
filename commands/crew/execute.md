@@ -95,7 +95,7 @@ This returns current phase, phase_plan, signals, complexity, and phase statuses 
 Before starting any phase work, recall relevant crew learnings:
 
 ```
-/wicked-garden:mem:recall "crew learnings and user preferences" --limit 10
+Skill(skill="wicked-brain:memory", args="recall crew learnings and user preferences --limit 10")
 ```
 
 Apply recalled learnings to current work. For example:
@@ -311,7 +311,7 @@ Skill(
 Fail-open: if the brain is unavailable, skip silently. The plan addendum is the
 system of record. The same pattern applies to `feedback.py record --json`, which
 still returns a `memory_payload` field that this command stores via
-`/wicked-garden:mem:store`.
+`wicked-brain:memory`.
 
 **Rationale**: Scripts run as subprocesses and should never call other plugins
 directly. Claude's tool system (skills, Task tool) IS the universal API for
@@ -1242,24 +1242,24 @@ If no specialist is available that differs from the implementer, escalate to cou
 **At every gate that returns CONDITIONAL or REJECT**, store the learning:
 
 ```
-/wicked-garden:mem:store "Crew learning: {what went wrong and why}" --type procedural --tags "crew,learning" --importance medium
+Skill(skill="wicked-brain:memory", args={"content": "Crew learning: {what went wrong and why}", "type": "procedural", "tags": "crew,learning", "importance": "medium"})
 ```
 
 **At project completion (review phase approved)**, the orchestrator stores:
 
 1. **User preferences observed** (if any new patterns noticed):
    ```
-   /wicked-garden:mem:store "{preference observed}" --type preference --tags "crew,user-preference" --importance medium
+   Skill(skill="wicked-brain:memory", args={"content": "{preference observed}", "type": "preference", "tags": "crew,user-preference", "importance": "medium"})
    ```
 
 2. **What worked well** (reusable patterns):
    ```
-   /wicked-garden:mem:store "Crew pattern: {what worked and why}" --type procedural --tags "crew,pattern,success" --importance medium
+   Skill(skill="wicked-brain:memory", args={"content": "Crew pattern: {what worked and why}", "type": "procedural", "tags": "crew,pattern,success", "importance": "medium"})
    ```
 
 3. **What to avoid** (anti-patterns discovered):
    ```
-   /wicked-garden:mem:store "Crew anti-pattern: {what failed and why}" --type procedural --tags "crew,anti-pattern" --importance high
+   Skill(skill="wicked-brain:memory", args={"content": "Crew anti-pattern: {what failed and why}", "type": "procedural", "tags": "crew,anti-pattern", "importance": "high"})
    ```
 
 These are GENERAL learnings, not project-specific. They inform future projects.

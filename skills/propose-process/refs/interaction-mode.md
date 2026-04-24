@@ -15,7 +15,7 @@ Interaction mode controls ONLY whether the user is prompted at gate boundaries:
   - Escalate to user on REJECT verdicts with no clear fix, or CONDITIONAL requiring
     intent changes.
   - At `rigor_tier: full`, yolo is allowed **only when the user explicitly grants it**
-    (via `/wicked-garden:crew:yolo {project} --approve` or explicit instruction);
+    (via `/wicked-garden:crew:auto-approve {project} --approve` or explicit instruction);
     grant is tracked as the `yolo_approved_by_user` state field and appended to
     `yolo-audit.jsonl`. Auto-revoked if a phase-boundary re-eval detects scope
     increase or re-tier-up. Default: refused — escalate plan to user.

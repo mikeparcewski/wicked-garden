@@ -58,7 +58,7 @@ Parse artifact names using `{tier}:{type}:{detail}` convention:
 
 If wicked-garden:mem available:
 ```
-/wicked-garden:mem:recall "gate decision {task}" --limit 5
+wicked-brain:memory "gate decision {task}" --limit 5
 ```
 
 ### 6. Display Evidence Summary

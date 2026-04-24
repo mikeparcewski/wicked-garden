@@ -478,9 +478,9 @@ def main():
             reflection = (
                 f"[Memory] {decay_prefix}"
                 f"Auto-extracted {promoted_count} memories this session. "
-                "Review or supplement with /wicked-garden:mem:recall if needed. "
+                "Review or supplement with wicked-brain:memory (recall mode) if needed. "
                 "If additional decisions or discoveries were made that were not captured, "
-                "store them with /wicked-garden:mem:store (type: decision, procedural, or episodic)."
+                "store them with wicked-brain:memory (type: decision, procedural, or episodic)."
             )
         else:
             task_count_note = (
@@ -492,7 +492,7 @@ def main():
                 f"[Memory] {decay_prefix}REQUIRED: Session ending. "
                 f"{task_count_note}"
                 "For each completed task, evaluate: did it produce a decision, gotcha, or reusable pattern? "
-                "Store each learning with /wicked-garden:mem:store "
+                "Store each learning with wicked-brain:memory "
                 "(type: decision, procedural, or episodic). "
                 "If no tasks completed or no learnings found, state 'No memories to store.' "
                 "Do NOT skip silently."
