@@ -710,13 +710,15 @@ def _handle_read(tool_input: dict, tool_response=None) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Handler: Skill (mem:store compliance counter reset)
+# Handler: Skill (memory compliance counter reset + pull-model tracking)
 # ---------------------------------------------------------------------------
 
 def _handle_skill(tool_input: dict) -> dict:
-    """Handle Skill PostToolUse: mem:store compliance reset + pull-model tracking.
+    """Handle Skill PostToolUse: memory compliance reset + pull-model tracking.
 
-    1. Reset memory_compliance_escalations when a mem:store skill call succeeds.
+    1. Reset memory_compliance_escalations when a wicked-brain:memory skill
+       call succeeds. (mem:store was removed in #603/#604; wicked-brain:memory
+       is the canonical memory API as of v9.)
     2. Track wicked-brain:query/search calls for pull-model calibration (Issue #416).
     """
     skill = (tool_input.get("skill") or "").lower()
@@ -733,8 +735,9 @@ def _handle_skill(tool_input: dict) -> dict:
         except Exception:
             pass  # fail open
 
-    # Memory compliance reset
-    if ":mem:store" not in skill and skill != "mem:store":
+    # Memory compliance reset: zero the escalation counter when the model
+    # calls wicked-brain:memory, confirming it acted on the directive.
+    if "wicked-brain:memory" not in skill:
         return {"continue": True}
     try:
         from _session import SessionState
@@ -1459,7 +1462,7 @@ def main():
             result = _handle_bash(tool_input, tool_response)
             # Tier 2 consensus gate (Issue #368) — fast-exits unless phase_manager approve
             _handle_bash_consensus(tool_input, tool_response)
-        # Skill (mem:store escalation counter reset)
+        # Skill (memory compliance counter reset + pull-model tracking)
         elif tool_name == "Skill":
             result = _handle_skill(tool_input)
         # Grep / Glob (discovery hints for search commands)

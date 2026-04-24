@@ -45,8 +45,8 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
         return
 
 # Escalation threshold — after this many consecutive completed tasks without
-# a mem:store call, the memory directive switches to [ESCALATION] language.
-# Named per R3 (no magic numbers); historical value = 3.
+# a wicked-brain:memory call, the memory directive switches to [ESCALATION]
+# language. Named per R3 (no magic numbers); historical value = 3.
 _ESCALATION_THRESHOLD = 3
 
 # Keywords that suggest a deliverable-producing task
@@ -84,7 +84,7 @@ def _is_deliverable_task(subject: str) -> bool:
 
 
 def _infer_mem_type(subject: str) -> str:
-    """Infer the most appropriate mem:store type from task subject."""
+    """Infer the most appropriate wicked-brain:memory type from task subject."""
     s = subject.lower()
     if any(kw in s for kw in ("fix", "resolve", "bug", "defect")):
         return "decision"

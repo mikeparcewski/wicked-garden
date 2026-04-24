@@ -1,7 +1,7 @@
 {
   "description": "wicked-garden unified hooks — consolidates 10 plugin hook chains into 7 scripts",
 
-  "_TODO_329_updatedInput": "Issue #329: updatedInput for in-flight tool redirection. The _allow() helper in pre_tool.py already emits updatedInput in hookSpecificOutput, but Claude Code may not yet honor updatedInput for PreToolUse hooks to redirect tool calls. If/when supported, use updatedInput in the MEMORY.md write guard to redirect Write/Edit on MEMORY.md to a mem:store call instead of denying.",
+  "_TODO_329_updatedInput": "Issue #329: updatedInput for in-flight tool redirection. The _allow() helper in pre_tool.py already emits updatedInput in hookSpecificOutput, but Claude Code may not yet honor updatedInput for PreToolUse hooks to redirect tool calls. If/when supported, use updatedInput in the MEMORY.md write guard to redirect Write/Edit on MEMORY.md to a wicked-brain:memory call instead of denying.",
 
   "_TODO_333_CwdChanged": "Issue #333: CwdChanged is NOT a valid hook event. When supported, add a CwdChanged hook that re-scopes the active crew project, search index, and session state to the new working directory. This would replace the current cwd-based workspace detection in bootstrap.py.",
 

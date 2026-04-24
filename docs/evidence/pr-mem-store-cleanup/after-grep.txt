@@ -1,0 +1,9 @@
+hooks/scripts/post_tool.py:719:    1. Reset memory_compliance_escalations when a wicked-brain:memory skill
+hooks/scripts/post_tool.py:720:       call succeeds. (mem:store was removed in #603/#604; wicked-brain:memory
+hooks/scripts/post_tool.py:745:        if (state.memory_compliance_escalations or 0) > 0:
+hooks/scripts/post_tool.py:746:            state.update(memory_compliance_escalations=0)
+hooks/scripts/task_completed.py:189:        state.memory_compliance_escalations = (
+hooks/scripts/task_completed.py:190:            (state.memory_compliance_escalations or 0) + 1
+hooks/scripts/task_completed.py:192:        escalations = state.memory_compliance_escalations
+scripts/_session.py:143:    memory_compliance_escalations: int = 0
+scripts/ci/gate4-cutover-matrix.md:40:| **Memory payload emission** — `memory_payload` field on JSON output; caller (start.md / execute.md) stores via `/wicked-garden:mem:store` | Rubric writes `process-plan.md` to the project directory (Step 2) + explicit `wicked-brain:memory` store call for "non-obvious decisions, patterns, gotchas" per the project CLAUDE.md. The Gate 3 wiring in `commands/crew/start.md` Section A includes a brain-memory store for the facilitator plan (line ~182). | **NO** — process-plan.md is the durable artifact; brain memory stores are explicit, not keyword-gated. Richer than v5. |

@@ -1,0 +1,16 @@
+713:# Handler: Skill (mem:store compliance counter reset)
+717:    """Handle Skill PostToolUse: mem:store compliance reset + pull-model tracking.
+719:    1. Reset memory_compliance_escalations when a mem:store skill call succeeds.
+737:    if ":mem:store" not in skill and skill != "mem:store":
+742:        if (state.memory_compliance_escalations or 0) > 0:
+743:            state.update(memory_compliance_escalations=0)
+1462:        # Skill (mem:store escalation counter reset)
+48:# a mem:store call, the memory directive switches to [ESCALATION] language.
+87:    """Infer the most appropriate mem:store type from task subject."""
+189:        state.memory_compliance_escalations = (
+190:            (state.memory_compliance_escalations or 0) + 1
+192:        escalations = state.memory_compliance_escalations
+259:    that rewrites the Write/Edit call into a mem:store invocation instead. This
+4:  "_TODO_329_updatedInput": "Issue #329: updatedInput for in-flight tool redirection. The _allow() helper in pre_tool.py already emits updatedInput in hookSpecificOutput, but Claude Code may not yet honor updatedInput for PreToolUse hooks to redirect tool calls. If/when supported, use updatedInput in the MEMORY.md write guard to redirect Write/Edit on MEMORY.md to a mem:store call instead of denying.",
+142:    # Reset by post_tool.py when a mem:store Write/Edit is detected.
+143:    memory_compliance_escalations: int = 0
