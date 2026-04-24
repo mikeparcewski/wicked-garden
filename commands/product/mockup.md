@@ -1,5 +1,7 @@
 ---
-description: Mockup and wireframe generation — ASCII wireframes, HTML/CSS previews, or component specs for developer handoff
+description: |
+  Use when you need a quick ASCII wireframe or HTML mockup in-chat without Figma overhead.
+  NOT for production design work — use the figma plugin for that.
 argument-hint: "<description-or-target> [--format ascii|html|spec] [--fidelity low|medium|high]"
 ---
 

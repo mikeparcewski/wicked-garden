@@ -1,15 +1,9 @@
 ---
 name: analysis
 description: |
-  This skill should be used when exploring datasets for patterns and generating business insights —
-  exploratory analysis, statistical methods, and visualization guidance.
-
-  Use when:
-  - "analyze this data"
-  - "what patterns are in the data"
-  - "generate insights from"
-  - "exploratory data analysis"
-  - "what does this data tell us"
+  Use when exploring a dataset for patterns, trends, and business insights — EDA, segmentation,
+  anomaly detection, and visualization guidance. Generates the Observation → Insight → Action chain.
+  NOT for schema validation or data quality scoring (use the data/data skill) or SQL queries (use data:analyze).
 ---
 
 # Data Analysis Skill

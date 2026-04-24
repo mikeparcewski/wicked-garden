@@ -29,7 +29,7 @@ After gathering requirements:
 ```
 Task(
   subagent_type="wicked-garden:agentic:architect",
-  prompt="Context:\n- Problem: {problem_statement}\n- Requirements: {requirements_summary}\n\nInstructions:\nLoad skills:\n- wicked-garden:agentic:agentic-patterns\n- wicked-garden:agentic:five-layer-architecture\n\nBased on requirements, recommend:\n1. Appropriate agentic pattern (sequential, hierarchical, parallel, etc.)\n2. Five-layer architecture design\n3. Framework selection (if applicable)\n4. Agent decomposition strategy"
+  prompt="Context:\n- Problem: {problem_statement}\n- Requirements: {requirements_summary}\n\nInstructions:\nLoad skills:\n- wicked-garden:agentic:agentic-patterns\n\nBased on requirements, recommend:\n1. Appropriate agentic pattern (sequential, hierarchical, parallel, etc.)\n2. Five-layer architecture design\n3. Framework selection (if applicable)\n4. Agent decomposition strategy"
 )
 ```
 

@@ -1,5 +1,8 @@
 ---
-description: Research, compare, and select agentic frameworks with interactive guidance and latest updates
+description: |
+  Use when selecting or comparing agentic frameworks (LangChain, CrewAI, AutoGen, etc.) for a specific
+  use case — gets latest ecosystem context via Context7. NOT for reviewing existing agentic code
+  (use agentic:review) or architecture design (use agentic:design).
 argument-hint: "[--compare fw1,fw2,...] [--language python|typescript] [--use-case TYPE]"
 ---
 

@@ -1,11 +1,9 @@
 ---
 name: system-design
 description: |
-  Define component boundaries, module organization, and interface contracts.
-  Break down systems into cohesive, loosely-coupled components.
-
-  Use when: "component design", "module boundaries", "how should we organize this",
-  "component interfaces", "dependency management", "system decomposition"
+  Use when decomposing a system into components with clear boundaries, module organization, and interface
+  contracts — the "how do we slice this?" question at design time.
+  NOT for reviewing an existing system's health (use the architecture skill or engineering:arch).
 portability: portable
 ---
 

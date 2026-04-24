@@ -406,7 +406,7 @@ graph TB
 
 ## Integration with agentic Skills
 
-- Use `/wicked-garden:agentic:five-layer-architecture` for layer-specific guidance
+- Use `/wicked-garden:agentic:agentic-patterns` for layer-specific guidance (five-layer model is included)
 - Use `/wicked-garden:agentic:agentic-patterns` for pattern recognition
 - Use `/wicked-garden:agentic:frameworks` for framework-specific best practices
 

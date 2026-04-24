@@ -1,5 +1,7 @@
 ---
-description: Validate index accuracy using consistency checks
+description: |
+  Use when you need a quick consistency check on the brain index before relying on it for impact analysis.
+  NOT for repairing index gaps (use search:quality) or browsing indexed content (use wicked-brain:search).
 argument-hint: "[--sample-size N] [--format table|json]"
 ---
 

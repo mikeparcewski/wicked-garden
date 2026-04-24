@@ -1,5 +1,7 @@
 ---
-description: Archive or unarchive a crew project
+description: |
+  Use when a crew project is done and you want to remove it from active listings without deleting it.
+  NOT for deleting projects (use reset) or checking project status (use crew:status).
 argument-hint: "<project-name> [--unarchive]"
 ---
 

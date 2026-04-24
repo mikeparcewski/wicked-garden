@@ -1,5 +1,8 @@
 ---
-description: Review requested changes against codebase and recommend detailed implementation steps
+description: |
+  Use when you have a change request or issue and need a detailed implementation plan with specific file
+  changes, risk assessment, and test recommendations — before writing any code.
+  NOT for free-form planning (use native Task planning) or architecture decisions (use engineering:arch).
 argument-hint: "<change request or issue description>"
 ---
 

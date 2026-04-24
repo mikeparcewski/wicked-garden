@@ -1,5 +1,7 @@
 ---
-description: View all individual perspectives from a jam session before synthesis
+description: |
+  Use when you want the raw pre-synthesis perspectives from a brainstorm — minority views, strong dissents,
+  and nuances that synthesis may have compressed. NOT for the full session (use jam:transcript).
 argument-hint: "[--session-id ID] [--json]"
 ---
 

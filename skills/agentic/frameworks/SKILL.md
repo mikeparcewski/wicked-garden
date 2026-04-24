@@ -1,8 +1,9 @@
 ---
 name: frameworks
 description: |
-  Agentic framework landscape, comparison, and selection guide for choosing the right framework for your use case.
-  Use when: "which agent framework", "compare frameworks", "LangGraph vs CrewAI", "framework selection"
+  Use when selecting or comparing agentic frameworks (LangChain, LangGraph, CrewAI, AutoGen, etc.) —
+  curated comparison by use case, language, and maturity. Gets latest context via Context7 when available.
+  NOT for reviewing existing agentic code (use review-methodology) or architecture patterns (use agentic-patterns).
 portability: portable
 ---
 

@@ -597,7 +597,7 @@ TaskUpdate(
 - **Framework Researcher**: For framework-native safety features
 
 **Collaborate with**:
-- Architect on guardrail placement in five-layer model
+- Architect on guardrail placement in the five-layer architecture (see agentic-patterns skill)
 - Performance Analyst on efficient validation strategies
 ```
 

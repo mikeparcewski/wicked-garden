@@ -1,5 +1,7 @@
 ---
-description: Configure delivery metrics — cost model, commentary sensitivity, and sprint cadence
+description: |
+  Use when setting up delivery metrics for the first time — cost model, sprint cadence, and report
+  commentary sensitivity. NOT for generating reports (use delivery:report) or reviewing process health (use delivery:process-health).
 argument-hint: "[--reset]"
 allowed-tools: ["Read", "Write", "AskUserQuestion"]
 ---

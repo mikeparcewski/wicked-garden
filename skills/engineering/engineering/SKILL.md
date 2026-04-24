@@ -1,12 +1,10 @@
 ---
 name: engineering
 description: |
-  Senior engineering guidance on code quality, architecture patterns, and
-  best practices. Use for implementation planning, code review, or general
-  engineering questions about maintainability and design.
-
-  Use when: "review this code", "how should I implement", "is this good practice",
-  "code quality", "refactor", "clean up", "best practice", "design pattern"
+  Senior engineering guidance on implementation, code quality, and maintainability. Use when reviewing
+  code for R1-R6 standards violations (dead code, bare panics, magic values, swallowed errors,
+  unbounded ops, god functions) or getting cross-cutting implementation advice.
+  NOT for architecture decisions (use the architecture skill) or debugging (use the debugging skill).
 ---
 
 # Engineering Skill

@@ -1,15 +1,10 @@
 ---
 name: workflow
 description: |
-  wicked-crew v6 workflow engine. The facilitator rubric in
-  wicked-garden:propose-process drives project orchestration — scoring 9 risk
-  factors, picking phases from the catalog, assigning rigor tier, and emitting
-  a process-plan + full task chain. Phases have hard quality gates (APPROVE /
-  CONDITIONAL / REJECT); CONDITIONAL auto-resolves spec gaps or escalates.
-
-  Use when: "crew phases", "phase plan", "workflow execution", "start a project",
-  "clarify outcome", "design phase", "build phase", "approve phase", "crew workflow",
-  "phase progression", "QE gate", "shift-left testing", or structured delivery.
+  Reference for how the wicked-crew workflow engine operates — phase catalog, gate enforcement,
+  rigor tiers, and facilitator rubric. Use when understanding or troubleshooting crew phase
+  mechanics (gate config, CONDITIONAL resolution, phase dependencies).
+  NOT for starting a project (use crew:start) or proposing a process plan (use propose-process).
 context: fork
 
 **Plain:** wicked-crew v6 — propose-process rubric picks phases and rigor tier;

@@ -97,7 +97,7 @@ Spawn architect agent for design review:
 ```
 Task(
   subagent_type="wicked-garden:agentic:architect",
-  prompt="Mode: architecture_review\n\nContext:\n- Framework: {detected_framework}\n- Agent topology: {topology_summary}\n- Entry points: {entry_agents}\n\nInstructions:\nLoad skill wicked-garden:agentic:five-layer-architecture\n\nAnalyze architecture:\n1. Layer separation (Cognition, Context, Interaction, Runtime, Governance)\n2. Control flow clarity\n3. State management approach\n4. Error propagation\n5. Testing strategy\n\nOutput assessment with:\n- Architecture diagram (mermaid)\n- Pattern alignment score\n- Structural issues\n- Refactoring opportunities"
+  prompt="Mode: architecture_review\n\nContext:\n- Framework: {detected_framework}\n- Agent topology: {topology_summary}\n- Entry points: {entry_agents}\n\nInstructions:\nLoad skill wicked-garden:agentic:agentic-patterns\n\nAnalyze architecture:\n1. Layer separation (Cognition, Context, Interaction, Runtime, Governance)\n2. Control flow clarity\n3. State management approach\n4. Error propagation\n5. Testing strategy\n\nOutput assessment with:\n- Architecture diagram (mermaid)\n- Pattern alignment score\n- Structural issues\n- Refactoring opportunities"
 )
 ```
 

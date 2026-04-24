@@ -1,11 +1,9 @@
 ---
 name: ux-review
 description: |
-  UX quality review — user flows, information architecture, user research,
-  and usability evaluation. Works standalone or integrated with wicked-crew.
-
-  Use when: "UX review", "user flows", "user research", "personas",
-  "user journey", "usability", "information architecture", "navigation review"
+  Use when evaluating UX quality — user flows, information architecture, user research synthesis,
+  personas, and usability assessment. Also covers generative UX flow design from requirements.
+  NOT for visual design consistency (use visual-review) or accessibility code audits (use product/accessibility).
 ---
 
 # UX Review Skill

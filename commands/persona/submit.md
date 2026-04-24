@@ -1,5 +1,7 @@
 ---
-description: Submit a custom persona as a PR to add it to the built-in specialist registry
+description: |
+  Use when you want to contribute a locally-defined custom persona back to the wicked-garden repository
+  as a built-in specialist. NOT for creating a persona (use persona:define) or invoking one (use persona:as).
 argument-hint: "<persona-name>"
 ---
 

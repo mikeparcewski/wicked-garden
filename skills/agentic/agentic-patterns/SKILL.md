@@ -1,8 +1,10 @@
 ---
 name: agentic-patterns
 description: |
-  Core agentic architecture patterns and anti-patterns for building robust multi-agent systems.
-  Use when: "agent pattern", "multi-agent design", "how should I structure agents", "agentic anti-pattern"
+  Use when designing or analyzing multi-agent architectures — covers core patterns (sequential, hierarchical,
+  parallel, event-driven), anti-patterns, and the five-layer model (Cognition → Context → Interaction →
+  Runtime → Governance) for separating concerns in production-grade agentic systems.
+  NOT for reviewing existing agentic code (use review-methodology) or framework selection (use the frameworks skill).
 portability: portable
 ---
 

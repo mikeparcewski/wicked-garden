@@ -1,13 +1,9 @@
 ---
 name: accessibility
 description: |
-  Accessibility audit, compliance evaluation, and implementation guidance — WCAG 2.1 AA,
-  keyboard navigation, screen readers, ARIA patterns, and color contrast.
-
-  Use when: "accessibility audit", "a11y compliance", "WCAG evaluation",
-  "audit for accessibility", "remediation plan", "compliance report",
-  "make this accessible", "keyboard navigation", "screen reader support",
-  "color contrast", "ARIA patterns", "semantic HTML", "accessible component"
+  Use when auditing code for WCAG 2.1 AA compliance — keyboard navigation, ARIA patterns, color contrast,
+  and semantic HTML. Produces prioritized remediation with code-level fixes.
+  NOT for running automated a11y tools (use product:a11y command) or visual design review (use product/visual-review).
 ---
 
 # Accessibility Skill

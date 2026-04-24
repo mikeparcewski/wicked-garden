@@ -1,15 +1,9 @@
 ---
 name: data
 description: |
-  This skill should be used when profiling datasets, validating schemas, or assessing data quality.
-  Covers dataset profiling, schema validation, and quality assessment.
-
-  Use when:
-  - "profile this dataset"
-  - "validate schema"
-  - "check data quality"
-  - "what's in this CSV/Excel file"
-  - "describe this data"
+  Use when profiling a dataset's structure, validating it against a schema, or generating a data quality
+  report (completeness, uniqueness, validity constraints). Runs the data_profiler.py and schema_validator.py scripts.
+  NOT for exploratory pattern analysis (use data/analysis) or SQL queries (use data:analyze).
 ---
 
 # Data Engineering Skill

@@ -1,5 +1,8 @@
 ---
-description: UX and design quality review - flows, UI, accessibility, research
+description: |
+  Use when reviewing UX quality, visual design consistency, or accessibility — covers user flows,
+  design system adherence, spacing/typography/color, component patterns, and research quality.
+  NOT for generating UX flows (use product:ux) or accessibility code audits (use product:a11y).
 argument-hint: "<target> [--focus flows|ui|a11y|research|all] [--quick]"
 ---
 

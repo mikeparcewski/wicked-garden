@@ -1,14 +1,9 @@
 ---
 name: observability
 description: |
-  Plugin observability and engineer toolchain discovery. Health probes, contract assertions,
-  and hook execution tracing for the plugin ecosystem. Also discovers and queries APM, logging,
-  metrics, and cloud monitoring CLIs available in the engineer's environment.
-
-  Use when: "check plugin health", "are hooks working", "silent failures",
-  "trace hook execution", "validate contracts", "plugin diagnostics",
-  "check logs", "query metrics", "view traces", "system monitoring",
-  "datadog", "newrelic", "prometheus", "grafana", "splunk", "cloudwatch"
+  Use when monitoring or diagnosing the wicked-garden plugin ecosystem — health probes, contract assertions,
+  hook traces, error pattern detection, and APM/logging/metrics toolchain discovery.
+  NOT for distributed tracing across services (use the platform:traces command) or audit evidence (use platform/audit).
 ---
 
 # Observability Skill

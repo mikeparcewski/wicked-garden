@@ -1,12 +1,9 @@
 ---
 name: gh-cli
 description: |
-  This skill should be used when working with GitHub CLI (gh) for workflow debugging,
-  PR management, release automation, and repo operations beyond basic git commands.
-
-  Use when: "gh CLI", "gh run list", "gh pr", "debug CI run", "failed workflow run",
-  "why did CI fail", "PR review queue", "merge PRs", "create release",
-  "repo health check", "bulk issue operations", "workflow runs"
+  Use when you need gh CLI patterns beyond the basics — debugging failed workflow runs, bulk PR operations,
+  release automation, or repo health checks. Provides composable gh invocations for power users.
+  NOT for simple git commands (use Bash) or GitLab (use the glab-cli skill).
 ---
 
 # GitHub CLI Power Utilities

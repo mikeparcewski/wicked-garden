@@ -1,5 +1,8 @@
 ---
-description: Analyze dependencies and dependents of a symbol
+description: |
+  Use when you need to know what would break or be affected by changing a symbol — traces both
+  dependencies (what this uses) and dependents (what uses this) via the graph index.
+  NOT for full data lineage tracing (use search:lineage) or general code search (use wicked-brain:search).
 argument-hint: "<symbol> [--depth N]"
 ---
 
@@ -53,4 +56,4 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
 
 - Requires indexing first with `/wicked-garden:search:index`
 - Deeper depth = more complete but slower analysis
-- For lineage-based impact (UI → DB tracing), use `/wicked-garden:search:impact` instead
+- For data lineage tracing (UI → DB), use `/wicked-garden:search:lineage` instead

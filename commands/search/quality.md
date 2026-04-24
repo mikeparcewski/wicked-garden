@@ -1,5 +1,8 @@
 ---
-description: Run quality crew to validate and improve index accuracy to >=95%
+description: |
+  Use when the brain index may be stale, inaccurate, or showing gaps — runs a multi-agent crew to validate
+  and auto-fill the index until >=95% accuracy. NOT for one-time validation checks (use search:validate)
+  or browsing index contents (use wicked-brain:search).
 argument-hint: "[--max-iterations N]"
 ---
 

@@ -1,5 +1,8 @@
 ---
-description: "Data profiling, schema validation, and quality assessment"
+description: |
+  Use when profiling a dataset's structure, validating it against a schema, or generating a data quality
+  report (completeness, uniqueness, validity). NOT for interactive SQL queries (use data:analyze)
+  or ML pipeline work (use data:ml).
 argument-hint: "<subcommand> [args...] — profile <path> | validate --schema <schema> --data <path> | quality <path>"
 ---
 

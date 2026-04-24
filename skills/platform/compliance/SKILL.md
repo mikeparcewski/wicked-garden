@@ -1,12 +1,9 @@
 ---
 name: compliance
 description: |
-  Compliance analysis for regulatory frameworks (SOC2, HIPAA, GDPR, PCI).
-  Checks code and architecture against compliance requirements, detects
-  violations, and provides remediation guidance.
-
-  Use when: "compliance check", "SOC2", "HIPAA", "GDPR", "PCI",
-  "regulatory requirements", "is this compliant", "compliance gap"
+  Use when checking code or architecture against a regulatory framework (SOC2, HIPAA, GDPR, PCI) or
+  translating a policy document into actionable controls — detects violations and provides
+  prioritized remediation guidance. NOT for gathering audit evidence artifacts (use platform/audit).
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
 #   paths: ["**/compliance/**", "**/audit/**", "**/policy/**", "**/.hipaa*", "**/.gdpr*"]

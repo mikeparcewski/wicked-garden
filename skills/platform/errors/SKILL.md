@@ -1,11 +1,9 @@
 ---
 name: errors
 description: |
-  Error analysis and pattern detection from discovered error tracking sources.
-  Aggregates errors across services, detects patterns, correlates with deployments,
-  and assesses user impact. Use for error investigation and incident response.
-
-  Use when: "error analysis", "error patterns", "production errors", "error investigation", "why are we seeing errors"
+  Use when investigating a production error spike or pattern across services — aggregates errors from
+  discovered tracking sources, correlates with deployments, and assesses user impact.
+  NOT for general observability (use platform/observability) or tracing latency (use the platform:traces command).
 ---
 
 # Error Analysis Skill

@@ -1,5 +1,7 @@
 ---
-description: Elicit and document requirements through structured discovery
+description: |
+  Use when turning a vague idea or stakeholder ask into structured user stories with acceptance criteria.
+  NOT for requirements traceability graphs (use the requirements-graph skill) or UX flows (use product:ux).
 ---
 
 # /wicked-garden:product:elicit

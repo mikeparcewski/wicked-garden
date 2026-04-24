@@ -1,5 +1,8 @@
 ---
-description: System health check and reliability assessment
+description: |
+  Use when checking system health, aggregating error patterns, or diagnosing service reliability —
+  covers health probes, error pattern detection, and multi-service observability in one command.
+  NOT for plugin-level diagnostics (use platform:plugin-health) or distributed tracing (use platform:traces).
 argument-hint: "[service name or 'all' for full assessment]"
 ---
 

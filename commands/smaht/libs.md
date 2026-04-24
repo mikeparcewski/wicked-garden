@@ -1,5 +1,7 @@
 ---
-description: List locally cached library cheatsheets
+description: |
+  Use when you want to see which library cheatsheets have been cached locally via smaht:learn.
+  NOT for fetching new cheatsheets (use smaht:learn) or searching the brain index (use wicked-brain:search).
 argument-hint: "[--search <query>]"
 ---
 

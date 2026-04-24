@@ -71,7 +71,7 @@ ANTI_PATTERNS = {
         "title": "Agent lacks logging or tracing",
         "check": "check_no_observability",
         "recommendation": "Add structured logging for agent decisions, tool invocations, and state transitions. Consider OpenTelemetry traces.",
-        "skill_ref": "five-layer-architecture:governance",
+        "skill_ref": "agentic-patterns:governance",
     },
     "redundant_agents": {
         "severity": "medium",

@@ -1,5 +1,7 @@
 ---
-description: "Session briefing — what happened since last time"
+description: |
+  Use when starting a new session and you want to know what happened since the last one — recent events,
+  active crew projects, and memory updates. NOT for live session state inspection (use smaht:debug).
 argument-hint: "[--days N] [--project name]"
 ---
 

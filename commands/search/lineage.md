@@ -77,4 +77,4 @@ Trace data lineage paths through the codebase. Follow data flow from UI fields t
 ## Notes
 
 - Brain search provides indexed symbol locations; Grep traces the connections
-- Use `/wicked-garden:search:impact` for reverse lineage (upstream consumers)
+- Use `/wicked-garden:search:blast-radius` for reverse lineage (upstream consumers and impact analysis)
