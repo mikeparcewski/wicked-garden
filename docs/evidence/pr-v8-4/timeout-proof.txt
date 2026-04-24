@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a6d9f653758935ccf/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a6d9f653758935ccf
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 7 items
+
+tests/daemon/test_council_timeout.py::TestTimeoutVoteRow::test_single_timeout_produces_timeout_verdict PASSED [ 14%]
+tests/daemon/test_council_timeout.py::TestTimeoutVoteRow::test_timeout_vote_has_no_confidence PASSED [ 28%]
+tests/daemon/test_council_timeout.py::TestTimeoutVoteRow::test_timeout_vote_row_has_non_empty_rationale PASSED [ 42%]
+tests/daemon/test_council_timeout.py::TestTimeoutDoesNotBlockOthers::test_hanging_cli_does_not_block_healthy_cli PASSED [ 57%]
+tests/daemon/test_council_timeout.py::TestTimeoutDoesNotBlockOthers::test_all_votes_collected_even_with_partial_timeouts PASSED [ 71%]
+tests/daemon/test_council_timeout.py::TestNoSilentDrops::test_subprocess_exception_produces_error_vote PASSED [ 85%]
+tests/daemon/test_council_timeout.py::TestNoSilentDrops::test_nonzero_exit_produces_error_vote PASSED [100%]
+
+============================== 7 passed in 0.19s ===============================

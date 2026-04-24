@@ -49,6 +49,9 @@ def init_schema(conn: sqlite3.Connection) -> None:
     Also runs the phase-state migration (v8-PR-3 #590) exactly once via the
     _migrations table, mapping any legacy ``completed`` rows to ``approved``
     (AC-linked evidence present) or ``skipped`` (no evidence).
+
+    Council tables (v8-PR-4 #594) are projection-exception: POST /council
+    originates data rather than projecting from bus events.
     """
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS projects (
@@ -141,6 +144,44 @@ def init_schema(conn: sqlite3.Connection) -> None:
             name        TEXT PRIMARY KEY,
             applied_at  INTEGER NOT NULL
         );
+
+        -- Stream 1 — #594 v8-PR-4: council sessions + votes
+        CREATE TABLE IF NOT EXISTS council_sessions (
+            id                  TEXT PRIMARY KEY,
+            topic               TEXT NOT NULL,
+            question            TEXT NOT NULL,
+            started_at          INTEGER NOT NULL,
+            completed_at        INTEGER,
+            synthesized_verdict TEXT,
+            agreement_ratio     REAL,
+            hitl_paused         INTEGER NOT NULL DEFAULT 0,
+            hitl_rule_id        TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_council_sessions_started
+            ON council_sessions(started_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_council_sessions_verdict
+            ON council_sessions(synthesized_verdict);
+
+        CREATE INDEX IF NOT EXISTS idx_council_sessions_hitl_rule
+            ON council_sessions(hitl_rule_id);
+
+        CREATE TABLE IF NOT EXISTS council_votes (
+            session_id      TEXT NOT NULL,
+            model           TEXT NOT NULL,
+            verdict         TEXT,
+            confidence      REAL,
+            rationale       TEXT,
+            raw_response    TEXT,
+            latency_ms      INTEGER,
+            emitted_at      INTEGER NOT NULL,
+            PRIMARY KEY (session_id, model),
+            FOREIGN KEY (session_id) REFERENCES council_sessions(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_council_votes_session
+            ON council_votes(session_id);
     """)
     conn.commit()
 
@@ -611,3 +652,154 @@ def _deserialize_task_metadata(task_dict: dict[str, Any]) -> None:
             task_dict["metadata"] = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             pass  # leave as raw string — callers treat metadata as best-effort
+
+
+# ---------------------------------------------------------------------------
+# Council CRUD (Stream 1 — #594 v8-PR-4)
+# ---------------------------------------------------------------------------
+# Council sessions fan out to N LLM CLIs in parallel; each model's raw
+# response is persisted as a vote row.  The daemon is the authoritative store
+# for council results — unlike the projection tables, council sessions are
+# *originated* here (the one explicit write-path added per the carve-out
+# from PR-1 decision #6, documented in daemon/council.py and the PR body).
+
+_MAX_LIST_COUNCIL_SESSIONS: int = 200
+
+
+def insert_council_session(
+    conn: sqlite3.Connection,
+    session_id: str,
+    topic: str,
+    question: str,
+    started_at: int | None = None,
+) -> None:
+    """Insert a new council session row; idempotent via INSERT OR IGNORE.
+
+    ``started_at`` defaults to the current epoch when omitted.
+    """
+    ts = started_at if started_at is not None else int(time.time())
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO council_sessions
+            (id, topic, question, started_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        (session_id, topic, question, ts),
+    )
+    conn.commit()
+
+
+def upsert_council_vote(
+    conn: sqlite3.Connection,
+    session_id: str,
+    model: str,
+    verdict: str | None,
+    confidence: float | None,
+    rationale: str,
+    raw_response: str,
+    latency_ms: int,
+    emitted_at: int | None = None,
+) -> None:
+    """Insert or replace a vote row for (session_id, model).
+
+    Replacing allows a retry to overwrite a previous timeout/unavailable row
+    while preserving all other votes in the session.
+    """
+    ts = emitted_at if emitted_at is not None else int(time.time())
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO council_votes
+            (session_id, model, verdict, confidence, rationale, raw_response,
+             latency_ms, emitted_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (session_id, model, verdict, confidence, rationale, raw_response,
+         latency_ms, ts),
+    )
+    conn.commit()
+
+
+def complete_council_session(
+    conn: sqlite3.Connection,
+    session_id: str,
+    synthesized_verdict: str | None,
+    agreement_ratio: float | None,
+    hitl_paused: bool,
+    hitl_rule_id: str | None,
+    completed_at: int | None = None,
+) -> None:
+    """Mark a council session as completed with synthesis results."""
+    ts = completed_at if completed_at is not None else int(time.time())
+    conn.execute(
+        """
+        UPDATE council_sessions
+        SET completed_at        = ?,
+            synthesized_verdict = ?,
+            agreement_ratio     = ?,
+            hitl_paused         = ?,
+            hitl_rule_id        = ?
+        WHERE id = ?
+        """,
+        (ts, synthesized_verdict, agreement_ratio,
+         1 if hitl_paused else 0, hitl_rule_id, session_id),
+    )
+    conn.commit()
+
+
+def get_council_session(
+    conn: sqlite3.Connection,
+    session_id: str,
+) -> dict[str, Any] | None:
+    """Return a council_sessions row as a dict, or None if not found."""
+    row = conn.execute(
+        "SELECT * FROM council_sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def list_council_sessions(
+    conn: sqlite3.Connection,
+    topic_prefix: str | None = None,
+    since: int = 0,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return council sessions ordered by started_at DESC.
+
+    ``topic_prefix`` filters to rows whose topic starts with the given string.
+    ``since`` is an epoch lower bound on ``started_at`` (inclusive).
+    ``limit`` is capped at _MAX_LIST_COUNCIL_SESSIONS (R5: no unbounded reads).
+    """
+    limit = min(limit, _MAX_LIST_COUNCIL_SESSIONS)
+    if topic_prefix is not None:
+        rows = conn.execute(
+            """
+            SELECT * FROM council_sessions
+            WHERE started_at >= ? AND topic LIKE ?
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            (since, topic_prefix + "%", limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT * FROM council_sessions
+            WHERE started_at >= ?
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            (since, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_council_votes(
+    conn: sqlite3.Connection,
+    session_id: str,
+) -> list[dict[str, Any]]:
+    """Return all vote rows for a council session."""
+    rows = conn.execute(
+        "SELECT * FROM council_votes WHERE session_id = ? ORDER BY emitted_at ASC",
+        (session_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
