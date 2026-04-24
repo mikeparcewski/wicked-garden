@@ -35,6 +35,13 @@ You provide specialized backend engineering guidance for APIs, databases, and se
 - Integration patterns
 - Background jobs and queues
 
+## Scope boundary (Issue #583)
+
+Build writes production code and whatever test scaffolding is needed to run
+(imports, fixtures, harness setup). Build does NOT author test scenarios —
+scenario authoring belongs to the `test-strategy` / `test` phase, dispatched
+to `wicked-testing:authoring`.
+
 ## Backend Review Checklist
 
 ### API Design

@@ -14,11 +14,45 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
+
+# ---------------------------------------------------------------------------
+# Council raw-vote surfacing (Issue #584)
+#
+# The council agent produces a synthesised verdict from per-model responses,
+# but the individual per-model votes + one-line rationales are never surfaced
+# to the caller. Even on a unanimous verdict, each model may flag a different
+# concern the caller would want to see. ``build_council_output`` assembles an
+# envelope carrying both layers, switched by ``WG_COUNCIL_OUTPUT``.
+# ---------------------------------------------------------------------------
+
+#: Maximum characters kept when deriving a per-model rationale from the
+#: model's raw response. Named constant so the value cannot drift between
+#: the extractor and the tests (R3 — no magic values).
+_RATIONALE_MAX_CHARS: int = 240
+
+#: Env var controlling which layers ``build_council_output`` emits. Values are
+#: normalised lower-case; unknown values fall back to ``both`` so we never
+#: starve the caller of data because of a typo (graceful degradation).
+ENV_COUNCIL_OUTPUT: str = "WG_COUNCIL_OUTPUT"
+COUNCIL_OUTPUT_BOTH: str = "both"
+COUNCIL_OUTPUT_SYNTH: str = "synth"
+COUNCIL_OUTPUT_RAW: str = "raw"
+_VALID_COUNCIL_OUTPUTS: frozenset[str] = frozenset(
+    {COUNCIL_OUTPUT_BOTH, COUNCIL_OUTPUT_SYNTH, COUNCIL_OUTPUT_RAW}
+)
+
+#: Label line prefixes a model may emit to mark its own terse summary. When
+#: present, the text following the label wins over the raw-response prefix
+#: so the caller sees the model's own one-liner rather than our slice.
+_SUMMARY_LABEL_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*(?:summary|tl;dr|verdict|recommendation)\s*[:\-]\s*(.+)$", re.IGNORECASE),
+)
 
 # ---------------------------------------------------------------------------
 # Import siblings (scripts/ root)
@@ -495,6 +529,156 @@ def _result_from_json(data: dict) -> ConsensusResult:
         proposals=_proposals_from_json(data.get("proposals", [])),
         cross_reviews=_reviews_from_json(data.get("cross_reviews", [])),
     )
+
+
+# ---------------------------------------------------------------------------
+# Council raw-vote surfacing (Issue #584)
+# ---------------------------------------------------------------------------
+
+def _extract_rationale(
+    raw_text: str,
+    max_chars: int = _RATIONALE_MAX_CHARS,
+) -> str:
+    """Derive a one-line rationale from a model's raw response (Issue #584).
+
+    Selection rules (deterministic — same input always yields same output):
+
+    1. If the response contains a ``summary:`` / ``tl;dr:`` / ``verdict:`` /
+       ``recommendation:`` label line, take the text after the first such
+       label.  Models frequently emit their own terse one-liner we should
+       prefer over our own slice.
+    2. Otherwise take the first ``max_chars`` characters of the trimmed
+       response, collapsing internal whitespace to single spaces so the
+       rationale fits on one line.
+
+    The returned string is always ``<= max_chars`` characters.
+    """
+    if not raw_text:
+        return ""
+
+    text = raw_text.strip()
+    # Rule 1: look for a model-authored summary label on any line.
+    for line in text.splitlines():
+        for pattern in _SUMMARY_LABEL_PATTERNS:
+            match = pattern.match(line)
+            if match:
+                candidate = re.sub(r"\s+", " ", match.group(1)).strip()
+                if candidate:
+                    return candidate[:max_chars]
+
+    # Rule 2: fall back to a prefix of the flattened response.
+    flattened = re.sub(r"\s+", " ", text).strip()
+    return flattened[:max_chars]
+
+
+def _normalise_confidence(value: Any) -> float | None:
+    """Return a float confidence in [0.0, 1.0] or ``None``.
+
+    ``None``, missing keys, empty strings, and unparseable values all map to
+    ``None`` — critically, they must NOT collapse to ``0.0`` because that
+    would be indistinguishable from a model that explicitly voted
+    low-confidence (Issue #584 — missing != zero).
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        # bool is a subclass of int in Python; reject it to avoid True -> 1.0.
+        return None
+    try:
+        conf = float(value)
+    except (TypeError, ValueError):
+        return None
+    # Clamp into [0.0, 1.0] — models occasionally emit 0-100 scales; treating
+    # out-of-range as None keeps the output honest rather than silently wrong.
+    if conf < 0.0 or conf > 1.0:
+        return None
+    return conf
+
+
+def _build_raw_vote(vote: Mapping[str, Any]) -> dict[str, Any]:
+    """Build a single raw-vote entry from an input vote record.
+
+    Input schema (tolerant — any of these fields may be present):
+        {
+            "model":       str,                    # required
+            "verdict":     str,                    # required (passthrough)
+            "confidence":  float | None,           # optional
+            "rationale":   str,                    # optional (caller-supplied)
+            "raw_text":    str,                    # optional (model response)
+            "response":    str,                    # optional alias for raw_text
+        }
+
+    Output schema (stable — this is the public surface per Issue #584):
+        {"model", "verdict", "confidence", "rationale"}
+    """
+    # Model + verdict are passed through as strings; ``None`` is preserved as
+    # ``None`` so downstream consumers can distinguish "no vote" from "empty".
+    model = vote.get("model")
+    verdict = vote.get("verdict")
+
+    # Rationale precedence: caller-supplied > model-extracted > empty string.
+    supplied = vote.get("rationale")
+    if isinstance(supplied, str) and supplied.strip():
+        rationale = re.sub(r"\s+", " ", supplied.strip())[:_RATIONALE_MAX_CHARS]
+    else:
+        raw_text = vote.get("raw_text") or vote.get("response") or ""
+        rationale = _extract_rationale(str(raw_text))
+
+    return {
+        "model": model,
+        "verdict": verdict,
+        "confidence": _normalise_confidence(vote.get("confidence")),
+        "rationale": rationale,
+    }
+
+
+def _read_council_output_mode(env: Mapping[str, str] | None) -> str:
+    """Read ``WG_COUNCIL_OUTPUT`` and return a validated mode string."""
+    source = env if env is not None else os.environ
+    raw = (source.get(ENV_COUNCIL_OUTPUT) or COUNCIL_OUTPUT_BOTH).strip().lower()
+    if raw not in _VALID_COUNCIL_OUTPUTS:
+        return COUNCIL_OUTPUT_BOTH
+    return raw
+
+
+def build_council_output(
+    votes: list[Mapping[str, Any]],
+    synthesized: Mapping[str, Any] | None,
+    *,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Assemble the council output envelope (Issue #584).
+
+    Emits the synthesised verdict and/or the raw per-model votes based on the
+    ``WG_COUNCIL_OUTPUT`` env var (default ``both``):
+
+    * ``both``  — top-level ``synthesized`` + ``raw_votes``
+    * ``synth`` — ``synthesized`` only (legacy shape; backward-compatible)
+    * ``raw``   — ``raw_votes`` only (unvarnished per-model layer)
+
+    Args:
+        votes: One dict per model that voted.  Each dict carries at least a
+            ``model`` and ``verdict``; ``confidence``, ``rationale``, and
+            ``raw_text`` are optional.  See :func:`_build_raw_vote`.
+        synthesized: The synthesised verdict shape already produced by the
+            council agent.  Passed through unchanged; this function does not
+            rewrite which models were called or how votes were counted.
+        env: Optional env mapping (testing seam; defaults to ``os.environ``).
+
+    Returns:
+        Dict with the requested top-level keys.  Callers depending on the
+        legacy single-key shape should set ``WG_COUNCIL_OUTPUT=synth``.
+    """
+    mode = _read_council_output_mode(env)
+    raw_votes = [_build_raw_vote(v) for v in votes]
+    synth_payload: dict[str, Any] = dict(synthesized) if synthesized else {}
+
+    output: dict[str, Any] = {}
+    if mode in (COUNCIL_OUTPUT_BOTH, COUNCIL_OUTPUT_SYNTH):
+        output["synthesized"] = synth_payload
+    if mode in (COUNCIL_OUTPUT_BOTH, COUNCIL_OUTPUT_RAW):
+        output["raw_votes"] = raw_votes
+    return output
 
 
 # ---------------------------------------------------------------------------

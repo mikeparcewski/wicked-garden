@@ -59,6 +59,13 @@ REQUIRED_TASK_METADATA_KEYS = {
 # to find the authoritative schema.
 SCHEMA_DOC = "skills/propose-process/refs/output-schema.md"
 
+# Issue #583: warning code for the test-strategy-missing gap. Plans that
+# declare ``test_required: true`` on any task but omit the ``test-strategy``
+# phase silently bypass the wicked-testing integration path — dispatches
+# to ``wicked-testing:plan`` / ``wicked-testing:authoring`` never fire.
+_WARN_TEST_STRATEGY_MISSING = "test-strategy-missing"
+_TEST_STRATEGY_PHASE_NAME = "test-strategy"
+
 # Per-section anchors within SCHEMA_DOC. Key is the violation-message prefix
 # (the text before ' — ', with [] / . suffixes stripped).
 _SECTION_ANCHORS = {
@@ -276,6 +283,60 @@ def _check_tasks(plan: dict, violations: list) -> None:
             )
 
 
+def _check_test_strategy_present(plan: dict) -> list:
+    """Issue #583: warn when ``test_required: true`` tasks exist but the
+    plan omits the ``test-strategy`` phase.
+
+    Returns a list of structured warning dicts (never raises). Empty list
+    when either no task opts into testing or a ``test-strategy`` phase is
+    present. The warning is advisory — plans still validate — but it
+    surfaces the qe integration bypass that used to go silent when the
+    facilitator collapsed test-strategy into build for "crisp bugfixes."
+
+    Each warning dict has:
+      - ``code``: stable identifier (``test-strategy-missing``)
+      - ``severity``: ``"warn"``
+      - ``message``: human-readable explanation naming the offending task ids
+    """
+    tasks = plan.get("tasks")
+    if not isinstance(tasks, list):
+        return []
+
+    test_required_ids: list = []
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        meta = task.get("metadata")
+        if not isinstance(meta, dict):
+            continue
+        if meta.get("test_required") is True:
+            task_id = task.get("id")
+            if task_id and str(task_id).strip():
+                test_required_ids.append(str(task_id).strip())
+
+    if not test_required_ids:
+        return []
+
+    phases = plan.get("phases")
+    if isinstance(phases, list):
+        for entry in phases:
+            if isinstance(entry, dict) and entry.get("name") == _TEST_STRATEGY_PHASE_NAME:
+                return []
+
+    id_list = ", ".join(test_required_ids)
+    message = (
+        f"test_required=true on task(s) [{id_list}] but no test-strategy "
+        f"phase in plan; wicked-testing specialists will not be dispatched"
+    )
+    return [
+        {
+            "code": _WARN_TEST_STRATEGY_MISSING,
+            "severity": "warn",
+            "message": message,
+        }
+    ]
+
+
 def validate(plan: dict) -> list:
     """Return a list of violation strings (empty means valid)."""
     violations = []
@@ -285,6 +346,18 @@ def validate(plan: dict) -> list:
     _check_phases(plan, violations)
     _check_tasks(plan, violations)
     return violations
+
+
+def warnings(plan: dict) -> list:
+    """Return a list of non-blocking warning dicts (Issue #583).
+
+    Warnings are distinct from violations: they do NOT fail validation but
+    surface advisory gaps (test-strategy missing, etc.). Kept as a separate
+    function so callers that only care about reject/accept can ignore them.
+    """
+    out: list = []
+    out.extend(_check_test_strategy_present(plan))
+    return out
 
 
 def validate_file(path: Path) -> list:
@@ -412,6 +485,23 @@ def main() -> None:
             if pointer:
                 sys.stderr.write(f"  {pointer}\n")
         sys.exit(1)
+
+    # Issue #583: emit non-blocking warnings after a clean validation so
+    # the qe-integration-bypass gap surfaces in CI without failing the run.
+    try:
+        plan_text = path.read_text(encoding="utf-8")
+        plan_obj = json.loads(plan_text)
+        if isinstance(plan_obj, dict):
+            for warn in warnings(plan_obj):
+                sys.stderr.write(
+                    f"WARN: {path} — [{warn['code']}] {warn['message']}\n"
+                )
+    except (OSError, json.JSONDecodeError):
+        # Unreachable in practice — validate_file would have failed above —
+        # but defense-in-depth: warnings must never turn a pass into a fail.
+        # R4-suppressed by design: warnings are advisory; never block the pass
+        # path when the warning-extraction itself cannot parse the plan.
+        return
 
     sys.exit(0)
 

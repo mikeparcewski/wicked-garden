@@ -24,6 +24,15 @@ from dataclasses import dataclass, field, asdict
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _domain_store import DomainStore, get_local_path
 
+# Issue #581 — revoke-attribution taxonomy. Supports both import styles
+# (package-qualified `crew.yolo_constants` when scripts/ is on sys.path,
+# bare `yolo_constants` when scripts/crew/ is on sys.path directly — which
+# is how tests historically set up their path).
+try:
+    from crew.yolo_constants import VALID_REVOKE_REASONS, validate_revoke_reason
+except ImportError:  # pragma: no cover — fallback for flat sys.path
+    from yolo_constants import VALID_REVOKE_REASONS, validate_revoke_reason  # type: ignore
+
 _sm = DomainStore("wicked-crew")
 
 # Late-import helper for consensus gate (avoids circular imports at module level)
@@ -4255,11 +4264,21 @@ def _append_yolo_audit(
     prior_value: bool,
     new_value: bool,
     extra: Optional[Dict[str, Any]] = None,
+    revoke_reason: Optional[str] = None,
+    revoke_note: Optional[str] = None,
 ) -> None:
     """Append a single yolo-audit.jsonl record at the project root.
 
     Append-only; never rewrites. Fails open — audit log failures log but
     do not abort the caller (matches plugin's graceful-degradation pattern).
+
+    Issue #581: when ``event == "revoked"``, callers SHOULD pass a
+    ``revoke_reason`` drawn from :data:`VALID_REVOKE_REASONS` so next run's
+    telemetry can distinguish which trigger caused the revoke. The taxonomy
+    is enforced via :func:`validate_revoke_reason` at the call path (not
+    here) — this function is intentionally tolerant for graceful
+    degradation, but will stamp the attribution fields into the record
+    when supplied so downstream analysis sees them.
     """
     try:
         audit_path = project_dir / "yolo-audit.jsonl"
@@ -4272,6 +4291,10 @@ def _append_yolo_audit(
             "prior_value": prior_value,
             "new_value": new_value,
         }
+        if revoke_reason is not None:
+            record["revoke_reason"] = revoke_reason
+        if revoke_note is not None:
+            record["revoke_note"] = revoke_note
         if extra:
             record.update(extra)
         with open(audit_path, "a", encoding="utf-8") as fh:
@@ -4291,15 +4314,26 @@ def _apply_scope_increase_revoke(
 
     Returns True when yolo was revoked by this call; False otherwise.
     Idempotent — caller may invoke at both execute() and approve() points.
+
+    Issue #581 — revoke attribution. The function distinguishes between
+    two trigger flavours already folded into ``scope_increased``:
+
+    * ``augment``                 -> ``revoke_reason = "scope.change"``
+    * ``re_tier`` (up to ``full``) -> ``revoke_reason = "retier.up"``
+
+    When both are present in a single re-eval batch, ``retier.up`` wins
+    (it is the stronger signal and the one the tuning PR most wants to
+    single out). The attribution is stamped into both the ``yolo-audit``
+    record and the ``wicked.crew.yolo_revoked`` bus payload. No behavior
+    changes — this is instrumentation-first per the issue's Part C.
     """
-    scope_increased = any(
-        (m.get("op") == "augment")
-        or (
-            m.get("op") == "re_tier"
-            and m.get("new_rigor_tier") == "full"
-        )
-        for m in (plan_mutations or [])
+    mutations = plan_mutations or []
+    has_retier_up = any(
+        m.get("op") == "re_tier" and m.get("new_rigor_tier") == "full"
+        for m in mutations
     )
+    has_augment = any(m.get("op") == "augment" for m in mutations)
+    scope_increased = has_retier_up or has_augment
     if not scope_increased:
         return False
     extras = getattr(state, "extras", None) or {}
@@ -4308,13 +4342,20 @@ def _apply_scope_increase_revoke(
     extras["yolo_approved_by_user"] = False
     extras["yolo_revoked_count"] = int(extras.get("yolo_revoked_count") or 0) + 1
     state.extras = extras
+    # retier-up wins over augment — it's the stronger signal and the one
+    # the #581 follow-up tuning PR most wants attribution for.
+    revoke_reason = "retier.up" if has_retier_up else "scope.change"
+    # Validate before emitting so a taxonomy typo would surface in tests,
+    # not silently via a malformed audit line. Fail-closed on validation.
+    validate_revoke_reason(revoke_reason)
     _append_yolo_audit(
         project_dir,
         event="revoked",
         reason=f"scope-increase@{trigger}",
         prior_value=True,
         new_value=False,
-        extra={"triggering_mutations": plan_mutations},
+        extra={"triggering_mutations": mutations},
+        revoke_reason=revoke_reason,
     )
     # Observability: emit bus event so subscribers see the scope-increase
     # revoke without tailing yolo-audit.jsonl. Fail-open on bus absence —
@@ -4326,8 +4367,9 @@ def _apply_scope_increase_revoke(
             {
                 "project": project_dir.name,
                 "trigger": trigger,
-                "mutation_count": len(plan_mutations or []),
+                "mutation_count": len(mutations),
                 "revoked_count": int(extras.get("yolo_revoked_count") or 0),
+                "revoke_reason": revoke_reason,
             },
         )
     except Exception as exc:  # noqa: BLE001 — observability fail-open
@@ -4805,12 +4847,16 @@ def yolo_action(project: str, action: str, reason: str = "") -> Dict[str, Any]:
         extras["yolo_approved_by_user"] = False
         state.extras = extras
         save_project_state(state)
+        # Issue #581 — attribute CLI revokes so the #581 follow-up can
+        # separate user-initiated revokes from auto-revoke noise.
+        validate_revoke_reason("user.override")
         _append_yolo_audit(
             project_dir,
             event="revoked",
             reason=reason or "user-revoked",
             prior_value=prior,
             new_value=new_value,
+            revoke_reason="user.override",
         )
         return {
             "project": project,

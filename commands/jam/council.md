@@ -48,3 +48,9 @@ Pause rules (auto mode):
 - otherwise ⇒ auto-proceed and persist the votes to `council-decision.json` for the evidence bundle
 
 Operator override: `WG_HITL_COUNCIL=auto|pause|off` (default `auto`).
+
+## Raw per-model votes (Issue #584)
+
+Default output now carries both the synthesised verdict AND a `raw_votes` list so callers can see per-model nuance even on unanimous verdicts. Assemble the envelope via `scripts/jam/consensus.py::build_council_output(votes, synthesized)` — it returns `{"synthesized": {...}, "raw_votes": [{"model", "verdict", "confidence", "rationale"}, ...]}` where each `rationale` is the model's own one-liner (or the first 240 chars of its response) and missing confidences stay `null`, not `0.0`.
+
+Operator override: `WG_COUNCIL_OUTPUT=both|synth|raw` (default `both`). Use `synth` for the legacy single-key shape; use `raw` when tooling only wants the unvarnished per-model layer.

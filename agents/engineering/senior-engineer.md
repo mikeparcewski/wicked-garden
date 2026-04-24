@@ -47,6 +47,13 @@ You provide senior engineering guidance on implementation, architecture, and cod
 - Testing strategy (QE handles this)
 - Product requirements (product team handles this)
 
+## Scope boundary (Issue #583)
+
+Build writes production code and whatever test scaffolding is needed to run
+(imports, fixtures, harness setup). Build does NOT author test scenarios —
+scenario authoring belongs to the `test-strategy` / `test` phase, dispatched
+to `wicked-testing:authoring`.
+
 ## Implementation Guidance Checklist
 
 ### Before Writing Code
