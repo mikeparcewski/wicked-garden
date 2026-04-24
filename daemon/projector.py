@@ -41,6 +41,11 @@ _STATE_REJECTED = "rejected"
 
 _VERDICT_REJECT = "REJECT"
 
+# Monotonic status rank — higher value = further along the lifecycle.
+# An incoming status whose rank is lower than the stored rank is a regression
+# caused by out-of-order bus events; the update is silently dropped.
+_STATUS_RANK: dict[str, int] = {"pending": 0, "in_progress": 1, "completed": 2}
+
 
 # --- helpers ---------------------------------------------------------------
 
@@ -340,6 +345,24 @@ def _task_updated(conn: sqlite3.Connection, event: dict) -> None:
     if not ok:
         return
     ts = _to_epoch(event.get("created_at")) or _now()
+
+    # Guard against out-of-order bus events that would regress task status.
+    # Example: created(pending) → completed → updated(in_progress) must NOT
+    # overwrite the completed row.  Check current DB state before applying.
+    new_status = _opt(payload, "status")
+    if new_status is not None:
+        current_row = db.get_task(conn, str(task_id))
+        if current_row is not None:
+            current_rank = _STATUS_RANK.get(current_row.get("status", ""), -1)
+            new_rank = _STATUS_RANK.get(str(new_status), -1)
+            if new_rank < current_rank:
+                logger.info(
+                    "projector: skipping wicked.task.updated — status regression refused "
+                    "(current=%r, incoming=%r)",
+                    current_row.get("status"), new_status,
+                )
+                return
+
     fields: dict = {"session_id": str(session_id), "updated_at": ts}
     for key in ("subject", "status", "chain_id", "event_type", "metadata"):
         val = _opt(payload, key)

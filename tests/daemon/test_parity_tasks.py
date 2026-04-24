@@ -352,3 +352,118 @@ def test_unknown_task_event_ignored(
     assert actual["status"] == "completed", (
         f"Status after completed event expected 'completed'; got {actual['status']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Status-rank guard: out-of-order bus events must not regress task status
+# ---------------------------------------------------------------------------
+
+
+def test_status_regression_refused_by_rank_guard(
+    mem_conn,
+    task_event_stream,
+) -> None:
+    """Out-of-order wicked.task.updated must not overwrite a higher-rank status.
+
+    Event sequence:
+      1. wicked.task.created  → status='pending'
+      2. wicked.task.updated  → status='completed'   (advances to terminal state)
+      3. wicked.task.updated  → status='in_progress' (stale/out-of-order bus event)
+
+    Expected end state: status='completed' (regression refused by _STATUS_RANK guard).
+
+    Provenance: #596 v8-PR-2, council condition #611 — status_rank guard.
+    """
+    from daemon.db import get_task  # type: ignore[import]
+
+    events = task_event_stream(
+        {
+            "event_type": "wicked.task.created",
+            "payload": {
+                "task_id": "task-rank-001",
+                "session_id": "sess-rank",
+                "subject": "Rank guard test task",
+                "status": "pending",
+            },
+        },
+        {
+            "event_type": "wicked.task.updated",
+            "payload": {
+                "task_id": "task-rank-001",
+                "session_id": "sess-rank",
+                "status": "completed",
+            },
+        },
+        {
+            # Out-of-order event: attempts to regress completed → in_progress.
+            "event_type": "wicked.task.updated",
+            "payload": {
+                "task_id": "task-rank-001",
+                "session_id": "sess-rank",
+                "status": "in_progress",
+            },
+        },
+    )
+
+    _replay_task_events(mem_conn, events)
+
+    actual = get_task(mem_conn, "task-rank-001")
+    assert actual is not None, "task-rank-001 not found after projection"
+    assert actual["status"] == "completed", (
+        f"Status regression guard failed: expected 'completed' after out-of-order "
+        f"'in_progress' event; got {actual['status']!r}"
+    )
+
+
+def test_status_progression_forward_allowed(
+    mem_conn,
+    task_event_stream,
+) -> None:
+    """Forward status transitions must always be applied by the rank guard.
+
+    Event sequence:
+      1. wicked.task.created  → status='pending'
+      2. wicked.task.updated  → status='in_progress'   (forward)
+      3. wicked.task.updated  → status='completed'     (forward)
+
+    Expected end state: status='completed'.
+
+    Provenance: #596 v8-PR-2, council condition #611 — status_rank guard.
+    """
+    from daemon.db import get_task  # type: ignore[import]
+
+    events = task_event_stream(
+        {
+            "event_type": "wicked.task.created",
+            "payload": {
+                "task_id": "task-rank-002",
+                "session_id": "sess-rank-fwd",
+                "subject": "Forward progression task",
+                "status": "pending",
+            },
+        },
+        {
+            "event_type": "wicked.task.updated",
+            "payload": {
+                "task_id": "task-rank-002",
+                "session_id": "sess-rank-fwd",
+                "status": "in_progress",
+            },
+        },
+        {
+            "event_type": "wicked.task.updated",
+            "payload": {
+                "task_id": "task-rank-002",
+                "session_id": "sess-rank-fwd",
+                "status": "completed",
+            },
+        },
+    )
+
+    _replay_task_events(mem_conn, events)
+
+    actual = get_task(mem_conn, "task-rank-002")
+    assert actual is not None, "task-rank-002 not found after projection"
+    assert actual["status"] == "completed", (
+        f"Forward progression expected 'completed'; got {actual['status']!r}"
+    )

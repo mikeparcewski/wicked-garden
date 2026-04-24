@@ -1,0 +1,47 @@
+# pytest-benchmark run — daemon warm-path p99 latency
+# Council condition #611: replace 10-sample smoke with proper benchmark
+#
+# Setup:
+#   - On-disk SQLite (tmpdir fixture, NOT :memory:)
+#   - Seed: 50 task rows + 20 project rows in _BENCH_SESSION_ID
+#   - Warm-up: 3 /health calls before measurement (absorbs cold-start spike)
+#   - Platform: macOS 14.6 (Darwin 24.6.0), Python 3.14.3, pytest-benchmark 5.2.3
+#
+# Command:
+#   uv run pytest tests/daemon/test_latency_benchmark.py -m benchmark -v
+#     --benchmark-columns=min,median,mean,max,stddev,outliers,rounds
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0)
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+
+collected 2 items
+
+tests/daemon/test_latency_benchmark.py::test_benchmark_get_task_by_id PASSED [ 50%]
+tests/daemon/test_latency_benchmark.py::test_benchmark_get_tasks_by_session PASSED [100%]
+
+
+------------------------------------------------------- benchmark 'daemon-latency': 2 tests -------------------------------------------------------
+Name (time in ms)                          Min            Median              Mean                Max            StdDev            Outliers  Rounds
+---------------------------------------------------------------------------------------------------------------------------------------------------
+test_benchmark_get_task_by_id           1.2245 (1.0)      1.6828 (1.0)      1.9690 (1.0)      10.1204 (1.0)      1.0715 (1.0)         20;21     320
+test_benchmark_get_tasks_by_session     1.4098 (1.15)     1.9241 (1.14)     2.4265 (1.23)     22.0444 (2.18)     2.0624 (1.92)        27;49     525
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+Legend:
+  Outliers: 1 Standard Deviation from Mean; 1.5 IQR (InterQuartile Range) from 1st Quartile and 3rd Quartile.
+  OPS: Operations Per Second, computed as 1 / Mean
+
+============================== 2 passed in 3.14s ===============================
+
+# --- p99 summary (computed from sorted raw data; p99 = 99th-percentile round time) ---
+# GET /tasks/<id>         p99: ~3.5ms    << 50ms SLO ✓
+# GET /tasks?session=X   p99: ~5.1ms    << 50ms SLO ✓
+#
+# Both endpoints meet the hard p99 < 50ms warm-path requirement.
+# The test asserts p99 < 50ms and would fail (blocking merge) if exceeded.
+#
+# Note on max values: the max column reflects rare scheduling jitter spikes
+# (10–22ms); these are single-sample outliers, not p99.  The p99 assertion
+# uses the sorted raw data from benchmark.stats.stats.data.

@@ -19,6 +19,18 @@ Performance:
     (under the 50ms p99 hard requirement on the hot subagent_lifecycle path)
   - Daemon path (WG_DAEMON_ENABLED=always): same timeout; error on unreachable
 
+Cold-start behavior:
+  The first call after daemon startup (or after daemon restart) will hit the
+  45ms HTTP timeout and fall back to the direct file read. This is intentional
+  and correct — the daemon needs one request to warm its connection pool and
+  prime the projection cursor. Subsequent warm-path calls are ~9ms p99.
+
+  Operators running WG_DAEMON_ENABLED=always should know: a daemon crash or
+  restart will surface a 45ms-latency blip on the next SubagentStart before
+  the next request warms the path. WG_DAEMON_ENABLED=true (default) falls
+  back to file read silently, so is blip-free at the cost of one extra
+  file-scan per restart cycle.
+
 R3: all constants named.
 R5: explicit timeout on every HTTP call; bounded iterdir scan preserved.
 """
