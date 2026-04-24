@@ -27,10 +27,10 @@ import daemon.db as db
 
 logger = logging.getLogger(__name__)
 
-# --- named constants (R3: no magic values) --------------------------------
-_APPLIED = "applied"
-_IGNORED = "ignored"
-_ERROR = "error"
+# --- named constants: canonical values from db layer (coordination item #5 — #589) ---
+_APPLIED = db._PROJECTION_STATUS_APPLIED
+_IGNORED = db._PROJECTION_STATUS_IGNORED
+_ERROR = db._PROJECTION_STATUS_ERROR
 
 _STATUS_ACTIVE = "active"
 _STATUS_COMPLETED = "completed"
@@ -98,6 +98,13 @@ def _project_created(conn: sqlite3.Connection, event: dict) -> None:
         return
     ts = _to_epoch(event.get("created_at")) or _now()
     meta = event.get("metadata", {}) or {}
+    # chain_id resolution: prefer metadata.chain_id, then payload.chain_id, then
+    # the top-level event chain_id (the canonical location in the bus event envelope).
+    chain_id = (
+        _opt(meta, "chain_id")
+        or _opt(payload, "chain_id")
+        or event.get("chain_id")
+    )
     db.upsert_project(conn, str(project_id), {
         "name": _opt(payload, "name") or project_id,
         "workspace": _opt(payload, "workspace"),
@@ -107,7 +114,7 @@ def _project_created(conn: sqlite3.Connection, event: dict) -> None:
         "rigor_tier": _opt(payload, "rigor_tier"),
         "current_phase": _opt(payload, "current_phase", ""),
         "status": _STATUS_ACTIVE,
-        "chain_id": _opt(meta, "chain_id") or _opt(payload, "chain_id"),
+        "chain_id": chain_id,
         "created_at": ts,
         "updated_at": ts,
     })
@@ -169,9 +176,39 @@ def _phase_transitioned(conn: sqlite3.Connection, event: dict) -> None:
 
 
 def _phase_auto_advanced(conn: sqlite3.Connection, event: dict) -> None:
-    """Same projection as transitioned; consumer also logs to event_log for audit."""
-    logger.debug("projector: wicked.phase.auto_advanced — delegating to transitioned logic")
-    _phase_transitioned(conn, event)
+    """Project wicked.phase.auto_advanced — phase-approved audit event.
+
+    Event shape differs from wicked.phase.transitioned: payload carries
+    'phase' (the phase that was auto-advanced) rather than 'phase_from'/'phase_to'.
+    No next phase is implied — the project stays on the same phase pointer.
+
+    Expected projection (from fixture auto_advance_low_complexity):
+      - phases[phase].state = 'approved', terminal_at = ts
+      - projects.current_phase = payload.phase
+    """
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    ts = _to_epoch(event.get("created_at")) or _now()
+
+    db.upsert_phase(conn, str(project_id), str(phase), {
+        "state": _STATE_APPROVED,
+        "terminal_at": ts,
+        "updated_at": ts,
+    })
+    db.upsert_project(conn, str(project_id), {
+        "current_phase": str(phase),
+        "updated_at": ts,
+    })
+    logger.debug(
+        "projector: applied wicked.phase.auto_advanced project_id=%r phase=%r",
+        project_id, phase,
+    )
 
 
 def _gate_decided(conn: sqlite3.Connection, event: dict) -> None:

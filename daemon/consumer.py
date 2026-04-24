@@ -189,6 +189,11 @@ def cursor_lag(conn: sqlite3.Connection) -> int:
     """Return max_known_event_id - cursor.last_event_id, or -1 if bus unavailable.
 
     Decision #4: -1 when the bus cannot be reached.
+
+    TODO(v8-pr1-followup): 'wicked-bus head' subcommand does not exist in the
+    current wicked-bus release (coordination item #6, #589).  The subprocess
+    call below will always fail and return -1.  Once wicked-bus exposes 'head',
+    this function will compute accurate lag.  /health returns -1 until then.
     """
     row = db.get_cursor(conn, _BUS_SOURCE)
     if not row or not row.get("cursor_id"):

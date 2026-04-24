@@ -22,14 +22,15 @@ import traceback
 import urllib.parse
 from typing import Any
 
+import daemon.consumer as consumer
 import daemon.db as db
+from daemon import VERSION as DAEMON_VERSION
 
 # ---------------------------------------------------------------------------
 # Constants (R3: no magic values)
 # ---------------------------------------------------------------------------
 DEFAULT_HOST: str = "127.0.0.1"
 DEFAULT_PORT: int = 4244
-DAEMON_VERSION: str = "0.1.0"
 
 CONTENT_TYPE_JSON: str = "application/json; charset=utf-8"
 
@@ -100,18 +101,16 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
     # ------------------------------------------------------------------ #
 
     def _handle_health(self, _query: dict[str, list[str]]) -> None:
-        """GET /health — liveness + cursor lag."""
+        """GET /health — liveness + cursor lag.
+
+        cursor_lag delegates to consumer.cursor_lag(conn) which is a pure,
+        stateless module function (no thread state) — safe to call from the
+        server's read path per coordination item #2 (#589).
+        """
         conn = None
         try:
             conn = db.connect(self.db_path)
-            cursor_row = db.get_cursor(conn)
-            if cursor_row is None:
-                lag: int = -1
-            else:
-                # consumer.cursor_lag is the authoritative lag calculator, but
-                # server must not import consumer (write path).  Replicate the
-                # read-side view: lag = -1 when bus unavailable (cursor absent).
-                lag = -1  # bus availability unknown from server; surface -1
+            lag: int = consumer.cursor_lag(conn)
             db_path_used: str = conn.execute("PRAGMA database_list").fetchone()[2]
             self._send_json(200, {
                 "ok": True,

@@ -130,9 +130,19 @@ def upsert_project(conn: sqlite3.Connection, project_id: str, fields: dict[str, 
 
     # Apply all supplied mutable fields as an in-place update so partial calls
     # (e.g. only archetype) update the existing row without touching other columns.
+    # Touch-null semantic (#589 coordination item #7): for columns that must never
+    # regress to NULL when a richer value already exists, use COALESCE so that a
+    # None/null payload value is silently ignored on the row.
+    _PRESERVE_NONNULL = frozenset({"name", "archetype"})
     update_cols = [c for c in mutable_cols if c in fields]
     if update_cols:
-        set_clause = ", ".join(f"{c} = ?" for c in update_cols)
+        set_parts = []
+        for c in update_cols:
+            if c in _PRESERVE_NONNULL:
+                set_parts.append(f"{c} = COALESCE(?, {c})")
+            else:
+                set_parts.append(f"{c} = ?")
+        set_clause = ", ".join(set_parts)
         conn.execute(
             f"UPDATE projects SET {set_clause} WHERE id = ?",
             [fields[c] for c in update_cols] + [project_id],
@@ -273,6 +283,40 @@ def append_event_log(
         (event_id, event_type, chain_id, payload_json, projection_status, error_message, now),
     )
     conn.commit()
+
+
+def list_events(
+    conn: sqlite3.Connection,
+    since: int = 0,
+    limit: int = 100,
+    event_type_prefix: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return event_log rows with event_id > since, ordered by event_id ASC, LIMIT.
+
+    Optionally filter to event_type values that start with event_type_prefix.
+    Used by server.py's /events endpoint (#589, coordination item #1).
+    """
+    if event_type_prefix is not None:
+        rows = conn.execute(
+            """
+            SELECT * FROM event_log
+            WHERE event_id > ? AND event_type LIKE ?
+            ORDER BY event_id ASC
+            LIMIT ?
+            """,
+            (since, event_type_prefix + "%", limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT * FROM event_log
+            WHERE event_id > ?
+            ORDER BY event_id ASC
+            LIMIT ?
+            """,
+            (since, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def prune_event_log(conn: sqlite3.Connection, keep_last: int = _PRUNE_KEEP_DEFAULT) -> int:
