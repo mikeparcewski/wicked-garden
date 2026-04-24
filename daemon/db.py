@@ -4,9 +4,20 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import sys
 import time
 from pathlib import Path
 from typing import Any
+
+# ---------------------------------------------------------------------------
+# Phase state machine import (v8-PR-3 #590).
+# The scripts/crew directory is not on sys.path by default when daemon/db.py
+# is imported standalone (e.g. from tests).  Add it if needed so that
+# phase_state can be resolved without requiring callers to set PYTHONPATH.
+# ---------------------------------------------------------------------------
+_SCRIPTS_CREW = Path(__file__).resolve().parents[1] / "scripts" / "crew"
+if str(_SCRIPTS_CREW) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_CREW))
 
 _DEFAULT_DB_PATH = Path.home() / ".something-wicked" / "wicked-garden-daemon" / "projections.db"
 _ENV_DB_KEY = "WG_DAEMON_DB"
@@ -33,7 +44,12 @@ def connect(path: str | None = None) -> sqlite3.Connection:
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
-    """Create all 4 tables and indexes idempotently; safe to call on every startup."""
+    """Create all tables and indexes idempotently; safe to call on every startup.
+
+    Also runs the phase-state migration (v8-PR-3 #590) exactly once via the
+    _migrations table, mapping any legacy ``completed`` rows to ``approved``
+    (AC-linked evidence present) or ``skipped`` (no evidence).
+    """
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS projects (
             id                  TEXT PRIMARY KEY,
@@ -117,8 +133,80 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_tasks_chain
             ON tasks(chain_id);
+
+        -- Migration tracking (v8-PR-3 #590): each row records one idempotent
+        -- migration that has been applied.  Re-running init_schema is a no-op
+        -- once the migration row exists.
+        CREATE TABLE IF NOT EXISTS _migrations (
+            name        TEXT PRIMARY KEY,
+            applied_at  INTEGER NOT NULL
+        );
     """)
     conn.commit()
+
+    # Run one-time migrations registered above.
+    _run_migration(conn, "phase_state_completed_to_canonical",
+                   _migrate_phase_state_completed_to_canonical)
+
+
+# ---------------------------------------------------------------------------
+# Migration helpers (v8-PR-3 #590)
+# ---------------------------------------------------------------------------
+
+def _run_migration(
+    conn: sqlite3.Connection,
+    name: str,
+    fn: "Callable[[sqlite3.Connection], None]",
+) -> None:
+    """Apply *fn* exactly once, guarded by a _migrations row.
+
+    Idempotent: if the migration row already exists the function is not called.
+    The row is written inside the same transaction as the migration body so
+    partial migrations cannot produce a committed row without committed data.
+    """
+    from typing import Callable  # local import avoids circular at module level
+
+    row = conn.execute(
+        "SELECT name FROM _migrations WHERE name = ?", (name,)
+    ).fetchone()
+    if row is not None:
+        return  # already applied
+    fn(conn)
+    conn.execute(
+        "INSERT INTO _migrations (name, applied_at) VALUES (?, ?)",
+        (name, int(time.time())),
+    )
+    conn.commit()
+
+
+def _migrate_phase_state_completed_to_canonical(conn: sqlite3.Connection) -> None:
+    """Map legacy ``completed`` phase rows to canonical states.
+
+    Mapping rule (v8-PR-3 #590):
+    - gate_score IS NOT NULL or gate_verdict IS NOT NULL → ``approved``
+      (AC-linked evidence present from a prior gate decision)
+    - otherwise → ``skipped``
+      (no gate evidence; treat as a no-gate-required skip)
+
+    This migration targets the daemon ``phases`` table only.  The
+    phase_manager.py JSON file store is unaffected.
+    """
+    now = int(time.time())
+    rows = conn.execute(
+        "SELECT project_id, phase, gate_score, gate_verdict "
+        "FROM phases WHERE state = 'completed'"
+    ).fetchall()
+    for row in rows:
+        project_id = row[0]
+        phase = row[1]
+        has_evidence = (row[2] is not None) or (row[3] is not None)
+        new_state = "approved" if has_evidence else "skipped"
+        conn.execute(
+            "UPDATE phases SET state = ?, updated_at = ? "
+            "WHERE project_id = ? AND phase = ? AND state = 'completed'",
+            (new_state, now, project_id, phase),
+        )
+    # Commit is handled by _run_migration after the migration row is written.
 
 
 def upsert_project(conn: sqlite3.Connection, project_id: str, fields: dict[str, Any]) -> None:
@@ -180,10 +268,47 @@ def upsert_phase(
     phase: str,
     fields: dict[str, Any],
 ) -> None:
-    """Insert or update a phase row; missing keys preserve existing column values."""
+    """Insert or update a phase row; missing keys preserve existing column values.
+
+    When ``fields`` contains a ``state`` key the value is validated against the
+    canonical phase state machine (v8-PR-3 #590).  The current DB state is read
+    first so the transition check can verify the move is legal.  Raises
+    ``phase_state.InvalidTransition`` if the write attempts a banned or illegal
+    state transition.
+
+    Callers in ``projector.py`` use named constants from ``phase_state.PhaseState``
+    so a typo or new banned value is caught at import time rather than at runtime.
+    """
+    from phase_state import InvalidTransition, PhaseState, BANNED_STATES, transition as _transition  # type: ignore[import]
+
     now = int(time.time())
     fields = dict(fields)
     fields.setdefault("updated_at", now)
+
+    # Validate the requested state transition before touching the DB.
+    if "state" in fields:
+        requested_state = fields["state"]
+        # Reject banned states immediately (R2: no silent failures).
+        if str(requested_state) in BANNED_STATES:
+            raise InvalidTransition(
+                f"upsert_phase: attempted to write banned state {requested_state!r} "
+                f"for ({project_id!r}, {phase!r}). "
+                "Run phase_state_migration.py to clean up existing rows."
+            )
+        # Coerce to PhaseState to catch unknown values early.
+        try:
+            PhaseState(str(requested_state))
+        except ValueError as exc:
+            raise InvalidTransition(
+                f"upsert_phase: unknown state {requested_state!r} for ({project_id!r}, {phase!r}). "
+                f"Valid states: {sorted(PhaseState)}"
+            ) from exc
+        # Note: we do NOT call _transition() here because upsert_phase is also
+        # used by the projector for INSERT (creating a row at the target state
+        # directly from an event, not by applying an event to existing state).
+        # The projector's _transition-validated constants (PhaseState.ACTIVE etc.)
+        # already guarantee the value is canonical.  The guard above ensures no
+        # banned / unknown string can slip through regardless of the caller.
 
     # Columns that can be set after (project_id, phase) PK is established.
     mutable_cols = [

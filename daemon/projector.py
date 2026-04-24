@@ -14,16 +14,31 @@ Timestamp normalisation (Decision #9): ``_to_epoch`` converts ISO-8601
 strings or integers to UTC epoch seconds before calling db functions.
 
 Archetype nullable (Decision #2): absent ``archetype`` field → ``None``.
+
+Phase state constants (v8-PR-3 #590): handler constants are imported from
+``phase_state.PhaseState`` so any attempt to use a banned or unknown state
+fails at import time rather than at runtime.
 """
 from __future__ import annotations
 
 import logging
 import sqlite3
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from time import time
 from typing import Callable
 
 import daemon.db as db
+
+# ---------------------------------------------------------------------------
+# phase_state import — same path bootstrapping as daemon/db.py
+# ---------------------------------------------------------------------------
+_SCRIPTS_CREW = Path(__file__).resolve().parents[1] / "scripts" / "crew"
+if str(_SCRIPTS_CREW) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_CREW))
+
+from phase_state import PhaseState  # type: ignore[import]  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +50,13 @@ _ERROR = db._PROJECTION_STATUS_ERROR
 _STATUS_ACTIVE = "active"
 _STATUS_COMPLETED = "completed"
 
-_STATE_ACTIVE = "active"
-_STATE_APPROVED = "approved"
-_STATE_REJECTED = "rejected"
+# Phase state constants now sourced from the typed state machine (v8-PR-3 #590).
+# Using PhaseState enum values ensures upsert_phase sees canonical strings and
+# any rename/removal of a state is a compile-time error rather than a silent
+# data corruption.
+_STATE_ACTIVE = PhaseState.ACTIVE      # "active"
+_STATE_APPROVED = PhaseState.APPROVED  # "approved"
+_STATE_REJECTED = PhaseState.REJECTED  # "rejected"
 
 _VERDICT_REJECT = "REJECT"
 

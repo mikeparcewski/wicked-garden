@@ -1,0 +1,6 @@
+DRY RUN result: {'applied': False, 'already_applied': False, 'rows_approved': 1, 'rows_skipped': 1, 'rows': [{'project_id': 'proj-test', 'phase': 'design', 'gate_score': 0.85, 'gate_verdict': 'APPROVE', 'would_migrate_to': 'approved'}, {'project_id': 'proj-test', 'phase': 'challenge', 'gate_score': None, 'gate_verdict': None, 'would_migrate_to': 'skipped'}], 'dry_run': True}
+
+States after dry-run: {'design': 'completed', 'challenge': 'completed'}
+
+APPLY result: {'applied': True, 'already_applied': False, 'rows_approved': 1, 'rows_skipped': 1, 'dry_run': False}
+States after apply: {'design': 'approved', 'challenge': 'skipped'}
