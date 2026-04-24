@@ -1,0 +1,13 @@
+[
+  {
+    "phase": "design",
+    "state": "rejected",
+    "gate_score": 0.45,
+    "gate_verdict": "REJECT",
+    "gate_reviewer": "wicked-garden:qe:semantic-reviewer",
+    "started_at": null,
+    "terminal_at": 0,
+    "rework_iterations": 1,
+    "updated_at": 0
+  }
+]

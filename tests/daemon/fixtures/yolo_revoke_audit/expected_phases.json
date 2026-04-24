@@ -1,0 +1,24 @@
+[
+  {
+    "phase": "clarify",
+    "state": "approved",
+    "gate_score": null,
+    "gate_verdict": null,
+    "gate_reviewer": null,
+    "started_at": null,
+    "terminal_at": 0,
+    "rework_iterations": 0,
+    "updated_at": 0
+  },
+  {
+    "phase": "build",
+    "state": "active",
+    "gate_score": null,
+    "gate_verdict": null,
+    "gate_reviewer": null,
+    "started_at": 0,
+    "terminal_at": null,
+    "rework_iterations": 0,
+    "updated_at": 0
+  }
+]

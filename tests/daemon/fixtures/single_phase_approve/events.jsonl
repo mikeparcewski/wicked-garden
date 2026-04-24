@@ -1,0 +1,3 @@
+{"event_id": 1, "event_type": "wicked.project.created", "created_at": 1700000001, "chain_id": "alpha-service.root", "payload": {"project_id": "alpha-service", "complexity_score": 3.0}}
+{"event_id": 2, "event_type": "wicked.phase.transitioned", "created_at": 1700000060, "chain_id": "alpha-service.clarify", "payload": {"project_id": "alpha-service", "phase_from": "clarify", "phase_to": null, "approver": "wicked-garden:crew:gate-adjudicator", "gate_result": "APPROVE"}}
+{"event_id": 3, "event_type": "wicked.gate.decided", "created_at": 1700000055, "chain_id": "alpha-service.clarify", "payload": {"project_id": "alpha-service", "phase": "clarify", "result": "APPROVE", "score": 0.85, "reviewer": "wicked-garden:crew:gate-adjudicator"}}

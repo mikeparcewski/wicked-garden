@@ -1,0 +1,3 @@
+{"event_id": 1, "event_type": "wicked.project.created", "created_at": 1700004001, "chain_id": "epsilon-worker.root", "payload": {"project_id": "epsilon-worker", "complexity_score": 6.0}}
+{"event_id": 2, "event_type": "wicked.phase.transitioned", "created_at": 1700004100, "chain_id": "epsilon-worker.clarify", "payload": {"project_id": "epsilon-worker", "phase_from": "clarify", "phase_to": "build", "approver": "wicked-garden:crew:gate-adjudicator", "gate_result": "APPROVE"}}
+{"event_id": 3, "event_type": "wicked.crew.yolo_revoked", "created_at": 1700004200, "chain_id": null, "payload": {"project": "epsilon-worker", "trigger": "scope_increase", "mutation_count": 4, "revoked_count": 1, "revoke_reason": "SCOPE_INCREASE_WITHOUT_APPROVAL"}}
