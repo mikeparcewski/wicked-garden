@@ -1,0 +1,45 @@
+diff --git a/scripts/crew/autonomy.py b/scripts/crew/autonomy.py
+index 6ecb38c..f05c479 100644
+--- a/scripts/crew/autonomy.py
++++ b/scripts/crew/autonomy.py
+@@ -506,7 +506,10 @@ def _clarify_via_hitl_judge(
+             complexity=int(context.get("complexity", 0)),
+             facilitator_confidence=float(context.get("facilitator_confidence", 1.0)),
+             open_questions=int(context.get("open_questions", 0)),
+-            yolo=True,  # balanced/full both grant yolo to the judge
++            # NOTE: yolo=True here means "user has granted some level of autonomy" (balanced or full
++            # mode), NOT "user passed the deprecated --yolo CLI flag". The hitl_judge internal
++            # parameter predates v8-PR-6. See autonomy-policy.json for the canonical mode axis.
++            yolo=True,
+             env=env,
+         )
+         return GateDecision(
+@@ -722,20 +725,20 @@ def _check_ac_gate(
+             # No ACs defined — treat as "satisfied" to avoid blocking
+             return True, "no ACs defined"
+ 
+-        # Determine satisfaction: each AC should have a `satisfied` attribute
+-        # or a `satisfied_by` list with at least one entry.
++        # Determine satisfaction: PR-5 AcceptanceCriterion uses `satisfied_by: tuple[str, ...]`.
++        # An AC is satisfied when satisfied_by is non-empty (at least one evidence ref linked).
+         total = len(acs)
+         satisfied_count = 0
+         unsatisfied_ids: list[str] = []
+         for ac in acs:
+             ac_id = getattr(ac, "id", str(ac))
+-            # Support both attribute access and dict access
+-            if hasattr(ac, "satisfied"):
+-                is_sat = bool(ac.satisfied)
+-            elif hasattr(ac, "satisfied_by"):
+-                is_sat = bool(getattr(ac, "satisfied_by", []))
++            # PR-5 canonical shape: AcceptanceCriterion.satisfied_by is a tuple[str, ...]
++            # Non-empty tuple means at least one evidence reference has been linked.
++            # Dict fallback retained for any legacy serialised forms.
++            if hasattr(ac, "satisfied_by"):
++                is_sat = bool(getattr(ac, "satisfied_by", ()))
+             elif isinstance(ac, dict):
+-                is_sat = bool(ac.get("satisfied") or ac.get("satisfied_by"))
++                is_sat = bool(ac.get("satisfied_by") or ac.get("satisfied"))
+             else:
+                 is_sat = False
+ 

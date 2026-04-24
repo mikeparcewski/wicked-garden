@@ -1,0 +1,5 @@
+PASS: autonomy-policy.json validates against schema
+Modes found: ['ask', 'balanced', 'full']
+  ask: clarify=always_pause, council=show_and_pause, challenge=require_approval, destructive=confirm
+  balanced: clarify=hitl_judge, council=pause_on_split, challenge=hitl_judge, destructive=confirm
+  full: clarify=auto_unless_judge_pauses, council=auto_if_unanimous, challenge=auto, destructive=confirm

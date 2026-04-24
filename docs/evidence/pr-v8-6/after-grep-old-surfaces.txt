@@ -1,0 +1,17 @@
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/agents/crew/reviewer.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/commands/crew/auto-approve.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/commands/crew/execute.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/commands/crew/gate.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/commands/crew/just-finish.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/commands/crew/profile.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/commands/crew/start.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/commands/report-issue.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/hooks/scripts/bootstrap.py
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/hooks/scripts/permission_request.py
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/scripts/_event_schema.py
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/scripts/ci/gate4-deletion-manifest.md
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/scripts/crew/_prerequisites.py
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/scripts/crew/autonomy.py
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/scripts/crew/gate_result_schema.py
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/scripts/crew/hitl_judge.py
+/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-ae923267ce2212ded/scripts/crew/phase_manager.py

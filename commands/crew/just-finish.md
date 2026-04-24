@@ -1,9 +1,30 @@
 ---
 description: Execute remaining work with maximum autonomy and guardrails
-argument-hint: "[--yolo --justification \"<text>\"]"
+argument-hint: "[--yolo --justification \"<text>\"] [--autonomy=ask|balanced|full]"
 ---
 
 # /wicked-garden:crew:just-finish
+
+> **Deprecation notice (v8-PR-6, Issue #593)**: The `--yolo` flag on this
+> command is a compatibility shim. Prefer `--autonomy=full` instead; it is
+> equivalent and routes through the new single autonomy layer
+> (`scripts/crew/autonomy.py`). The `--yolo` flag will be removed in a future
+> version.  The execution behaviour of `just-finish` itself is preserved.
+>
+> **Autonomy layer shim step** — when `--yolo` is passed, emit the one-shot
+> deprecation warning and resolve mode via the autonomy layer before executing:
+> ```bash
+> sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+> import sys
+> sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+> from crew.autonomy import emit_deprecation_warning, get_mode, AutonomyMode
+> emit_deprecation_warning('--yolo', '--autonomy=full')
+> mode = get_mode()
+> print('autonomy_mode:', mode.value)
+> "
+> ```
+> If `--autonomy=<mode>` is passed explicitly, skip the deprecation warning and
+> use the specified mode directly. Default (no flag) resolves to `ask`.
 
 Continue project with maximum autonomy, respecting safety guardrails.
 

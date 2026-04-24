@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "autonomy-policy.schema.json",
+  "title": "AutonomyPolicy",
+  "description": "Gate behavior policy per autonomy mode. Defines how each gate type is handled under ask/balanced/full autonomy modes. Policy is data, not code — adding a mode is a JSON edit.",
+  "type": "object",
+  "required": ["$schema", "modes"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "modes": {
+      "type": "object",
+      "description": "Policy rules keyed by mode name.",
+      "minProperties": 3,
+      "propertyNames": {
+        "enum": ["ask", "balanced", "full"]
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/ModePolicy"
+      }
+    }
+  },
+  "definitions": {
+    "ModePolicy": {
+      "type": "object",
+      "description": "Gate decisions for a single autonomy mode.",
+      "required": [
+        "clarify_halt",
+        "council_verdict",
+        "challenge_phase",
+        "destructive_ops"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clarify_halt": {
+          "type": "string",
+          "description": "How the clarify gate halt is handled.",
+          "enum": [
+            "always_pause",
+            "hitl_judge",
+            "auto_unless_judge_pauses"
+          ]
+        },
+        "council_verdict": {
+          "type": "string",
+          "description": "How a council verdict is presented/acted on.",
+          "enum": [
+            "show_and_pause",
+            "pause_on_split",
+            "auto_if_unanimous"
+          ]
+        },
+        "challenge_phase": {
+          "type": "string",
+          "description": "How the challenge phase gate is handled.",
+          "enum": [
+            "require_approval",
+            "hitl_judge",
+            "auto"
+          ]
+        },
+        "destructive_ops": {
+          "type": "string",
+          "description": "How destructive operations (deploy, delete, secrets) are handled. Always 'confirm' across all modes — destructive ops are never auto-approved.",
+          "enum": [
+            "confirm"
+          ]
+        }
+      }
+    }
+  }
+}

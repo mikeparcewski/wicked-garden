@@ -6,13 +6,36 @@ description: Execute current phase work with adaptive role engagement
 
 Execute work for the current phase with adaptive role selection.
 
+## Autonomy flag (v8-PR-6, Issue #593)
+
+Pass `--autonomy=<mode>` to control gate halt behaviour for this execution:
+
+| Mode | Behaviour |
+|------|-----------|
+| `ask` (default) | All gates pause for human confirmation |
+| `balanced` | HITL judge decides; pauses on split or low-confidence |
+| `full` | Auto-proceeds when unanimous/ACs satisfied; always pauses on destructive ops |
+
+Resolve the active mode at the start of execution:
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+from crew.autonomy import get_mode
+mode = get_mode(cli_arg='<autonomy-arg-or-None>')
+print(mode.value)
+"
+```
+
+Then pass `mode` into `apply_policy(mode, gate_type, context)` at each gate site.
+
 ## When to use this vs the others
 
 | Command | What it does |
 |---------|-------------|
 | `crew:execute` | Run a **single phase** to completion |
 | `crew:just-finish` | Run **ALL remaining phases** to completion |
-| `crew:auto-approve` | Toggle the APPROVE-auto-advance flag (**no execution**) |
+| `crew:auto-approve` | Toggle the APPROVE-auto-advance flag (**no execution**) (deprecated — use `--autonomy=full`) |
 
 ## Instructions
 
