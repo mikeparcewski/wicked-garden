@@ -464,5 +464,143 @@ class TestMigration(unittest.TestCase):
             self.assertIn(result.status, ("PASS", "WARN", "FAIL", "SKIP"))
 
 
+# ---------------------------------------------------------------------------
+# Isolated unit tests — numbered-under-heading parser path (#591 / #617)
+# Council condition: format 5 (_RE_NUMBERED + _RE_AC_SECTION section-context
+# gate) has integration coverage but no dedicated unit test.  Migration is
+# one-shot so a parse miss is permanent silent data loss.
+# ---------------------------------------------------------------------------
+
+class TestNumberedUnderHeadingIsolated(unittest.TestCase):
+    """Isolated unit tests for _RE_NUMBERED + _RE_AC_SECTION (format 5).
+
+    Three cases per council requirement (PR #617):
+      1. _RE_AC_SECTION matches common heading variants (5 variants)
+      2. Numbered items UNDER the AC section ARE captured
+      3. Numbered items OUTSIDE the AC section are NOT captured
+    """
+
+    # ------------------------------------------------------------------
+    # Helper: parse from an in-memory string, no disk fixture needed
+    # ------------------------------------------------------------------
+
+    def _parse(self, text: str):
+        with tempfile.NamedTemporaryFile(suffix=".md", mode="w", delete=False, encoding="utf-8") as f:
+            f.write(text)
+            path = Path(f.name)
+        try:
+            return parse_acs_from_markdown(path)
+        finally:
+            path.unlink()
+
+    # ------------------------------------------------------------------
+    # Case 1: _RE_AC_SECTION matches common heading variants
+    # ------------------------------------------------------------------
+
+    def _assert_heading_variant(self, heading: str) -> None:
+        """Assert that a given heading activates the numbered-list parser."""
+        md = f"{heading}\n\n1. User can log in\n2. User can log out\n"
+        acs = self._parse(md)
+        ids = [a.id for a in acs]
+        self.assertIn(
+            "AC-1",
+            ids,
+            f"Heading variant {heading!r} did not activate numbered parser — AC-1 missing. "
+            f"Got IDs: {ids}",
+        )
+        self.assertIn(
+            "AC-2",
+            ids,
+            f"Heading variant {heading!r} did not activate numbered parser — AC-2 missing. "
+            f"Got IDs: {ids}",
+        )
+
+    def test_heading_variant_standard(self):
+        """'## Acceptance Criteria' activates numbered parser."""
+        self._assert_heading_variant("## Acceptance Criteria")
+
+    def test_heading_variant_acs_short(self):
+        """'## ACs' activates numbered parser (short alias)."""
+        self._assert_heading_variant("## ACs")
+
+    def test_heading_variant_draft_suffix(self):
+        """'## Acceptance Criteria (Draft)' activates numbered parser."""
+        self._assert_heading_variant("## Acceptance Criteria (Draft)")
+
+    def test_heading_variant_h3(self):
+        """'### Acceptance Criteria' (h3) activates numbered parser."""
+        self._assert_heading_variant("### Acceptance Criteria")
+
+    def test_heading_variant_h1(self):
+        """'# Acceptance Criteria' (h1) activates numbered parser."""
+        self._assert_heading_variant("# Acceptance Criteria")
+
+    # ------------------------------------------------------------------
+    # Case 2: Numbered items UNDER the AC section ARE captured
+    # ------------------------------------------------------------------
+
+    def test_numbered_items_under_ac_section_captured(self):
+        """Three numbered items under '## Acceptance Criteria' → 3 ACs, statements verbatim."""
+        md = (
+            "## Acceptance Criteria\n\n"
+            "1. First criterion\n"
+            "2. Second criterion\n"
+            "3. Third criterion\n"
+        )
+        acs = self._parse(md)
+        ids = [a.id for a in acs]
+        statements = {a.id: a.statement for a in acs}
+
+        self.assertEqual(
+            len(acs),
+            3,
+            f"Expected 3 ACs, got {len(acs)}: {ids}",
+        )
+        self.assertIn("AC-1", ids)
+        self.assertIn("AC-2", ids)
+        self.assertIn("AC-3", ids)
+
+        # Statements preserved verbatim
+        self.assertEqual(statements.get("AC-1"), "First criterion")
+        self.assertEqual(statements.get("AC-2"), "Second criterion")
+        self.assertEqual(statements.get("AC-3"), "Third criterion")
+
+    # ------------------------------------------------------------------
+    # Case 3: Numbered items OUTSIDE the AC section are NOT captured
+    # ------------------------------------------------------------------
+
+    def test_numbered_items_outside_ac_section_not_captured(self):
+        """Numbered lists in non-AC sections must not contribute ACs.
+
+        Only the single item under '## Acceptance Criteria' should be parsed.
+        Items under '## Other Heading' and '## Later Heading' must be excluded.
+        """
+        md = (
+            "## Other Heading\n\n"
+            "1. Some other numbered item\n"
+            "2. Another item\n\n"
+            "## Acceptance Criteria\n\n"
+            "1. Real criterion\n\n"
+            "## Later Heading\n\n"
+            "1. Post-AC item\n"
+        )
+        acs = self._parse(md)
+        ids = [a.id for a in acs]
+        statements = {a.id: a.statement for a in acs}
+
+        self.assertEqual(
+            len(acs),
+            1,
+            f"Expected exactly 1 AC (from the AC section only), got {len(acs)}: "
+            f"{[(a.id, a.statement) for a in acs]}",
+        )
+        self.assertIn("AC-1", ids)
+        self.assertEqual(
+            statements.get("AC-1"),
+            "Real criterion",
+            f"AC-1 statement should be 'Real criterion', got {statements.get('AC-1')!r}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
