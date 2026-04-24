@@ -20,3 +20,31 @@ Delegate to the council agent:
 Task(subagent_type="wicked-garden:jam:council",
      prompt="Run a council evaluation on: {topic}. Options: {options}. Criteria: {criteria}.")
 ```
+
+## Post-synthesis HITL judge (Issue #575)
+
+After the council agent returns its synthesis (verdict + per-model votes + confidences), call the rule-based HITL judge to decide whether the verdict is strong enough to auto-proceed or whether the orchestrator should halt for human adjudication.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+from crew.hitl_judge import should_pause_council, write_hitl_decision_evidence
+from pathlib import Path
+votes = [
+    {'model': 'codex',    'verdict': 'APPROVE', 'confidence': 0.9},
+    {'model': 'gemini',   'verdict': 'APPROVE', 'confidence': 0.9},
+    {'model': 'opencode', 'verdict': 'REJECT',  'confidence': 0.7},
+    {'model': 'pi',       'verdict': 'APPROVE', 'confidence': 0.6},
+]
+d = should_pause_council(votes=votes)
+write_hitl_decision_evidence(Path('<project_dir>'), 'council', 'council-decision.json', d)
+print(d.pause, d.rule_id)
+"
+```
+
+Pause rules (auto mode):
+
+- top two verdicts within 2 votes (3-1 or closer) ⇒ pause (`council.split-verdict`)
+- any model confidence < 0.6 ⇒ pause (`council.low-confidence-vote`)
+- otherwise ⇒ auto-proceed and persist the votes to `council-decision.json` for the evidence bundle
+
+Operator override: `WG_HITL_COUNCIL=auto|pause|off` (default `auto`).

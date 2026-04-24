@@ -136,6 +136,25 @@ In "just-finish" mode:
   ```
 
   **The clarify gate MUST NOT run until the user acknowledges.** This halt applies even in automated runs — the session pauses at this boundary. In dangerous mode (where `AskUserQuestion` auto-completes), wait 30 seconds, log "Autonomous clarify: assumptions accepted by timeout (dangerous mode)", then proceed. This prevents circular self-grading where the same model writes requirements and then validates work against those same requirements without human review.
+
+  **HITL judge (Issue #575)**: Before deciding whether to halt, call the rule-based judge:
+
+  ```bash
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+  from crew.hitl_judge import should_pause_clarify, write_hitl_decision_evidence
+  from pathlib import Path
+  d = should_pause_clarify(
+      complexity=<complexity from clarify>,
+      facilitator_confidence=<facilitator self-rated confidence 0..1>,
+      open_questions=<count of unresolved questions>,
+      yolo=True,
+  )
+  write_hitl_decision_evidence(Path('<project_dir>'), 'clarify', 'hitl-decision.json', d)
+  print(d.pause)
+  "
+  ```
+
+  Pause when the judge returns `pause=True`. Skip the halt when the judge returns `pause=False` — the rule table reads: yolo + facilitator confidence ≥ 0.7 + complexity < 5 + 0 open questions ⇒ auto-proceed. Operator override: `WG_HITL_CLARIFY=auto|pause|off` (default `auto`). The judge always writes `phases/clarify/hitl-decision.json` so the verdict is auditable in the evidence bundle.
 - **Track assumptions**: When making any assumption, immediately record it in project.json:
   ```json
   {

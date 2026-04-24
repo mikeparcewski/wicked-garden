@@ -529,6 +529,65 @@ def _assemble_current_chain(chain_id: str) -> dict | None:
         return None  # fail-open — directive still fires without the data
 
 
+# ---------------------------------------------------------------------------
+# Issue #572: bus drain — minimal subscriber catch-up.
+#
+# wicked-garden has registered bus subscriptions but no daemon to consume them.
+# Without a drain, cursors fall behind by tens of thousands of events
+# (observed: 41,640 lag). This helper runs the existing `npx wicked-bus
+# subscribe ... --since-cursor --ack` pipeline, advances cursors, and discards
+# the events. Orchestration action is intentionally NOT taken here — the
+# re-eval debounce in task_completed.py is the orchestration signal.
+#
+# Fail-silent: any error (npx missing, bus unreachable, timeout) is swallowed
+# and the hook continues. Subprocess timeout capped at 3 seconds.
+# ---------------------------------------------------------------------------
+
+_BUS_DRAIN_FILTER = (
+    "wicked.gate.decided,"
+    "wicked.crew.phase.completed,"
+    "wicked.crew.phase.approved,"
+    "wicked.crew.phase.skipped,"
+    "wicked.council.voted"
+)
+_BUS_DRAIN_PLUGIN = "wicked-garden"
+_BUS_DRAIN_MAX = "100"
+_BUS_DRAIN_TIMEOUT_SEC = 3
+
+
+def _drain_bus_cursor() -> None:
+    """Issue #572: advance the wicked-bus cursor for wicked-garden.
+
+    Runs `npx wicked-bus subscribe --plugin wicked-garden --filter <events>
+    --since-cursor --max 100 --ack` and discards the output. Cursor advances,
+    backlog drains, no orchestration action taken. Fail-silent on any error
+    (missing npx, bus unreachable, non-zero exit, timeout).
+    """
+    try:
+        import shutil
+        import subprocess
+        if shutil.which("npx") is None:
+            return
+        subprocess.run(
+            [
+                "npx",
+                "wicked-bus",
+                "subscribe",
+                "--plugin", _BUS_DRAIN_PLUGIN,
+                "--filter", _BUS_DRAIN_FILTER,
+                "--since-cursor",
+                "--max", _BUS_DRAIN_MAX,
+                "--ack",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=_BUS_DRAIN_TIMEOUT_SEC,
+        )
+    except Exception:
+        # Fail-silent — the drain is best-effort. The hook must never block on it.
+        return
+
+
 def _consume_facilitator_reeval(state) -> str | None:
     """v6 Gate 3 (#428): emit facilitator re-eval directive if flag is set.
 
@@ -933,6 +992,16 @@ def main():
     # Checked after setup gate but before HOT path so continuations during
     # an active setup wizard ("yes", "ok") still pass through quickly.
     onboarding_directive = _check_onboarding_gate(prompt)
+
+    # Issue #572: drain the wicked-bus cursor BEFORE the re-eval check so the
+    # 41k+ lag clears and stale subscriptions don't accumulate further. The
+    # drain is fire-and-forget (events discarded, cursor advanced); the re-eval
+    # signal still comes from task_completed.py's debounced flag, not the bus.
+    # Wrapped in try/except so a bus failure can never break prompt submission.
+    try:
+        _drain_bus_cursor()
+    except Exception:
+        pass
 
     # v6 Gate 3 (#428) — facilitator re-evaluation directive.
     # Load session state here (cheap — single JSON read) so we can check the

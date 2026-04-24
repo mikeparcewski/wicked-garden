@@ -33,13 +33,21 @@ sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 # Ops logger wrapper — fail-silent, never crashes the hook
 # ---------------------------------------------------------------------------
 
+# R4-suppressed by design: _logger is optional; the hook must never crash if
+# ops logging is unavailable. We do not surface the exception because this
+# runs on every task completion — a stderr dump would spam normal workflows.
 def _log(domain, level, event, ok=True, ms=None, detail=None):
     """Ops logger — fail-silent, never crashes the hook."""
     try:
         from _logger import log
         log(domain, level, event, ok=ok, ms=ms, detail=detail)
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 — intentional swallow, see comment above
+        return
+
+# Escalation threshold — after this many consecutive completed tasks without
+# a mem:store call, the memory directive switches to [ESCALATION] language.
+# Named per R3 (no magic numbers); historical value = 3.
+_ESCALATION_THRESHOLD = 3
 
 # Keywords that suggest a deliverable-producing task
 _DELIVERABLE_PATTERNS = (
@@ -85,14 +93,26 @@ def _infer_mem_type(subject: str) -> str:
     return "procedural"
 
 
-def _read_task_chain_id(session_id: str, task_id: str) -> "str | None":
-    """Read ``metadata.chain_id`` from the native task JSON file.
+# Issue #572: event_type + verdict constants used by the re-eval debounce rule.
+# Re-eval is meaningful ONLY on phase boundaries or rejected gates — every other
+# completion is bus noise that wakes the facilitator for nothing.
+EVENT_TYPE_PHASE_TRANSITION = "phase-transition"
+EVENT_TYPE_GATE_FINDING = "gate-finding"
+VERDICT_REJECT = "REJECT"
+
+
+def _read_task_metadata(session_id: str, task_id: str) -> "dict | None":
+    """Read ``metadata`` dict from the native task JSON file.
 
     File path: ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/{task_id}.json``.
 
-    Fail-open: returns None on any error (missing file, bad JSON, absent metadata,
-    absent chain_id). This is deliberately permissive so task completion is never
-    blocked by a facilitator-re-eval signal error.
+    Fail-open: returns None on any error (missing file, bad JSON, absent metadata).
+    This is deliberately permissive so task completion is never blocked by a
+    facilitator-re-eval signal error.
+
+    Issue #572: consolidates what used to be two separate reads (chain_id, then
+    event_type in a nested try block) into a single file load. Callers extract
+    whichever fields they need from the returned dict.
     """
     if not session_id or not task_id:
         return None
@@ -108,12 +128,103 @@ def _read_task_chain_id(session_id: str, task_id: str) -> "str | None":
         metadata = data.get("metadata")
         if not isinstance(metadata, dict):
             return None
-        chain_id = metadata.get("chain_id")
-        if isinstance(chain_id, str) and chain_id.strip():
-            return chain_id
-        return None
+        return metadata
     except Exception:
         return None
+
+
+def _should_trigger_reeval(metadata: "dict | None") -> "tuple[bool, str]":
+    """Return (should_trigger, reason) for the facilitator re-eval signal.
+
+    Issue #572: only phase boundaries and gate rejections should wake the
+    facilitator. All other completions (shell gate ACKs, plain tasks,
+    coding-tasks, etc.) are noise that accumulated 41k+ events.
+
+    Rule:
+        event_type == phase-transition                         -> trigger
+        event_type == gate-finding AND verdict == REJECT       -> trigger
+        anything else (including APPROVE/CONDITIONAL, plain task) -> skip
+
+    Fail-open: missing metadata returns (False, "no_metadata"). The flag is
+    NEVER set when the task file can't be read — the old "chain_id truthy =
+    trigger" behaviour is the exact bug this closes.
+    """
+    if not metadata:
+        return (False, "no_metadata")
+    event_type = metadata.get("event_type")
+    if event_type == EVENT_TYPE_PHASE_TRANSITION:
+        return (True, "phase_transition")
+    if event_type == EVENT_TYPE_GATE_FINDING:
+        verdict = metadata.get("verdict")
+        if verdict == VERDICT_REJECT:
+            return (True, "gate_reject")
+        return (False, f"gate_verdict_{verdict or 'missing'}")
+    return (False, f"event_type_{event_type or 'missing'}")
+
+
+def _update_session_state(
+    *,
+    chain_id: str | None,
+    event_type: str | None,
+    should_reeval: bool,
+    reeval_reason: str,
+) -> tuple[bool, int]:
+    """Mutate SessionState for the completed task.
+
+    Increments memory-compliance counters, sets the debounced re-eval flag
+    (Issue #572), and sets the phase-start-gate flag on phase-transition
+    events. Returns ``(compliance_required, escalations)`` for the caller's
+    memory-directive branch.
+
+    Fail-open: any exception returns ``(False, 0)`` and logs to stderr so
+    the hook never blocks task completion.
+    """
+    try:
+        from _session import SessionState
+        state = SessionState.load()
+        state.memory_compliance_tasks_completed = (
+            (state.memory_compliance_tasks_completed or 0) + 1
+        )
+        compliance_required = bool(state.memory_compliance_required)
+        state.memory_compliance_escalations = (
+            (state.memory_compliance_escalations or 0) + 1
+        )
+        escalations = state.memory_compliance_escalations
+
+        # v6 facilitator re-evaluation signal (Gate 3, epic #428, debounced
+        # by Issue #572). prompt_submit.py consumes this on the next
+        # UserPromptSubmit. The old "any chain_id => trigger" rule was the
+        # root cause of 41k+ queued bus events and spurious re-eval
+        # directives after every gate ACK.
+        if should_reeval and chain_id:
+            state.facilitator_reeval_due = True
+            state.facilitator_reeval_chain = chain_id
+            _log("task", "info", "reeval.scheduled", detail={
+                "reason": reeval_reason,
+                "event_type": event_type,
+                "chain_id": chain_id,
+            })
+        else:
+            _log("task", "debug", "reeval.skipped", detail={
+                "reason": reeval_reason,
+                "event_type": event_type,
+                "chain_id": chain_id,
+            })
+
+        # Phase-start gate signal: set when the completed task is a
+        # phase-transition event so prompt_submit.py can dispatch
+        # phase_start_gate.check() before the next phase's specialists engage.
+        if event_type == EVENT_TYPE_PHASE_TRANSITION:
+            state.phase_start_gate_due = True
+
+        state.save()
+        return compliance_required, escalations
+    except Exception as exc:
+        print(
+            f"[wicked-garden] task_completed session state error: {exc}",
+            file=sys.stderr,
+        )
+        return False, 0
 
 
 def main():
@@ -133,62 +244,24 @@ def main():
 
         _log("task", "debug", "hook.start")
 
-        # Look up metadata.chain_id from the native task file (fail-open).
-        # Gate 3 (v6): surface re-eval signal so prompt_submit.py can tell Claude
-        # to invoke propose-process in re-evaluation mode on the next turn.
-        chain_id = _read_task_chain_id(session_id, task_id)
+        # Issue #572: load metadata ONCE and derive all downstream signals from
+        # it. The old code read the task file twice (chain_id, then event_type
+        # in a nested try block) and set facilitator_reeval_due on any truthy
+        # chain_id — including gate-finding shell completions the orchestrator
+        # just acked. Debounce is now: phase-transition OR (gate-finding AND
+        # verdict=REJECT).
+        metadata = _read_task_metadata(session_id, task_id) or {}
+        chain_id_val = metadata.get("chain_id") if isinstance(metadata, dict) else None
+        chain_id = chain_id_val if isinstance(chain_id_val, str) and chain_id_val.strip() else None
+        event_type = metadata.get("event_type") if isinstance(metadata, dict) else None
 
-        # Load session state, increment counters, and read escalation level
-        escalations = 0
-        try:
-            from _session import SessionState
-            state = SessionState.load()
-            state.memory_compliance_tasks_completed = (
-                (state.memory_compliance_tasks_completed or 0) + 1
-            )
-            compliance_required = bool(state.memory_compliance_required)
-            # Increment escalation counter (reset by post_tool.py on mem:store)
-            state.memory_compliance_escalations = (
-                (state.memory_compliance_escalations or 0) + 1
-            )
-            escalations = state.memory_compliance_escalations
-
-            # v6 facilitator re-evaluation signal (Gate 3, epic #428).
-            # Set flag when the completed task carries a chain_id. prompt_submit.py
-            # consumes this on the next UserPromptSubmit, emits a systemMessage
-            # directive, and clears the flag. Fail-open: a missing chain_id is
-            # a no-op (most native tasks don't have metadata).
-            if chain_id:
-                state.facilitator_reeval_due = True
-                state.facilitator_reeval_chain = chain_id
-
-            # Phase-start gate signal: set when the completed task is a
-            # phase-transition event so prompt_submit.py can dispatch
-            # phase_start_gate.check() before the next phase's specialists engage.
-            # Fires ONLY for phase-transition event_type to avoid OQ-5 noise.
-            # Fail-open: missing metadata is a no-op; never blocks completion.
-            try:
-                event_type = None
-                if session_id and task_id:
-                    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
-                    base = Path(config_dir) if config_dir else Path.home() / ".claude"
-                    task_file = base / "tasks" / session_id / f"{task_id}.json"
-                    if task_file.is_file():
-                        task_data = json.loads(task_file.read_text(encoding="utf-8"))
-                        event_type = (
-                            task_data.get("metadata", {}).get("event_type")
-                            if isinstance(task_data, dict)
-                            else None
-                        )
-                if event_type == "phase-transition":
-                    state.phase_start_gate_due = True
-            except Exception:
-                pass  # fail-open: gate-due flag is best-effort
-
-            state.save()
-        except Exception as e:
-            print(f"[wicked-garden] task_completed session state error: {e}", file=sys.stderr)
-            compliance_required = False
+        should_reeval, reeval_reason = _should_trigger_reeval(metadata)
+        compliance_required, escalations = _update_session_state(
+            chain_id=chain_id,
+            event_type=event_type,
+            should_reeval=should_reeval,
+            reeval_reason=reeval_reason,
+        )
 
         # Emit a memory directive for any deliverable-producing task.
         # Crew projects get stronger "REQUIRED" language; normal sessions
@@ -198,7 +271,9 @@ def main():
             mem_type = _infer_mem_type(subject)
             task_label = f'"{subject}"' if subject else f"task {task_id}"
             if compliance_required:
-                escalation_prefix = "[ESCALATION] " if escalations >= 3 else ""
+                escalation_prefix = (
+                    "[ESCALATION] " if escalations >= _ESCALATION_THRESHOLD else ""
+                )
                 system_message = (
                     f"{escalation_prefix}[Memory] Task {task_label} completed. "
                     f"REQUIRED: Call /wicked-garden:mem:store with type={mem_type} "
