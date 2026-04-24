@@ -1,0 +1,54 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a7dfabba829fd7181/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a7dfabba829fd7181
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 42 items
+
+tests/daemon/test_parity.py::test_projection_matches_expected[single_phase_approve] PASSED [  2%]
+tests/daemon/test_parity.py::test_projection_matches_expected[reject_then_rework] PASSED [  4%]
+tests/daemon/test_parity.py::test_projection_matches_expected[multi_phase_lifecycle] PASSED [  7%]
+tests/daemon/test_parity.py::test_projection_matches_expected[auto_advance_low_complexity] PASSED [  9%]
+tests/daemon/test_parity.py::test_projection_matches_expected[yolo_revoke_audit] PASSED [ 11%]
+tests/daemon/test_parity.py::test_projection_matches_expected[unknown_event_survives] PASSED [ 14%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[single_phase_approve] PASSED [ 16%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[reject_then_rework] PASSED [ 19%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[multi_phase_lifecycle] PASSED [ 21%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[auto_advance_low_complexity] PASSED [ 23%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[yolo_revoke_audit] PASSED [ 26%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[unknown_event_survives] PASSED [ 28%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[single_phase_approve] PASSED [ 30%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[reject_then_rework] PASSED [ 33%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[multi_phase_lifecycle] PASSED [ 35%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[auto_advance_low_complexity] PASSED [ 38%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[yolo_revoke_audit] PASSED [ 40%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[unknown_event_survives] PASSED [ 42%]
+tests/daemon/test_parity.py::test_unknown_event_survives_known_event_still_projects PASSED [ 45%]
+tests/daemon/test_parity.py::test_cursor_can_be_set_and_retrieved PASSED [ 47%]
+tests/daemon/test_parity_tasks.py::test_task_created_to_completed_lifecycle PASSED [ 50%]
+tests/daemon/test_parity_tasks.py::test_task_lifecycle_idempotent PASSED [ 52%]
+tests/daemon/test_parity_tasks.py::test_task_status_filter PASSED        [ 54%]
+tests/daemon/test_parity_tasks.py::test_task_chain_id_filter PASSED      [ 57%]
+tests/daemon/test_parity_tasks.py::test_task_metadata_preserved PASSED   [ 59%]
+tests/daemon/test_parity_tasks.py::test_unknown_task_event_ignored PASSED [ 61%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_offset_plus_two_returns_utc_epoch PASSED [ 64%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_offset_minus_five_returns_utc_epoch PASSED [ 66%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_utc_z_suffix_matches_explicit_utc PASSED [ 69%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_naive_string_treated_as_utc PASSED [ 71%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_int_passthrough PASSED [ 73%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_float_truncates_to_int PASSED [ 76%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_none_returns_none PASSED [ 78%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_invalid_string_returns_none PASSED [ 80%]
+tests/daemon/test_projector_epoch.py::test_to_epoch_unknown_type_returns_none PASSED [ 83%]
+tests/daemon/test_unknown_event.py::test_unknown_event_does_not_raise PASSED [ 85%]
+tests/daemon/test_unknown_event.py::test_unknown_event_returns_ignored_status PASSED [ 88%]
+tests/daemon/test_unknown_event.py::test_unknown_event_is_logged_with_ignored_status PASSED [ 90%]
+tests/daemon/test_unknown_event.py::test_unknown_event_does_not_mutate_projects_table PASSED [ 92%]
+tests/daemon/test_unknown_event.py::test_known_event_after_unknown_projects_correctly PASSED [ 95%]
+tests/daemon/test_unknown_event.py::test_cursor_advances_past_unknown_event PASSED [ 97%]
+tests/daemon/test_unknown_event.py::test_multiple_consecutive_unknown_events_all_ignored PASSED [100%]
+
+============================== 42 passed in 0.20s ==============================

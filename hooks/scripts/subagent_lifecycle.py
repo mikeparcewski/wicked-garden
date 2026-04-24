@@ -67,62 +67,28 @@ _EVENT_TYPE_PROCEDURES: dict = {
 
 
 # ---------------------------------------------------------------------------
-# Active task event_type reader — native Claude Code tasks (no sidecar)
+# Active task event_type reader — routed via _task_reader (#596 v8-PR-2)
 # ---------------------------------------------------------------------------
 #
-# Tasks persist to ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json``.
-# Each JSON file has shape:
-#   {"id":"...", "subject":"...", "status":"pending|in_progress|completed",
-#    "metadata": {"event_type":"...", "chain_id":"...", ...}}
-# The `metadata` dict is preserved verbatim from TaskCreate/TaskUpdate input.
+# WG_DAEMON_ENABLED=false (default): direct file read, bit-identical to pre-PR-2.
+# WG_DAEMON_ENABLED=true:            daemon HTTP with 45ms timeout + file fallback.
+# WG_DAEMON_ENABLED=always:          daemon HTTP only.
 #
-# We pick the most-recently-modified in-progress task and read its
-# ``metadata.event_type`` for procedure injection. Fail-silent — a missing
-# directory, bad JSON, or absent metadata all return None.
-
-
-def _tasks_dir_for_session(session_id: str) -> "Path | None":
-    """Resolve ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/``."""
-    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
-    base = Path(config_dir) if config_dir else Path.home() / ".claude"
-    tasks_dir = base / "tasks" / session_id
-    return tasks_dir if tasks_dir.is_dir() else None
+# _task_reader is stdlib-only and imported lazily so this hook remains
+# fail-open even if the scripts/ directory is not on sys.path yet.
 
 
 def _get_active_task_event_type(session_id: str) -> "str | None":
     """Return event_type of the most-recently-modified in-progress native task.
 
-    Reads ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json``,
-    filters to ``status == "in_progress"``, picks the highest mtime, and
-    returns ``metadata.event_type``.
-
-    Fail-silent — never blocks the hook.
+    Fail-silent — never blocks the hook.  Routing is delegated to
+    scripts/crew/_task_reader.py per #596.
     """
     if not session_id:
         return None
     try:
-        tasks_dir = _tasks_dir_for_session(session_id)
-        if tasks_dir is None:
-            return None
-
-        best_mtime = -1.0
-        best_event_type: "str | None" = None
-        for entry in tasks_dir.iterdir():
-            if entry.name.startswith(".") or entry.suffix != ".json":
-                continue
-            try:
-                data = json.loads(entry.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            if not isinstance(data, dict) or data.get("status") != "in_progress":
-                continue
-            mtime = entry.stat().st_mtime
-            if mtime > best_mtime:
-                best_mtime = mtime
-                metadata = data.get("metadata") or {}
-                if isinstance(metadata, dict):
-                    best_event_type = metadata.get("event_type")
-        return best_event_type
+        from crew._task_reader import get_active_task_event_type  # type: ignore[import]
+        return get_active_task_event_type(session_id)
     except Exception:
         return None
 

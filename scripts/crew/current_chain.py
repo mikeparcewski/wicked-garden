@@ -30,7 +30,6 @@ Issue #431.
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -39,33 +38,29 @@ _TERMINAL = {"completed", "blocked"}
 _EVIDENCE_HINTS = ("report.md", ".json", ".txt", "-results.", "manifest")
 
 
-def _tasks_dir() -> Path:
-    config_dir = os.environ.get("CLAUDE_CONFIG_DIR") or str(Path.home() / ".claude")
-    return Path(config_dir) / "tasks"
-
-
 def _collect_tasks(chain_id: str) -> list[dict]:
-    """Return task dicts whose metadata.chain_id matches."""
-    root = _tasks_dir()
-    if not root.exists():
-        return []
+    """Return task dicts whose metadata.chain_id matches.
+
+    Routing: WG_DAEMON_ENABLED=false → direct file scan (unchanged);
+             WG_DAEMON_ENABLED=true  → daemon HTTP with fallback (#596 v8-PR-2).
+    """
+    try:
+        from crew._task_reader import collect_tasks_for_chain  # type: ignore[import]
+        raw = collect_tasks_for_chain(chain_id)
+    except Exception:
+        raw = []
+
     out = []
-    for task_file in root.rglob("*.json"):
-        try:
-            data = json.loads(task_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        meta = data.get("metadata") or {}
-        if meta.get("chain_id") != chain_id:
-            continue
+    for item in raw:
+        meta = item.get("metadata") or {}
         out.append({
-            "id": data.get("id") or task_file.stem,
-            "title": data.get("subject") or data.get("title") or "<untitled>",
-            "status": data.get("status") or "unknown",
+            "id": item.get("id", ""),
+            "title": item.get("subject") or item.get("title") or "<untitled>",
+            "status": item.get("status") or "unknown",
             "phase": meta.get("phase"),
             "event_type": meta.get("event_type"),
             "evidence_required": meta.get("evidence_required") or [],
-            "blockedBy": data.get("blockedBy") or [],
+            "blockedBy": item.get("blockedBy") or [],
         })
     return out
 

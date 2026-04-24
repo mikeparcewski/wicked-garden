@@ -167,3 +167,104 @@ def free_port() -> int:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
+
+
+@pytest.fixture()
+def load_task_fixture():
+    """Return a callable that loads a named task-fixture directory.
+
+    Stream 3 — #596 v8-PR-2.
+
+    Usage::
+
+        events, expected_task = load_task_fixture("task_created_to_completed")
+
+    Returns:
+        (events: list[dict], expected_task: dict | None)
+
+    The fixture directory must contain:
+      - events.jsonl      one JSON object per line, event_id ascending
+      - expected_task.json  single task dict (optional; may be absent for
+                            multi-task filter fixtures)
+    """
+
+    def _load(name: str) -> tuple[list[dict], dict | None]:
+        fixture_dir = _FIXTURES_DIR / name
+        if not fixture_dir.is_dir():
+            raise FileNotFoundError(
+                f"Task fixture directory not found: {fixture_dir}. "
+                "Available fixtures: "
+                + ", ".join(d.name for d in _FIXTURES_DIR.iterdir() if d.is_dir())
+            )
+
+        events_path = fixture_dir / "events.jsonl"
+        task_path = fixture_dir / "expected_task.json"
+
+        events: list[dict] = []
+        with events_path.open("r", encoding="utf-8") as fh:
+            for line_num, line in enumerate(fh, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"events.jsonl line {line_num} in fixture '{name}' is not valid JSON: {exc}"
+                    ) from exc
+
+        # Validate strict ordering (mirrors load_fixture).
+        for i in range(1, len(events)):
+            prev_id = events[i - 1].get("event_id", 0)
+            curr_id = events[i].get("event_id", 0)
+            if curr_id <= prev_id:
+                raise ValueError(
+                    f"events.jsonl in fixture '{name}': event_id must be strictly ascending. "
+                    f"Line {i + 1} has event_id={curr_id} after {prev_id}."
+                )
+
+        expected_task: dict | None = None
+        if task_path.exists():
+            expected_task = json.loads(task_path.read_text(encoding="utf-8"))
+
+        return events, expected_task
+
+    return _load
+
+
+@pytest.fixture()
+def task_event_stream():
+    """Return a factory that builds deterministic task event lists.
+
+    Stream 3 — #596 v8-PR-2.  Thin wrapper over ``fake_event_stream`` that
+    supplies sensible defaults for task-lifecycle events so tests stay concise.
+
+    Usage::
+
+        stream = task_event_stream(
+            {"event_type": "wicked.task.created",
+             "payload": {"task_id": "t1", "session_id": "s1", "subject": "Do X"}},
+            {"event_type": "wicked.task.updated",
+             "payload": {"task_id": "t1", "session_id": "s1", "status": "in_progress"}},
+        )
+
+    event_id and created_at are auto-assigned (monotonically increasing).
+    """
+
+    _SENTINEL_TS = 1_700_000_000
+
+    def _build(*events: dict[str, Any]) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for i, ev in enumerate(events, start=1):
+            ev = dict(ev)
+            ev.setdefault("event_id", i)
+            ev.setdefault("created_at", _SENTINEL_TS + i)
+            ev.setdefault("chain_id", None)
+            result.append(ev)
+        for j in range(1, len(result)):
+            assert result[j]["event_id"] > result[j - 1]["event_id"], (
+                f"task_event_stream: event_id must be strictly ascending at index {j}"
+            )
+        return result
+
+    return _build

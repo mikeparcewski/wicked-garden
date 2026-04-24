@@ -1,0 +1,38 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a7dfabba829fd7181/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a7dfabba829fd7181
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 26 items
+
+tests/daemon/test_parity.py::test_projection_matches_expected[single_phase_approve] PASSED [  3%]
+tests/daemon/test_parity.py::test_projection_matches_expected[reject_then_rework] PASSED [  7%]
+tests/daemon/test_parity.py::test_projection_matches_expected[multi_phase_lifecycle] PASSED [ 11%]
+tests/daemon/test_parity.py::test_projection_matches_expected[auto_advance_low_complexity] PASSED [ 15%]
+tests/daemon/test_parity.py::test_projection_matches_expected[yolo_revoke_audit] PASSED [ 19%]
+tests/daemon/test_parity.py::test_projection_matches_expected[unknown_event_survives] PASSED [ 23%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[single_phase_approve] PASSED [ 26%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[reject_then_rework] PASSED [ 30%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[multi_phase_lifecycle] PASSED [ 34%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[auto_advance_low_complexity] PASSED [ 38%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[yolo_revoke_audit] PASSED [ 42%]
+tests/daemon/test_parity.py::test_projection_is_idempotent[unknown_event_survives] PASSED [ 46%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[single_phase_approve] PASSED [ 50%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[reject_then_rework] PASSED [ 53%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[multi_phase_lifecycle] PASSED [ 57%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[auto_advance_low_complexity] PASSED [ 61%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[yolo_revoke_audit] PASSED [ 65%]
+tests/daemon/test_parity.py::test_all_events_appear_in_event_log[unknown_event_survives] PASSED [ 69%]
+tests/daemon/test_parity.py::test_unknown_event_survives_known_event_still_projects PASSED [ 73%]
+tests/daemon/test_parity.py::test_cursor_can_be_set_and_retrieved PASSED [ 76%]
+tests/daemon/test_parity_tasks.py::test_task_created_to_completed_lifecycle PASSED [ 80%]
+tests/daemon/test_parity_tasks.py::test_task_lifecycle_idempotent PASSED [ 84%]
+tests/daemon/test_parity_tasks.py::test_task_status_filter PASSED        [ 88%]
+tests/daemon/test_parity_tasks.py::test_task_chain_id_filter PASSED      [ 92%]
+tests/daemon/test_parity_tasks.py::test_task_metadata_preserved PASSED   [ 96%]
+tests/daemon/test_parity_tasks.py::test_unknown_task_event_ignored PASSED [100%]
+
+============================== 26 passed in 0.15s ==============================

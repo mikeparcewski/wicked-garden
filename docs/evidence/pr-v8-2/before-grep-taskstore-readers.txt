@@ -1,0 +1,23 @@
+# Task store reader enumeration at HEAD (before PR-2 changes)
+# Generated: git grep on main branch before any PR-2 modifications
+# Command: grep -rln "CLAUDE_CONFIG_DIR.*tasks|tasks.*session_id|tasks_base|tasks_dir|_native_tasks_dir" hooks/ scripts/ --include="*.py"
+
+hooks/scripts/pre_compact.py
+hooks/scripts/prompt_submit.py
+hooks/scripts/stop.py          # comment reference only — delegates to session_fact_extractor
+hooks/scripts/subagent_lifecycle.py
+hooks/scripts/task_completed.py
+scripts/crew/current_chain.py
+scripts/crew/verify_chain_emission.py
+scripts/delivery/telemetry.py
+scripts/mem/session_fact_extractor.py
+
+# 8 files with actual task-store reads (stop.py is comment-only):
+#   subagent_lifecycle.py  — _get_active_task_event_type() [HOT PATH, every subagent start]
+#   task_completed.py      — _read_task_metadata()
+#   prompt_submit.py       — inline WIP task scan
+#   pre_compact.py         — _read_in_progress_tasks()
+#   current_chain.py       — _collect_tasks()
+#   verify_chain_emission.py — _count_tasks_with_chain()
+#   session_fact_extractor.py — _iter_task_records()
+#   telemetry.py           — _iter_task_files() / _read_task()

@@ -279,6 +279,105 @@ def _project_completed(conn: sqlite3.Connection, event: dict) -> None:
     logger.debug("projector: applied wicked.project.completed project_id=%r", project_id)
 
 
+def _task_created(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.task.created → tasks row UPSERT.
+
+    Payload shape (mirrors TaskCreate metadata envelope from _event_schema.py):
+      task_id       TEXT — required; the native task UUID
+      session_id    TEXT — required; the Claude session that created the task
+      subject       TEXT — task title / subject line
+      status        TEXT — 'pending' | 'in_progress' | 'completed' (default 'pending')
+      chain_id      TEXT — optional crew chain (metadata.chain_id)
+      event_type    TEXT — optional task metadata.event_type
+      metadata      dict — full enriched metadata dict; stored as JSON text
+
+    Idempotent: re-projecting the same event yields identical row state.
+    """
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    task_id, ok = _require(payload, "task_id", et)
+    if not ok:
+        return
+    session_id, ok = _require(payload, "session_id", et)
+    if not ok:
+        return
+    ts = _to_epoch(event.get("created_at")) or _now()
+    db.upsert_task(conn, str(task_id), {
+        "session_id": str(session_id),
+        "subject": _opt(payload, "subject", ""),
+        "status": _opt(payload, "status", "pending"),
+        "chain_id": _opt(payload, "chain_id"),
+        "event_type": _opt(payload, "event_type"),
+        "metadata": _opt(payload, "metadata"),
+        "created_at": ts,
+        "updated_at": ts,
+    })
+    logger.debug("projector: applied wicked.task.created task_id=%r", task_id)
+
+
+def _task_updated(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.task.updated → tasks row delta update.
+
+    Payload shape:
+      task_id    TEXT — required
+      session_id TEXT — required (carries session even on update for routing)
+      status     TEXT — optional; only applied when present
+      subject    TEXT — optional delta
+      chain_id   TEXT — optional delta
+      event_type TEXT — optional delta
+      metadata   dict — optional; merged into existing metadata when present
+
+    Last-write-wins for each supplied field.  Missing keys leave existing
+    column values untouched (handled by db.upsert_task's INSERT OR IGNORE +
+    UPDATE pattern).
+    """
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    task_id, ok = _require(payload, "task_id", et)
+    if not ok:
+        return
+    session_id, ok = _require(payload, "session_id", et)
+    if not ok:
+        return
+    ts = _to_epoch(event.get("created_at")) or _now()
+    fields: dict = {"session_id": str(session_id), "updated_at": ts}
+    for key in ("subject", "status", "chain_id", "event_type", "metadata"):
+        val = _opt(payload, key)
+        if val is not None:
+            fields[key] = val
+    db.upsert_task(conn, str(task_id), fields)
+    logger.debug("projector: applied wicked.task.updated task_id=%r", task_id)
+
+
+def _task_completed(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.task.completed → tasks row with status='completed'.
+
+    Emitted by the TaskCompleted hook (hooks/scripts/task_completed.py).
+    Payload must carry task_id + session_id; status is forced to 'completed'.
+    """
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    task_id, ok = _require(payload, "task_id", et)
+    if not ok:
+        return
+    session_id, ok = _require(payload, "session_id", et)
+    if not ok:
+        return
+    ts = _to_epoch(event.get("created_at")) or _now()
+    fields: dict = {
+        "session_id": str(session_id),
+        "status": "completed",
+        "updated_at": ts,
+    }
+    # Propagate any extra enrichment that arrived at completion time.
+    for key in ("subject", "chain_id", "event_type", "metadata"):
+        val = _opt(payload, key)
+        if val is not None:
+            fields[key] = val
+    db.upsert_task(conn, str(task_id), fields)
+    logger.debug("projector: applied wicked.task.completed task_id=%r", task_id)
+
+
 def _crew_yolo_revoked(conn: sqlite3.Connection, event: dict) -> None:
     """Audit-only: increment revoke counter and record reason.
 
@@ -320,6 +419,10 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     "wicked.rework.triggered": _rework_triggered,
     "wicked.project.completed": _project_completed,
     "wicked.crew.yolo_revoked": _crew_yolo_revoked,
+    # Stream 1 — #596 v8-PR-2: task state projection
+    "wicked.task.created": _task_created,
+    "wicked.task.updated": _task_updated,
+    "wicked.task.completed": _task_completed,
 }
 
 

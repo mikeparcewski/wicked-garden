@@ -102,33 +102,20 @@ VERDICT_REJECT = "REJECT"
 
 
 def _read_task_metadata(session_id: str, task_id: str) -> "dict | None":
-    """Read ``metadata`` dict from the native task JSON file.
+    """Read ``metadata`` dict from the native task JSON file (or daemon projection).
 
-    File path: ``${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/{task_id}.json``.
+    Fail-open: returns None on any error.  Routing is delegated to
+    scripts/crew/_task_reader.py per #596 v8-PR-2.
 
-    Fail-open: returns None on any error (missing file, bad JSON, absent metadata).
-    This is deliberately permissive so task completion is never blocked by a
-    facilitator-re-eval signal error.
-
-    Issue #572: consolidates what used to be two separate reads (chain_id, then
-    event_type in a nested try block) into a single file load. Callers extract
-    whichever fields they need from the returned dict.
+    WG_DAEMON_ENABLED=false (default): direct file read, bit-identical to pre-PR-2.
+    WG_DAEMON_ENABLED=true:            daemon HTTP with fallback.
+    WG_DAEMON_ENABLED=always:          daemon HTTP only.
     """
     if not session_id or not task_id:
         return None
     try:
-        config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
-        base = Path(config_dir) if config_dir else Path.home() / ".claude"
-        task_file = base / "tasks" / session_id / f"{task_id}.json"
-        if not task_file.is_file():
-            return None
-        data = json.loads(task_file.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return None
-        metadata = data.get("metadata")
-        if not isinstance(metadata, dict):
-            return None
-        return metadata
+        from crew._task_reader import get_task_metadata  # type: ignore[import]
+        return get_task_metadata(session_id, task_id)
     except Exception:
         return None
 

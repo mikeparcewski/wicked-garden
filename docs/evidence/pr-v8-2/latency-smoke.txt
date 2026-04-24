@@ -1,0 +1,17 @@
+# Latency smoke test — GET /tasks endpoints with WG_DAEMON_ENABLED=true
+# Daemon: port 4300, in-memory SQLite, 1 task row pre-seeded
+# Method: 1 warm-up call (excluded), then 10 sequential timed calls per endpoint
+# Platform: macOS 14.6 (Darwin 24.6.0), loopback-only
+
+GET /tasks/<task_id>  (ms, sorted):  2.2 2.2 2.8 3.3 3.5 3.6 4.5 5.1 8.5 8.7
+GET /tasks?session=X  (ms, sorted):  1.9 2.3 2.5 3.2 3.4 3.4 3.5 3.5 3.5 3.5
+
+p99 GET /tasks/<id>:    8.7ms   ✓ < 50ms
+p99 GET /tasks?session: 3.5ms   ✓ < 50ms
+
+Both endpoints meet the hard p99 < 50ms requirement.
+
+Note: First cold-call spike observed at ~63ms (process warm-up + SQLite first open).
+Warm path (post-first-call) stays well under 10ms. The 45ms timeout in
+_task_reader.py is appropriate for the loopback daemon — it exceeds the observed
+p99 by 5x while staying under the 50ms hook budget.
