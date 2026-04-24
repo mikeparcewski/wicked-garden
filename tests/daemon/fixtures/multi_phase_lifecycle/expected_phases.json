@@ -1,0 +1,35 @@
+[
+  {
+    "phase": "clarify",
+    "state": "approved",
+    "gate_score": 0.90,
+    "gate_verdict": "APPROVE",
+    "gate_reviewer": "wicked-garden:crew:gate-adjudicator",
+    "started_at": null,
+    "terminal_at": 0,
+    "rework_iterations": 0,
+    "updated_at": 0
+  },
+  {
+    "phase": "design",
+    "state": "approved",
+    "gate_score": 0.80,
+    "gate_verdict": "APPROVE",
+    "gate_reviewer": "wicked-garden:engineering:senior-engineer",
+    "started_at": 0,
+    "terminal_at": 0,
+    "rework_iterations": 0,
+    "updated_at": 0
+  },
+  {
+    "phase": "build",
+    "state": "approved",
+    "gate_score": 0.75,
+    "gate_verdict": "APPROVE",
+    "gate_reviewer": "wicked-garden:crew:reviewer",
+    "started_at": 0,
+    "terminal_at": 0,
+    "rework_iterations": 0,
+    "updated_at": 0
+  }
+]

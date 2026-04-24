@@ -1,0 +1,16 @@
+{
+  "id": "gamma-svc",
+  "name": "gamma-svc",
+  "workspace": null,
+  "directory": null,
+  "archetype": null,
+  "complexity_score": 5.0,
+  "rigor_tier": null,
+  "current_phase": "completed",
+  "status": "completed",
+  "chain_id": "gamma-svc.root",
+  "yolo_revoked_count": 0,
+  "last_revoke_reason": null,
+  "created_at": 0,
+  "updated_at": 0
+}

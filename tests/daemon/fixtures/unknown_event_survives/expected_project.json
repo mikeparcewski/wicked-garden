@@ -1,0 +1,16 @@
+{
+  "id": "zeta-lib",
+  "name": "zeta-lib",
+  "workspace": null,
+  "directory": null,
+  "archetype": null,
+  "complexity_score": 2.0,
+  "rigor_tier": null,
+  "current_phase": "clarify",
+  "status": "active",
+  "chain_id": "zeta-lib.root",
+  "yolo_revoked_count": 0,
+  "last_revoke_reason": null,
+  "created_at": 0,
+  "updated_at": 0
+}

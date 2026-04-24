@@ -1,0 +1,13 @@
+[
+  {
+    "phase": "clarify",
+    "state": "approved",
+    "gate_score": 0.88,
+    "gate_verdict": "APPROVE",
+    "gate_reviewer": "wicked-garden:crew:gate-adjudicator",
+    "started_at": null,
+    "terminal_at": 0,
+    "rework_iterations": 0,
+    "updated_at": 0
+  }
+]
