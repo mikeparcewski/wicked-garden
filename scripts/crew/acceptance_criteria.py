@@ -81,7 +81,7 @@ _RE_NUMBERED = re.compile(
 
 # Section header detector for numbered-list context.
 _RE_AC_SECTION = re.compile(
-    r"#{1,4}\s+(?:acceptance[\s_-]*criteri|ac\b)",
+    r"#{1,4}\s+(?:acceptance[\s_-]*criteri|acs?\b)",
     re.IGNORECASE,
 )
 
@@ -144,6 +144,42 @@ def _ac_from_dict(d: dict[str, Any]) -> AcceptanceCriterion:
 # Parsing
 # ---------------------------------------------------------------------------
 
+def _extract_ac_section_slice(text: str) -> str | None:
+    """Return the substring of *text* that is inside the AC section.
+
+    Scans for the first heading matched by _RE_AC_SECTION. The slice starts
+    on the line after that heading and ends at the next heading whose level is
+    <= the AC heading's level (so a sub-heading like ``### Sub`` under
+    ``## AC`` stays inside; ``## Other`` ends the section).
+
+    Returns None when no AC section heading is found.
+    """
+    lines = text.splitlines(keepends=True)
+    _heading_re = re.compile(r"^(#{1,6})\s+")
+    start_idx: int | None = None
+    ac_level: int | None = None
+
+    for i, line in enumerate(lines):
+        if _RE_AC_SECTION.match(line):
+            hm = _heading_re.match(line)
+            ac_level = len(hm.group(1)) if hm else 1
+            start_idx = i + 1
+            break
+
+    if start_idx is None:
+        return None
+
+    # Find the next heading at the same or higher level (lower # count).
+    end_idx = len(lines)
+    for j in range(start_idx, len(lines)):
+        hm = _heading_re.match(lines[j])
+        if hm and len(hm.group(1)) <= ac_level:
+            end_idx = j
+            break
+
+    return "".join(lines[start_idx:end_idx])
+
+
 def parse_acs_from_markdown(path: Path) -> list[AcceptanceCriterion]:
     """Extract AcceptanceCriterion records from a clarify markdown file.
 
@@ -191,8 +227,9 @@ def parse_acs_from_markdown(path: Path) -> list[AcceptanceCriterion]:
 
     # Pattern 4: numbered list items ONLY within an "Acceptance Criteria" section.
     # This avoids over-capturing every ordered list in the document.
-    if _RE_AC_SECTION.search(text):
-        for m in _RE_NUMBERED.finditer(text):
+    section = _extract_ac_section_slice(text)
+    if section is not None:
+        for m in _RE_NUMBERED.finditer(section):
             raw_id = m.group("id")
             # Emit as "AC-N" canonical form for numbered items.
             canonical = f"AC-{raw_id}"

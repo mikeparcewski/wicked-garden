@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a532266a523235e86/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a532266a523235e86
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 2 items
+
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_heading_variant_acs_short PASSED [ 50%]
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_numbered_items_outside_ac_section_not_captured PASSED [100%]
+
+============================== 2 passed in 0.18s ===============================
