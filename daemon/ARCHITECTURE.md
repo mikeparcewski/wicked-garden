@@ -79,7 +79,7 @@ Index: `CREATE INDEX idx_projects_status ON projects(status)`; `CREATE INDEX idx
 **event_log** — append-only audit tail (last 10k retained).
 Columns: `event_id INTEGER PRIMARY KEY`, `event_type TEXT NOT NULL`, `chain_id TEXT`, `payload_json TEXT NOT NULL`, `projection_status TEXT NOT NULL` (`applied` \| `ignored` \| `error`), `error_message TEXT` (NULL unless errored), `ingested_at INTEGER NOT NULL`. Index: `idx_event_log_type ON event_log(event_type, event_id DESC)`.
 
-### Public API (signatures only — no bodies)
+### Public API
 - `connect(path: str | None = None) -> sqlite3.Connection` — opens DB at `path` or `WG_DAEMON_DB` or default; sets `PRAGMA journal_mode=WAL`, `PRAGMA foreign_keys=ON`; returns connection. Caller closes.
 - `init_schema(conn: sqlite3.Connection) -> None` — idempotent; creates 4 tables + indexes if absent.
 - `upsert_project(conn, project_id: str, fields: dict) -> None` — INSERT … ON CONFLICT DO UPDATE on `id`; updates `updated_at`. `fields` is a partial dict; missing keys preserve existing values.
@@ -136,7 +136,7 @@ The 7 event types below mutate state. All others are appended to `event_log` wit
 | `wicked.project.created` | `projects` UPSERT | `id=payload.project_id`, `name=payload.project_id`, `complexity_score=payload.complexity_score`, `chain_id=metadata.chain_id`, `created_at=event.created_at`, `updated_at=event.created_at`, `status='active'`. Touch only NULL fields on conflict (never overwrite richer state). |
 | `wicked.project.complexity_scored` | `projects` UPDATE | `complexity_score=payload.complexity_score`, `rigor_tier=payload.rigor_tier` if present. |
 | `wicked.phase.transitioned` | `phases` UPSERT × 2 + `projects` UPDATE | Source phase: `state='approved'`, `terminal_at=event.created_at`. Target phase (`payload.phase_to`, may be null): `state='active'`, `started_at=event.created_at`. Update `projects.current_phase=payload.phase_to or payload.phase_from`. |
-| `wicked.phase.auto_advanced` | same as `wicked.phase.transitioned` | Source phase + projects.current_phase update. Audit-only — also recorded in event_log. |
+| `wicked.phase.auto_advanced` | auto-advance variant: payload carries `phase` only, no `phase_from`/`phase_to`. Treated as a phase update with `state='approved'`. | `phases[phase].state='approved'`, `terminal_at=event.created_at`. `projects.current_phase=payload.phase`. Audit-only — also recorded in event_log. |
 | `wicked.gate.decided` | `phases` UPDATE | Keyed `(project_id, phase=payload.phase)`. Set `gate_verdict=payload.result`, `gate_score=payload.score`, `gate_reviewer=payload.reviewer`. If `result == 'REJECT'`, also set `state='rejected'`, `terminal_at=event.created_at`. |
 | `wicked.rework.triggered` | `phases` UPDATE | `rework_iterations=payload.iteration_count` (last-write-wins; payload is monotonic). |
 | `wicked.project.completed` | `projects` UPDATE | `status='completed'`, `current_phase='completed'`. |

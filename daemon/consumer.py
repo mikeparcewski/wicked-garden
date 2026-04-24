@@ -298,9 +298,9 @@ class ConsumerThread(threading.Thread):
 
                     # Persist cursor BEFORE ack — crash recovery gives at-least-once
                     # redelivery, which is safe because the projector is idempotent.
+                    # db.set_cursor already commits internally; no extra commit needed.
                     db.set_cursor(conn, _BUS_SOURCE, self._cursor_id, max_id)
                     self._last_event_id = max_id
-                    conn.commit()
 
                     if not _ack_cursor(self._cursor_id, max_id):
                         _log.warning("ack failed for cursor=%s last_event_id=%d",

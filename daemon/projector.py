@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from calendar import timegm
+from datetime import datetime, timezone
 from time import time
 from typing import Callable
 
@@ -45,24 +45,25 @@ _VERDICT_REJECT = "REJECT"
 # --- helpers ---------------------------------------------------------------
 
 def _to_epoch(value: object) -> int | None:
-    """Coerce int, float, or ISO-8601 string to epoch seconds. Returns None on failure."""
+    """Coerce int, float, or ISO-8601 string to UTC epoch seconds. Returns None on failure.
+
+    Timezone-aware strings (e.g. "2026-04-24T12:00:00+02:00") are correctly
+    converted to UTC before extracting the epoch.  Naive strings are assumed UTC
+    (Decision #9).
+    """
     if value is None:
         return None
     if isinstance(value, (int, float)):
         return int(value)
     if isinstance(value, str):
-        import time as _t
-        s = value.strip().replace("Z", "").replace("T", " ")
-        # Drop timezone offset (e.g. +00:00 or -05:00).
-        for sep in ("+", "-"):
-            idx = s.rfind(sep)
-            if idx > 10:
-                s = s[:idx]
-        # Drop sub-second precision.
-        if "." in s:
-            s = s[: s.index(".")]
+        # Normalise the Z suffix so fromisoformat accepts it on Python <3.11.
+        s = value.strip().replace("Z", "+00:00")
         try:
-            return timegm(_t.strptime(s.strip(), "%Y-%m-%d %H:%M:%S"))
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                # Naive timestamp — assume UTC per Decision #9.
+                dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp())
         except (ValueError, OverflowError) as exc:
             logger.warning("projector: cannot parse timestamp %r: %s", value, exc)
             return None

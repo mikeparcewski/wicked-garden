@@ -14,23 +14,15 @@ T3: isolated — each parametrize call gets a fresh mem_conn via function-scoped
 T4: one concern per test function.
 T5: descriptive names.
 T6: provenance: #589 parity harness, locked decisions #6 and #8 referenced inline.
-
-NOTE: daemon.db and daemon.projector do not exist on this branch yet.
-      These tests are expected to fail with ImportError until Wave 3 cherry-pick.
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-# Ensure repo root is on sys.path so `import daemon` works.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+# sys.path setup is handled by tests/daemon/conftest.py — no mutation needed here.
 
 # ---------------------------------------------------------------------------
 # Fixtures parametrized over the 6 named scenarios
@@ -52,12 +44,12 @@ _FIXTURE_SCENARIOS = [
 
 
 def _normalize_timestamps(obj: Any) -> Any:
-    """Recursively replace sentinel 0 timestamps with a wildcard token.
+    """Recursively replace sentinel 0 timestamps with a wildcard token ("__ANY__").
 
     The architecture contract says: when the expected JSON carries 0 for a
     timestamp field the comparator ignores it.  We normalise by replacing 0
-    with None in both expected and actual before comparing, so assertEqual
-    can be used directly.
+    with "__ANY__" in both expected and actual before comparing, so
+    _assert_projection_equals can skip those fields.
 
     Timestamp fields subject to wildcarding:
       updated_at, created_at, started_at, terminal_at, ingested_at, acked_at

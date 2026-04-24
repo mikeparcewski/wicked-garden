@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+import urllib.error
 from pathlib import Path
 
 
@@ -41,7 +42,7 @@ def read_project_status(project_id: str) -> dict:
             url = f"http://{host}:{port}/projects/{project_id}"
             with urllib.request.urlopen(url, timeout=2) as r:
                 return json.loads(r.read())
-        except Exception:
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
             if mode == "always":
                 raise
             # fall through to direct read

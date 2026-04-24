@@ -2,7 +2,8 @@
 daemon/server.py — Read-only HTTP projection server for wicked-garden v8 daemon.
 
 Exposes 5 GET endpoints backed by the SQLite projection DB (daemon/db.py).
-Bound to 127.0.0.1 only (locked decision #10). Default port 4244.
+Defaults to 127.0.0.1 per locked decision #10; WG_DAEMON_HOST can override but
+is documented as not encouraged. Default port 4244.
 
 Public API
 ----------

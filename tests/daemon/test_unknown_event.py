@@ -1,6 +1,6 @@
 """tests/daemon/test_unknown_event.py — Focused invariant tests for unknown event handling.
 
-Locks locked decision #8 from daemon/ARCHITECTURE.md:
+Locks decision #8 from daemon/ARCHITECTURE.md:
   "All others [non-listed event types] are appended to event_log with
    projection_status='ignored' and never raise."
 
@@ -17,14 +17,9 @@ T6: provenance: locked decision #8, #589.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+# sys.path setup is handled by tests/daemon/conftest.py — no mutation needed here.
 
 # ---------------------------------------------------------------------------
 # Helpers
