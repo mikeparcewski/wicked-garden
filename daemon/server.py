@@ -36,6 +36,7 @@ import daemon.consumer as consumer
 import daemon.db as db
 import daemon.council as council_module
 import daemon.test_dispatch as test_dispatch_module
+import daemon.hook_dispatch as hook_dispatch_module
 from daemon import VERSION as DAEMON_VERSION
 
 # ---------------------------------------------------------------------------
@@ -62,6 +63,11 @@ COUNCIL_POST_MAX_BODY_BYTES: int = 65_536
 TEST_DISPATCH_POST_MAX_BODY_BYTES: int = 65_536
 TEST_DISPATCHES_LIST_LIMIT_DEFAULT: int = 50
 TEST_DISPATCHES_LIST_LIMIT_MAX: int = 500
+# Stream 4 — #592 v8-PR-8: /subscriptions limits
+SUBSCRIPTIONS_INVOCATIONS_LIMIT_DEFAULT: int = 50
+SUBSCRIPTIONS_INVOCATIONS_LIMIT_MAX: int = 500
+# POST /subscriptions/<id>/toggle body size limit (R5: no unbounded reads)
+SUBSCRIPTION_TOGGLE_MAX_BODY_BYTES: int = 4_096
 
 ENV_HOST: str = "WG_DAEMON_HOST"
 ENV_PORT: str = "WG_DAEMON_PORT"
@@ -135,6 +141,22 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
             # Stream 6 — #595 v8-PR-7: test-dispatch read endpoint
             elif path == "/test-dispatches":
                 self._handle_list_test_dispatches(query)
+            # Stream 4 — #592 v8-PR-8: subscription observability endpoints
+            elif path == "/subscriptions":
+                self._handle_list_subscriptions(query)
+            elif path.startswith("/subscriptions/"):
+                tail = path[len("/subscriptions/"):]
+                if "/invocations" in tail:
+                    parts = tail.split("/invocations")
+                    sub_id = parts[0]
+                    if sub_id:
+                        self._handle_list_invocations(sub_id, query)
+                    else:
+                        self._send_not_found("Missing subscription id")
+                elif tail and "/" not in tail:
+                    self._handle_get_subscription(tail, query)
+                else:
+                    self._send_not_found("Unknown subscription endpoint")
             else:
                 self._send_not_found("Unknown endpoint")
         except Exception:
@@ -163,6 +185,13 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
             # Stream 6 — #595 v8-PR-7: test-dispatch POST endpoint
             elif path == "/test-dispatch":
                 self._handle_post_test_dispatch()
+            # Stream 4 — #592 v8-PR-8: subscription toggle (4th write carve-out)
+            elif path.startswith("/subscriptions/") and path.endswith("/toggle"):
+                sub_id = path[len("/subscriptions/"):-len("/toggle")]
+                if sub_id and "/" not in sub_id:
+                    self._handle_post_subscription_toggle(sub_id)
+                else:
+                    self._send_not_found("Invalid subscription toggle path")
             else:
                 self._send_not_found("Unknown POST endpoint")
         except Exception:
@@ -602,6 +631,144 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                 conn.close()
 
     # ------------------------------------------------------------------ #
+    # Subscription endpoints (Stream 4 — #592 v8-PR-8)
+    # ------------------------------------------------------------------ #
+
+    def _handle_list_subscriptions(self, _query: dict[str, list[str]]) -> None:
+        """GET /subscriptions — list all hook subscriptions.
+
+        Returns all subscriptions (enabled and disabled) ordered by created_at ASC.
+        This is a read-only observability endpoint.
+        """
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            rows = db.list_hook_subscriptions(conn, enabled_only=False)
+            self._send_json(200, [_subscription_list_shape(r) for r in rows])
+        except Exception:
+            logger.error("list_subscriptions DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _handle_get_subscription(
+        self, subscription_id: str, _query: dict[str, list[str]]
+    ) -> None:
+        """GET /subscriptions/<id> — retrieve a single subscription row."""
+        if not subscription_id:
+            self._send_error(400, "Missing subscription id")
+            return
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            row = db.get_hook_subscription(conn, subscription_id)
+            if row is None:
+                self._send_not_found(f"Subscription '{subscription_id}' not found")
+                return
+            self._send_json(200, _subscription_detail_shape(row))
+        except Exception:
+            logger.error("get_subscription DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _handle_list_invocations(
+        self, subscription_id: str, query: dict[str, list[str]]
+    ) -> None:
+        """GET /subscriptions/<id>/invocations[?since=X&limit=N] — recent invocations."""
+        if not subscription_id:
+            self._send_error(400, "Missing subscription id")
+            return
+        try:
+            since, limit = self._parse_invocations_query(query)
+        except ValueError as exc:
+            self._send_error(400, str(exc))
+            return
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            # Verify subscription exists
+            if db.get_hook_subscription(conn, subscription_id) is None:
+                self._send_not_found(f"Subscription '{subscription_id}' not found")
+                return
+            rows = db.list_hook_invocations(
+                conn, subscription_id=subscription_id, since=since, limit=limit
+            )
+            self._send_json(200, [_invocation_shape(r) for r in rows])
+        except Exception:
+            logger.error("list_invocations DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _handle_post_subscription_toggle(self, subscription_id: str) -> None:
+        """POST /subscriptions/<id>/toggle — enable or disable a subscription.
+
+        Body: {"enabled": true | false}
+        Returns: {"ok": true, "subscription_id": str, "enabled": bool}
+
+        MUTATION CARVE-OUT (4th write path, v8-PR-8 #592):
+        This is an explicit exception to the daemon read-only principle from
+        PR-1 decision #6.  Toggle is a bounded, operator-facing control —
+        it only flips the enabled flag on an existing subscription row.
+        No new subscriptions can be created via HTTP.
+        Documented in daemon/hook_dispatch.py and docs/evidence/pr-v8-8/contract-check.md.
+        """
+        if not subscription_id:
+            self._send_error(400, "Missing subscription id")
+            return
+
+        content_length_str = self.headers.get("Content-Length", "0")
+        try:
+            content_length = int(content_length_str)
+        except (ValueError, TypeError):
+            self._send_error(400, "Invalid Content-Length")
+            return
+
+        if content_length > SUBSCRIPTION_TOGGLE_MAX_BODY_BYTES:
+            self._send_error(413, f"Request body exceeds limit of {SUBSCRIPTION_TOGGLE_MAX_BODY_BYTES} bytes")
+            return
+
+        body: dict = {}
+        if content_length > 0:
+            raw_body = self.rfile.read(content_length)
+            try:
+                body = json.loads(raw_body.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                self._send_error(400, f"Invalid JSON body: {exc}")
+                return
+            if not isinstance(body, dict):
+                self._send_error(400, "Body must be a JSON object")
+                return
+
+        enabled_val = body.get("enabled")
+        if enabled_val is None or not isinstance(enabled_val, bool):
+            self._send_error(400, "Field 'enabled' (boolean) is required")
+            return
+
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            updated = db.toggle_hook_subscription(conn, subscription_id, enabled=enabled_val)
+            if not updated:
+                self._send_not_found(f"Subscription '{subscription_id}' not found")
+                return
+            self._send_json(200, {
+                "ok": True,
+                "subscription_id": subscription_id,
+                "enabled": enabled_val,
+            })
+        except Exception:
+            logger.error("toggle_subscription DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    # ------------------------------------------------------------------ #
     # Query-param parsers (raise ValueError on bad input → 400)
     # ------------------------------------------------------------------ #
 
@@ -741,6 +908,37 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                 )
 
         return since, topic_prefix, limit
+
+    @staticmethod
+    def _parse_invocations_query(
+        query: dict[str, list[str]],
+    ) -> tuple[int, int]:
+        """Parse and validate /subscriptions/<id>/invocations query params.
+
+        Returns (since, limit).
+        Raises ValueError for invalid values.
+        """
+        since = 0
+        if "since" in query:
+            raw = query["since"][0]
+            if not raw.lstrip("-").isdigit():
+                raise ValueError(f"Invalid since '{raw}'; must be an integer epoch")
+            since = int(raw)
+            if since < 0:
+                raise ValueError(f"since must be >= 0; got {since}")
+
+        limit = SUBSCRIPTIONS_INVOCATIONS_LIMIT_DEFAULT
+        if "limit" in query:
+            raw_limit = query["limit"][0]
+            if not raw_limit.isdigit():
+                raise ValueError(f"Invalid limit '{raw_limit}'; must be a positive integer")
+            limit = int(raw_limit)
+            if limit < 1 or limit > SUBSCRIPTIONS_INVOCATIONS_LIMIT_MAX:
+                raise ValueError(
+                    f"limit must be between 1 and {SUBSCRIPTIONS_INVOCATIONS_LIMIT_MAX}; got {limit}"
+                )
+
+        return since, limit
 
     @staticmethod
     def _parse_test_dispatches_query(
@@ -931,6 +1129,45 @@ def _council_vote_shape(row: dict) -> dict:
         # raw_response is intentionally excluded from the HTTP response —
         # it can be arbitrarily large.  Callers that need the raw text
         # should query the DB directly or we add a dedicated endpoint.
+    }
+
+
+def _subscription_list_shape(row: dict) -> dict:
+    """Hook subscription row for /subscriptions list response.
+
+    Stream 4 — #592 v8-PR-8.
+    """
+    return {
+        "subscription_id": row.get("subscription_id"),
+        "filter_pattern": row.get("filter_pattern"),
+        "handler_path": row.get("handler_path"),
+        "debounce_rule": row.get("debounce_rule"),
+        "enabled": bool(row.get("enabled", 1)),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+def _subscription_detail_shape(row: dict) -> dict:
+    """Full subscription row for /subscriptions/<id> response."""
+    return _subscription_list_shape(row)
+
+
+def _invocation_shape(row: dict) -> dict:
+    """Hook invocation row for /subscriptions/<id>/invocations response.
+
+    Stream 4 — #592 v8-PR-8.
+    """
+    return {
+        "invocation_id": row.get("invocation_id"),
+        "subscription_id": row.get("subscription_id"),
+        "event_id": row.get("event_id"),
+        "event_type": row.get("event_type"),
+        "verdict": row.get("verdict"),
+        "stdout_digest": row.get("stdout_digest"),
+        "stderr_digest": row.get("stderr_digest"),
+        "latency_ms": row.get("latency_ms"),
+        "emitted_at": row.get("emitted_at"),
     }
 
 

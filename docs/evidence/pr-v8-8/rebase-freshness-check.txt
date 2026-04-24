@@ -1,0 +1,28 @@
+=== Rebase freshness check ===
+Branch: v8/pr-8-typed-hook-subscribers
+HEAD: 9757daf feat(v8-PR-7): auto-engage wicked-testing on test phases (#595) (#621)
+
+=== PR-1 markers ===
+daemon/__init__.py
+
+=== PR-2 markers ===
+daemon/db.py
+
+=== PR-3 markers ===
+daemon/db.py
+
+=== PR-4 markers ===
+daemon/council.py
+daemon/db.py
+
+=== PR-5 markers ===
+scripts/crew/acceptance_criteria.py
+
+=== PR-6 markers ===
+scripts/crew/autonomy.py
+
+=== PR-7 markers ===
+daemon/test_dispatch.py
+daemon/db.py
+
+=== ALL 7 PRIOR PR MARKERS PRESENT ===
