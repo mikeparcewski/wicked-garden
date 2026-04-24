@@ -1,0 +1,23 @@
+Daemon test suite — PR-7 post-implementation run
+================================================
+
+Command: uv run pytest tests/daemon/ --tb=line -q
+
+Result: 166 passed, 2 deselected (benchmark tests deselected)
+        0 errors, 0 failures
+
+New tests added by PR-7: 48 (tests/daemon/test_test_dispatch.py)
+Tests before PR-7: 118
+Tests after PR-7:  166
+
+Coverage spans:
+  - Phase detection (10 tests)
+  - TestDispatchPlan building (6 tests)
+  - dispatch_for_phase mechanism (5 tests)
+  - Graceful degradation — wicked-testing unavailable (4 tests)
+  - Autonomy mode integration ask/balanced/full (6 tests)
+  - Idempotency guard (3 tests)
+  - DB schema — test_dispatches table (3 tests)
+  - HTTP endpoints POST /test-dispatch + GET /test-dispatches (6 tests)
+  - DispatchRecord serialisation (2 tests)
+  - run_test_dispatches integration (3 tests)

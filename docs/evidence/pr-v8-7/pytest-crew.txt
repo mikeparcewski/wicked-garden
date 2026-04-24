@@ -1,0 +1,10 @@
+Crew test suite — PR-7 post-implementation run
+===============================================
+
+Command: uv run pytest tests/crew/ --tb=line -q
+
+Result: 798 passed, 1 deselected, 15 subtests passed
+        0 errors, 0 failures
+
+No regressions from PR-7 changes.
+crew/ test count unchanged (no new crew tests added — PR-7 scope is daemon-side).

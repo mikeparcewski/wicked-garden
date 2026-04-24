@@ -1,0 +1,21 @@
+After-grep: wicked-testing callers in production code (daemon/ and scripts/)
+after PR-7 (#595)
+
+New callers added by this PR:
+  daemon/test_dispatch.py  — NEW: auto-dispatch orchestrator (detect/plan/dispatch/degrade)
+  daemon/server.py         — NEW: POST /test-dispatch, GET /test-dispatches endpoints
+  daemon/db.py             — NEW: test_dispatches table schema
+
+Pre-existing callers (unchanged):
+  scripts/crew/_prerequisites.py     — session prerequisite check (unchanged)
+  scripts/crew/gate_dispatch.py      — BLEND aggregation bus subscriber (unchanged)
+  scripts/crew/_wicked_testing_bus.py — verdict bus consumer (unchanged)
+  scripts/crew/validate_plan.py      — plan validation warning (unchanged)
+  scripts/crew/phase_manager.py      — agent namespace routing (unchanged)
+  scripts/_wicked_testing_probe.py   — availability probe (unchanged)
+  scripts/_wicked_testing_tier1.py   — Tier-1 agent allowlist (unchanged)
+  scripts/_bus.py                    — bus event schema (unchanged)
+  scripts/_session.py                — session state field (unchanged)
+  scripts/smaht/context_package.py   — skill suggestion strings (unchanged)
+
+Existing wicked-testing SKILLS and AGENTS: NOT modified (cross-plugin boundary respected)

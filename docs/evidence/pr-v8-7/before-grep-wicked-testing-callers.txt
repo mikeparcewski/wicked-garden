@@ -1,0 +1,20 @@
+Before-grep: wicked-testing callers in production code (daemon/ and scripts/)
+before PR-7 (#595)
+
+NOTE: #583 advisory layer existed (scripts/crew/_prerequisites.py, gate_dispatch.py,
+_wicked_testing_bus.py, validate_plan.py) but NO auto-dispatch from the daemon.
+The daemon (daemon/) had zero wicked-testing references before this PR.
+
+Pre-existing callers (advisory layer only, no auto-dispatch):
+  scripts/crew/_prerequisites.py     — session prerequisite check (fail-closed gate guard)
+  scripts/crew/gate_dispatch.py      — BLEND aggregation bus subscriber
+  scripts/crew/_wicked_testing_bus.py — verdict bus consumer
+  scripts/crew/validate_plan.py      — plan validation warning
+  scripts/crew/phase_manager.py      — agent namespace routing
+  scripts/_wicked_testing_probe.py   — availability probe
+  scripts/_wicked_testing_tier1.py   — Tier-1 agent allowlist
+  scripts/_bus.py                    — bus event schema
+  scripts/_session.py                — session state field
+  scripts/smaht/context_package.py   — skill suggestion strings (read-only)
+
+daemon/ references before PR-7: NONE

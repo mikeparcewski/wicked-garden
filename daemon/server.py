@@ -35,6 +35,7 @@ from typing import Any
 import daemon.consumer as consumer
 import daemon.db as db
 import daemon.council as council_module
+import daemon.test_dispatch as test_dispatch_module
 from daemon import VERSION as DAEMON_VERSION
 
 # ---------------------------------------------------------------------------
@@ -57,6 +58,10 @@ COUNCILS_LIMIT_DEFAULT: int = 50
 COUNCILS_LIMIT_MAX: int = 200
 # Maximum request body size for POST /council (R5: no unbounded reads)
 COUNCIL_POST_MAX_BODY_BYTES: int = 65_536
+# Stream 6 — #595 v8-PR-7: /test-dispatch limits
+TEST_DISPATCH_POST_MAX_BODY_BYTES: int = 65_536
+TEST_DISPATCHES_LIST_LIMIT_DEFAULT: int = 50
+TEST_DISPATCHES_LIST_LIMIT_MAX: int = 500
 
 ENV_HOST: str = "WG_DAEMON_HOST"
 ENV_PORT: str = "WG_DAEMON_PORT"
@@ -127,6 +132,9 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                     self._handle_get_council(session_id, query)
                 else:
                     self._send_not_found("Unknown endpoint")
+            # Stream 6 — #595 v8-PR-7: test-dispatch read endpoint
+            elif path == "/test-dispatches":
+                self._handle_list_test_dispatches(query)
             else:
                 self._send_not_found("Unknown endpoint")
         except Exception:
@@ -152,6 +160,9 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
         try:
             if path == "/council":
                 self._handle_post_council()
+            # Stream 6 — #595 v8-PR-7: test-dispatch POST endpoint
+            elif path == "/test-dispatch":
+                self._handle_post_test_dispatch()
             else:
                 self._send_not_found("Unknown POST endpoint")
         except Exception:
@@ -466,6 +477,131 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                 conn.close()
 
     # ------------------------------------------------------------------ #
+    # Test-dispatch endpoints (Stream 6 — #595 v8-PR-7)
+    # ------------------------------------------------------------------ #
+
+    def _handle_post_test_dispatch(self) -> None:
+        """POST /test-dispatch — Trigger wicked-testing dispatch for a phase.
+
+        Body: {"project_id": str, "phase": str, "skills"?: list[str],
+               "autonomy"?: str}
+        Returns: {"plan": TestDispatchPlan, "records": list[DispatchRecord]}
+
+        MUTATION CARVE-OUT: This endpoint writes to test_dispatches.
+        It is an explicit exception to the daemon read-only principle from PR-1
+        decision #6.  All projection tables remain read-only.
+        See daemon/test_dispatch.py module docstring for the full rationale.
+
+        PLUGIN CONTRACT (v9/drop-in-plugin-contract.md):
+        - Dispatches TO wicked-testing; never re-implements its logic.
+        - Calls canonical skills (plan/authoring/execution/review).
+        - Honours wicked-testing's verdict shape without translation.
+        - Graceful degradation when wicked-testing is not installed.
+        """
+        content_length_str = self.headers.get("Content-Length", "0")
+        try:
+            content_length = int(content_length_str)
+        except (ValueError, TypeError):
+            self._send_error(400, "Invalid Content-Length")
+            return
+
+        if content_length > TEST_DISPATCH_POST_MAX_BODY_BYTES:
+            self._send_error(
+                413,
+                f"Request body exceeds limit of {TEST_DISPATCH_POST_MAX_BODY_BYTES} bytes",
+            )
+            return
+
+        if content_length == 0:
+            self._send_error(400, "Request body required")
+            return
+
+        raw_body = self.rfile.read(content_length)
+        try:
+            body = json.loads(raw_body.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            self._send_error(400, f"Invalid JSON body: {exc}")
+            return
+
+        if not isinstance(body, dict):
+            self._send_error(400, "Body must be a JSON object")
+            return
+
+        project_id = body.get("project_id", "")
+        phase = body.get("phase", "")
+        if not project_id or not isinstance(project_id, str):
+            self._send_error(400, "Field 'project_id' (non-empty string) is required")
+            return
+        if not phase or not isinstance(phase, str):
+            self._send_error(400, "Field 'phase' (non-empty string) is required")
+            return
+
+        skill_filter = body.get("skills")
+        if skill_filter is not None:
+            if not isinstance(skill_filter, list) or not all(
+                isinstance(s, str) for s in skill_filter
+            ):
+                self._send_error(400, "'skills' must be a list of strings")
+                return
+
+        autonomy = body.get("autonomy", "ask") or "ask"
+        if not isinstance(autonomy, str):
+            self._send_error(400, "'autonomy' must be a string (ask|balanced|full)")
+            return
+
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            # Build the phase row for detection — single-phase dispatch
+            phases_list = [{"phase": phase, "name": phase}]
+            records = test_dispatch_module.run_test_dispatches(
+                conn=conn,
+                project_id=project_id,
+                phases_list=phases_list,
+                autonomy_mode_str=autonomy,
+                skill_filter=skill_filter,
+            )
+            plan = test_dispatch_module.build_dispatch_plan(project_id, phases_list)
+            self._send_json(200, {
+                "plan": plan.to_dict(),
+                "records": [r.to_dict() for r in records],
+            })
+        except Exception:
+            logger.error("POST /test-dispatch error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _handle_list_test_dispatches(self, query: dict[str, list[str]]) -> None:
+        """GET /test-dispatches[?project_id=X&since=Y&limit=N].
+
+        Returns recent test dispatch records ordered by emitted_at DESC.
+        """
+        try:
+            project_id_filter, since, limit = self._parse_test_dispatches_query(query)
+        except ValueError as exc:
+            self._send_error(400, str(exc))
+            return
+
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            rows = test_dispatch_module.list_test_dispatches(
+                conn,
+                project_id=project_id_filter,
+                since=since,
+                limit=limit,
+            )
+            self._send_json(200, [_test_dispatch_shape(r) for r in rows])
+        except Exception:
+            logger.error("list_test_dispatches DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    # ------------------------------------------------------------------ #
     # Query-param parsers (raise ValueError on bad input → 400)
     # ------------------------------------------------------------------ #
 
@@ -605,6 +741,41 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                 )
 
         return since, topic_prefix, limit
+
+    @staticmethod
+    def _parse_test_dispatches_query(
+        query: dict[str, list[str]],
+    ) -> tuple[str | None, int, int]:
+        """Parse and validate /test-dispatches query params.
+
+        Returns (project_id_filter, since, limit).
+        Raises ValueError for invalid values.
+        """
+        project_id_filter: str | None = (
+            query["project_id"][0] if "project_id" in query else None
+        )
+
+        since = 0
+        if "since" in query:
+            raw = query["since"][0]
+            if not raw.lstrip("-").isdigit():
+                raise ValueError(f"Invalid since '{raw}'; must be an integer epoch")
+            since = int(raw)
+            if since < 0:
+                raise ValueError(f"since must be >= 0; got {since}")
+
+        limit = TEST_DISPATCHES_LIST_LIMIT_DEFAULT
+        if "limit" in query:
+            raw_limit = query["limit"][0]
+            if not raw_limit.isdigit():
+                raise ValueError(f"Invalid limit '{raw_limit}'; must be a positive integer")
+            limit = int(raw_limit)
+            if limit < 1 or limit > TEST_DISPATCHES_LIST_LIMIT_MAX:
+                raise ValueError(
+                    f"limit must be between 1 and {TEST_DISPATCHES_LIST_LIMIT_MAX}; got {limit}"
+                )
+
+        return project_id_filter, since, limit
 
     # ------------------------------------------------------------------ #
     # Response helpers
@@ -760,6 +931,25 @@ def _council_vote_shape(row: dict) -> dict:
         # raw_response is intentionally excluded from the HTTP response —
         # it can be arbitrarily large.  Callers that need the raw text
         # should query the DB directly or we add a dedicated endpoint.
+    }
+
+
+def _test_dispatch_shape(row: dict) -> dict:
+    """Test dispatch row for /test-dispatches response.
+
+    Stream 6 — #595 v8-PR-7.
+    """
+    return {
+        "dispatch_id": row.get("dispatch_id"),
+        "session_id": row.get("session_id"),
+        "project_id": row.get("project_id"),
+        "phase": row.get("phase"),
+        "skill": row.get("skill"),
+        "verdict": row.get("verdict"),
+        "evidence_path": row.get("evidence_path"),
+        "latency_ms": row.get("latency_ms"),
+        "emitted_at": row.get("emitted_at"),
+        "notes": row.get("notes", ""),
     }
 
 
