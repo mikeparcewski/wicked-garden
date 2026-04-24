@@ -102,17 +102,21 @@ Each phase in the task chain should include a corresponding gate task with
 ```json
 {
   "event_type": "gate-finding",
+  "source_agent": "facilitator",
   "verdict": "APPROVE | CONDITIONAL | REJECT",
   "min_score": 0.7,
-  "score": 0.85,
-  "source_agent": "facilitator"
+  "score": 0.85
 }
 ```
 
-The facilitator emits the gate task shell at plan time; `verdict`, `min_score`,
-and `score` are filled in by the reviewer agent at approve time.
-`_resolve_gate_reviewer()` in `phase_manager.py` determines the reviewer from
-`gate-policy.json` — the plan embeds the gate name, not the reviewer name.
+The facilitator emits the gate task shell at plan time with only
+`chain_id`, `event_type`, `source_agent`, and `phase`. `verdict`,
+`min_score`, and `score` are filled in by the reviewer agent at approve
+time via `TaskUpdate(status="completed")`; the PreToolUse validator
+enforces their presence on that completion transition, not on the
+initial shell (Issue #570). `_resolve_gate_reviewer()` in
+`phase_manager.py` determines the reviewer from `gate-policy.json` —
+the plan embeds the gate name, not the reviewer name.
 
 **Yolo mode additions**:
 

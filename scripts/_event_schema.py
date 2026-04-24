@@ -69,11 +69,19 @@ SCHEMA: dict[str, dict[str, list[str]]] = {
         "optional": ["priority", "requirement_id", "blast_radius"],
     },
     "gate-finding": {
+        # Lifecycle: the facilitator emits the gate shell at plan time;
+        # the reviewer fills verdict/min_score/score at approve time
+        # (see skills/propose-process/refs/output-schema.md). So those
+        # three fields are required only when the task reaches a
+        # terminal ``completed`` state, not at creation.
         "required": [
-            "chain_id", "event_type", "source_agent",
-            "phase", "verdict", "min_score", "score",
+            "chain_id", "event_type", "source_agent", "phase",
         ],
-        "optional": ["conditions_manifest_path", "findings"],
+        "required_at_completion": ["verdict", "min_score", "score"],
+        "optional": [
+            "verdict", "min_score", "score",
+            "conditions_manifest_path", "findings",
+        ],
     },
     "phase-transition": {
         "required": [
@@ -104,6 +112,7 @@ def _is_banned_source_agent(source_agent: str) -> bool:
 def validate_metadata(
     metadata: dict,
     valid_phases: set[str] | None = None,
+    status: str | None = None,
 ) -> str | None:
     """Validate a TaskCreate/TaskUpdate metadata dict.
 
@@ -114,6 +123,12 @@ def validate_metadata(
     ``valid_phases`` — optional set of phase names from phases.json. When
     supplied, ``phase`` must be a member. When omitted, phase is only
     validated for presence per the event_type's required list.
+
+    ``status`` — optional task status (``pending`` | ``in_progress`` |
+    ``completed``). When ``"completed"``, event types with a
+    ``required_at_completion`` list enforce those fields too. This
+    matches the facilitator-emits-shell / reviewer-fills-verdict
+    lifecycle for gate-finding tasks (Issue #570).
     """
     if not isinstance(metadata, dict):
         return "metadata must be a dict"
@@ -131,7 +146,10 @@ def validate_metadata(
     spec = SCHEMA[event_type]
     # Presence check, not truthiness — score=0 and phase="" are legitimate
     # "missing" only when the key is absent or explicitly None.
-    missing = [f for f in spec["required"] if metadata.get(f) is None]
+    required_fields = list(spec["required"])
+    if status == "completed":
+        required_fields.extend(spec.get("required_at_completion", []))
+    missing = [f for f in required_fields if metadata.get(f) is None]
     if missing:
         return f"{event_type}: missing required metadata fields {missing}"
 
@@ -157,23 +175,33 @@ def validate_metadata(
         return f"phase {phase!r} not in phases.json catalog (sample: {sample})"
 
     if event_type == "gate-finding":
+        # verdict/min_score/score are filled in by the reviewer at approve
+        # time, not by the facilitator at plan time (Issue #570). Only
+        # apply the enum + ordering checks when the field is present, so a
+        # plan-time shell (verdict absent) validates cleanly. Completion
+        # enforcement is handled by the ``required_at_completion`` branch
+        # above when ``status="completed"``.
         verdict = metadata.get("verdict")
-        if verdict not in VALID_VERDICTS:
-            return (
-                f"gate-finding.verdict={verdict!r} invalid. "
-                f"Allowed: {sorted(VALID_VERDICTS)}"
-            )
-        if verdict == "CONDITIONAL" and not metadata.get("conditions_manifest_path"):
-            return "CONDITIONAL verdict requires metadata.conditions_manifest_path"
-        if verdict == "APPROVE":
-            try:
-                if float(metadata["score"]) < float(metadata["min_score"]):
-                    return (
-                        f"APPROVE verdict requires score >= min_score "
-                        f"({metadata['score']} < {metadata['min_score']})"
-                    )
-            except (TypeError, ValueError):
-                return "gate-finding.score and min_score must be numeric"
+        if verdict is not None:
+            if verdict not in VALID_VERDICTS:
+                return (
+                    f"gate-finding.verdict={verdict!r} invalid. "
+                    f"Allowed: {sorted(VALID_VERDICTS)}"
+                )
+            if verdict == "CONDITIONAL" and not metadata.get("conditions_manifest_path"):
+                return "CONDITIONAL verdict requires metadata.conditions_manifest_path"
+            if verdict == "APPROVE":
+                score = metadata.get("score")
+                min_score = metadata.get("min_score")
+                if score is not None and min_score is not None:
+                    try:
+                        if float(score) < float(min_score):
+                            return (
+                                f"APPROVE verdict requires score >= min_score "
+                                f"({score} < {min_score})"
+                            )
+                    except (TypeError, ValueError):
+                        return "gate-finding.score and min_score must be numeric"
 
     if event_type == "subtask":
         parent = metadata.get("parent_chain_id", "")
