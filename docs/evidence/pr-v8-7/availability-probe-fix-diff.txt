@@ -1,0 +1,76 @@
+diff --git a/daemon/test_dispatch.py b/daemon/test_dispatch.py
+index c4486c4..e3c6918 100644
+--- a/daemon/test_dispatch.py
++++ b/daemon/test_dispatch.py
+@@ -97,6 +97,10 @@ _VERDICT_ERROR: str = "error"
+ #: Per R5: all I/O must have timeouts.
+ _DISPATCH_TIMEOUT_S: int = 300
+ 
++#: Timeout in seconds for the wicked-testing availability probe subprocess.
++#: Kept short so the probe does not stall startup on slow machines.
++_AVAILABILITY_PROBE_TIMEOUT_S: float = 2.0
++
+ #: Idempotency window: re-dispatching the same (project, phase, skill) within
+ #: this many seconds is a no-op (avoids spamming wicked-testing).
+ _IDEMPOTENCY_WINDOW_S: int = 300
+@@ -301,26 +305,51 @@ def build_dispatch_plan(
+ # ---------------------------------------------------------------------------
+ 
+ def _is_wicked_testing_available() -> bool:
+-    """Return True if wicked-testing is accessible via npx.
++    """Probe for wicked-testing availability.
+ 
+-    Uses the existing ``_wicked_testing_probe.probe()`` infrastructure so
+-    detection is consistent with bootstrap.  Falls back to a simple shutil
+-    check when the probe module is unavailable.
++    Precedence:
++    1. _wicked_testing_probe.probe() if importable (preferred)
++    2. ``npx --no-install wicked-testing --version`` with timeout (fallback)
++       --no-install ensures we don't trigger a download if not present.
++       npx returns exit 127 when the package is not found.
++    3. shutil.which("wicked-testing") for a direct binary install (last resort)
+ 
+-    Never raises (R2: no bare panics in production paths).
++    Returns False — never raises — on any probe failure (R2: no bare panics).
+     """
++    # Primary: the dedicated probe module
+     try:
+         from _wicked_testing_probe import probe  # type: ignore[import]
+         result = probe()
+-        return result.get("status") == "ok"
++        return bool(result.get("status") == "ok")
+     except ImportError:
+         pass
+     except Exception as exc:  # noqa: BLE001
+-        logger.debug("test_dispatch: probe() raised %s — falling back to shutil", exc)
++        logger.warning(
++            "test_dispatch: wicked-testing probe module failed: %s; falling through", exc,
++        )
++
++    # Secondary: `npx --no-install wicked-testing --version` with timeout
++    try:
++        result = subprocess.run(
++            ["npx", "--no-install", "wicked-testing", "--version"],
++            capture_output=True,
++            text=True,
++            timeout=_AVAILABILITY_PROBE_TIMEOUT_S,
++        )
++        if result.returncode == 0:
++            return True
++        # npx returns exit 127 on command-not-found; any non-zero means absent
++        return False
++    except (subprocess.TimeoutExpired, FileNotFoundError):
++        # TimeoutExpired: probe hung — assume unavailable
++        # FileNotFoundError: npx itself is not installed
++        pass
++    except Exception as exc:  # noqa: BLE001
++        logger.warning("test_dispatch: npx wicked-testing probe failed: %s", exc)
+ 
+-    # Fallback: shutil check for npx (weak but always available)
++    # Tertiary: direct binary in PATH (e.g. globally installed wicked-testing)
+     import shutil
+-    return shutil.which("npx") is not None
++    return shutil.which("wicked-testing") is not None
+ 
+ 
+ # ---------------------------------------------------------------------------

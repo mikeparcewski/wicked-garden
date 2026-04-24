@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a57e4ae65d230ac17/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a57e4ae65d230ac17
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 4 items
+
+tests/daemon/test_test_dispatch.py::TestAvailabilityProbeNodeWithoutWickedTesting::test_node_present_wicked_testing_absent_returns_false PASSED [ 25%]
+tests/daemon/test_test_dispatch.py::TestAvailabilityProbeNodeWithoutWickedTesting::test_node_present_probe_returns_false_explicitly PASSED [ 50%]
+tests/daemon/test_test_dispatch.py::TestAvailabilityProbeNodeWithoutWickedTesting::test_timeout_on_npx_probe_returns_false PASSED [ 75%]
+tests/daemon/test_test_dispatch.py::TestAvailabilityProbeNodeWithoutWickedTesting::test_dispatch_records_skipped_not_error_when_unavailable PASSED [100%]
+
+============================== 4 passed in 0.13s ===============================

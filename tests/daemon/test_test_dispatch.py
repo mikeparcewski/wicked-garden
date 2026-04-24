@@ -741,3 +741,74 @@ class TestRunTestDispatches:
         records = td.run_test_dispatches(conn, "proj-1", [], autonomy_mode_str="full")
         assert records == []
         conn.close()
+
+
+# ===========================================================================
+# Stream 3 — Availability probe: Node-present-but-wicked-testing-absent
+# Council condition C1 (PR #621 re-review)
+# ===========================================================================
+
+class TestAvailabilityProbeNodeWithoutWickedTesting:
+    """Verify graceful degradation when Node.js is installed but wicked-testing is not.
+
+    Council-caught contract bug (PR #621 re-review): the shutil fallback
+    previously probed ``npx`` (returns True on any Node install), causing
+    dispatches to produce _VERDICT_ERROR instead of _VERDICT_SKIPPED_UNAVAILABLE.
+
+    Provenance: issue #621 / PR-7 council condition C1.
+    """
+
+    def test_node_present_wicked_testing_absent_returns_false(self):
+        """probe module absent + npx wicked-testing returns 127 + no binary → False."""
+        # Simulate: _wicked_testing_probe not importable, npx present but wicked-testing absent,
+        # and wicked-testing binary not in PATH.
+        fake_result = MagicMock(returncode=127, stdout="", stderr="command not found")
+        with (
+            patch.dict("sys.modules", {"_wicked_testing_probe": None}),
+            patch("subprocess.run", return_value=fake_result),
+            patch("shutil.which", return_value=None),
+        ):
+            result = td._is_wicked_testing_available()
+
+        assert result is False
+
+    def test_node_present_probe_returns_false_explicitly(self):
+        """If _wicked_testing_probe.probe() returns a non-ok status, return False immediately."""
+        probe_mod = MagicMock()
+        probe_mod.probe.return_value = {"status": "not_found"}
+        with patch.dict("sys.modules", {"_wicked_testing_probe": probe_mod}):
+            result = td._is_wicked_testing_available()
+
+        assert result is False
+
+    def test_timeout_on_npx_probe_returns_false(self):
+        """If ``npx --no-install wicked-testing`` hangs past the timeout, return False."""
+        import subprocess as _sp
+        with (
+            patch.dict("sys.modules", {"_wicked_testing_probe": None}),
+            patch("subprocess.run", side_effect=_sp.TimeoutExpired(cmd=["npx"], timeout=2.0)),
+            patch("shutil.which", return_value=None),
+        ):
+            result = td._is_wicked_testing_available()
+
+        assert result is False
+
+    def test_dispatch_records_skipped_not_error_when_unavailable(self):
+        """End-to-end: wicked-testing absent → dispatch_for_phase writes skipped_unavailable."""
+        conn = _mem_conn()
+        fake_result = MagicMock(returncode=127, stdout="", stderr="command not found")
+        with (
+            patch.dict("sys.modules", {"_wicked_testing_probe": None}),
+            patch("subprocess.run", return_value=fake_result),
+            patch("shutil.which", return_value=None),
+        ):
+            record = td.dispatch_for_phase(
+                conn, "proj-node-only", "test-strategy", "wicked-testing:plan",
+                autonomy_mode_str="full",
+            )
+
+        assert record.verdict == td._VERDICT_SKIPPED_UNAVAILABLE, (
+            f"Expected skipped_unavailable but got {record.verdict!r}. "
+            "Node-present-but-wicked-testing-absent must degrade gracefully, not error."
+        )
+        conn.close()
