@@ -242,11 +242,8 @@ After the first tool selection decision, store the preference so future decision
 
 ### Store Pattern
 
-```bash
-/wicked-garden:mem:store
-key: "cli-preference:{category}"
-value: "{chosen-tool}"
-context: "User project at {project-path}"
+```
+Skill(skill="wicked-brain:memory", args="store \"cli-preference:{category}: {chosen-tool} (project: {project-path})\" --type preference")
 ```
 
 **Examples**:

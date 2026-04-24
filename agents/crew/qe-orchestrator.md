@@ -100,9 +100,9 @@ Include in the file:
 - Conditions (if any)
 - Rationale
 
-Store decision rationale in wicked-garden:mem (if available):
+Store decision rationale via wicked-brain:memory (store mode, if available):
 ```
-/wicked-garden:mem:store "QE {gate} Gate: {decision} for {target}. {rationale}" --type decision --tags qe,gate,{gate}
+Skill(skill="wicked-brain:memory", args="store \"QE {gate} Gate: {decision} for {target}. {rationale}\" --type decision --tags qe,gate,{gate}")
 ```
 
 ### 5. Return Gate Decision

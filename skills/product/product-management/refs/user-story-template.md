@@ -245,6 +245,6 @@ Before marking a story as "Ready":
 
 **Tasks**: `TaskCreate(subject="US-123: ...", description="$(cat story.md)", metadata={"event_type":"task","chain_id":"auth.clarify","source_agent":"requirements-analyst","phase":"clarify","priority":"P0","initiative":"auth"})`
 
-**Memory**: `/wicked-garden:mem:store "auth-stories" "$(cat story.md)"`
+**Memory**: `Skill(skill="wicked-brain:memory", args="store \"auth-stories\" \"$(cat story.md)\"")`
 
 **Traceability**: Link stories to design docs (`phases/design/architecture.md`), test scenarios (`phases/qe/test-scenarios.md`), and implementation PRs.

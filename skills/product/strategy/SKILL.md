@@ -129,16 +129,16 @@ Payback Period = Investment / Annual Benefit
 
 ## Integration
 
-### With wicked-garden:mem
+### With wicked-brain:memory
 
 Store strategic insights:
 ```
-/wicked-garden:mem:store "ROI analysis: {project}" --type decision
+Skill(skill="wicked-brain:memory", args="store \"ROI analysis: {project}\" --type decision")
 ```
 
 Recall past analysis:
 ```
-/wicked-garden:mem:recall "strategic analysis {domain}"
+Skill(skill="wicked-brain:memory", args="recall \"strategic analysis {domain}\"")
 ```
 
 ### With wicked-crew

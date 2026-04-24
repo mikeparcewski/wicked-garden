@@ -189,9 +189,9 @@ If historical data exists:
 
 ### 7. Update Memory
 
-Store report for future comparison:
+Store report for future comparison via wicked-brain:memory (store mode):
 ```
-/wicked-garden:mem:store "Sprint {name} report: {completion_rate}% complete, {blocker_count} blockers, status {status}" --type discovery
+Skill(skill="wicked-brain:memory", args="store \"Sprint {name} report: {completion_rate}% complete, {blocker_count} blockers, status {status}\" --type discovery")
 ```
 
 ### 8. Return Full Report

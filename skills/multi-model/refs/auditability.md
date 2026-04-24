@@ -138,27 +138,15 @@ For decisions that matter long-term, persist to wicked-garden:mem.
 
 ### Storage Patterns
 
-```bash
+```
 # Store a decision with full attribution
-/wicked-garden:mem:store "Payment API: Use webhook-based async processing.
-Consensus from Claude, Gemini, Codex (2026-01-25).
-Key factors: idempotency, retry handling, audit trail.
-Dissent: None.
-Task: task-123" \
-  --type decision \
-  --tags payments,architecture,ai-consensus
+Skill(skill="wicked-brain:memory", args="store \"Payment API: Use webhook-based async processing.\nConsensus from Claude, Gemini, Codex (2026-01-25).\nKey factors: idempotency, retry handling, audit trail.\nDissent: None.\nTask: task-123\" --type decision --tags payments,architecture,ai-consensus")
 
 # Store a dissent/unique insight
-/wicked-garden:mem:store "Auth review: Gemini uniquely flagged JWT refresh token rotation.
-Other models missed this. Added to security checklist." \
-  --type procedural \
-  --tags security,auth,gemini-insight
+Skill(skill="wicked-brain:memory", args="store \"Auth review: Gemini uniquely flagged JWT refresh token rotation.\nOther models missed this. Added to security checklist.\" --type procedural --tags security,auth,gemini-insight")
 
 # Store a lesson learned
-/wicked-garden:mem:store "AI code review limitation: All models missed SQL injection
-in dynamic query builder. Add explicit SQL injection check to review prompts." \
-  --type episodic \
-  --tags lesson-learned,security,ai-limitation
+Skill(skill="wicked-brain:memory", args="store \"AI code review limitation: All models missed SQL injection in dynamic query builder. Add explicit SQL injection check to review prompts.\" --type episodic --tags lesson-learned,security,ai-limitation")
 ```
 
 ## Audit Record Template
@@ -222,14 +210,9 @@ echo "$(date -Iseconds) | AI_CONSULT | gemini | code-review | NO_PHI" >> audit.l
 
 ### Financial/SOX
 
-```bash
+```
 # Include decision chain
-/wicked-garden:mem:store "Trade algorithm change approved.
-AI review: Claude, Gemini confirmed no regression risk.
-Human approval: [Name] on [Date].
-Change ticket: JIRA-456" \
-  --type decision \
-  --tags sox-audit,trading,ai-review
+Skill(skill="wicked-brain:memory", args="store \"Trade algorithm change approved.\nAI review: Claude, Gemini confirmed no regression risk.\nHuman approval: [Name] on [Date].\nChange ticket: JIRA-456\" --type decision --tags sox-audit,trading,ai-review")
 ```
 
 ### General Best Practices

@@ -96,8 +96,8 @@ The `memory-archivist` agent runs automatically:
 
 Archived memories retain their content but are excluded from search results. To recover:
 
-1. Use `/wicked-garden:mem:recall` with `--include-archived` to find the memory
-2. Use `/wicked-garden:mem:store` to re-create the memory as active
+1. Use `wicked-brain:memory` (recall mode) with `--include-archived` to find the memory
+2. Use `wicked-brain:memory` (store mode) to re-create the memory as active
 3. Memory returns to search results
 
 ## Best Practices

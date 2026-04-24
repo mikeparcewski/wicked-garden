@@ -252,13 +252,11 @@ Skip this step if no external CLIs are available. This is graceful enhancement, 
 
 After synthesis, automatically store a structured decision record:
 
-1. **Check if wicked-garden:mem is available** (graceful degradation)
-2. **If available**: Store via `/wicked-garden:mem:store` with:
-   - **content**: "Decision: {topic}\nChosen: {recommended option from synthesis}\nRationale: {key reasoning}\nAlternatives considered: {other options}\nConfidence: {HIGH/MEDIUM/LOW}\nEvidence used: {summary of evidence brief}\nPersonas: {list of personas}"
-   - **type**: decision
-   - **tags**: jam,decision,{2-3 topic keywords}
-   - **importance**: high
-3. **If not available**: Show the decision record inline so users can manually save it
+1. Store via wicked-brain:memory (store mode) — graceful degradation: skip if unavailable:
+   ```
+   Skill(skill="wicked-brain:memory", args="store \"Decision: {topic}\nChosen: {recommended option from synthesis}\nRationale: {key reasoning}\nAlternatives considered: {other options}\nConfidence: {HIGH/MEDIUM/LOW}\nEvidence used: {summary of evidence brief}\nPersonas: {list of personas}\" --type decision --tags \"jam,decision,{2-3 topic keywords}\" --importance high")
+   ```
+2. **If unavailable**: Show the decision record inline so users can manually save it
 
 This creates organizational memory — every brainstorm becomes a searchable, recallable decision record.
 

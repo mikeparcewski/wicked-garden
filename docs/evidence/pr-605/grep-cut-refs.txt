@@ -1,0 +1,29 @@
+skills/integration-discovery/refs/cli-detection.md:/wicked-garden:mem:store
+skills/product/product-management/refs/user-story-template.md:**Memory**: `/wicked-garden:mem:store "auth-stories" "$(cat story.md)"`
+skills/product/requirements-analysis/refs/requirements-example-export-integration.md:/wicked-garden:mem:store "auth-requirements-2026" "$(cat requirements.md)"
+skills/product/strategy/SKILL.md:/wicked-garden:mem:store "ROI analysis: {project}" --type decision
+skills/multi-model/SKILL.md:/wicked-garden:mem:store "Auth: JWT with 15min/7day expiry.
+skills/multi-model/refs/examples.md:/wicked-garden:mem:store "Payment gateway: Stripe with async webhooks.
+skills/multi-model/refs/examples.md:/wicked-garden:mem:store "JWT tokens: Use 15min access / 7day refresh.
+skills/multi-model/refs/orchestration.md:/wicked-garden:mem:store "Auth: JWT with 15min/7day expiry.
+skills/multi-model/refs/auditability.md:/wicked-garden:mem:store "Payment API: Use webhook-based async processing.
+skills/multi-model/refs/auditability.md:/wicked-garden:mem:store "Auth review: Gemini uniquely flagged JWT refresh token rotation.
+skills/multi-model/refs/auditability.md:/wicked-garden:mem:store "AI code review limitation: All models missed SQL injection
+skills/multi-model/refs/auditability.md:/wicked-garden:mem:store "Trade algorithm change approved.
+skills/workflow/refs/integration.md:/wicked-garden:mem:store --type decision --tags "{project}" "{decision}"
+skills/workflow/refs/integration.md:/wicked-garden:mem:store --type episodic --tags "{project}" "Encountered {issue}, resolved by {solution}"
+skills/workflow/refs/integration.md:# "If wicked-garden:mem is available:" → /wicked-garden:mem:store ...
+skills/jam/SKILL.md:    mem_store(insights, type="decision", tags=[topic])  # via /wicked-garden:mem:store
+skills/mem/SKILL.md:| Store a decision | `/wicked-garden:mem:store "..." --type decision` |
+skills/mem/refs/memory-lifecycle.md:2. Use `/wicked-garden:mem:store` to re-create the memory as active
+skills/mem/refs/storing-decisions.md:/wicked-garden:mem:store "Chose PostgreSQL over MongoDB for payment system. \
+skills/mem/refs/storing-decisions.md:/wicked-garden:mem:store "Authentication flow: 1) Validate JWT on backend, \
+skills/mem/refs/storing-decisions.md:/wicked-garden:mem:store "Session bug 2026-01-18: JWT migration broke session \
+agents/crew/qe-orchestrator.md:/wicked-garden:mem:store "QE {gate} Gate: {decision} for {target}. {rationale}" --type decision --tags qe,gate,{gate}
+agents/delivery/stakeholder-reporter.md:/wicked-garden:mem:store "Sprint {name} report: {completion_rate}% complete, {blocker_count} blockers, status {status}" --type discovery
+agents/jam/council.md:/wicked-garden:mem:store "Council: {topic} → {verdict_summary}" --type decision --tags "council,{topic_slug}" --importance high
+agents/delivery/risk-monitor.md:/wicked-garden:mem:store "risk pattern: {risk type} in {context} led to {impact} - mitigated by {action}"
+agents/jam/brainstorm-facilitator.md:2. **If available**: Store via `/wicked-garden:mem:store` with:
+scripts/ci/gate4-cutover-matrix.md:| **Memory payload emission** — `memory_payload` field on JSON output; caller (start.md / execute.md) stores via `/wicked-garden:mem:store` | Rubric writes `process-plan.md` to the project directory (Step 2) + explicit `wicked-brain:memory` store call for "non-obvious decisions, patterns, gotchas" per the project CLAUDE.md. The Gate 3 wiring in `commands/crew/start.md` Section A includes a brain-memory store for the facilitator plan (line ~182). | **NO** — process-plan.md is the durable artifact; brain memory stores are explicit, not keyword-gated. Richer than v5. |
+scripts/crew/dispatch_log.py:        "Run /wicked-garden:crew:migrate-gates to backfill.\n"
+scripts/smaht/context_package.py:        "/wicked-garden:mem:store — persist a decision or learning for future sessions",

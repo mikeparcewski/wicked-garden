@@ -147,14 +147,10 @@ Each model response becomes one entry:
 
 Synthesis is appended as `entry_type: synthesis`, `persona_name: Council`.
 
-### Decision Records (via wicked-garden:mem)
+### Decision Records (via wicked-brain:memory)
 
-```bash
-/wicked-garden:mem:store "Auth: JWT with 15min/7day expiry.
-Council: Claude (architect), Gemini (security), Codex (ux).
-Consensus: idempotency critical, session store risky at scale.
-Unique: Gemini flagged Redis cluster cost." \
-  --type decision --tags auth,council
+```
+Skill(skill="wicked-brain:memory", args="store \"Auth: JWT with 15min/7day expiry.\nCouncil: Claude (architect), Gemini (security), Codex (ux).\nConsensus: idempotency critical, session store risky at scale.\nUnique: Gemini flagged Redis cluster cost.\" --type decision --tags auth,council")
 ```
 
 ## Anti-Patterns

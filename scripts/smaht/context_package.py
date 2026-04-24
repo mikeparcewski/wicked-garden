@@ -55,7 +55,7 @@ if str(_smaht_dir / "v2") not in sys.path:
 PLUGIN_SKILL_MAP = {
     "mem": [
         "/wicked-garden:mem:recall — retrieve past decisions, constraints, patterns",
-        "/wicked-garden:mem:store — persist a decision or learning for future sessions",
+        "wicked-brain:memory (store mode) — persist a decision or learning for future sessions",
     ],
     "search": [
         "/wicked-garden:search:code — find code symbols (functions, classes, methods)",
