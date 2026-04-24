@@ -120,7 +120,10 @@ def _validate_event_metadata(tool_input: dict) -> "str | None":
 
     metadata = tool_input.get("metadata") or {}
     phases = set(_load_phases_config_hook().keys())
-    return validate_metadata(metadata, valid_phases=phases or None)
+    status = tool_input.get("status")
+    return validate_metadata(
+        metadata, valid_phases=phases or None, status=status,
+    )
 
 
 def _task_metadata_mode() -> str:

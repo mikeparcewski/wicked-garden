@@ -289,7 +289,7 @@ Tasks carry agent-coordination fields in the `metadata` dict passed to `TaskCrea
 - **`source_agent`**: Agent that authored the event. Banned values: `just-finish-auto`, `fast-pass`, anything starting with `auto-approve-`.
 - **`phase`**: Crew phase name — must be a key in `.claude-plugin/phases.json`.
 
-`gate-finding` additionally requires `verdict` (APPROVE | CONDITIONAL | REJECT), `min_score`, `score`; CONDITIONAL requires `conditions_manifest_path`.
+`gate-finding` shell at plan time requires only `chain_id`, `event_type`, `source_agent`, `phase`. On completion (`status=completed`) it additionally requires `verdict` (APPROVE | CONDITIONAL | REJECT), `min_score`, `score`; CONDITIONAL requires `conditions_manifest_path` (Issue #570).
 
 **Enforcement mode**: `WG_TASK_METADATA=warn|strict|off` (default: `warn`). Warn emits a deprecation `systemMessage` on violations; strict denies via `permissionDecision: "deny"`.
 
