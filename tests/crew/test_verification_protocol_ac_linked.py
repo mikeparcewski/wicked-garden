@@ -1,30 +1,31 @@
 #!/usr/bin/env python3
 """
-Regression tests for verification_protocol._check_ac_linked fixes (issue #587).
+Regression tests for verification_protocol.check_acceptance_criteria fixes (issue #587).
 
 Covers:
-  (A) Normalize both sides — AC-3 / AC3 / ac_3 / ac-3 all match
+  (A) Separator / case normalisation — AC-3 / AC3 / ac_3 / ac-3 all match
   (B) Parent-id fallback — AC-3.1 is satisfied by deliverable referencing AC-3
+      (end-to-end via filesystem; extractor now captures dotted IDs)
   (C) Severity downgrade — >=80% coverage yields WARN, not FAIL
+  (D) Data-shape distinctness — AC-3 and AC-30 are separate tokens (no false positives)
 
 Run with: pytest tests/crew/test_verification_protocol_ac_linked.py
 """
 
 import datetime
-import re
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Path setup — mirror pattern from other crew test files
+# Path setup — append rather than prepend to avoid shadowing the crew/ package
 # ---------------------------------------------------------------------------
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPTS_DIR = _REPO_ROOT / "scripts"
 _CREW_DIR = _SCRIPTS_DIR / "crew"
-sys.path.insert(0, str(_SCRIPTS_DIR))
-sys.path.insert(0, str(_CREW_DIR))
+sys.path.append(str(_SCRIPTS_DIR))
+sys.path.append(str(_CREW_DIR))
 
 from verification_protocol import check_acceptance_criteria, CheckResult, VerificationReport  # noqa: E402
 
@@ -87,65 +88,55 @@ class TestNormalisedMatch(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# (B) Parent-id fallback — tested via inline normalisation logic
+# (B) Parent-id fallback — end-to-end filesystem tests
 #
-# The AC extractor regex (`AC-\d+`) does not capture dotted IDs like `AC-3.1`
-# from markdown source, so end-to-end file-system tests for AC-3.1 would always
-# SKIP (no IDs extracted).  Instead we directly verify the normalisation helper
-# that _check_ac_linked inlines: strip non-alphanumeric chars and check parent.
+# The extractor now captures dotted IDs (AC-3.1) so these run end-to-end
+# through check_acceptance_criteria rather than replicating internal logic.
 # ---------------------------------------------------------------------------
 
 class TestParentIdFallbackLogic(unittest.TestCase):
-    """Verify the parent-id fallback normalisation logic (fix B) in isolation."""
+    """Parent-id fallback: AC-3.1 in clarify is satisfied by AC-3 in deliverable."""
 
-    # Mirror the exact helper from verification_protocol._check_ac_linked
-    _norm_re = re.compile(r"[^a-z0-9]")
-
-    def _ac_matches(self, ac_id: str, deliverable_text: str) -> bool:
-        """Replicate the _ac_matches closure from _check_ac_linked."""
-        norm_text = self._norm_re.sub("", deliverable_text.lower())
-        norm_id = self._norm_re.sub("", ac_id.lower())
-        if norm_id in norm_text:
-            return True
-        # Parent-id fallback
-        dot = ac_id.rfind(".")
-        if dot != -1:
-            parent_id = ac_id[:dot]
-            norm_parent = self._norm_re.sub("", parent_id.lower())
-            if norm_parent in norm_text:
-                return True
-        return False
+    def _run(self, clarify_text: str, deliverable_text: str):
+        with tempfile.TemporaryDirectory() as td:
+            phases = _make_phases(Path(td), clarify_text, deliverable_text)
+            return check_acceptance_criteria("proj", phases)
 
     def test_parent_reference_satisfies_child(self):
-        """AC-3 in deliverable satisfies AC-3.1 requirement."""
-        self.assertTrue(self._ac_matches("AC-3.1", "Login timeout covered under AC-3."))
+        """AC-3 in deliverable satisfies AC-3.1 requirement (end-to-end)."""
+        clarify = "- **AC-3.1**: Login timeout handling\n"
+        deliverable = "Login timeout covered under AC-3."
+        result = self._run(clarify, deliverable)
+        self.assertEqual(result.status, "PASS", msg=f"Expected PASS, got {result.status}: {result.evidence}")
 
     def test_exact_child_still_works(self):
-        """AC-3.1 exact reference also matches."""
-        self.assertTrue(self._ac_matches("AC-3.1", "Implemented AC-3.1 timeout logic."))
+        """AC-3.1 exact reference also matches (end-to-end)."""
+        clarify = "- **AC-3.1**: Login timeout handling\n"
+        deliverable = "Implemented AC-3.1 timeout logic."
+        result = self._run(clarify, deliverable)
+        self.assertEqual(result.status, "PASS")
 
-    def test_parent_normalised_ac3(self):
-        """Normalised parent 'AC3' in deliverable satisfies AC-3.1."""
-        self.assertTrue(self._ac_matches("AC-3.1", "See AC3 for all login criteria."))
+    def test_parent_normalised_ac3_satisfies_child(self):
+        """Normalised parent 'AC3' in deliverable satisfies AC-3.1 (end-to-end)."""
+        clarify = "- **AC-3.1**: Login timeout handling\n"
+        deliverable = "See AC3 for all login criteria."
+        result = self._run(clarify, deliverable)
+        self.assertEqual(result.status, "PASS")
 
     def test_unrelated_id_does_not_match(self):
         """AC-5 does NOT satisfy AC-3.1 — only true parent does."""
-        self.assertFalse(self._ac_matches("AC-3.1", "Only references AC-5."))
+        clarify = "- **AC-3.1**: Login timeout handling\n"
+        deliverable = "Only references AC-5."
+        result = self._run(clarify, deliverable)
+        # AC-3.1 is unlinked; single AC, coverage = 0/1 = FAIL
+        self.assertEqual(result.status, "FAIL")
 
-    def test_no_false_partial_match(self):
-        """AC-3 should not match 'AC-30' when normalised (ac3 vs ac30)."""
-        # normalised: ac3 vs ac30 — 'ac3' is not in 'ac30 text' as a standalone token
-        # BUT it IS a substring. This is an accepted trade-off documented in issue #587.
-        # The fix is substring-based, not word-boundary-based.
-        # This test just documents the known behaviour.
-        result = self._ac_matches("AC-3", "See AC30 for details.")
-        # ac3 IS a substring of ac30, so this will return True — document it
-        self.assertTrue(result)  # known substring match; acceptable trade-off
-
-    def test_deep_nesting_ac_2_1_3(self):
-        """AC-2.1.3 parent fallback extracts AC-2.1 (immediate parent)."""
-        # Immediate parent is AC-2.1
-        self.assertTrue(self._ac_matches("AC-2.1.3", "Implements AC-2.1 feature."))
+    def test_deep_nesting_ac_2_1_3_parent_fallback(self):
+        """AC-2.1.3 in clarify: immediate parent AC-2.1 in deliverable satisfies it."""
+        clarify = "- **AC-2.1.3**: Sub-feature detail\n"
+        deliverable = "Implements AC-2.1 feature."
+        result = self._run(clarify, deliverable)
+        self.assertEqual(result.status, "PASS")
 
 
 # ---------------------------------------------------------------------------
@@ -170,22 +161,22 @@ class TestCoverageThreshold(unittest.TestCase):
             return check_acceptance_criteria("proj", phases)
 
     def test_90_percent_coverage_is_warn(self):
-        """9/10 ACs linked (90%) → WARN, not FAIL."""
+        """9/10 ACs linked (90%) -> WARN, not FAIL."""
         result = self._run(10, list(range(1, 10)))  # AC-1..9 linked, AC-10 missing
         self.assertEqual(result.status, "WARN", msg=f"Expected WARN, got {result.status}: {result.evidence}")
 
     def test_80_percent_exact_is_warn(self):
-        """4/5 ACs linked (80%) → WARN."""
+        """4/5 ACs linked (80%) -> WARN."""
         result = self._run(5, [1, 2, 3, 4])  # AC-5 missing
         self.assertEqual(result.status, "WARN", msg=f"Expected WARN, got {result.status}: {result.evidence}")
 
     def test_below_80_percent_is_fail(self):
-        """3/5 ACs linked (60%) → FAIL."""
+        """3/5 ACs linked (60%) -> FAIL."""
         result = self._run(5, [1, 2, 3])  # AC-4, AC-5 missing
         self.assertEqual(result.status, "FAIL", msg=f"Expected FAIL, got {result.status}: {result.evidence}")
 
     def test_100_percent_is_pass(self):
-        """All ACs linked → PASS."""
+        """All ACs linked -> PASS."""
         result = self._run(5, [1, 2, 3, 4, 5])
         self.assertEqual(result.status, "PASS")
 
@@ -199,18 +190,84 @@ class TestCoverageThreshold(unittest.TestCase):
                 CheckResult(
                     name="acceptance_criteria",
                     status="WARN",
-                    evidence="9/10 AC linked (cosmetic mismatches only); missing: AC-10",
+                    evidence="9/10 AC linked; high coverage threshold met; treating as advisory; missing: AC-10",
                     details={},
                 ),
             ],
         )
         self.assertEqual(report.verdict, "PASS")
 
-    def test_warn_evidence_mentions_cosmetic(self):
-        """WARN evidence string identifies the nature of the mismatch."""
+    def test_warn_evidence_mentions_coverage_and_advisory(self):
+        """WARN evidence string accurately describes the situation — no 'cosmetic' claim."""
         result = self._run(10, list(range(1, 10)))
-        self.assertIn("cosmetic", result.evidence)
+        self.assertIn("high coverage threshold met", result.evidence)
+        self.assertIn("advisory", result.evidence)
         self.assertIn("missing", result.evidence)
+        # Old misleading wording must NOT appear
+        self.assertNotIn("cosmetic", result.evidence)
+
+
+# ---------------------------------------------------------------------------
+# (D) Data-shape distinctness — canonical-token-set guarantees
+# ---------------------------------------------------------------------------
+
+class TestDataShapeMatching(unittest.TestCase):
+    """Canonical-token-set data shape: AC-3 and AC-30 are distinct tokens."""
+
+    _CLARIFY_AC3 = "- **AC-3**: User can log in\n"
+    _CLARIFY_AC30 = "- **AC-30**: User can export data\n"
+    _CLARIFY_BOTH = "- **AC-3**: User can log in\n- **AC-30**: User can export data\n"
+
+    def _run(self, clarify_text: str, deliverable_text: str):
+        with tempfile.TemporaryDirectory() as td:
+            phases = _make_phases(Path(td), clarify_text, deliverable_text)
+            return check_acceptance_criteria("proj", phases)
+
+    def test_ac3_does_not_false_match_ac30(self):
+        """AC-3 in clarify should be UNLINKED when deliverable only contains AC-30."""
+        result = self._run(self._CLARIFY_AC3, "See AC-30 for details.")
+        # AC-3 is unlinked; 0/1 coverage -> FAIL
+        self.assertEqual(result.status, "FAIL",
+                         msg=f"AC-3 falsely matched AC-30: got {result.status}: {result.evidence}")
+        self.assertIn("AC-3", result.evidence)
+
+    def test_ac30_distinct_from_ac3(self):
+        """Both AC-3 and AC-30 extracted and verified independently."""
+        # Deliverable mentions both explicitly
+        result = self._run(self._CLARIFY_BOTH, "Implements AC-3 login. See AC-30 export.")
+        self.assertEqual(result.status, "PASS",
+                         msg=f"Expected both linked, got {result.status}: {result.evidence}")
+
+    def test_ac30_alone_does_not_satisfy_ac3(self):
+        """When both defined in clarify, AC-30 alone leaves AC-3 unlinked."""
+        result = self._run(self._CLARIFY_BOTH, "Only AC-30 is referenced.")
+        self.assertNotEqual(result.status, "PASS")
+        # AC-3 should appear as unlinked
+        self.assertIn("AC-3", result.evidence)
+
+    def test_dotted_id_extracted_and_matched(self):
+        """AC-3.1 in clarify, AC-3.1 in deliverable -> linked directly."""
+        clarify = "- **AC-3.1**: Login timeout\n"
+        deliverable = "Implements AC-3.1 timeout."
+        result = self._run(clarify, deliverable)
+        self.assertEqual(result.status, "PASS")
+
+    def test_dotted_id_parent_fallback(self):
+        """AC-3.1 in clarify, only AC-3 in deliverable -> linked via parent fallback."""
+        clarify = "- **AC-3.1**: Login timeout\n"
+        deliverable = "Login behavior covered under AC-3."
+        result = self._run(clarify, deliverable)
+        self.assertEqual(result.status, "PASS",
+                         msg=f"Parent fallback failed: {result.status}: {result.evidence}")
+
+    def test_canonical_form_unifies_variants(self):
+        """AC-3, AC3, AC_3, ac 3 in deliverable all match AC-3 in clarify."""
+        clarify = "- **AC-3**: User can log in\n"
+        for variant in ("AC-3", "AC3", "AC_3", "ac 3"):
+            with self.subTest(variant=variant):
+                result = self._run(clarify, f"See {variant} for details.")
+                self.assertEqual(result.status, "PASS",
+                                 msg=f"Variant '{variant}' failed: {result.status}: {result.evidence}")
 
 
 if __name__ == "__main__":

@@ -161,16 +161,30 @@ def _read_text(path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 _AC_TABLE_ROW_RE = re.compile(
-    r"\|\s*(?P<id>AC-\d+|[A-Z]{1,4}-\d+|\d+)\s*\|"
+    r"\|\s*(?P<id>AC-\d+(?:\.\d+)*|[A-Z]{1,4}-\d+(?:\.\d+)*|\d+)\s*\|"
     r"\s*(?P<desc>[^|]+)\s*\|"
     r"\s*(?P<test>[^|]*)\s*\|",
     re.IGNORECASE,
 )
 
 _AC_LIST_RE = re.compile(
-    r"[-*]\s+(?:\*\*)?(?P<id>AC-\d+|[A-Z]{1,4}-\d+)(?:\*\*)?\s*[:\-]\s*(?P<desc>.+)",
+    r"[-*]\s+(?:\*\*)?(?P<id>AC-\d+(?:\.\d+)*|[A-Z]{1,4}-\d+(?:\.\d+)*)(?:\*\*)?\s*[:\-]\s*(?P<desc>.+)",
     re.IGNORECASE,
 )
+
+# Tokenize all AC references in deliverable text ONCE into a canonical set.
+# This makes verification = exact set membership, not substring scan.
+# AC-3 and AC-30 produce DISTINCT tokens; no false positives possible.
+_AC_TOKEN_RE = re.compile(r"\bAC[\s_-]*\d+(?:\.\d+)*\b", re.IGNORECASE)
+
+
+def _canonical_ac(value: str) -> str:
+    """Normalize AC identifier variants to canonical form: 'ac-3' or 'ac-3.1'.
+
+    Examples: 'AC-3' -> 'ac-3', 'AC3' -> 'ac-3', 'AC_3.1' -> 'ac-3.1', 'ac 3' -> 'ac-3'.
+    """
+    m = re.search(r"ac[\s_-]*(\d+(?:\.\d+)*)", value, re.IGNORECASE)
+    return f"ac-{m.group(1)}" if m else value.lower()
 
 
 def _extract_ac_ids(text: str) -> List[str]:
@@ -249,24 +263,23 @@ def check_acceptance_criteria(
         for py in d.glob("**/*.py"):
             deliverable_text += _read_text(py) + "\n"
 
-    # (A) Normalize deliverable text once: strip non-alphanumeric chars and lowercase.
-    # This makes AC-3, AC3, ac_3, and AC-3 all compare equal.
-    _norm = re.compile(r"[^a-z0-9]")
-    norm_text = _norm.sub("", deliverable_text.lower())
+    # Build the deliverable's set of canonical AC tokens (one pass over text).
+    # Set membership is exact — AC-3 and AC-30 are distinct tokens.
+    deliverable_ac_set: set = {
+        _canonical_ac(match.group(0))
+        for match in _AC_TOKEN_RE.finditer(deliverable_text)
+    }
 
     def _ac_matches(ac_id: str) -> bool:
-        """Return True if ac_id (or its parent) appears in normalised deliverable text."""
-        # (A) normalise the candidate id
-        norm_id = _norm.sub("", ac_id.lower())
-        if norm_id in norm_text:
+        """True if ac_id (or its parent for dotted IDs) appears in deliverable AC set."""
+        canon = _canonical_ac(ac_id)
+        if canon in deliverable_ac_set:
             return True
-        # (B) parent-id fallback: AC-3.1 → try AC-3
-        dot = ac_id.rfind(".")
-        if dot != -1:
-            parent_id = ac_id[:dot]
-            norm_parent = _norm.sub("", parent_id.lower())
-            if norm_parent in norm_text:
-                return True
+        # Parent-id fallback as a SET lookup (deliberate, not accidental substring).
+        # AC-3.1 is satisfied if deliverable references AC-3.
+        if "." in canon:
+            parent = canon.rsplit(".", 1)[0]
+            return parent in deliverable_ac_set
         return False
 
     # Check which ACs are referenced
@@ -289,8 +302,8 @@ def check_acceptance_criteria(
                 name=name,
                 status="WARN",
                 evidence=(
-                    f"{linked_count}/{total} AC linked (cosmetic mismatches only); "
-                    f"missing: {', '.join(unlinked)}"
+                    f"{linked_count}/{total} AC linked; high coverage threshold met; "
+                    f"treating as advisory; missing: {', '.join(unlinked)}"
                 ),
                 details={"linked": linked, "unlinked": unlinked, "total": total},
             )
