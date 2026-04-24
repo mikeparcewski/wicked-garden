@@ -248,12 +248,72 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_test_dispatches_verdict
             ON test_dispatches(verdict);
+
+        -- Hook subscription registry (v8-PR-8 #592): typed hook subscribers.
+        --
+        -- MUTATION CARVE-OUT from PR-1 decision #6 (daemon read-only):
+        -- Subscriptions are originated by the daemon (via registration sweep at
+        -- startup or direct db calls from operators).  This is the fourth explicit
+        -- write path after council (PR-4), event ingestion (PR-2), and test
+        -- dispatch (PR-7).  HTTP toggle (POST /subscriptions/<id>/toggle) is a
+        -- bounded write exception for operator control — documented in
+        -- daemon/hook_dispatch.py and docs/evidence/pr-v8-8/contract-check.md.
+        -- Creation of subscriptions is NOT exposed over HTTP; only file-config
+        -- or direct DB calls may register them.
+        CREATE TABLE IF NOT EXISTS hook_subscriptions (
+            subscription_id TEXT PRIMARY KEY,
+            filter_pattern  TEXT NOT NULL,
+            debounce_rule   TEXT,
+            handler_path    TEXT NOT NULL,
+            enabled         INTEGER NOT NULL DEFAULT 1,
+            created_at      INTEGER NOT NULL,
+            updated_at      INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_hook_subscriptions_filter
+            ON hook_subscriptions(filter_pattern, enabled);
+
+        -- Hook invocation audit log (v8-PR-8 #592): one row per subscriber dispatch
+        -- attempt, including debounced and filtered-out outcomes.
+        -- Per-invocation stdout_digest / stderr_digest are capped at 1000 chars.
+        --
+        -- B1 fix (#624): debounce_key stores the composite dedup key computed at
+        -- dispatch time (e.g. "phase-boundary:sub-1:proj-1:build").  Debounce
+        -- queries filter by this column rather than constructing a fake composite
+        -- event_type value that was never stored in the original implementation.
+        CREATE TABLE IF NOT EXISTS hook_invocations (
+            invocation_id   TEXT PRIMARY KEY,
+            subscription_id TEXT NOT NULL,
+            event_id        INTEGER NOT NULL,
+            event_type      TEXT NOT NULL,
+            verdict         TEXT NOT NULL,
+            debounce_key    TEXT,
+            stdout_digest   TEXT,
+            stderr_digest   TEXT,
+            latency_ms      INTEGER NOT NULL,
+            emitted_at      INTEGER NOT NULL,
+            FOREIGN KEY (subscription_id)
+                REFERENCES hook_subscriptions(subscription_id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_hook_invocations_event_type
+            ON hook_invocations(event_type, emitted_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_hook_invocations_subscription
+            ON hook_invocations(subscription_id, emitted_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_hook_invocations_debounce_key
+            ON hook_invocations(debounce_key);
     """)
     conn.commit()
 
     # Run one-time migrations registered above.
     _run_migration(conn, "phase_state_completed_to_canonical",
                    _migrate_phase_state_completed_to_canonical)
+    # B1 fix (#624): add debounce_key column to existing hook_invocations tables
+    # that were created before this column was introduced.
+    _run_migration(conn, "hook_invocations_add_debounce_key",
+                   _migrate_hook_invocations_add_debounce_key)
 
 
 # ---------------------------------------------------------------------------
@@ -313,6 +373,24 @@ def _migrate_phase_state_completed_to_canonical(conn: sqlite3.Connection) -> Non
             "WHERE project_id = ? AND phase = ? AND state = 'completed'",
             (new_state, now, project_id, phase),
         )
+    # Commit is handled by _run_migration after the migration row is written.
+
+
+def _migrate_hook_invocations_add_debounce_key(conn: sqlite3.Connection) -> None:
+    """Add the ``debounce_key`` column to hook_invocations if it does not exist.
+
+    B1 fix (#624): hook_invocations tables created before this migration lack
+    the ``debounce_key`` column that ``append_hook_invocation`` now writes.
+    ALTER TABLE ADD COLUMN is idempotent-safe via the _migrations guard.
+    Existing rows get NULL for debounce_key, which is correct — they predate
+    the fix and would not have had a key stored anyway.
+    """
+    # Only add the column when hook_invocations exists (it may not on fresh DBs
+    # that went through CREATE TABLE IF NOT EXISTS with the column already present).
+    cols_info = conn.execute("PRAGMA table_info(hook_invocations)").fetchall()
+    col_names = {r[1] for r in cols_info}
+    if "debounce_key" not in col_names:
+        conn.execute("ALTER TABLE hook_invocations ADD COLUMN debounce_key TEXT")
     # Commit is handled by _run_migration after the migration row is written.
 
 
@@ -1029,3 +1107,209 @@ def ac_coverage_summary(
     linked: int = linked_row[0] if linked_row else 0
 
     return {"total": total, "linked": linked, "unlinked": total - linked}
+
+
+# ---------------------------------------------------------------------------
+# Hook subscription CRUD (v8-PR-8 #592)
+# ---------------------------------------------------------------------------
+# Subscriptions are originated by the daemon (registration sweep at startup or
+# operator direct-db calls).  They are NOT created via HTTP — only toggled.
+# This is the 4th explicit write path, documented in daemon/hook_dispatch.py
+# and docs/evidence/pr-v8-8/contract-check.md.
+
+_MAX_LIST_SUBSCRIPTIONS: int = 500
+_MAX_LIST_INVOCATIONS: int = 1_000
+
+#: Digest length for handler stdout/stderr captured in hook_invocations.
+_INVOCATION_DIGEST_LENGTH: int = 1_000
+
+
+def upsert_hook_subscription(
+    conn: sqlite3.Connection,
+    subscription_id: str,
+    filter_pattern: str,
+    handler_path: str,
+    debounce_rule: dict | None = None,
+    enabled: bool = True,
+    created_at: int | None = None,
+) -> None:
+    """Insert or update a hook_subscriptions row.
+
+    Idempotent: re-registering the same subscription_id updates the filter,
+    handler, and debounce rule while preserving created_at.
+
+    ``debounce_rule`` is JSON-serialised to TEXT when provided.
+    """
+    now = int(time.time())
+    ts = created_at if created_at is not None else now
+    debounce_json: str | None = (
+        json.dumps(debounce_rule, separators=(",", ":")) if debounce_rule is not None else None
+    )
+    conn.execute(
+        """
+        INSERT INTO hook_subscriptions
+            (subscription_id, filter_pattern, handler_path, debounce_rule,
+             enabled, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(subscription_id) DO UPDATE SET
+            filter_pattern = excluded.filter_pattern,
+            handler_path   = excluded.handler_path,
+            debounce_rule  = excluded.debounce_rule,
+            enabled        = excluded.enabled,
+            updated_at     = excluded.updated_at
+        """,
+        (subscription_id, filter_pattern, handler_path, debounce_json,
+         1 if enabled else 0, ts, now),
+    )
+    conn.commit()
+
+
+def get_hook_subscription(
+    conn: sqlite3.Connection,
+    subscription_id: str,
+) -> dict[str, Any] | None:
+    """Return a hook_subscriptions row as a dict, or None if not found.
+
+    ``debounce_rule`` is deserialised from JSON to a dict (or None).
+    """
+    row = conn.execute(
+        "SELECT * FROM hook_subscriptions WHERE subscription_id = ?",
+        (subscription_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    result = dict(row)
+    _deserialize_debounce_rule(result)
+    return result
+
+
+def list_hook_subscriptions(
+    conn: sqlite3.Connection,
+    enabled_only: bool = False,
+) -> list[dict[str, Any]]:
+    """Return hook_subscriptions rows ordered by created_at ASC.
+
+    ``enabled_only=True`` filters to rows with enabled=1.
+    Capped at _MAX_LIST_SUBSCRIPTIONS (R5: no unbounded reads).
+    """
+    if enabled_only:
+        rows = conn.execute(
+            """
+            SELECT * FROM hook_subscriptions
+            WHERE enabled = 1
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            (_MAX_LIST_SUBSCRIPTIONS,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT * FROM hook_subscriptions
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            (_MAX_LIST_SUBSCRIPTIONS,),
+        ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        _deserialize_debounce_rule(d)
+        result.append(d)
+    return result
+
+
+def toggle_hook_subscription(
+    conn: sqlite3.Connection,
+    subscription_id: str,
+    enabled: bool,
+) -> bool:
+    """Toggle a subscription's enabled flag.  Returns True if a row was updated."""
+    now = int(time.time())
+    cursor = conn.execute(
+        "UPDATE hook_subscriptions SET enabled = ?, updated_at = ? WHERE subscription_id = ?",
+        (1 if enabled else 0, now, subscription_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def append_hook_invocation(
+    conn: sqlite3.Connection,
+    invocation_id: str,
+    subscription_id: str,
+    event_id: int,
+    event_type: str,
+    verdict: str,
+    latency_ms: int,
+    stdout_digest: str | None = None,
+    stderr_digest: str | None = None,
+    emitted_at: int | None = None,
+    debounce_key: str | None = None,
+) -> None:
+    """Append one hook invocation audit row.
+
+    ``stdout_digest`` and ``stderr_digest`` are automatically truncated to
+    _INVOCATION_DIGEST_LENGTH characters if longer (R5: no unbounded storage).
+    Idempotent via INSERT OR IGNORE — re-recording the same invocation_id is a no-op.
+
+    ``debounce_key`` (B1 fix #624): stores the composite dedup key computed at
+    dispatch time so future debounce lookups can query by this column instead of
+    constructing a fake composite event_type that was never stored.
+    """
+    ts = emitted_at if emitted_at is not None else int(time.time())
+    # Truncate digests to bounded length (R5: no unbounded storage).
+    if stdout_digest and len(stdout_digest) > _INVOCATION_DIGEST_LENGTH:
+        stdout_digest = stdout_digest[:_INVOCATION_DIGEST_LENGTH]
+    if stderr_digest and len(stderr_digest) > _INVOCATION_DIGEST_LENGTH:
+        stderr_digest = stderr_digest[:_INVOCATION_DIGEST_LENGTH]
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO hook_invocations
+            (invocation_id, subscription_id, event_id, event_type,
+             verdict, debounce_key, stdout_digest, stderr_digest, latency_ms, emitted_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (invocation_id, subscription_id, event_id, event_type,
+         verdict, debounce_key, stdout_digest, stderr_digest, latency_ms, ts),
+    )
+    conn.commit()
+
+
+def list_hook_invocations(
+    conn: sqlite3.Connection,
+    subscription_id: str,
+    since: int = 0,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return hook_invocations for a subscription ordered by emitted_at DESC.
+
+    ``since`` is an epoch lower bound on emitted_at (inclusive).
+    ``limit`` is capped at _MAX_LIST_INVOCATIONS (R5: no unbounded reads).
+    """
+    limit = min(limit, _MAX_LIST_INVOCATIONS)
+    rows = conn.execute(
+        """
+        SELECT * FROM hook_invocations
+        WHERE subscription_id = ? AND emitted_at >= ?
+        ORDER BY emitted_at DESC
+        LIMIT ?
+        """,
+        (subscription_id, since, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _deserialize_debounce_rule(sub_dict: dict[str, Any]) -> None:
+    """Deserialise the ``debounce_rule`` column from TEXT to dict in-place.
+
+    Silently leaves the field as None if the column is NULL or parsing fails.
+    Per R4: swallowed only because debounce_rule is optional metadata and the
+    row is still usable without it.
+    """
+    raw = sub_dict.get("debounce_rule")
+    if isinstance(raw, str):
+        try:
+            sub_dict["debounce_rule"] = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            sub_dict["debounce_rule"] = None  # leave as None — caller treats as no-rule

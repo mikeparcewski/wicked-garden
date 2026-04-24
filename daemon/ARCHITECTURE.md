@@ -176,6 +176,84 @@ Comparator helper `_assert_projection_equals(actual, expected)` ignores `updated
 - **`always`** (CI / parity): daemon-only; no fallback; surface daemon failures as test failures.
 - Detection: env var read at module load time in the migrated reader; module-level `_DAEMON_MODE` constant ensures one decision per process. NO hooks read this env var in PR-1.
 
+## Module: daemon/hook_dispatch.py (v8-PR-8 #592)
+
+### Typed Hook Subscribers
+
+Hooks register against the bus with declarative rules (JSON config files in
+`hooks/subscriptions/*.json`).  The daemon invokes handlers only when a matching
+event lands AND the debounce rule allows.
+
+This is a **bus-grain** mechanism — distinct from Claude's lifecycle hooks
+(prompt_submit, pre_tool, post_tool etc.) which are **Claude-grain** and fire on
+signals Claude can see in-session.
+
+**Grain-riding rule (#585)**: only bus-grain hooks (reacting to cross-session events)
+should use this system.  Claude-grain hooks stay on Claude's lifecycle.
+
+### Filter patterns
+
+| Pattern example | Matches |
+|---|---|
+| `wicked.gate.decided` | Exact match only |
+| `wicked.gate.*` | Any type starting with `wicked.gate.` |
+| `wicked.*` | Any type starting with `wicked.` |
+
+### Debounce rules
+
+Three types (encoded as JSON in hook_subscriptions.debounce_rule):
+
+| Type | Description |
+|---|---|
+| `phase-boundary` | Fire once per `(project_id, phase)` pair per 24h |
+| `once-per-session` | Fire once per `session_id` per 8h |
+| `rate-limit` | `{"type":"rate-limit","window_s":N,"max":M}` — sliding window |
+
+### Handler contract
+
+Each handler at `handler_path`:
+- Receives full event JSON on **stdin**
+- Returns `{"status":"ok"|"error","message":str,"emit_events":list}` on **stdout**
+- `emit_events` triggers hook chaining (each emitted event dispatched recursively)
+- 30s timeout (R5: all I/O must have timeouts); timeout → `verdict = "timeout"`
+
+### HTTP surface (PR-8)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/subscriptions` | List all subscriptions |
+| GET | `/subscriptions/<id>` | Get single subscription |
+| GET | `/subscriptions/<id>/invocations` | Recent invocation audit |
+| POST | `/subscriptions/<id>/toggle` | Enable/disable (4th write carve-out) |
+
+**4th write carve-out** (PR-8, documented in `docs/evidence/pr-v8-8/contract-check.md`):
+Toggle only flips the `enabled` flag.  Subscription creation over HTTP is NOT
+supported — only file-config (`hooks/subscriptions/*.json`) or direct DB calls.
+
+### Tables
+
+**hook_subscriptions** — one row per registered subscriber.
+**hook_invocations** — append-only audit of every dispatch attempt.
+
+### Registered subscribers
+
+| Config file | filter | debounce |
+|---|---|---|
+| `hooks/subscriptions/on_gate_decided.json` | `wicked.gate.decided` | phase-boundary |
+
+### When to use vs Claude-native hooks
+
+Use **typed hook subscribers** when:
+- Your handler reacts to wicked-bus events that may have been emitted by a different
+  session or hours ago (bus-grain).
+- You need debounce logic (phase deduplication, rate limiting).
+- You want audit trail of every invocation.
+
+Keep on **Claude-native hooks** (`hooks/hooks.json`) when:
+- Your handler reads THIS session's prompt or tool output (Claude-grain).
+- You need synchronous blocking of a Claude tool call (PreToolUse).
+- The signal your handler reacts to is always in-session and in-process.
+
 ## Non-goals (do NOT implement in PR-1)
 - Mutation endpoints (POST/PUT/DELETE) — PR-2.
 - Phase state-machine validation / typed transitions — PR-3.

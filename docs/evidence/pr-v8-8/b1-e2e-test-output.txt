@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a6a1fd1a558b9a0e3/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a6a1fd1a558b9a0e3
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 63 items / 59 deselected / 4 selected
+
+tests/daemon/test_hook_dispatch.py::TestPhaseBoundaryDebounceE2E::test_phase_boundary_debounce_dedups_across_real_dispatches PASSED [ 25%]
+tests/daemon/test_hook_dispatch.py::TestPhaseBoundaryDebounceE2E::test_phase_boundary_handler_runs_once_total PASSED [ 50%]
+tests/daemon/test_hook_dispatch.py::TestOncePerSessionDebounceE2E::test_once_per_session_debounce_dedups_across_real_dispatches PASSED [ 75%]
+tests/daemon/test_hook_dispatch.py::TestOncePerSessionDebounceE2E::test_once_per_session_different_session_is_not_debounced PASSED [100%]
+
+======================= 4 passed, 59 deselected in 0.14s =======================

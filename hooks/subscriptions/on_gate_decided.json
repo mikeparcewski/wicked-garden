@@ -1,0 +1,9 @@
+{
+  "subscription_id": "wg-on-gate-decided-v1",
+  "filter": "wicked.gate.decided",
+  "handler": "hooks/scripts/subscribers/on_gate_decided.py",
+  "debounce": {
+    "type": "phase-boundary"
+  },
+  "enabled": true
+}
