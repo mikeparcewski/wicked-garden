@@ -191,28 +191,57 @@ def _load_specialist_domains() -> set:
 
 
 def _parse_specialist_from_agent_type(agent_type: str, specialist_domains: set):
-    """Parse domain and agent name from a wicked-garden subagent_type string.
+    """Parse domain and agent name from a subagent identifier (Issue #573).
 
-    Expected format: ``wicked-garden:{domain}:{agent-name}``
+    Two accepted forms:
 
-    Returns ``(domain, agent_name)`` if the domain is a known specialist domain,
-    otherwise returns ``(None, None)``.
+    * Fully-qualified: ``wicked-garden:{domain}:{agent-name}`` — parsed in
+      place, no resolver needed. The domain must be a known specialist
+      domain (``specialist_domains`` from ``specialist.json``) for the
+      engagement tracker to accept it.
+    * Bare role: ``requirements-analyst`` — expanded to the full form by
+      :mod:`crew.specialist_resolver`, which walks ``agents/**/*.md``
+      frontmatter. This is the path the facilitator emits by default.
+
+    Returns ``(domain, agent_name)`` on success, ``(None, None)`` when
+    the name cannot be resolved. The hook remains fail-open on any
+    resolver import / walk error (engagement tracking is best-effort).
     """
-    if not agent_type or not agent_type.startswith("wicked-garden:"):
+    if not agent_type:
         return None, None
 
-    parts = agent_type.split(":")
-    # Expect at least 3 parts: "wicked-garden", domain, agent-name
-    if len(parts) < 3:
+    if agent_type.startswith("wicked-garden:"):
+        parts = agent_type.split(":")
+        # Expect at least 3 parts: "wicked-garden", domain, agent-name
+        if len(parts) < 3:
+            return None, None
+
+        domain = parts[1]
+        agent_name = ":".join(parts[2:])  # preserve any colons in agent name
+
+        if domain not in specialist_domains:
+            return None, None
+
+        return domain, agent_name
+
+    # Bare-role path (Issue #573): resolve via agents/**/*.md frontmatter.
+    # Fail-closed to the old behavior on any resolver error — engagement
+    # tracking is best-effort and the hook must never block the agent.
+    try:
+        from crew.specialist_resolver import build_resolver, resolve_role
+
+        resolver = build_resolver(_PLUGIN_ROOT)
+        domain, subagent_type = resolve_role(agent_type, resolver)
+        if domain is None or subagent_type is None:
+            return None, None
+        if domain not in specialist_domains:
+            return None, None
+        # The tracker stores bare role as the agent_name — callers feed
+        # it straight into the engagement ledger, matching the existing
+        # wicked-garden:{domain}:{role} parsing shape.
+        return domain, agent_type
+    except Exception:
         return None, None
-
-    domain = parts[1]
-    agent_name = ":".join(parts[2:])  # preserve any colons in agent name
-
-    if domain not in specialist_domains:
-        return None, None
-
-    return domain, agent_name
 
 
 def _record_specialist_engagement(domain: str, agent_name: str) -> None:

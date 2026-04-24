@@ -33,7 +33,12 @@ rubric against a scenario's expected-outcome block.
   },
   "specialists": [
     {"name": "requirements-analyst", "why": "one sentence"},
-    {"name": "backend-engineer",     "why": "one sentence"}
+    {
+      "name": "backend-engineer",
+      "domain": "engineering",
+      "subagent_type": "wicked-garden:engineering:backend-engineer",
+      "why": "one sentence"
+    }
   ],
   "phases": [
     {"name": "clarify", "why": "one sentence", "primary": ["requirements-analyst"]},
@@ -86,6 +91,27 @@ rubric against a scenario's expected-outcome block.
 
 - `project_slug`, `summary`, `factors`, `specialists`, `phases`, `rigor_tier`,
   `complexity`, `tasks`.
+
+### Specialist pick forms (Issue #573)
+
+Each entry in `specialists[]` may be emitted in either form; both are accepted by
+`scripts/crew/validate_plan.py`:
+
+| Form          | Shape                                                              |
+|---------------|--------------------------------------------------------------------|
+| Short         | `{"name": "<role>", "why": "..."}`                                 |
+| Expanded      | `{"name": "<role>", "domain": "<d>", "subagent_type": "<st>", "why": "..."}` |
+
+**Resolution rules**:
+
+- The short form is expanded at validation time by
+  `scripts/crew/specialist_resolver.py`, which walks `agents/**/*.md` frontmatter
+  and maps bare role → `wicked-garden:{domain}:{role}`.
+- In the expanded form, any declared `domain` / `subagent_type` must agree with the
+  resolver's reading of the on-disk agent. Silent drift is rejected to preserve the
+  invariant the engagement tracker depends on (Issue #573: bare roles used to leak
+  past `_parse_specialist_from_agent_type` and drop engagement events).
+- Unknown `name` values are rejected with `difflib.get_close_matches` suggestions.
 
 **Present when applicable**:
 

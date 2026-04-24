@@ -9,9 +9,32 @@ Exit 0 on valid, exit 1 on invalid or selftest failure.
 """
 
 import argparse
+import difflib
 import json
 import sys
 from pathlib import Path
+
+# Resolver import is best-effort — validate_plan is used in CI where the
+# repo layout is guaranteed, but the import is guarded so a malformed
+# agents/ tree surfaces a readable warning instead of a hard crash.
+try:
+    from crew.specialist_resolver import build_resolver, resolve_role
+    _RESOLVER_AVAILABLE = True
+except Exception:  # pragma: no cover - import-time safety net
+    _RESOLVER_AVAILABLE = False
+    build_resolver = None  # type: ignore[assignment]
+    resolve_role = None  # type: ignore[assignment]
+
+# Plugin root for resolver lookups. Mirrors the convention used in
+# hooks/scripts/*: prefer the env var, fall back to the repo tree above
+# this file. Kept module-level so tests can patch it if needed.
+_PLUGIN_ROOT = Path(__file__).resolve().parents[2]
+
+# Close-match cutoff chosen by difflib's default (0.6). Issue #573 asks
+# for suggestions on unknown roles; three is enough to narrow without
+# drowning the reader in look-alikes.
+_CLOSE_MATCHES_N = 3
+_CLOSE_MATCHES_CUTOFF = 0.6
 
 VALID_RIGOR_TIERS = {"minimal", "standard", "full"}
 VALID_FACTOR_READINGS = {"LOW", "MEDIUM", "HIGH"}
@@ -120,14 +143,87 @@ def _check_specialists(plan: dict, violations: list) -> None:
     if not isinstance(specialists, list) or len(specialists) == 0:
         violations.append("specialists — must be a non-empty list")
         return
+
+    # Issue #573: every pick must resolve via the agent-frontmatter
+    # resolver. Build the resolver once and re-use it across entries.
+    resolver = None
+    if _RESOLVER_AVAILABLE:
+        try:
+            resolver = build_resolver(_PLUGIN_ROOT)  # type: ignore[misc]
+        except Exception:  # pragma: no cover - defensive
+            resolver = None
+
     for i, entry in enumerate(specialists):
         if not isinstance(entry, dict):
             violations.append(f"specialists[{i}] — must be a dict")
             continue
-        if not entry.get("name") or not str(entry["name"]).strip():
+        name = entry.get("name")
+        if not name or not str(name).strip():
             violations.append(f"specialists[{i}].name — must be a non-empty string")
         if not entry.get("why") or not str(entry["why"]).strip():
             violations.append(f"specialists[{i}].why — must be a non-empty string")
+
+        # Resolver check — applied only when the name is present and the
+        # resolver loaded successfully. Unknown picks become blocking
+        # errors with difflib suggestions so the facilitator can
+        # self-correct a typo without re-running the rubric.
+        if name and str(name).strip() and resolver is not None:
+            role_name = str(name).strip()
+            domain, subagent_type = resolve_role(role_name, resolver)  # type: ignore[misc]
+            if domain is None or subagent_type is None:
+                suggestions = difflib.get_close_matches(
+                    role_name,
+                    list(resolver.get("role_to_subagent", {}).keys()),
+                    n=_CLOSE_MATCHES_N,
+                    cutoff=_CLOSE_MATCHES_CUTOFF,
+                )
+                if suggestions:
+                    hint = ", ".join(suggestions)
+                    violations.append(
+                        f"specialists[{i}].name — unknown specialist "
+                        f"'{role_name}'; did you mean: {hint}?"
+                    )
+                else:
+                    violations.append(
+                        f"specialists[{i}].name — unknown specialist "
+                        f"'{role_name}'; no close matches found in "
+                        f"agents/**/*.md"
+                    )
+
+        # Expanded-form (Issue #573): validators accept picks emitted as
+        # either a bare string (via ``name``) or the full triple
+        # {name, domain, subagent_type}. When domain/subagent_type are
+        # present, they must agree with the resolver — silent drift
+        # between the expanded form and the agent frontmatter would
+        # reintroduce the original engagement-tracker bug.
+        if (
+            isinstance(entry.get("domain"), str)
+            or isinstance(entry.get("subagent_type"), str)
+        ) and resolver is not None and name:
+            role_name = str(name).strip()
+            expected_domain, expected_subagent = resolve_role(role_name, resolver)  # type: ignore[misc]
+            if expected_domain is not None and expected_subagent is not None:
+                declared_domain = entry.get("domain")
+                declared_subagent = entry.get("subagent_type")
+                if (
+                    isinstance(declared_domain, str)
+                    and declared_domain != expected_domain
+                ):
+                    violations.append(
+                        f"specialists[{i}].domain — '{declared_domain}' does "
+                        f"not match resolved domain '{expected_domain}' for "
+                        f"role '{role_name}'"
+                    )
+                if (
+                    isinstance(declared_subagent, str)
+                    and declared_subagent != expected_subagent
+                ):
+                    violations.append(
+                        f"specialists[{i}].subagent_type — "
+                        f"'{declared_subagent}' does not match resolved "
+                        f"subagent_type '{expected_subagent}' for role "
+                        f"'{role_name}'"
+                    )
 
 
 def _check_phases(plan: dict, violations: list) -> None:

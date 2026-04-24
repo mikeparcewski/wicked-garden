@@ -57,7 +57,22 @@ gotchas) over wiki and chunks for planning. Record up to 3 priors that change th
 
 ### 3. Score the 9 factors (one sentence each)
 
-Prose, not numbers. See `refs/factor-definitions.md` for meaning + calibration.
+Prose reasoning, not numbers — but the output **must** be a dict per factor, not a
+bare string. Each factor emits `{"reading": "LOW|MEDIUM|HIGH", "why": "one
+sentence"}`. The validator (`scripts/crew/validate_plan.py`) rejects flat-string
+shapes on first emission and forces a retry. See `refs/factor-definitions.md` for
+what LOW/MEDIUM/HIGH mean per factor; see `refs/output-schema.md` for the full JSON
+envelope.
+
+**Minimal inline example — use this shape, not a flat string (Issue #574)**:
+
+```json
+"factors": {
+  "reversibility": {"reading": "HIGH", "why": "pure doc edit, git revert undoes it"},
+  "blast_radius":  {"reading": "LOW",  "why": "scoped to one skill file"}
+}
+```
+
 Factors: **reversibility** (undo without customer impact?), **blast_radius** (who/how
 many affected if broken?), **compliance_scope** (GDPR/PCI/HIPAA/SOC2?),
 **user_facing_impact** (human-visible?), **novelty** (done before in this codebase —
@@ -73,6 +88,23 @@ that covers the factor scores. One sentence of WHY per pick. Prefer ≤5 for sta
 tie-breakers.
 
 Core archetypes: `requirements-analyst`, `product-manager`, `solution-architect`, `senior-engineer`, `backend-engineer`, `frontend-engineer`, `migration-engineer`, `test-strategist`, `test-designer`, `security-engineer`, `compliance-officer`, `privacy-expert`, `auditor`, `sre`, `release-engineer`, `data-engineer`, `technical-writer`, `ux-designer`, `ui-reviewer`.
+
+**Pick shape (Issue #573)**: Each entry in `specialists[]` may be emitted in either
+form, and both are accepted by `scripts/crew/validate_plan.py`:
+
+- **Short form** — `{"name": "requirements-analyst", "why": "..."}`. The resolver
+  (`scripts/crew/specialist_resolver.py`) expands the bare role to the full
+  `wicked-garden:{domain}:{role}` subagent_type at validation and dispatch time.
+- **Expanded form** — `{"name": "requirements-analyst", "domain": "product",
+  "subagent_type": "wicked-garden:product:requirements-analyst", "why": "..."}`.
+  When `domain` or `subagent_type` is present, it must agree with what the resolver
+  derives from `agents/**/*.md` frontmatter — silent drift between the expanded form
+  and the on-disk agent is rejected.
+
+Picks whose `name` does not resolve via the frontmatter index are rejected as
+validation errors. The validator runs `difflib.get_close_matches` and surfaces the
+three closest matches so the facilitator can correct a typo without re-running the
+whole rubric.
 
 ### 5. Select phases
 
