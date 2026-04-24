@@ -23,10 +23,12 @@ Always fails open — any unhandled exception returns {"continue": true}.
 
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Mapping
 
 # Add shared scripts directory to path.
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
@@ -364,6 +366,206 @@ def _score_complexity_and_risk(prompt: str, state) -> tuple[float, bool]:
     )
 
     return min(complexity, 1.0), is_risky
+
+
+# ---------------------------------------------------------------------------
+# Issue #578 — Context Assembly intent classifier
+#
+# The Context Assembly directive used to fire on every prompt whose complexity
+# score crossed _SYNTHESIS_THRESHOLD, including obviously conversational
+# prompts like "any more feedback?" or "lets do it". Same root cause as #572:
+# the hook fires without a signal Claude cannot already see itself.
+#
+# The classifier below is a pure function — takes a prompt + env mapping and
+# returns (should_emit, reason). It is intentionally conservative: when
+# signals conflict, substantive wins, so a long or technical prompt with a
+# short confirmation prefix still grounds via the directive.
+# ---------------------------------------------------------------------------
+
+# Env override values
+_CONTEXT_ASSEMBLY_ENV_VAR = "WG_CONTEXT_ASSEMBLY"
+_CONTEXT_ASSEMBLY_MODE_AUTO = "auto"
+_CONTEXT_ASSEMBLY_MODE_ALWAYS = "always"
+_CONTEXT_ASSEMBLY_MODE_OFF = "off"
+_CONTEXT_ASSEMBLY_VALID_MODES = frozenset({
+    _CONTEXT_ASSEMBLY_MODE_AUTO,
+    _CONTEXT_ASSEMBLY_MODE_ALWAYS,
+    _CONTEXT_ASSEMBLY_MODE_OFF,
+})
+
+# Conversational thresholds
+_CONVERSATIONAL_MAX_WORDS = 8         # Below this AND no technical signals → suppress
+_SUBSTANTIVE_MIN_WORDS = 30           # At/above this → always emit
+_LEADING_CONFIRMATION_MAX_WORDS = 6   # Leading-confirmation detection only applies to short prompts
+
+# Leading confirmation tokens — when the prompt STARTS with these (and is short),
+# it is almost always a continuation, not a request.
+_LEADING_CONFIRMATIONS = (
+    "yes", "yeah", "yep", "yup",
+    "no", "nope",
+    "ok", "okay",
+    "go", "go ahead",
+    "proceed", "continue",
+    "do it", "lets do it", "let's do it",
+    "sounds good", "looks good", "lgtm",
+    "sure", "approved", "approve",
+)
+
+# Meta / conversational phrases — when present in a short prompt, suppress.
+_META_PHRASES = (
+    "any more",
+    "what do you think",
+    "thoughts",
+    "more feedback",
+    "how about",
+    "did you",
+    "are you",
+    "can you tell me what",
+)
+
+# Substantive signals — technical verbs that strongly imply real work.
+_IMPERATIVE_TECHNICAL_VERBS = frozenset({
+    "implement", "fix", "refactor", "build", "design", "trace",
+    "debug", "migrate", "integrate", "deploy", "rollback", "optimize",
+    "profile", "benchmark", "explain how", "analyze", "review",
+    "investigate", "diagnose",
+})
+
+# File-path regex — matches any token that looks like path/to/file.ext where
+# ext is a common code/doc extension. Stdlib re, compiled once at import.
+_FILE_PATH_EXTS = (
+    "py", "ts", "tsx", "js", "jsx", "md", "json", "yaml", "yml",
+    "toml", "sh", "rs", "go", "java", "kt", "rb", "cpp", "c", "h",
+    "hpp", "cs", "swift", "php", "sql", "html", "css", "scss",
+)
+_FILE_PATH_PATTERN = re.compile(
+    r"(?:[\w.\-]+[/\\])+[\w.\-]+\.(?:" + "|".join(_FILE_PATH_EXTS) + r")\b",
+    re.IGNORECASE,
+)
+# Bare-filename regex — catches 'validate_plan.py' or 'README.md' with no
+# separator. Must have a non-trivial stem (>= 2 chars) so we don't match
+# 'a.b' noise. Used in addition to the path pattern above.
+_BARE_FILENAME_PATTERN = re.compile(
+    r"\b[\w\-]{2,}\.(?:" + "|".join(_FILE_PATH_EXTS) + r")\b",
+    re.IGNORECASE,
+)
+
+# Inline backtick or fenced code block
+_CODE_FENCE_OR_BACKTICK = re.compile(r"```|`[^`\n]{2,}`")
+
+
+def _resolve_context_assembly_mode(env: Mapping) -> str:
+    """Return the validated context-assembly mode from the env mapping.
+
+    Unknown values fall back to 'auto'. Case-insensitive match on the value.
+    """
+    raw = env.get(_CONTEXT_ASSEMBLY_ENV_VAR, _CONTEXT_ASSEMBLY_MODE_AUTO) or ""
+    mode = str(raw).strip().lower()
+    if mode not in _CONTEXT_ASSEMBLY_VALID_MODES:
+        return _CONTEXT_ASSEMBLY_MODE_AUTO
+    return mode
+
+
+def _has_file_path(prompt: str) -> bool:
+    """Return True if the prompt contains a file reference.
+
+    Matches either ``path/to/file.ext`` (path + separator) or a bare filename
+    like ``validate_plan.py`` / ``README.md``. Either form is a strong
+    substantive signal — the user is pointing at real code.
+    """
+    if _FILE_PATH_PATTERN.search(prompt):
+        return True
+    return bool(_BARE_FILENAME_PATTERN.search(prompt))
+
+
+def _has_code_markers(prompt: str) -> bool:
+    """Return True if the prompt has a code fence or inline backtick code."""
+    return bool(_CODE_FENCE_OR_BACKTICK.search(prompt))
+
+
+def _has_imperative_technical_verb(prompt_lower: str) -> bool:
+    """Return True if any imperative technical verb appears in the prompt."""
+    return any(verb in prompt_lower for verb in _IMPERATIVE_TECHNICAL_VERBS)
+
+
+def _starts_with_leading_confirmation(prompt_lower: str) -> bool:
+    """Return True if the stripped prompt begins with a known confirmation."""
+    stripped = prompt_lower.strip().rstrip(".!?")
+    # Exact-match on the whole stripped prompt catches things like "yes" / "ok"
+    if stripped in _LEADING_CONFIRMATIONS:
+        return True
+    # Prefix match with a word boundary — "ok proceed" and "yes do it" both
+    # qualify, but "okay fix the bug" (has 'fix') would fail substantive check.
+    for phrase in _LEADING_CONFIRMATIONS:
+        if stripped == phrase or stripped.startswith(phrase + " ") or stripped.startswith(phrase + ","):
+            return True
+    return False
+
+
+def _contains_meta_phrase(prompt_lower: str) -> bool:
+    """Return True if any meta / conversational phrase appears in the prompt."""
+    return any(phrase in prompt_lower for phrase in _META_PHRASES)
+
+
+def _should_emit_context_assembly(
+    prompt: str,
+    env: Mapping,
+) -> tuple[bool, str]:
+    """Decide whether to emit the Context Assembly directive.
+
+    Returns (should_emit, reason). Reason is a short token for the ops log.
+
+    Rules (first match wins per category; substantive beats conversational):
+      1. Env override: WG_CONTEXT_ASSEMBLY=always → (True, "env_always")
+      2. Env override: WG_CONTEXT_ASSEMBLY=off    → (False, "env_off")
+      3. Substantive signals (long, has path/code, technical verb) → emit
+      4. Conversational signals (short + confirmation/meta)        → suppress
+      5. Default                                                   → emit
+    """
+    mode = _resolve_context_assembly_mode(env)
+    if mode == _CONTEXT_ASSEMBLY_MODE_ALWAYS:
+        return True, "env_always"
+    if mode == _CONTEXT_ASSEMBLY_MODE_OFF:
+        return False, "env_off"
+
+    # --- auto mode: classify ---
+    prompt_stripped = prompt.strip()
+    if not prompt_stripped:
+        return False, "empty"
+
+    prompt_lower = prompt_stripped.lower()
+    word_count = len(prompt_stripped.split())
+
+    # Substantive checks — any one of these is enough to emit.
+    if word_count >= _SUBSTANTIVE_MIN_WORDS:
+        return True, "substantive_length"
+    if _has_file_path(prompt_stripped):
+        return True, "substantive_file_path"
+    if _has_code_markers(prompt_stripped):
+        return True, "substantive_code_marker"
+    if _has_imperative_technical_verb(prompt_lower):
+        return True, "substantive_technical_verb"
+
+    # Conversational checks — require SHORT prompt AND lack of substantive
+    # signals above. Substantive wins on conflict, so we only get here when
+    # the prompt has no file paths, no code, no technical verbs, and is below
+    # the substantive length threshold.
+    if word_count < _CONVERSATIONAL_MAX_WORDS:
+        if _starts_with_leading_confirmation(prompt_lower):
+            return False, "conversational_leading_confirmation"
+        if _contains_meta_phrase(prompt_lower):
+            return False, "conversational_meta_phrase"
+        return False, "conversational_short"
+
+    # Meta phrases in medium-length prompts still read as conversational
+    # ("what do you think about all of this" at 8-15 words) — suppress.
+    if _contains_meta_phrase(prompt_lower):
+        return False, "conversational_meta_phrase"
+
+    # Medium-length prompts (8-29 words) with no substantive signal still
+    # default to emit — they often carry enough novelty to warrant grounding,
+    # and "substantive wins on conflict" tips the scale.
+    return True, "default_emit"
 
 
 def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, state) -> str:
@@ -1097,8 +1299,23 @@ def main():
         )
         # Near-HOT guard: very short phrases with no technical signals are continuations.
         _is_near_hot = (_word_count <= 6) and not _has_technical
+
+        # Issue #578: intent classifier gate. Even when complexity/risk crosses
+        # the threshold, suppress the Context Assembly directive on obviously
+        # conversational prompts. WG_CONTEXT_ASSEMBLY=always|off overrides.
+        _ca_emit, _ca_reason = _should_emit_context_assembly(prompt, os.environ)
+        _log("prompt", "debug", "context_assembly.decision",
+             detail={
+                 "emit": _ca_emit,
+                 "reason": _ca_reason,
+                 "complexity": round(complexity, 2),
+                 "risk": is_risky,
+                 "word_count": _word_count,
+             })
+
         _should_synthesize = (
-            not _is_near_hot
+            _ca_emit
+            and not _is_near_hot
             and (
                 is_risky
                 or (complexity >= _SYNTHESIS_THRESHOLD and _word_count > 8)

@@ -83,8 +83,12 @@ Pick from: `ideate`, `clarify`, `challenge`, `design`, `test-strategy`, `build`,
 `review`. Soft deps — skip `design` for a trivial typo, collapse `clarify`+`design` for a
 crisp bugfix, insert `migrate` between `design` and `build` when state_complexity is high.
 **MUST**: at complexity ≥ 4, `challenge` phase MUST be included between `design` and `build`;
-do not use facilitator judgment to skip it. For each phase, emit: `name`, `why` (one
-sentence), `primary: [specialist-name, ...]` (owners from Step 4). See `refs/phase-catalog.md`.
+do not use facilitator judgment to skip it.
+**MUST** (Issue #583): if any AC requires test evidence (regression test, automated
+verification, "test that proves the fix"), `test-strategy` MUST precede `build` and dispatch
+to `wicked-testing:plan` + `wicked-testing:authoring`; do not collapse it into clarify or
+absorb scenario authoring into build. For each phase, emit: `name`, `why` (one sentence),
+`primary: [specialist-name, ...]` (owners from Step 4). See `refs/phase-catalog.md`.
 
 ### 6. Select archetype + assign evidence metadata per task
 
@@ -190,10 +194,4 @@ Interaction mode (`normal` | `yolo` / `auto_proceed=true` / `/wicked-garden:crew
 
 ## Navigation
 
-`refs/` — `inputs.md` (prior-fetch + session state), `process-memory.md`
-(uncertainty gate), `factor-definitions.md` (9 factors), `specialist-selection.md`
-(roster), `phase-catalog.md` (phase templates), `evidence-framing.md`
-(per-archetype contracts), `ambiguity.md` (when to stop), `plan-template.md`
-(process-plan), `output-schema.md` (JSON shape), `interaction-mode.md`
-(yolo + banned values), `gate-policy.md` (reviewer matrix),
-`re-eval-addendum-schema.md`, `spec-quality-rubric.md`.
+`refs/` — `inputs.md` (prior-fetch + session state), `process-memory.md` (uncertainty gate), `factor-definitions.md` (9 factors), `specialist-selection.md` (roster), `phase-catalog.md` (phase templates), `evidence-framing.md` (per-archetype contracts), `ambiguity.md` (when to stop), `plan-template.md` (process-plan), `output-schema.md` (JSON shape), `interaction-mode.md` (yolo + banned values), `gate-policy.md` (reviewer matrix), `re-eval-addendum-schema.md`, `spec-quality-rubric.md`.
