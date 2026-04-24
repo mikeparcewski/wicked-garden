@@ -278,6 +278,14 @@ def _rework_triggered(conn: sqlite3.Connection, event: dict) -> None:
     if not ok:
         return
     ts = _to_epoch(event.get("created_at")) or _now()
+    # Apply the ("rework", REJECTED) → ACTIVE transition defined in phase_state.py.
+    # Must come before the rework_iterations write so a single upsert covers both
+    # — but we keep them as two upserts for clarity and idempotency: if the phase
+    # is already ACTIVE (replay), the COALESCE/upsert semantics handle it cleanly.
+    db.upsert_phase(conn, str(project_id), str(phase), {
+        "state": _STATE_ACTIVE,
+        "updated_at": ts,
+    })
     db.upsert_phase(conn, str(project_id), str(phase), {
         "rework_iterations": iters,
         "updated_at": ts,

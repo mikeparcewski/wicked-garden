@@ -1,7 +1,7 @@
 [
   {
     "phase": "design",
-    "state": "rejected",
+    "state": "active",
     "gate_score": 0.45,
     "gate_verdict": "REJECT",
     "gate_reviewer": "wicked-garden:qe:semantic-reviewer",

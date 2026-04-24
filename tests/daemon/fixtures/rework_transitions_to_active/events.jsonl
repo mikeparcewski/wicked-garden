@@ -1,0 +1,4 @@
+{"event_id": 1, "event_type": "wicked.project.created", "created_at": 1700010001, "chain_id": "rework-test.root", "payload": {"project_id": "rework-test", "name": "Rework Test Project", "complexity_score": 3.0}}
+{"event_id": 2, "event_type": "wicked.phase.transitioned", "created_at": 1700010002, "chain_id": "rework-test.build", "payload": {"project_id": "rework-test", "phase_from": "clarify", "phase_to": "build"}}
+{"event_id": 3, "event_type": "wicked.gate.decided", "created_at": 1700010003, "chain_id": "rework-test.build", "payload": {"project_id": "rework-test", "phase": "build", "result": "REJECT", "score": 0.42, "reviewer": "wicked-garden:qe:semantic-reviewer"}}
+{"event_id": 4, "event_type": "wicked.rework.triggered", "created_at": 1700010004, "chain_id": "rework-test.build", "payload": {"project_id": "rework-test", "phase": "build", "iteration_count": 1}}

@@ -391,6 +391,105 @@ class TestDryRun:
 
 
 # ---------------------------------------------------------------------------
+# Migration transaction atomicity (council C1 fix-up — #590 #613)
+# ---------------------------------------------------------------------------
+
+
+class _FailingOnFirstUpdateConnection(sqlite3.Connection):
+    """sqlite3.Connection subclass that raises on the first UPDATE phases SET state call.
+
+    Used by TestMigrationRollbackOnRowError to simulate a mid-loop UPDATE failure
+    without patching the C-level read-only ``execute`` attribute.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._update_call_count = 0
+
+    def execute(self, sql, parameters=()):  # type: ignore[override]
+        if "UPDATE phases SET state" in sql:
+            self._update_call_count += 1
+            if self._update_call_count == 1:
+                raise sqlite3.OperationalError("simulated UPDATE failure")
+        return super().execute(sql, parameters)
+
+
+class TestMigrationRollbackOnRowError:
+    """If any row UPDATE fails during migration the entire transaction rolls back.
+
+    Asserts:
+      (a) No rows were updated — all phases remain 'completed'.
+      (b) _migrations table has no row for this migration.
+      (c) Re-running without the fault succeeds and updates all rows.
+
+    Provenance: #590 #613 council C1 — run_migration UPDATE loop must be wrapped
+    in a single transaction so partial-migration is impossible on error.
+    """
+
+    def _make_failing_conn(self) -> sqlite3.Connection:
+        """Open an in-memory DB using _FailingOnFirstUpdateConnection + daemon schema."""
+        from daemon.db import init_schema  # type: ignore[import]
+        conn = sqlite3.connect(":memory:", factory=_FailingOnFirstUpdateConnection)
+        init_schema(conn)
+        return conn
+
+    def test_migration_rollback_on_row_error(self) -> None:
+        conn = self._make_failing_conn()
+        _seed_completed_rows(conn)
+
+        from scripts.crew.phase_state_migration import run_migration  # type: ignore[import]
+        conn.execute("DELETE FROM _migrations WHERE name = 'phase_state_completed_to_canonical'")
+        conn.commit()
+
+        # Run migration — must raise because the first UPDATE is intercepted.
+        with pytest.raises(sqlite3.OperationalError, match="simulated UPDATE failure"):
+            run_migration(conn)
+
+        # (a) No rows updated — all phases still 'completed'.
+        rows = conn.execute(
+            "SELECT state FROM phases WHERE project_id = 'proj-a'"
+        ).fetchall()
+        assert rows, "Expected phase rows to still exist after rollback."
+        for row in rows:
+            assert row[0] == "completed", (
+                f"Expected state='completed' after rollback, got {row[0]!r}. "
+                "Migration transaction did not roll back atomically."
+            )
+
+        # (b) _migrations has no entry — migration was not recorded as applied.
+        marker = conn.execute(
+            "SELECT name FROM _migrations "
+            "WHERE name = 'phase_state_completed_to_canonical'"
+        ).fetchone()
+        assert marker is None, (
+            "_migrations should have no entry after a rolled-back migration. "
+            "Re-running the migration must be possible."
+        )
+
+        # (c) Re-running via a normal connection succeeds.
+        from daemon.db import connect, init_schema  # type: ignore[import]
+        # Dump DB state from failing conn into a new normal conn for re-run check.
+        # Simpler: seed a fresh normal conn and verify run_migration succeeds.
+        conn2 = _make_mem_conn()
+        _seed_completed_rows(conn2)
+        conn2.execute("DELETE FROM _migrations WHERE name = 'phase_state_completed_to_canonical'")
+        conn2.commit()
+        result = run_migration(conn2)
+        assert result["applied"] is True, (
+            "Re-run after rollback should apply the migration successfully."
+        )
+        rows_after = conn2.execute(
+            "SELECT state FROM phases WHERE project_id = 'proj-a'"
+        ).fetchall()
+        states = {r[0] for r in rows_after}
+        assert "completed" not in states, (
+            "After successful re-run no phases should remain in 'completed' state."
+        )
+        conn.close()
+        conn2.close()
+
+
+# ---------------------------------------------------------------------------
 # Stream 2: upsert_phase ban enforcement via db layer
 # ---------------------------------------------------------------------------
 

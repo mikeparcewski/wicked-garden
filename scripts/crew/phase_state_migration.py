@@ -116,26 +116,30 @@ def run_migration(conn: "sqlite3.Connection", dry_run: bool = False) -> dict:  #
 
     if not preview:
         # No rows to migrate — record the migration as applied and return.
-        conn.execute(
-            "INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)",
-            ("phase_state_completed_to_canonical", int(time.time())),
-        )
-        conn.commit()
+        with conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)",
+                ("phase_state_completed_to_canonical", int(time.time())),
+            )
         return {"applied": True, "already_applied": False,
                 "rows_approved": 0, "rows_skipped": 0, "dry_run": False}
 
     now = int(time.time())
-    for row in preview:
+    # Wrap the UPDATE loop + _migrations INSERT in a single transaction so that
+    # a mid-loop failure rolls back all writes atomically.  If any UPDATE raises,
+    # the context manager calls conn.rollback() and the _migrations row is never
+    # written — re-running the migration will resume from scratch.
+    with conn:
+        for row in preview:
+            conn.execute(
+                "UPDATE phases SET state = ?, updated_at = ? "
+                "WHERE project_id = ? AND phase = ? AND state = 'completed'",
+                (row["would_migrate_to"], now, row["project_id"], row["phase"]),
+            )
         conn.execute(
-            "UPDATE phases SET state = ?, updated_at = ? "
-            "WHERE project_id = ? AND phase = ? AND state = 'completed'",
-            (row["would_migrate_to"], now, row["project_id"], row["phase"]),
+            "INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)",
+            ("phase_state_completed_to_canonical", now),
         )
-    conn.execute(
-        "INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)",
-        ("phase_state_completed_to_canonical", now),
-    )
-    conn.commit()
     return {"applied": True, "already_applied": False,
             "rows_approved": rows_approved, "rows_skipped": rows_skipped,
             "dry_run": False}
