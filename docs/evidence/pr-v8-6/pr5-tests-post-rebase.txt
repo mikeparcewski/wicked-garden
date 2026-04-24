@@ -1,0 +1,48 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-abad6ed8674003f3c/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-abad6ed8674003f3c
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 36 items
+
+tests/crew/test_acceptance_criteria.py::TestParseTable::test_table_ac_n PASSED [  2%]
+tests/crew/test_acceptance_criteria.py::TestParseTable::test_table_prefixed_ids PASSED [  5%]
+tests/crew/test_acceptance_criteria.py::TestParseTable::test_table_skips_header_row PASSED [  8%]
+tests/crew/test_acceptance_criteria.py::TestParseBullet::test_bold_label PASSED [ 11%]
+tests/crew/test_acceptance_criteria.py::TestParseBullet::test_dotted_id PASSED [ 13%]
+tests/crew/test_acceptance_criteria.py::TestParseBullet::test_plain_label PASSED [ 16%]
+tests/crew/test_acceptance_criteria.py::TestParseBullet::test_req_prefixed PASSED [ 19%]
+tests/crew/test_acceptance_criteria.py::TestParseInline::test_fr_prefix_inline PASSED [ 22%]
+tests/crew/test_acceptance_criteria.py::TestParseInline::test_inline_colon PASSED [ 25%]
+tests/crew/test_acceptance_criteria.py::TestParseMultiFormat::test_deduplication PASSED [ 27%]
+tests/crew/test_acceptance_criteria.py::TestParseMultiFormat::test_statement_captured PASSED [ 30%]
+tests/crew/test_acceptance_criteria.py::TestRoundTrip::test_roundtrip_empty_satisfied_by PASSED [ 33%]
+tests/crew/test_acceptance_criteria.py::TestRoundTrip::test_roundtrip_preserves_fields PASSED [ 36%]
+tests/crew/test_acceptance_criteria.py::TestEvidenceLinking::test_link_adds_evidence PASSED [ 38%]
+tests/crew/test_acceptance_criteria.py::TestEvidenceLinking::test_link_idempotent PASSED [ 41%]
+tests/crew/test_acceptance_criteria.py::TestEvidenceLinking::test_link_multiple_evidence PASSED [ 44%]
+tests/crew/test_acceptance_criteria.py::TestEvidenceLinking::test_link_unknown_ac_returns_false PASSED [ 47%]
+tests/crew/test_acceptance_criteria.py::TestEvidenceLinking::test_unlinked_initially PASSED [ 50%]
+tests/crew/test_acceptance_criteria.py::TestCoverageViaVerificationProtocol::test_100_percent_linked_pass PASSED [ 52%]
+tests/crew/test_acceptance_criteria.py::TestCoverageViaVerificationProtocol::test_60_percent_is_fail PASSED [ 55%]
+tests/crew/test_acceptance_criteria.py::TestCoverageViaVerificationProtocol::test_80_percent_is_warn PASSED [ 58%]
+tests/crew/test_acceptance_criteria.py::TestCoverageViaVerificationProtocol::test_90_percent_is_warn PASSED [ 61%]
+tests/crew/test_acceptance_criteria.py::TestCoverageViaVerificationProtocol::test_all_linked_is_pass PASSED [ 63%]
+tests/crew/test_acceptance_criteria.py::TestCoverageViaVerificationProtocol::test_source_label_in_evidence PASSED [ 66%]
+tests/crew/test_acceptance_criteria.py::TestCoverageViaVerificationProtocol::test_zero_linked_is_fail PASSED [ 69%]
+tests/crew/test_acceptance_criteria.py::TestMigration::test_clarify_md_creates_json PASSED [ 72%]
+tests/crew/test_acceptance_criteria.py::TestMigration::test_migrated_satisfied_by_is_empty PASSED [ 75%]
+tests/crew/test_acceptance_criteria.py::TestMigration::test_prose_project_verification_still_works PASSED [ 77%]
+tests/crew/test_acceptance_criteria.py::TestMigration::test_rerun_is_idempotent PASSED [ 80%]
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_heading_variant_acs_short PASSED [ 83%]
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_heading_variant_draft_suffix PASSED [ 86%]
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_heading_variant_h1 PASSED [ 88%]
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_heading_variant_h3 PASSED [ 91%]
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_heading_variant_standard PASSED [ 94%]
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_numbered_items_outside_ac_section_not_captured PASSED [ 97%]
+tests/crew/test_acceptance_criteria.py::TestNumberedUnderHeadingIsolated::test_numbered_items_under_ac_section_captured PASSED [100%]
+
+============================== 36 passed in 0.18s ==============================
