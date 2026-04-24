@@ -95,16 +95,16 @@ See [examples](refs/examples.md) for schema format.
 
 | Plugin | Enhancement |
 |--------|-------------|
-| wicked-garden:data:numbers | Use for SQL-based profiling of large files |
+| wicked-garden:data:analyze | Use for SQL-based profiling of large files via DuckDB |
 | Native tasks | Document quality issues via TaskCreate with `metadata.event_type="task"` |
 | wicked-garden:mem | Store quality patterns across sessions |
 
 ## Large Files
 
-For files >1GB, use wicked-garden:data:numbers for efficient SQL-based profiling:
+For files >1GB, use wicked-garden:data:analyze for efficient SQL-based profiling:
 
 ```bash
-/wicked-garden:data:numbers large_file.csv
+/wicked-garden:data:analyze large_file.csv
 ```
 
 ## Output Standards

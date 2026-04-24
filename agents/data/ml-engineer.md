@@ -27,7 +27,7 @@ You design, review, and guide machine learning systems from development to produ
 Leverage ecosystem tools:
 
 - **wicked-garden:search**: Find existing model code and configs
-- **wicked-garden:data:numbers**: Analyze training data and metrics
+- **wicked-garden:data:analyze**: Analyze training data and metrics via DuckDB SQL
 - **Native tasks**: Track ML experiments and issues via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`
 - **wicked-garden:mem**: Recall model architectures and patterns
 

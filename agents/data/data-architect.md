@@ -52,7 +52,7 @@ architecture; analytics is not a separate discipline.
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Search**: Use wicked-garden:search to find existing schema definitions, queries, ETL
-- **Data numbers**: Use /wicked-garden:data:numbers to query/analyze existing data models
+- **Data analyze**: Use /wicked-garden:data:analyze to query/analyze existing data models via DuckDB SQL
 - **Memory**: Use wicked-garden:mem to recall architecture patterns, past decisions
 - **Tasks**: Track architecture decisions via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`
 

@@ -108,7 +108,7 @@ Generates: Data loading, feature engineering, training config, evaluation framew
 
 - **wicked-garden:search**: Find model code with `/wicked-garden:search:code "model|classifier"`
 - **Native tasks**: Track experiments via TaskCreate with `metadata.event_type="task"`
-- **wicked-garden:data:numbers**: Analyze training data
+- **wicked-garden:data:analyze**: Analyze training data via DuckDB SQL
 
 ## Best Practices
 

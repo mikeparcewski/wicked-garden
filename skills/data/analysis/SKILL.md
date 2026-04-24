@@ -39,7 +39,7 @@ After exploration, ask specific questions:
 ### 1. Profile & Understand
 
 ```bash
-/wicked-garden:data:numbers sales.csv
+/wicked-garden:data:analyze sales.csv
 ```
 
 **Key questions**:
@@ -101,9 +101,9 @@ After exploration, ask specific questions:
 
 ## Integration
 
-**wicked-garden:data:numbers** - Primary tool for data queries:
+**wicked-garden:data:analyze** - Primary tool for data queries via DuckDB:
 ```bash
-/wicked-garden:data:numbers data.csv
+/wicked-garden:data:analyze data.csv
 ```
 
 **Native tasks** - Document insights via TaskCreate with `metadata.event_type="task"`

@@ -831,7 +831,7 @@ def _suggest_commands_for_project() -> str | None:
         if has_dockerfile or has_terraform:
             suggestions.append("`/wicked-garden:platform:security` — security review")
         if has_csv_data:
-            suggestions.append("`/wicked-garden:data:numbers` — interactive data analysis")
+            suggestions.append("`/wicked-garden:data:analyze` — interactive data analysis with DuckDB")
         if has_ci:
             suggestions.append("`/wicked-garden:platform:actions` — GitHub Actions optimization")
 
