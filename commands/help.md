@@ -17,19 +17,19 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 
 ## Domains
 
-| Domain | Description | Help |
-|--------|-------------|------|
-| **agentic** | Design, review, and audit agentic AI systems | `/wicked-garden:agentic:help` |
-| **crew** | Dynamic multi-phase workflow engine with specialist routing | `/wicked-garden:crew:help` |
-| **data** | Data analysis and ontology recommendations | `/wicked-garden:data:help` |
-| **delivery** | Multi-perspective delivery reporting and metrics | `/wicked-garden:delivery:help` |
-| **engineering** | Architecture, code review, debugging, docs, planning, and code transformations | `/wicked-garden:engineering:help` |
-| **jam** | AI-powered brainstorming with dynamic focus groups | `/wicked-garden:jam:help` |
-| **mem** | Persistent memory — store decisions, recall context | `/wicked-garden:mem:help` |
-| **platform** | Security, infrastructure, compliance, CI/CD, incidents, and plugin diagnostics | `/wicked-garden:platform:help` |
-| **product** | Requirements, customer feedback, strategy, UX, and design review | `/wicked-garden:product:help` |
-| **search** | Structural code search, lineage, and codebase intelligence | `/wicked-garden:help` |
-| **smaht** | Intelligent context assembly from all sources | `/wicked-garden:smaht:help` |
+| Domain | Description | Key Commands |
+|--------|-------------|--------------|
+| **agentic** | Design, review, and audit agentic AI systems | `agentic:design`, `agentic:review`, `agentic:audit` |
+| **crew** | Dynamic multi-phase workflow engine with specialist routing | `crew:start`, `crew:execute`, `crew:gate` |
+| **data** | Data analysis and ontology recommendations | `data:analyze`, `data:pipeline`, `data:ml` |
+| **delivery** | Multi-perspective delivery reporting and metrics | `delivery:report`, `delivery:rollout`, `delivery:experiment` |
+| **engineering** | Architecture, code review, debugging, docs, planning, and code transformations | `engineering:review`, `engineering:debug`, `engineering:arch` |
+| **jam** | AI-powered brainstorming with dynamic focus groups | `jam:council`, `jam:brainstorm`, `jam:quick` |
+| **mem** | Persistent memory — store decisions, recall context | `wicked-brain:memory`, `wicked-brain:query` |
+| **platform** | Security, infrastructure, compliance, CI/CD, incidents, and plugin diagnostics | `platform:security`, `platform:compliance`, `platform:incident` |
+| **product** | Requirements, customer feedback, strategy, UX, and design review | `product:acceptance`, `product:analyze`, `product:strategy` |
+| **search** | Structural code search, lineage, and codebase intelligence | `search:blast-radius`, `search:lineage`, `search:hotspots` |
+| **smaht** | Intelligent context assembly from all sources | `smaht:briefing`, `smaht:debug`, `smaht:learn` |
 
 ## Quick Start
 
@@ -40,7 +40,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 
 ### Onboard to a Codebase
 ```
-/wicked-garden:smaht:onboard .
+wicked-brain:agent onboard .
 ```
 
 ### Search Code
@@ -71,5 +71,5 @@ Use `wicked-brain:memory` to store a decision directly.
 
 ## Getting Domain Help
 
-Run `/wicked-garden:{domain}:help` for any domain to see its full command list and examples.
+Run `/wicked-garden:{domain}:{command}` for any command. Use `/wicked-garden:help` to return to this overview.
 ```
