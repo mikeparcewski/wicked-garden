@@ -39,6 +39,9 @@ PROJECTS_LIMIT_DEFAULT: int = 100
 PROJECTS_LIMIT_MAX: int = 500
 EVENTS_LIMIT_DEFAULT: int = 100
 EVENTS_LIMIT_MAX: int = 1000
+# Stream 1 — #596 v8-PR-2: /tasks endpoint limits
+TASKS_LIMIT_DEFAULT: int = 200
+TASKS_LIMIT_MAX: int = 500
 
 ENV_HOST: str = "WG_DAEMON_HOST"
 ENV_PORT: str = "WG_DAEMON_PORT"
@@ -91,6 +94,15 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
                     self._send_not_found("Unknown endpoint")
             elif path == "/events":
                 self._handle_list_events(query)
+            elif path == "/tasks":
+                # Stream 1 — #596 v8-PR-2: task list endpoint
+                self._handle_list_tasks(query)
+            elif path.startswith("/tasks/"):
+                task_id = path[len("/tasks/"):]
+                if task_id and "/" not in task_id:
+                    self._handle_get_task(task_id, query)
+                else:
+                    self._send_not_found("Unknown endpoint")
             else:
                 self._send_not_found("Unknown endpoint")
         except Exception:
@@ -210,6 +222,61 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
             if conn is not None:
                 conn.close()
 
+    def _handle_list_tasks(self, query: dict[str, list[str]]) -> None:
+        """GET /tasks[?session=<id>&status=<filter>&chain_id=<filter>].
+
+        Stream 1 — #596 v8-PR-2.  READ-ONLY — daemon never writes task state;
+        projection comes from wicked.task.* bus events.
+        """
+        try:
+            session_id, status_filter, chain_id_filter, limit = self._parse_tasks_query(query)
+        except ValueError as exc:
+            self._send_error(400, str(exc))
+            return
+
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            rows = db.list_tasks(
+                conn,
+                session_id=session_id,
+                status_filter=status_filter,
+                chain_id_filter=chain_id_filter,
+                limit=limit,
+            )
+            self._send_json(200, [_task_shape(r) for r in rows])
+        except Exception:
+            logger.error("list_tasks DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def _handle_get_task(self, task_id: str, _query: dict[str, list[str]]) -> None:
+        """GET /tasks/<task_id>.
+
+        Stream 1 — #596 v8-PR-2.  Returns the single task projection row,
+        or 404 if the task has not been projected yet.
+        """
+        if not task_id:
+            self._send_error(400, "Missing task id")
+            return
+
+        conn = None
+        try:
+            conn = db.connect(self.db_path)
+            row = db.get_task(conn, task_id)
+            if row is None:
+                self._send_not_found(f"Task '{task_id}' not found")
+                return
+            self._send_json(200, _task_shape(row))
+        except Exception:
+            logger.error("get_task DB error:\n%s", traceback.format_exc())
+            self._send_error(500, "Internal server error")
+        finally:
+            if conn is not None:
+                conn.close()
+
     # ------------------------------------------------------------------ #
     # Query-param parsers (raise ValueError on bad input → 400)
     # ------------------------------------------------------------------ #
@@ -280,6 +347,43 @@ class ProjectionRequestHandler(http.server.BaseHTTPRequestHandler):
             event_type_prefix = query["event_type"][0]
 
         return since, limit, event_type_prefix
+
+    @staticmethod
+    def _parse_tasks_query(
+        query: dict[str, list[str]],
+    ) -> tuple[str | None, str | None, str | None, int]:
+        """Parse and validate /tasks query params.
+
+        Returns (session_id, status_filter, chain_id_filter, limit).
+        Raises ValueError for invalid values.
+        """
+        _VALID_STATUSES = frozenset({"pending", "in_progress", "completed"})
+
+        session_id: str | None = query["session"][0] if "session" in query else None
+
+        status_filter: str | None = None
+        if "status" in query:
+            raw = query["status"][0]
+            if raw not in _VALID_STATUSES:
+                raise ValueError(
+                    f"Invalid status '{raw}'; must be one of: {', '.join(sorted(_VALID_STATUSES))}"
+                )
+            status_filter = raw
+
+        chain_id_filter: str | None = query["chain_id"][0] if "chain_id" in query else None
+
+        limit = TASKS_LIMIT_DEFAULT
+        if "limit" in query:
+            raw_limit = query["limit"][0]
+            if not raw_limit.isdigit():
+                raise ValueError(f"Invalid limit '{raw_limit}'; must be a positive integer")
+            limit = int(raw_limit)
+            if limit < 1 or limit > TASKS_LIMIT_MAX:
+                raise ValueError(
+                    f"limit must be between 1 and {TASKS_LIMIT_MAX}; got {limit}"
+                )
+
+        return session_id, status_filter, chain_id_filter, limit
 
     # ------------------------------------------------------------------ #
     # Response helpers
@@ -371,6 +475,25 @@ def _event_shape(row: dict) -> dict:
         "payload": payload,
         "projection_status": row.get("projection_status"),
         "ingested_at": row.get("ingested_at"),
+    }
+
+
+def _task_shape(row: dict) -> dict:
+    """Task row for /tasks and /tasks/<id> responses.
+
+    Stream 1 — #596 v8-PR-2.  The ``metadata`` column is already deserialised
+    to a dict by db.get_task / db.list_tasks; pass it through as-is.
+    """
+    return {
+        "id": row.get("id"),
+        "session_id": row.get("session_id"),
+        "subject": row.get("subject", ""),
+        "status": row.get("status"),
+        "chain_id": row.get("chain_id"),
+        "event_type": row.get("event_type"),
+        "metadata": row.get("metadata"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
     }
 
 

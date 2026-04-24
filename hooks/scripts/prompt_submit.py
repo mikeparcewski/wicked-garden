@@ -1113,24 +1113,14 @@ def _build_wip_recovery_block(session_id: str, project: str) -> str:
 
     # --- Source 3: Native in-progress tasks (optional, fail gracefully) ---
     # Reads the same store SubagentStart uses for procedure-bundle lookup.
+    # Routing: WG_DAEMON_ENABLED=false → direct file read (unchanged);
+    #          WG_DAEMON_ENABLED=true  → daemon HTTP with fallback (#596 v8-PR-2).
     in_progress_tasks = []
     try:
-        config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
-        tasks_base = Path(config_dir) if config_dir else Path.home() / ".claude"
         session_id = os.environ.get("CLAUDE_SESSION_ID", "")
-        tasks_dir = tasks_base / "tasks" / session_id if session_id else None
-        if tasks_dir and tasks_dir.is_dir():
-            for entry in tasks_dir.iterdir():
-                if entry.name.startswith(".") or entry.suffix != ".json":
-                    continue
-                try:
-                    data = json.loads(entry.read_text(encoding="utf-8"))
-                except Exception:
-                    continue
-                if isinstance(data, dict) and data.get("status") == "in_progress":
-                    in_progress_tasks.append(data.get("subject") or "untitled")
-                if len(in_progress_tasks) >= 5:
-                    break
+        if session_id:
+            from crew._task_reader import list_in_progress_tasks  # type: ignore[import]
+            in_progress_tasks = list_in_progress_tasks(session_id, limit=5)
     except Exception:
         pass  # task query is best-effort
 

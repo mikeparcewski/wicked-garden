@@ -1,0 +1,24 @@
+# Task store reader enumeration after PR-2 migration
+# Generated: grep -rln "CLAUDE_CONFIG_DIR.*tasks|tasks.*session_id|tasks_base|tasks_dir|_native_tasks_dir" hooks/ scripts/ --include="*.py"
+
+hooks/scripts/pre_compact.py         # now delegates to crew._task_reader.list_in_progress_tasks()
+hooks/scripts/prompt_submit.py       # now delegates to crew._task_reader.list_in_progress_tasks()
+hooks/scripts/stop.py                # comment reference only — unchanged
+scripts/crew/_task_reader.py         # NEW: routing hub; contains direct-file fallbacks
+scripts/crew/current_chain.py        # now delegates to crew._task_reader.collect_tasks_for_chain()
+scripts/crew/verify_chain_emission.py # now delegates to crew._task_reader.collect_tasks_for_chain()
+scripts/delivery/telemetry.py        # now delegates to crew._task_reader.read_session_tasks() with fallback
+scripts/mem/session_fact_extractor.py # now delegates to crew._task_reader.read_session_tasks() with fallback
+
+# subagent_lifecycle.py no longer contains direct task-read logic
+# task_completed.py no longer contains direct task-read logic
+# Both now delegate via crew._task_reader — confirmed by absence from grep above
+
+# Migration summary:
+#   8 readers migrated to route via scripts/crew/_task_reader.py
+#   WG_DAEMON_ENABLED=false → bit-identical direct file read (default)
+#   WG_DAEMON_ENABLED=true  → daemon HTTP + fallback to direct read
+#   WG_DAEMON_ENABLED=always → daemon HTTP only; error surfaces on unreachable
+
+# subagent_lifecycle.py and task_completed.py are now absent from this grep
+# because they delegate entirely to _task_reader (no CLAUDE_CONFIG_DIR reference remains)

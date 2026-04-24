@@ -1,0 +1,5 @@
+{"event_id": 1, "event_type": "wicked.task.created", "created_at": 1700000001, "chain_id": null, "payload": {"task_id": "task-A", "session_id": "sess-def", "subject": "Task A pending", "status": "pending"}}
+{"event_id": 2, "event_type": "wicked.task.created", "created_at": 1700000002, "chain_id": null, "payload": {"task_id": "task-B", "session_id": "sess-def", "subject": "Task B in progress", "status": "pending"}}
+{"event_id": 3, "event_type": "wicked.task.updated", "created_at": 1700000003, "chain_id": null, "payload": {"task_id": "task-B", "session_id": "sess-def", "status": "in_progress"}}
+{"event_id": 4, "event_type": "wicked.task.created", "created_at": 1700000004, "chain_id": null, "payload": {"task_id": "task-C", "session_id": "sess-def", "subject": "Task C completed", "status": "pending"}}
+{"event_id": 5, "event_type": "wicked.task.completed", "created_at": 1700000005, "chain_id": null, "payload": {"task_id": "task-C", "session_id": "sess-def"}}

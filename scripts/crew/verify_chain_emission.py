@@ -19,33 +19,27 @@ Issue #432.
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
 
-def _tasks_dir() -> Path:
-    config_dir = os.environ.get("CLAUDE_CONFIG_DIR") or str(Path.home() / ".claude")
-    return Path(config_dir) / "tasks"
-
-
 def _count_tasks_with_chain(chain_id: str) -> tuple[int, list[str]]:
-    """Return (count, titles) of tasks whose metadata.chain_id matches."""
-    root = _tasks_dir()
-    if not root.exists():
-        return (0, [])
-    count = 0
-    titles = []
-    for task_file in root.rglob("*.json"):
-        try:
-            data = json.loads(task_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        meta = data.get("metadata") or {}
-        if meta.get("chain_id") == chain_id:
-            count += 1
-            titles.append(data.get("subject") or data.get("title") or "<untitled>")
-    return (count, titles)
+    """Return (count, titles) of tasks whose metadata.chain_id matches.
+
+    Routing: WG_DAEMON_ENABLED=false → direct file scan (unchanged);
+             WG_DAEMON_ENABLED=true  → daemon HTTP with fallback (#596 v8-PR-2).
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from crew._task_reader import collect_tasks_for_chain  # type: ignore[import]
+        tasks = collect_tasks_for_chain(chain_id)
+    except Exception:
+        tasks = []
+    titles = [
+        t.get("subject") or t.get("title") or "<untitled>"
+        for t in tasks
+    ]
+    return (len(titles), titles)
 
 
 def main() -> None:

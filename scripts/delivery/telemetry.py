@@ -279,14 +279,25 @@ def capture_session(
         raw_project = project or extras.get("active_project") or "_global"
         resolved_project = _sanitize(raw_project)
 
-        task_files = _iter_task_files(session_id, deadline)
+        # Task reading routed via _task_reader (#596 v8-PR-2).
+        # WG_DAEMON_ENABLED=false → direct file scan (unchanged behaviour).
         tasks: List[Dict[str, Any]] = []
-        for p in task_files:
-            if time.monotonic() > deadline:
-                break
-            t = _read_task(p)
-            if t is not None:
-                tasks.append(t)
+        try:
+            _scripts_root = str(Path(__file__).resolve().parents[1])
+            import sys as _sys
+            if _scripts_root not in _sys.path:
+                _sys.path.insert(0, _scripts_root)
+            from crew._task_reader import read_session_tasks  # type: ignore[import]
+            tasks = read_session_tasks(session_id, limit=_MAX_TASKS_SCAN)
+        except Exception:
+            # Fallback: direct file read (pre-PR-2 path, always available).
+            task_files = _iter_task_files(session_id, deadline)
+            for p in task_files:
+                if time.monotonic() > deadline:
+                    break
+                t = _read_task(p)
+                if t is not None:
+                    tasks.append(t)
 
         metrics = _extract_metrics_from_tasks(tasks)
         metrics["skip_reeval_count"] = extras["skip_reeval_count"]

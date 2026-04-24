@@ -1,0 +1,40 @@
+# Status-rank guard — pytest output
+# Council condition #611: out-of-order bus events must not regress task status
+#
+# New parity tests added to tests/daemon/test_parity_tasks.py:
+#   - test_status_regression_refused_by_rank_guard
+#   - test_status_progression_forward_allowed
+#
+# Command: uv run pytest tests/daemon/test_parity_tasks.py -v --tb=line
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0
+benchmark: 5.2.3
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+
+collected 8 items
+
+tests/daemon/test_parity_tasks.py::test_task_created_to_completed_lifecycle PASSED
+tests/daemon/test_parity_tasks.py::test_task_lifecycle_idempotent PASSED
+tests/daemon/test_parity_tasks.py::test_task_status_filter PASSED
+tests/daemon/test_parity_tasks.py::test_task_chain_id_filter PASSED
+tests/daemon/test_parity_tasks.py::test_task_metadata_preserved PASSED
+tests/daemon/test_parity_tasks.py::test_unknown_task_event_ignored PASSED
+tests/daemon/test_parity_tasks.py::test_status_regression_refused_by_rank_guard PASSED
+tests/daemon/test_parity_tasks.py::test_status_progression_forward_allowed PASSED
+
+============================== 8 passed in 0.04s ===============================
+
+# --- scenario coverage ---
+# test_status_regression_refused_by_rank_guard:
+#   Events: created(pending) → updated(completed) → updated(in_progress) [out of order]
+#   Expected: status='completed'  (regression refused by _STATUS_RANK guard)
+#   Result:   PASS
+#
+# test_status_progression_forward_allowed:
+#   Events: created(pending) → updated(in_progress) → updated(completed) [in order]
+#   Expected: status='completed'  (forward progression always allowed)
+#   Result:   PASS
+#
+# Parity test count before fix-up: 6 tests
+# Parity test count after fix-up:  8 tests (+2 status-rank scenarios)

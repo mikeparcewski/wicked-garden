@@ -1,0 +1,10 @@
+{
+  "id": "task-001",
+  "session_id": "sess-abc",
+  "subject": "Implement feature X",
+  "status": "completed",
+  "chain_id": "my-proj.root",
+  "event_type": "coding-task",
+  "created_at": 0,
+  "updated_at": 0
+}

@@ -154,12 +154,8 @@ def _tasks_dir(session_id: str) -> Path:
     return root / "tasks" / safe
 
 
-def _iter_task_records(session_id: str) -> Iterable[dict]:
-    """Yield native task JSON records for the session, oldest-first by numeric id.
-
-    Only yields tasks whose status == 'completed' — the v5 pipeline also
-    only scored the visible outcome of a turn, not pending work.
-    """
+def _iter_task_records_direct(session_id: str) -> Iterable[dict]:
+    """Yield completed task records via direct file read (pre-PR-2 behaviour)."""
     tdir = _tasks_dir(session_id)
     if not tdir.exists() or not tdir.is_dir():
         return
@@ -183,6 +179,31 @@ def _iter_task_records(session_id: str) -> Iterable[dict]:
         if data.get("status") != "completed":
             continue
         yield data
+
+
+def _iter_task_records(session_id: str) -> Iterable[dict]:
+    """Yield native task JSON records for the session, oldest-first by numeric id.
+
+    Only yields tasks whose status == 'completed'.
+
+    Routing: WG_DAEMON_ENABLED=false → direct file read (unchanged);
+             WG_DAEMON_ENABLED=true  → daemon HTTP with fallback (#596 v8-PR-2).
+    """
+    try:
+        # _SCRIPTS_ROOT is the parent of this file's directory.
+        _scripts = str(Path(__file__).resolve().parents[1])
+        if _scripts not in sys.path:
+            sys.path.insert(0, _scripts)
+        from crew._task_reader import read_session_tasks  # type: ignore[import]
+        tasks = read_session_tasks(session_id, limit=500)
+        for t in tasks:
+            if isinstance(t, dict) and t.get("status") == "completed":
+                yield t
+        return
+    except Exception:
+        pass  # fail open — _task_reader unavailable; fall through to direct file read
+    # Fallback to direct file read if import fails.
+    yield from _iter_task_records_direct(session_id)
 
 
 def _extract_from_text(text: str, task_id: str) -> list:

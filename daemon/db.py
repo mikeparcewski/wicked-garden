@@ -95,6 +95,28 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_event_log_type
             ON event_log(event_type, event_id DESC);
+
+        CREATE TABLE IF NOT EXISTS tasks (
+            id          TEXT PRIMARY KEY,
+            session_id  TEXT NOT NULL,
+            subject     TEXT NOT NULL DEFAULT '',
+            status      TEXT NOT NULL DEFAULT 'pending'
+                        CHECK(status IN ('pending', 'in_progress', 'completed')),
+            chain_id    TEXT,
+            event_type  TEXT,
+            metadata    TEXT,
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tasks_session
+            ON tasks(session_id, updated_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_tasks_status
+            ON tasks(status);
+
+        CREATE INDEX IF NOT EXISTS idx_tasks_chain
+            ON tasks(chain_id);
     """)
     conn.commit()
 
@@ -335,3 +357,132 @@ def prune_event_log(conn: sqlite3.Connection, keep_last: int = _PRUNE_KEEP_DEFAU
     )
     conn.commit()
     return result.rowcount
+
+
+# ---------------------------------------------------------------------------
+# Task CRUD (Stream 1 — #596 v8-PR-2)
+# ---------------------------------------------------------------------------
+# Tasks are projected from bus events (wicked.task.created / .updated /
+# .completed).  The daemon is READ-ONLY from the task side — Claude's native
+# TaskList remains the primary writer; the daemon projects over it.
+
+_VALID_TASK_STATUSES: frozenset[str] = frozenset({"pending", "in_progress", "completed"})
+_TASK_MUTABLE_COLS: tuple[str, ...] = (
+    "subject", "status", "chain_id", "event_type", "metadata", "updated_at",
+)
+
+
+def upsert_task(conn: sqlite3.Connection, task_id: str, fields: dict[str, Any]) -> None:
+    """Insert or update a task row; missing keys preserve existing column values.
+
+    ``fields`` keys that map to mutable columns are applied via INSERT OR IGNORE
+    (to establish the row) followed by an UPDATE (to apply deltas).  The
+    ``id``, ``session_id``, and ``created_at`` columns are immutable after
+    creation; supply them on the initial call.
+
+    Callers may pass ``metadata`` as a dict — it is JSON-serialised before
+    storage so the column stays TEXT.
+    """
+    now = int(time.time())
+    fields = dict(fields)
+    fields.setdefault("updated_at", now)
+
+    # Serialise metadata dict → TEXT so the column stays TEXT in SQLite.
+    if isinstance(fields.get("metadata"), dict):
+        fields["metadata"] = json.dumps(fields["metadata"], separators=(",", ":"))
+
+    session_id = fields.get("session_id", "")
+    subject = fields.get("subject", "")
+    created_at = fields.get("created_at", now)
+
+    # Bootstrap the row so subsequent UPDATE has a target.
+    ins_cols: list[str] = ["id", "session_id", "subject", "created_at"]
+    ins_vals: list[Any] = [task_id, session_id, subject, created_at]
+    for col in _TASK_MUTABLE_COLS:
+        if col in fields:
+            ins_cols.append(col)
+            ins_vals.append(fields[col])
+    placeholders = ", ".join("?" for _ in ins_cols)
+    conn.execute(
+        f"INSERT OR IGNORE INTO tasks ({', '.join(ins_cols)}) VALUES ({placeholders})",
+        ins_vals,
+    )
+
+    # Apply mutable-column deltas to the (possibly pre-existing) row.
+    update_cols = [c for c in _TASK_MUTABLE_COLS if c in fields]
+    if update_cols:
+        set_clause = ", ".join(f"{c} = ?" for c in update_cols)
+        conn.execute(
+            f"UPDATE tasks SET {set_clause} WHERE id = ?",
+            [fields[c] for c in update_cols] + [task_id],
+        )
+
+    conn.commit()
+
+
+def get_task(conn: sqlite3.Connection, task_id: str) -> dict[str, Any] | None:
+    """Return a task row as a dict (metadata deserialised to dict), or None."""
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        return None
+    result = dict(row)
+    _deserialize_task_metadata(result)
+    return result
+
+
+def list_tasks(
+    conn: sqlite3.Connection,
+    session_id: str | None = None,
+    status_filter: str | None = None,
+    chain_id_filter: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Return task rows ordered by updated_at DESC.
+
+    All filter args are optional and combinable.  An empty result is []
+    rather than None.  ``limit`` is capped at 500 (R5: no unbounded reads).
+    """
+    _MAX_LIMIT = 500
+    limit = min(limit, _MAX_LIMIT)
+
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if session_id is not None:
+        clauses.append("session_id = ?")
+        params.append(session_id)
+    if status_filter is not None:
+        clauses.append("status = ?")
+        params.append(status_filter)
+    if chain_id_filter is not None:
+        clauses.append("chain_id = ?")
+        params.append(chain_id_filter)
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    params.append(limit)
+    rows = conn.execute(
+        f"SELECT * FROM tasks {where} ORDER BY updated_at DESC LIMIT ?",
+        params,
+    ).fetchall()
+
+    result = []
+    for row in rows:
+        d = dict(row)
+        _deserialize_task_metadata(d)
+        result.append(d)
+    return result
+
+
+def _deserialize_task_metadata(task_dict: dict[str, Any]) -> None:
+    """Deserialise the ``metadata`` column from TEXT to dict in-place.
+
+    Silently leaves the field as-is if parsing fails — the caller gets the raw
+    string rather than a crash.  Per R4: swallowed only because metadata is
+    optional/enrichment and the row is still usable without it.
+    """
+    raw = task_dict.get("metadata")
+    if isinstance(raw, str):
+        try:
+            task_dict["metadata"] = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            pass  # leave as raw string — callers treat metadata as best-effort
