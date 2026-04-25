@@ -55,6 +55,9 @@ Call `wicked-brain:search` with 3-4 salient nouns. Also `wicked-brain:query` for
 "how do we usually do X?" questions. Prefer `source_type: memory` (prior decisions/
 gotchas) over wiki and chunks for planning. Record up to 3 priors that change the plan.
 
+### 2.5. Optional — facilitator-score (`WG_USE_QUESTIONNAIRE_SCORER=true`, default `false`)
+When opted in, call `wicked-garden:facilitator-score` with description + priors; use its `factors` block as the Step 3 basis. Override readings by appending `— OVERRIDE: <reason>` to the factor's `why` field. Default off; current behavior unchanged.
+
 ### 3. Score the 9 factors (one sentence each)
 
 Prose, not numbers — but each factor emits the dict shape

@@ -1,0 +1,45 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.venv/bin/python3
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 33 items
+
+tests/crew/test_factor_questionnaire.py::test_all_nine_factors_present PASSED [  3%]
+tests/crew/test_factor_questionnaire.py::test_each_factor_has_at_least_three_questions PASSED [  6%]
+tests/crew/test_factor_questionnaire.py::test_all_question_weights_positive PASSED [  9%]
+tests/crew/test_factor_questionnaire.py::test_low_threshold_strictly_greater_than_medium PASSED [ 12%]
+tests/crew/test_factor_questionnaire.py::test_zero_points_gives_high PASSED [ 15%]
+tests/crew/test_factor_questionnaire.py::test_all_yes_gives_low PASSED   [ 18%]
+tests/crew/test_factor_questionnaire.py::test_medium_threshold_produces_medium PASSED [ 21%]
+tests/crew/test_factor_questionnaire.py::test_low_threshold_produces_low PASSED [ 24%]
+tests/crew/test_factor_questionnaire.py::test_why_string_includes_yes_question_ids PASSED [ 27%]
+tests/crew/test_factor_questionnaire.py::test_score_all_returns_all_nine_factors PASSED [ 30%]
+tests/crew/test_factor_questionnaire.py::test_score_all_each_entry_has_reading_and_why PASSED [ 33%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_yaml_parses_booleans PASSED [ 36%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_yaml_handles_yes_no_variants PASSED [ 39%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_json_with_wrapper PASSED [ 42%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_json_bare_dict PASSED [ 45%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_raises_on_empty_string PASSED [ 48%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_raises_on_unknown_factor_yaml PASSED [ 51%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_raises_on_unknown_factor_json PASSED [ 54%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_raises_on_invalid_json PASSED [ 57%]
+tests/crew/test_factor_questionnaire.py::test_parse_answers_raises_on_non_bool_json_value PASSED [ 60%]
+tests/crew/test_factor_questionnaire.py::test_render_questionnaire_contains_all_factor_names PASSED [ 63%]
+tests/crew/test_factor_questionnaire.py::test_render_questionnaire_contains_all_question_ids PASSED [ 66%]
+tests/crew/test_factor_questionnaire.py::test_render_questionnaire_is_string PASSED [ 69%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_reversibility_is_high PASSED [ 72%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_blast_radius_is_medium PASSED [ 75%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_compliance_scope_is_high PASSED [ 78%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_user_facing_impact_is_medium PASSED [ 81%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_novelty_is_high PASSED [ 84%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_scope_effort_is_medium PASSED [ 87%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_state_complexity_is_high PASSED [ 90%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_operational_risk_is_high PASSED [ 93%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_coordination_cost_is_medium PASSED [ 96%]
+tests/crew/test_factor_questionnaire.py::test_cluster_a_score_all_returns_full_block PASSED [100%]
+
+============================== 33 passed in 0.19s ==============================
