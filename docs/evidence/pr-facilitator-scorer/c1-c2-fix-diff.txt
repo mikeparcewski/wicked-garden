@@ -1,0 +1,23 @@
+C1: scope_effort s4 compound-range split
+C2: compliance_scope c4 speculative-to-factual reframe
+
+--- a/scripts/crew/factor_questionnaire.py
++++ b/scripts/crew/factor_questionnaire.py
+
+C1 — s4 split (scope_effort, line ~126):
+-            Question("s4", "Does this change touch 4-20 files or 1-2 services?", 1),
++            Question("s4a", "Does this work touch more than 5 files?", 1),
++            Question("s4b", "Does this work touch more than 20 files OR more than one service?", 2),
+
+  Thresholds unchanged: medium_threshold=1, low_threshold=5
+  New max points: s1(3)+s2(3)+s3(2)+s4a(1)+s4b(2) = 11  (was 9)
+  Calibration preserved: cluster-A (10-20 files, single repo) → s4a=YES(1pt), s4b=NO → 1pt ≥ medium_threshold=1 → MEDIUM (same as before)
+
+C2 — c4 reframe (compliance_scope, line ~93):
+-            Question("c4", "Could this work accidentally capture PII in logs or traces as a side effect?", 1),
++            Question("c4", "Does this code path serialize user-provided objects, request bodies, or entity models into logs or traces?", 1),
+
+  Weight unchanged: 1
+  Scoring unchanged: same threshold, same points
+  Change: speculative "could ... accidentally" → factual "does this code path serialize"
+  Rationale: "could" requires speculation; the new phrasing is answerable from the description

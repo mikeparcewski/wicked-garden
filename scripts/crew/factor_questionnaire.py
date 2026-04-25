@@ -45,6 +45,18 @@ class FactorRubric:
     medium_threshold: int   # total points >= this → at least MEDIUM
     low_threshold: int      # total points >= this → LOW
 
+    def __post_init__(self) -> None:
+        if not (self.low_threshold > self.medium_threshold > 0):
+            raise ValueError(
+                f"FactorRubric {self.name!r}: thresholds must satisfy "
+                f"low_threshold ({self.low_threshold}) > medium_threshold "
+                f"({self.medium_threshold}) > 0"
+            )
+        if not all(q.yes_weight > 0 for q in self.questions):
+            raise ValueError(
+                f"FactorRubric {self.name!r}: all yes_weight values must be > 0"
+            )
+
 
 # ---------------------------------------------------------------------------
 # Questionnaire — all 9 canonical factors
@@ -81,7 +93,7 @@ QUESTIONNAIRE: Dict[str, FactorRubric] = {
             Question("c1", "Does this work directly handle PII, PHI, payment card data, or authentication credentials?", 4),
             Question("c2", "Does this work create or modify audit logs, consent records, or data export/deletion endpoints?", 3),
             Question("c3", "Does this work involve cross-border data transfer or data residency constraints?", 2),
-            Question("c4", "Could this work accidentally capture PII in logs or traces as a side effect?", 1),
+            Question("c4", "Does this code path serialize user-provided objects, request bodies, or entity models into logs or traces?", 1),
         ),
         medium_threshold=1,
         low_threshold=4,
@@ -114,7 +126,8 @@ QUESTIONNAIRE: Dict[str, FactorRubric] = {
             Question("s1", "Does this change touch more than 20 files?", 3),
             Question("s2", "Does this change span 3 or more services or repos?", 3),
             Question("s3", "Does this change require coordination across 2 or more teams?", 2),
-            Question("s4", "Does this change touch 4-20 files or 1-2 services?", 1),
+            Question("s4a", "Does this work touch more than 5 files?", 1),
+            Question("s4b", "Does this work touch more than 20 files OR more than one service?", 2),
         ),
         medium_threshold=1,
         low_threshold=5,
@@ -188,6 +201,17 @@ def score_factor(rubric: FactorRubric, answers: Dict[str, bool]) -> Tuple[Readin
     return reading, why
 
 
+# R3: named constant for reading → risk language translation.
+# Convention: HIGH reading = least risky (best safety); LOW reading = most risky.
+# risk_level uses standard risk language so downstream consumers aren't misled by
+# the counter-intuitive HIGH=safe direction of Reading.
+_RISK_INVERSION: Dict[Reading, str] = {
+    "HIGH": "low_risk",
+    "MEDIUM": "medium_risk",
+    "LOW": "high_risk",
+}
+
+
 def score_all(answers: Dict[str, Dict[str, bool]]) -> Dict[str, Dict]:
     """Score all 9 factors from a nested answers dict.
 
@@ -197,12 +221,25 @@ def score_all(answers: Dict[str, Dict[str, bool]]) -> Dict[str, Dict]:
 
     Returns:
         Dict matching the factors block of output-schema.md:
-        { "reversibility": {"reading": "HIGH|MEDIUM|LOW", "why": "..."}, ... }
+        {
+            "reversibility": {
+                "reading": "HIGH|MEDIUM|LOW",  # backward compat — HIGH=safest
+                "risk_level": "low_risk|medium_risk|high_risk",  # human-friendly
+                "why": "..."
+            },
+            ...
+        }
+        Existing consumers reading `reading` are unaffected. New consumers should
+        prefer `risk_level` to avoid the direction-inversion footgun.
     """
     result = {}
     for name, rubric in QUESTIONNAIRE.items():
         reading, why = score_factor(rubric, answers.get(name, {}))
-        result[name] = {"reading": reading, "why": why}
+        result[name] = {
+            "reading": reading,
+            "risk_level": _RISK_INVERSION[reading],
+            "why": why,
+        }
     return result
 
 

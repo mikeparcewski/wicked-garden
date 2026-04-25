@@ -31,17 +31,22 @@ A `factors` block matching `skills/propose-process/refs/output-schema.md`:
 ```json
 {
   "factors": {
-    "reversibility":      {"reading": "HIGH|MEDIUM|LOW", "why": "..."},
-    "blast_radius":       {"reading": "HIGH|MEDIUM|LOW", "why": "..."},
-    "compliance_scope":   {"reading": "HIGH|MEDIUM|LOW", "why": "..."},
-    "user_facing_impact": {"reading": "HIGH|MEDIUM|LOW", "why": "..."},
-    "novelty":            {"reading": "HIGH|MEDIUM|LOW", "why": "..."},
-    "scope_effort":       {"reading": "HIGH|MEDIUM|LOW", "why": "..."},
-    "state_complexity":   {"reading": "HIGH|MEDIUM|LOW", "why": "..."},
-    "operational_risk":   {"reading": "HIGH|MEDIUM|LOW", "why": "..."},
-    "coordination_cost":  {"reading": "HIGH|MEDIUM|LOW", "why": "..."}
+    "reversibility":      {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "blast_radius":       {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "compliance_scope":   {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "user_facing_impact": {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "novelty":            {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "scope_effort":       {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "state_complexity":   {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "operational_risk":   {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "coordination_cost":  {"reading": "HIGH|MEDIUM|LOW", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."}
   }
 }
+```
+
+`reading` (backward-compat): HIGH = least risky, LOW = most risky. This direction is counter-intuitive
+for downstream display. Prefer `risk_level` when showing results to users: `low_risk` / `medium_risk` /
+`high_risk` maps directly to standard risk language.
 ```
 
 ## Procedure

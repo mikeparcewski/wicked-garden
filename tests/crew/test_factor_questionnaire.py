@@ -142,11 +142,12 @@ def test_score_all_returns_all_nine_factors():
 
 
 def test_score_all_each_entry_has_reading_and_why():
-    """AC-2: every entry in score_all output has reading and why."""
+    """AC-2: every entry in score_all output has reading, risk_level, and why."""
     result = score_all({})
     for name, entry in result.items():
         assert "reading" in entry, f"{name} missing 'reading'"
         assert "why" in entry, f"{name} missing 'why'"
+        assert "risk_level" in entry, f"{name} missing 'risk_level'"
         assert entry["reading"] in ("HIGH", "MEDIUM", "LOW"), (
             f"{name} reading must be HIGH|MEDIUM|LOW, got {entry['reading']}"
         )
@@ -347,7 +348,8 @@ _CLUSTER_A_ANSWERS = {
         "s1": False,   # ~10-20 files, borderline but <20
         "s2": False,   # single repo
         "s3": False,   # single team
-        "s4": True,    # 4-20 files across 5 domains — weight 1
+        "s4a": True,   # >5 files across 5 domains — weight 1
+        "s4b": False,  # not >20 files and not multi-service — weight 2
     },
     "state_complexity": {
         "sc1": False,  # no schema migration
@@ -443,3 +445,108 @@ def test_cluster_a_score_all_returns_full_block():
         assert entry["reading"] in ("HIGH", "MEDIUM", "LOW"), (
             f"unexpected reading '{entry['reading']}' for factor '{name}'"
         )
+
+
+# ---------------------------------------------------------------------------
+# C1: scope_effort s4 split — 50-file / 3-service change scoring (#626)
+# ---------------------------------------------------------------------------
+
+def test_scope_effort_s4_split_handles_large_changes():
+    """C1: 50-file 3-service change (s4a=YES, s4b=YES) yields at most MEDIUM
+    (ideally LOW). Under the old compound-range s4 the answer was NO → 0 pts → HIGH,
+    which silently underscored every large change.
+    """
+    rubric = _rubric_for("scope_effort")
+    # 50-file change touching 3 services: s4a YES (1pt) + s4b YES (2pt) = 3 pts total.
+    # medium_threshold=1, low_threshold=5 → 3 pts → MEDIUM.
+    answers = {"s4a": True, "s4b": True}
+    reading, why = score_factor(rubric, answers)
+    assert reading in ("MEDIUM", "LOW"), (
+        f"50-file 3-service change must score MEDIUM or LOW, got {reading!r}. "
+        f"Pre-fix this was HIGH (compound-range s4 answered NO). Trace: {why}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# C2: compliance_scope c4 factual phrasing (#626)
+# ---------------------------------------------------------------------------
+
+def test_compliance_c4_factual_phrasing():
+    """C2: c4 question text must not contain speculative language.
+    Speculative words ('could', 'might', 'may', 'potentially', 'accidentally')
+    make the question unanswerable from description content alone.
+    """
+    rubric = _rubric_for("compliance_scope")
+    c4 = next(q for q in rubric.questions if q.id == "c4")
+    speculative_words = {"could", "might", "may", "potentially", "accidentally"}
+    found = speculative_words & set(c4.q.lower().split())
+    assert not found, (
+        f"c4 question contains speculative language {found!r}: {c4.q!r}. "
+        f"Reframe to factual phrasing that is answerable from the description."
+    )
+
+
+# ---------------------------------------------------------------------------
+# C3: FactorRubric.__post_init__ threshold guard (#626)
+# ---------------------------------------------------------------------------
+
+def test_factor_rubric_rejects_invalid_thresholds():
+    """C3: FactorRubric raises ValueError when low_threshold <= medium_threshold."""
+    with pytest.raises(ValueError, match="thresholds must satisfy"):
+        FactorRubric(
+            name="bad_factor",
+            questions=(Question("x1", "Any question?", 1),),
+            medium_threshold=5,
+            low_threshold=3,  # violates low_threshold > medium_threshold
+        )
+
+
+def test_factor_rubric_rejects_zero_weight_question():
+    """C3: FactorRubric raises ValueError when any question has yes_weight=0."""
+    with pytest.raises(ValueError, match="yes_weight values must be > 0"):
+        FactorRubric(
+            name="bad_factor",
+            questions=(
+                Question("x1", "A real question?", 1),
+                Question("x2", "A zero-weight question?", 0),  # violation
+            ),
+            medium_threshold=1,
+            low_threshold=2,
+        )
+
+
+# ---------------------------------------------------------------------------
+# C4: risk_level field — direction-explicit risk language (#626)
+# ---------------------------------------------------------------------------
+
+def test_score_all_includes_risk_level():
+    """C4: every factor entry from score_all includes a risk_level field
+    with values in {low_risk, medium_risk, high_risk}.
+    """
+    result = score_all({})
+    valid_risk_levels = {"low_risk", "medium_risk", "high_risk"}
+    for name, entry in result.items():
+        assert "risk_level" in entry, f"factor '{name}' missing 'risk_level' field"
+        assert entry["risk_level"] in valid_risk_levels, (
+            f"factor '{name}' risk_level={entry['risk_level']!r} not in {valid_risk_levels}"
+        )
+
+
+def test_risk_level_inversion_correctness():
+    """C4: risk_level correctly inverts Reading direction.
+    Reading=HIGH (safest) → risk_level=low_risk.
+    Reading=LOW  (riskiest) → risk_level=high_risk.
+    """
+    # Force HIGH reading: all-no on reversibility (0 pts < medium_threshold=1)
+    result_high = score_all({"reversibility": {q.id: False for q in QUESTIONNAIRE["reversibility"].questions}})
+    assert result_high["reversibility"]["reading"] == "HIGH"
+    assert result_high["reversibility"]["risk_level"] == "low_risk", (
+        "Reading=HIGH must map to risk_level=low_risk"
+    )
+
+    # Force LOW reading: all-yes on reversibility (8 pts >= low_threshold=3)
+    result_low = score_all({"reversibility": {q.id: True for q in QUESTIONNAIRE["reversibility"].questions}})
+    assert result_low["reversibility"]["reading"] == "LOW"
+    assert result_low["reversibility"]["risk_level"] == "high_risk", (
+        "Reading=LOW must map to risk_level=high_risk"
+    )

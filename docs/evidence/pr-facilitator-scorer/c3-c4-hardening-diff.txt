@@ -1,0 +1,41 @@
+C3: FactorRubric.__post_init__ assertion guard
+C4: risk_level field for naming-inversion safety
+
+--- a/scripts/crew/factor_questionnaire.py
++++ b/scripts/crew/factor_questionnaire.py
+
+C3 — FactorRubric.__post_init__ (line ~48):
++    def __post_init__(self) -> None:
++        if not (self.low_threshold > self.medium_threshold > 0):
++            raise ValueError(
++                f"FactorRubric {self.name!r}: thresholds must satisfy "
++                f"low_threshold ({self.low_threshold}) > medium_threshold "
++                f"({self.medium_threshold}) > 0"
++            )
++        if not all(q.yes_weight > 0 for q in self.questions):
++            raise ValueError(
++                f"FactorRubric {self.name!r}: all yes_weight values must be > 0"
++            )
+
+  Fires at module-load time (frozen dataclass __post_init__).
+  Catches miscalibration before any scoring runs.
+  Two guards: (a) threshold ordering, (b) zero-weight questions.
+
+C4 — _RISK_INVERSION constant + score_all update (line ~201+):
++_RISK_INVERSION: Dict[Reading, str] = {
++    "HIGH": "low_risk",
++    "MEDIUM": "medium_risk",
++    "LOW": "high_risk",
++}
+
+  score_all now emits:
+-   result[name] = {"reading": reading, "why": why}
++   result[name] = {
++       "reading": reading,
++       "risk_level": _RISK_INVERSION[reading],
++       "why": why,
++   }
+
+  Backward compat: `reading` field unchanged. New consumers use `risk_level`.
+  Direction: Reading=HIGH (safest) → risk_level=low_risk
+             Reading=LOW  (riskiest) → risk_level=high_risk
