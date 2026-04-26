@@ -1,14 +1,14 @@
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/artifact_state.py:235:        params["state"] = _validate_state(state)
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/artifact_state.py:256:    return artifact.get("state") == required_state
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/artifact_state.py:281:        if art.get("state") == required_state:
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:659:        if phase_state.status == "skipped":
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:1119:        if phase_state_check and phase_state_check.status == "approved":
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:1146:    phase_state.status = "in_progress"
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:1161:        phase_state.status = "complete"
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:3640:    phase_state.status = "approved"
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:3793:    phase_state.status = "skipped"
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:3920:        clarify_phase = PhaseState(status="pending")
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:4891:    # In-flight-dispatch check: phase status == in_progress AND executor-status
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/scripts/crew/phase_manager.py:5171:            phase_status_summary = get_phase_status_summary(state)
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/hooks/scripts/pre_tool.py:125:        metadata, valid_phases=phases or None, status=status,
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3e593b4a55a8966c/daemon/projector.py:235:        fields["state"] = _STATE_REJECTED
+./scripts/crew/artifact_state.py:235:        params["state"] = _validate_state(state)
+./scripts/crew/artifact_state.py:256:    return artifact.get("state") == required_state
+./scripts/crew/artifact_state.py:281:        if art.get("state") == required_state:
+./scripts/crew/phase_manager.py:659:        if phase_state.status == "skipped":
+./scripts/crew/phase_manager.py:1119:        if phase_state_check and phase_state_check.status == "approved":
+./scripts/crew/phase_manager.py:1146:    phase_state.status = "in_progress"
+./scripts/crew/phase_manager.py:1161:        phase_state.status = "complete"
+./scripts/crew/phase_manager.py:3640:    phase_state.status = "approved"
+./scripts/crew/phase_manager.py:3793:    phase_state.status = "skipped"
+./scripts/crew/phase_manager.py:3920:        clarify_phase = PhaseState(status="pending")
+./scripts/crew/phase_manager.py:4891:    # In-flight-dispatch check: phase status == in_progress AND executor-status
+./scripts/crew/phase_manager.py:5171:            phase_status_summary = get_phase_status_summary(state)
+./hooks/scripts/pre_tool.py:125:        metadata, valid_phases=phases or None, status=status,
+./daemon/projector.py:235:        fields["state"] = _STATE_REJECTED
