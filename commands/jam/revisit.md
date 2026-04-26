@@ -11,11 +11,13 @@ Revisit a past brainstorm decision to record whether it was validated, invalidat
 
 ### 1. Recall Past Decision
 
-Search for the decision in wicked-garden:mem
+Search for the decision via wicked-brain
 
 ```
-Task(subagent_type="wicked-garden:mem:memory-recaller",
-     prompt="Search for decisions tagged with 'jam,decision' related to: {topic}. Return the full decision record including rationale and alternatives.")
+Skill(
+  skill="wicked-brain:memory",
+  args="recall \"decisions tagged 'jam,decision' related to: {topic}\" --filter_type decision"
+)
 ```
 
 If no matching decision found, inform the user and suggest running `/wicked-garden:jam:brainstorm` first.
@@ -72,4 +74,4 @@ This outcome will be surfaced in future brainstorms on similar topics.
 
 ## Graceful Degradation
 
-Without wicked-garden:mem Display a message that decision revisit requires wicked-garden:mem for decision storage. Suggest the user install wicked-garden:mem for full decision lifecycle tracking.
+Without wicked-brain: display a message that decision revisit requires wicked-brain for decision storage. Suggest the user install the wicked-brain plugin for full decision lifecycle tracking.

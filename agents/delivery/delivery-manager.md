@@ -29,7 +29,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 - **Reports**: Use /wicked-garden:delivery:report for data-driven analysis
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk assessment
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` for native task tracking (see scripts/_event_schema.py).
-- **Memory**: Use wicked-garden:mem for historical sprint data
+- **Memory**: Use wicked-brain:memory for historical sprint data
 - **Product**: Use product for requirements context
 
 If a wicked-* tool is available, prefer it over manual approaches.
@@ -52,8 +52,8 @@ Gather delivery data:
 
 **From memory** (historical context):
 ```
-/wicked-garden:mem:recall "sprint velocity"
-/wicked-garden:mem:recall "delivery patterns"
+/wicked-brain:memory (recall mode) "sprint velocity"
+/wicked-brain:memory (recall mode) "delivery patterns"
 ```
 
 Compute key metrics:

@@ -79,9 +79,9 @@ Greps the repository for files related to the issue keywords. Up to 5 relevant f
 
 ### Memory Recall
 
-Queries the wicked-garden memory store for prior context about the issue area:
+Queries the wicked-brain memory store for prior context about the issue area:
 ```
-Skill(skill="wicked-garden:mem:recall", args="{keywords}")
+Skill(skill="wicked-brain:memory", args="recall {keywords}")
 ```
 Relevant memories are appended as a **Prior Context** section.
 

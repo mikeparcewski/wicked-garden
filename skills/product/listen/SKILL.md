@@ -160,9 +160,9 @@ See [channels.md](refs/channels.md) for detailed capability integration patterns
 
 ## Integration
 
-### With wicked-garden:mem
+### With wicked-brain
 ```python
-# Recall past customer insights via /wicked-garden:mem:recall
+# Recall past customer insights via Skill(skill="wicked-brain:memory", args="recall ...
 memories = recall(f"customer feedback about {topic}")
 # Provide historical context
 ```

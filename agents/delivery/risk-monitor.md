@@ -56,7 +56,7 @@ Inspect the session's active tasks for blockers (native tasks live under `${CLAU
 
 Recall past risks:
 ```
-/wicked-garden:mem:recall "risk {project_type}"
+/wicked-brain:memory (recall mode) "risk {project_type}"
 ```
 
 ### 3. Assess Technical Risks
@@ -246,5 +246,5 @@ Skill(skill="wicked-brain:memory", args="store \"risk pattern: {risk type} in {c
 
 Recall for new projects:
 ```
-/wicked-garden:mem:recall "risk {similar project type}"
+/wicked-brain:memory (recall mode) "risk {similar project type}"
 ```

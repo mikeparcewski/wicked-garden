@@ -1,61 +1,45 @@
 ---
-name: integration-with-wicked-mem
-title: Integration with wicked-mem
-description: Test brainstorming with context recall and insight storage
+name: integration-with-wicked-brain-memory
+title: Jam Integration with wicked-brain Memory Recall
+description: Test brainstorming with context recall and insight storage via wicked-brain:memory (v8.0.0+ replacement for deprecated wicked-garden:mem:* commands)
 type: integration
 difficulty: intermediate
 estimated_minutes: 15
 ---
 
-# Integration with wicked-mem
+# Jam Integration with wicked-brain Memory Recall
 
-This scenario tests wicked-jam's integration with wicked-mem for recalling prior context before sessions and storing insights afterward.
+This scenario tests wicked-jam's integration with wicked-brain for recalling prior context before sessions and storing insights afterward.
+
+**Note (v8.0.0+)**: The deprecated `wicked-garden:mem:store` / `wicked-garden:mem:recall` commands were removed in v8.0.0. This scenario has been rewritten to use `wicked-brain:memory` directly (the canonical replacement). See `docs/cluster-a/mem-zombie-postmortem-and-remediation.md` for migration details.
 
 ## Setup
 
-Requires both wicked-jam and wicked-mem plugins installed:
+Requires wicked-jam plugin installed and wicked-brain plugin installed and running:
 
 ```bash
-# Verify plugins are installed
-claude plugin list | grep -E "(wicked-jam|wicked-mem)"
+# Verify wicked-brain is running
+curl -s http://localhost:${WICKED_BRAIN_PORT:-4242}/health | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('ok'), 'Brain not running'"
 
 # Create test project directory
 mkdir -p ~/test-wicked-jam/database-migration
 cd ~/test-wicked-jam/database-migration
-
-# Create initial context to store
-cat > initial-context.md <<'EOF'
-# Database Migration Decision - Initial Context
-
-## Previous Discussion Summary
-We explored moving from PostgreSQL to Cassandra for our time-series data.
-
-## Key Points from Last Week
-- Current PostgreSQL performance: 500 writes/sec, struggling at scale
-- Data is append-only time-series (sensor readings)
-- 2TB of data currently, growing 500GB/month
-- Team has no Cassandra experience
-- Budget approved for migration costs
-
-## Open Questions from Last Time
-- What's the migration path?
-- How do we maintain consistency during transition?
-- Training timeline for team?
-
-## Decision Status
-Still evaluating. Need to determine if Cassandra is right choice vs.
-PostgreSQL optimization vs. TimescaleDB vs. ClickHouse.
-EOF
 ```
 
 ## Steps
 
-1. **Store Initial Context in wicked-mem**
-   ```bash
-   /wicked-garden:mem:store --type decision --tags "database,migration,time-series" "$(cat initial-context.md)"
+1. **Store Initial Context via wicked-brain:memory**
+
+   Use the `wicked-brain:memory` skill in store mode to persist context:
+
+   ```
+   Skill(
+     skill="wicked-brain:memory",
+     args="store \"Database migration evaluation: exploring PostgreSQL to Cassandra migration for time-series sensor data. 500 writes/sec current limit, 2TB data growing 500GB/month. Team has no Cassandra experience. Budget approved. Open questions: migration path, consistency during transition, training timeline.\" --type decision --tags database,migration,time-series --importance high"
+   )
    ```
 
-   Expected: Confirmation that context is stored
+   Expected: Confirmation that context is stored in wicked-brain.
 
 2. **Run Brainstorm That Should Recall Context**
    ```bash
@@ -63,7 +47,7 @@ EOF
    ```
 
    Expected:
-   - Session begins with "Recalling prior context..." or similar
+   - `brainstorm-facilitator.md` Step 1a fires a `wicked-brain:memory` recall for past decisions
    - Facilitator acknowledges previous discussion points
    - Personas reference or build on prior context
    - Discussion doesn't repeat what was already covered
@@ -80,104 +64,97 @@ EOF
 
    Let session complete with full synthesis.
 
-5. **Verify Storage Offer**
+5. **Store Brainstorm Insights via wicked-brain:memory**
 
-   Check that after synthesis, wicked-garden:jam:
-   - Offers to store insights in wicked-mem
-   - Provides option to accept or decline
-   - Suggests appropriate tags (database, migration, etc.)
+   After synthesis, store insights:
 
-6. **Accept Storage Offer**
+   ```
+   Skill(
+     skill="wicked-brain:memory",
+     args="store \"Brainstorm outcome on database migration: <synthesized decision> Rationale: <key rationale>\" --type decision --tags database,migration,jam,outcome --importance high"
+   )
+   ```
 
-   Respond affirmatively to storage prompt.
+   Expected: Insights stored in wicked-brain.
 
-   Expected: Insights stored in wicked-mem
+6. **Recall Stored Insights**
 
-7. **Recall Stored Insights**
-   ```bash
-   /wicked-garden:mem:recall "database migration"
+   ```
+   Skill(
+     skill="wicked-brain:memory",
+     args="recall \"database migration\" --filter_type decision"
+   )
    ```
 
    Expected:
    - Original context retrieved
    - New brainstorm insights retrieved
-   - Both tied together by tags
+   - Both associated by decision type
 
-8. **Run Second Session on Related Topic**
+7. **Run Second Session on Related Topic**
    ```bash
    /wicked-garden:jam:brainstorm "data consistency during database migration"
    ```
 
    Expected:
-   - Recalls both original context AND first brainstorm insights
+   - Recalls both original context AND first brainstorm insights via `wicked-brain:memory` recall
    - Builds on previous discussion
    - Doesn't start from scratch
 
-9. **Test Standalone Mode (Without wicked-mem)**
+8. **Test Standalone Mode (Without wicked-brain)**
 
-   Note: This step simulates behavior when wicked-mem is not available
+   Note: This step simulates behavior when wicked-brain is not available.
 
    Expected behavior documented:
-   - Session runs without context recall
-   - No storage offer at end
-   - Suggests local file storage instead
-   - Full functionality otherwise intact
+   - Session runs without context recall (brain adapter returns empty)
+   - Full brainstorm functionality otherwise intact
+   - No hard failure — graceful degradation per plugin design
 
 ## Expected Outcome
 
-- First brainstorm session recalls prior context from wicked-mem
+- First brainstorm session recalls prior context from wicked-brain
 - Personas reference or build on stored context
-- Session offers to store insights after completion
+- Session stores insights in wicked-brain after completion
 - Stored insights can be recalled in future sessions
 - Second brainstorm builds on both original context and first session
 - Progressive knowledge building across sessions
-- Graceful degradation when wicked-mem unavailable
+- Graceful degradation when wicked-brain unavailable
 
 ## Success Criteria
 
-- [ ] Initial context successfully stored in wicked-mem
-- [ ] Brainstorm session indicates context recall at start
+- [ ] Initial context successfully stored via wicked-brain:memory (store mode)
+- [ ] Brainstorm session Step 1a triggers wicked-brain:memory recall
 - [ ] Session references specific details from stored context
 - [ ] Personas don't repeat already-covered ground
-- [ ] Session offers to store insights after synthesis
-- [ ] Storage prompt includes suggested tags
-- [ ] Accepting storage saves insights to wicked-mem
-- [ ] Stored insights can be recalled with /wicked-garden:mem:recall
+- [ ] Insights stored via wicked-brain:memory after synthesis
+- [ ] Stored insights can be recalled with wicked-brain:memory (recall mode)
 - [ ] Second session on related topic recalls previous insights
 - [ ] Second session builds on (not repeats) prior discussion
-- [ ] Documentation acknowledges graceful degradation without wicked-mem
+- [ ] Graceful degradation when wicked-brain unavailable (brain adapter returns empty, not error)
 
 ## Value Demonstrated
 
-**Real-world value**: Complex decisions rarely happen in a single session. Teams revisit architecture choices, product decisions, and technical strategies over days or weeks. wicked-jam's integration with wicked-mem enables **progressive decision-making** where each brainstorm session builds on prior context.
+**Real-world value**: Complex decisions rarely happen in a single session. Teams revisit architecture choices, product decisions, and technical strategies over days or weeks. wicked-jam's integration with wicked-brain enables **progressive decision-making** where each brainstorm session builds on prior context.
 
-This prevents repeating the same discussions, surfaces how thinking has evolved, and creates an institutional memory of decision rationale. When a new team member asks "why did we choose Cassandra?", you can recall the brainstorm sessions that led to that decision, complete with the perspectives considered and tradeoffs acknowledged.
-
-The graceful degradation ensures wicked-jam works standalone while offering enhanced value when paired with wicked-mem, following the plugin ecosystem's composability principle.
-
-## Integration Architecture Notes
-
-This scenario validates the integration pattern:
+## Integration Architecture (v8.0.0+)
 
 ```
 wicked-garden:jam:brainstorm
   |
-  ├─> wicked-garden:mem:recall (if available)
-  |     └─> inject context into facilitator
+  ├─> Skill(wicked-brain:memory, recall ...) [Step 1a in brainstorm-facilitator.md]
+  |     └─> inject recalled decisions into facilitator
   |
   ├─> facilitator runs session
   |
-  └─> wicked-garden:mem:store (if available & user approves)
-        └─> persist insights with tags
+  └─> Skill(wicked-brain:memory, store ...) [caller stores insights post-synthesis]
+        └─> persist insights with type=decision, tags
 ```
 
-This demonstrates plugin composability where wicked-jam enhances with wicked-mem but degrades gracefully without it.
+## Council Consensus Integration
 
-## Council Consensus Integration (v3.4.0+)
+These steps validate the structured consensus protocol from `consensus.py`:
 
-These additional steps validate the structured consensus protocol from `consensus.py`:
-
-### 10. Format Council Result for Memory
+### 9. Format Council Result for Brain Storage
 
 ```bash
 # Create test proposals
@@ -210,7 +187,7 @@ print(f'Dissenting views: {len(r[\"dissenting_views\"])}')
 
 **Expected**: `CONSENSUS_VALID` with confidence between 0-1 and at least one dissenting view
 
-### 11. Store Council Result in wicked-mem Format
+### 10. Verify format_for_memory Returns Brain-Compatible Dict
 
 ```bash
 python3 -c "
@@ -232,10 +209,10 @@ print(f'Has dissent metadata: {\"dissent_count\" in str(mem_record[\"metadata\"]
 "
 ```
 
-**Expected**: `MEMORY_FORMAT_VALID` with type=decision and dissent metadata
+**Expected**: `MEMORY_FORMAT_VALID` with type=decision and dissent metadata. The caller would then pass this dict to `wicked-brain:memory` (store mode) rather than the removed `wicked-garden:mem:store`.
 
 ### Success Criteria (Consensus Integration)
 - [ ] Council synthesis produces structured JSON with decision, confidence, dissenting_views
 - [ ] Confidence score is between 0 and 1
 - [ ] Dissenting views are preserved (not flattened)
-- [ ] format_for_memory returns dict with type=decision suitable for wicked-mem
+- [ ] format_for_memory returns dict with type=decision suitable for wicked-brain:memory ingestion

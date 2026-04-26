@@ -1,7 +1,7 @@
 ---
 name: memory-storage
 title: Aggressive Memory Storage Enforcement
-description: Verify task_completed.py emits explicit mem:store directives with type hints and escalation
+description: Verify task_completed.py emits explicit wicked-brain:memory directives with type hints and escalation
 type: testing
 difficulty: beginner
 estimated_minutes: 8
@@ -34,7 +34,7 @@ EOF
 ```bash
 echo '{"subject": "build: implement auth service", "task_id": "t1", "status": "completed", "project_id": "test-proj"}' \
   | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if '/wicked-garden:mem:store' in msg else 'MISSING'); print('PROCEDURAL' if 'type=procedural' in msg else 'NO_TYPE'); print('NO_ESCALATION' if '[ESCALATION]' not in msg else 'ESCALATION_FOUND')"
+  | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if 'wicked-brain:memory' in msg else 'MISSING'); print('PROCEDURAL' if 'type=procedural' in msg else 'NO_TYPE'); print('NO_ESCALATION' if '[ESCALATION]' not in msg else 'ESCALATION_FOUND')"
 ```
 
 **Expected**:
@@ -88,7 +88,7 @@ EOF
 for subject in "test: write unit tests for queue" "review: security audit of auth" "document: API reference v2" "configure: set up CI pipeline" "analyze: performance bottlenecks"; do
   result=$(echo "{\"subject\": \"${subject}\", \"task_id\": \"tx\", \"status\": \"completed\", \"project_id\": \"test-proj\"}" \
     | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print('OK' if '/wicked-garden:mem:store' in d.get('systemMessage','') else 'MISSING')")
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print('OK' if 'wicked-brain:memory' in d.get('systemMessage','') else 'MISSING')")
   echo "${subject}: ${result}"
 done
 ```
@@ -105,7 +105,7 @@ EOF
 output=$(echo '{"subject": "build: standalone work", "task_id": "t9", "status": "completed"}' \
   | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py")
 
-echo "${output}" | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('SOFT_NUDGE' if msg and '[ESCALATION]' not in msg and '/wicked-garden:mem:store' in msg else 'NO_NUDGE')"
+echo "${output}" | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('SOFT_NUDGE' if msg and '[ESCALATION]' not in msg and 'wicked-brain:memory' in msg else 'NO_NUDGE')"
 ```
 
 **Expected**: `SOFT_NUDGE`
@@ -123,7 +123,7 @@ not enforce compliance.
 
 ## Success Criteria
 
-- [ ] Build task directive contains "/wicked-garden:mem:store" and "type=procedural"
+- [ ] Build task directive contains "wicked-brain:memory" and "type=procedural"
 - [ ] Fix task directive contains "type=decision"
 - [ ] Phase/design task directive contains "type=episodic"
 - [ ] After memory_compliance_escalations >= 3, directive starts with "[ESCALATION]"

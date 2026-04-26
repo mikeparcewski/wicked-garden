@@ -103,9 +103,9 @@ TaskUpdate(
 )
 ```
 
-### With wicked-garden:mem
+### With wicked-brain
 ```bash
-/wicked-garden:mem:recall "compliance {framework}"
+Skill(skill="wicked-brain:memory", args="recall ... "compliance {framework}"
 ```
 
 ### With product

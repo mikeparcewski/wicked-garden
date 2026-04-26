@@ -236,7 +236,7 @@ Please choose (number or name):
 
 ---
 
-## Storing Preferences in wicked-garden:mem
+## Storing Preferences in wicked-brain
 
 After the first tool selection decision, store the preference so future decisions are consistent.
 
@@ -259,9 +259,8 @@ cli-preference:database → psql
 
 Before detecting CLIs for a category, check if a preference already exists:
 
-```bash
-/wicked-garden:mem:recall
-query: "cli-preference:{category}"
+```
+Skill(skill="wicked-brain:memory", args="recall \"cli-preference:{category}\" --filter_type preference")
 ```
 
 If a stored preference exists and the tool is still available (`command -v` check), use it without re-running discovery.

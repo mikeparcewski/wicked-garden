@@ -32,7 +32,7 @@ _DOMAIN_NAMES = {
     "config": "Setup configuration",
     "smaht": "Session history and context cache",
     "crew": "Crew project data",
-    "mem": "Memory store",
+    "mem": "Memory store (v7 local-JSON; v8.0.0 cut the surface commands — entry retained for data cleanup)",
     "search": "Search index (SQLite)",
     "delivery": "Delivery metrics and config",
     "jam": "Brainstorm session history",

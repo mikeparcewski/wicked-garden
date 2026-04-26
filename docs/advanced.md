@@ -41,15 +41,15 @@ Options include:
 
 ### Memory Management
 
-Review and curate your memory store:
+Memory is provided by the [wicked-brain](https://github.com/mikeparcewski/wicked-brain) companion plugin. Use `wicked-brain` skills directly:
 
-```bash
-/wicked-garden:mem:review              # browse all memories
-/wicked-garden:mem:stats               # see memory health
-/wicked-garden:mem:forget "old-id"     # remove stale memories
+```
+Skill(skill="wicked-brain:review")          # browse all memories
+Skill(skill="wicked-brain:status")          # see memory health
+Skill(skill="wicked-brain:forget", args="<id>")  # remove stale memories
 ```
 
-Memories auto-decay based on age, importance, and access frequency. The lifecycle is: active -> archived -> decayed -> deleted.
+Memories auto-decay based on age, importance, and access frequency via wicked-brain's lifecycle management.
 
 ### Reset State
 
@@ -225,7 +225,7 @@ Every domain write is logged to a unified event store. Query cross-domain activi
 /wicked-garden:smaht:briefing
 ```
 
-The event log is consumed automatically by smaht context assembly, mem:recall (cross-domain supplementation), and the briefing command. Events are retained for 90 days.
+The event log is consumed automatically by smaht context assembly, wicked-brain:memory (cross-domain supplementation), and the briefing command. Events are retained for 90 days.
 
 ## Dispatch Log (v6.2+)
 
@@ -290,7 +290,7 @@ Dissenting views are classified into three levels:
 
 ### Memory Integration
 
-`format_for_memory()` converts consensus results into a dict suitable for `mem:store`, preserving the decision, confidence, participant count, and strong dissents as structured metadata.
+`format_for_memory()` converts consensus results into a dict suitable for `wicked-brain:memory` (store mode), preserving the decision, confidence, participant count, and strong dissents as structured metadata.
 
 ```bash
 # Run full consensus protocol

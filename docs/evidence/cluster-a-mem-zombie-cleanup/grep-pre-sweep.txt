@@ -1,0 +1,307 @@
+CHANGELOG.md:37:- cleanup(v9): remove dead mem:store hook detection — command cut in #603 (#601) (#607) (ee2bb7d)
+CHANGELOG.md:819:- feat(smaht,mem): bus-based fact promotion + wicked-garden:mem cleanup (8bb0272)
+CHANGELOG.md:983:- feat: auto-generate search tags on mem:store for better keyword recall (d872dbb)
+CHANGELOG.md:1097:- feat: `mem:recall` supplements results with cross-domain event context
+README.md:143:| **mem** | 3-tier persistent memory (working → episodic → semantic) with auto-consolidation and tag-based search | `mem:store`, `mem:recall`, `mem:consolidate` |
+AGENTS.md:38:- **DO** use `/wicked-garden:mem:store` for all memory persistence (decisions, patterns, gotchas).
+AGENTS.md:39:- **DO** use `/wicked-garden:mem:recall` to retrieve past context.
+AGENTS.md:40:- wicked-garden:mem is the source of truth; `MEMORY.md` is auto-generated from the memory store.
+agents/platform/release-engineer.md:31:- **Memory**: Use wicked-garden:mem to recall release patterns
+agents/platform/privacy-expert.md:33:- **Memory**: Use wicked-garden:mem for privacy patterns
+agents/platform/auditor.md:31:- **Memory**: Use wicked-garden:mem for past audit findings
+agents/platform/chaos-engineer.md:56:- **Memory**: Use wicked-garden:mem to recall past incident patterns and experiment outcomes
+agents/platform/devops-engineer.md:31:- **Memory**: Use wicked-garden:mem to recall pipeline patterns
+agents/platform/security-engineer.md:34:- **Memory**: Use wicked-garden:mem to recall past vulnerabilities
+agents/crew/qe-orchestrator.md:36:- **Memory**: Use wicked-garden:mem to recall past QE decisions
+agents/crew/qe-orchestrator.md:128:- Memory: decision stored (if wicked-garden:mem available)
+agents/platform/observability-engineer.md:70:- **Memory**: Use wicked-garden:mem to recall past SLOs, alert decisions, dashboards
+agents/platform/infrastructure-engineer.md:31:- **Memory**: Use wicked-garden:mem to recall infrastructure patterns
+agents/platform/compliance-officer.md:31:- **Memory**: Use wicked-garden:mem to recall past compliance findings
+agents/agentic/architect.md:30:- **Memory**: Use wicked-garden:mem to recall past architecture decisions
+agents/agentic/framework-researcher.md:30:- **Memory**: Use wicked-garden:mem to recall past framework evaluations
+agents/agentic/performance-analyst.md:30:- **Memory**: Use wicked-garden:mem to recall past optimization strategies
+agents/agentic/pattern-advisor.md:30:- **Memory**: Use wicked-garden:mem to recall past pattern recommendations
+agents/product/user-researcher.md:30:- **Memory**: Use wicked-garden:mem to recall past user research and personas
+agents/product/user-researcher.md:295:wicked-garden:mem recall "user research"
+agents/agentic/safety-reviewer.md:32:- **Memory**: Use wicked-garden:mem to recall past safety issues
+agents/product/user-voice.md:51:- **Memory**: Use wicked-garden:mem to recall past customer insights, themes, and decisions
+agents/product/ui-reviewer.md:52:- **Memory**: Use wicked-garden:mem to recall design-system tokens and past decisions
+agents/product/requirements-analyst.md:44:- **Memory**: Use wicked-garden:mem to recall past patterns
+agents/product/a11y-expert.md:31:- **Memory**: Use wicked-garden:mem to recall a11y standards and decisions
+agents/product/ux-designer.md:46:- **Memory**: Use wicked-garden:mem to recall past flow decisions and IA patterns
+agents/product/market-strategist.md:49:- **Memory**: Use wicked-garden:mem to recall strategic decisions, past outcomes, competitor profiles
+agents/product/mockup-generator.md:29:- **Memory**: Use wicked-garden:mem to recall existing design tokens and component library
+agents/delivery/cloud-cost-intelligence.md:52:- **Memory**: Use wicked-garden:mem to recall historical cost data and past optimization outcomes
+agents/product/value-strategist.md:54:- **Memory**: Use wicked-garden:mem to recall customer insights, past value props, and alignment decisions
+agents/delivery/rollout-manager.md:31:- **Memory**: Use wicked-garden:mem to recall past rollout patterns
+agents/delivery/delivery-manager.md:32:- **Memory**: Use wicked-garden:mem for historical sprint data
+agents/delivery/delivery-manager.md:55:/wicked-garden:mem:recall "sprint velocity"
+agents/delivery/delivery-manager.md:56:/wicked-garden:mem:recall "delivery patterns"
+agents/delivery/stakeholder-reporter.md:31:- **Memory**: Use wicked-garden:mem for historical comparison
+agents/delivery/stakeholder-reporter.md:178:### 6. Historical Comparison (if wicked-garden:mem available)
+agents/delivery/stakeholder-reporter.md:181:/wicked-garden:mem:recall "sprint report {previous_sprint}"
+agents/delivery/experiment-designer.md:30:- **Memory**: Use wicked-garden:mem to recall past experiment patterns
+agents/delivery/experiment-designer.md:59:/wicked-garden:mem:recall "experiment {feature_type}"
+agents/delivery/risk-monitor.md:31:- **Memory**: Use wicked-garden:mem to recall past risk patterns
+agents/delivery/risk-monitor.md:59:/wicked-garden:mem:recall "risk {project_type}"
+agents/delivery/risk-monitor.md:249:/wicked-garden:mem:recall "risk {similar project type}"
+agents/delivery/progress-tracker.md:33:- **Memory**: Use wicked-garden:mem for historical progress data
+agents/delivery/progress-tracker.md:69:/wicked-garden:mem:recall "milestone {name}"
+agents/delivery/progress-tracker.md:70:/wicked-garden:mem:recall "progress {project}"
+agents/data/data-architect.md:56:- **Memory**: Use wicked-garden:mem to recall architecture patterns, past decisions
+agents/jam/brainstorm-facilitator.md:38:**Step 1a: Recall past decisions** (if wicked-garden:mem available)
+agents/jam/brainstorm-facilitator.md:40:Task(subagent_type="wicked-garden:mem:memory-recaller",
+agents/jam/brainstorm-facilitator.md:51:**Step 1c: Check past brainstorm outcomes** (if wicked-garden:mem available)
+agents/jam/brainstorm-facilitator.md:53:Task(subagent_type="wicked-garden:mem:memory-recaller",
+agents/jam/brainstorm-facilitator.md:300:- **Always store decisions**: After synthesis, store the decision record (wicked-garden:mem if available, inline if not)
+agents/data/data-engineer.md:34:- **wicked-garden:mem**: Recall past pipeline patterns
+agents/data/data-analyst.md:30:- **wicked-garden:mem**: Recall past analysis patterns
+agents/data/ml-engineer.md:32:- **wicked-garden:mem**: Recall model architectures and patterns
+agents/engineering/devex-engineer.md:56:- **Memory**: Use wicked-garden:mem to recall past dev-env decisions and gotchas
+agents/engineering/migration-engineer.md:53:- **Memory**: Use wicked-garden:mem to recall past migration patterns and pitfalls
+agents/mem/memory-recaller.md:3:subagent_type: wicked-garden:mem:memory-recaller
+agents/mem/memory-recaller.md:27:Given a query, search `{SM_LOCAL_ROOT}/wicked-garden:mem/` for relevant memories.
+agents/mem/memory-recaller.md:33:   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:mem)
+agents/mem/memory-learner.md:3:subagent_type: wicked-garden:mem:memory-learner
+agents/mem/memory-learner.md:53:Store memories as markdown in `{SM_LOCAL_ROOT}/wicked-garden:mem/`:
+agents/mem/memory-learner.md:88:- Global preferences: `{SM_LOCAL_ROOT}/wicked-garden:mem/core/preferences/`
+agents/mem/memory-learner.md:89:- Global learnings: `{SM_LOCAL_ROOT}/wicked-garden:mem/core/learnings/`
+agents/mem/memory-learner.md:90:- Project episodic: `{SM_LOCAL_ROOT}/wicked-garden:mem/projects/{project}/episodic/`
+agents/mem/memory-learner.md:91:- Project decisions: `{SM_LOCAL_ROOT}/wicked-garden:mem/projects/{project}/decisions/`
+agents/mem/memory-learner.md:92:- Project procedural: `{SM_LOCAL_ROOT}/wicked-garden:mem/projects/{project}/procedural/`
+docs/architecture.md:77:Events are append-only, auto-emitted by DomainStore, indexed on safe metadata only (full payloads stay in domain JSON), and consumed by `smaht:briefing`, smaht context assembly, and `mem:recall` cross-domain supplementation.
+agents/mem/memory-archivist.md:3:subagent_type: wicked-garden:mem:memory-archivist
+agents/mem/memory-archivist.md:27:Run memory maintenance on `{SM_LOCAL_ROOT}/wicked-garden:mem/`.
+agents/mem/memory-archivist.md:65:   LOCAL_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:mem)
+docs/getting-started.md:103:/wicked-garden:mem:store "Chose Postgres over Redis for sessions — need transactions"
+docs/getting-started.md:105:/wicked-garden:mem:recall "session storage decisions"
+docs/crew-workflow.md:306:Crew stores significant decisions, patterns, and gate failures in `wicked-garden:mem` automatically. Phase-aware recall (`mem/phase_scoring.py`) weights memories by affinity to the current phase — architecture decisions surface during design, test patterns during test-strategy, deployment notes during build. v6 adds **persistent process memory** + **kaizen backlog** (commit `7658fb9`): retro phase auto-populates a facilitator-context digest so future projects inherit learned trade-offs.
+docs/domains.md:89:| `mem:store` | Save a decision, pattern, or preference |
+docs/domains.md:90:| `mem:recall` | Search memories by query |
+docs/domains.md:92:| `mem:stats` | Show memory statistics |
+docs/domains.md:93:| `mem:forget` | Archive or delete a memory |
+docs/domains.md:94:| `mem:consolidate` | Manually trigger cross-tier consolidation |
+docs/advanced.md:47:/wicked-garden:mem:review              # browse all memories
+docs/advanced.md:48:/wicked-garden:mem:stats               # see memory health
+docs/advanced.md:49:/wicked-garden:mem:forget "old-id"     # remove stale memories
+docs/advanced.md:228:The event log is consumed automatically by smaht context assembly, mem:recall (cross-domain supplementation), and the briefing command. Events are retained for 90 days.
+docs/advanced.md:293:`format_for_memory()` converts consensus results into a dict suitable for `mem:store`, preserving the decision, confidence, participant count, and strong dissents as structured metadata.
+docs/v9/discovery-conventions.md:69:- `mem:store` — admitted in its own body as "thin wrapper over wicked-brain-memory."
+docs/cross-phase-intelligence.md:402:`format_for_memory()` converts a `ConsensusResult` into a dict ready for `mem:store`:
+docs/v9/audit.md:120:| `mem:consolidate` | CUT | Calls wicked-brain consolidate agent — invoke skill directly. | wicked-brain:agent (consolidate) |
+docs/v9/audit.md:121:| `mem:forget` | CUT | Wraps `wicked-brain:forget`. | wicked-brain-forget |
+docs/v9/audit.md:123:| `mem:recall` | CUT | "Thin wrapper over wicked-brain-memory" — admitted in body. | wicked-brain-memory |
+docs/v9/audit.md:126:| `mem:stats` | CUT | Wraps brain stats. | wicked-brain-status |
+docs/v9/audit.md:127:| `mem:store` | CUT | "Thin wrapper over wicked-brain-memory" — admitted in body. | wicked-brain-memory |
+docs/v9/audit.md:129:> **Note**: The `mem` domain in v9 collapses into a single skill (`wicked-garden:mem`) that delegates to brain. All 8 mem:* commands cut. The skill itself stays as a discovery handle (mem ≠ wicked-brain in user mental model).
+docs/v9/audit.md:510:1. **`mem:store`** + **`mem:recall`** — admit in their own bodies that they are "thin wrappers" over `wicked-brain-memory`.
+hooks/scripts/post_tool.py:720:       call succeeds. (mem:store was removed in #603/#604; wicked-brain:memory
+hooks/scripts/prompt_submit.py:94:        lines.append("source: wicked-garden:mem")
+hooks/scripts/pre_compact.py:81:        lines.append("source: wicked-garden:mem")
+scripts/_domain_store.py:15:    ds = DomainStore("wicked-garden:mem")
+scripts/_domain_store.py:64:    "wicked-garden:mem": [
+scripts/_domain_store.py:166:            domain:          Plugin domain, e.g. "wicked-garden:mem", "wicked-crew".
+scripts/reset.py:46:    "mem": "wicked-garden:mem",
+scripts/_paths.py:114:    ``wicked-garden:mem/memories/`` directories from ``2.6.1-ec3414ad``,
+scripts/ci/gate4-cutover-matrix.md:40:| **Memory payload emission** — `memory_payload` field on JSON output; caller (start.md / execute.md) stores via `/wicked-garden:mem:store` | Rubric writes `process-plan.md` to the project directory (Step 2) + explicit `wicked-brain:memory` store call for "non-obvious decisions, patterns, gotchas" per the project CLAUDE.md. The Gate 3 wiring in `commands/crew/start.md` Section A includes a brain-memory store for the facilitator plan (line ~182). | **NO** — process-plan.md is the durable artifact; brain memory stores are explicit, not keyword-gated. Richer than v5. |
+scripts/_integration_resolver.py:40:        domain:    Plugin domain, e.g. "wicked-crew", "wicked-garden:mem".
+scripts/_integration_resolver.py:300:        lines.append("source: wicked-garden:mem")
+scripts/smaht/context_package.py:57:        "/wicked-garden:mem:recall — retrieve past decisions, constraints, patterns",
+scripts/smaht/context_package.py:132:    """Query wicked-garden:mem for task-relevant memories via domain adapter."""
+scripts/smaht/context_package.py:210:    wicked-garden:mem (decisions, constraints) and wicked-garden:search (code context),
+scripts/jam/consensus.py:387:    """Format consensus result for storage in wicked-garden:mem.
+scenarios/crew/local-mode.md:162:ds = DomainStore("wicked-garden:mem", hook_mode=True)
+scenarios/crew/01-memory-storage.md:4:description: Verify task_completed.py emits explicit mem:store directives with type hints and escalation
+scenarios/crew/01-memory-storage.md:37:  | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if '/wicked-garden:mem:store' in msg else 'MISSING'); print('PROCEDURAL' if 'type=procedural' in msg else 'NO_TYPE'); print('NO_ESCALATION' if '[ESCALATION]' not in msg else 'ESCALATION_FOUND')"
+scenarios/crew/01-memory-storage.md:91:    | python3 -c "import sys,json; d=json.load(sys.stdin); print('OK' if '/wicked-garden:mem:store' in d.get('systemMessage','') else 'MISSING')")
+scenarios/crew/01-memory-storage.md:108:echo "${output}" | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('SOFT_NUDGE' if msg and '[ESCALATION]' not in msg and '/wicked-garden:mem:store' in msg else 'NO_NUDGE')"
+scenarios/crew/01-memory-storage.md:126:- [ ] Build task directive contains "/wicked-garden:mem:store" and "type=procedural"
+scenarios/jam/04-integration-with-wicked-mem.md:55:   /wicked-garden:mem:store --type decision --tags "database,migration,time-series" "$(cat initial-context.md)"
+scenarios/jam/04-integration-with-wicked-mem.md:98:   /wicked-garden:mem:recall "database migration"
+scenarios/jam/04-integration-with-wicked-mem.md:145:- [ ] Stored insights can be recalled with /wicked-garden:mem:recall
+scenarios/jam/04-integration-with-wicked-mem.md:165:  ├─> wicked-garden:mem:recall (if available)
+scenarios/jam/04-integration-with-wicked-mem.md:170:  └─> wicked-garden:mem:store (if available & user approves)
+scenarios/mem/decision-recall.md:19:/wicked-garden:mem:store "Chose PostgreSQL over MongoDB for the payment system. Reasons: (1) ACID compliance is non-negotiable for financial transactions - we can't have partial payments or duplicate charges, (2) Complex reporting queries need JOINs across customers, subscriptions, and invoices - document DB would require denormalization and eventual consistency, (3) Team has 3 engineers with deep Postgres experience vs 1 who's used MongoDB casually. Trade-offs accepted: (a) Less flexibility for schema changes - migrations required, (b) Harder to scale horizontally - but payment volume won't hit that scale for 2+ years, (c) JSON columns slower than native BSON - but we're only storing metadata there. Considered alternatives: MySQL (rejected - weaker JSON support), CockroachDB (rejected - overkill for current scale, expensive), DynamoDB (rejected - vendor lock-in and team expertise gap)." --type decision --tags database,architecture,payments,postgresql
+scenarios/mem/decision-recall.md:33:   /wicked-garden:mem:recall "PostgreSQL MongoDB"
+scenarios/mem/decision-recall.md:34:   /wicked-garden:mem:recall --type decision --tags database
+scenarios/mem/decision-recall.md:39:   /wicked-garden:mem:recall "ACID transactions"
+scenarios/mem/decision-recall.md:40:   /wicked-garden:mem:recall --tags architecture
+scenarios/mem/decision-recall.md:57:- [ ] Memory appears in /wicked-garden:mem:stats as type "decision"
+scenarios/mem/debug-pattern.md:20:   /wicked-garden:mem:store "Fixed 'Connection refused on port 5432' error in Docker. Root cause: The postgres container and app container weren't on the same network - they were on different default bridge networks created at different times. Symptoms: (1) psql from host worked, (2) psql from app container failed, (3) docker logs showed postgres was healthy. Diagnostic: 'docker network inspect bridge' and 'docker ps --format \"{{.Names}}\t{{.Networks}}\"' showed the network mismatch. Fix: Added explicit network in docker-compose.yml and recreated containers. Key learning: Always use explicit networks in docker-compose, never rely on default bridge. Prevention: Add network check to CI startup script." --type episodic --tags debugging,docker,postgres,networking
+scenarios/mem/debug-pattern.md:25:   /wicked-garden:mem:store "Docker connection debugging checklist: (1) Verify containers are running: docker ps, (2) Check logs: docker logs <container>, (3) Test from host: can you connect from outside Docker?, (4) Check networks: docker ps --format \"{{.Names}}\t{{.Networks}}\", (5) Verify same network: containers must share a network to communicate, (6) Test DNS: docker exec <app> ping <db-service-name>, (7) Check ports: docker port <container>. Most connection issues are network isolation or DNS." --type procedural --tags docker,debugging,checklist
+scenarios/mem/debug-pattern.md:40:   /wicked-garden:mem:recall "connection refused postgres"
+scenarios/mem/debug-pattern.md:41:   /wicked-garden:mem:recall "docker network"
+scenarios/mem/debug-pattern.md:42:   /wicked-garden:mem:recall --tags debugging,docker
+scenarios/mem/debug-pattern.md:66:- [ ] /wicked-garden:mem:stats shows 2 memories (1 episodic, 1 procedural)
+scenarios/mem/memory-lifecycle.md:20:   /wicked-garden:mem:store "Deployed v2.1.0 with new checkout flow. Monitoring error rates closely." --type episodic --tags deployment,checkout
+scenarios/mem/memory-lifecycle.md:25:   /wicked-garden:mem:store "Critical bug in payment processing: race condition caused duplicate charges. Fixed by adding distributed lock with Redis. Must monitor for recurrence." --type episodic --tags bug,payment,critical
+scenarios/mem/memory-lifecycle.md:30:   /wicked-garden:mem:store "Updated README with new setup instructions." --type episodic --tags docs,maintenance
+scenarios/mem/memory-lifecycle.md:35:   /wicked-garden:mem:store "Database migration checklist: (1) Backup production, (2) Test on staging, (3) Run during low traffic window, (4) Monitor error rates for 1 hour, (5) Rollback plan ready." --type procedural --tags database,process,migration
+scenarios/mem/memory-lifecycle.md:40:   /wicked-garden:mem:store "Chose Stripe over Braintree for payment processing. Primary reasons: Better international support, clearer pricing, superior documentation." --type decision --tags payments,stripe
+scenarios/mem/memory-lifecycle.md:47:   /wicked-garden:mem:stats
+scenarios/mem/memory-lifecycle.md:59:   /wicked-garden:mem:recall "payment race condition"
+scenarios/mem/memory-lifecycle.md:60:   /wicked-garden:mem:recall "duplicate charges"
+scenarios/mem/memory-lifecycle.md:61:   /wicked-garden:mem:recall --tags payment,critical
+scenarios/mem/memory-lifecycle.md:66:   /wicked-garden:mem:stats
+scenarios/mem/memory-lifecycle.md:73:   Aging must be simulated since waiting for natural decay is impractical. Use `/wicked-garden:mem:forget` to manually archive the memories that would have expired, then verify the lifecycle transitions in the next step:
+scenarios/mem/memory-lifecycle.md:75:   /wicked-garden:mem:forget mem_[id-of-readme-memory]
+scenarios/mem/memory-lifecycle.md:76:   /wicked-garden:mem:stats
+scenarios/mem/memory-lifecycle.md:83:   /wicked-garden:mem:stats
+scenarios/mem/memory-lifecycle.md:95:   /wicked-garden:mem:forget mem_[id-of-readme-memory]
+scenarios/mem/memory-lifecycle.md:100:   /wicked-garden:mem:recall --tags docs,maintenance
+scenarios/mem/memory-lifecycle.md:105:   /wicked-garden:mem:forget mem_[id] --hard
+scenarios/mem/memory-lifecycle.md:129:- /wicked-garden:mem:forget archives the memory
+scenarios/mem/memory-lifecycle.md:130:- /wicked-garden:mem:forget --hard permanently deletes
+scenarios/mem/memory-lifecycle.md:140:- [ ] /wicked-garden:mem:forget sets status to archived
+scenarios/mem/memory-lifecycle.md:141:- [ ] /wicked-garden:mem:forget --hard deletes file
+scenarios/mem/memory-lifecycle.md:142:- [ ] /wicked-garden:mem:stats shows counts by status (active, archived, decayed)
+scenarios/mem/memory-lifecycle.md:143:- [ ] Archived memories don't appear in standard /wicked-garden:mem:recall
+scenarios/mem/memory-promotion.md:94:   /wicked-garden:mem:recall "redis caching postgres database"
+scenarios/mem/memory-promotion.md:135:Session context survives session boundaries without requiring wicked-garden:mem:
+scenarios/mem/end-to-end-workflow.md:50:   /wicked-garden:mem:store "File upload 'Request Entity Too Large' error in production. Root cause: nginx has 1MB default client_max_body_size limit. Fix: Add 'client_max_body_size 10M;' to nginx.conf in http or server block. Don't forget to reload nginx: 'sudo systemctl reload nginx'. Also needed: (1) Express/multer limit config, (2) Application-level validation to reject >10MB. Key learning: nginx limits are separate from application limits - configure both." --type episodic --tags nginx,file-upload,production,debugging
+scenarios/mem/end-to-end-workflow.md:55:   /wicked-garden:mem:store "File upload implementation checklist: (1) Backend: multer or formidable for parsing, (2) Storage: S3/GCS for production or local for dev, (3) Validation: file type, size, virus scan if public, (4) Limits: nginx/Apache AND application level, (5) Error handling: clear messages for limit exceeded, (6) Security: sanitize filenames, check MIME types, store outside webroot. Common issues: nginx 1MB default, CORS for direct S3 upload." --type procedural --tags file-upload,backend,checklist,security
+scenarios/mem/end-to-end-workflow.md:60:   /wicked-garden:mem:stats
+scenarios/mem/end-to-end-workflow.md:61:   /wicked-garden:mem:recall --tags file-upload
+scenarios/mem/end-to-end-workflow.md:79:    /wicked-garden:mem:recall "Request Entity Too Large"
+scenarios/mem/end-to-end-workflow.md:80:    /wicked-garden:mem:recall --tags file-upload,production
+scenarios/mem/end-to-end-workflow.md:112:    /wicked-garden:mem:store "Update: AWS ALB also has max request size. Default varies by region but generally 1MB for requests. Need to check ALB target group settings. For large uploads, consider: (1) Direct S3 upload with presigned URLs, (2) Chunked uploads, (3) ALB request size limits in target group." --type episodic --tags nginx,file-upload,aws,alb
+scenarios/mem/end-to-end-workflow.md:138:- [ ] Day 1: /wicked-garden:mem:stats shows the new memories
+scenarios/mem/end-to-end-workflow.md:151:**Before wicked-garden:mem:**
+scenarios/mem/end-to-end-workflow.md:156:**After wicked-garden:mem:**
+scenarios/mem/returning-user.md:26:   /wicked-garden:mem:store "We chose TypeScript over JavaScript for the payment API. Reasons: (1) Stripe SDK has excellent TypeScript types that catch integration errors at compile time, (2) Financial data handling benefits from strict null checks, (3) Team already uses TS in the frontend so no new tooling needed. Trade-off: slightly slower iteration for prototypes." --type decision --tags tech-stack,typescript,payments
+scenarios/mem/returning-user.md:31:   /wicked-garden:mem:store "User prefers early returns over nested if/else blocks for readability. Use guard clauses at function start, then handle the happy path without indentation." --type preference --tags code-style,readability
+scenarios/mem/returning-user.md:36:   /wicked-garden:mem:store "Stripe webhook signature verification was failing intermittently. Root cause: body-parser middleware was consuming the raw body before signature verification. Fix: use express.raw() for webhook endpoint, express.json() for others. Key learning: webhook verification requires the raw request body." --type episodic --tags stripe,webhooks,debugging
+scenarios/mem/returning-user.md:56:   /wicked-garden:mem:recall "TypeScript"
+scenarios/mem/returning-user.md:57:   /wicked-garden:mem:recall --type preference
+scenarios/mem/returning-user.md:58:   /wicked-garden:mem:recall --tags stripe
+scenarios/mem/returning-user.md:71:- [ ] Decision memory is stored and retrievable via /wicked-garden:mem:recall
+scenarios/mem/returning-user.md:76:- [ ] /wicked-garden:mem:stats shows 3 memories (1 decision, 1 preference, 1 episodic)
+scenarios/mem/tag-based-discovery.md:22:   /wicked-garden:mem:store "API returning 500 on POST /orders with large payloads. Root cause: Express body-parser default limit of 100kb. Fix: Increased limit to 10mb for order endpoint. Added validation to reject >10mb. Key learning: Always set explicit size limits and handle them gracefully." --type episodic --tags api,express,bug,orders,security
+scenarios/mem/tag-based-discovery.md:27:   /wicked-garden:mem:store "Using PostgreSQL connection pooling with pg-pool. Max 20 connections, idle timeout 10s. Reasoning: Prevent connection exhaustion during traffic spikes. Heroku Postgres has 20 connection limit on standard tier." --type decision --tags postgres,performance,infrastructure,devops
+scenarios/mem/tag-based-discovery.md:32:   /wicked-garden:mem:store "React form validation pattern: Use react-hook-form with zod schema. Benefits: Type-safe validation, minimal re-renders, good DX. Example: checkout form, profile edit form." --type procedural --tags react,forms,typescript,frontend,dx
+scenarios/mem/tag-based-discovery.md:37:   /wicked-garden:mem:store "E2E test flakiness was caused by not waiting for API responses. Fix: Use cy.intercept() to explicitly wait for network requests. Always alias intercepts and cy.wait() on them. Added to CI to catch flakes early." --type episodic --tags testing,cypress,ci,bug,frontend
+scenarios/mem/tag-based-discovery.md:42:   /wicked-garden:mem:store "Storing API keys in AWS Secrets Manager instead of environment variables. Reasons: (1) Automatic rotation, (2) Audit logging, (3) Fine-grained IAM permissions. Trade-off: 50ms latency on cold start. Acceptable for our use case." --type decision --tags security,aws,api-keys,infrastructure
+scenarios/mem/tag-based-discovery.md:49:   /wicked-garden:mem:recall --tags postgres
+scenarios/mem/tag-based-discovery.md:50:   /wicked-garden:mem:recall --tags react
+scenarios/mem/tag-based-discovery.md:51:   /wicked-garden:mem:recall --tags express
+scenarios/mem/tag-based-discovery.md:56:   /wicked-garden:mem:recall --tags security
+scenarios/mem/tag-based-discovery.md:57:   /wicked-garden:mem:recall --tags performance
+scenarios/mem/tag-based-discovery.md:58:   /wicked-garden:mem:recall --tags bug
+scenarios/mem/tag-based-discovery.md:63:   /wicked-garden:mem:recall --tags frontend
+scenarios/mem/tag-based-discovery.md:64:   /wicked-garden:mem:recall --tags infrastructure
+scenarios/mem/tag-based-discovery.md:65:   /wicked-garden:mem:recall --tags api
+scenarios/mem/tag-based-discovery.md:70:   /wicked-garden:mem:recall --tags orders
+scenarios/mem/tag-based-discovery.md:71:   /wicked-garden:mem:recall --tags testing
+scenarios/mem/tag-based-discovery.md:76:   /wicked-garden:mem:recall --tags bug,frontend
+scenarios/mem/tag-based-discovery.md:77:   /wicked-garden:mem:recall --tags security,aws
+scenarios/mem/tag-based-discovery.md:82:   /wicked-garden:mem:recall "connection" --tags postgres
+scenarios/mem/tag-based-discovery.md:83:   /wicked-garden:mem:recall "validation" --tags react
+scenarios/mem/tag-based-discovery.md:99:- [ ] Tags shown in /wicked-garden:mem:stats by frequency or category
+scenarios/mem/tag-based-discovery.md:101:- [ ] /wicked-garden:mem:recall without arguments shows recent memories regardless of tags
+scenarios/mem/automatic-learning.md:41:   - If offered, say "yes" or use the suggested /wicked-garden:mem:store command
+scenarios/mem/automatic-learning.md:46:   /wicked-garden:mem:stats
+scenarios/mem/automatic-learning.md:47:   /wicked-garden:mem:recall --type decision
+scenarios/mem/automatic-learning.md:48:   /wicked-garden:mem:recall --type episodic
+scenarios/mem/automatic-learning.md:71:- [ ] Stored memory appears in /wicked-garden:mem:stats
+commands/crew/retro.md:8:Aggregate incidents, feedback, and operational metrics into a structured retrospective. Stores the summary in wicked-garden:mem for future crew projects.
+commands/crew/retro.md:109:Store the retrospective summary in wicked-garden:mem for future crew projects:
+commands/crew/retro.md:170:**Retro stored in wicked-garden:mem** for future project context.
+commands/crew/status.md:52:- **Level 2**: Only wicked-garden:mem
+commands/crew/gate.md:179:| Decision Memory | stored in wicked-garden:mem (if available) |
+commands/crew/evidence.md:57:### 5. Check wicked-garden:mem for Decisions
+commands/crew/evidence.md:59:If wicked-garden:mem available:
+commands/crew/evidence.md:105:### Related Decisions (from wicked-garden:mem)
+commands/product/elicit.md:132:- **wicked-garden:mem**: Learns requirements patterns
+commands/product/synthesize.md:190:- **wicked-garden:mem**: Store decisions for future reference
+commands/product/ux-review.md:275:- **wicked-garden:mem**: Recall design system patterns
+commands/product/analyze.md:177:- **wicked-garden:mem**: Store analysis for future reference
+commands/product/mockup.md:48:- Check wicked-garden:mem for existing design tokens or component library in use
+commands/product/align.md:138:- **wicked-garden:mem**: Tracks stakeholder patterns
+commands/product/listen.md:125:- **wicked-garden:mem**: Recall past customer insights
+commands/product/strategy.md:297:- **wicked-garden:mem**: Store decisions for future reference
+commands/jam/revisit.md:14:Search for the decision in wicked-garden:mem
+commands/jam/revisit.md:17:Task(subagent_type="wicked-garden:mem:memory-recaller",
+commands/jam/revisit.md:52:Store the outcome in wicked-garden:mem
+commands/jam/revisit.md:75:Without wicked-garden:mem Display a message that decision revisit requires wicked-garden:mem for decision storage. Suggest the user install wicked-garden:mem for full decision lifecycle tracking.
+commands/jam/quick.md:25:native task = process, wicked-garden:mem = outcome.")
+commands/jam/brainstorm.md:11:> See also: `/wicked-garden:jam:quick`, `/wicked-garden:jam:council` The facilitator gathers evidence from the ecosystem (past decisions, code context, brainstorm outcomes) before assembling personas, so they argue from data — not just opinions. After synthesis, a structured decision record is automatically stored in wicked-garden:mem for organizational memory.
+commands/jam/brainstorm.md:34:Continue storing outcomes in wicked-garden:mem as before (native task = process, mem = outcome).")
+skills/platform/compliance/SKILL.md:106:### With wicked-garden:mem
+skills/platform/compliance/SKILL.md:108:/wicked-garden:mem:recall "compliance {framework}"
+skills/crew/crew-qe-gate/SKILL.md:67:- **wicked-garden:mem**: Cross-session learning
+skills/crew/issue-reporting/SKILL.md:84:Skill(skill="wicked-garden:mem:recall", args="{keywords}")
+skills/integration-discovery/refs/cli-detection.md:239:## Storing Preferences in wicked-garden:mem
+skills/integration-discovery/refs/cli-detection.md:263:/wicked-garden:mem:recall
+skills/integration-discovery/SKILL.md:92:| Store decisions | wicked-garden:mem | Store auth decisions |
+skills/integration-discovery/SKILL.md:109:- wicked-garden:mem - Store decisions for future reference
+skills/integration-discovery/SKILL.md:123:| Architecture design | engineering agents, wicked-garden:mem |
+skills/integration-discovery/refs/task-patterns.md:35:| Store findings | Skill | wicked-garden:mem |
+skills/integration-discovery/refs/task-patterns.md:41:4. Store critical findings in wicked-garden:mem
+skills/integration-discovery/refs/task-patterns.md:53:| Store decisions | Skill | wicked-garden:mem |
+skills/integration-discovery/refs/task-patterns.md:59:3. Store decisions in wicked-garden:mem
+skills/integration-discovery/refs/task-patterns.md:151:| Post-mortem | Skill | wicked-garden:mem |
+skills/integration-discovery/refs/task-patterns.md:157:4. Store learnings in wicked-garden:mem
+skills/integration-discovery/refs/discovery-sources.md:91:**Preference storage**: After first selection, store in wicked-garden:mem under `cli-preference:{category}`.
+skills/integration-discovery/refs/discovery-sources.md:189:- [ ] Check wicked-garden:mem for stored cli-preference:{category}
+skills/integration-discovery/refs/discovery-sources.md:192:- [ ] Store selection in wicked-garden:mem after first decision
+skills/product/ux-review/SKILL.md:102:- **wicked-garden:mem**: Design system memory
+skills/product/requirements-analysis/SKILL.md:129:/wicked-garden:mem:recall "requirements for {feature_type}"
+skills/product/listen/SKILL.md:163:### With wicked-garden:mem
+skills/product/listen/SKILL.md:165:# Recall past customer insights via /wicked-garden:mem:recall
+skills/product/product-management/SKILL.md:81:- **wicked-garden:mem**: Cross-project requirements patterns
+skills/product/requirements-analysis/refs/requirements-output-format-template.md:11:- Integration with native tasks (TaskCreate/TaskUpdate) and wicked-garden:mem
+skills/product/requirements-analysis/refs/requirements-output-format-template.md:156:- **Memory**: {wicked-garden:mem tags for recall}
+skills/product/requirements-analysis/refs/requirements-output-format-template.md:243:- **Example Projects**: Search wicked-garden:mem for "requirements-example"
+skills/search/codebase-narrator/SKILL.md:40:- **Memory**: Use wicked-garden:mem to recall past architecture decisions
+skills/multi-model/SKILL.md:8:  Decisions stored in wicked-garden:mem. Transcripts persisted via jam scripts.
+skills/product/synthesize/SKILL.md:103:**wicked-garden:mem**: Store high-priority insights as decision memories
+skills/multi-model/refs/gemini.md:136:5. **Track decisions** — Use native TaskUpdate and wicked-garden:mem for team visibility
+skills/multi-model/refs/pi.md:185:5. **Track insights** — Record Pi's perspectives via native TaskUpdate or wicked-garden:mem
+skills/multi-model/refs/auditability.md:16:│  wicked-garden:mem (long-term decisions)       │  ← Persist important decisions
+skills/multi-model/refs/auditability.md:126:## Level 3: Decision Persistence (wicked-garden:mem)
+skills/multi-model/refs/auditability.md:128:For decisions that matter long-term, persist to wicked-garden:mem.
+skills/multi-model/refs/auditability.md:232:| Long-term decisions | wicked-garden:mem storage |
+skills/workflow/SKILL.md:122:| `wicked-garden:mem` | Cross-session learning at project completion and gate failures |
+skills/delivery/reporting/refs/integration.md:66:Cache stored via wicked-garden:mem
+skills/delivery/reporting/refs/integration.md:68:.something-wicked/wicked-garden/local/wicked-garden:mem/namespaces/delivery/
+skills/delivery/reporting/SKILL.md:12:  - wicked-garden:mem Stores insights across sessions
+skills/delivery/reporting/SKILL.md:85:| wicked-garden:mem | Cross-session insights | Session-only memory |
+skills/delivery/reporting/refs/personas.md:53:- **wicked-garden:mem**: Memory storage for cross-session insights
+skills/delivery/reporting/refs/personas.md:63:7. **Caching**: Store results in wicked-garden:mem
+skills/delivery/design/SKILL.md:170:**With wicked-garden:mem**: Recalls past experiment patterns
+skills/delivery/rollout/SKILL.md:179:**With wicked-garden:mem**: Recalls past rollout learnings
+skills/data/pipeline/SKILL.md:110:- **wicked-garden:mem**: Recall pipeline patterns
+skills/data/analysis/SKILL.md:104:**wicked-garden:mem** - Store analysis patterns for reuse
+skills/delivery/onboarding-guide/SKILL.md:34:- **Memory**: `wicked-garden:mem:recall` for team conventions and past decisions
+skills/delivery/onboarding-guide/SKILL.md:55:/wicked-garden:mem:recall "team conventions"
+skills/delivery/onboarding-guide/SKILL.md:56:/wicked-garden:mem:recall "architecture decisions"
+skills/delivery/onboarding-guide/SKILL.md:57:/wicked-garden:mem:recall "onboarding"
+skills/data/data/SKILL.md:94:| wicked-garden:mem | Store quality patterns across sessions |
+skills/jam/SKILL.md:7:  Sessions are tracked as native tasks (process) and stored in wicked-garden:mem (outcome).
+skills/jam/SKILL.md:126:### With wicked-garden:mem
+skills/jam/SKILL.md:130:prior = mem_recall(topic)  # via /wicked-garden:mem:recall
+skills/jam/SKILL.md:167:Native tasks track process; wicked-garden:mem stores outcomes. Both can coexist.
+skills/jam/refs/synthesis-patterns.md:74:When a brainstorm produces a clear decision, store it in wicked-garden:mem:
+skills/propose-process/refs/inputs.md:6:- `wicked-garden:mem:recall` — domain memory (cross-session learnings).
+skills/propose-process/refs/inputs.md:74:/wicked-garden:mem:recall query="<topic>" limit=3
+skills/mem/refs/effective-recall.md:11:/wicked-garden:mem:recall "authentication"
+skills/mem/refs/effective-recall.md:14:/wicked-garden:mem:recall "JWT token validation"
+skills/mem/refs/effective-recall.md:17:/wicked-garden:mem:recall "session middleware"
+skills/mem/refs/effective-recall.md:24:/wicked-garden:mem:recall --tags auth
+skills/mem/refs/effective-recall.md:27:/wicked-garden:mem:recall --tags auth,security
+skills/mem/refs/effective-recall.md:30:/wicked-garden:mem:recall "validation" --tags auth
+skills/mem/refs/effective-recall.md:37:/wicked-garden:mem:recall --type decision
+skills/mem/refs/effective-recall.md:40:/wicked-garden:mem:recall --type procedural
+skills/mem/refs/effective-recall.md:43:/wicked-garden:mem:recall "database" --type decision
+skills/mem/refs/effective-recall.md:54:/wicked-garden:mem:recall "feature-name"
+skills/mem/refs/effective-recall.md:57:/wicked-garden:mem:recall --type decision --tags feature-area
+skills/mem/refs/effective-recall.md:60:/wicked-garden:mem:recall "error message" --type episodic
+skills/mem/refs/effective-recall.md:67:/wicked-garden:mem:recall "TypeError" --tags bug-fix
+skills/mem/refs/effective-recall.md:68:/wicked-garden:mem:recall "auth" --type episodic
+skills/mem/refs/effective-recall.md:71:/wicked-garden:mem:recall "validation" --type procedural
+skills/mem/refs/effective-recall.md:78:/wicked-garden:mem:recall --type decision --tags database
+skills/mem/refs/effective-recall.md:79:/wicked-garden:mem:recall --type decision --tags architecture
+skills/mem/refs/effective-recall.md:98:4. **Use stats**: `/wicked-garden:mem:stats` shows what's available
+skills/mem/refs/memory-lifecycle.md:53:/wicked-garden:mem:forget mem_abc123
+skills/mem/refs/memory-lifecycle.md:63:/wicked-garden:mem:forget mem_abc123 --hard
+skills/mem/refs/memory-lifecycle.md:71:/wicked-garden:mem:stats

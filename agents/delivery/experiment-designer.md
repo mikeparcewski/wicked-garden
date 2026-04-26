@@ -56,7 +56,7 @@ Discovery approach: Ask "Do I have analytics capability?" by checking for:
 
 Gather information:
 ```
-/wicked-garden:mem:recall "experiment {feature_type}"
+/wicked-brain:memory (recall mode) "experiment {feature_type}"
 /wicked-garden:product:elicit {feature_name}
 ```
 
