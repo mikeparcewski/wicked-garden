@@ -164,6 +164,13 @@ FIELD_CAPS: Dict[str, int] = {
 _VALID_VERDICTS = frozenset({"APPROVE", "CONDITIONAL", "REJECT"})
 _VALID_RIGOR_TIERS = frozenset({"minimal", "standard", "full"})
 
+# Valid dispatch-mode values for the optional ``mode`` field (#651).
+# Backward-compat: absent ``mode`` is accepted (treated as unknown / legacy).
+_VALID_DISPATCH_MODES = frozenset({
+    "self-check", "sequential", "parallel", "council",
+    "human-inline", "fast-evaluator", "advisory",
+})
+
 
 # ---------------------------------------------------------------------------
 # Feature flag (design-addendum-1 D-1) — scoped to schema checks only
@@ -621,6 +628,19 @@ def validate_gate_result(data: Any) -> None:
     if "per_reviewer_verdicts" in data and data["per_reviewer_verdicts"] is not None:
         _check_per_reviewer_verdicts(data["per_reviewer_verdicts"])
 
+    # Optional enum: mode (#651 — dispatch-mode field).
+    # Absent mode is accepted for backward-compat (pre-#651 gate-results).
+    if "mode" in data and data["mode"] is not None:
+        mode_val = data["mode"]
+        if not isinstance(mode_val, str) or mode_val not in _VALID_DISPATCH_MODES:
+            raise GateResultSchemaError(
+                f"invalid-mode-enum:"
+                f"{_safe_value_tag(mode_val, field='mode', violation_class='invalid-enum')}",
+                offending_field="mode",
+                offending_value_excerpt=_excerpt(mode_val),
+                violation_class="schema",
+            )
+
     # Default-cap fallback for any unknown string field at the top level,
     # preventing a crafted payload in a never-documented key from slipping
     # past an un-capped path (design §1.4).
@@ -628,6 +648,9 @@ def validate_gate_result(data: Any) -> None:
         "verdict", "result", "reviewer", "recorded_at", "reason", "summary",
         "phase", "gate", "rigor_tier", "score", "min_score", "conditions",
         "rubric_breakdown", "per_reviewer_verdicts",
+        # #651 — new fields
+        "mode", "dispatch_mode", "context_ref", "mode_fallback_reason",
+        "original_mode", "external_review", "recorded_at",
     }
     for key, value in data.items():
         if key in known_top_level:

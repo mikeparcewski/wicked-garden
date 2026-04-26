@@ -2202,6 +2202,71 @@ def _dispatch_council(
     return merged
 
 
+# ---------------------------------------------------------------------------
+# Human-inline dispatch (#651 — solo-mode HITL)
+# ---------------------------------------------------------------------------
+
+
+def _dispatch_human_inline(
+    state: Optional["ProjectState"],
+    phase: str,
+    gate_name: str,
+    gate_policy_entry: Dict[str, Any],
+    *,
+    dispatcher: Optional[Any] = None,  # noqa: ARG001 — kept for interface uniformity
+    _input_fn=None,
+    _print_fn=None,
+) -> Dict[str, Any]:
+    """Inline human-review gate dispatch for solo-mode projects (#651).
+
+    Delegates to ``solo_mode.dispatch_human_inline``.  When the session is
+    headless, that helper returns a stub with ``mode_fallback_reason`` set; we
+    then fall back to council dispatch (same reviewers, real subagent).
+
+    Args:
+        state:              ProjectState (may be None).
+        phase:              Phase being reviewed.
+        gate_name:          Gate being reviewed.
+        gate_policy_entry:  The rigor-tier block from gate-policy.json.
+        dispatcher:         Optional dispatcher for the council fallback path.
+        _input_fn:          Injectable input callable (tests).
+        _print_fn:          Injectable print callable (tests).
+    """
+    try:
+        from solo_mode import dispatch_human_inline as _solo_dispatch  # type: ignore
+    except ImportError as exc:  # pragma: no cover — defensive
+        return _empty_verdict_stub(
+            gate_name, phase, f"solo-mode-module-unavailable:{exc}"
+        )
+
+    result = _solo_dispatch(
+        state, phase, gate_name, gate_policy_entry,
+        _input_fn=_input_fn,
+        _print_fn=_print_fn,
+    )
+
+    # Headless fallback — mode_fallback_reason signals that solo_mode could
+    # not present the interactive UI.  Fall back to council using the same
+    # reviewers so the gate is not silently skipped.
+    if result.get("mode_fallback_reason"):
+        logger.warning(
+            "solo-mode headless fallback — routing gate=%r phase=%r to council",
+            gate_name, phase,
+        )
+        reviewers = list(gate_policy_entry.get("reviewers") or [])
+        fallback_result = _dispatch_council(
+            state, phase, gate_name, reviewers,
+            dispatcher=dispatcher,
+            shared_context_path=None,
+        )
+        # Annotate the fallback result so audit trails record the reason
+        fallback_result["mode_fallback_reason"] = result.get("mode_fallback_reason")
+        fallback_result["original_mode"] = "human-inline"
+        return fallback_result
+
+    return result
+
+
 # Phase -> default gate_name mapping. Used by approve_phase() when it needs
 # to call _dispatch_gate_reviewer() but the caller didn't pass an explicit
 # gate_name. Mirrors skills/propose-process/refs/gate-policy.md. Phases not
@@ -2317,6 +2382,10 @@ def _dispatch_gate_reviewer(
             dispatcher=dispatcher,
             shared_context_path=shared_context_path,
         )
+
+    if mode == "human-inline":
+        return _dispatch_human_inline(state, phase, gate_name, gate_policy_entry,
+                                      dispatcher=dispatcher)
 
     # Unknown mode — conservative stub (do not raise: this path runs inside
     # approve_phase() where a raise would abort advancement for all callers).
@@ -5107,6 +5176,23 @@ def main():
     )
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--description", default="", help="Project description (for create)")
+    parser.add_argument(
+        "--hitl",
+        dest="hitl",
+        default=None,
+        metavar="MODE",
+        help=(
+            "HITL dispatch mode for gates. Accepted: 'inline' — replace council with "
+            "interactive human review. Alias: --solo-mode."
+        ),
+    )
+    parser.add_argument(
+        "--solo-mode",
+        dest="solo_mode",
+        action="store_true",
+        default=False,
+        help="Alias for --hitl=inline (solo-mode HITL).",
+    )
     parser.add_argument("--data", default=None, help="JSON string of fields to set/update")
     parser.add_argument("--to", default=None, help="Target dispatch mode for cutover (e.g. mode-3)")
     parser.add_argument(
@@ -5420,6 +5506,24 @@ def main():
             state, project_dir = create_project(args.project, args.description, initial_data)
         except ValueError as e:
             print(json.dumps({"ok": False, "error": str(e)}) if args.json else f"Error: {e}")
+            return
+
+        # Resolve solo_mode from --hitl / --solo-mode flags + global config (#651)
+        _hitl_flag = getattr(args, "hitl", None)
+        _solo_flag = getattr(args, "solo_mode", False)
+        if _solo_flag:
+            _hitl_flag = "inline"
+        try:
+            from solo_mode import resolve_solo_mode, reject_full_rigor_solo  # type: ignore
+            if resolve_solo_mode(state, _hitl_flag):
+                reject_full_rigor_solo(state)  # raises SoloModeUnavailableError on full rigor
+                state.extras["solo_mode"] = True
+                save_project_state(state)
+        except Exception as _sm_exc:
+            print(
+                json.dumps({"ok": False, "error": str(_sm_exc)}) if args.json
+                else f"Error: {_sm_exc}"
+            )
             return
 
         if args.json:
