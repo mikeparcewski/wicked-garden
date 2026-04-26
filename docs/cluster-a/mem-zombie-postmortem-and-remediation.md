@@ -234,12 +234,23 @@ from _brain_ingest.session_fact_extractor import extract_session_facts
 - `scenarios/crew/cross-module-integration.md` (lines 151, 230) — integration test that imports `enrich_memory_with_phase` from it.
 - `docs/crew-workflow.md:306` and `docs/cross-phase-intelligence.md` (lines 322, 342, 345, 348, 351) — documentation references.
 
-Implementer must decide between two paths:
+Implementer must follow this **mandatory pre-flight verification** (do NOT skip this step — it is the gate between Path A and Path B):
 
-- **Path A (cut both):** delete `scripts/mem/phase_scoring.py` AND `scenarios/mem/phase-aware-recall.md` AND the relevant section of `scenarios/crew/cross-module-integration.md`. Update `docs/crew-workflow.md:306` and `docs/cross-phase-intelligence.md` to remove the references. Justification: phase-scoring was a v6-era feature that operated on the local-JSON mem store; brain handles memory ranking via FTS5 + BM25 now, so phase-scoring is genuinely dead.
-- **Path B (relocate + keep):** if implementer finds evidence that phase-scoring is still wired into a live recall path (verify by grepping for callers of `enrich_memory_with_phase` and `score_memories_for_phase` in `scripts/` and `hooks/`), relocate alongside `session_fact_extractor.py` under `scripts/_brain_ingest/` and update the scenarios + docs to match.
+**Step 0 — Pre-flight caller grep (REQUIRED).** Before choosing a path, run:
 
-**Recommended path: A**, contingent on the verification grep returning no live callers. The 2 scenarios reference it; the scenarios should be retired alongside it because they exist to test a layer that brain now subsumes.
+```bash
+grep -rEn "enrich_memory_with_phase|score_memories_for_phase|from phase_scoring|import phase_scoring" \
+  scripts/ hooks/ \
+  --include="*.py" \
+  | grep -v "scripts/mem/phase_scoring.py"   # exclude self-references
+```
+
+Capture output to `docs/evidence/cluster-a-mem-zombie-cleanup/phase-scoring-caller-grep.txt`. Then decide:
+
+- **If grep returns ZERO matches → Path A (cut both):** delete `scripts/mem/phase_scoring.py` AND `scenarios/mem/phase-aware-recall.md` AND the relevant section of `scenarios/crew/cross-module-integration.md`. Update `docs/crew-workflow.md:306` and `docs/cross-phase-intelligence.md` to remove the references. Justification: phase-scoring was a v6-era feature that operated on the local-JSON mem store; brain handles memory ranking via FTS5 + BM25 now, so with no live callers it is genuinely dead.
+- **If grep returns ANY matches → Path B (relocate + keep):** relocate `phase_scoring.py` alongside `session_fact_extractor.py` under `scripts/_brain_ingest/`, update the call sites identified by the grep, update the scenarios + docs to match. Do NOT cut anything until call sites are migrated.
+
+**Recommended path: A** based on prior caller-check evidence (Pi confirmed zero live callers in-tree during PR #631 council review). However, the implementer MUST re-run the grep at dispatch time and act on its current output — do not skip the verification on stale evidence. The 2 scenarios reference it; if Path A is taken, the scenarios should be retired alongside it because they exist to test a layer that brain now subsumes.
 
 **`scripts/mem/` directory cleanup:** after moves, remove `scripts/mem/__pycache__/` and `scripts/mem/` itself.
 
