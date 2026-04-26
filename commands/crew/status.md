@@ -63,16 +63,20 @@ Based on available plugins:
 **Complexity**: {complexity}/7 (review tier: {review_tier})
 ```
 
-Only render `### Phase Progress` when the `phases` dict from `phase_manager.py status --json` is non-empty. If `phases` is empty (project has no phases started yet), skip this section entirely — do not emit the header or an empty table.
+Only render `### Phase Progress` when the project has real phase progress to show. Suppress this section (skip the header and table entirely) when **all** of the following are true:
+- `phase_plan` from the JSON output is null or empty (no committed plan yet), AND
+- every value in the `phases` dict is `"pending"` (no phase has been started)
 
-When phases exist, render one row per phase from the actual `phases` dict (do not hardcode clarify/design/qe/build/review):
+This fires for projects where the topology fallback populated the dict with all-pending entries — showing 9 rows of "pending" is noise, not signal.
+
+When the section is shown, render one row per phase from the actual `phases` dict (do not hardcode clarify/design/qe/build/review):
 
 ```markdown
 ### Phase Progress
 
-| Phase | Status | Notes |
-|-------|--------|-------|
-| {phase} | {status} | {notes} |
+| Phase | Status |
+|-------|--------|
+| {phase} | {status} |
 ```
 
 Only render `### Available Integrations` when the integration check in Step 3 returns at least one integration result. Always render it when plugin detection produced results (even if all are "not running") — the integration level itself is the signal. Skip the header only if the plugin detection step produced no output at all (e.g., command unavailable).
@@ -84,7 +88,7 @@ Only render `### Available Integrations` when the integration check in Step 3 re
 |--------|--------|---------|
 | jam | built-in | clarify |
 | search | built-in | design |
-| product | built-in | qe, review |
+| product | built-in | test-strategy, review |
 | mem | built-in | all phases |
 | wicked-brain | {running/not running} | context assembly |
 ```

@@ -1,0 +1,71 @@
+# Phase Manager Trace — Old Guard Unreachability Proof
+
+## The guard that shipped in v8.1.0 (PR #634), commands/crew/status.md ~line 66:
+
+  "Only render `### Phase Progress` when the `phases` dict from
+  `phase_manager.py status --json` is non-empty. If `phases` is empty
+  (project has no phases started yet), skip this section entirely."
+
+## Why it is unreachable
+
+`phase_manager.py status --json` always produces a non-empty `phases` dict.
+The call chain is:
+
+    status --json
+      → get_phase_status_summary(state)          [line 3821]
+          → get_phase_order(state)               [line 544]
+              → if state.phase_plan:
+                    return [resolve_phase(p) for p in state.phase_plan]
+                return _topological_sort(load_phases_config())  # FALLBACK
+          → for phase in <order>:
+                phase_state = state.phases.get(phase)
+                summary[phase] = phase_state.status if phase_state else "pending"
+          → return summary   # always populated; at minimum the 9 phases.json phases
+
+When `phase_plan` is empty (no committed plan), `get_phase_order` falls back to
+`_topological_sort(load_phases_config())`, which returns all 9 phases from
+phases.json:
+
+    ['ideate', 'clarify', 'design', 'test-strategy', 'challenge',
+     'build', 'test', 'review', 'operate']
+
+All 9 get added to the summary dict with status "pending" (since none appear in
+state.phases). The dict is never empty. The `if phases:` guard evaluates True
+unconditionally — the suppression never fires.
+
+## What the JSON output looks like for a brand-new project
+
+A fresh project (just created) has:
+  - phase_plan: null (or [])
+  - phases: {"clarify": "in_progress"}   (start_phase called in create_project)
+
+But `get_phase_status_summary` returns all 9 phases, 8 at "pending":
+  {
+    "ideate":        "pending",
+    "clarify":       "in_progress",
+    "design":        "pending",
+    "test-strategy": "pending",
+    "challenge":     "pending",
+    "build":         "pending",
+    "test":          "pending",
+    "review":        "pending",
+    "operate":       "pending"
+  }
+
+The old guard sees a non-empty dict and renders a 9-row table — 8 of which are
+meaningless "pending" rows from the fallback topology.
+
+## The correct suppression condition (Path A fix)
+
+Suppress `### Phase Progress` when:
+  1. phase_plan is null or empty (no committed plan), AND
+  2. all values in phases dict are "pending" (no phase has been explicitly started)
+
+Condition 2 fires only when state.phases is empty — meaning not even clarify
+has been started. In practice this means the project state file exists but was
+never initialized via create_project(). For normal projects, clarify is always
+at least "in_progress", so the section always renders when there is something
+to show.
+
+The 9-row all-pending case (topology fallback, no plan, no phase work) IS the
+only case where suppression is warranted — and the new guard catches it.
