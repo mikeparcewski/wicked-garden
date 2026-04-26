@@ -724,3 +724,96 @@ def test_state_complexity_sc4_saas_scale_combined_with_sc1_is_low():
         f"sc1+sc4 (schema migration + read-only queries) must yield LOW, got {reading!r}. "
         f"Trace: {why}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Issue #639 — o5 calibration pinning
+#
+# Field-tested 2026-04-26 on 4 descriptions (see docs/calibration/o5-field-test.md).
+#
+# Root cause: o5 weight=1 < medium_threshold=2, so a 50M-row migration deployed
+# without a feature flag scored HIGH (low_risk) when manual reading was MEDIUM.
+#
+# Fix chosen (C4): reword o5 to require scale criterion (>1M users/rows) AND
+# bump weight 1 → 2. The reword prevents false positives on trivial no-flag deploys;
+# the weight bump allows o5 alone to reach medium_threshold.
+#
+# Two pin tests per scenario:
+#   - high_scale_no_flag: o5 firing under new wording yields MEDIUM
+#   - small_scale_no_flag: o5 NOT firing under new wording stays HIGH (no false positive)
+# ---------------------------------------------------------------------------
+
+
+def test_operational_risk_o5_alone_high_scale_no_flag_is_medium():
+    """Issue #639 pin: o5=YES (high-scale, no flag) alone must yield MEDIUM.
+
+    o5 weight=2, medium_threshold=2 → 2pts → MEDIUM.
+    A 50M-row migration deployed without a feature flag is the canonical o5=YES case.
+    If this drops back to HIGH, o5 weight has been reduced below 2.
+    """
+    rubric = _rubric_for("operational_risk")
+    reading, why = score_factor(rubric, {"o5": True})
+    assert reading == "MEDIUM", (
+        f"o5 alone (2pts) must yield MEDIUM for high-scale no-flag deploy, got {reading!r}. "
+        f"If this regresses to HIGH, o5 weight has been lowered. Trace: {why}"
+    )
+
+
+def test_operational_risk_o5_weight_is_two():
+    """Issue #639 pin: o5 yes_weight must be exactly 2 after calibration.
+
+    Directly pins the weight so a future silent rollback to weight=1 fails loudly
+    without requiring an answer-dict interpretation.
+    """
+    rubric = _rubric_for("operational_risk")
+    o5 = next(q for q in rubric.questions if q.id == "o5")
+    assert o5.yes_weight == 2, (
+        f"o5 yes_weight must be 2 after issue #639 calibration, got {o5.yes_weight}. "
+        f"If this is 1, the calibration has been silently reverted."
+    )
+
+
+def test_operational_risk_o5_alone_does_not_reach_low():
+    """Issue #639 pin: o5=YES alone must NOT reach LOW (low_threshold=5).
+
+    o5 weight=2 < low_threshold=5 → MEDIUM, not LOW.
+    A no-flag deploy alone should not be as risky as a hot-path network call
+    with queue changes and new external deps combined.
+    """
+    rubric = _rubric_for("operational_risk")
+    reading, why = score_factor(rubric, {"o5": True})
+    assert reading != "LOW", (
+        f"o5 alone must not reach LOW (2pts < low_threshold=5). Got {reading!r}. "
+        f"Trace: {why}"
+    )
+
+
+def test_operational_risk_o5_with_feature_flag_is_high():
+    """Issue #639 pin: a deploy WITH a feature flag (o5=NO) must remain HIGH.
+
+    When o5=NO, 0 pts → HIGH. This confirms the feature-flag path is unaffected
+    by the weight bump — the question itself is what prevents escalation, not the weight.
+    """
+    rubric = _rubric_for("operational_risk")
+    # Explicitly all-NO to mirror a migration gated behind a feature flag
+    all_no = {q.id: False for q in rubric.questions}
+    reading, why = score_factor(rubric, all_no)
+    assert reading == "HIGH", (
+        f"All-NO (migration with feature flag) must yield HIGH, got {reading!r}. "
+        f"Trace: {why}"
+    )
+
+
+def test_operational_risk_o5_saas_scale_full_signal_is_low():
+    """Issue #639 pin: o5 contributes correctly to LOW in a full-signal scenario.
+
+    o1(3)+o2(3)+o3(2)+o4(2)+o5(2)=12pts >= low_threshold=5 → LOW.
+    Confirms LOW is still reachable and o5 participates in the full-signal path.
+    """
+    rubric = _rubric_for("operational_risk")
+    all_yes = {q.id: True for q in rubric.questions}
+    reading, why = score_factor(rubric, all_yes)
+    assert reading == "LOW", (
+        f"All-YES operational_risk must yield LOW; o5 contributes 2pts. "
+        f"Got {reading!r}. Trace: {why}"
+    )
