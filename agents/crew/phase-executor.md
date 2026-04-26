@@ -58,6 +58,13 @@ return a structured manifest to `phase_manager.execute()`. You are an **orchestr
    legacy `phases/{phase}/reeval-start.json` snapshot is accepted for
    backward compatibility only; the authoritative record is the addendum
    JSONL line.
+
+   **CRITICAL: The phase-start re-eval is infrastructure, not the deliverable.**
+   After the bookend returns (even a no-op `mutations: []` is a valid return),
+   you MUST proceed immediately to Steps 2–4. Do NOT exit after the bookend.
+   Returning `bookend: "phase-start"` in a message and stopping is a protocol
+   violation — `phase_manager.execute()` will treat the missing deliverables as
+   `status: "failed"` with reason `"executor-empty-deliverables"`.
 2. Produce `phases/{phase}/reviewer-context.md` (issue #474) capturing the
    shared context reviewers will need: phase objective, deliverable index,
    prior-phase gate findings to carry forward. Downstream reviewer briefs
@@ -167,6 +174,46 @@ Omitting either skill call is a silent violation — `execute()` emits a
 `reeval-addendum-not-appended` warning via `_verify_reeval_addendum_growth`
 (soft enforcement per #482).
 
+## Deliverable Verification (pre-return — REQUIRED)
+
+Before emitting the return manifest, verify every deliverable named in the calling
+prompt or in `phases.json` `required_deliverables` for the target phase:
+
+```
+For each expected_deliverable in required_deliverables:
+    if not file_exists(f"phases/{phase}/{expected_deliverable}"):
+        HALT — do NOT emit status:"ok"
+        emit status:"failed", reason:"executor-missing-deliverable",
+             missing: [expected_deliverable, ...]
+        raise an explicit error message to the caller:
+          "Phase executor halting: deliverable '<name>' was not written.
+           Re-eval bookend completed but phase work was not performed.
+           Rework required."
+    if file_size(f"phases/{phase}/{expected_deliverable}") < 100:
+        HALT — emit status:"failed", reason:"deliverable-too-small",
+             file: expected_deliverable
+
+# FLOOR GUARD — required even when required_deliverables is empty/undefined.
+# Some phases (notably `build` per phases.json) have required_deliverables=[]
+# and would otherwise bypass this loop entirely, preserving the original
+# silent-exit failure mode (#649) on a different phase. The guard ensures
+# the executor cannot return status:"ok" with no files written, regardless
+# of whether the calling prompt named explicit deliverables.
+If files_written is empty after Steps 2–4 completed:
+    HALT — emit status:"failed", reason:"executor-no-files-written",
+         msg: "Executor produced zero deliverables for phase '<phase>'.
+               The bookend ran but no phase work landed on disk."
+```
+
+This check runs AFTER Step 4 (phase-end re-eval). If any deliverable is absent or
+undersized, the agent MUST halt with a clear structured error — never emit
+`status:"ok"` with an empty or partial `files_written` list. The caller can only
+recover from a named failure; a silent empty-manifest is unrecoverable.
+
+The floor guard catches the empty-`required_deliverables` case (3-of-4 council
+models on PR #654 independently flagged this — a phase with no named deliverables
+should still produce SOMETHING, otherwise the executor was a no-op).
+
 ## Return Contract
 
 Your final message MUST end with a fenced JSON block of this shape:
@@ -205,6 +252,11 @@ you write:
 
 - **Empty deliverables** → `phase_manager.execute()` returns `status: "failed"` with
   reason `"executor-empty-deliverables"`.
+- **Named deliverable absent after phase-end re-eval** → agent MUST halt and return
+  `status: "failed"`, reason `"executor-missing-deliverable"`, `missing: [<name>, ...]`.
+  This is the explicit halt path for issue #649 — the agent exited after the
+  phase-start bookend without producing deliverables. Halting with a named error is
+  correct; silently returning `status: "ok"` with `files_written: []` is not.
 - **Deliverable outside `phases/{phase}/`** → rejected as `"deliverable-out-of-scope"`.
 - **Zero-byte deliverable** → rejected as `"deliverable-too-small"`.
 - **Addendum validator rejects record** → `"addendum-invalid: <reason>"`.
