@@ -103,7 +103,7 @@ QUESTIONNAIRE: Dict[str, FactorRubric] = {
         questions=(
             # u1 weight 2 (was 3) — calibrated 2026-04-25 after cluster-A field test:
             # a single visible change should land MEDIUM, not LOW. LOW reading requires
-            # multiple visible surfaces affected. See discovery-conventions audit.
+            # multiple visible surfaces affected. Observed in cluster-A P1 smaht rename.
             Question("u1", "Does this change produce a visible UI change, copy change, or new user-visible flow?", 2),
             Question("u2", "Does this change affect a public API response shape that callers consume directly?", 2),
             Question("u3", "Does this change affect an email, notification, or export format seen by end-users?", 2),
@@ -162,7 +162,7 @@ QUESTIONNAIRE: Dict[str, FactorRubric] = {
     "coordination_cost": FactorRubric(
         name="coordination_cost",
         questions=(
-            Question("cc1", "Does this change require 3 or more specialists to agree before it can ship?", 3),
+            Question("cc1", "Does this change require 3 or more humans to agree before it can ship?", 3),
             Question("cc2", "Does this change require a contract negotiation between two services or teams?", 2),
             # cc3 reworded 2026-04-25 after cluster-A field test: the original "across
             # different specialists" trips YES whenever the facilitator picks 2+ agents,

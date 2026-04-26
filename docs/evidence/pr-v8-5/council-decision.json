@@ -56,7 +56,7 @@
   ],
   "agreement_ratio": 1.0,
   "verdict": "APPROVE",
-  "vote_count": "5-0",
+  "vote_count": {"APPROVE": 5, "CONDITIONAL": 0, "REJECT": 0},
   "hitl_rule_id": "gate-reeval-convergent-condition-resolved",
   "hitl_result": "APPROVE \u2014 all conditions met, no new blockers",
   "primary_risk_convergence": "Dual/multiple AC-section heading edge case (first-match-only in _extract_ac_section_slice) \u2014 3/5 models cited; noted for future hardening, not a merge blocker",

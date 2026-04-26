@@ -11,7 +11,7 @@
     "dissent_summary": "OpenCode CONDITIONAL: discovery-conventions.md at 324 lines exceeds R5 \u2264200 line limit",
     "hitl": {
       "pause": false,
-      "reason": "unanimous council with min confidence 0.70: auto-proceed",
+      "reason": "4 APPROVE / 1 CONDITIONAL with min confidence 0.70: quorum met, auto-proceed",
       "rule_id": "council.auto-proceed",
       "signals": {
         "vote_count": 5,

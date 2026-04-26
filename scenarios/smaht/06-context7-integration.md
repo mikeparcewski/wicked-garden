@@ -15,8 +15,8 @@ status: retired
 # Context7 External Documentation Integration (RETIRED)
 
 > **RETIRED 2026-04-25** — `smaht:learn` and `smaht:libs` were cut in
-> cluster-A P0 (decision record:
-> `cluster-a-workflow-surface-review-v8-decision.md`).
+> cluster-A P0 (decision stored in wicked-brain memory:
+> `cluster-a-workflow-surface-review-v8-decision`).
 > `smaht:learn` duplicated `wicked-brain:ingest`; `smaht:libs` was orphaned
 > by the v8 daemon-first refactor.
 >
@@ -33,8 +33,8 @@ or skills that need it — there is no automatic per-prompt enrichment.
 This scenario validated:
 
 1. Library detection + fetching still worked from the (now cut) `smaht:learn` command
-2. Failures degrade gracefully (missing MCP, timeouts) without stack traces
-3. Brain can search the resulting cheatsheet after it's been stored
+2. Failures degraded gracefully (missing MCP, timeouts) without stack traces
+3. Brain could search the resulting cheatsheet after it had been stored
 
 ## Setup
 

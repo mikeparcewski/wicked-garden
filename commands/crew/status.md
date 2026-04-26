@@ -69,7 +69,7 @@ Only render `### Phase Progress` when the project has real phase progress to sho
 
 This fires for projects where the topology fallback populated the dict with all-pending entries — showing 9 rows of "pending" is noise, not signal.
 
-When the section is shown, render one row per phase from the actual `phases` dict (do not hardcode clarify/design/qe/build/review):
+When the section is shown, render one row per phase from the actual `phases` dict (do not hardcode clarify/design/test-strategy/build/review):
 
 ```markdown
 ### Phase Progress
