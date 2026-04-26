@@ -1,11 +1,16 @@
 """tests/crew/test_skill_docs_archetype_coverage.py — Verify archetype coverage in docs (D6).
 
-Provenance: AC-6
+Provenance: AC-6 (updated for #652 item 3 — rubric extracted to agent)
 T1: deterministic — pure file reads, no I/O side effects
 T3: isolated — read-only
 T4: single focus per test
 T5: descriptive names
 T6: each docstring cites its AC
+
+Note: Pattern A migration moved the rubric content out of SKILL.md and into
+``agents/crew/process-facilitator.md``. SKILL.md is now a thin delegation shim,
+so archetype coverage assertions target the agent file (which holds the rubric)
+while the SKILL.md size cap still applies as a guard against re-bloat.
 """
 import sys
 from pathlib import Path
@@ -14,15 +19,21 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_MD = REPO_ROOT / "skills" / "propose-process" / "SKILL.md"
+RUBRIC_AGENT_MD = REPO_ROOT / "agents" / "crew" / "process-facilitator.md"
 EVIDENCE_FRAMING_MD = REPO_ROOT / "skills" / "propose-process" / "refs" / "evidence-framing.md"
 
-# 4 MVP archetypes required to appear in both files (AC-6).
+# 4 MVP archetypes required to appear in both the rubric agent and evidence-framing (AC-6).
 MVP_ARCHETYPES = ["code-repo", "docs-only", "skill-agent-authoring", "config-infra"]
 
 
 def test_skill_md_exists():
     """AC-6: SKILL.md must exist at its declared path."""
     assert SKILL_MD.exists(), f"SKILL.md not found at {SKILL_MD}"
+
+
+def test_rubric_agent_exists():
+    """AC-6 (#652 item 3): the rubric agent must exist at its declared path."""
+    assert RUBRIC_AGENT_MD.exists(), f"process-facilitator.md not found at {RUBRIC_AGENT_MD}"
 
 
 def test_evidence_framing_md_exists():
@@ -40,11 +51,15 @@ def test_skill_md_within_200_lines():
 
 
 @pytest.mark.parametrize("archetype", MVP_ARCHETYPES)
-def test_skill_md_contains_mvp_archetype(archetype: str):
-    """AC-6: SKILL.md must reference each of the 4 MVP archetype names."""
-    content = SKILL_MD.read_text(encoding="utf-8")
+def test_rubric_agent_contains_mvp_archetype(archetype: str):
+    """AC-6 (#652 item 3): the rubric agent must reference each MVP archetype name.
+
+    The rubric content (including Step 6 archetype selection) lives in
+    ``agents/crew/process-facilitator.md`` after Pattern A migration.
+    """
+    content = RUBRIC_AGENT_MD.read_text(encoding="utf-8")
     assert archetype in content, (
-        f"SKILL.md does not contain archetype name {archetype!r}. "
+        f"process-facilitator.md does not contain archetype name {archetype!r}. "
         "Step 6 must reference all 4 MVP archetypes."
     )
 
@@ -59,13 +74,12 @@ def test_evidence_framing_contains_mvp_archetype(archetype: str):
     )
 
 
-def test_skill_md_mentions_archetype_enum_in_step_6():
-    """AC-6: SKILL.md Step 6 section must mention the 7-value enum concept."""
-    content = SKILL_MD.read_text(encoding="utf-8")
-    # Step 6 is the archetype selection step — verify it mentions archetype or archetype selection
+def test_rubric_agent_mentions_archetype_enum_in_step_6():
+    """AC-6 (#652 item 3): the rubric agent's Step 6 must mention the archetype enum."""
+    content = RUBRIC_AGENT_MD.read_text(encoding="utf-8")
     assert "archetype" in content, (
-        "SKILL.md must mention 'archetype' in the step 6 section."
+        "process-facilitator.md must mention 'archetype' in the step 6 section."
     )
     assert "metadata.archetype" in content or "metadata" in content, (
-        "SKILL.md Step 6 must reference TaskCreate metadata.archetype emission."
+        "process-facilitator.md Step 6 must reference TaskCreate metadata.archetype emission."
     )
