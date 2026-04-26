@@ -1,0 +1,57 @@
+{
+  "synthesized": {
+    "verdict": "APPROVE",
+    "vote_count": 5,
+    "tally": {
+      "APPROVE": 4,
+      "CONDITIONAL": 1
+    },
+    "agreement_ratio": 0.8,
+    "primary_risk": "trigger over-sensitivity for minor ambiguities; parallelism not runtime-enforced",
+    "dissent_summary": "OpenCode CONDITIONAL: discovery-conventions.md at 324 lines exceeds R5 \u2264200 line limit",
+    "hitl": {
+      "pause": false,
+      "reason": "unanimous council with min confidence 0.70: auto-proceed",
+      "rule_id": "council.auto-proceed",
+      "signals": {
+        "vote_count": 5,
+        "tally": {
+          "APPROVE": 4,
+          "CONDITIONAL": 1
+        },
+        "lowest_confidence": 0.7,
+        "lowest_confidence_model": "OpenCode",
+        "synthesize_quorum": 3
+      }
+    }
+  },
+  "raw_votes": [
+    {
+      "model": "Claude",
+      "verdict": "APPROVE",
+      "confidence": 0.85
+    },
+    {
+      "model": "Codex",
+      "verdict": "APPROVE",
+      "confidence": 0.8
+    },
+    {
+      "model": "Gemini",
+      "verdict": "APPROVE",
+      "confidence": 0.82
+    },
+    {
+      "model": "OpenCode",
+      "verdict": "CONDITIONAL",
+      "confidence": 0.7
+    },
+    {
+      "model": "Pi",
+      "verdict": "APPROVE",
+      "confidence": 0.88
+    }
+  ],
+  "pr": 606,
+  "topic": "v9-PR-4: wicked-garden:ground keystone skill + discovery conventions"
+}

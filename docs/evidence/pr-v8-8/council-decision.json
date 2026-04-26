@@ -1,0 +1,28 @@
+{
+  "session_id": "council-pr624-final",
+  "pr": 624,
+  "epic": 588,
+  "commit": "044f5d9",
+  "branch": "v8/pr-8-typed-hook-subscribers",
+  "evaluation_date": "2026-04-23",
+  "topic": "PR #624 fix-up: B1 debounce_key persistence + B2 recursion depth guard",
+  "options": ["APPROVE", "CONDITIONAL", "REJECT"],
+  "models_participating": ["Claude", "Pi", "Gemini"],
+  "models_unavailable": ["Codex (no output)", "OpenCode (no output)", "Copilot (no verdict)", "Aider (no API key)", "llm (no API key)", "aichat (no config)", "Goose (no provider)"],
+  "votes": {
+    "Claude": "APPROVE",
+    "Pi": "APPROVE",
+    "Gemini": "APPROVE"
+  },
+  "tally": {"APPROVE": 3, "CONDITIONAL": 0, "REJECT": 0},
+  "agreement_ratio": 1.0,
+  "verdict": "APPROVE",
+  "vote_string": "3-0-0",
+  "b1_resolved": true,
+  "b2_resolved": true,
+  "blockers": [],
+  "prior_council_flipped": true,
+  "epic_closes": true,
+  "hitl_rule_id": "council-unanimous-approve",
+  "synthesis": "All 3 substantive voters unanimously APPROVE. B1 resolved via dedicated debounce_key column with matching write+read paths and 9 no-manual-insert E2E tests. B2 resolved via entry-point depth guard with _depth+1 propagation and 5 targeted tests. Migration idempotent. Scope clean (3 files). 1071/1071 tests pass. All prior CONDITIONAL/REJECT flip criteria met."
+}

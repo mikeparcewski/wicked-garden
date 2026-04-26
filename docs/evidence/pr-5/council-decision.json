@@ -1,0 +1,54 @@
+{
+  "pr": 609,
+  "session_id": "council-pr609-1777032064",
+  "topic": "v9-PR-5 drop-in plugin contract + wicked-testing exemplar",
+  "verdict": "APPROVE",
+  "vote_breakdown": {
+    "APPROVE": [
+      "Claude",
+      "Codex",
+      "Gemini",
+      "OpenCode"
+    ],
+    "CONDITIONAL": [
+      "Pi"
+    ],
+    "REJECT": []
+  },
+  "vote_count": {
+    "APPROVE": 4,
+    "CONDITIONAL": 1,
+    "REJECT": 0
+  },
+  "agreement_ratio": 0.8,
+  "models_count": 5,
+  "models_participating": [
+    "Claude",
+    "Codex",
+    "Pi",
+    "Gemini",
+    "OpenCode"
+  ],
+  "models_failed": [
+    "Copilot (scaffold parse failure)",
+    "aichat (auth)",
+    "llm (auth)",
+    "Aider (auth)",
+    "Goose (unconfigured)"
+  ],
+  "hitl_rule": "council.approve.4-1",
+  "blocking_concerns": [],
+  "conditional_concerns": [
+    "CLAUDE.md pointer not added due to permission denial \u2014 Pi recommends tracking issue with assignee + target date before treating as resolved"
+  ],
+  "non_blocking_findings": [
+    "Bus event naming inconsistency: contract specifies colon-separated, wicked-testing exemplar emits dot-separated \u2014 alignment recommendation for wicked-testing v0.4",
+    "wicked-testing:test-strategy R1 PARTIAL (trigger language in manifest description) \u2014 SHARPEN recommendation for v0.4",
+    "Contract length 441 lines exceeds SKILL.md 200-line cap \u2014 acceptable for a reference doc, not a skill entry point",
+    "3-call wrapper test interpretive drift risk (Gemini) \u2014 centralized adjudication body would reduce subjectivity",
+    "Daemon forward-stability (Codex) \u2014 plugin authors may overfit to dispatch details before v8 lands"
+  ],
+  "synthesis": "APPROVE 4-1. Contract complete across all 5 plugin-author needs. Exemplar rigorous. Non-duplication test teachable. Forward-compatibility addressed via versioning. CLAUDE.md pointer gap is discoverability not correctness \u2014 Pi dissent is well-reasoned but the filing of a tracking issue resolves the risk without blocking merge.",
+  "date": "2026-04-23",
+  "transcript_path": "jam transcript session:council-pr609-1777032064"
+}

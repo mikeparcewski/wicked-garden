@@ -1,0 +1,49 @@
+{
+  "pr": 613,
+  "topic": "v8-PR-3 typed phase state machine (EPIC #588, issue #590)",
+  "session_id": "council-pr613-20260424-091718",
+  "evaluated_at": "2026-04-24T09:17:18Z",
+  "models_participated": ["Claude", "OpenCode", "Gemini", "Pi", "Codex"],
+  "models_unavailable": ["Copilot (no model key)", "llm (no API key)", "aichat (no API key)", "Goose (not configured)", "Aider (no key)"],
+  "votes": {
+    "Claude":    { "vote": "CONDITIONAL", "confidence": "high" },
+    "OpenCode":  { "vote": "CONDITIONAL", "confidence": "medium" },
+    "Gemini":    { "vote": "APPROVE",     "confidence": "medium" },
+    "Pi":        { "vote": "CONDITIONAL", "confidence": "high" },
+    "Codex":     { "vote": "CONDITIONAL", "confidence": "high" }
+  },
+  "tally": { "APPROVE": 1, "CONDITIONAL": 4, "REJECT": 0 },
+  "agreement_ratio": 0.80,
+  "verdict": "CONDITIONAL (4-1)",
+  "hitl_rule_id": "council.majority-conditional.PR-613",
+  "blocking_conditions": [
+    {
+      "id": "C1",
+      "severity": "blocking",
+      "description": "_rework_triggered handler in daemon/projector.py updates rework_iterations but does NOT call upsert_phase with PhaseState.ACTIVE. A rework event leaves the phase stuck in REJECTED. The rework:rejected->active transition exists in the TRANSITIONS table but is never applied by the projector.",
+      "resolution": "Add upsert_phase call in _rework_triggered with state=PhaseState.ACTIVE, OR emit a second event that the projector dispatches for the REJECTED->ACTIVE transition. Add a daemon test asserting that after wicked.rework.triggered, the phase state is ACTIVE."
+    },
+    {
+      "id": "C2",
+      "severity": "blocking",
+      "description": "upsert_phase validates vocabulary (target state is a valid PhaseState) but not legality (whether the transition from the current DB state is graph-legal). Future callers could write APPROVED directly from PENDING, bypassing the ACTIVE step. The state machine enforces a type constraint, not a graph invariant.",
+      "resolution": "Either: (a) add transition-path enforcement to upsert_phase for UPDATE paths (read current state, call transition()), with INSERT paths explicitly exempted via flag or projector-only access; or (b) formally document and enforce that upsert_phase is projector-private (e.g. prefix with _ or move inside projector.py), making path enforcement unnecessary because the projector is the sole caller."
+    }
+  ],
+  "advisory_findings": [
+    {
+      "id": "A1",
+      "severity": "advisory",
+      "description": "The standalone phase_state_migration.py run_migration() does not wrap individual row UPDATEs in a single transaction. If an UPDATE fails mid-loop, partial rows are committed before the _migrations guard row is written. The _run_migration() wrapper in db.py does not have this gap (guard is written after the body returns in the same commit).",
+      "resolution": "Wrap the UPDATE loop in an explicit transaction in run_migration() so partial state is rolled back on error."
+    }
+  ],
+  "criteria_verdicts": {
+    "1_type_safety_at_boundaries": "PASS — transition() covers all 6 reachable (event,state) pairs; InvalidTransition raised on banned, unknown, and illegal paths. StrEnum coercion is correct. 100% branch coverage per tests.",
+    "2_migration_correctness_idempotency": "CONDITIONAL — AC-evidence mapping (gate_score/gate_verdict IS NOT NULL -> approved, else -> skipped) is semantically correct; _migrations table prevents double-apply; but standalone run_migration() lacks a single-transaction wrapper (A1 advisory).",
+    "3_boundary_discipline": "PASS — phase_manager.py internals untouched; boundary guard correctly added only in daemon/db.py::upsert_phase per #590 non-goal.",
+    "4_terminal_state_invariants": "CONDITIONAL — test coverage for approved/skipped terminal states is exhaustive (loop over VALID_EVENTS); but _rework_triggered does not complete the rejected->active transition (C1 blocking). A rejected phase stays rejected after a rework event.",
+    "5_hidden_coupling": "PASS — in_progress and complete correctly raise InvalidTransition at the boundary (TestUnknownStateRaises covers both explicitly). Separation is safe.",
+    "6_no_regressions": "PASS — 675/675 crew tests, 36/36 daemon tests, structural validation clean."
+  }
+}

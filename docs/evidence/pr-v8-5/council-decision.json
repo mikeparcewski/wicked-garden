@@ -1,0 +1,71 @@
+{
+  "pr": 617,
+  "branch": "v8/pr-5-structured-acs",
+  "session_id": "council-617-reeval",
+  "evaluated_at": "2026-04-24T16:51:02.937805+00:00",
+  "prior_result": {
+    "vote": "3 CONDITIONAL / 1 APPROVE",
+    "status": "HITL pause"
+  },
+  "trigger": "Re-evaluation after two fix-up commits (276db4a, 35b928a)",
+  "models_participating": [
+    "Claude",
+    "Codex (gpt-5.4)",
+    "Gemini",
+    "OpenCode",
+    "Pi"
+  ],
+  "models_unavailable": [
+    "Copilot (scaffold truncation)",
+    "Aider (no API key)",
+    "llm (no API key)",
+    "aichat (no config)",
+    "Goose (no provider)"
+  ],
+  "vote_matrix": [
+    {
+      "model": "Claude",
+      "vote": "APPROVE",
+      "top_risk": "Dual AC-section edge case (first-match-only)",
+      "disqualifier": "None"
+    },
+    {
+      "model": "Codex (gpt-5.4)",
+      "vote": "APPROVE",
+      "top_risk": "Multiple AC sections returns first match only (pre-existing)",
+      "disqualifier": "REJECT unviable"
+    },
+    {
+      "model": "Gemini",
+      "vote": "APPROVE",
+      "top_risk": "Heading level discipline / premature truncation on malformed nesting",
+      "disqualifier": "REJECT and CONDITIONAL both unviable"
+    },
+    {
+      "model": "OpenCode",
+      "vote": "APPROVE",
+      "top_risk": "Edge cases around deeply-nested headings or malformed markdown",
+      "disqualifier": "None"
+    },
+    {
+      "model": "Pi",
+      "vote": "APPROVE",
+      "top_risk": "Multiple AC sections / first-match-only (pre-existing)",
+      "disqualifier": "REJECT unviable"
+    }
+  ],
+  "agreement_ratio": 1.0,
+  "verdict": "APPROVE",
+  "vote_count": "5-0",
+  "hitl_rule_id": "gate-reeval-convergent-condition-resolved",
+  "hitl_result": "APPROVE \u2014 all conditions met, no new blockers",
+  "primary_risk_convergence": "Dual/multiple AC-section heading edge case (first-match-only in _extract_ac_section_slice) \u2014 3/5 models cited; noted for future hardening, not a merge blocker",
+  "blockers": [],
+  "notes": [
+    "Prior CONDITIONAL condition fully resolved: TestNumberedUnderHeadingIsolated 7/7 PASS",
+    "Fix-up-1 caught 2 real silent-data-loss bugs (## ACs regex gap, _RE_NUMBERED whole-doc scan)",
+    "Fix-up-2 fixed both bugs: acs?\\b + _extract_ac_section_slice (68 LOC, 1 file)",
+    "Suite: 837/2 -> 839/0, delta exactly +2 passing, 0 regressions",
+    "v9 gate-catches-real-bug pattern demonstrated successfully"
+  ]
+}
