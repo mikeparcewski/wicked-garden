@@ -3101,13 +3101,16 @@ def _sync_gate_finding_task(
     phase: str,
     gate_result: Optional[Dict],
 ) -> None:
-    """Sync the native-task gate-finding entry on approve (#653).
+    """Sync the native-task gate-finding entry on approve (#653, #657).
 
-    Scans the current session's task store for a task whose metadata
+    Scans the current session's task store for tasks whose metadata
     matches ``event_type=gate-finding`` AND ``phase=phase`` AND whose
-    ``chain_id`` starts with the project name prefix.  When found, updates
-    the task file to ``status=completed`` and stamps the verdict + score
-    from ``gate_result`` into metadata.
+    ``chain_id`` starts with the project name prefix.  In rerun scenarios
+    (phase REJECT'd then re-run) multiple matching tasks may exist — all
+    matching in-progress tasks are collected, sorted by ``st_mtime``
+    descending, and the most-recently-modified one is stamped.  Stale
+    tasks from prior runs are left in-progress rather than incorrectly
+    completed.
 
     This closes the dual-record divergence (#653): the DomainStore phase
     record and the native task chain both reflect the gate outcome.
@@ -3133,6 +3136,7 @@ def _sync_gate_finding_task(
 
     verdict: Optional[str] = None
     score: Optional[float] = None
+    min_score: Optional[float] = None
     if gate_result and isinstance(gate_result, dict):
         verdict = gate_result.get("verdict") or gate_result.get("result")
         raw_score = gate_result.get("score")
@@ -3141,6 +3145,12 @@ def _sync_gate_finding_task(
                 score = float(raw_score)
             except (TypeError, ValueError):
                 score = None
+        raw_min = gate_result.get("min_score")
+        if raw_min is not None:
+            try:
+                min_score = float(raw_min)
+            except (TypeError, ValueError):
+                min_score = None
 
     session_id = os.environ.get("CLAUDE_SESSION_ID", "")
     if not session_id:
@@ -3156,8 +3166,17 @@ def _sync_gate_finding_task(
 
     try:
         scanned = 0
+        # Collect all matching in-progress gate-finding tasks with their mtime.
+        # In rerun scenarios (phase REJECT'd then re-run) multiple matches exist;
+        # we must stamp the NEWEST (highest mtime) — not the filesystem-order first.
+        candidates: List[Tuple[float, Path, dict]] = []  # (mtime, path, data)
         for entry in tasks_dir.iterdir():
             if scanned >= _MAX_TASKS_SCAN:
+                logger.warning(
+                    "[approve] _sync_gate_finding_task scan hit %d-file limit "
+                    "without exhausting directory (phase=%s) — match may be missed",
+                    _MAX_TASKS_SCAN, phase,
+                )
                 break
             if entry.name.startswith(".") or entry.suffix != ".json":
                 continue
@@ -3182,31 +3201,46 @@ def _sync_gate_finding_task(
             if not isinstance(chain_id, str) or not chain_id.startswith(expected_chain_prefix):
                 continue
 
-            # Found a matching gate-finding task — stamp it completed.
-            data["status"] = "completed"
-            if verdict:
-                meta["verdict"] = verdict
-            if score is not None:
-                meta["score"] = score
-            data["metadata"] = meta
             try:
-                entry.write_text(
-                    json.dumps(data, indent=2, sort_keys=True),
-                    encoding="utf-8",
-                )
-                logger.debug(
-                    "[approve] synced gate-finding task %s → completed "
-                    "(phase=%s, verdict=%s, score=%s)",
-                    entry.stem, phase, verdict, score,
-                )
-            except Exception as exc:
-                logger.debug(
-                    "[approve] gate-finding task sync write failed: %s", exc
-                )
-            # At most one gate-finding task per phase — stop after first match.
+                mtime = entry.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            candidates.append((mtime, entry, data))
+
+        if not candidates:
             return
+
+        # Pick the most-recently-modified matching task (#657 fix 1).
+        candidates.sort(key=lambda t: t[0], reverse=True)
+        _, target_entry, target_data = candidates[0]
+
+        # Stamp the task completed with all three schema-required fields
+        # (verdict, score, min_score — per _event_schema.py line 80, #657 fix 2).
+        target_meta = target_data.get("metadata") or {}
+        target_data["status"] = "completed"
+        if verdict:
+            target_meta["verdict"] = verdict
+        if score is not None:
+            target_meta["score"] = score
+        if min_score is not None:
+            target_meta["min_score"] = min_score
+        target_data["metadata"] = target_meta
+        try:
+            target_entry.write_text(
+                json.dumps(target_data, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            logger.debug(
+                "[approve] synced gate-finding task %s → completed "
+                "(phase=%s, verdict=%s, score=%s, min_score=%s, candidates=%d)",
+                target_entry.stem, phase, verdict, score, min_score, len(candidates),
+            )
+        except Exception as exc:
+            logger.debug(
+                "[approve] gate-finding task sync write failed: %s", exc
+            )
     except Exception as exc:
-        logger.debug("[approve] _sync_gate_finding_task scan error: %s", exc)
+        logger.warning("[approve] _sync_gate_finding_task scan error: %s", exc)
 
 
 def _run_build_phase_guard(project_dir: Path) -> List[str]:

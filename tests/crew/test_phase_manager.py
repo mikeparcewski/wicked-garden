@@ -1077,6 +1077,162 @@ class TestSyncGateFindingTask(unittest.TestCase):
         with patch.dict(os.environ, env, clear=True):
             pm._sync_gate_finding_task(state, "clarify", gate_result)  # no exception
 
+    def test_sync_rerun_picks_newest_task_by_mtime(self):
+        """Rerun scenario: two gate-finding tasks for same phase/chain_id.
+
+        The STALE task has an older mtime; the ACTIVE task has a newer mtime.
+        Sync must stamp the active (newer) task and leave the stale one
+        untouched (#657 fix 1: iterdir first-match-wins replaced by mtime sort).
+        """
+        import time
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-rerun"
+
+            stale_task = {
+                "id": "task-gate-stale",
+                "subject": "Gate: review (stale)",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "review",
+                    "chain_id": "rerun-proj.review.code-quality",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+            active_task = {
+                "id": "task-gate-active",
+                "subject": "Gate: review (active rerun)",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "review",
+                    "chain_id": "rerun-proj.review.code-quality",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+
+            stale_file = self._write_task(tasks_dir, "task-gate-stale", stale_task)
+            # Brief sleep ensures distinct mtime values on filesystems with
+            # low-resolution timestamps (1s granularity).
+            time.sleep(0.01)
+            active_file = self._write_task(tasks_dir, "task-gate-active", active_task)
+
+            # Force mtime ordering to be unambiguous: touch stale to be older.
+            stale_mtime = active_file.stat().st_mtime - 2.0
+            os.utime(stale_file, (stale_mtime, stale_mtime))
+
+            state = _make_state(name="rerun-proj")
+            gate_result = {
+                "verdict": "APPROVE",
+                "result": "APPROVE",
+                "score": 0.75,
+                "min_score": 0.7,
+            }
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-rerun", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                pm._sync_gate_finding_task(state, "review", gate_result)
+
+            updated_active = json.loads(active_file.read_text())
+            updated_stale = json.loads(stale_file.read_text())
+
+            # Active (newer mtime) must be stamped completed.
+            self.assertEqual(updated_active["status"], "completed")
+            self.assertEqual(updated_active["metadata"]["verdict"], "APPROVE")
+            self.assertAlmostEqual(updated_active["metadata"]["score"], 0.75)
+            self.assertAlmostEqual(updated_active["metadata"]["min_score"], 0.7)
+
+            # Stale (older mtime) must remain in_progress — not incorrectly completed.
+            self.assertEqual(updated_stale["status"], "in_progress")
+            self.assertNotIn("verdict", updated_stale["metadata"])
+
+    def test_sync_stamps_min_score_on_completed_task(self):
+        """Completed gate-finding task metadata contains min_score field.
+
+        _event_schema.py line 80 requires verdict, min_score, AND score on
+        a completed gate-finding task.  The original code only wrote verdict
+        and score — omitting min_score violated the schema (#657 fix 2).
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-minscore"
+
+            gate_task = {
+                "id": "task-gate-ms",
+                "subject": "Gate: design",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "design",
+                    "chain_id": "minscore-proj.design.review",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+            task_file = self._write_task(tasks_dir, "task-gate-ms", gate_task)
+
+            state = _make_state(name="minscore-proj")
+            gate_result = {
+                "verdict": "APPROVE",
+                "result": "APPROVE",
+                "score": 0.85,
+                "min_score": 0.7,
+            }
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-minscore", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                pm._sync_gate_finding_task(state, "design", gate_result)
+
+            updated = json.loads(task_file.read_text())
+            self.assertEqual(updated["status"], "completed")
+            self.assertEqual(updated["metadata"]["verdict"], "APPROVE")
+            self.assertAlmostEqual(updated["metadata"]["score"], 0.85)
+            # min_score must be present — schema-required at completion.
+            self.assertIn("min_score", updated["metadata"])
+            self.assertAlmostEqual(updated["metadata"]["min_score"], 0.7)
+
+    def test_sync_warns_at_scan_limit(self):
+        """When the scan hits the 200-file bound without exhausting the dir,
+        a WARNING is emitted (observable fail-open — not silent)."""
+        import logging
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-limit"
+            tasks_dir.mkdir(parents=True, exist_ok=True)
+
+            # Write 201 non-matching JSON files to exceed the scan cap.
+            for i in range(201):
+                p = tasks_dir / f"task-unrelated-{i:03d}.json"
+                p.write_text(json.dumps({
+                    "id": f"unrelated-{i}",
+                    "status": "in_progress",
+                    "metadata": {
+                        "event_type": "coding-task",
+                        "phase": "build",
+                        "chain_id": f"limit-proj.build",
+                        "source_agent": "implementer",
+                    },
+                }))
+
+            state = _make_state(name="limit-proj")
+            gate_result = {"verdict": "APPROVE", "score": 0.9, "min_score": 0.7}
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-limit", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                with self.assertLogs("wicked-crew.phase-manager", level=logging.WARNING) as log_cm:
+                    pm._sync_gate_finding_task(state, "review", gate_result)
+
+            # At least one WARNING must mention the scan limit.
+            self.assertTrue(
+                any("200" in line or "limit" in line.lower() for line in log_cm.output),
+                f"Expected scan-limit warning, got: {log_cm.output}",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
