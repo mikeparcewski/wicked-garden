@@ -131,6 +131,22 @@ Run: grep -q "parallelization_check" "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-ex
 Assert: PASS: parallelization_check defined
 ```
 
+## Case 6: Floor guard against empty `required_deliverables` (PR #654 council fix-up)
+
+**Verifies**: When `required_deliverables` is empty/undefined (e.g., the `build` phase per `phases.json`), the deliverable-verification loop iterates zero times — but the floor guard still ensures the executor cannot return `status:"ok"` with `files_written: []`.
+
+This was the 3-of-4 council finding on PR #654: without the floor guard, the silent-exit failure mode from #649 would persist on `build` and any other phase with `required_deliverables: []`.
+
+```bash
+Run: grep -q "executor-no-files-written" "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "PASS: floor guard reason present"
+Assert: PASS: floor guard reason present
+```
+
+```bash
+Run: grep -q "FLOOR GUARD" "${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md" && echo "PASS: FLOOR GUARD section labeled"
+Assert: PASS: FLOOR GUARD section labeled
+```
+
 ---
 
 ## Expected Outcome

@@ -192,12 +192,27 @@ For each expected_deliverable in required_deliverables:
     if file_size(f"phases/{phase}/{expected_deliverable}") < 100:
         HALT — emit status:"failed", reason:"deliverable-too-small",
              file: expected_deliverable
+
+# FLOOR GUARD — required even when required_deliverables is empty/undefined.
+# Some phases (notably `build` per phases.json) have required_deliverables=[]
+# and would otherwise bypass this loop entirely, preserving the original
+# silent-exit failure mode (#649) on a different phase. The guard ensures
+# the executor cannot return status:"ok" with no files written, regardless
+# of whether the calling prompt named explicit deliverables.
+If files_written is empty after Steps 2–4 completed:
+    HALT — emit status:"failed", reason:"executor-no-files-written",
+         msg: "Executor produced zero deliverables for phase '<phase>'.
+               The bookend ran but no phase work landed on disk."
 ```
 
 This check runs AFTER Step 4 (phase-end re-eval). If any deliverable is absent or
 undersized, the agent MUST halt with a clear structured error — never emit
 `status:"ok"` with an empty or partial `files_written` list. The caller can only
 recover from a named failure; a silent empty-manifest is unrecoverable.
+
+The floor guard catches the empty-`required_deliverables` case (3-of-4 council
+models on PR #654 independently flagged this — a phase with no named deliverables
+should still produce SOMETHING, otherwise the executor was a no-op).
 
 ## Return Contract
 
