@@ -1,0 +1,20 @@
+============================= test session info =================================
+branch: feat/652-items-1-2-jam-quick-facilitator
+base: origin/main (b5d05f0)
+run date: 2026-04-25
+
+============================= test results =====================================
+5 failed, 1752 passed, 3 deselected, 15 subtests passed in 17.90s
+
+============================= pre-existing failures (unchanged) ================
+FAILED tests/test_command_aliases.py::TestCrewYoloAliasStub::test_yolo_md_exists
+FAILED tests/test_command_aliases.py::TestCrewYoloAliasStub::test_yolo_md_is_short_stub
+FAILED tests/test_command_aliases.py::TestCrewYoloAliasStub::test_yolo_stub_references_auto_approve
+FAILED tests/test_command_cross_links.py::TestCrewAliasRedirect::test_yolo_mentions_auto_approve
+FAILED tests/test_stub_audit.py::TestStubAudit::test_no_bare_pass_in_scripts_overall
+
+============================= new failures introduced by this PR ===============
+none
+
+============================= verdict =========================================
+PASS — 1752 tests pass, 5 pre-existing failures unchanged, 0 new failures
