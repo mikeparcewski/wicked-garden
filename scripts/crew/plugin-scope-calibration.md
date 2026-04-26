@@ -104,5 +104,5 @@ threshold arithmetic. Use the per-question guidance above instead.
 
 - Field-test descriptions: `docs/calibration/test-descriptions.md`
 - Field-test results: `docs/calibration/field-test-results.md`
-- Calibration tests: `tests/crew/test_factor_questionnaire.py` (search for "issue-628")
+- Calibration tests: `tests/crew/test_factor_questionnaire.py` (search for "Issue #628")
 - Prior calibration: PR #629

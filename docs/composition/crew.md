@@ -74,7 +74,7 @@ User has justification to skip normal gate cadence (minimal-rigor projects).
 /crew:auto-approve <project> --approve --justification "<text>"
 ```
 
-Full-rigor grants require justification + sentinel. Cooldown blocks re-grant after revoke. See yolo guardrails in CLAUDE.md.
+Full-rigor grants require justification + sentinel. Cooldown blocks re-grant after revoke. See yolo guardrails in `commands/crew/auto-approve.md` and the project README.
 
 ### 4. Jargon translation
 Non-specialist user encounters a gate finding or reviewer brief.
@@ -114,7 +114,7 @@ Links incident to the active project's requirements and code. Use `platform:inci
 ```
 crew
   calls →  jam:council              (challenge phase, complexity >= 4)
-  calls →  engineering, qe, etc.    (specialist gate reviewers via gate-policy.json)
+  calls →  engineering, wicked-testing, etc.    (specialist gate reviewers via gate-policy.json)
   calls →  wicked-brain:memory      (cross-session learning at completion + gate failures)
 
 smaht
@@ -124,7 +124,7 @@ smaht
 platform
   calls ←  crew:incident            (escalation from live incident triage)
 
-propose-process (root command)
+propose-process (skill, root)
   called by → crew:start            (facilitator rubric → phase plan)
 ```
 

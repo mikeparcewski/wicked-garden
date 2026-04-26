@@ -583,9 +583,10 @@ def test_risk_level_inversion_correctness():
 # needed. These tests pin the observed correct behavior so a future accidental
 # recalibration of these weights fails loudly.
 #
-# For each candidate question, two tests:
+# Coverage per candidate question (8 tests total; b4=2, b5=3, sc4=3):
 #   - plugin_scope: the typical plugin-only answer must NOT produce an inflated reading
 #   - saas_scale: SaaS-scale all-signal answer must still produce the riskier reading
+#   - additional contribution/A-B tests where the question warrants extra rigor (e.g., sc4)
 # ---------------------------------------------------------------------------
 
 # --- b4 pinning ---
