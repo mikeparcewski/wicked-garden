@@ -282,6 +282,10 @@ def capture_session(
         # Task reading routed via _task_reader (#596 v8-PR-2).
         # WG_DAEMON_ENABLED=false → direct file scan (unchanged behaviour).
         tasks: List[Dict[str, Any]] = []
+        # task_files: initialised before try-block so the happy-path (daemon-routed
+        # read_session_tasks) doesn't leave it unbound when sample_window builds
+        # task_files_scanned at line ~325 (issue #647).
+        task_files: List[Path] = []
         try:
             _scripts_root = str(Path(__file__).resolve().parents[1])
             import sys as _sys
