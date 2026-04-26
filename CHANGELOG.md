@@ -1,5 +1,27 @@
 # Changelog
 
+## [8.1.0] - 2026-04-26
+
+### Features
+- feat: crew:guide — context-aware command discovery (P2 cluster-A) (#637) (801d471)
+- feat: questionnaire-based facilitator scorer (#625) (#626) (644f46f)
+
+### Bug Fixes
+- fix: smaht:debug→state rename + events-query→crew:activity + ground surfacing (P1 cluster-A) (#636) (7bad407)
+- fix: crew:status — suppress empty-section headers (P2 cluster-A) (#634) (b3bb623)
+- fix: mem zombie cleanup (cluster-A P0 — implements memo PR #631) (#632) (aede988)
+- fix: cut smaht:learn + smaht:libs (P0 cluster-A) (#630) (19ccda4)
+
+### Documentation
+- docs: per-domain composition maps for jam, crew, smaht (P3 cluster-A) (#635) (2b60028)
+- docs: mem zombie postmortem + remediation plan (cluster-A P0) (#631) (fbf4380)
+
+### Chores
+- calibration: plugin-scope-aware weights (resolves #628) (#638) (e6c7538)
+- chore: backfill council evidence files for v8/v9-era PRs (#633) (ca6752b)
+- calibration: u1 weight + cc3 wording (post cluster-A field test) (#629) (37d1fa2)
+- release: v8.0.0 — daemon-first architecture (v8 epic #588) + discovery-first surface cuts (v9 epic #601) (de2dfeb)
+
 ## [Unreleased]
 
 ### Documentation
