@@ -1,0 +1,37 @@
+Test run: issues #650 + #653 bundle
+Branch: fix/650-653-phase-manager-cluster
+Date: 2026-04-25
+
+=== New tests (7 added) ===
+
+TestScoreRequiredInSchema::test_missing_score_raises_schema_error
+  - Pins that validate_gate_result raises GateResultSchemaError with reason
+    containing "score" when score is missing.
+
+TestScoreRequiredInSchema::test_score_present_passes_schema
+  - Pins that a payload with score passes schema validation.
+
+TestScoreRequiredInSchema::test_approve_phase_surfaces_schema_error_not_threshold_error
+  - Regression pin: approve_phase must raise GateResultSchemaError
+    (missing-required-field:score), NOT ValueError("Gate score 0.00 below
+    threshold 0.60") — the old misleading threshold error.
+
+TestSyncGateFindingTask::test_sync_marks_gate_finding_task_completed
+  - A matching gate-finding task (event_type=gate-finding, phase=clarify,
+    chain_id starts with project.phase) is written to status=completed
+    with verdict + score stamped in metadata.
+
+TestSyncGateFindingTask::test_sync_skips_already_completed_tasks
+  - Tasks already completed are not re-written.
+
+TestSyncGateFindingTask::test_sync_no_op_when_no_matching_task
+  - No matching gate-finding task is a silent no-op.
+
+TestSyncGateFindingTask::test_sync_fail_open_no_session_id
+  - Missing CLAUDE_SESSION_ID is a silent no-op (fail-open).
+
+=== Full suite results ===
+
+11 failed, 1696 passed (pre-existing failures: 11 — unchanged)
+Baseline: 1689 passed / 11 failed
+Delta: +7 new passing tests
