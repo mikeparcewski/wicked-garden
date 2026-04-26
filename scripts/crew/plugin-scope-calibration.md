@@ -41,6 +41,7 @@ user's local machine. This means:
 | **b4** | "Does this change affect more than one customer-facing surface simultaneously?" | In plugin context, "surface" = a command, agent, or skill the user interacts with. Adding 3 agents at once → YES (correctly MEDIUM). A pure internal refactor with no public API change → NO (correctly HIGH). Docs-only → NO (reference material is not an interactive surface). |
 | **b5** | "Is this change distributed via CDN, mobile app, or other cached client artifact?" | Always YES for any plugin change — marketplace install is a cached local artifact. However, b5 weight (1pt) is intentionally low: it cannot reach medium_threshold=2 alone. It adds a signal boost only when other questions fire. b5-only blast_radius stays HIGH. This is correct. |
 | **sc4** | "Does this change read from persistent state without altering its shape (read-only index, new query)?" | Fire YES only when the change _introduces_ a new read from DomainStore or another persistent source. Moving existing code to a new file (pure extraction) does NOT introduce a new read — answer NO. Adding a new lookup (e.g., a new `store.get()` call) → YES. |
+| **o5** | "Is this change deployed without a feature flag AND expected to directly affect more than 1M users/rows in production on day 1?" | Fire YES only when BOTH conditions hold: (1) no feature flag AND (2) the deploy directly affects > 1M users/rows on day 1. A plugin update or a typo fix deployed without a flag fires NO — the plugin userbase is under 1M and there is no production row write. A 50M-row schema migration with no flag fires YES → MEDIUM (weight=2 = medium_threshold=2). A migration gated behind a feature flag fires NO regardless of size. |
 
 ---
 
@@ -97,12 +98,14 @@ threshold arithmetic. Use the per-question guidance above instead.
 | 2026-04-25 | u1 weight 3→2 | Single visible plugin change should land MEDIUM not LOW | #629 |
 | 2026-04-25 | cc3 rewording | Coordination cost is about human handoffs, not agent dispatch count | #629 |
 | 2026-04-25 | b4, b5, sc4 reviewed — NO CHANGE | Field test on 3 plugin + 1 SaaS descriptions confirmed all three behave correctly at current weights | #628 (this PR) |
+| 2026-04-26 | o5 reword + weight 1→2 | C1/C2 (weight bump / threshold lower) introduced false positives on trivial no-flag deploys; C3 (reword only) eliminated false positives but couldn't reach MEDIUM at weight=1; C4 (reword + weight=2) is the only candidate that fixes D1 without overcalling D2/D3 | #639 |
 
 ---
 
 ## Cross-references
 
 - Field-test descriptions: `docs/calibration/test-descriptions.md`
-- Field-test results: `docs/calibration/field-test-results.md`
-- Calibration tests: `tests/crew/test_factor_questionnaire.py` (search for "Issue #628")
-- Prior calibration: PR #629
+- Field-test results (issue #628): `docs/calibration/field-test-results.md`
+- Field-test results (issue #639, o5): `docs/calibration/o5-field-test.md`
+- Calibration tests: `tests/crew/test_factor_questionnaire.py` (search for "Issue #628", "Issue #639")
+- Prior calibration: PR #629, PR #638

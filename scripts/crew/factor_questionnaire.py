@@ -153,7 +153,8 @@ QUESTIONNAIRE: Dict[str, FactorRubric] = {
             Question("o2", "Does this change modify queuing, rate-limiting, or circuit-breaker behavior?", 3),
             Question("o3", "Does this change introduce a new external dependency (API, library) into the production runtime?", 2),
             Question("o4", "Does this change alter retry, timeout, or backoff parameters?", 2),
-            Question("o5", "Is this change deployed without a feature flag on day 1?", 1),
+            # calibrated 2026-04-26 per issue #639 — reword restricts to scale criterion, weight=2 allows solo MEDIUM
+            Question("o5", "Is this change deployed without a feature flag AND expected to directly affect more than 1M users/rows in production on day 1?", 2),
         ),
         medium_threshold=2,
         low_threshold=5,
