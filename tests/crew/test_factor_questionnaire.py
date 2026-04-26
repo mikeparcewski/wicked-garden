@@ -686,19 +686,27 @@ def test_state_complexity_sc4_alone_plugin_scope_is_medium():
     )
 
 
-def test_state_complexity_sc4_no_fires_for_pure_extraction_is_high():
-    """Issue #628 pin: pure code extraction (no new state reads) sc4=NO → HIGH.
+def test_state_complexity_sc4_contribution_is_load_bearing():
+    """Issue #628 pin: sc4 actually contributes to scoring (PR #638 council fix).
 
-    A refactor that moves existing code to a new file without adding any new
-    DomainStore/SQLite reads must answer sc4=NO. The scorer then reads HIGH.
-    This pins the expected answer for docs-only and pure structural refactors.
+    Pre-fix this test was tautological — it called score_factor(rubric, {}) which
+    would pass even if sc4 were deleted from the questionnaire. Replaced with an
+    A/B assertion that flipping sc4 alone (False → True) changes the reading
+    HIGH → MEDIUM, proving sc4 actually carries weight.
     """
     rubric = _rubric_for("state_complexity")
-    # Pure structural refactor: no schema, no serialization, no cache, no new reads
-    reading, why = score_factor(rubric, {})
-    assert reading == "HIGH", (
-        f"Pure extraction with sc4=NO must yield HIGH state_complexity, got {reading!r}. "
-        f"Trace: {why}"
+    # All sc questions explicitly NO (not just empty defaults — show intent)
+    all_no = {"sc1": False, "sc2": False, "sc3": False, "sc4": False}
+    reading_no, _ = score_factor(rubric, all_no)
+    assert reading_no == "HIGH", (
+        f"All sc=NO must yield HIGH state_complexity, got {reading_no!r}"
+    )
+    # Flip ONLY sc4 — proves sc4 has non-zero weight
+    only_sc4 = {"sc1": False, "sc2": False, "sc3": False, "sc4": True}
+    reading_sc4, _ = score_factor(rubric, only_sc4)
+    assert reading_sc4 == "MEDIUM", (
+        f"sc4=YES alone must yield MEDIUM state_complexity, got {reading_sc4!r}. "
+        f"If this drops to HIGH, sc4 weight has been zeroed/removed."
     )
 
 
