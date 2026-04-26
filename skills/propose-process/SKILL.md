@@ -1,11 +1,13 @@
 ---
 name: propose-process
 description: |
-  Lead-facilitator rubric. Reads a project description + priors from wicked-brain + the
-  specialist roster, then proposes a full task chain (TaskCreate calls with blockedBy deps
-  and metadata) plus a `process-plan.md` artifact. Replaces the v5 rule engine
-  (smart_decisioning.py + phases.json + SIGNAL_TO_SPECIALISTS) with LLM reasoning over a
-  small number of well-defined factors.
+  Delegation shim for the lead-facilitator rubric. Dispatches the
+  `wicked-garden:crew:process-facilitator` agent (which holds the rubric extracted
+  in #652 item 3), reads back the JSON plan the agent writes to
+  `${project_dir}/process-plan.draft.json`, and either returns it directly
+  (`output=json`) or renders `process-plan.md` + emits the `TaskCreate` chain. Does
+  NOT score factors or pick specialists itself — that all happens inside the
+  dispatched agent.
 
   Use when: starting a new crew project, re-planning after a gate finding, emitting the
   initial task chain for `/wicked-garden:crew:start`, or invoked on `TaskCompleted` to
@@ -26,7 +28,9 @@ Thin shim. Full rubric lives in [`agents/crew/process-facilitator.md`](../../age
 - **`project_slug`** OR **`project`** — short snake_case identifier (required for
   real project calls; omit only on `output=json` measurement / no-project calls).
 - **`project_dir`** — absolute path; agent writes the draft plan here. If absent,
-  the shim resolves it via `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew` then appends `/projects/{slug}`. On `output=json` with no project context, an ephemeral tmp dir is used (see Step 0).
+  the shim resolves it via the `resolve_path.py` subpath form:
+  `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew projects {slug}`.
+  On `output=json` with no project context, an ephemeral tmp dir is used (see Step 0).
 - **`bookend`** (`phase-start` | `phase-end`) and **`phase`** — required for `re-evaluate` from `phase-executor`.
 - **`current_chain`** — required for `re-evaluate`: tasks created so far, status, evidence.
 - **`auto_proceed`** — bool; set by yolo mode; suppresses user confirmation.
@@ -43,8 +47,9 @@ Two call shapes are supported:
 
 - **Real project call** (`mode=propose|re-evaluate`, `project_slug` or `project`
   provided): `${project_dir}` resolves under
-  `~/.something-wicked/wicked-garden/local/wicked-crew/projects/{slug}/`. The
-  draft persists at `${project_dir}/process-plan.draft.json`. The caller
+  `~/.something-wicked/wicked-garden/projects/{session-slug}/wicked-crew/projects/{slug}/`
+  (the `{session-slug}` segment is the per-cwd slug from `_paths._get_project_slug()`).
+  The draft persists at `${project_dir}/process-plan.draft.json`. The caller
   (`commands/crew/start.md` Step 7, etc.) is responsible for any subsequent
   persistence (`process-plan.json` + `process-plan.md`) and for cleaning up
   the draft if desired.
@@ -62,7 +67,8 @@ When invoked:
 0. **Resolve `project_dir`** (in order):
    - If `project_dir` is set, use it as-is and `mkdir -p` it.
    - Else if `project_slug` or `project` is set, resolve via
-     `scripts/resolve_path.py wicked-crew` + `/projects/{slug}` and `mkdir -p` it.
+     `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew projects {slug}`
+     (the `resolve_path.py` subpath form auto-creates intermediate dirs).
    - Else if `output=json` AND no project context was provided (measurement /
      no-project call), allocate an ephemeral dir
      `${TMPDIR:-/tmp}/wicked-garden-measure-{random_id}/`, `mkdir -p` it, and
@@ -70,17 +76,62 @@ When invoked:
    - Otherwise STOP and surface "missing project_dir/project_slug/project (and
      output != json)" — refer the user to `/wicked-garden:report-issue`.
 
-1. Dispatch the facilitator agent:
+1. Dispatch the facilitator agent. Forward EVERY documented input as its own
+   labeled field — no parenthetical "when set" hints, no bundled lists. Substitute
+   each `{token}` with the actual caller-provided value (e.g. `mode=propose`,
+   `project_slug=auth_rewrite`). For optional inputs the caller did not provide,
+   substitute the literal string `none` so the agent sees an explicit absence:
 
 ```
 Task(
   subagent_type="wicked-garden:crew:process-facilitator",
   prompt="""
-    Run the propose-process rubric.
-    Inputs: description={description}, mode={mode}, project_slug={project_slug},
-            output={output}, project_dir={project_dir}
-            (forward priors, constraints, current_chain, bookend, phase,
-             auto_proceed when set)
+    Run the propose-process rubric. Documented inputs (one field per line):
+
+    description: {description}
+    priors: {priors}
+    constraints: {constraints}
+    mode: {mode}
+    current_chain: {current_chain}
+    auto_proceed: {auto_proceed}
+    project_dir: {project_dir}
+    project_slug: {project_slug}
+    bookend: {bookend}
+    phase: {phase}
+    output: {output}
+
+    For any field whose value is `none`, treat it as absent (use the input's
+    documented default).
+
+    Write the resulting JSON to ${project_dir}/process-plan.draft.json before
+    returning. Do NOT issue TaskCreate calls — the caller emits the chain.
+  """
+)
+```
+
+   Concrete example for the `crew:start` Step 5 call (description elided):
+
+```
+Task(
+  subagent_type="wicked-garden:crew:process-facilitator",
+  prompt="""
+    Run the propose-process rubric. Documented inputs (one field per line):
+
+    description: Add MFA to the existing login flow.
+    priors: none
+    constraints: none
+    mode: propose
+    current_chain: none
+    auto_proceed: none
+    project_dir: /Users/.../wicked-crew/projects/auth_rewrite
+    project_slug: auth_rewrite
+    bookend: none
+    phase: none
+    output: json
+
+    For any field whose value is `none`, treat it as absent (use the input's
+    documented default).
+
     Write the resulting JSON to ${project_dir}/process-plan.draft.json before
     returning. Do NOT issue TaskCreate calls — the caller emits the chain.
   """

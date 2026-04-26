@@ -35,7 +35,9 @@ behavioral side (rubric quality) is exercised by the existing
 
 ```bash
 export PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-export TEST_PROJECT="smoke-test-pattern-a"
+# Skill contract describes project_slug as snake_case (see SKILL.md Inputs);
+# use snake_case here to match what real callers pass.
+export TEST_PROJECT="smoke_test_pattern_a"
 
 # Resolve the project dir using the same path helper crew:start uses
 export PROJECT_DIR=$(sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
@@ -50,22 +52,29 @@ mkdir -p "${PROJECT_DIR}"
 echo "PROJECT_DIR=${PROJECT_DIR}"
 ```
 
-**Expected**: `PROJECT_DIR` resolves to a path under `~/.something-wicked/wicked-garden/local/wicked-crew/projects/smoke-test-pattern-a` (or platform equivalent).
+**Expected**: `PROJECT_DIR` resolves to a path under
+`~/.something-wicked/wicked-garden/projects/{session-slug}/wicked-crew/projects/smoke_test_pattern_a`
+(or platform equivalent). The `{session-slug}` segment is the per-cwd slug
+produced by `_paths._get_project_slug()` — `{dir-name}-{sha256[:8]}` of the
+resolved working directory.
 
 ---
 
 ## Case 1: Slim SKILL.md is a delegation shim
 
 **Verifies**: `skills/propose-process/SKILL.md` is the thin shim shape
-(≤90 lines, contains the `Task(subagent_type="wicked-garden:crew:process-facilitator")`
+(≤200 lines per the global skill cap, contains the
+`Task(subagent_type="wicked-garden:crew:process-facilitator")`
 dispatch, no rubric content remains inline).
 
 ### Test
 
 ```bash
-# Line count: shim should be ≤90 (target ≤80, ceiling 90 for headroom)
+# Line count: shim must stay under the global 200-line skill cap.
+# Pattern A polish (issue #671) raised the floor from the original ≤90 target
+# because P1 required explicit field-by-field forwarding in the example dispatch.
 LINES=$(wc -l < "${PLUGIN_ROOT}/skills/propose-process/SKILL.md")
-test "${LINES}" -le 90 || { echo "SKILL.md too long: ${LINES} > 90"; exit 1; }
+test "${LINES}" -le 200 || { echo "SKILL.md too long: ${LINES} > 200"; exit 1; }
 
 # Dispatch line is present
 grep -q 'Task(' "${PLUGIN_ROOT}/skills/propose-process/SKILL.md" \

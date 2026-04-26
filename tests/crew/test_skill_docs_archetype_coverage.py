@@ -12,7 +12,6 @@ Note: Pattern A migration moved the rubric content out of SKILL.md and into
 so archetype coverage assertions target the agent file (which holds the rubric)
 while the SKILL.md size cap still applies as a guard against re-bloat.
 """
-import sys
 from pathlib import Path
 
 import pytest
@@ -75,11 +74,19 @@ def test_evidence_framing_contains_mvp_archetype(archetype: str):
 
 
 def test_rubric_agent_mentions_archetype_enum_in_step_6():
-    """AC-6 (#652 item 3): the rubric agent's Step 6 must mention the archetype enum."""
+    """AC-6 (#652 item 3): the rubric agent's Step 6 must mention the archetype enum.
+
+    Tightened in #671 (P3 finding 3f): the second assertion previously accepted
+    any occurrence of the string ``metadata`` and would silently pass even if
+    ``metadata.archetype`` was removed. Now requires the literal substring
+    ``metadata.archetype`` so removing that token from the docs causes the test
+    to fail.
+    """
     content = RUBRIC_AGENT_MD.read_text(encoding="utf-8")
     assert "archetype" in content, (
         "process-facilitator.md must mention 'archetype' in the step 6 section."
     )
-    assert "metadata.archetype" in content or "metadata" in content, (
-        "process-facilitator.md Step 6 must reference TaskCreate metadata.archetype emission."
+    assert "metadata.archetype" in content, (
+        "process-facilitator.md Step 6 must reference the literal "
+        "'metadata.archetype' field (TaskCreate metadata emission)."
     )
