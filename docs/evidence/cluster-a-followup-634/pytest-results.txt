@@ -1,0 +1,306 @@
+........................................................................ [  4%]
+.................................................................. [  8%]
+................................................................... [ 12%]
+........................................................................ [ 16%]
+........................................................................ [ 20%]
+........................................................................ [ 24%]
+........................................................................ [ 29%]
+........................................................................ [ 33%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+........................................................................ [ 46%]
+.................................................................... [ 50%]
+........................................................................ [ 54%]
+........................................................................ [ 58%]
+........................................................................ [ 62%]
+........................................................................ [ 67%]
+............................................................FFFFFF...... [ 71%]
+........................................................................ [ 75%]
+........................................................................ [ 79%]
+........................................................................ [ 84%]
+......FFF.......................F....................................... [ 88%]
+........................................................................ [ 92%]
+............................F........................................... [ 96%]
+.......................................................                  [100%]
+=================================== FAILURES ===================================
+________________ TelemetryCaptureTests.test_capture_append_only ________________
+
+self = <tests.delivery.test_telemetry.TelemetryCaptureTests testMethod=test_capture_append_only>
+
+    def test_capture_append_only(self):
+        """Two captures for the same project produce two lines."""
+        _write_task(self.tasks_dir, "t1", {
+            "status": "completed",
+            "metadata": {"event_type": "gate-finding", "verdict": "APPROVE", "score": 0.9},
+        })
+        r1 = self.telemetry.capture_session(self.session_id, project="demo")
+        r2 = self.telemetry.capture_session(self.session_id, project="demo")
+>       self.assertIsNotNone(r1)
+E       AssertionError: unexpectedly None
+
+tests/delivery/test_telemetry.py:114: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[wicked-garden] telemetry capture error: cannot access local variable 'task_files' where it is not associated with a value
+[wicked-garden] telemetry capture error: cannot access local variable 'task_files' where it is not associated with a value
+______ TelemetryCaptureTests.test_capture_fails_open_on_missing_tasks_dir ______
+
+self = <tests.delivery.test_telemetry.TelemetryCaptureTests testMethod=test_capture_fails_open_on_missing_tasks_dir>
+
+    def test_capture_fails_open_on_missing_tasks_dir(self):
+        """No tasks dir → record is still written with zeroed metrics."""
+        # tasks_dir does not exist for this session_id
+        record = self.telemetry.capture_session("never-existed", project="demo")
+>       self.assertIsNotNone(record)
+E       AssertionError: unexpectedly None
+
+tests/delivery/test_telemetry.py:122: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[wicked-garden] telemetry capture error: cannot access local variable 'task_files' where it is not associated with a value
+_______________ TelemetryCaptureTests.test_capture_under_budget ________________
+
+self = <tests.delivery.test_telemetry.TelemetryCaptureTests testMethod=test_capture_under_budget>
+
+    def test_capture_under_budget(self):
+        """A realistic session scan should complete well under 500ms."""
+        for i in range(20):
+            _write_task(self.tasks_dir, f"t{i:03d}", {
+                "status": "completed",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "verdict": "APPROVE" if i % 3 else "REJECT",
+                    "score": 0.7,
+                },
+            })
+        t0 = time.monotonic()
+        rec = self.telemetry.capture_session(self.session_id, project="demo")
+        elapsed_ms = (time.monotonic() - t0) * 1000
+>       self.assertIsNotNone(rec)
+E       AssertionError: unexpectedly None
+
+tests/delivery/test_telemetry.py:166: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[wicked-garden] telemetry capture error: cannot access local variable 'task_files' where it is not associated with a value
+_________ TelemetryCaptureTests.test_capture_writes_record_with_schema _________
+
+self = <tests.delivery.test_telemetry.TelemetryCaptureTests testMethod=test_capture_writes_record_with_schema>
+
+    def test_capture_writes_record_with_schema(self):
+        """AC: capture_session returns a record and appends it to JSONL."""
+        # One APPROVE + one REJECT gate-finding.
+        _write_task(self.tasks_dir, "task-001", {
+            "status": "completed",
+            "metadata": {
+                "event_type": "gate-finding",
+                "verdict": "APPROVE",
+                "score": 0.82,
+            },
+        })
+        _write_task(self.tasks_dir, "task-002", {
+            "status": "completed",
+            "metadata": {
+                "event_type": "gate-finding",
+                "verdict": "REJECT",
+                "score": 0.40,
+            },
+        })
+    
+        record = self.telemetry.capture_session(self.session_id, project="demo")
+>       self.assertIsNotNone(record, "capture_session returned None unexpectedly")
+E       AssertionError: unexpectedly None : capture_session returned None unexpectedly
+
+tests/delivery/test_telemetry.py:89: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[wicked-garden] telemetry capture error: cannot access local variable 'task_files' where it is not associated with a value
+_________ TelemetryCaptureTests.test_cycle_time_from_phase_transitions _________
+
+self = <tests.delivery.test_telemetry.TelemetryCaptureTests testMethod=test_cycle_time_from_phase_transitions>
+
+    def test_cycle_time_from_phase_transitions(self):
+        """Two phase-transitions on same phase → cycle_time delta is captured."""
+        _write_task(self.tasks_dir, "pt1", {
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:10Z",
+            "metadata": {"event_type": "phase-transition", "phase": "design"},
+        })
+        _write_task(self.tasks_dir, "pt2", {
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:40Z",
+            "metadata": {"event_type": "phase-transition", "phase": "design"},
+        })
+        record = self.telemetry.capture_session(self.session_id, project="demo")
+>       self.assertIsNotNone(record)
+E       AssertionError: unexpectedly None
+
+tests/delivery/test_telemetry.py:139: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[wicked-garden] telemetry capture error: cannot access local variable 'task_files' where it is not associated with a value
+________ TelemetryCaptureTests.test_sanitization_strips_path_traversal _________
+
+self = <tests.delivery.test_telemetry.TelemetryCaptureTests testMethod=test_sanitization_strips_path_traversal>
+
+    def test_sanitization_strips_path_traversal(self):
+        """session_id and project with path traversal become safe strings."""
+        rec = self.telemetry.capture_session("../evil", project="../etc")
+>       self.assertIsNotNone(rec)
+E       AssertionError: unexpectedly None
+
+tests/delivery/test_telemetry.py:148: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[wicked-garden] telemetry capture error: cannot access local variable 'task_files' where it is not associated with a value
+__________________ TestCrewYoloAliasStub.test_yolo_md_exists ___________________
+
+self = <tests.test_command_aliases.TestCrewYoloAliasStub object at 0x107e0c910>
+
+    def test_yolo_md_exists(self):
+        """commands/crew/yolo.md must still exist for backward compatibility."""
+>       assert (COMMANDS_CREW / "yolo.md").exists(), (
+            "commands/crew/yolo.md was deleted. It must remain as an alias stub "
+            "so that existing /wicked-garden:crew:yolo invocations continue to work."
+        )
+E       AssertionError: commands/crew/yolo.md was deleted. It must remain as an alias stub so that existing /wicked-garden:crew:yolo invocations continue to work.
+E       assert False
+E        +  where False = exists()
+E        +    where exists = (PosixPath('/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a04ee18a1956e72f4/commands/crew') / 'yolo.md').exists
+
+tests/test_command_aliases.py:26: AssertionError
+_______________ TestCrewYoloAliasStub.test_yolo_md_is_short_stub _______________
+
+self = <tests.test_command_aliases.TestCrewYoloAliasStub object at 0x107e0cb90>
+
+    def test_yolo_md_is_short_stub(self):
+        """yolo.md must be short (stub-only, not full command spec)."""
+>       content = (COMMANDS_CREW / "yolo.md").read_text(encoding="utf-8")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_command_aliases.py:33: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:787: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a04ee18a1956e72f4/commands/crew/yolo.md')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a04ee18a1956e72f4/commands/crew/yolo.md'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: FileNotFoundError
+_________ TestCrewYoloAliasStub.test_yolo_stub_references_auto_approve _________
+
+self = <tests.test_command_aliases.TestCrewYoloAliasStub object at 0x107cd55b0>
+
+    def test_yolo_stub_references_auto_approve(self):
+        """yolo.md must reference crew:auto-approve so users know where the canonical command is."""
+>       content = (COMMANDS_CREW / "yolo.md").read_text(encoding="utf-8")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_command_aliases.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:787: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a04ee18a1956e72f4/commands/crew/yolo.md')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a04ee18a1956e72f4/commands/crew/yolo.md'
+
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: FileNotFoundError
+____________ TestCrewAliasRedirect.test_yolo_mentions_auto_approve _____________
+
+self = <tests.test_command_cross_links.TestCrewAliasRedirect object at 0x107e0e350>
+
+    def test_yolo_mentions_auto_approve(self):
+>       _assert_mentions("crew", "yolo", "auto-approve")
+
+tests/test_command_cross_links.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_command_cross_links.py:43: in _assert_mentions
+    content = _read(source_domain, source_cmd)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+domain = 'crew', command = 'yolo'
+
+    def _read(domain: str, command: str) -> str:
+        """Read a command file and return its content."""
+        path = COMMANDS / domain / f"{command}.md"
+>       assert path.exists(), f"Command file not found: {path.relative_to(REPO)}"
+E       AssertionError: Command file not found: commands/crew/yolo.md
+E       assert False
+E        +  where False = exists()
+E        +    where exists = PosixPath('/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a04ee18a1956e72f4/commands/crew/yolo.md').exists
+
+tests/test_command_cross_links.py:37: AssertionError
+______________ TestStubAudit.test_no_bare_pass_in_scripts_overall ______________
+
+self = <tests.test_stub_audit.TestStubAudit testMethod=test_no_bare_pass_in_scripts_overall>
+
+    def test_no_bare_pass_in_scripts_overall(self):
+        """AC-STUB-1: No bare uncommented pass remains anywhere in scripts/.
+    
+        This is the final AC-STUB-1 pass condition: grep returns zero results.
+        """
+        failures = []
+        for py_file in sorted(_SCRIPTS.rglob("*.py")):
+            try:
+                lines = py_file.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except OSError:
+                continue
+            for i, line in enumerate(lines):
+                if _is_bare_pass(line):
+                    failures.append(f"{py_file.relative_to(_REPO_ROOT)}:{i + 1}")
+    
+>       self.assertEqual(
+            failures, [],
+            f"Bare uncommented pass statements still exist in scripts/:\n"
+            + "\n".join(f"  - {f}" for f in failures)
+            + "\n\nAll bare pass must have an inline comment (# fail open / # intentional: <reason>)"
+        )
+E       AssertionError: Lists differ: ['scripts/crew/acceptance_criteria.py:335'] != []
+E       
+E       First list contains 1 additional elements.
+E       First extra element 0:
+E       'scripts/crew/acceptance_criteria.py:335'
+E       
+E       - ['scripts/crew/acceptance_criteria.py:335']
+E       + [] : Bare uncommented pass statements still exist in scripts/:
+E         - scripts/crew/acceptance_criteria.py:335
+E       
+E       All bare pass must have an inline comment (# fail open / # intentional: <reason>)
+
+tests/test_stub_audit.py:145: AssertionError
+=========================== short test summary info ============================
+FAILED tests/delivery/test_telemetry.py::TelemetryCaptureTests::test_capture_append_only
+FAILED tests/delivery/test_telemetry.py::TelemetryCaptureTests::test_capture_fails_open_on_missing_tasks_dir
+FAILED tests/delivery/test_telemetry.py::TelemetryCaptureTests::test_capture_under_budget
+FAILED tests/delivery/test_telemetry.py::TelemetryCaptureTests::test_capture_writes_record_with_schema
+FAILED tests/delivery/test_telemetry.py::TelemetryCaptureTests::test_cycle_time_from_phase_transitions
+FAILED tests/delivery/test_telemetry.py::TelemetryCaptureTests::test_sanitization_strips_path_traversal
+FAILED tests/test_command_aliases.py::TestCrewYoloAliasStub::test_yolo_md_exists
+FAILED tests/test_command_aliases.py::TestCrewYoloAliasStub::test_yolo_md_is_short_stub
+FAILED tests/test_command_aliases.py::TestCrewYoloAliasStub::test_yolo_stub_references_auto_approve
+FAILED tests/test_command_cross_links.py::TestCrewAliasRedirect::test_yolo_mentions_auto_approve
+FAILED tests/test_stub_audit.py::TestStubAudit::test_no_bare_pass_in_scripts_overall
+11 failed, 1685 passed, 3 deselected, 15 subtests passed in 18.13s
