@@ -37,7 +37,7 @@ unfamiliar codebase. Typical outputs:
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Search**: Use wicked-garden:search to find symbols, imports, and patterns
-- **Memory**: Use wicked-garden:mem to recall past architecture decisions
+- **Memory**: Use wicked-brain:memory to recall past architecture decisions
 - **Native tasks**: Inspect current work via TaskCreate/TaskUpdate with
   `metadata={event_type, chain_id, source_agent, phase}`
 

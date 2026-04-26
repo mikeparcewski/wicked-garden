@@ -178,7 +178,7 @@ Generate a one-page summary for leadership:
 ### 6. Historical Comparison (if wicked-brain available)
 
 ```
-/wicked-brain:memory (recall mode) "sprint report {previous_sprint}"
+Skill(skill="wicked-brain:memory", args="recall \"sprint report {previous_sprint}\"")
 ```
 
 If historical data exists:

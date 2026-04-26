@@ -52,9 +52,9 @@ by `metadata.event_type=="task"` for human-visible items.
 
 **From memory**:
 ```
-Skill(skill="wicked-brain:memory", args="recall ... "team conventions"
-Skill(skill="wicked-brain:memory", args="recall ... "architecture decisions"
-Skill(skill="wicked-brain:memory", args="recall ... "onboarding"
+Skill(skill="wicked-brain:memory", args="recall \"team conventions\"")
+Skill(skill="wicked-brain:memory", args="recall \"architecture decisions\"")
+Skill(skill="wicked-brain:memory", args="recall \"onboarding\"")
 ```
 
 **From codebase**:

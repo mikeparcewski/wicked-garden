@@ -66,8 +66,8 @@ Read session tasks under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` — each ent
 
 **From memory** (historical baselines):
 ```
-/wicked-brain:memory (recall mode) "milestone {name}"
-/wicked-brain:memory (recall mode) "progress {project}"
+Skill(skill="wicked-brain:memory", args="recall \"milestone {name}\"")
+Skill(skill="wicked-brain:memory", args="recall \"progress {project}\"")
 ```
 
 ### 3. Calculate Progress Metrics

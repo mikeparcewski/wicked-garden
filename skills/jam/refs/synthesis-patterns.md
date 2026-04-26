@@ -71,7 +71,7 @@ If no persona raised a concern that seems obvious, note it. The panel may have b
 
 ## Decision Record Format
 
-When a brainstorm produces a clear decision, store it in wicked-garden:mem:
+When a brainstorm produces a clear decision, store it via wicked-brain:memory:
 
 ```
 Decision: {what was decided}

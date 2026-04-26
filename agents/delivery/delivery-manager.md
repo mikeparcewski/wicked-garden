@@ -52,8 +52,8 @@ Gather delivery data:
 
 **From memory** (historical context):
 ```
-/wicked-brain:memory (recall mode) "sprint velocity"
-/wicked-brain:memory (recall mode) "delivery patterns"
+Skill(skill="wicked-brain:memory", args="recall \"sprint velocity\"")
+Skill(skill="wicked-brain:memory", args="recall \"delivery patterns\"")
 ```
 
 Compute key metrics:

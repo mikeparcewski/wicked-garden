@@ -71,7 +71,7 @@ Read `SessionState` via the smaht briefing OR direct session check for:
 For domain-specific priors (e.g. "we moved away from Redis last year"), use:
 
 ```
-Skill(skill="wicked-brain:memory", args="recall ... query="<topic>" limit=3
+Skill(skill="wicked-brain:memory", args="recall \"<topic>\" --limit 3")
 ```
 
 Mem recall is slower than brain search and has less coverage, but it's the

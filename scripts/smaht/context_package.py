@@ -129,19 +129,20 @@ def build_ecosystem_orientation(installed_plugins: list = None) -> dict:
 
 
 async def gather_memories(task: str, limit: int = 3) -> list:
-    """Query wicked-brain for task-relevant memories via domain adapter.
+    """Query wicked-brain for task-relevant memories.
 
-    Filters for items emitted by the brain adapter (source == "brain").
-    The wicked-garden:mem domain was removed in v8.0.0; brain is the canonical
-    memory source.
+    Uses brain_adapter directly — brain_adapter.query() returns ContextItems
+    with source="brain". The previous domain_adapter.query() only returned
+    items with source="crew" or source="jam", so the `source == "brain"`
+    filter always dropped every item, making this function silently return [].
+    Fix: route directly to brain_adapter, which queries the wicked-brain FTS5
+    index. Returns [] gracefully when brain is unavailable.
     """
     try:
-        from adapters import domain_adapter
-        items = await domain_adapter.query(task)
+        from adapters import brain_adapter
+        items = await brain_adapter.query(task)
         results = []
         for item in items:
-            if getattr(item, "source", "") != "brain":
-                continue
             results.append({
                 "title": getattr(item, "title", ""),
                 "summary": getattr(item, "summary", "")[:200],

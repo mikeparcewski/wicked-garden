@@ -105,7 +105,7 @@ TaskUpdate(
 
 ### With wicked-brain
 ```bash
-Skill(skill="wicked-brain:memory", args="recall ... "compliance {framework}"
+Skill(skill="wicked-brain:memory", args="recall \"compliance {framework}\"")
 ```
 
 ### With product

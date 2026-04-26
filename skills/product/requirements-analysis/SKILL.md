@@ -126,7 +126,7 @@ Check:
 # TaskUpdate(taskId="{task_id}", description="{previous}\n\n## Requirements\n{user_stories}")
 
 # Recall past patterns
-Skill(skill="wicked-brain:memory", args="recall ... "requirements for {feature_type}"
+Skill(skill="wicked-brain:memory", args="recall \"requirements for {feature_type}\"")
 ```
 
 ## Output Format
