@@ -226,6 +226,11 @@ def _probe_brain_context() -> list[dict]:
     """
     try:
         import urllib.request
+        # Note: _resolve_brain_port() returns the project-config port (4243 for
+        # wicked-garden via ~/.wicked-brain/projects/wicked-garden/_meta/config.json).
+        # Falls back to 4242 only when no env override AND no project/root config
+        # match — an edge case for users invoking guide outside any wicked-brain
+        # project. Old hardcoded 4243 was wrong for cross-project usage.
         port = _resolve_brain_port()
         url = f"http://localhost:{port}/api"
         body = json.dumps({"action": "health", "params": {}}).encode()
