@@ -1,0 +1,18 @@
+Post-sweep PII verification — issue-644-pii-sweep
+Generated: 2026-04-25
+
+Command: grep -rEn '/Users/' docs/evidence/ --include='*.txt' --include='*.md' --include='*.json'
+
+Result: 3 hits — all intentional documentation content in pii-grep-post.txt
+
+  docs/evidence/cluster-a-followup-636/pii-grep-post.txt:4:Command: grep -rEn "/Users/" docs/evidence/cluster-a-p1-smaht-rename/
+  docs/evidence/cluster-a-followup-636/pii-grep-post.txt:12:  s|/Users/[^/]+/Projects/wicked-garden/\.claude/worktrees/[^/]+/|./|g
+  docs/evidence/cluster-a-followup-636/pii-grep-post.txt:15:  Additional /Users/ paths exist in other evidence directories (pr-v8-3, pr-v8-4, etc.).
+
+Analysis:
+  Line 4  — literal grep command in documentation (not a path)
+  Line 12 — sed substitution pattern in documentation (not a path)
+  Line 15 — prose sentence in documentation (not a path)
+
+No actual username paths remain in docs/evidence/.
+Sweep complete.
