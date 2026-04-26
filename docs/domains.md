@@ -31,6 +31,7 @@ The orchestrator. Runs the facilitator (`skills/propose-process/`) to score 9 fa
 | `crew:profile` | Configure crew preferences |
 | `crew:cutover` | Cut an in-flight project to mode-3 formal dispatch |
 | `crew:migrate-gates` | Migrate in-flight projects to strict gate enforcement |
+| `crew:activity` | Query the unified event log for cross-domain project activity |
 | `crew:help` | Show available crew commands |
 
 **v6 Capabilities**:
@@ -64,7 +65,6 @@ The "brain" of the plugin. Intercepts every prompt via `UserPromptSubmit` and as
 | `smaht:context` | Build a structured context package for subagents |
 | `smaht:state` | Snapshot and report current session state |
 | `smaht:briefing` | Session briefing — what happened since last time |
-| `crew:activity` | Query the unified event log for cross-domain project activity |
 | `smaht:events-import` | Import existing domain JSON records into the event log |
 | `smaht:collaborate` | Multi-AI CLI collaboration (discover, review, council) |
 | `smaht:onboard` | Intelligent codebase onboarding |

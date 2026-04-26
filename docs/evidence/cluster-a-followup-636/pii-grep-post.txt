@@ -1,0 +1,17 @@
+PII sanitization verification — cluster-a-followup-636
+Generated: 2026-04-25
+
+Command: grep -rEn "/Users/" docs/evidence/cluster-a-p1-smaht-rename/
+Result: 0 hits (exit code 1)
+
+Files sanitized:
+  docs/evidence/cluster-a-p1-smaht-rename/cross-ref-grep-post.txt
+  docs/evidence/cluster-a-p1-smaht-rename/pytest-results.txt
+
+Transformation applied:
+  s|/Users/[^/]+/Projects/wicked-garden/\.claude/worktrees/[^/]+/|./|g
+
+Out-of-scope note:
+  Additional /Users/ paths exist in other evidence directories (pr-v8-3, pr-v8-4, etc.).
+  These are pre-existing and were NOT touched in this PR — scope-limited per work order.
+  A broader sweep should be addressed in a dedicated follow-up issue.

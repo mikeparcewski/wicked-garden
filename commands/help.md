@@ -20,7 +20,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | Domain | Description | Key Commands |
 |--------|-------------|--------------|
 | **agentic** | Design, review, and audit agentic AI systems | `agentic:design`, `agentic:review`, `agentic:audit` |
-| **crew** | Dynamic multi-phase workflow engine with specialist routing | `crew:start`, `crew:execute`, `crew:gate` |
+| **crew** | Dynamic multi-phase workflow engine with specialist routing | `crew:start`, `crew:execute`, `crew:gate`, `crew:activity` |
 | **data** | Data analysis and ontology recommendations | `data:analyze`, `data:pipeline`, `data:ml` |
 | **delivery** | Multi-perspective delivery reporting and metrics | `delivery:report`, `delivery:rollout`, `delivery:experiment` |
 | **engineering** | Architecture, code review, debugging, docs, planning, and code transformations | `engineering:review`, `engineering:debug`, `engineering:arch` |
@@ -29,7 +29,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | **platform** | Security, infrastructure, compliance, CI/CD, incidents, and plugin diagnostics | `platform:security`, `platform:compliance`, `platform:incident` |
 | **product** | Requirements, customer feedback, strategy, UX, and design review | `product:acceptance`, `product:analyze`, `product:strategy` |
 | **search** | Structural code search, lineage, and codebase intelligence | `search:blast-radius`, `search:lineage`, `search:hotspots` |
-| **smaht** | Intelligent context assembly from all sources | `smaht:briefing`, `smaht:state`, `crew:activity` |
+| **smaht** | Intelligent context assembly from all sources | `smaht:briefing`, `smaht:state`, `smaht:events-import` |
 
 ## Quick Start
 

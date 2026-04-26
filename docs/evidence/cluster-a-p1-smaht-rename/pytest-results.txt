@@ -160,7 +160,7 @@ self = <tests.test_command_aliases.TestCrewYoloAliasStub object at 0x1097a7750>
 E       AssertionError: commands/crew/yolo.md was deleted. It must remain as an alias stub so that existing /wicked-garden:crew:yolo invocations continue to work.
 E       assert False
 E        +  where False = exists()
-E        +    where exists = (PosixPath('/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/commands/crew') / 'yolo.md').exists
+E        +    where exists = (PosixPath('./commands/crew') / 'yolo.md').exists
 
 tests/test_command_aliases.py:26: AssertionError
 _______________ TestCrewYoloAliasStub.test_yolo_md_is_short_stub _______________
@@ -179,7 +179,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = PosixPath('/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/commands/crew/yolo.md')
+self = PosixPath('./commands/crew/yolo.md')
 mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
 
     def open(self, mode='r', buffering=-1, encoding=None,
@@ -192,7 +192,7 @@ mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
             encoding = io.text_encoding(encoding)
 >       return io.open(self, mode, buffering, encoding, errors, newline)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E       FileNotFoundError: [Errno 2] No such file or directory: '/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/commands/crew/yolo.md'
+E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
 
 /opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: FileNotFoundError
 _________ TestCrewYoloAliasStub.test_yolo_stub_references_auto_approve _________
@@ -211,7 +211,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = PosixPath('/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/commands/crew/yolo.md')
+self = PosixPath('./commands/crew/yolo.md')
 mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
 
     def open(self, mode='r', buffering=-1, encoding=None,
@@ -224,7 +224,7 @@ mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
             encoding = io.text_encoding(encoding)
 >       return io.open(self, mode, buffering, encoding, errors, newline)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E       FileNotFoundError: [Errno 2] No such file or directory: '/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/commands/crew/yolo.md'
+E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
 
 /opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: FileNotFoundError
 ____________ TestCrewAliasRedirect.test_yolo_mentions_auto_approve _____________
@@ -250,7 +250,7 @@ domain = 'crew', command = 'yolo'
 E       AssertionError: Command file not found: commands/crew/yolo.md
 E       assert False
 E        +  where False = exists()
-E        +    where exists = PosixPath('/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/commands/crew/yolo.md').exists
+E        +    where exists = PosixPath('./commands/crew/yolo.md').exists
 
 tests/test_command_cross_links.py:37: AssertionError
 ______________ TestStubAudit.test_no_bare_pass_in_scripts_overall ______________
