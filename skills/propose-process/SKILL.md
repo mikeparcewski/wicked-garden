@@ -23,9 +23,10 @@ Thin shim. Full rubric lives in [`agents/crew/process-facilitator.md`](../../age
 - **`priors`** (optional) — `wicked-brain:search` output on related projects/gotchas.
 - **`constraints`** (optional) — hard constraints (deadline, stack, compliance envelope).
 - **`mode`** — `propose` | `re-evaluate` | `yolo`; default `propose`.
-- **`project_slug`** OR **`project`** — short snake_case identifier (one is required).
+- **`project_slug`** OR **`project`** — short snake_case identifier (required for
+  real project calls; omit only on `output=json` measurement / no-project calls).
 - **`project_dir`** — absolute path; agent writes the draft plan here. If absent,
-  the shim resolves it via `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew` then appends `/projects/{slug}`.
+  the shim resolves it via `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew` then appends `/projects/{slug}`. On `output=json` with no project context, an ephemeral tmp dir is used (see Step 0).
 - **`bookend`** (`phase-start` | `phase-end`) and **`phase`** — required for `re-evaluate` from `phase-executor`.
 - **`current_chain`** — required for `re-evaluate`: tasks created so far, status, evidence.
 - **`auto_proceed`** — bool; set by yolo mode; suppresses user confirmation.
@@ -36,16 +37,38 @@ Thin shim. Full rubric lives in [`agents/crew/process-facilitator.md`](../../age
 
 The dispatched agent writes its plan to `${project_dir}/process-plan.draft.json`
 matching `skills/propose-process/refs/output-schema.md`. The shim reads it back
-after Task() returns and forwards the JSON to the caller. The caller is responsible
-for any subsequent persistence (e.g. `commands/crew/start.md` Step 7 writes
-`process-plan.json` + `process-plan.md` from this JSON).
+after Task() returns and forwards the JSON to the caller.
+
+Two call shapes are supported:
+
+- **Real project call** (`mode=propose|re-evaluate`, `project_slug` or `project`
+  provided): `${project_dir}` resolves under
+  `~/.something-wicked/wicked-garden/local/wicked-crew/projects/{slug}/`. The
+  draft persists at `${project_dir}/process-plan.draft.json`. The caller
+  (`commands/crew/start.md` Step 7, etc.) is responsible for any subsequent
+  persistence (`process-plan.json` + `process-plan.md`) and for cleaning up
+  the draft if desired.
+- **Measurement / no-project call** (`output=json` AND none of `project_dir`,
+  `project_slug`, `project` provided — used by `scripts/ci/measure_facilitator.py`
+  capture flows and ad-hoc rubric probes): the shim allocates an ephemeral
+  handoff dir under `${TMPDIR:-/tmp}/wicked-garden-measure-{random_id}/`,
+  writes the draft there, reads it back, returns the JSON content, and removes
+  the directory before returning. Nothing persists past the call.
 
 ## Delegation
 
 When invoked:
 
-0. If `project_dir` is unset, resolve it from `project_slug`/`project` using
-   `scripts/resolve_path.py wicked-crew` + `/projects/{slug}`. `mkdir -p` it.
+0. **Resolve `project_dir`** (in order):
+   - If `project_dir` is set, use it as-is and `mkdir -p` it.
+   - Else if `project_slug` or `project` is set, resolve via
+     `scripts/resolve_path.py wicked-crew` + `/projects/{slug}` and `mkdir -p` it.
+   - Else if `output=json` AND no project context was provided (measurement /
+     no-project call), allocate an ephemeral dir
+     `${TMPDIR:-/tmp}/wicked-garden-measure-{random_id}/`, `mkdir -p` it, and
+     remember to remove it after Step 3 returns.
+   - Otherwise STOP and surface "missing project_dir/project_slug/project (and
+     output != json)" — refer the user to `/wicked-garden:report-issue`.
 
 1. Dispatch the facilitator agent:
 
@@ -69,6 +92,8 @@ Task(
 3. **If `output=json`**: return the JSON content directly (do NOT create tasks).
    This is the path used by `crew:start` Step 5, all `re-evaluate` callers
    (`crew:execute`, `crew:just-finish`, `phase-executor` ×2), and `measure_facilitator.py`.
+   If Step 0 allocated an ephemeral `${TMPDIR}/wicked-garden-measure-{random_id}/`
+   (no-project call), `rm -rf` that directory after the JSON has been read.
 
 4. **Otherwise**: render `process-plan.md` from the JSON, persist
    `${project_dir}/process-plan.json`, then emit the task chain.
