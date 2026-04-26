@@ -1,6 +1,6 @@
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/./CHANGELOG.md:15:- `smaht:debug` renamed to `smaht:state` — name now reflects what the command does (snapshot + report session state). v5→v6 archaeology section deleted. (cluster-A P1, 2026-04-25)
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/./CHANGELOG.md:16:- `smaht:events-query` relocated to `crew:activity` — project-infrastructure command belongs in the crew domain. All cross-references updated. (cluster-A P1, 2026-04-25)
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/./CHANGELOG.md:703:- `/wicked-garden:smaht:debug` output shape changed — no more HOT/FAST/SLOW
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/./CHANGELOG.md:1134:- feat: `smaht:events-query` command — cross-domain activity queries with --domain, --project, --since, --fts flags
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/./docs/v9/audit.md:107:| `smaht:state` | DONE | Renamed from `smaht:debug` (cluster-A P1, 2026-04-25) — name now matches what the command does. | — |
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a2abd7d630c974b8a/./docs/v9/audit.md:109:| `crew:activity` | DONE | Relocated from `smaht:events-query` (cluster-A P1, 2026-04-25) — project infrastructure belongs in crew domain. | — |
+././CHANGELOG.md:15:- `smaht:debug` renamed to `smaht:state` — name now reflects what the command does (snapshot + report session state). v5→v6 archaeology section deleted. (cluster-A P1, 2026-04-25)
+././CHANGELOG.md:16:- `smaht:events-query` relocated to `crew:activity` — project-infrastructure command belongs in the crew domain. All cross-references updated. (cluster-A P1, 2026-04-25)
+././CHANGELOG.md:703:- `/wicked-garden:smaht:debug` output shape changed — no more HOT/FAST/SLOW
+././CHANGELOG.md:1134:- feat: `smaht:events-query` command — cross-domain activity queries with --domain, --project, --since, --fts flags
+././docs/v9/audit.md:107:| `smaht:state` | DONE | Renamed from `smaht:debug` (cluster-A P1, 2026-04-25) — name now matches what the command does. | — |
+././docs/v9/audit.md:109:| `crew:activity` | DONE | Relocated from `smaht:events-query` (cluster-A P1, 2026-04-25) — project infrastructure belongs in crew domain. | — |
