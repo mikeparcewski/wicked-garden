@@ -1022,7 +1022,9 @@ class TestSyncGateFindingTask(unittest.TestCase):
                 },
             }
             task_file = self._write_task(tasks_dir, "task-gate-done", gate_task)
-            original_mtime = task_file.stat().st_mtime
+            # Capture original content for comparison — avoids st_mtime flakiness
+            # on coarse-mtime filesystems (#660).
+            original_content = json.loads(task_file.read_text(encoding="utf-8"))
 
             state = _make_state(name="skip-proj")
             gate_result = {"verdict": "REJECT", "result": "REJECT", "score": 0.3}
@@ -1033,8 +1035,9 @@ class TestSyncGateFindingTask(unittest.TestCase):
             ):
                 pm._sync_gate_finding_task(state, "design", gate_result)
 
-            # File must NOT have been modified.
-            self.assertEqual(task_file.stat().st_mtime, original_mtime)
+            # File content must NOT have changed — already-completed task is skipped.
+            after_content = json.loads(task_file.read_text(encoding="utf-8"))
+            self.assertEqual(after_content, original_content)
 
     def test_sync_no_op_when_no_matching_task(self):
         """When no gate-finding task exists for the phase, sync is a no-op."""
@@ -1054,7 +1057,9 @@ class TestSyncGateFindingTask(unittest.TestCase):
                 },
             }
             task_file = self._write_task(tasks_dir, "task-other", other_task)
-            original_mtime = task_file.stat().st_mtime
+            # Capture original content for comparison — avoids st_mtime flakiness
+            # on coarse-mtime filesystems (#660).
+            original_content = json.loads(task_file.read_text(encoding="utf-8"))
 
             state = _make_state(name="noop-proj")
             gate_result = {"verdict": "APPROVE", "score": 0.9}
@@ -1065,8 +1070,50 @@ class TestSyncGateFindingTask(unittest.TestCase):
             ):
                 pm._sync_gate_finding_task(state, "build", gate_result)
 
-            # coding-task file must be untouched.
-            self.assertEqual(task_file.stat().st_mtime, original_mtime)
+            # coding-task file content must be unchanged — wrong event_type, no match.
+            after_content = json.loads(task_file.read_text(encoding="utf-8"))
+            self.assertEqual(after_content, original_content)
+
+    def test_sync_gate_result_none_does_not_close_pending_task(self):
+        """gate_result=None must not close any gate-finding task (#660).
+
+        The --override-gate path and non-gated phases call approve_phase with
+        gate_result=None.  Before the fix, _sync_gate_finding_task would still
+        scan the task store and mark the first matching gate-finding task
+        completed even without a verdict to stamp — corrupting the chain.
+        After the fix, gate_result=None triggers an early return with no
+        modifications.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-none-guard"
+            gate_task = {
+                "id": "task-gate-pending",
+                "subject": "Gate: clarify",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "clarify",
+                    "chain_id": "none-guard-proj.clarify.review",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+            task_file = self._write_task(tasks_dir, "task-gate-pending", gate_task)
+            original_content = json.loads(task_file.read_text(encoding="utf-8"))
+
+            state = _make_state(name="none-guard-proj")
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-none-guard", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                pm._sync_gate_finding_task(state, "clarify", None)  # gate_result=None
+
+            # Task must remain in_progress — no verdict to stamp, no completion.
+            after_content = json.loads(task_file.read_text(encoding="utf-8"))
+            self.assertEqual(after_content["status"], "in_progress",
+                             "gate_result=None must not close a pending gate-finding task")
+            self.assertEqual(after_content, original_content,
+                             "gate_result=None must leave the task file completely unchanged")
 
     def test_sync_fail_open_no_session_id(self):
         """Missing CLAUDE_SESSION_ID is silently a no-op (fail-open)."""

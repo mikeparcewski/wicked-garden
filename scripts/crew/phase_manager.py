@@ -3216,12 +3216,26 @@ def _sync_gate_finding_task(
     Fail-open on every error path — a task-store update failure must
     never block phase advancement.
 
+    When ``gate_result`` is None (e.g. ``--override-gate`` path, non-gated
+    phases) the function returns immediately without touching any task file.
+    The gate-finding task remains in its current state — completing a task
+    without a verdict would corrupt the chain (#660).
+
     Supported path: direct file write only (not daemon).  The daemon
     path is intentionally skipped here because ``approve_phase`` runs in
     the same process as the agent calling TaskUpdate, and the daemon is
     not a writable API surface for phase_manager (it is read-only).
     """
     import os
+
+    # Guard: no gate_result means no verdict to stamp — do not close any task.
+    if gate_result is None:
+        logger.debug(
+            "[approve] _sync_gate_finding_task: gate_result is None for phase=%s"
+            " (override-gate or non-gated path) — skipping task sync",
+            phase,
+        )
+        return
 
     project_name = getattr(state, "name", None)
     if not project_name:

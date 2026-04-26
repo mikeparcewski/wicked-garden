@@ -167,5 +167,47 @@ class TelemetryCaptureTests(unittest.TestCase):
         self.assertLess(elapsed_ms, 500, f"capture took {elapsed_ms:.1f}ms, budget is 500ms")
 
 
+    def test_tasks_observed_reflects_task_count_not_file_count(self):
+        """tasks_observed must equal the number of tasks read, not the file scan count (#660).
+
+        Before the fix, sample_window used len(task_files) which was always 0
+        on the happy path (daemon-routed read_session_tasks), making the metric
+        useless for daemon sessions.  After the fix, len(tasks) is used
+        regardless of path so the metric correctly reports how many tasks were
+        actually observed.
+
+        This test exercises the direct-file-scan fallback (the test harness does
+        not install the daemon reader), confirming that the metric equals the
+        number of written task files.
+        """
+        # Write 3 task files in the direct-scan path.
+        for i in range(3):
+            _write_task(self.tasks_dir, f"task-obs-{i:02d}", {
+                "status": "completed",
+                "created_at": "2026-04-25T10:00:00Z",
+                "updated_at": "2026-04-25T10:01:00Z",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "verdict": "APPROVE",
+                    "score": 0.9,
+                },
+            })
+
+        record = self.telemetry.capture_session(self.session_id, project="obs-test")
+        self.assertIsNotNone(record)
+        sw = record["sample_window"]
+
+        # tasks_observed must reflect the 3 tasks written — not 0 (stale file count).
+        self.assertEqual(sw["tasks_observed"], 3,
+                         f"tasks_observed should be 3, got {sw['tasks_observed']!r}. "
+                         "If 0, the metric still uses len(task_files) instead of len(tasks).")
+        # task_files_scanned is emitted as a deprecated alias for v8.3.x per
+        # PR #663 council (backward-compat for downstream consumers). Same
+        # value as tasks_observed. Removed in v8.4.0.
+        self.assertEqual(sw.get("task_files_scanned"), sw["tasks_observed"],
+                         "task_files_scanned (deprecated alias) must mirror "
+                         "tasks_observed exactly until removed in v8.4.0.")
+
+
 if __name__ == "__main__":
     unittest.main()

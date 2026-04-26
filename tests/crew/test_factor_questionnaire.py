@@ -738,9 +738,12 @@ def test_state_complexity_sc4_saas_scale_combined_with_sc1_is_low():
 # bump weight 1 → 2. The reword prevents false positives on trivial no-flag deploys;
 # the weight bump allows o5 alone to reach medium_threshold.
 #
-# Two pin tests per scenario:
-#   - high_scale_no_flag: o5 firing under new wording yields MEDIUM
-#   - small_scale_no_flag: o5 NOT firing under new wording stays HIGH (no false positive)
+# Two core scenario pins (anchors for the calibration):
+#   - high_scale_no_flag  → test_operational_risk_o5_alone_high_scale_no_flag_is_medium
+#   - small_scale_no_flag → test_operational_risk_o5_small_scale_no_flag_stays_high
+# Plus supporting pins: weight_is_two (implementation pin against silent rollback),
+# does_not_reach_low, all_no_is_high (feature-flag path), plugin_scope_stays_high,
+# saas_scale_full_signal_is_low.
 # ---------------------------------------------------------------------------
 
 
@@ -762,8 +765,11 @@ def test_operational_risk_o5_alone_high_scale_no_flag_is_medium():
 def test_operational_risk_o5_weight_is_two():
     """Issue #639 pin: o5 yes_weight must be exactly 2 after calibration.
 
-    Directly pins the weight so a future silent rollback to weight=1 fails loudly
-    without requiring an answer-dict interpretation.
+    Implementation pin — directly asserts the internal weight value.  This is
+    intentionally implementation-coupled: the behavior tests above only confirm
+    MEDIUM/HIGH outcomes which could in theory be reached by other weight
+    combinations.  This pin makes a silent rollback to weight=1 fail loudly and
+    immediately without requiring inference from score thresholds.
     """
     rubric = _rubric_for("operational_risk")
     o5 = next(q for q in rubric.questions if q.id == "o5")
@@ -788,18 +794,25 @@ def test_operational_risk_o5_alone_does_not_reach_low():
     )
 
 
-def test_operational_risk_o5_with_feature_flag_is_high():
-    """Issue #639 pin: a deploy WITH a feature flag (o5=NO) must remain HIGH.
+def test_operational_risk_all_no_answers_is_high():
+    """Issue #639 pin: all-NO answers (no risk signals present) must yield HIGH.
 
-    When o5=NO, 0 pts → HIGH. This confirms the feature-flag path is unaffected
-    by the weight bump — the question itself is what prevents escalation, not the weight.
+    o5=NO means the deploy IS gated behind a feature flag (or does not meet the
+    scale criterion), so 0 pts → HIGH.  This confirms that the feature-flag path
+    (the safe case) is unaffected by the weight bump — the question wording itself
+    prevents escalation, not the weight value.
+
+    Renamed from test_operational_risk_o5_with_feature_flag_is_high (#660):
+    the old name implied o5 was being set to YES-with-flag, but the body uses
+    all-NO to represent the gated/safe deploy state.
     """
     rubric = _rubric_for("operational_risk")
-    # Explicitly all-NO to mirror a migration gated behind a feature flag
+    # All-NO: every risk signal absent — migration is gated behind a feature flag
+    # or is below the scale threshold.  No risk points → HIGH.
     all_no = {q.id: False for q in rubric.questions}
     reading, why = score_factor(rubric, all_no)
     assert reading == "HIGH", (
-        f"All-NO (migration with feature flag) must yield HIGH, got {reading!r}. "
+        f"All-NO answers (no risk signals) must yield HIGH, got {reading!r}. "
         f"Trace: {why}"
     )
 

@@ -74,6 +74,47 @@ def test_phase_spec_unknown_phase_reports_not_known():
     assert spec["depends_on"] == []
 
 
+def test_phase_spec_required_deliverables_keys_match_executor_pseudocode():
+    """phases.json deliverable entries use 'file'/'min_bytes' keys — the executor must use these (#660).
+
+    Pin against schema mismatch: the phase-executor pseudocode was corrected in
+    #660 to access d['file'] and d['min_bytes'] instead of the wrong d['name']
+    and d['min_size'].  This test asserts that phases.json still uses 'file' and
+    'min_bytes' so any future rename is caught before it silently breaks the
+    executor verification logic.
+    """
+    # Check every phase that has at least one deliverable.
+    phases_with_deliverables = [
+        p for p in ("clarify", "design", "test-strategy", "challenge", "test", "review", "operate")
+    ]
+    for phase_name in phases_with_deliverables:
+        spec = get_phase_spec(phase_name)
+        deliverables = spec["required_deliverables"]
+        if not deliverables:
+            continue
+        for entry in deliverables:
+            assert isinstance(entry, dict), (
+                f"Phase '{phase_name}': required_deliverables entry must be a dict, "
+                f"got {type(entry).__name__!r}"
+            )
+            assert "file" in entry, (
+                f"Phase '{phase_name}': deliverable dict must have 'file' key "
+                f"(executor uses d.get('file')), keys present: {list(entry.keys())}"
+            )
+            assert "min_bytes" in entry, (
+                f"Phase '{phase_name}': deliverable dict must have 'min_bytes' key "
+                f"(executor uses d.get('min_bytes', 100)), keys present: {list(entry.keys())}"
+            )
+            assert "name" not in entry, (
+                f"Phase '{phase_name}': old 'name' key found — schema drifted back "
+                f"to wrong shape.  Executor uses 'file', not 'name'."
+            )
+            assert "min_size" not in entry, (
+                f"Phase '{phase_name}': old 'min_size' key found — schema drifted back "
+                f"to wrong shape.  Executor uses 'min_bytes', not 'min_size'."
+            )
+
+
 def test_phase_spec_gate_policy_keyed_by_tier():
     """When gate_required, gate_policy exposes reviewers per rigor tier (minimal/standard/full)."""
     spec = get_phase_spec("clarify")
