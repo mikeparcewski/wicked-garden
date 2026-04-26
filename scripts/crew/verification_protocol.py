@@ -116,6 +116,15 @@ def _phases_with_required_deliverables() -> set:
     {"clarify", "design", "build"} set in check_traceability that omitted
     "ideate" and any future phases). Falls back to the historical hardcoded
     set if phases.json is missing or unreadable, preserving prior behavior.
+
+    NOTE (#675 sweep, F8): the returned set narrows what `check_traceability`
+    inspects. Phases NOT in this set (e.g. custom phase dirs added by a project
+    that doesn't appear in `.claude-plugin/phases.json`, or phases with no
+    `required_deliverables` field) are skipped silently for the missing-dir
+    check — that's intentional, since the check is "every phase that DECLARES
+    deliverables must have a directory", not "every directory must declare
+    deliverables". Callers see a structured warning when this filtering may
+    drop a legitimate phase dir (see `check_traceability`).
     """
     fallback = {"clarify", "design", "build"}
     try:
@@ -134,6 +143,23 @@ def _phases_with_required_deliverables() -> set:
         return result or fallback
     except Exception:  # noqa: BLE001 — fail-safe: traceability check still runs
         return fallback
+
+
+def _normalize_phase_name(name: str) -> str:
+    """Normalize a phase name for cross-source comparison.
+
+    Different sources represent phase names slightly differently:
+      - `phases.json` uses canonical kebab-case (`test-strategy`).
+      - On-disk project layouts may use either kebab-case OR snake_case
+        depending on when the project was scaffolded (legacy projects may
+        have `test_strategy/` directories from before the kebab-case rename).
+      - Some older crew tooling lowercased phase names inconsistently.
+
+    Normalization rule (F7, #675 sweep): lowercase + replace `-` with `_`.
+    Both `test-strategy` and `test_strategy` collapse to `test_strategy`,
+    making set membership a cheap, deterministic comparison.
+    """
+    return name.lower().replace("-", "_")
 
 
 def _run_command(
@@ -881,16 +907,39 @@ def check_traceability(
     # that declares required_deliverables in phases.json (#667 follow-up:
     # was a hardcoded {"clarify", "design", "build"} set, now derived from
     # phases.json so phases like "ideate" and any future phases are covered).
+    #
+    # Normalization (F7, #675 sweep): phases.json stores canonical kebab-case
+    # phase names (e.g. `test-strategy`), but on-disk project layouts may use
+    # either kebab-case OR snake_case (e.g. `test_strategy/`) for legacy
+    # projects. Compare using `_normalize_phase_name` so both shapes match.
     phase_dirs = [d.name for d in phases_dir.iterdir() if d.is_dir()]
     expected_phases = _phases_with_required_deliverables()
-    missing_phases = expected_phases - set(phase_dirs)
+    expected_norm = {_normalize_phase_name(p) for p in expected_phases}
+    phase_dirs_norm = {_normalize_phase_name(d) for d in phase_dirs}
+    missing_norm = expected_norm - phase_dirs_norm
+    # Re-project missing names to their canonical (kebab-case) form for the message.
+    missing_phases = sorted(
+        {p for p in expected_phases if _normalize_phase_name(p) in missing_norm}
+    )
+
+    # F8 (#675 sweep): surface a structured note when a project has phase dirs
+    # that aren't in the filtered set — these are skipped by the traceability
+    # check by design (see _phases_with_required_deliverables docstring), but
+    # operators have asked for visibility. Logged via details, not failure.
+    extra_phase_dirs = sorted(
+        {d for d in phase_dirs if _normalize_phase_name(d) not in expected_norm}
+    )
 
     if missing_phases:
         return CheckResult(
             name=name,
             status="FAIL",
-            evidence=f"Broken traceability chain: missing phase directories: {', '.join(sorted(missing_phases))}",
-            details={"missing_phases": sorted(missing_phases), "criteria_count": len(criteria)},
+            evidence=f"Broken traceability chain: missing phase directories: {', '.join(missing_phases)}",
+            details={
+                "missing_phases": missing_phases,
+                "criteria_count": len(criteria),
+                "extra_phase_dirs_skipped": extra_phase_dirs,
+            },
         )
 
     # Check that each criterion has at least a test file reference
@@ -907,14 +956,19 @@ def check_traceability(
             name=name,
             status="FAIL",
             evidence=f"{linked}/{total} criteria have complete chains; broken: {', '.join(broken_chains[:10])}",
-            details={"broken_chains": broken_chains, "total": total, "complete": linked},
+            details={
+                "broken_chains": broken_chains,
+                "total": total,
+                "complete": linked,
+                "extra_phase_dirs_skipped": extra_phase_dirs,
+            },
         )
 
     return CheckResult(
         name=name,
         status="PASS",
         evidence=f"{total}/{total} criteria have complete requirement->test chains",
-        details={"total": total},
+        details={"total": total, "extra_phase_dirs_skipped": extra_phase_dirs},
     )
 
 
