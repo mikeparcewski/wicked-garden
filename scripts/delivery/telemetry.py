@@ -335,6 +335,11 @@ def capture_session(
                 # happy path, making the metric meaningless for daemon-routed
                 # sessions.  Renamed from task_files_scanned for clarity.
                 "tasks_observed": len(tasks),
+                # Deprecated alias — emitted for one release (v8.3.x) so
+                # downstream consumers (dashboards, alerting rules) keyed on
+                # the old name stay green.  Remove in v8.4.0.  See PR #663
+                # council and CHANGELOG.
+                "task_files_scanned": len(tasks),
             },
             "metrics": metrics,
         }

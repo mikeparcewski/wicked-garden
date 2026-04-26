@@ -201,10 +201,12 @@ class TelemetryCaptureTests(unittest.TestCase):
         self.assertEqual(sw["tasks_observed"], 3,
                          f"tasks_observed should be 3, got {sw['tasks_observed']!r}. "
                          "If 0, the metric still uses len(task_files) instead of len(tasks).")
-        # The old field name must not exist — it was renamed to avoid confusion.
-        self.assertNotIn("task_files_scanned", sw,
-                         "task_files_scanned was renamed to tasks_observed in #660 — "
-                         "old field name must not appear in schema output.")
+        # task_files_scanned is emitted as a deprecated alias for v8.3.x per
+        # PR #663 council (backward-compat for downstream consumers). Same
+        # value as tasks_observed. Removed in v8.4.0.
+        self.assertEqual(sw.get("task_files_scanned"), sw["tasks_observed"],
+                         "task_files_scanned (deprecated alias) must mirror "
+                         "tasks_observed exactly until removed in v8.4.0.")
 
 
 if __name__ == "__main__":
