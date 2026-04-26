@@ -2,9 +2,10 @@
 name: jam
 description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
+  quick sessions are ephemeral (no storage). brainstorm and council sessions
+  are tracked as native tasks (process) and stored in wicked-brain:memory (outcome).
   Use when: "brainstorm this", "explore ideas", "get different perspectives",
   "focus group", "what do you think about", "pros and cons", "quick check".
-  Sessions are tracked as native tasks (process) and stored in wicked-brain:memory (outcome).
 context: fork
 ---
 
