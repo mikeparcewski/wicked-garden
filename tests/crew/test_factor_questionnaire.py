@@ -573,3 +573,153 @@ def test_risk_level_inversion_correctness():
     assert result_low["reversibility"]["risk_level"] == "high_risk", (
         "Reading=LOW must map to risk_level=high_risk"
     )
+
+
+# ---------------------------------------------------------------------------
+# Issue #628 — plugin-scope calibration field-test pinning
+#
+# Field-tested 2026-04-25 on 3 plugin-scope + 1 SaaS-control descriptions.
+# Result: b4, b5, sc4 behaved correctly at current weights — NO calibration
+# needed. These tests pin the observed correct behavior so a future accidental
+# recalibration of these weights fails loudly.
+#
+# For each candidate question, two tests:
+#   - plugin_scope: the typical plugin-only answer must NOT produce an inflated reading
+#   - saas_scale: SaaS-scale all-signal answer must still produce the riskier reading
+# ---------------------------------------------------------------------------
+
+# --- b4 pinning ---
+
+def test_blast_radius_b4_only_plugin_scope_is_medium():
+    """Issue #628 pin: b4 alone (additive plugin surfaces) → MEDIUM, not LOW.
+
+    b4 weight=2 + medium_threshold=2 → exactly MEDIUM when only b4 fires.
+    A plugin adding multiple new surfaces simultaneously is correctly MEDIUM risk,
+    not LOW — LOW requires b4 + at least 3 more points from b1/b2/b3/b5.
+    """
+    rubric = _rubric_for("blast_radius")
+    # Only b4 fires: adding 3 agents + 1 skill simultaneously
+    reading, why = score_factor(rubric, {"b4": True})
+    assert reading == "MEDIUM", (
+        f"b4 alone (2pts) must yield MEDIUM for plugin multi-surface work, got {reading!r}. "
+        f"Trace: {why}"
+    )
+
+
+def test_blast_radius_b4_saas_scale_all_signals_is_low():
+    """Issue #628 pin: b4 + b1 + b2 + b3 (SaaS-scale auth migration) → LOW.
+
+    Confirms that the SaaS path to LOW blast is still reachable and b4
+    participates correctly in the full-signal scenario.
+    """
+    rubric = _rubric_for("blast_radius")
+    # b1(3) + b2(3) + b3(2) + b4(2) = 10 pts >= low_threshold=5 → LOW
+    reading, why = score_factor(rubric, {"b1": True, "b2": True, "b3": True, "b4": True})
+    assert reading == "LOW", (
+        f"SaaS-scale all-surface signals must yield LOW blast_radius, got {reading!r}. "
+        f"Trace: {why}"
+    )
+
+
+# --- b5 pinning ---
+
+def test_blast_radius_b5_alone_plugin_scope_is_high():
+    """Issue #628 pin: b5 alone (marketplace distribution, no other risk) → HIGH.
+
+    b5 weight=1 < medium_threshold=2 — cannot tip blast_radius past HIGH on its own.
+    Every plugin change trips b5 YES; this must NOT escalate to MEDIUM without corroboration.
+    """
+    rubric = _rubric_for("blast_radius")
+    # Only b5 fires: any plugin change distributed via marketplace install
+    reading, why = score_factor(rubric, {"b5": True})
+    assert reading == "HIGH", (
+        f"b5 alone (1pt) must yield HIGH blast_radius for plugin-only distribution, got {reading!r}. "
+        f"b5 is a low-weight amplifier, not a standalone escalator. Trace: {why}"
+    )
+
+
+def test_blast_radius_b5_plus_b4_plugin_scope_is_medium():
+    """Issue #628 pin: b4 + b5 together (additive multi-surface + marketplace) → MEDIUM, not LOW.
+
+    For a plugin adding new agents/skills: b4(2) + b5(1) = 3pts < low_threshold=5 → MEDIUM.
+    Confirms the combined plugin-scope scenario stays below LOW.
+    """
+    rubric = _rubric_for("blast_radius")
+    # b4(2) + b5(1) = 3 pts; medium_threshold=2, low_threshold=5 → MEDIUM
+    reading, why = score_factor(rubric, {"b4": True, "b5": True})
+    assert reading == "MEDIUM", (
+        f"b4+b5 together (3pts) must yield MEDIUM blast_radius, got {reading!r}. "
+        f"Trace: {why}"
+    )
+
+
+def test_blast_radius_b5_saas_scale_contributes_to_low():
+    """Issue #628 pin: b5 contributes correctly to LOW in a full SaaS-scale scenario.
+
+    b1(3)+b2(3)+b3(2)+b4(2)+b5(1) = 11pts >= low_threshold=5.
+    b5 doesn't single-handedly cause LOW but participates in the total.
+    """
+    rubric = _rubric_for("blast_radius")
+    all_yes = {q.id: True for q in rubric.questions}
+    reading, _ = score_factor(rubric, all_yes)
+    assert reading == "LOW", (
+        "All blast_radius questions YES must yield LOW; b5 contributes 1pt to full signal."
+    )
+
+
+# --- sc4 pinning ---
+
+def test_state_complexity_sc4_alone_plugin_scope_is_medium():
+    """Issue #628 pin: sc4 alone (new read-only query, no structural change) → MEDIUM.
+
+    sc4 weight=1 + medium_threshold=1 → exactly MEDIUM when only sc4 fires.
+    A plugin adding a read-only DomainStore lookup is correctly MEDIUM (not LOW),
+    because structural changes (sc1/sc2) are absent.
+    """
+    rubric = _rubric_for("state_complexity")
+    # Only sc4 fires: new read-only state access added to plugin code
+    reading, why = score_factor(rubric, {"sc4": True})
+    assert reading == "MEDIUM", (
+        f"sc4 alone (1pt) must yield MEDIUM state_complexity, got {reading!r}. "
+        f"Pure read-only state access without schema changes is correctly MEDIUM. "
+        f"Trace: {why}"
+    )
+
+
+def test_state_complexity_sc4_contribution_is_load_bearing():
+    """Issue #628 pin: sc4 actually contributes to scoring (PR #638 council fix).
+
+    Pre-fix this test was tautological — it called score_factor(rubric, {}) which
+    would pass even if sc4 were deleted from the questionnaire. Replaced with an
+    A/B assertion that flipping sc4 alone (False → True) changes the reading
+    HIGH → MEDIUM, proving sc4 actually carries weight.
+    """
+    rubric = _rubric_for("state_complexity")
+    # All sc questions explicitly NO (not just empty defaults — show intent)
+    all_no = {"sc1": False, "sc2": False, "sc3": False, "sc4": False}
+    reading_no, _ = score_factor(rubric, all_no)
+    assert reading_no == "HIGH", (
+        f"All sc=NO must yield HIGH state_complexity, got {reading_no!r}"
+    )
+    # Flip ONLY sc4 — proves sc4 has non-zero weight
+    only_sc4 = {"sc1": False, "sc2": False, "sc3": False, "sc4": True}
+    reading_sc4, _ = score_factor(rubric, only_sc4)
+    assert reading_sc4 == "MEDIUM", (
+        f"sc4=YES alone must yield MEDIUM state_complexity, got {reading_sc4!r}. "
+        f"If this drops to HIGH, sc4 weight has been zeroed/removed."
+    )
+
+
+def test_state_complexity_sc4_saas_scale_combined_with_sc1_is_low():
+    """Issue #628 pin: sc4 + sc1 (schema migration with read-only audit queries) → LOW.
+
+    SaaS-scale control: sc1(4) + sc4(1) = 5pts >= low_threshold=4 → LOW.
+    Confirms sc4 participates correctly in the full-signal path to LOW.
+    """
+    rubric = _rubric_for("state_complexity")
+    # sc1(4) + sc4(1) = 5 pts >= low_threshold=4 → LOW
+    reading, why = score_factor(rubric, {"sc1": True, "sc4": True})
+    assert reading == "LOW", (
+        f"sc1+sc4 (schema migration + read-only queries) must yield LOW, got {reading!r}. "
+        f"Trace: {why}"
+    )
