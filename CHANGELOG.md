@@ -1,5 +1,24 @@
 # Changelog
 
+## [8.2.0] - 2026-04-26
+
+### Bug Fixes
+- fix: complete PII sweep across docs/evidence/ (replaces #655, resolves #644) (#659) (1fedd37)
+- fix: phase_manager approve UX + native task sync (resolves #650 #653) (#657) (4ac2756)
+- fix: phase-executor produces deliverables or halts (resolves #649) (#654) (2cf9103)
+- fix: cluster-A late bot findings — cc1, scenarios, evidence, smaht:onboard, qe alias (resolves #648) (#656) (dc0ecf7)
+- fix: telemetry.py task_files undefined on happy path (resolves #647) (#658) (a837d34)
+- fix: crew:guide hygiene — brain port + dead code + budget skip + sys.path (followup #640) (#643) (f87690c)
+- fix: crew:status empty-sections actually suppresses (followup #640) (#645) (f6e3d99)
+- fix: crew:activity domain placement + sanitize PII in evidence (followup #640) (#642) (8b8d15b)
+
+### Documentation
+- docs: cluster-A doc nits — composition crew + scorer doc + test header (followup #640) (#641) (78a4a04)
+
+### Chores
+- calibration: operational_risk.o5 (resolves #639) (#646) (09eab0b)
+- release: v8.1.0 — cluster-A trio + scorer + crew:guide + composition maps (60423c5)
+
 ## [8.1.0] - 2026-04-26
 
 ### Features
