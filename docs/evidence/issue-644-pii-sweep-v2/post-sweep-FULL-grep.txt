@@ -1,5 +1,5 @@
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a08b28f6eb2f251b7/docs/evidence/cluster-a-followup-636/pii-grep-post.txt:4:Command: grep -rEn "/Users/" docs/evidence/cluster-a-p1-smaht-rename/
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a08b28f6eb2f251b7/docs/evidence/cluster-a-followup-636/pii-grep-post.txt:12:  s|/Users/[^/]+/Projects/wicked-garden/\.claude/worktrees/[^/]+/|./|g
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a08b28f6eb2f251b7/docs/evidence/cluster-a-followup-636/pii-grep-post.txt:15:  Additional /Users/ paths exist in other evidence directories (pr-v8-3, pr-v8-4, etc.).
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a08b28f6eb2f251b7/docs/evidence/issue-644-pii-sweep-v2/pre-sweep-FULL-grep.txt:49:./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:4:Command: grep -rEn "/Users/" docs/evidence/cluster-a-p1-smaht-rename/
-/Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a08b28f6eb2f251b7/docs/evidence/issue-644-pii-sweep-v2/pre-sweep-FULL-grep.txt:51:./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:15:  Additional /Users/ paths exist in other evidence directories (pr-v8-3, pr-v8-4, etc.).
+./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:4:Command: grep -rEn "/Users/" docs/evidence/cluster-a-p1-smaht-rename/
+./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:12:  s|/Users/[^/]+/Projects/wicked-garden/\.claude/worktrees/[^/]+/|./|g
+./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:15:  Additional /Users/ paths exist in other evidence directories (pr-v8-3, pr-v8-4, etc.).
+./docs/evidence/issue-644-pii-sweep-v2/pre-sweep-FULL-grep.txt:49:./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:4:Command: grep -rEn "/Users/" docs/evidence/cluster-a-p1-smaht-rename/
+./docs/evidence/issue-644-pii-sweep-v2/pre-sweep-FULL-grep.txt:51:./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:15:  Additional /Users/ paths exist in other evidence directories (pr-v8-3, pr-v8-4, etc.).
