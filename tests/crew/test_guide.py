@@ -116,6 +116,28 @@ class TestStalePhase(unittest.TestCase):
             suggestions = guide._probe_stale_phase(project, tmp)
         self.assertEqual(suggestions, [])
 
+    def test_negative_offset_timestamp_correct_staleness(self) -> None:
+        """Regression: pre-fix code stripped `+offset` then force-labelled UTC,
+        producing wrong age for non-UTC timestamps. A `-05:00` timestamp 5 hours
+        old must register as 5 hours stale, not 10."""
+        from datetime import datetime, timedelta, timezone
+        # 5 hours ago in -05:00 timezone, formatted as ISO-8601 with offset
+        five_hours_ago_utc = datetime.now(timezone.utc) - timedelta(hours=5)
+        offset = timezone(timedelta(hours=-5))
+        ts_with_offset = five_hours_ago_utc.astimezone(offset).isoformat()
+        # Sanity: the formatted string contains "-05:00"
+        self.assertIn("-05:00", ts_with_offset)
+
+        project = _make_project(updated_at=ts_with_offset)
+        with tempfile.TemporaryDirectory() as tmp:
+            suggestions = guide._probe_stale_phase(project, tmp)
+
+        # 5 hours staleness > STALE_HOURS=4 threshold → should fire
+        self.assertEqual(len(suggestions), 1)
+        # Age display in rationale must reflect actual 5h, not the bug's 10h
+        rationale = suggestions[0]["rationale"]
+        self.assertIn("5h", rationale, f"Expected ~5h in rationale, got: {rationale}")
+
 
 # ---------------------------------------------------------------------------
 # Test: open CONDITIONAL gate

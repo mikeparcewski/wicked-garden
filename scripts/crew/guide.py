@@ -140,10 +140,14 @@ def _probe_stale_phase(project: dict, project_dir: str | None) -> list[dict]:
 
     try:
         # Accept ISO-8601 with or without timezone info.
-        ts = updated_at_raw.rstrip("Z")
-        if "+" in ts:
-            ts = ts.split("+")[0]
-        updated = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+        # `Z` → `+00:00` so fromisoformat handles UTC suffix on Python 3.7+.
+        # Any explicit offset (`+05:30`, `-04:00`) is preserved by fromisoformat
+        # — do NOT strip it. Naive timestamps (no offset, no Z) fail open by
+        # being labelled UTC, matching the pre-fix assumption for legacy data.
+        raw = updated_at_raw.replace("Z", "+00:00")
+        updated = datetime.fromisoformat(raw)
+        if updated.tzinfo is None:
+            updated = updated.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         age_hours = (now - updated).total_seconds() / 3600.0
     except (ValueError, AttributeError):
@@ -231,10 +235,13 @@ def _probe_brain_context() -> list[dict]:
     return [
         {
             "rank": 5,
-            "command": "/wicked-brain:agent context",
+            # Use /wicked-brain:search — a real slash command. The previous
+            # /wicked-brain:agent context form is not a dispatchable command
+            # (wicked-brain:agent is invoked as a Skill, not a slash command).
+            "command": "/wicked-brain:search \"<your current task>\"",
             "rationale": (
-                "wicked-brain is running — surface relevant project context before "
-                "starting a new task."
+                "wicked-brain is running — surface relevant project context "
+                "before starting a new task."
             ),
         }
     ]
