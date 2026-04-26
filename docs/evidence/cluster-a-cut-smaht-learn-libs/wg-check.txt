@@ -1,0 +1,66 @@
+wg-check results (quick structural check) — 2026-04-25
+Branch: cluster-a/cut-smaht-learn-libs
+
+=== Section 1: Plugin Structure ===
+OK: plugin.json exists
+OK: Version is 8.0.0
+OK: plugin.json is valid JSON
+OK: wicked_testing_version = "*"
+
+=== Section 1b: Gate Policy Tier-1 Allowlist ===
+NOTE: Pre-existing failures unrelated to this PR:
+ERROR: [wg-check] Unknown wicked-testing reviewer: "wicked-testing:review" in agents/delivery/risk-monitor.md
+ERROR: [wg-check] Unknown wicked-testing reviewer: "wicked-testing:authoring" in agents/engineering/senior-engineer.md
+ERROR: [wg-check] Unknown wicked-testing reviewer: "wicked-testing:authoring" in agents/engineering/frontend-engineer.md
+ERROR: [wg-check] Unknown wicked-testing reviewer: "wicked-testing:authoring" in agents/engineering/backend-engineer.md
+ERROR: [wg-check] Unknown wicked-testing reviewer: "wicked-testing:execution" in commands/crew/execute.md
+ERROR: [wg-check] Unknown wicked-testing reviewer: "wicked-testing:insight" in commands/crew/execute.md
+ERROR: [wg-check] Unknown wicked-testing reviewer: "wicked-testing:execution" in commands/product/acceptance.md
+ERROR: [wg-check] Unknown wicked-testing reviewer: "wicked-testing:plan" in commands/product/acceptance.md
+(Confirmed pre-existing on main branch — none introduced by this PR)
+
+=== Section 2: JSON Validity ===
+OK: All JSON files valid
+
+=== Section 3: Skill Line Counts ===
+OK: All skills within 200 line limit
+
+=== Section 4: Agent Frontmatter ===
+OK: All agents have description in frontmatter
+
+=== Section 5: Specialist Schema ===
+OK: specialist.json plugin name matches
+OK: All specialist roles valid
+
+=== Section 5c: Skill Invocation Control Audit ===
+  user-invocable: false — 4 skills
+  disable-model-invocation: true — 1 skills
+  portability: portable — 21 skills
+
+=== Section 7/8: README Style Guide ===
+OK: README.md exists
+OK: Tagline present
+OK: Quick Start section present
+ERROR: Missing ## Commands section  [pre-existing]
+OK: Integration section present
+OK: Code examples present
+
+=== Section 7h: README Freshness ===
+  Commands: README=(not in tagline) actual=98  [pre-existing — README counts not in tagline format]
+  Agents:   README=75 actual=64                [pre-existing delta]
+  Skills:   README=(not in tagline) actual=74  [pre-existing]
+(None introduced by this PR — this PR deletes 2 commands, changing actual from 100 to 98)
+
+=== Section 9: Self-Referential Integrity ===
+OK: All hook script paths resolve
+OK: All 8 specialist roles match ROLE_CATEGORIES
+NOTE: Numerous broken script path errors (scripts/_python.sh etc.) are pre-existing
+on main and unrelated to this PR — they reflect worktree path differences.
+
+=== Section 10: Agent Trigger Analysis ===
+Total agents: 64 across 10 domains
+OK: All agent descriptions >= 50 chars
+NOTICE: 1 agents missing <example> blocks (non-blocking, pre-existing)
+
+=== Summary for this PR ===
+All wg-check findings above are pre-existing on main. This PR introduces zero new errors.

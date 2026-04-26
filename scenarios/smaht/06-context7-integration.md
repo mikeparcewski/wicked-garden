@@ -1,23 +1,38 @@
 ---
 name: context7-integration
-title: "Context7 External Documentation Integration (v6 brain-adapter)"
-description: Validates that library-related queries can pull external docs via context7 without going through the deleted v5 push orchestrator.
+title: "Context7 External Documentation Integration (RETIRED — smaht:learn cut in cluster-A)"
+description: >
+  RETIRED 2026-04-25 (cluster-A P0): smaht:learn was cut because it duplicated
+  wicked-brain:ingest workflow. Context7 doc fetching still works via direct
+  wicked-brain:ingest calls. This scenario file is kept as a tombstone only —
+  do not run it.
 type: integration
 difficulty: intermediate
 estimated_minutes: 5
+status: retired
 ---
 
-# Context7 External Documentation Integration
+# Context7 External Documentation Integration (RETIRED)
 
-## Overview
+> **RETIRED 2026-04-25** — `smaht:learn` and `smaht:libs` were cut in
+> cluster-A P0 (decision record:
+> `cluster-a-workflow-surface-review-v8-decision.md`).
+> `smaht:learn` duplicated `wicked-brain:ingest`; `smaht:libs` was orphaned
+> by the v8 daemon-first refactor.
+>
+> Context7 library doc fetching is still possible via `wicked-brain:ingest`.
+> A replacement scenario in `scenarios/smaht/` should be authored separately
+> if context7 integration coverage is required.
+
+## Overview (historical)
 
 v6 deleted the v5 push-model orchestrator in #428. Context7 (external library
 documentation) is still available, but now it's pulled on demand by subagents
 or skills that need it — there is no automatic per-prompt enrichment.
 
-This scenario validates:
+This scenario validated:
 
-1. Library detection + fetching still works from the `smaht:learn` skill / command
+1. Library detection + fetching still worked from the (now cut) `smaht:learn` command
 2. Failures degrade gracefully (missing MCP, timeouts) without stack traces
 3. Brain can search the resulting cheatsheet after it's been stored
 

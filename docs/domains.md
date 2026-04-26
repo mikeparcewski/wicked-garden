@@ -63,8 +63,6 @@ The "brain" of the plugin. Intercepts every prompt via `UserPromptSubmit` and as
 | `smaht:smaht` | On-demand context pull for the current topic |
 | `smaht:context` | Build a structured context package for subagents |
 | `smaht:debug` | Show what context was assembled and why |
-| `smaht:learn` | Cache library docs via Context7 |
-| `smaht:libs` | List cached library cheatsheets |
 | `smaht:briefing` | Session briefing — what happened since last time |
 | `smaht:events-query` | Query the unified event log for cross-domain activity |
 | `smaht:events-import` | Import existing domain JSON records into the event log |

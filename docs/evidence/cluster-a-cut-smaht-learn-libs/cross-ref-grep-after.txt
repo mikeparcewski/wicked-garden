@@ -1,0 +1,14 @@
+Results after all edits. Only permitted occurrences remain:
+- CHANGELOG.md: two new Removed entries (correct) + one historical commit message (expected, in v7 section)
+- docs/v9/audit.md: verdicts updated to CUT with cluster-A rationale (correct)
+- scenarios/smaht/06-context7-integration.md: tombstone file — all references are in RETIRED context (correct)
+
+No active production surface (command, skill, agent, or live docs table) references smaht:learn or smaht:libs.
+
+---
+CHANGELOG.md:1031:- feat: smaht:learn tracking, PostToolUse profiling, agent trigger analysis (50b0ff4)
+CHANGELOG.md:6:- `smaht:learn` command — duplicated `wicked-brain:ingest`; zero v8 role (cluster-A P0, 2026-04-25)
+CHANGELOG.md:7:- `smaht:libs` command — orphaned by v8 daemon-first architecture; zero v8 role (cluster-A P0, 2026-04-25)
+docs/v9/audit.md:111:| `smaht:learn` | CUT | Superseded by cluster-A P0 decision (2026-04-25): duplicates wicked-brain:ingest workflow. | wicked-brain:ingest |
+docs/v9/audit.md:112:| `smaht:libs` | CUT | Superseded by cluster-A P0 decision (2026-04-25): orphaned by v8 daemon-first architecture. | — |
+scenarios/smaht/06-context7-integration.md: [all refs inside RETIRED tombstone — non-active]

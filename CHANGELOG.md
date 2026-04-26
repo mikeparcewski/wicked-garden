@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+- `smaht:learn` command — duplicated `wicked-brain:ingest`; zero v8 role (cluster-A P0, 2026-04-25)
+- `smaht:libs` command — orphaned by v8 daemon-first architecture; zero v8 role (cluster-A P0, 2026-04-25)
+- Scenario `scenarios/smaht/06-context7-integration.md` retired (tombstone kept; test subject no longer exists)
+
 ## [8.0.0] - 2026-04-24
 
 ### Features

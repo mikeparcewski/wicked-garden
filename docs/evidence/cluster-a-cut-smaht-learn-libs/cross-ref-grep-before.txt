@@ -1,0 +1,38 @@
+CHANGELOG.md:1024:- feat: smaht:learn tracking, PostToolUse profiling, agent trigger analysis (50b0ff4)
+commands/help.md:32:| **smaht** | Intelligent context assembly from all sources | `smaht:briefing`, `smaht:debug`, `smaht:learn` |
+commands/smaht/learn.md:6:# /wicked-garden:smaht:learn
+commands/smaht/learn.md:15:/wicked-garden:smaht:learn react
+commands/smaht/learn.md:16:/wicked-garden:smaht:learn fastapi --version 0.115
+commands/smaht/learn.md:17:/wicked-garden:smaht:learn "next.js"
+commands/smaht/learn.md:18:/wicked-garden:smaht:learn react --remove
+commands/smaht/learn.md:19:/wicked-garden:smaht:learn --update-all
+commands/smaht/learn.md:46:To re-learn it: /wicked-garden:smaht:learn {library}
+commands/smaht/learn.md:158:To view all stored cheatsheets: /wicked-garden:smaht:libs
+commands/smaht/learn.md:175:To view all stored cheatsheets: /wicked-garden:smaht:libs
+commands/smaht/libs.md:3:  Use when you want to see which library cheatsheets have been cached locally via smaht:learn.
+commands/smaht/libs.md:4:  NOT for fetching new cheatsheets (use smaht:learn) or searching the brain index (use wicked-brain:search).
+commands/smaht/libs.md:8:# /wicked-garden:smaht:libs
+commands/smaht/libs.md:10:Show all library cheatsheets stored in the local knowledge base. Each cheatsheet was created by `/wicked-garden:smaht:learn` and is used automatically by the smaht context assembler to answer library questions without a live MCP call.
+commands/smaht/libs.md:15:/wicked-garden:smaht:libs
+commands/smaht/libs.md:16:/wicked-garden:smaht:libs --search react
+commands/smaht/libs.md:48:  /wicked-garden:smaht:learn {library}            — refresh with latest docs
+commands/smaht/libs.md:49:  /wicked-garden:smaht:learn {library} --remove   — remove a stale cheatsheet
+commands/smaht/libs.md:50:  /wicked-garden:smaht:learn --update-all         — refresh all cheatsheets
+commands/smaht/libs.md:72:  /wicked-garden:smaht:learn react
+commands/smaht/libs.md:73:  /wicked-garden:smaht:learn fastapi
+commands/smaht/libs.md:74:  /wicked-garden:smaht:learn "next.js"
+commands/smaht/libs.md:83:- Re-running `/wicked-garden:smaht:learn {library}` refreshes the cheatsheet and shows a diff of what changed.
+commands/smaht/libs.md:84:- Use `/wicked-garden:smaht:learn {library} --remove` to delete a stale cheatsheet.
+commands/smaht/libs.md:85:- Use `/wicked-garden:smaht:learn --update-all` to refresh all cached cheatsheets at once.
+docs/domains.md:66:| `smaht:learn` | Cache library docs via Context7 |
+docs/domains.md:67:| `smaht:libs` | List cached library cheatsheets |
+docs/v9/audit.md:111:| `smaht:learn` | KEEP-AS-IS | Context7 fetch + cheatsheet persist — unique workflow. | — |
+docs/v9/audit.md:112:| `smaht:libs` | KEEP-SHARPEN | Lists cached cheatsheets; description is bare. | description rewrite |
+scenarios/smaht/06-context7-integration.md:20:1. Library detection + fetching still works from the `smaht:learn` skill / command
+scenarios/smaht/06-context7-integration.md:32:### Step 1: Invoke the smaht:learn command
+scenarios/smaht/06-context7-integration.md:35:`/wicked-garden:smaht:learn <library>`. This replaces the v5 push-mode
+scenarios/smaht/06-context7-integration.md:39:/wicked-garden:smaht:learn react
+scenarios/smaht/06-context7-integration.md:77:Run `smaht:learn` on a library name that context7 is unlikely to have:
+scenarios/smaht/06-context7-integration.md:80:/wicked-garden:smaht:learn this-library-probably-does-not-exist
+scenarios/smaht/06-context7-integration.md:88:- [ ] `smaht:learn` invokes without error on a known library (react)
+scenarios/smaht/06-context7-integration.md:98:subagent) invokes `smaht:learn` when docs are wanted, and the result is
