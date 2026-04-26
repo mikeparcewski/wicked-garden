@@ -125,6 +125,29 @@ def test_low_threshold_produces_low():
     assert "r1" in why
 
 
+# ---------------------------------------------------------------------------
+# Calibration regression guards (added 2026-04-25 per council on PR #629)
+# Pin the new u1=2 weight so a future bump back to 3 fails loudly.
+# Without these, the cluster-A integration test (which uses u1=False)
+# would not catch a silent regression of the calibration fix.
+# ---------------------------------------------------------------------------
+
+def test_user_facing_impact_u1_alone_is_medium():
+    """AC-2 calibration: single u1=YES must read MEDIUM (was LOW with weight=3)."""
+    rubric = _rubric_for("user_facing_impact")
+    # u1 weight=2, medium_threshold=1 → 2 pts → MEDIUM (not LOW: low_threshold=3)
+    reading, _ = score_factor(rubric, {"u1": True})
+    assert reading == "MEDIUM"
+
+
+def test_user_facing_impact_u1_plus_u2_is_low():
+    """AC-2 calibration: two visible-surface YES answers must still reach LOW."""
+    rubric = _rubric_for("user_facing_impact")
+    # u1 (2) + u2 (2) = 4 pts ≥ low_threshold=3 → LOW (confirms LOW remains reachable)
+    reading, _ = score_factor(rubric, {"u1": True, "u2": True})
+    assert reading == "LOW"
+
+
 def test_why_string_includes_yes_question_ids():
     """AC-2: why field lists the IDs of questions answered yes."""
     rubric = _rubric_for("reversibility")
