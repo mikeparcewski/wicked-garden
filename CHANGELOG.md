@@ -12,6 +12,9 @@
 - All 9 `scenarios/mem/` scenarios — exercised dead slash commands removed in v8.0.0. (cluster-A P0, 2026-04-25)
 
 ### Changed
+- `smaht:debug` renamed to `smaht:state` — name now reflects what the command does (snapshot + report session state). v5→v6 archaeology section deleted. (cluster-A P1, 2026-04-25)
+- `smaht:events-query` relocated to `crew:activity` — project-infrastructure command belongs in the crew domain. All cross-references updated. (cluster-A P1, 2026-04-25)
+- `smaht:state`, `smaht:briefing`, `crew:status` now surface `wicked-garden:ground` as a next-step suggestion when context is thin. (cluster-A P1, 2026-04-25)
 - `agents/jam/brainstorm-facilitator.md` and `commands/jam/revisit.md` now query `wicked-brain:memory` directly for past decision recall (was: `wicked-garden:mem:memory-recaller` agent dispatch). (cluster-A P0, 2026-04-25)
 - `scripts/mem/session_fact_extractor.py` moved to `scripts/_brain_ingest/session_fact_extractor.py` — internal infrastructure relocation; no public API change. Caller `hooks/scripts/stop.py` updated. (cluster-A P0, 2026-04-25)
 - Hook chunk metadata now emits `source: wicked-brain:memory` (was: `source: wicked-garden:mem`) in `hooks/scripts/prompt_submit.py` and `hooks/scripts/pre_compact.py`. (cluster-A P0, 2026-04-25)

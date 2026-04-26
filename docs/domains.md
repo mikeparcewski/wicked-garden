@@ -62,9 +62,9 @@ The "brain" of the plugin. Intercepts every prompt via `UserPromptSubmit` and as
 | `smaht:onboard` | Guided codebase walkthrough + brain ingest |
 | `smaht:smaht` | On-demand context pull for the current topic |
 | `smaht:context` | Build a structured context package for subagents |
-| `smaht:debug` | Show what context was assembled and why |
+| `smaht:state` | Snapshot and report current session state |
 | `smaht:briefing` | Session briefing — what happened since last time |
-| `smaht:events-query` | Query the unified event log for cross-domain activity |
+| `crew:activity` | Query the unified event log for cross-domain project activity |
 | `smaht:events-import` | Import existing domain JSON records into the event log |
 | `smaht:collaborate` | Multi-AI CLI collaboration (discover, review, council) |
 | `smaht:onboard` | Intelligent codebase onboarding |

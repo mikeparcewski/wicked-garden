@@ -104,9 +104,9 @@ The push-orchestrator died in #428. What remains is mostly debug + import. The b
 | `smaht:briefing` | KEEP-SHARPEN | "What happened since last time" is a real ask. Sharpen trigger. | description rewrite |
 | `smaht:collaborate` | MERGE | Multi-AI CLI orchestration — overlaps with `jam:council`. | merge into `jam:council` |
 | `smaht:context` | CUT | Build structured context — that's what brain pull directives + Skill(smaht) already do. | brain pull directive |
-| `smaht:debug` | KEEP-SHARPEN | Session-state inspection — useful. Sharpen trigger lang. | description rewrite |
+| `smaht:state` | DONE | Renamed from `smaht:debug` (cluster-A P1, 2026-04-25) — name now matches what the command does. | — |
 | `smaht:events-import` | KEEP-AS-IS | One-shot historical migration — niche but unique. | — |
-| `smaht:events-query` | KEEP-AS-IS | Cross-domain event log — pillar #4. | — |
+| `crew:activity` | DONE | Relocated from `smaht:events-query` (cluster-A P1, 2026-04-25) — project infrastructure belongs in crew domain. | — |
 | `smaht:help` | CUT | Per-domain help overhead. | root help |
 | `smaht:learn` | CUT | Superseded by cluster-A P0 decision (2026-04-25): duplicates wicked-brain:ingest workflow. | wicked-brain:ingest |
 | `smaht:libs` | CUT | Superseded by cluster-A P0 decision (2026-04-25): orphaned by v8 daemon-first architecture. | — |

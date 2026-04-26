@@ -213,13 +213,13 @@ Every domain write is logged to a unified event store. Query cross-domain activi
 
 ```bash
 # What happened in the last 7 days?
-/wicked-garden:smaht:events-query --since 7d
+/wicked-garden:crew:activity --since 7d
 
 # What happened on a specific project?
-/wicked-garden:smaht:events-query --project my-project
+/wicked-garden:crew:activity --project my-project
 
 # Search for auth-related activity across all domains
-/wicked-garden:smaht:events-query --fts "auth migration"
+/wicked-garden:crew:activity --fts "auth migration"
 
 # Session briefing — what happened since last time
 /wicked-garden:smaht:briefing
