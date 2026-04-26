@@ -101,7 +101,10 @@ QUESTIONNAIRE: Dict[str, FactorRubric] = {
     "user_facing_impact": FactorRubric(
         name="user_facing_impact",
         questions=(
-            Question("u1", "Does this change produce a visible UI change, copy change, or new user-visible flow?", 3),
+            # u1 weight 2 (was 3) — calibrated 2026-04-25 after cluster-A field test:
+            # a single visible change should land MEDIUM, not LOW. LOW reading requires
+            # multiple visible surfaces affected. See discovery-conventions audit.
+            Question("u1", "Does this change produce a visible UI change, copy change, or new user-visible flow?", 2),
             Question("u2", "Does this change affect a public API response shape that callers consume directly?", 2),
             Question("u3", "Does this change affect an email, notification, or export format seen by end-users?", 2),
             Question("u4", "Does this change affect perceived latency, reliability, or cost in a way users will notice?", 1),
@@ -160,7 +163,11 @@ QUESTIONNAIRE: Dict[str, FactorRubric] = {
         questions=(
             Question("cc1", "Does this change require 3 or more specialists to agree before it can ship?", 3),
             Question("cc2", "Does this change require a contract negotiation between two services or teams?", 2),
-            Question("cc3", "Does this change require a design + build handoff across different specialists?", 2),
+            # cc3 reworded 2026-04-25 after cluster-A field test: the original "across
+            # different specialists" trips YES whenever the facilitator picks 2+ agents,
+            # even when one contributor dispatches all of them with no human handoff.
+            # Coordination cost is about humans negotiating, not agents being dispatched.
+            Question("cc3", "Does this change require a design + build handoff across different humans (not just different agents dispatched by the same person)?", 2),
             Question("cc4", "Does this change require a product + engineering alignment on scope or acceptance criteria?", 1),
         ),
         medium_threshold=1,
