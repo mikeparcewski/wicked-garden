@@ -1,0 +1,42 @@
+{
+  "pr": 621,
+  "commit": "b6fc435",
+  "session_id": "51fff104-62c2-42a8-ab81-77242f654251",
+  "verdict": "APPROVE",
+  "vote_tally": {
+    "APPROVE": 5,
+    "CONDITIONAL": 0,
+    "REJECT": 0
+  },
+  "agreement_ratio": 1.0,
+  "models_participating": [
+    "Claude",
+    "Codex",
+    "OpenCode",
+    "Pi",
+    "Copilot"
+  ],
+  "models_unavailable": [
+    "Gemini (429 capacity)",
+    "Aider (unconfigured)",
+    "llm (unconfigured)",
+    "aichat (unconfigured)",
+    "Goose (unconfigured)"
+  ],
+  "prior_verdict": "CONDITIONAL 5-0",
+  "prior_blocker": "C1 \u2014 shutil.which(npx) false positive on Node-only machines",
+  "c1_resolved": true,
+  "advisory_a1_status": "advisory-only, not in scope, confirmed not re-raised as blocker",
+  "risk_convergence": {
+    "high_signal_3_plus": [
+      "2.0s probe timeout potential false-negative on slow CI (performance concern, not correctness)"
+    ],
+    "notable_1_2": [
+      "npx --no-install exit 0 on some platform when wicked-testing absent (theoretical only, no evidence)"
+    ]
+  },
+  "hitl_rule_id": "gate-policy:review.standard",
+  "hitl_dispatch_mode": "BLEND panel, quorum met (5 of 10 total roster; Gemini 429, 4 unconfigured)",
+  "remaining_blockers": [],
+  "timestamp": "2026-04-24T18:04:00Z"
+}

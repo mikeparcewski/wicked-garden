@@ -1,0 +1,80 @@
+{
+  "council_session": "council-pr615-reeval-20260424115554",
+  "pr": "#615",
+  "branch": "v8/pr-4-council-daemon-binary",
+  "fixup_commit": "80bfb3a",
+  "evaluation_date": "2026-04-24",
+  "previous_verdict": {
+    "summary": "2 APPROVE / 3 CONDITIONAL",
+    "hitl_rule_id": "council.split-verdict",
+    "convergent_condition": "real-subprocess timeout test required; mocks insufficient"
+  },
+  "models_participating": ["Claude", "Codex", "Gemini", "OpenCode", "Pi", "Copilot"],
+  "models_unavailable": ["llm (no API key)", "aichat (no config)", "aider (no provider)", "goose (no provider)"],
+  "votes": [
+    {
+      "model": "Claude",
+      "verdict": "APPROVE",
+      "top_risk": "Wall-clock ceiling (3.0s) is generous enough that mild serialization would still pass; 1.01s actual is strong but lacks an explicit lower-bound proof.",
+      "what_would_change_mind": "Evidence that subprocess.run is intercepted by a fixture or conftest not visible in the excerpts."
+    },
+    {
+      "model": "Codex",
+      "verdict": "APPROVE",
+      "top_risk": "Over-interpreting 1.01s as a complete concurrency proof — one bounded integration scenario, not a broader stress test under varied scheduler load.",
+      "what_would_change_mind": "Evidence that run_council can serialize under real subprocess execution in another supported path, or the integration test bypasses the real production timeout mechanism."
+    },
+    {
+      "model": "Gemini",
+      "verdict": "APPROVE",
+      "top_risk": "CI flakiness — real-subprocess tests susceptible to timing jitter under CPU steal; 3.0s ceiling is generous but could produce false negatives on resource-constrained runners.",
+      "what_would_change_mind": "Evidence of mock-leakage or serial execution — if daemon.council uses a hidden internal timer rather than true threading with subprocess.run."
+    },
+    {
+      "model": "OpenCode",
+      "verdict": "APPROVE",
+      "top_risk": "Wall-clock ceiling is generous; test lacks an explicit lower-bound assertion to catch a no-op or short-circuit regression where the hang CLI never actually launches.",
+      "what_would_change_mind": "Evidence that subprocess.run is intercepted by a fixture/conftest; CI run showing wall-clock >= ceiling; _CLI_ARGV patching shown to bypass subprocess.run code path."
+    },
+    {
+      "model": "Pi",
+      "verdict": "APPROVE",
+      "top_risk": "Wall-clock ceiling is generous; test lacks explicit lower-bound assertion. Imposing new conditions beyond the original review = scope creep.",
+      "what_would_change_mind": "Evidence subprocess.run is intercepted by fixture; CI run >= ceiling; _CLI_ARGV patching bypasses subprocess.run path."
+    },
+    {
+      "model": "Copilot",
+      "verdict": "APPROVE",
+      "top_risk": "_cli_available is patched to always return True, bypassing availability-check code path; if council.py has early-return branches before reaching subprocess.run those remain untested.",
+      "what_would_change_mind": "Evidence conftest.py patches subprocess.run globally; evidence _CLI_ARGV redirect routes through independent internal timeout rather than subprocess.run(timeout=...); third case showing _cli_available bypass masks a production branch."
+    }
+  ],
+  "vote_tally": {
+    "APPROVE": 6,
+    "CONDITIONAL": 0,
+    "REJECT": 0
+  },
+  "agreement_ratio": 1.0,
+  "risk_convergence": {
+    "high_signal_3_plus_models": [
+      "Wall-clock ceiling (3.0s) is generous — test lacks a tight lower-bound assertion to prove parallelism is mandatory rather than coincidental",
+      "CI timing jitter on resource-constrained runners could cause occasional flakiness"
+    ],
+    "notable_1_to_2_models": [
+      "Copilot: _cli_available patch bypasses availability-check code paths — dispatch paths before subprocess.run are untested",
+      "Codex: 1.01s observation is one bounded scenario, not a stress test across scheduler/load variations"
+    ]
+  },
+  "pi_c2_advisory": {
+    "status": "CLOSED",
+    "disposition": "Advisory — 4 inline docstrings in daemon/council.py address the ADR mutation carve-out. Proportionate. All 6 models confirm not a blocker."
+  },
+  "hitl_judge": {
+    "rule_id": "council.split-verdict",
+    "previous_trigger": "2 APPROVE / 3 CONDITIONAL",
+    "current_result": "6 APPROVE / 0 CONDITIONAL / 0 REJECT",
+    "decision": "HITL PAUSE LIFTED — full consensus achieved, blocking condition resolved",
+    "action": "PR #615 may advance to merge"
+  },
+  "verdict": "APPROVE — 6-0 unanimous. The single convergent condition (real-subprocess timeout test) is conclusively met by commit 80bfb3a. No remaining blockers."
+}

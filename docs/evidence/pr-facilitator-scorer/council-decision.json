@@ -1,0 +1,42 @@
+{
+  "council_session_id": "council-pr626-reeval-2300163",
+  "pr": 626,
+  "fixup_commit": "2300163",
+  "evaluated_at": "2026-04-23",
+  "prior_verdict": "4 CONDITIONAL / 1 APPROVE",
+  "verdict": "APPROVE",
+  "vote_matrix": {
+    "Claude":    { "vote": "APPROVE", "disqualifier": "None" },
+    "Codex":     { "vote": "APPROVE", "disqualifier": "REJECT unviable" },
+    "OpenCode":  { "vote": "APPROVE", "disqualifier": "None" },
+    "Pi":        { "vote": "APPROVE", "disqualifier": "None" },
+    "Copilot":   { "vote": "APPROVE", "disqualifier": "REJECT unviable" }
+  },
+  "agreement_ratio": 1.0,
+  "models_participated": 5,
+  "models_excluded": {
+    "Gemini":  "stdin pipe not received — only stderr hook errors in output",
+    "Aider":   "no API key configured",
+    "llm":     "no OpenAI key set",
+    "aichat":  "config.yaml missing",
+    "Goose":   "no provider configured"
+  },
+  "conditions_resolved": {
+    "C1_scope_effort_s4_split": true,
+    "C2_compliance_c4_factual": true,
+    "C3_post_init_assertion":   true,
+    "C4_risk_level_field":      true
+  },
+  "risk_convergence": {
+    "high_signal_3plus_models": [
+      "documentation drift: consumers outside the 3 changed files may still assume output is {reading,why} only"
+    ],
+    "notable_1_to_2_models": [
+      "s4a+s4b overlap with s1 makes 21-file single-service changes hit low_threshold=5 immediately (Pi, Claude)",
+      "_RISK_INVERSION HIGH->low_risk semantics counter-intuitive without docs (Copilot)"
+    ]
+  },
+  "hitl_rule_id": "council.unanimous.approve",
+  "blockers": [],
+  "recommendation": "Merge PR #626. No blocking conditions remain."
+}

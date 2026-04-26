@@ -1,0 +1,86 @@
+{
+  "session_id": "pr-605-council-1777030057",
+  "topic": "v9-PR-3: 70 KEEP-SHARPEN rewrites + 27 MERGE consolidations + data:numbers cut + sweep",
+  "pr": 605,
+  "branch": "v9/pr-3-sharpen-merge",
+  "timestamp": "2026-04-24T11:27:37.320719Z",
+  "models_invoked": [
+    "Claude",
+    "Gemini",
+    "Pi",
+    "OpenCode",
+    "Copilot",
+    "Codex"
+  ],
+  "models_unavailable": [
+    "llm",
+    "aichat",
+    "goose",
+    "aider"
+  ],
+  "votes": [
+    {
+      "model": "Claude",
+      "verdict": "APPROVE",
+      "confidence": 0.82,
+      "rationale": "All 5 criteria pass. Clean greps, correct Skill() contract, 635/635 tests, wicked-brain:memory args= string format matches codebase-wide convention."
+    },
+    {
+      "model": "Gemini",
+      "verdict": "APPROVE",
+      "confidence": 0.8,
+      "rationale": "All criteria pass. Stale docs in skills/ are documentation drift risk, not runtime risk. Structural soundness high."
+    },
+    {
+      "model": "Pi",
+      "verdict": "APPROVE",
+      "confidence": 0.85,
+      "rationale": "All 5 criteria pass cleanly. Residual mem:store refs in skills docs are scoped carryover. External integration coverage is the only open question."
+    },
+    {
+      "model": "OpenCode",
+      "verdict": "APPROVE",
+      "confidence": 0.8,
+      "rationale": "All five criteria pass. Evidence is conclusive. Docs drift in skills/ is known, intentional deferral."
+    },
+    {
+      "model": "Copilot",
+      "verdict": "CONDITIONAL",
+      "confidence": 0.65,
+      "rationale": "Concern: 6 receiving skills may have empty bodies after merge. Self-stated: would reverse to APPROVE if receiving skill bodies contain substantive content (confirmed: refs/ trees exist on PR branch)."
+    },
+    {
+      "model": "Codex",
+      "verdict": "CONDITIONAL",
+      "confidence": 0.7,
+      "rationale": "Concern: wicked-brain:memory args= string format may not match structured-params contract. Note: this concern is refuted by codebase-wide convention of args=\"store ...\" string format across 8+ call sites."
+    }
+  ],
+  "tally": {
+    "APPROVE": 4,
+    "CONDITIONAL": 2,
+    "REJECT": 0
+  },
+  "hitl_judge": {
+    "pause": true,
+    "reason": "split verdict (top two within 2 vote): {'APPROVE': 4, 'CONDITIONAL': 2}",
+    "rule_id": "council.split-verdict",
+    "signals": {
+      "vote_count": 6,
+      "tally": {
+        "APPROVE": 4,
+        "CONDITIONAL": 2
+      },
+      "lowest_confidence": 0.65,
+      "lowest_confidence_model": "Copilot",
+      "synthesize_quorum": 3
+    }
+  },
+  "synthesized_verdict": "CONDITIONAL",
+  "synthesis_note": "HITL judge fires pause=True on split-verdict rule. Both CONDITIONAL votes rest on concerns that are refutable by direct evidence inspection (Copilot: refs/ trees confirmed present; Codex: args-string call convention confirmed by 8+ codebase examples). Recommend human adjudication to confirm or override.",
+  "critical_concerns": [
+    "Copilot: receiving skill bodies may lack substantive content \u2014 REFUTED: agentic-patterns, review-methodology, compliance all have refs/ with substantive content confirmed on PR branch.",
+    "Codex: wicked-brain:memory args-string format may not match contract \u2014 REFUTED: skills/integration-discovery, skills/product, skills/product/strategy all use identical args=\"store ...\" pattern.",
+    "Both models: residual mem:store refs in skills/multi-model, skills/workflow doc examples \u2014 CONFIRMED but out of scope for this PR (skill examples vs operational paths)."
+  ]
+}

@@ -1,0 +1,12 @@
+=== data:numbers ===
+(no hits)
+=== wicked-garden:agentic:ask ===
+(no hits)
+=== wicked-garden:crew:cutover ===
+(no hits)
+=== wicked-garden:crew:migrate-gates ===
+(no hits)
+=== wicked-garden:crew:yolo ===
+(no hits)
+=== wicked-garden:mem:store ===
+scripts/ci/gate4-cutover-matrix.md:40:| **Memory payload emission** — `memory_payload` field on JSON output; caller (start.md / execute.md) stores via `/wicked-garden:mem:store` | Rubric writes `process-plan.md` to the project directory (Step 2) + explicit `wicked-brain:memory` store call for "non-obvious decisions, patterns, gotchas" per the project CLAUDE.md. The Gate 3 wiring in `commands/crew/start.md` Section A includes a brain-memory store for the facilitator plan (line ~182). | **NO** — process-plan.md is the durable artifact; brain memory stores are explicit, not keyword-gated. Richer than v5. |

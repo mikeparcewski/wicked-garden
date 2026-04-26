@@ -1,0 +1,59 @@
+{
+  "pr": 619,
+  "branch": "v8/pr-6-single-autonomy-flag",
+  "fix_up_commit": "8bd12a7",
+  "council_session": "council-pr619-rerun-20260423",
+  "council_date": "2026-04-23",
+  "models_responding": [
+    "Claude",
+    "Codex",
+    "Gemini",
+    "OpenCode",
+    "Pi",
+    "Copilot"
+  ],
+  "models_failed": [
+    "Aider (no auth)",
+    "llm (no key)",
+    "aichat (no config)",
+    "Goose (no config)"
+  ],
+  "votes": {
+    "Claude": "APPROVE",
+    "Codex": "APPROVE",
+    "Gemini": "APPROVE",
+    "OpenCode": "APPROVE",
+    "Pi": "APPROVE",
+    "Copilot": "APPROVE"
+  },
+  "vote_tally": {
+    "APPROVE": 6,
+    "CONDITIONAL": 0,
+    "REJECT": 0
+  },
+  "agreement_ratio": 1.0,
+  "verdict": "APPROVE",
+  "verdict_summary": "Council recommends APPROVE (6-0). Prior blocker (stub clobber of PR-5 acceptance_criteria.py) conclusively resolved with 0-byte diff. API alignment correct. 916 tests green.",
+  "prior_verdict": "4 CONDITIONAL / 1 REJECT (HITL pause)",
+  "hitl_rule": {
+    "rule_id": "hitl-clobber-risk",
+    "triggered_by": "PR-6 stub would overwrite PR-5 production module",
+    "resolved": true,
+    "resolution": "Bit-identical 0-byte diff against main; stub deleted"
+  },
+  "convergent_risks": [
+    "Silent fallback in _check_ac_gate (except Exception returns None => balanced mode): cited by Gemini, Copilot",
+    "Dict fallback preference inversion (legacy .satisfied=True dicts now unsatisfied): cited by OpenCode",
+    "Latent .satisfied references elsewhere in codebase: cited by Pi, Codex"
+  ],
+  "remaining_blockers": [],
+  "criteria_results": {
+    "clobber_resolved": "PASS \u2014 0-byte diff verified",
+    "api_alignment": "PASS \u2014 .satisfied_by first, dict fallback corrected",
+    "pr5_tests_preserved": "PASS \u2014 36/36 direct + 916 full suite",
+    "yolo_comment": "PASS \u2014 comment present, precise wording",
+    "no_regressions": "PASS \u2014 916 pass, 3 deselected (pre-existing)",
+    "scope_discipline": "PASS \u2014 only autonomy.py + test/evidence changed"
+  },
+  "generated_at": "2026-04-24T17:17:51.477275+00:00"
+}
