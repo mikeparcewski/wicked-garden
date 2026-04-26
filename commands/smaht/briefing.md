@@ -1,7 +1,7 @@
 ---
 description: |
   Use when starting a new session and you want to know what happened since the last one — recent events,
-  active crew projects, and memory updates. NOT for live session state inspection (use smaht:debug).
+  active crew projects, and memory updates. NOT for live session state inspection (use smaht:state).
 argument-hint: "[--days N] [--project name]"
 ---
 
@@ -116,3 +116,7 @@ Suggest ONE related command based on the briefing content:
 - If brainstorm outcomes with no follow-up → suggest `jam:revisit`
 
 Keep it to ONE suggestion. Frame as: "You might find X useful because..."
+
+### When context is thin
+
+If the briefing doesn't give you enough to orient — no active project, sparse events, or missing decisions — invoke `wicked-garden:ground` to pull richer brain + bus context before proceeding.

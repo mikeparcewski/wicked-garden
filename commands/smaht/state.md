@@ -1,24 +1,21 @@
 ---
 description: |
-  Use when context assembly seems wrong or you need to inspect live SessionState, adapter outputs, or
-  smaht directive settings. NOT for what-happened-since-last-session (use smaht:briefing).
+  Use when you need to inspect live SessionState, adapter outputs, or smaht directive settings.
+  NOT for what-happened-since-last-session (use smaht:briefing).
 argument-hint: "[--state] [--events N] [--json]"
 ---
 
-# /wicked-garden:smaht:debug
+# /wicked-garden:smaht:state
 
-Show session state and recent events for debugging context assembly. v6 removed
-the per-turn push orchestrator (#428), so there is no HOT/FAST/SLOW routing log
-to surface. This command now shows what lives in `SessionState` plus the last N
-events on the bus.
+Snapshot and report current session state and recent events.
 
 ## Usage
 
 ```bash
-/wicked-garden:smaht:debug              # SessionState + last 10 events
-/wicked-garden:smaht:debug --state       # SessionState only
-/wicked-garden:smaht:debug --events 20   # Show last 20 events
-/wicked-garden:smaht:debug --json        # Raw JSON output
+/wicked-garden:smaht:state              # SessionState + last 10 events
+/wicked-garden:smaht:state --state       # SessionState only
+/wicked-garden:smaht:state --events 20   # Show last 20 events
+/wicked-garden:smaht:state --json        # Raw JSON output
 ```
 
 ## Instructions
@@ -90,9 +87,6 @@ Display:
 **Process plan**: `{project_dir}/process-plan.md`
 ```
 
-## v5 → v6 Notes
+### When context is thin
 
-The v5 HistoryCondenser + PressureTracker + ticket rail have all been removed.
-Session context now lives in `SessionState` (simple key/value state) and the
-wicked-bus event log. The facilitator's `process-plan.md` is the durable
-artifact that used to be the "ticket rail."
+If the output above doesn't surface what you need, invoke `wicked-garden:ground` to pull richer brain + bus context for the current task.

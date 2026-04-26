@@ -1,0 +1,28 @@
+# Pre-change sweep: smaht:debug + smaht:events-query
+# Run: grep -rn "smaht:debug\|smaht:events-query" . --include="*.md" --include="*.py" --include="*.json" --exclude-dir=.git --exclude-dir=docs/cluster-a --exclude-dir=docs/evidence
+# Captured before any edits on branch cluster-a/p1-smaht-rename-events-ground
+
+./CHANGELOG.md:700:- `/wicked-garden:smaht:debug` output shape changed — no more HOT/FAST/SLOW
+./CHANGELOG.md:1131:- feat: `smaht:events-query` command — cross-domain activity queries with --domain, --project, --since, --fts flags
+./docs/domains.md:65:| `smaht:debug` | Show what context was assembled and why |
+./docs/domains.md:67:| `smaht:events-query` | Query the unified event log for cross-domain activity |
+./docs/advanced.md:216:/wicked-garden:smaht:events-query --since 7d
+./docs/advanced.md:219:/wicked-garden:smaht:events-query --project my-project
+./docs/advanced.md:222:/wicked-garden:smaht:events-query --fts "auth migration"
+./docs/v9/audit.md:107:| `smaht:debug` | KEEP-SHARPEN | Session-state inspection — useful. Sharpen trigger lang. | description rewrite |
+./docs/v9/audit.md:109:| `smaht:events-query` | KEEP-AS-IS | Cross-domain event log — pillar #4. | — |
+./commands/help.md:32:| **smaht** | Intelligent context assembly from all sources | `smaht:briefing`, `smaht:debug`, `smaht:events-query` |
+./commands/smaht/briefing.md:4:  active crew projects, and memory updates. NOT for live session state inspection (use smaht:debug).
+./commands/smaht/debug.md:8:# /wicked-garden:smaht:debug
+./commands/smaht/debug.md:18:/wicked-garden:smaht:debug              # SessionState + last 10 events
+./commands/smaht/debug.md:19:/wicked-garden:smaht:debug --state       # SessionState only
+./commands/smaht/debug.md:20:/wicked-garden:smaht:debug --events 20   # Show last 20 events
+./commands/smaht/debug.md:21:/wicked-garden:smaht:debug --json        # Raw JSON output
+./commands/smaht/events-query.md:6:# /wicked-garden:smaht:events-query
+./commands/smaht/events-query.md:57:/wicked-garden:smaht:events-query --since 7d
+./commands/smaht/events-query.md:60:/wicked-garden:smaht:events-query --project my-project
+./commands/smaht/events-query.md:63:/wicked-garden:smaht:events-query --fts "auth migration"
+./commands/smaht/events-query.md:66:/wicked-garden:smaht:events-query --domain crew --action "phases.*"
+./commands/smaht/events-import.md:87:Query with: `/wicked-garden:smaht:events-query --fts migrated`
+
+Total live references: 22 (across 10 files)

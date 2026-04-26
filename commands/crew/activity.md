@@ -3,9 +3,9 @@ description: "Query the unified event log for cross-domain activity"
 argument-hint: "[--domain D] [--project P] [--since 7d] [--fts 'search terms'] [--action A] [--limit N]"
 ---
 
-# /wicked-garden:smaht:events-query
+# /wicked-garden:crew:activity
 
-Query the unified event log to see cross-domain activity.
+Query the unified event log to see cross-domain project activity.
 
 ## Instructions
 
@@ -54,14 +54,14 @@ If `--json` flag, output raw JSON.
 
 ```bash
 # What happened in the last 7 days?
-/wicked-garden:smaht:events-query --since 7d
+/wicked-garden:crew:activity --since 7d
 
 # What happened on project X?
-/wicked-garden:smaht:events-query --project my-project
+/wicked-garden:crew:activity --project my-project
 
 # Search for auth-related events
-/wicked-garden:smaht:events-query --fts "auth migration"
+/wicked-garden:crew:activity --fts "auth migration"
 
 # All crew phase transitions
-/wicked-garden:smaht:events-query --domain crew --action "phases.*"
+/wicked-garden:crew:activity --domain crew --action "phases.*"
 ```

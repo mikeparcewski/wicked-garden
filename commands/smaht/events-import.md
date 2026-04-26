@@ -84,7 +84,7 @@ for source_dir in domain_dir.iterdir():
 | **Total** | **80** | **0** |
 
 Events are tagged with `migrated` for easy filtering.
-Query with: `/wicked-garden:smaht:events-query --fts migrated`
+Query with: `/wicked-garden:crew:activity --fts migrated`
 ```
 
 ### Flags

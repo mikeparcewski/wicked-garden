@@ -196,3 +196,7 @@ Based on current state:
 - If operate phase active: suggest `/wicked-garden:crew:incident`, `/wicked-garden:crew:feedback`, or `/wicked-garden:crew:retro`
 - If convergence stalls surfaced: suggest `/wicked-garden:crew:convergence stall` for the full view
 - If project complete: show completion summary
+
+### When context is thin
+
+If the status output doesn't give you enough to decide the next step — no active project, ambiguous phase state, or missing signals — invoke `wicked-garden:ground` to pull richer brain + bus context for the current work.
