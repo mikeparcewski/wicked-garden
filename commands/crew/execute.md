@@ -273,7 +273,7 @@ When a checkpoint phase completes:
    ```
    The skill reads the prior plan + new context and emits a diff plan (new factor
    readings, any phase additions/demotions, any rigor_tier change). See
-   `skills/propose-process/SKILL.md#Re-evaluation mode`.
+   `agents/crew/process-facilitator.md#Re-evaluation mode`.
 3. **Compare factors AND complexity**: Diff new `factors` against project.json
    `factors`, AND compare new `complexity` against `complexity_score`
 4. **If factor readings shift OR complexity increased**:
