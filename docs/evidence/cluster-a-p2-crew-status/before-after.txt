@@ -1,0 +1,123 @@
+BEFORE (empty-state — project just created, no phases started)
+================================================================
+
+## wicked-garden:crew Project Status
+
+**Project**: my-feature
+**Phase**: none
+**Status**: pending
+**Complexity**: 0/7 (review tier: minimal)
+
+### Phase Progress
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| clarify | pending |  |
+| design | pending |  |
+| qe | pending |  |
+| build | pending |  |
+| review | pending |  |
+
+### Available Integrations (Level 1)
+
+| Plugin | Status | Used In |
+|--------|--------|---------|
+| jam | built-in | clarify |
+| search | built-in | design |
+| product | built-in | qe, review |
+| mem | built-in | all phases |
+| wicked-brain | not running | context assembly |
+
+### Next Steps
+
+No phases started. Run `/wicked-garden:crew:start` to begin.
+
+---
+
+PROBLEM: "Phase Progress" header renders with 5 hardcoded rows even when
+the project has no phase plan and no phases have been started. These rows
+carry no information — they are all "pending" and reflect defaults, not
+the actual project state. The header is noise.
+
+
+AFTER (empty-state — project just created, no phases started)
+=============================================================
+
+## wicked-garden:crew Project Status
+
+**Project**: my-feature
+**Phase**: none
+**Status**: pending
+**Complexity**: 0/7 (review tier: minimal)
+
+### Available Integrations (Level 1)
+
+| Plugin | Status | Used In |
+|--------|--------|---------|
+| jam | built-in | clarify |
+| search | built-in | design |
+| product | built-in | qe, review |
+| mem | built-in | all phases |
+| wicked-brain | not running | context assembly |
+
+### Next Steps
+
+No phases started. Run `/wicked-garden:crew:start` to begin.
+
+---
+
+FIX: "Phase Progress" header is suppressed when phases dict is empty.
+No empty table, no placeholder rows, no noise.
+
+
+AFTER (populated-state — project mid-flight at build phase)
+===========================================================
+
+## wicked-garden:crew Project Status
+
+**Project**: my-feature
+**Phase**: build
+**Status**: in_progress
+**Complexity**: 4/7 (review tier: standard)
+
+### Phase Progress
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| clarify | approved |  |
+| design | approved |  |
+| build | in_progress |  |
+
+### Available Integrations (Level 2)
+
+| Plugin | Status | Used In |
+|--------|--------|---------|
+| jam | built-in | clarify |
+| search | built-in | design |
+| product | built-in | qe, review |
+| mem | built-in | all phases |
+| wicked-brain | available | context assembly |
+
+### Next Steps
+
+Build phase in progress. Run `/wicked-garden:crew:execute` to continue.
+
+---
+
+FIX: "Phase Progress" renders with only the phases actually in the
+project plan (clarify, design, build) — not 5 hardcoded defaults.
+Rows reflect actual phase statuses, not placeholder "pending" values.
+
+
+SECTIONS FIXED
+==============
+
+1. Phase Progress — suppressed when phases dict is empty; rows driven
+   from actual phases dict (not hardcoded 5-phase list) when non-empty.
+
+2. Available Integrations — remains always-rendered (intentional: the
+   integration level is always relevant context). Added explicit guard
+   to clarify: skip only if plugin detection produced no output at all.
+
+3. Next Steps — explicitly declared always-rendered (intentional: this
+   IS the empty-state signal).

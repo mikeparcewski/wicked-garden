@@ -61,17 +61,23 @@ Based on available plugins:
 **Phase**: {current_phase}
 **Status**: {status}
 **Complexity**: {complexity}/7 (review tier: {review_tier})
+```
 
+Only render `### Phase Progress` when the `phases` dict from `phase_manager.py status --json` is non-empty. If `phases` is empty (project has no phases started yet), skip this section entirely — do not emit the header or an empty table.
+
+When phases exist, render one row per phase from the actual `phases` dict (do not hardcode clarify/design/qe/build/review):
+
+```markdown
 ### Phase Progress
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| clarify | {status} | {notes} |
-| design | {status} | {notes} |
-| qe | {status} | {notes} |
-| build | {status} | {notes} |
-| review | {status} | {notes} |
+| {phase} | {status} | {notes} |
+```
 
+Only render `### Available Integrations` when the integration check in Step 3 returns at least one integration result. Always render it when plugin detection produced results (even if all are "not running") — the integration level itself is the signal. Skip the header only if the plugin detection step produced no output at all (e.g., command unavailable).
+
+```markdown
 ### Available Integrations (Level {n})
 
 | Plugin | Status | Used In |
@@ -81,7 +87,11 @@ Based on available plugins:
 | product | built-in | qe, review |
 | mem | built-in | all phases |
 | wicked-brain | {running/not running} | context assembly |
+```
 
+Always render `### Next Steps` — this section IS the empty-state signal when no phases or actions are active:
+
+```markdown
 ### Next Steps
 
 {Based on current phase and status}
