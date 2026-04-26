@@ -18,8 +18,11 @@ Requirement: the same diff must add a scenario file matching:
     scenarios/**/*pattern*.md, *shape*.md, *dispatch*.md
 
 Behavior: ERROR (exit 1, blocks CI) if signal detected and no matching
-scenario. Fail-open (exit 0) if `git diff` returns empty -- e.g. running on
-main with no PR context.
+scenario. Fail-open (exit 0) under TWO conditions:
+    1. `git diff` returns empty -- e.g. running on main with no PR context.
+    2. `git diff` command fails (returns None) -- e.g. missing base ref,
+       shallow clone, or other git failure. A WARNING is printed in this case
+       so the cause is visible in CI logs.
 
 Threshold rationale: 40% shrink + same-PR new agent is the safe combo.
 PR #666 went from ~120 to 43 lines (64% drop). Tuning lower would catch
@@ -79,18 +82,24 @@ def resolve_base_ref() -> str:
 
     F11 (#675 sweep): the previous implementation special-cased the literal
     ``"main"`` as already-fully-qualified, but that left ambiguity between the
-    local branch and the remote-tracking ref. We now ALWAYS prepend ``origin/``
-    when the ref doesn't already include a remote prefix, matching the
-    "compare PR head to the remote base" semantics the gate is documented to
-    enforce. To opt out, set ``WG_PR_BASE_REF=main`` explicitly with a
-    pre-stripped value -- the env var wins regardless and short-circuits the
-    normalization (the env var is treated as caller-authoritative).
+    local branch and the remote-tracking ref. We now prepend ``origin/`` when
+    the ref doesn't already carry a recognised remote/refs prefix, matching
+    the "compare PR head to the remote base" semantics the gate is documented
+    to enforce. To opt out, set ``WG_PR_BASE_REF`` explicitly -- the env var
+    wins regardless and short-circuits the normalization (the env var is
+    treated as caller-authoritative).
+
+    Bug 1 (#676 sweep): the previous check used ``"/" not in base`` to detect
+    "needs origin prefix", but branches like ``feature/migration`` or
+    ``releases/v8.4`` already contain slashes and would skip the prefix --
+    causing git diff to look for a non-existent local ref. We now check for
+    explicit remote/refs prefixes instead.
     """
     explicit = os.environ.get("WG_PR_BASE_REF")
     if explicit:
         return explicit
     base = os.environ.get("GITHUB_BASE_REF") or "origin/main"
-    if "/" not in base:
+    if not base.startswith(("origin/", "upstream/", "refs/")):
         base = f"origin/{base}"
     return base
 
@@ -99,7 +108,13 @@ def main() -> int:
     base_ref = resolve_base_ref()
     diff_range = f"{base_ref}...HEAD"
 
-    name_status = run(["git", "diff", "--name-status", diff_range])
+    # Bug 2 (#676 sweep): pass `-c core.quotePath=false` so paths with spaces
+    # or non-ASCII characters are emitted verbatim. Default git quoting wraps
+    # such paths in `"..."` which then breaks subsequent `path.startswith` and
+    # `git show {ref}:{path}` calls.
+    name_status = run(
+        ["git", "-c", "core.quotePath=false", "diff", "--name-status", diff_range]
+    )
     if name_status is None:
         # F10 (#675 sweep): a real git error (missing ref, shallow checkout) --
         # surface explicitly instead of pretending the diff was empty. Still
@@ -161,8 +176,23 @@ def main() -> int:
             # Direct line-count comparison sidesteps both problems.
             base_blob = run(["git", "show", f"{base_ref}:{old_path}"])
             head_blob = run(["git", "show", f"HEAD:{new_path}"])
-            base_lines = base_blob.count("\n") if base_blob else 0
-            head_lines = head_blob.count("\n") if head_blob else 0
+            # Bug 4 (#676 sweep): if either git show failed (returned None),
+            # we can't compare line counts honestly -- treating None as "" gave
+            # 0 lines on the failing side and produced false-positive 100%
+            # shrink readings. Skip the file with a warning instead.
+            if base_blob is None or head_blob is None:
+                missing = "base" if base_blob is None else "head"
+                sys.stderr.write(
+                    f"WARNING: skipping shrink check for {path} -- {missing} blob "
+                    f"unavailable (git show failed for {old_path if missing == 'base' else new_path})\n"
+                )
+                continue
+            # Bug 3 (#676 sweep): blob.count('\n') undercounts files that lack
+            # a trailing newline (a 1-line file with no final \n returns 0 and
+            # is silently skipped). splitlines() handles both cases the same
+            # way: "foo\nbar" -> 2 lines, "foo\nbar\n" -> 2 lines, "" -> 0.
+            base_lines = len(base_blob.splitlines())
+            head_lines = len(head_blob.splitlines())
             if base_lines == 0:
                 continue
             shrink = (base_lines - head_lines) / base_lines

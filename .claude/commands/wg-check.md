@@ -876,10 +876,18 @@ one of these patterns (any domain):
 - `scenarios/**/*pattern*.md`, `scenarios/**/*shape*.md`, `scenarios/**/*dispatch*.md`
 
 **Behavior**: ERROR locally (and surfaces in `wg-check` output) if signal
-detected and no matching scenario; fail-open if `git diff origin/main...HEAD`
-returns empty (running on main with no PR context). The 40% threshold + same-PR
-new-agent requirement is calibrated so that incremental skill polish never
-trips the gate — only true Pattern A migrations do.
+detected and no matching scenario. The gate fail-opens (exits 0 with a
+non-blocking message) under TWO conditions:
+
+1. `git diff origin/main...HEAD` returns empty (running on main with no PR
+   context) — prints `OK: no PR diff against {base_ref} ...`.
+2. `git diff` itself fails (returns None) — e.g. missing base ref, shallow
+   clone, or other git failure. Prints a `WARNING: ...` line so the cause
+   is visible in CI logs.
+
+The 40% threshold + same-PR new-agent requirement is calibrated so that
+incremental skill polish never trips the gate — only true Pattern A
+migrations do.
 
 > **CI integration status (F12, #675 sweep)**: The Pattern A gate is currently
 > **advisory locally** — it surfaces during `wg-check` runs and prints an ERROR
@@ -915,19 +923,25 @@ def run(cmd):
         sys.stderr.write('WARNING: ' + ' '.join(cmd) + ' raised ' + repr(exc) + '\n')
         return None
 
-# F11 (#675 sweep): always prepend origin/ when the ref has no remote prefix.
+# F11 (#675 sweep): prepend origin/ when the ref has no remote prefix.
 # WG_PR_BASE_REF is treated as caller-authoritative (escape hatch).
+# Bug 1 (#676 sweep): use a startswith check on known remote/refs prefixes
+# instead of '/' not in base_ref, so branches like feature/migration or
+# releases/v8.4 still get the origin/ prefix prepended.
 explicit = os.environ.get('WG_PR_BASE_REF')
 if explicit:
     base_ref = explicit
 else:
     base_ref = os.environ.get('GITHUB_BASE_REF') or 'origin/main'
-    if '/' not in base_ref:
+    if not base_ref.startswith(('origin/', 'upstream/', 'refs/')):
         base_ref = f'origin/{base_ref}'
 
 diff_range = f'{base_ref}...HEAD'
 
-name_status = run(['git', 'diff', '--name-status', diff_range])
+# Bug 2 (#676 sweep): -c core.quotePath=false keeps paths with spaces or
+# non-ASCII characters unquoted, so subsequent path.startswith and git show
+# calls don't break on quoted '"...".
+name_status = run(['git', '-c', 'core.quotePath=false', 'diff', '--name-status', diff_range])
 if name_status is None:
     print('WARNING: git diff --name-status ' + diff_range + ' failed — Pattern A gate skipped (fail-open). Check that the base ref exists locally.')
     sys.exit(0)
@@ -964,8 +978,18 @@ for line in name_status.splitlines():
         # from new_path.
         base_blob = run(['git', 'show', f'{base_ref}:{old_path}'])
         head_blob = run(['git', 'show', f'HEAD:{new_path}'])
-        base_lines = base_blob.count('\n') if base_blob else 0
-        head_lines = head_blob.count('\n') if head_blob else 0
+        # Bug 4 (#676 sweep): if either git show returned None, skip the file
+        # with a warning -- treating None as '' produced false-positive shrink
+        # readings (looked like a 100% shrink when one side was missing).
+        if base_blob is None or head_blob is None:
+            missing = 'base' if base_blob is None else 'head'
+            sys.stderr.write('WARNING: skipping shrink check for ' + path + ' -- ' + missing + ' blob unavailable (git show failed)\n')
+            continue
+        # Bug 3 (#676 sweep): blob.count('\n') undercounts files lacking a
+        # trailing newline. splitlines() handles both 'foo\nbar' and
+        # 'foo\nbar\n' as 2 lines.
+        base_lines = len(base_blob.splitlines())
+        head_lines = len(head_blob.splitlines())
         if base_lines == 0:
             continue
         shrink = (base_lines - head_lines) / base_lines

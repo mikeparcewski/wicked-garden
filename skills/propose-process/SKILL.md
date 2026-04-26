@@ -126,7 +126,7 @@ Task(
     mode: propose
     current_chain: none
     auto_proceed: none
-    project_dir: ~/.something-wicked/wicked-garden/projects/{session-slug}/wicked-crew/projects/auth_rewrite
+    project_dir: /Users/alex/.something-wicked/wicked-garden/projects/2026-04-26-1430/wicked-crew/projects/auth_rewrite
     project_slug: auth_rewrite
     bookend: none
     phase: none
