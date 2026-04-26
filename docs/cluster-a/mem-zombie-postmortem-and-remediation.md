@@ -131,16 +131,25 @@ Lines 39-43 (Step 1a): replace
 Task(subagent_type="wicked-garden:mem:memory-recaller",
      prompt="Search for past decisions related to: {topic}. Return decisions, outcomes, and any gotchas.")
 ```
-with a `wicked-brain:memory` skill call in recall mode. Recommended replacement (implementer to verify the exact skill invocation grammar — see how `wicked-brain:memory` is called elsewhere in the repo, e.g. `grep -rn "wicked-brain:memory" agents/ commands/` for canonical patterns):
+with a `wicked-brain:memory` skill call in recall mode. Concrete replacement:
 
 ```
-Use wicked-brain:memory in recall mode:
-  query: "past decisions related to: {topic}"
-  filter: type=decision
-  return: decisions, outcomes, gotchas
+Skill(
+  skill="wicked-brain:memory",
+  args="recall \"past decisions related to: {topic}\" --filter_type decision"
+)
 ```
 
-Lines 52-55 (Step 1c): same replacement pattern, query `"brainstorm outcomes tagged jam,outcome"`, filter `type=decision`.
+Lines 52-55 (Step 1c): same pattern with the query string adjusted:
+
+```
+Skill(
+  skill="wicked-brain:memory",
+  args="recall \"brainstorm outcomes tagged jam,outcome\" --filter_type decision"
+)
+```
+
+The brain skill's `recall` mode parameters (`query`, `filter_type`, `filter_tier`) are documented in the `wicked-brain:memory` SKILL.md.
 
 **Step 2 — rewrite `commands/jam/revisit.md`:**
 
@@ -212,14 +221,11 @@ git mv scripts/mem/session_fact_extractor.py scripts/_brain_ingest/session_fact_
 # scripts/_brain_ingest/__init__.py — create empty for clean import
 ```
 
-Update `hooks/scripts/stop.py:142-145` to:
+Update `hooks/scripts/stop.py:142-145` to use a qualified import (drop the `sys.path.insert` — `scripts/` is already on sys.path via the hook's bootstrap, so the package-style import works once `scripts/_brain_ingest/__init__.py` exists):
 
 ```python
-# scripts/ is on sys.path via the hook's bootstrap; add _brain_ingest
-# for the sibling import of session_fact_extractor.
-sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "_brain_ingest"))
-
-from session_fact_extractor import extract_session_facts
+# scripts/ is on sys.path via the hook's bootstrap.
+from _brain_ingest.session_fact_extractor import extract_session_facts
 ```
 
 **`scripts/mem/phase_scoring.py` — NOT a clean orphan.** Trust-but-verify spot-check found it referenced by:
@@ -240,9 +246,9 @@ Implementer must decide between two paths:
 **Verification:**
 
 ```bash
-# import path works
-cd /Users/michael.parcewski/Projects/wicked-garden && \
-  python3 -c "import sys; sys.path.insert(0, 'scripts/_brain_ingest'); from session_fact_extractor import extract_session_facts; print('OK')"
+# import path works (run from repo root)
+cd "${CLAUDE_PLUGIN_ROOT:-$PWD}" && \
+  python3 -c "import sys; sys.path.insert(0, 'scripts'); from _brain_ingest.session_fact_extractor import extract_session_facts; print('OK')"
 
 # stop.py runs
 sh scripts/_python.sh hooks/scripts/stop.py < /dev/null  # should not crash on import
@@ -429,16 +435,15 @@ Scenarios under `scenarios/mem/` other than `phase-aware-recall.md` (the audit l
 
 **`commands/jam/revisit.md`** — replace the `Task(subagent_type="wicked-garden:mem:memory-recaller", ...)` block at lines 16-19 with the same pattern. Preserve the "if no matching decision found, suggest `/wicked-garden:jam:brainstorm`" fallback.
 
-**`hooks/scripts/stop.py`** — line 142-145, update `sys.path.insert` and import to point at the new location of `session_fact_extractor.py`:
+**`hooks/scripts/stop.py`** — line 142-145, drop the `sys.path.insert` and switch to a qualified import. After the relocation in Section 2C creates `scripts/_brain_ingest/__init__.py`, this works because `scripts/` is already on sys.path via the hook's bootstrap:
 
 ```python
 # BEFORE
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "mem"))
 from session_fact_extractor import extract_session_facts
 
-# AFTER
-sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "_brain_ingest"))
-from session_fact_extractor import extract_session_facts
+# AFTER (qualified import, no sys.path manipulation needed)
+from _brain_ingest.session_fact_extractor import extract_session_facts
 ```
 
 **`hooks/scripts/prompt_submit.py:94`** and **`hooks/scripts/pre_compact.py:81`** — change emitted source from `"wicked-garden:mem"` to `"wicked-brain:memory"`.
@@ -446,6 +451,8 @@ from session_fact_extractor import extract_session_facts
 **`README.md:143`** — remove or rewrite the `mem` domain row (memory is no longer a wicked-garden domain).
 
 **`docs/getting-started.md`**, **`docs/advanced.md`**, **`docs/crew-workflow.md`**, **`docs/cross-phase-intelligence.md`**, **`AGENTS.md`** — sweep dead slash command syntax per 2D.1.
+
+**`scenarios/crew/cross-module-integration.md`** — has a live `phase_scoring.py` dependency at lines 151 and 230 (per Section 2C audit). If Path A (cut `phase_scoring.py`) is followed, remove the relevant section here OR rewrite the integration to use brain's ranking. Do not skip — leaving it would break the scenario silently after the script is deleted.
 
 **~50 skill/agent integration descriptions** — sweep per 2D.2 using the mapping table in that section.
 
@@ -464,7 +471,7 @@ For each: classify as **keep** / **update** / **delete**, document the decision 
 
 ### Acceptance criteria
 
-- [ ] No broken imports: `python3 -c "from session_fact_extractor import extract_session_facts"` succeeds with the new sys.path.
+- [ ] No broken imports: from repo root, `python3 -c "import sys; sys.path.insert(0, 'scripts'); from _brain_ingest.session_fact_extractor import extract_session_facts"` succeeds (qualified import — no per-subdir sys.path manipulation needed).
 - [ ] `hooks/scripts/stop.py` runs end-to-end without import error (smoke test: dispatch a Stop event with empty stdin).
 - [ ] No broken Task dispatches: `grep -rn "wicked-garden:mem:memory-" --include="*.md" --include="*.py" --include="*.json" .` returns zero hits outside `docs/cluster-a/` and `docs/evidence/`.
 - [ ] All 837+ existing tests still pass (`/wg-test --all` or whatever the canonical full-suite invocation is).
@@ -504,12 +511,12 @@ Standing merge gate applies:
 
 ### 5.1 Load-bearing risk: `session_fact_extractor.py` relocation breaks brain auto-memorize silently
 
-**Risk class**: same as the `context7_adapter._lookup_cheatsheet` finding from PR #630 — silent breakage of an async best-effort hook pathway. `hooks/scripts/stop.py` swallows import errors by design (the hook is async and best-effort), so a broken import means brain auto-memorize stops working with **no user-visible error**. Users only notice when they look for a decision in brain weeks later and find it isn't there.
+**Risk class**: same as the `context7_adapter._lookup_cheatsheet` finding from PR #630 — silent breakage of an async best-effort hook pathway. `hooks/scripts/stop.py` is async and best-effort. It DOES log import errors to stderr (`stop.py:180` runs `print(f"[wicked-garden] fact emit error: {e}", file=sys.stderr)`), so the failure is technically observable — but stderr from an async Stop hook is invisible to users in normal operation. They'd only notice the regression weeks later when they look for a decision in brain and find it isn't there. "Logged but not user-visible" is the actual failure mode.
 
 **Mitigation:**
 - **Pre-merge**: explicit smoke test as part of acceptance criteria — dispatch a real Stop event in a test session, confirm via bus query that `wicked.fact.extracted` events appear with the expected payload.
-- **Pre-merge**: import smoke test (`python3 -c "..."`) in CI or in the PR's evidence bundle.
-- **Post-merge**: a watchdog assertion — consider adding a startup check in `hooks/scripts/stop.py` that logs to stderr on import failure (instead of silently passing). This is a small additive change, low risk, high value for catching this exact regression class. (Out of scope for this remediation but flagged as a follow-up candidate.)
+- **Pre-merge**: import smoke test (qualified import: `python3 -c "import sys; sys.path.insert(0, 'scripts'); from _brain_ingest.session_fact_extractor import extract_session_facts"`) in CI or in the PR's evidence bundle.
+- **Post-merge**: escalate the existing stderr log to a more visible channel — e.g. emit a `systemMessage` at session start when the previous session's stop.py logged the import error, OR write the error to an ops log file the user can grep. (Out of scope for this remediation but flagged as a follow-up candidate.)
 
 ### 5.2 Sweep miss risk: residual `wicked-garden:mem:*` slash command syntax in user-visible surface
 
@@ -562,7 +569,7 @@ For trust-but-verify, the following audit claims were re-confirmed during memo a
 | `session_fact_extractor.py` is imported by `stop.py:145` | `grep -n "session_fact_extractor" hooks/scripts/stop.py` | Confirmed: import at line 145, sys.path manipulation at line 142. |
 | `phase_scoring.py` has scenario dependencies | `grep -rn "phase_scoring" .` | Confirmed: `scenarios/mem/phase-aware-recall.md` (8 references) + `scenarios/crew/cross-module-integration.md` (2 references) — **NOT** a clean orphan, contradicting the audit's "orphan" framing. Adjusted the remediation plan (Section 2C, Path A vs Path B). |
 | 290 occurrences across 117 files of `wicked-garden:mem` strings | `grep -rn "wicked-garden:mem" ... | wc -l` and unique-files count | Confirmed: 290 / 117 (audit had said 268 / 109; numbers grew slightly, likely because the `.md` extension list expanded). |
-| 139 occurrences of dead slash command syntax | `grep -rn "wicked-garden:mem:store|recall|..." | wc -l` | Confirmed. |
+| 139 occurrences of dead slash command syntax | `grep -Ern "wicked-garden:mem:(store|recall|forget|stats|consolidate|retag|review|help)" . \| wc -l` | Confirmed. (Note: uses `grep -E` for ERE alternation — basic `grep` treats `\|` as literal.) |
 | README.md:143 advertises mem as live | direct read | Confirmed: `| **mem** | 3-tier persistent memory ... | mem:store, mem:recall, mem:consolidate |` |
 
 **One audit revision:** `phase_scoring.py` was framed as "orphan" in the inlined audit but has live scenario dependencies. Section 2C was adjusted to expose Path A (cut both script + scenarios) vs Path B (relocate + keep both) and recommend Path A pending implementer verification of caller-side wiring.
