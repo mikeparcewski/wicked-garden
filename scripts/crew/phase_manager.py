@@ -2223,6 +2223,11 @@ def _dispatch_human_inline(
     headless, that helper returns a stub with ``mode_fallback_reason`` set; we
     then fall back to council dispatch (same reviewers, real subagent).
 
+    Rigor guard (#662 blocker-1): if the project's rigor_tier has been upgraded
+    to 'full' since the project was started (e.g. via re-evaluate checkpoint),
+    human-inline is no longer valid.  Fall back to council immediately and
+    annotate the result so audit trails record the reason.
+
     Args:
         state:              ProjectState (may be None).
         phase:              Phase being reviewed.
@@ -2232,6 +2237,33 @@ def _dispatch_human_inline(
         _input_fn:          Injectable input callable (tests).
         _print_fn:          Injectable print callable (tests).
     """
+    # ------------------------------------------------------------------
+    # Blocker-1 guard: live rigor_tier check.  'full' rigor mandates
+    # council even when the gate-policy entry still reads 'human-inline'
+    # (which happens when rigor was upgraded mid-flight after the policy
+    # block was already resolved).
+    # ------------------------------------------------------------------
+    current_rigor = (
+        ((getattr(state, "extras", None) or {}).get("rigor_tier") or "standard")
+        .lower()
+    )
+    if current_rigor == "full":
+        logger.warning(
+            "solo-mode rigor-upgrade bypass prevented — project rigor has been "
+            "upgraded to 'full' after gate dispatch started; routing "
+            "gate=%r phase=%r to council (was: human-inline)",
+            gate_name, phase,
+        )
+        reviewers = list(gate_policy_entry.get("reviewers") or [])
+        fallback_result = _dispatch_council(
+            state, phase, gate_name, reviewers,
+            dispatcher=dispatcher,
+            shared_context_path=None,
+        )
+        fallback_result["original_mode"] = "human-inline"
+        fallback_result["mode_fallback_reason"] = "rigor-upgraded-to-full"
+        return fallback_result
+
     try:
         from solo_mode import dispatch_human_inline as _solo_dispatch  # type: ignore
     except ImportError as exc:  # pragma: no cover — defensive

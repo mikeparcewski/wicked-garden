@@ -249,14 +249,23 @@ def _parse_human_response(raw: str) -> Optional[Dict[str, Any]]:
         }
 
     if upper.startswith("CONDITIONAL"):
-        # Extract text after the colon (may be empty)
+        # Extract text after the colon.  A bare "CONDITIONAL" with no colon
+        # and no conditions text is unrecognised input — return None so the
+        # caller re-prompts.  Writing a conditions-manifest with placeholder
+        # text would produce a vacuous pending condition that AC-4.4
+        # auto-resolution may silently satisfy (blocker-2, #662).
         colon_idx = stripped.find(":")
-        text = stripped[colon_idx + 1:].strip() if colon_idx >= 0 else ""
+        if colon_idx < 0:
+            # No colon at all — treat as unrecognised, trigger re-prompt
+            return None
+        text = stripped[colon_idx + 1:].strip()
+        if not text:
+            # Colon present but nothing after it — also unrecognised
+            return None
         return {
             "verdict": "CONDITIONAL",
             "score": _CONDITIONAL_SCORE,
-            "reason": f"Human reviewer: CONDITIONAL — {text}" if text else
-                      "Human reviewer: CONDITIONAL",
+            "reason": f"Human reviewer: CONDITIONAL — {text}",
             "conditions_text": text,
             "conditions": [],
         }

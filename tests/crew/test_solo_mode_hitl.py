@@ -396,8 +396,15 @@ class TestDispatchLogHumanInlineOrphan(unittest.TestCase):
 
     def test_orphan_check_passes_with_prior_dispatch_entry(self):
         """When dispatch_log.append is called before gate-result write,
-        check_orphan finds the entry and does not raise."""
-        from dispatch_log import append, check_orphan
+        check_orphan finds the matching (reviewer, phase, gate, dispatched_at)
+        entry, HMAC-verifies it, and returns without raising.
+
+        The env override WG_GATE_RESULT_DISPATCH_CHECK=off was removed in
+        #662 blocker-3.  The test now exercises the real orphan-check path.
+        The HMAC used by append and check_orphan is the same process-local
+        secret (auto-generated once per process), so the verify succeeds.
+        """
+        from dispatch_log import append, check_orphan, set_hmac_secret
 
         with tempfile.TemporaryDirectory() as tmpdir:
             proj_dir = Path(tmpdir)
@@ -406,30 +413,35 @@ class TestDispatchLogHumanInlineOrphan(unittest.TestCase):
             reviewer = REVIEWER_NAME
             dispatched_at = "2026-04-25T10:00:00+00:00"
 
-            # Write a dispatch-log entry (as _dispatch_human_inline does)
-            append(
-                proj_dir, phase,
-                reviewer=reviewer,
-                gate=gate,
-                dispatch_id=f"{phase}:{gate}:{reviewer}:{dispatched_at}",
-                dispatcher_agent="wicked-garden:crew:phase-manager:human-inline",
-                dispatched_at=dispatched_at,
-            )
+            # Pin a known secret so append and check_orphan share it
+            # deterministically within this test (avoids SessionState I/O).
+            test_secret = "test-hmac-secret-662-blocker3"
+            set_hmac_secret(test_secret)
+            try:
+                # Write a dispatch-log entry (as _dispatch_human_inline does)
+                append(
+                    proj_dir, phase,
+                    reviewer=reviewer,
+                    gate=gate,
+                    dispatch_id=f"{phase}:{gate}:{reviewer}:{dispatched_at}",
+                    dispatcher_agent="wicked-garden:crew:phase-manager:human-inline",
+                    dispatched_at=dispatched_at,
+                )
 
-            # Now check_orphan for a gate-result with recorded_at >= dispatched_at
-            parsed = {
-                "reviewer": reviewer,
-                "gate": gate,
-                "recorded_at": "2026-04-25T10:01:00+00:00",
-            }
+                # check_orphan for a gate-result with recorded_at >= dispatched_at
+                parsed = {
+                    "reviewer": reviewer,
+                    "gate": gate,
+                    "recorded_at": "2026-04-25T10:01:00+00:00",
+                }
 
-            # Disable strict-mode enforcement so soft-window applies cleanly
-            with patch.dict(os.environ, {"WG_GATE_RESULT_DISPATCH_CHECK": "off"}):
-                # With dispatch check off, check_orphan returns silently
+                # Must match the pre-registered entry and HMAC-verify successfully
                 try:
                     check_orphan(parsed, proj_dir, phase)
                 except Exception as exc:
                     self.fail(f"check_orphan raised unexpectedly: {exc}")
+            finally:
+                set_hmac_secret(None)  # restore neutral state for other tests
 
 
 # ---------------------------------------------------------------------------
@@ -620,6 +632,235 @@ class TestDispatchHumanInlineArtifacts(unittest.TestCase):
             content = ctx_path.read_text()
             self.assertIn("Inline Gate Review", content)
             self.assertIn("APPROVE", content)
+
+
+# ---------------------------------------------------------------------------
+# Blocker 1 (#662): rigor upgraded to full mid-flight → council fallback
+# ---------------------------------------------------------------------------
+
+class TestDispatchHumanInlineRigorUpgradeFallback(unittest.TestCase):
+    """#662 blocker-1: _dispatch_human_inline falls back to council when
+    the project's rigor_tier has been upgraded to 'full' at dispatch time,
+    regardless of what the gate-policy entry says.
+    """
+
+    def test_full_rigor_at_dispatch_falls_back_to_council(self):
+        """Project starts standard+solo_mode, rigor upgrades to full before
+        the next gate dispatch — _dispatch_human_inline must route to council
+        and annotate the result with mode_fallback_reason=rigor-upgraded-to-full.
+        """
+        # Import the private dispatcher directly so we can inject a fake council
+        import phase_manager as pm
+
+        # State as it looks AFTER the re-evaluate checkpoint upgrades rigor
+        state = _make_state(rigor_tier="full", solo_mode=True)
+        policy = _minimal_gate_policy()
+
+        # A mock council dispatcher that records what it was called with and
+        # returns a minimal council-shaped result.
+        council_calls = []
+
+        def _fake_council(s, phase, gate_name, reviewers, *, dispatcher, shared_context_path):
+            council_calls.append({
+                "phase": phase,
+                "gate_name": gate_name,
+                "reviewers": reviewers,
+            })
+            return {
+                "verdict": "APPROVE",
+                "result": "APPROVE",
+                "score": 1.0,
+                "min_score": 0.7,
+                "reviewer": "gate-adjudicator",
+                "reason": "council fallback",
+                "conditions": [],
+                "phase": phase,
+                "gate_name": gate_name,
+                "per_reviewer_verdicts": [],
+                "reviewers_dispatched": reviewers,
+                "dispatch_mode": "council",
+                "mode": "council",
+                "external_review": False,
+                "recorded_at": "2026-04-25T10:00:00Z",
+            }
+
+        with patch.object(pm, "_dispatch_council", side_effect=_fake_council):
+            result = pm._dispatch_human_inline(
+                state, "build", "code-quality", policy,
+                dispatcher=None,
+            )
+
+        # Council must have been called once
+        self.assertEqual(len(council_calls), 1, "council must be dispatched exactly once")
+        self.assertEqual(council_calls[0]["gate_name"], "code-quality")
+
+        # Result must carry the fallback annotations
+        self.assertEqual(
+            result.get("mode_fallback_reason"), "rigor-upgraded-to-full",
+            "mode_fallback_reason must be 'rigor-upgraded-to-full'",
+        )
+        self.assertEqual(
+            result.get("original_mode"), "human-inline",
+            "original_mode must be 'human-inline'",
+        )
+
+    def test_standard_rigor_does_not_trigger_council_fallback(self):
+        """Standard rigor does NOT bypass human-inline; the interactive path runs."""
+        import phase_manager as pm
+
+        state = _make_state(rigor_tier="standard", solo_mode=True)
+        policy = _minimal_gate_policy()
+        council_calls = []
+
+        def _unexpected_council(*args, **kwargs):
+            council_calls.append(True)
+            return {}
+
+        with patch.object(pm, "_dispatch_council", side_effect=_unexpected_council), \
+             patch("solo_mode._is_interactive", return_value=True), \
+             patch("phase_manager.get_project_dir", return_value=Path(tempfile.mkdtemp())), \
+             patch("dispatch_log.append"):
+            pm._dispatch_human_inline(
+                state, "build", "code-quality", policy,
+                _input_fn=lambda _="": "APPROVE",
+                _print_fn=lambda _: None,
+            )
+
+        self.assertEqual(
+            council_calls, [],
+            "council must NOT be dispatched at standard rigor",
+        )
+
+    def test_no_state_does_not_trigger_council_fallback(self):
+        """state=None defaults to 'standard' (no full-rigor bypass)."""
+        import phase_manager as pm
+
+        policy = _minimal_gate_policy()
+        council_calls = []
+
+        def _unexpected_council(*args, **kwargs):
+            council_calls.append(True)
+            return {}
+
+        with patch.object(pm, "_dispatch_council", side_effect=_unexpected_council), \
+             patch("solo_mode._is_interactive", return_value=True), \
+             patch("phase_manager.get_project_dir", return_value=Path(tempfile.mkdtemp())), \
+             patch("dispatch_log.append"):
+            pm._dispatch_human_inline(
+                None, "build", "code-quality", policy,
+                _input_fn=lambda _="": "APPROVE",
+                _print_fn=lambda _: None,
+            )
+
+        self.assertEqual(
+            council_calls, [],
+            "council must NOT be dispatched when state is None (defaults to standard)",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Blocker 2 (#662): bare CONDITIONAL re-prompts instead of silently accepting
+# ---------------------------------------------------------------------------
+
+class TestBareConditionalReprompts(unittest.TestCase):
+    """#662 blocker-2: bare 'CONDITIONAL' (no colon, no text) is unrecognised
+    input and triggers a re-prompt rather than silently writing a vacuous
+    conditions-manifest.
+    """
+
+    def test_bare_conditional_no_colon_triggers_reprompt(self):
+        """CONDITIONAL with no colon is unrecognised — re-prompt fires."""
+        state = _make_state()
+        policy = _minimal_gate_policy()
+        printed = []
+        # First call: bare CONDITIONAL (must re-prompt); second call: APPROVE
+        responses = iter(["CONDITIONAL", "APPROVE"])
+
+        with patch("solo_mode._is_interactive", return_value=True), \
+             patch("phase_manager.get_project_dir", return_value=Path(tempfile.mkdtemp())), \
+             patch("dispatch_log.append"):
+            result = dispatch_human_inline(
+                state, "build", "code-quality", policy,
+                _input_fn=lambda _="": next(responses),
+                _print_fn=printed.append,
+            )
+
+        # Final verdict is APPROVE (second response), not CONDITIONAL
+        self.assertEqual(result["verdict"], "APPROVE")
+        # A re-prompt message must have been emitted
+        reprompt_msgs = [m for m in printed if "Please respond" in m]
+        self.assertEqual(len(reprompt_msgs), 1, "Expected exactly one re-prompt message")
+
+    def test_bare_conditional_with_colon_but_no_text_triggers_reprompt(self):
+        """'CONDITIONAL:' (colon present, nothing after) is also unrecognised."""
+        state = _make_state()
+        policy = _minimal_gate_policy()
+        printed = []
+        responses = iter(["CONDITIONAL:", "APPROVE"])
+
+        with patch("solo_mode._is_interactive", return_value=True), \
+             patch("phase_manager.get_project_dir", return_value=Path(tempfile.mkdtemp())), \
+             patch("dispatch_log.append"):
+            result = dispatch_human_inline(
+                state, "build", "code-quality", policy,
+                _input_fn=lambda _="": next(responses),
+                _print_fn=printed.append,
+            )
+
+        self.assertEqual(result["verdict"], "APPROVE")
+        reprompt_msgs = [m for m in printed if "Please respond" in m]
+        self.assertEqual(len(reprompt_msgs), 1, "Expected exactly one re-prompt message")
+
+    def test_bare_conditional_twice_defaults_to_conditional_with_text(self):
+        """After max reprompts, the fallback default is CONDITIONAL and the
+        conditions-manifest description is NOT the vacuous placeholder
+        '(no conditions text provided)' — the fallback sets a non-empty
+        conditions_text before calling _write_conditions_manifest.
+        """
+        state = _make_state()
+        policy = _minimal_gate_policy()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proj_dir = Path(tmpdir)
+            with patch("solo_mode._is_interactive", return_value=True), \
+                 patch("phase_manager.get_project_dir", return_value=proj_dir), \
+                 patch("dispatch_log.append"):
+                result = dispatch_human_inline(
+                    state, "build", "code-quality", policy,
+                    _input_fn=lambda _="": "CONDITIONAL",  # always bare
+                    _print_fn=lambda _: None,
+                )
+
+            # Final verdict must still be CONDITIONAL (soft failure, not error)
+            self.assertEqual(result["verdict"], "CONDITIONAL")
+
+            # The conditions-manifest must have been written with a real description
+            manifest_path = proj_dir / "phases" / "build" / "conditions-manifest.json"
+            self.assertTrue(manifest_path.exists(), "conditions-manifest must be written")
+            manifest = json.loads(manifest_path.read_text())
+            description = manifest["conditions"][0]["description"]
+            self.assertNotEqual(description, "", "manifest description must not be empty")
+            self.assertNotIn(
+                "(no conditions text provided)", description,
+                "vacuous placeholder must never appear in the manifest",
+            )
+
+    def test_conditional_with_text_still_accepted(self):
+        """'CONDITIONAL: some text' continues to parse successfully."""
+        state = _make_state()
+        policy = _minimal_gate_policy()
+
+        with patch("solo_mode._is_interactive", return_value=True), \
+             patch("phase_manager.get_project_dir", return_value=Path(tempfile.mkdtemp())), \
+             patch("dispatch_log.append"):
+            result = dispatch_human_inline(
+                state, "build", "code-quality", policy,
+                _input_fn=lambda _="": "CONDITIONAL: fix linting before merge",
+                _print_fn=lambda _: None,
+            )
+
+        self.assertEqual(result["verdict"], "CONDITIONAL")
+        self.assertAlmostEqual(result["score"], 0.7)
 
 
 if __name__ == "__main__":
