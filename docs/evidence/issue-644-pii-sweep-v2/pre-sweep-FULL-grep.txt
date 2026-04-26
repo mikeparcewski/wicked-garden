@@ -1,0 +1,129 @@
+./docs/evidence/pr-v8-4/pytest-daemon.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-4/pytest-daemon.txt:6:rootdir: .
+./docs/evidence/pr-v8-4/timeout-proof.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-4/timeout-proof.txt:6:rootdir: .
+./docs/evidence/pr-v8-3/migration-rollback-test.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-3/migration-rollback-test.txt:6:rootdir: .
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:1:.        params["state"] = _validate_state(state)
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:2:.    return artifact.get("state") == required_state
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:3:.        if art.get("state") == required_state:
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:4:.        if phase_state.status == "skipped":
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:5:.        if phase_state_check and phase_state_check.status == "approved":
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:6:.    phase_state.status = "in_progress"
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:7:.        phase_state.status = "complete"
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:8:.    phase_state.status = "approved"
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:9:.    phase_state.status = "skipped"
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:10:.        clarify_phase = PhaseState(status="pending")
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:11:.    # In-flight-dispatch check: phase status == in_progress AND executor-status
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:12:.            phase_status_summary = get_phase_status_summary(state)
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:13:.        metadata, valid_phases=phases or None, status=status,
+./docs/evidence/pr-v8-3/after-grep-status-writes.txt:14:.        fields["state"] = _STATE_REJECTED
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:1:.        params["state"] = _validate_state(state)
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:2:.    return artifact.get("state") == required_state
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:3:.        if art.get("state") == required_state:
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:4:.        if phase_state.status == "skipped":
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:5:.        if phase_state_check and phase_state_check.status == "approved":
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:6:.    phase_state.status = "in_progress"
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:7:.        phase_state.status = "complete"
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:8:.    phase_state.status = "approved"
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:9:.    phase_state.status = "skipped"
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:10:.        clarify_phase = PhaseState(status="pending")
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:11:.    # In-flight-dispatch check: phase status == in_progress AND executor-status
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:12:.            phase_status_summary = get_phase_status_summary(state)
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:13:.        metadata, valid_phases=phases or None, status=status,
+./docs/evidence/pr-v8-3/before-grep-status-writes.txt:14:.        fields["state"] = _STATE_REJECTED
+./docs/evidence/pr-v8-3/rework-bug-post-fix.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-3/rework-bug-post-fix.txt:6:rootdir: .
+./docs/evidence/pr-v8-3/rework-bug-pre-fix.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-3/rework-bug-pre-fix.txt:6:rootdir: .
+./docs/evidence/pr-v8-2/parity-harness-output.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-2/parity-harness-output.txt:6:rootdir: .
+./docs/evidence/pr-v8-2/pytest-daemon.txt:5:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-2/pytest-daemon.txt:9:rootdir: .
+./docs/evidence/pr-v8-5/test-flip-proof.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-5/test-flip-proof.txt:6:rootdir: .
+./docs/evidence/cluster-a-followup-637/pytest-results.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/cluster-a-followup-637/pytest-results.txt:6:rootdir: .
+./docs/evidence/pr-facilitator-scorer/pytest-output.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python3
+./docs/evidence/pr-facilitator-scorer/pytest-output.txt:6:rootdir: .
+./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:4:Command: grep -rEn "/Users/" docs/evidence/cluster-a-p1-smaht-rename/
+./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:12:  s|~/]+/Projects/wicked-garden/\.claude/worktrees/[^/]+/|./|g
+./docs/evidence/cluster-a-followup-636/pii-grep-post.txt:15:  Additional /Users/ paths exist in other evidence directories (pr-v8-3, pr-v8-4, etc.).
+./docs/evidence/pr-facilitator-scorer/pytest-output-post-fix.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python3
+./docs/evidence/pr-facilitator-scorer/pytest-output-post-fix.txt:6:rootdir: .
+./docs/evidence/pr-mem-store-cleanup/pytest.txt:3:   Building wicked-garden @ file://.
+./docs/evidence/pr-mem-store-cleanup/pytest.txt:4:      Built wicked-garden @ file://.
+./docs/evidence/cluster-a-cut-smaht-learn-libs/pytest.txt:163:E        +    where exists = (PosixPath('./commands/crew') / 'yolo.md').exists
+./docs/evidence/cluster-a-cut-smaht-learn-libs/pytest.txt:182:self = PosixPath('./commands/crew/yolo.md')
+./docs/evidence/cluster-a-cut-smaht-learn-libs/pytest.txt:195:E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
+./docs/evidence/cluster-a-cut-smaht-learn-libs/pytest.txt:214:self = PosixPath('./commands/crew/yolo.md')
+./docs/evidence/cluster-a-cut-smaht-learn-libs/pytest.txt:227:E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
+./docs/evidence/cluster-a-cut-smaht-learn-libs/pytest.txt:253:E        +    where exists = PosixPath('./commands/crew/yolo.md').exists
+./docs/evidence/cluster-a-cut-smaht-learn-libs/pytest.txt:296:  ./scripts/smaht/adapters/context7_adapter.py:17: DeprecationWarning: __package__ != __spec__.parent
+./docs/evidence/pr-v8-7/node-without-wt-test-output.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-7/node-without-wt-test-output.txt:6:rootdir: .
+./docs/evidence/pr-v8-8/b1-e2e-test-output.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-8/b1-e2e-test-output.txt:6:rootdir: .
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:1:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:2:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:3:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:4:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:5:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:6:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:7:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:8:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:9:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:10:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:11:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:12:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:13:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:14:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:15:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:16:.
+./docs/evidence/pr-v8-6/after-grep-old-surfaces.txt:17:.
+./docs/evidence/pr-v8-6/pr5-tests-post-rebase.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-6/pr5-tests-post-rebase.txt:6:rootdir: .
+./docs/evidence/pr-v8-8/b2-depth-guard-test-output.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-8/b2-depth-guard-test-output.txt:6:rootdir: .
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:1:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:2:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:3:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:4:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:5:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:6:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:7:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:8:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:9:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:10:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:11:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:12:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:13:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:14:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:15:.
+./docs/evidence/pr-v8-6/before-grep-old-surfaces.txt:16:.
+./docs/evidence/cluster-a-followup-634/pytest-results.txt:163:E        +    where exists = (PosixPath('./commands/crew') / 'yolo.md').exists
+./docs/evidence/cluster-a-followup-634/pytest-results.txt:182:self = PosixPath('./commands/crew/yolo.md')
+./docs/evidence/cluster-a-followup-634/pytest-results.txt:195:E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
+./docs/evidence/cluster-a-followup-634/pytest-results.txt:214:self = PosixPath('./commands/crew/yolo.md')
+./docs/evidence/cluster-a-followup-634/pytest-results.txt:227:E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
+./docs/evidence/cluster-a-followup-634/pytest-results.txt:253:E        +    where exists = PosixPath('./commands/crew/yolo.md').exists
+./docs/evidence/pr-v8-6/pr6-tests-post-rebase.txt:2:platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- ./.venv/bin/python
+./docs/evidence/pr-v8-6/pr6-tests-post-rebase.txt:6:rootdir: .
+./docs/evidence/cluster-a-mem-zombie-cleanup/stop-hook-smoke-test.txt:2:{"systemMessage": "[Guard] standard pipeline surfaced 12 finding(s) (125ms) \u2014 block=0 warn=11 info=1. Review next-session briefing for details (not a hard block).\n  - [warn] R6: R6: function `main` is 109 lines long (> 80) @ ./hooks/scripts/stop.py:415\n  - [warn] R4: R4: `except ...: pass` (multi-line) \u2014 swallowed exception @ ./hooks/scripts/stop.py:46\n  - [warn] R4: R4: `except ...: pass` (multi-line) \u2014 swallowed exception @ ./hooks/scripts/stop.py:97\n  - [warn] R4: R4: `except ...: pass` (multi-line) \u2014 swallowed exception @ ./hooks/scripts/stop.py:103\n  - [warn] R4: R4: `except ...: pass` (multi-line) \u2014 swallowed exception @ ./hooks/scripts/stop.py:259\n  - [warn] R4: R4: `except ...: pass` (multi-line) \u2014 swallowed exception @ ./hooks/scripts/stop.py:275\n  - [warn] R4: R4: `except ...: pass` (multi-line) \u2014 swallowed exception @ ./hooks/scripts/stop.py:364\n  - [warn] R4: R4: `except ...: pass` (multi-line) \u2014 swallowed exception @ ./hooks/scripts/stop.py:411\n  ... and 4 more\n\n[Memory] REQUIRED: Session ending. Run TaskList to review completed tasks from this session. For each completed task, evaluate: did it produce a decision, gotcha, or reusable pattern? Store each learning with wicked-brain:memory (type: decision, procedural, or episodic). If no tasks completed or no learnings found, state 'No memories to store.' Do NOT skip silently."}
+./docs/evidence/cluster-a-mem-zombie-cleanup/fixup-pytest.txt:3:   Building wicked-garden @ file://.
+./docs/evidence/cluster-a-mem-zombie-cleanup/fixup-pytest.txt:4:      Built wicked-garden @ file://.
+./docs/evidence/cluster-a-mem-zombie-cleanup/fixup-pytest.txt:168:E        +    where exists = (PosixPath('./commands/crew') / 'yolo.md').exists
+./docs/evidence/cluster-a-mem-zombie-cleanup/fixup-pytest.txt:187:self = PosixPath('./commands/crew/yolo.md')
+./docs/evidence/cluster-a-mem-zombie-cleanup/fixup-pytest.txt:200:E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
+./docs/evidence/cluster-a-mem-zombie-cleanup/fixup-pytest.txt:219:self = PosixPath('./commands/crew/yolo.md')
+./docs/evidence/cluster-a-mem-zombie-cleanup/fixup-pytest.txt:232:E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
+./docs/evidence/cluster-a-mem-zombie-cleanup/fixup-pytest.txt:258:E        +    where exists = PosixPath('./commands/crew/yolo.md').exists
+./docs/evidence/pr-5/contract-rendered.md:116:wicked-testing (`~/wicked-testing`) is the
+./docs/evidence/cluster-a-mem-zombie-cleanup/pytest-results.txt:3:   Building wicked-garden @ file://.
+./docs/evidence/cluster-a-mem-zombie-cleanup/pytest-results.txt:4:      Built wicked-garden @ file://.
+./docs/evidence/cluster-a-mem-zombie-cleanup/pytest-results.txt:168:E        +    where exists = (PosixPath('./commands/crew') / 'yolo.md').exists
+./docs/evidence/cluster-a-mem-zombie-cleanup/pytest-results.txt:187:self = PosixPath('./commands/crew/yolo.md')
+./docs/evidence/cluster-a-mem-zombie-cleanup/pytest-results.txt:200:E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
+./docs/evidence/cluster-a-mem-zombie-cleanup/pytest-results.txt:219:self = PosixPath('./commands/crew/yolo.md')
+./docs/evidence/cluster-a-mem-zombie-cleanup/pytest-results.txt:232:E       FileNotFoundError: [Errno 2] No such file or directory: './commands/crew/yolo.md'
+./docs/evidence/cluster-a-mem-zombie-cleanup/pytest-results.txt:258:E        +    where exists = PosixPath('./commands/crew/yolo.md').exists

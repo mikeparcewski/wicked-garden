@@ -113,7 +113,7 @@ find.
 
 ## The wicked-testing exemplar
 
-wicked-testing (`/Users/michael.parcewski/Projects/wicked-testing`) is the
+wicked-testing (`~/wicked-testing`) is the
 canonical compliant plugin. Every rule above has a live instance in its
 codebase.
 
