@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Documentation
+- Added per-domain composition maps for jam, crew, and smaht at `docs/composition/{domain}.md`. One-page contributor reference showing surface inventory, workflow patterns, when to add new surfaces, cross-domain dependencies, and anti-patterns. Audience: contributors adding to or maintaining these domains. (cluster-A P3, 2026-04-25)
+
 ### Removed
 - `smaht:learn` command — duplicated `wicked-brain:ingest`; zero v8 role (cluster-A P0, 2026-04-25)
 - `smaht:libs` command — orphaned by v8 daemon-first architecture; zero v8 role (cluster-A P0, 2026-04-25)
