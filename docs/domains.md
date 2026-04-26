@@ -67,7 +67,6 @@ The "brain" of the plugin. Intercepts every prompt via `UserPromptSubmit` and as
 | `smaht:briefing` | Session briefing — what happened since last time |
 | `smaht:events-import` | Import existing domain JSON records into the event log |
 | `smaht:collaborate` | Multi-AI CLI collaboration (discover, review, council) |
-| `smaht:onboard` | Intelligent codebase onboarding |
 | `smaht:help` | Show available smaht commands |
 
 **Behind the scenes**: four-tier routing keeps simple prompts fast and complex ones thorough:

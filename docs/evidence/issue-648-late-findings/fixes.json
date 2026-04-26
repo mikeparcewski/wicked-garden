@@ -1,0 +1,80 @@
+{
+  "issue": 648,
+  "title": "cluster-A late bot findings — cc1, scenarios, evidence, smaht:onboard, qe alias",
+  "resolved_at": "2026-04-25",
+  "source_prs": ["#629", "#630", "#633", "#642", "#645"],
+  "fixes": [
+    {
+      "id": 1,
+      "source_pr": "#629",
+      "file": "scripts/crew/factor_questionnaire.py",
+      "description": "cc1 wording synced to use 'humans' (was 'specialists') to match cc3 terminology",
+      "change": "Question cc1: 'specialists' → 'humans'"
+    },
+    {
+      "id": 2,
+      "source_pr": "#629",
+      "file": "scripts/crew/factor_questionnaire.py",
+      "description": "u1 calibration note replaced dead 'discovery-conventions audit' reference with concrete observed artifact",
+      "change": "Comment: 'See discovery-conventions audit' → 'Observed in cluster-A P1 smaht rename'"
+    },
+    {
+      "id": 3,
+      "source_pr": "#630",
+      "file": "scenarios/smaht/06-context7-integration.md",
+      "description": "Dead file reference replaced with brain memory citation",
+      "change": "'decision record: cluster-a-workflow-surface-review-v8-decision.md' → 'decision stored in wicked-brain memory: cluster-a-workflow-surface-review-v8-decision'"
+    },
+    {
+      "id": 4,
+      "source_pr": "#630",
+      "file": "scenarios/smaht/06-context7-integration.md",
+      "description": "Validation list made fully past-tense (scenario is retired tombstone)",
+      "change": "Items 2 and 3: 'degrade' → 'degraded', 'can search...has been stored' → 'could search...had been stored'"
+    },
+    {
+      "id": 5,
+      "source_pr": "#633",
+      "file": "docs/evidence/pr-v8-4/council-decision.json",
+      "description": "pr field converted from string to integer",
+      "change": "\"pr\": \"#615\" → \"pr\": 615"
+    },
+    {
+      "id": 6,
+      "source_pr": "#633",
+      "file": "docs/evidence/pr-v8-5/council-decision.json",
+      "description": "vote_count converted from string to structured tally object",
+      "change": "\"vote_count\": \"5-0\" → \"vote_count\": {\"APPROVE\": 5, \"CONDITIONAL\": 0, \"REJECT\": 0}"
+    },
+    {
+      "id": 7,
+      "source_pr": "#633",
+      "file": "docs/evidence/pr-4/council-decision.json",
+      "description": "HITL reason corrected to match actual tally (4 APPROVE / 1 CONDITIONAL, not unanimous)",
+      "change": "'unanimous council with min confidence 0.70: auto-proceed' → '4 APPROVE / 1 CONDITIONAL with min confidence 0.70: quorum met, auto-proceed'"
+    },
+    {
+      "id": 8,
+      "source_pr": "#642",
+      "file": "docs/domains.md",
+      "description": "Duplicate smaht:onboard entry removed; kept the more descriptive first occurrence",
+      "change": "Removed second smaht:onboard row ('Intelligent codebase onboarding') at former line 70"
+    },
+    {
+      "id": 9,
+      "source_pr": "#642",
+      "file": "docs/evidence/cluster-a-p1-smaht-rename/cross-ref-grep-post.txt",
+      "description": "Redundant ./ prefix from PII sanitization collapsed",
+      "change": "All '././' occurrences → './'"
+    },
+    {
+      "id": 10,
+      "source_pr": "#645",
+      "file": "commands/crew/status.md",
+      "description": "Legacy qe phase alias updated to test-strategy in parenthetical example",
+      "change": "'clarify/design/qe/build/review' → 'clarify/design/test-strategy/build/review'"
+    }
+  ],
+  "scope_expansion": "None detected. No sibling factors with the same cc1/cc3 terminology drift found. All other coordination_cost questions (cc2, cc4) use generic language without domain-specific role terms.",
+  "test_baseline": "1685 pass / 11 pre-existing — no test changes expected for doc/comment fixes"
+}

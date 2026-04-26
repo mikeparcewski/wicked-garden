@@ -1,6 +1,6 @@
 {
   "council_session": "council-pr615-reeval-20260424115554",
-  "pr": "#615",
+  "pr": 615,
   "branch": "v8/pr-4-council-daemon-binary",
   "fixup_commit": "80bfb3a",
   "evaluation_date": "2026-04-24",
