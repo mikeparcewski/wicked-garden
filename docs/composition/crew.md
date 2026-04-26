@@ -6,6 +6,7 @@ Multi-phase SDLC workflow with specialist routing, gate enforcement, and converg
 
 | Type | Name | One-line purpose |
 |---|---|---|
+| command | /wicked-garden:crew:activity | Query the unified event log for cross-domain activity (FTS over SQLite) |
 | command | /wicked-garden:crew:approve | Approve a phase and advance to next stage |
 | command | /wicked-garden:crew:archive | Archive a completed project (remove from active listings) |
 | command | /wicked-garden:crew:auto-approve | Grant or revoke APPROVE-verdict fast-lane for a project |
@@ -115,7 +116,6 @@ crew
   calls →  jam:council              (challenge phase, complexity >= 4)
   calls →  engineering, qe, etc.    (specialist gate reviewers via gate-policy.json)
   calls →  wicked-brain:memory      (cross-session learning at completion + gate failures)
-  calls →  search:blast-radius      (impact analysis during design/research phases)
 
 smaht
   reads ←  crew task events         (chain-aware scoring in events adapter)

@@ -7,11 +7,12 @@ Context assembly and session intelligence — briefings, live state inspection, 
 | Type | Name | One-line purpose |
 |---|---|---|
 | command | /wicked-garden:smaht:briefing | Cross-domain catch-up since last session (recent events, active projects, memory updates) |
-| command | /wicked-garden:smaht:debug | Inspect live SessionState, adapter outputs, and smaht directive settings |
 | command | /wicked-garden:smaht:events-import | Import existing DomainStore JSON records into the unified event log |
-| command | /wicked-garden:smaht:events-query | Query the unified event log for cross-domain activity |
+| command | /wicked-garden:smaht:state | Inspect live SessionState, adapter outputs, and smaht directive settings |
 | skill | wicked-garden:smaht:context-assembly | Pull-model context gathering from wicked-brain + search + domain state |
 | skill | wicked-garden:smaht:discovery | Contextual command discovery — suggests one related command after each run (Stop hook, not user-invocable) |
+
+> Note: `smaht:events-query` was relocated to `crew:activity` in PR #636 — see the crew composition map for cross-domain activity search.
 
 Note: smaht has no agents on disk. Context intelligence is delivered via skills and hooks (`hooks/scripts/prompt_submit.py`).
 
@@ -30,24 +31,14 @@ Queries wicked-brain + events log + active crew projects. Returns recent activit
 Context injected into a prompt seems wrong, stale, or missing.
 
 ```
-/smaht:debug --state          # dump live SessionState
-/smaht:debug --events 20      # show last N events fed to adapters
-/smaht:debug --json           # machine-readable output for scripting
+/smaht:state --state          # dump live SessionState
+/smaht:state --events 20      # show last N events fed to adapters
+/smaht:state --json           # machine-readable output for scripting
 ```
 
-Use `debug`, not `briefing`, when the problem is live session state vs. historical catch-up.
+Use `state`, not `briefing`, when the problem is live session state vs. historical catch-up.
 
-### 3. Cross-domain activity search
-User wants to understand what happened across domains over a time range.
-
-```
-/smaht:events-query --domain crew --since 7d --fts "gate finding"
-/smaht:events-query --project my-project --action phase-transition
-```
-
-FTS search runs over the unified event log (SQLite). Useful for auditing, debugging a crew run, or tracing a decision chain.
-
-### 4. Migrating legacy DomainStore records
+### 3. Migrating legacy DomainStore records
 Historical JSON records predate the unified event log and need to be imported.
 
 ```
@@ -57,7 +48,7 @@ Historical JSON records predate the unified event log and need to be imported.
 
 One-time operation per domain after migrating to the unified log. Run `--dry-run` first.
 
-### 5. On-demand context assembly (subagent use)
+### 4. On-demand context assembly (subagent use)
 A subagent or command needs a context briefing before acting.
 
 ```
@@ -69,7 +60,7 @@ v6 pull-model: nothing is pushed onto every prompt. Subagents call this skill wh
 
 ## When to add a new surface
 
-- **New command** — when there is a distinct user-facing inspection or data-management action not covered by `briefing`, `debug`, `events-query`, or `events-import`. smaht commands are operational tools, not workflow drivers; keep the surface small.
+- **New command** — when there is a distinct user-facing inspection or data-management action not covered by `briefing`, `state`, or `events-import`. smaht commands are operational tools, not workflow drivers; keep the surface small. (Cross-domain activity search lives in `crew:activity` post-#636.)
 - **New skill** — when a reusable context-gathering pattern is needed by 2+ agents/commands. `context-assembly` is the primary skill; add a new one only if the assembly logic for a new use case is fundamentally different (different sources, different output contract). `discovery` is hook-driven and not user-invocable — that pattern can extend via refs, not new skills.
 - **No agents needed** — smaht intelligence lives in skills and hooks. Do not add agents to this domain; if a dispatched subagent is needed, it belongs in the domain whose work it is doing.
 
@@ -79,15 +70,17 @@ v6 pull-model: nothing is pushed onto every prompt. Subagents call this skill wh
 smaht
   calls →  wicked-brain:query       (complex/risky prompt enrichment)
   calls →  wicked-brain:search      (context-assembly skill)
-  calls →  search domain            (context-assembly skill, blast-radius)
-  reads ←  all domains              (events-query reads the unified log)
+  calls →  search domain            (context-assembly skill)
+  reads ←  all domains              (state inspector + crew:activity read the unified log)
 
 hooks/scripts/prompt_submit.py
-  injects → pull directives on every UserPromptSubmit
-  reads   ← SessionState.active_chain_id (crew chain-aware scoring)
+  injects  → pull directives on every UserPromptSubmit
+  reads    ← SessionState.active_chain_id (crew chain-aware scoring)
+  invokes  → smaht:discovery skill (contextual suggestion via _suggest_discovery())
 
 hooks/scripts/stop.py
-  calls   → smaht:discovery skill (contextual suggestion after each Stop)
+  emits    → wicked.fact.extracted events (brain auto-memorize ingestion path)
+            (Note: stop.py does NOT invoke the discovery skill; that's prompt_submit.py.)
 ```
 
 ## Anti-patterns
