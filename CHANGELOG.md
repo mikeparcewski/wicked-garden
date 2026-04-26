@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.3.0] - 2026-04-26
+
+### Features
+- feat: solo-mode HITL — inline human review dispatch mode (resolves #651) (#662) (5dcd0bd)
+
+### Chores
+- release: v8.2.0 — cluster-A followup wave (10 PRs of bug fixes + cleanup) (a2d3b1b)
+
 ## [8.2.0] - 2026-04-26
 
 ### Bug Fixes
