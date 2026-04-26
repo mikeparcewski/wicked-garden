@@ -1,0 +1,25 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3c4409f2835e51cb/.venv/bin/python
+cachedir: .pytest_cache
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /Users/michael.parcewski/Projects/wicked-garden/.claude/worktrees/agent-a3c4409f2835e51cb
+configfile: pyproject.toml
+plugins: benchmark-5.2.3, hypothesis-6.152.1
+collecting ... collected 13 items
+
+tests/crew/test_guide.py::TestNoActiveProject::test_no_active_project_returns_start_suggestion PASSED [  7%]
+tests/crew/test_guide.py::TestStalePhase::test_active_stale_phase_returns_execute_suggestion PASSED [ 15%]
+tests/crew/test_guide.py::TestStalePhase::test_negative_offset_timestamp_correct_staleness PASSED [ 23%]
+tests/crew/test_guide.py::TestStalePhase::test_recent_phase_no_stale_signal PASSED [ 30%]
+tests/crew/test_guide.py::TestOpenConditionalGate::test_open_conditional_gate_returns_gate_suggestion PASSED [ 38%]
+tests/crew/test_guide.py::TestOpenConditionalGate::test_open_conditions_only_when_unverified PASSED [ 46%]
+tests/crew/test_guide.py::TestUncommittedWork::test_git_error_returns_empty PASSED [ 53%]
+tests/crew/test_guide.py::TestUncommittedWork::test_no_uncommitted_work_no_git_signal PASSED [ 61%]
+tests/crew/test_guide.py::TestUncommittedWork::test_uncommitted_work_returns_commit_suggestion PASSED [ 69%]
+tests/crew/test_guide.py::TestOutputCap::test_output_capped_at_max_suggestions PASSED [ 76%]
+tests/crew/test_guide.py::TestSignalPriority::test_conditional_gate_ranks_above_stale_phase PASSED [ 84%]
+tests/crew/test_guide.py::TestFormatOutput::test_format_output_empty_list PASSED [ 92%]
+tests/crew/test_guide.py::TestFormatOutput::test_format_output_numbered_list PASSED [100%]
+
+============================== 13 passed in 0.13s ==============================

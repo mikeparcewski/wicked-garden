@@ -30,10 +30,15 @@ from unittest.mock import patch, MagicMock
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
+# conftest.py inserts scripts/ at sys.path[0] and appends scripts/crew/ before
+# any test module is imported. We must NOT insert scripts/crew/ at index 0 here —
+# that would shadow the crew/ namespace package and break `from crew.X import …`
+# in other test files collected in the same session (conftest.py explains this).
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT / "scripts"))
-sys.path.insert(0, str(_REPO_ROOT / "scripts" / "crew"))
+_SCRIPTS_CREW = str(_REPO_ROOT / "scripts" / "crew")
+if _SCRIPTS_CREW not in sys.path:
+    sys.path.append(_SCRIPTS_CREW)
 
 import guide  # noqa: E402 — must follow path setup
 
