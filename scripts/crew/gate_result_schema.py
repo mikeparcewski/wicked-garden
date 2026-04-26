@@ -537,7 +537,10 @@ def validate_gate_result(data: Any) -> None:
         _check_verdict_enum(data["result"], field="result")
 
     # AC-3: required fields beyond verdict/result.
-    for required in ("reviewer", "recorded_at"):
+    # ``score`` is required (#650) — a missing score silently became 0.0 in
+    # _validate_min_gate_score and triggered a misleading threshold error.
+    # Catching it here surfaces a clear schema violation at load time.
+    for required in ("reviewer", "recorded_at", "score"):
         if data.get(required) is None:
             raise GateResultSchemaError(
                 f"missing-required-field:{required}",

@@ -858,5 +858,225 @@ class TestExecuteCliStub(unittest.TestCase):
             self.assertIn("CLI execute", stderr.getvalue())
 
 
+# ---------------------------------------------------------------------------
+# Issue #650: score field required in gate_result_schema
+# ---------------------------------------------------------------------------
+
+
+class TestScoreRequiredInSchema(unittest.TestCase):
+    """Issue #650: gate_result_schema must reject a payload missing ``score``.
+
+    Previously a missing score silently became 0.0 in _validate_min_gate_score
+    and produced a misleading "Gate score 0.00 below threshold" hard error.
+    The schema now requires ``score`` so the violation surfaces at load time
+    with a clear "missing-required-field:score" reason.
+    """
+
+    def test_missing_score_raises_schema_error(self):
+        """A gate-result without ``score`` raises GateResultSchemaError."""
+        from gate_result_schema import GateResultSchemaError, validate_gate_result
+
+        payload = {
+            "verdict": "APPROVE",
+            "reviewer": "senior-engineer",
+            "recorded_at": "2026-04-25T10:00:00+00:00",
+            # score intentionally omitted
+        }
+        with self.assertRaises(GateResultSchemaError) as cm:
+            validate_gate_result(payload)
+        self.assertIn("score", cm.exception.reason)
+
+    def test_score_present_passes_schema(self):
+        """A gate-result with a valid ``score`` passes schema validation."""
+        from gate_result_schema import validate_gate_result
+
+        payload = {
+            "verdict": "APPROVE",
+            "reviewer": "senior-engineer",
+            "recorded_at": "2026-04-25T10:00:00+00:00",
+            "score": 0.85,
+        }
+        # Must not raise.
+        validate_gate_result(payload)
+
+    def test_approve_phase_surfaces_schema_error_not_threshold_error(self):
+        """approve_phase must surface the schema error (missing score) rather
+        than a misleading threshold error when gate-result.json has no score.
+
+        Regression pin for issue #650: the old code produced "Gate score
+        0.00 below threshold 0.60" because _validate_min_gate_score treated
+        a missing score as 0.0.  The fix raises at schema-validation time.
+        """
+        from gate_result_schema import GateResultSchemaError
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = Path(tmpdir) / "score-proj"
+            phase_dir = project_dir / "phases" / "clarify"
+            phase_dir.mkdir(parents=True)
+
+            # Write a gate-result.json without a score field.
+            (phase_dir / "gate-result.json").write_text(
+                json.dumps({
+                    "verdict": "APPROVE",
+                    "result": "APPROVE",
+                    "reviewer": "senior-engineer",
+                    "recorded_at": "2026-04-25T10:00:00+00:00",
+                    # score omitted
+                })
+            )
+
+            state = _make_state(name="score-proj", rigor_tier="standard")
+            state.current_phase = "clarify"
+            state.phases["clarify"] = pm.PhaseState(
+                status="in_progress",
+                started_at="2026-04-25T00:00:00Z",
+            )
+
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness", return_value=None), \
+                 patch.object(pm, "_check_phase_deliverables", return_value=[]), \
+                 patch.object(pm, "_validate_gate_policy_full_rigor"), \
+                 patch.object(pm, "load_phases_config", return_value={
+                     "clarify": {
+                         "gate_required": True,
+                         "depends_on": [],
+                         "blocks_next": True,
+                         "required_deliverables": [],
+                         "min_gate_score": 0.6,
+                     },
+                 }):
+                # Must raise GateResultSchemaError (missing-required-field:score)
+                # NOT ValueError("Gate score 0.00 below threshold 0.60").
+                with self.assertRaises(GateResultSchemaError) as cm:
+                    approve_phase(state, "clarify", approver="test-user")
+
+            self.assertIn("score", cm.exception.reason)
+            # Must NOT be the misleading threshold error message.
+            self.assertNotIn("below", cm.exception.reason)
+
+
+# ---------------------------------------------------------------------------
+# Issue #653: native task gate tracking sync on approve
+# ---------------------------------------------------------------------------
+
+
+class TestSyncGateFindingTask(unittest.TestCase):
+    """Issue #653: approve_phase must sync the gate-finding native task to
+    ``status=completed`` with verdict stamped in metadata.
+
+    The sync is fail-open: if no matching task exists or the write fails,
+    approve_phase continues normally.
+    """
+
+    def _write_task(self, tasks_dir: Path, task_id: str, data: dict) -> Path:
+        tasks_dir.mkdir(parents=True, exist_ok=True)
+        p = tasks_dir / f"{task_id}.json"
+        p.write_text(json.dumps(data, indent=2))
+        return p
+
+    def test_sync_marks_gate_finding_task_completed(self):
+        """A matching gate-finding task is updated to completed with verdict."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-123"
+
+            gate_task = {
+                "id": "task-gate-1",
+                "subject": "Gate: clarify",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "clarify",
+                    "chain_id": "sync-proj.clarify.code-quality",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+            task_file = self._write_task(tasks_dir, "task-gate-1", gate_task)
+
+            state = _make_state(name="sync-proj")
+            gate_result = {"verdict": "APPROVE", "result": "APPROVE", "score": 0.82}
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-123", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                pm._sync_gate_finding_task(state, "clarify", gate_result)
+
+            updated = json.loads(task_file.read_text())
+            self.assertEqual(updated["status"], "completed")
+            self.assertEqual(updated["metadata"]["verdict"], "APPROVE")
+            self.assertAlmostEqual(updated["metadata"]["score"], 0.82)
+
+    def test_sync_skips_already_completed_tasks(self):
+        """Tasks already in completed status are not re-written."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-skip"
+            gate_task = {
+                "id": "task-gate-done",
+                "subject": "Gate: design",
+                "status": "completed",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "design",
+                    "chain_id": "skip-proj.design.review",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+            task_file = self._write_task(tasks_dir, "task-gate-done", gate_task)
+            original_mtime = task_file.stat().st_mtime
+
+            state = _make_state(name="skip-proj")
+            gate_result = {"verdict": "REJECT", "result": "REJECT", "score": 0.3}
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-skip", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                pm._sync_gate_finding_task(state, "design", gate_result)
+
+            # File must NOT have been modified.
+            self.assertEqual(task_file.stat().st_mtime, original_mtime)
+
+    def test_sync_no_op_when_no_matching_task(self):
+        """When no gate-finding task exists for the phase, sync is a no-op."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-noop"
+
+            # A task that does NOT match: different event_type
+            other_task = {
+                "id": "task-other",
+                "subject": "Build: feature",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "coding-task",
+                    "phase": "build",
+                    "chain_id": "noop-proj.build",
+                    "source_agent": "implementer",
+                },
+            }
+            task_file = self._write_task(tasks_dir, "task-other", other_task)
+            original_mtime = task_file.stat().st_mtime
+
+            state = _make_state(name="noop-proj")
+            gate_result = {"verdict": "APPROVE", "score": 0.9}
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-noop", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                pm._sync_gate_finding_task(state, "build", gate_result)
+
+            # coding-task file must be untouched.
+            self.assertEqual(task_file.stat().st_mtime, original_mtime)
+
+    def test_sync_fail_open_no_session_id(self):
+        """Missing CLAUDE_SESSION_ID is silently a no-op (fail-open)."""
+        state = _make_state(name="failopen-proj")
+        gate_result = {"verdict": "APPROVE", "score": 0.9}
+        # Remove CLAUDE_SESSION_ID from env; must not raise.
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_SESSION_ID"}
+        with patch.dict(os.environ, env, clear=True):
+            pm._sync_gate_finding_task(state, "clarify", gate_result)  # no exception
+
+
 if __name__ == "__main__":
     unittest.main()

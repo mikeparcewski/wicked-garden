@@ -3096,6 +3096,119 @@ def _record_complexity_snapshot(complexity: int) -> None:
         logger.debug("[approve] complexity snapshot producer skipped: %s", exc)
 
 
+def _sync_gate_finding_task(
+    state: "ProjectState",
+    phase: str,
+    gate_result: Optional[Dict],
+) -> None:
+    """Sync the native-task gate-finding entry on approve (#653).
+
+    Scans the current session's task store for a task whose metadata
+    matches ``event_type=gate-finding`` AND ``phase=phase`` AND whose
+    ``chain_id`` starts with the project name prefix.  When found, updates
+    the task file to ``status=completed`` and stamps the verdict + score
+    from ``gate_result`` into metadata.
+
+    This closes the dual-record divergence (#653): the DomainStore phase
+    record and the native task chain both reflect the gate outcome.
+
+    Fail-open on every error path — a task-store update failure must
+    never block phase advancement.
+
+    Supported path: direct file write only (not daemon).  The daemon
+    path is intentionally skipped here because ``approve_phase`` runs in
+    the same process as the agent calling TaskUpdate, and the daemon is
+    not a writable API surface for phase_manager (it is read-only).
+    """
+    import os
+
+    project_name = getattr(state, "name", None)
+    if not project_name:
+        return
+
+    # Resolve the chain_id prefix that gate-finding tasks carry for this project.
+    # Pattern: "{project}.{phase}.{gate}" or "{project}.{phase}".
+    # We match any chain_id starting with "{project}.{phase}".
+    expected_chain_prefix = f"{project_name}.{phase}"
+
+    verdict: Optional[str] = None
+    score: Optional[float] = None
+    if gate_result and isinstance(gate_result, dict):
+        verdict = gate_result.get("verdict") or gate_result.get("result")
+        raw_score = gate_result.get("score")
+        if raw_score is not None:
+            try:
+                score = float(raw_score)
+            except (TypeError, ValueError):
+                score = None
+
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "")
+    if not session_id:
+        return
+
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    base = Path(config_dir) if config_dir else Path.home() / ".claude"
+    tasks_dir = base / "tasks" / session_id
+    if not tasks_dir.is_dir():
+        return
+
+    _MAX_TASKS_SCAN: int = 200  # R5: bounded scan — never iterate unbounded task dirs
+
+    try:
+        scanned = 0
+        for entry in tasks_dir.iterdir():
+            if scanned >= _MAX_TASKS_SCAN:
+                break
+            if entry.name.startswith(".") or entry.suffix != ".json":
+                continue
+            scanned += 1
+            try:
+                data = json.loads(entry.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(data, dict):
+                continue
+            if data.get("status") == "completed":
+                continue
+
+            meta = data.get("metadata") or {}
+            if not isinstance(meta, dict):
+                continue
+            if meta.get("event_type") != "gate-finding":
+                continue
+            if meta.get("phase") != phase:
+                continue
+            chain_id = meta.get("chain_id", "")
+            if not isinstance(chain_id, str) or not chain_id.startswith(expected_chain_prefix):
+                continue
+
+            # Found a matching gate-finding task — stamp it completed.
+            data["status"] = "completed"
+            if verdict:
+                meta["verdict"] = verdict
+            if score is not None:
+                meta["score"] = score
+            data["metadata"] = meta
+            try:
+                entry.write_text(
+                    json.dumps(data, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+                logger.debug(
+                    "[approve] synced gate-finding task %s → completed "
+                    "(phase=%s, verdict=%s, score=%s)",
+                    entry.stem, phase, verdict, score,
+                )
+            except Exception as exc:
+                logger.debug(
+                    "[approve] gate-finding task sync write failed: %s", exc
+                )
+            # At most one gate-finding task per phase — stop after first match.
+            return
+    except Exception as exc:
+        logger.debug("[approve] _sync_gate_finding_task scan error: %s", exc)
+
+
 def _run_build_phase_guard(project_dir: Path) -> List[str]:
     """Run the guard pipeline at build-phase approval (#462, Item 2).
 
@@ -3640,6 +3753,10 @@ def approve_phase(
     phase_state.status = "approved"
     phase_state.approved_at = get_utc_timestamp()
     phase_state.approved_by = approver
+
+    # #653: sync gate-finding task in native chain to completed.
+    # Fail-open — a task-store write failure must never block approval.
+    _sync_gate_finding_task(state, phase, gate_result)
 
     # Emit rich event to unified event log
     try:
