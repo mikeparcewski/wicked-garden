@@ -76,6 +76,6 @@ Your final message MUST end with a fenced JSON block:
 ## Failure Modes
 
 - Missing required deliverable → `verdict: REJECT`, `reason: "missing-deliverable: <name>"`.
-- Zero-byte deliverable → `verdict: REJECT`, `reason: "deliverable-too-small: <name>"`.
+- Zero-byte deliverable → `verdict: REJECT`, `reason: "executor-deliverable-too-small: <name>"`.
 - Banned reviewer authored a prior gate-result → `verdict: REJECT`, `reason: "banned-reviewer"`.
 - Ambiguous or subjective call → `verdict: CONDITIONAL` with explicit conditions.
