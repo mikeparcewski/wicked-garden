@@ -53,7 +53,7 @@ steady-state hypothesis, vary real-world events, run experiments in production
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Search**: Use wicked-garden:search to map service dependencies and timeout config
-- **Memory**: Use wicked-garden:mem to recall past incident patterns and experiment outcomes
+- **Memory**: Use wicked-brain:memory to recall past incident patterns and experiment outcomes
 - **SRE**: Coordinate with sre agent on steady-state metrics and SLO burn rates
 - **Incident responder**: Hand off real-incident learnings to inform experiments
 - **Tasks**: Track experiments and findings via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`

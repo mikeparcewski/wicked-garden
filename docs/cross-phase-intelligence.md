@@ -319,41 +319,9 @@ results = score_pipeline(
 
 ## Phase-Aware Memory
 
-`scripts/mem/phase_scoring.py` -- Phase affinity matrix for memory recall.
+> **Removed (v8.0.0 cluster-A cleanup)**: `scripts/mem/phase_scoring.py` was deleted because it had zero live callers after the v8.0.0 surface cut. Phase affinity ranking is now handled by wicked-brain's FTS5/BM25 scoring. Query-time relevance is determined by full-text search ranking rather than a static phase affinity matrix.
 
-### How It Works
-
-When memories are recalled during a crew phase, each memory's creation phase is compared against the active phase using an affinity matrix. Memories from related phases score higher.
-
-### Affinity Levels
-
-| Level | Boost | Example |
-|-------|-------|---------|
-| High | 1.5x | During `build`, memories from `design` and `clarify` |
-| Medium | 1.0x | During `build`, memories from `test-strategy` |
-| Low | 0.7x | During `build`, memories from `ideate` |
-
-When either phase is `None`, the boost is 1.0 (backward compatible -- no penalty for legacy memories without phase tags).
-
-### CLI Usage
-
-```bash
-# Score memories by phase affinity (reads JSON array from stdin)
-phase_scoring.py score --phase build < memories.json
-
-# Filter to memories from a specific phase
-phase_scoring.py filter --phase design < memories.json
-
-# Detect the active crew phase
-phase_scoring.py detect-phase
-
-# Get the boost for a specific phase pair
-phase_scoring.py boost --memory-phase design --active-phase build
-```
-
-### Auto-Detection
-
-`detect_active_phase()` checks the `WICKED_CREW_PHASE` environment variable first, then falls back to reading the active project's current phase via `crew.py`.
+To recall phase-relevant memories, use `wicked-brain:memory` (recall mode) or `wicked-brain:search` with a phase-scoped query. The brain's BM25 scoring weights results by query relevance automatically.
 
 ## Council Consensus
 
@@ -399,7 +367,7 @@ consensus.py format --result result.json --show-dissent
 
 ### Memory Integration
 
-`format_for_memory()` converts a `ConsensusResult` into a dict ready for `mem:store`:
+`format_for_memory()` converts a `ConsensusResult` into a dict ready for `wicked-brain:memory` (store mode):
 
 ```python
 from consensus import format_for_memory

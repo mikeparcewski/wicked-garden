@@ -167,7 +167,7 @@ Asks "Do I have analytics capability?" not "Do I have Amplitude?"
 
 **With native tasks**: Stores design via TaskUpdate description append on the active task
 **With qe**: QE provides test scenarios for instrumentation
-**With wicked-garden:mem**: Recalls past experiment patterns
+**With wicked-brain:memory**: Recalls past experiment patterns
 **With product**: Uses product context for hypothesis
 
 ## See Also

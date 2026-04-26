@@ -101,7 +101,7 @@ After exploration, ask specific questions:
 ```
 
 **Native tasks** - Document insights via TaskCreate with `metadata.event_type="task"`
-**wicked-garden:mem** - Store analysis patterns for reuse
+**wicked-brain:memory** - Store analysis patterns for reuse
 
 ## Best Practices
 

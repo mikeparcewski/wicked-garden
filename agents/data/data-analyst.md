@@ -27,7 +27,7 @@ You explore data, identify patterns, and generate actionable insights.
 Leverage available tools:
 
 - **wicked-garden:data:analyze**: Primary tool for data analysis and SQL queries via DuckDB
-- **wicked-garden:mem**: Recall past analysis patterns
+- **wicked-brain:memory**: Recall past analysis patterns
 - **Native tasks**: Document insights via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`
 
 ## Core Responsibilities

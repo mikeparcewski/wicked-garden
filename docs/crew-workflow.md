@@ -303,4 +303,6 @@ Each crew project is isolated via `project_registry.py`:
 
 ## Memory Integration
 
-Crew stores significant decisions, patterns, and gate failures in `wicked-garden:mem` automatically. Phase-aware recall (`mem/phase_scoring.py`) weights memories by affinity to the current phase — architecture decisions surface during design, test patterns during test-strategy, deployment notes during build. v6 adds **persistent process memory** + **kaizen backlog** (commit `7658fb9`): retro phase auto-populates a facilitator-context digest so future projects inherit learned trade-offs.
+Crew stores significant decisions, patterns, and gate failures in wicked-brain automatically via the Stop hook's `session_fact_extractor`. The brain's FTS5/BM25 ranking handles memory relevance by query affinity — architecture decisions surface during design queries, test patterns during test queries. v6 adds **persistent process memory** + **kaizen backlog** (commit `7658fb9`): retro phase auto-populates a facilitator-context digest so future projects inherit learned trade-offs.
+
+Note: `scripts/mem/phase_scoring.py` was removed in the v8.0.0 cleanup (cluster-A P0). Phase affinity weighting is now handled by wicked-brain's FTS5/BM25 scoring. The `/wicked-garden:mem:*` slash commands were removed in v8.0.0; use `wicked-brain:memory` directly.

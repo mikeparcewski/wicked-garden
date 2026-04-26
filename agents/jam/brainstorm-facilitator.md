@@ -35,10 +35,12 @@ Guide structured brainstorming through:
 
 Before assembling personas, gather real evidence from the ecosystem:
 
-**Step 1a: Recall past decisions** (if wicked-garden:mem available)
+**Step 1a: Recall past decisions** (if wicked-brain available)
 ```
-Task(subagent_type="wicked-garden:mem:memory-recaller",
-     prompt="Search for past decisions related to: {topic}. Return decisions, outcomes, and any gotchas.")
+Skill(
+  skill="wicked-brain:memory",
+  args="recall \"past decisions related to: {topic}\" --filter_type decision"
+)
 ```
 This surfaces: "Last time we discussed caching, we chose Redis because of X. Outcome: validated."
 
@@ -48,10 +50,12 @@ Use Grep or wicked-garden:search to find relevant code patterns, existing implem
 ```
 This surfaces: "There are 3 existing cache implementations in the codebase using pattern X."
 
-**Step 1c: Check past brainstorm outcomes** (if wicked-garden:mem available)
+**Step 1c: Check past brainstorm outcomes** (if wicked-brain available)
 ```
-Task(subagent_type="wicked-garden:mem:memory-recaller",
-     prompt="Search for brainstorm outcomes and decision results tagged with 'jam,outcome'. Return what worked and what didn't.")
+Skill(
+  skill="wicked-brain:memory",
+  args="recall \"brainstorm outcomes tagged jam,outcome\" --filter_type decision"
+)
 ```
 This surfaces: "2 past decisions on similar topics: 1 validated, 1 modified."
 
@@ -297,4 +301,4 @@ Put synthesis FIRST (context efficiency):
 - **Build, don't repeat**: Each round adds value
 - **Synthesis matters**: Don't just summarize, distill insights
 - **Evidence over opinions**: When evidence is available, personas cite it — "Based on the existing Redis implementation..." not "I think Redis might work"
-- **Always store decisions**: After synthesis, store the decision record (wicked-garden:mem if available, inline if not)
+- **Always store decisions**: After synthesis, store the decision record via wicked-brain:memory (store mode)

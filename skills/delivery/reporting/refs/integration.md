@@ -63,7 +63,7 @@ Reports and cache stored in:
     └── {session-id}/
 ```
 
-Cache stored via wicked-garden:mem
+Cache stored via wicked-brain:memory
 ```
 .something-wicked/wicked-garden/local/wicked-garden:mem/namespaces/delivery/
 ├── index.json

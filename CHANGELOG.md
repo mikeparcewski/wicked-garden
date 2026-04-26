@@ -6,8 +6,31 @@
 - `smaht:learn` command — duplicated `wicked-brain:ingest`; zero v8 role (cluster-A P0, 2026-04-25)
 - `smaht:libs` command — orphaned by v8 daemon-first architecture; zero v8 role (cluster-A P0, 2026-04-25)
 - Scenario `scenarios/smaht/06-context7-integration.md` retired (tombstone kept; test subject no longer exists)
+- Skill `wicked-garden:mem` (SKILL.md + refs/) — orphaned discovery surface for the v8.0.0 mem command cuts. Use `wicked-brain:memory` directly. (cluster-A P0, 2026-04-25)
+- Agents `wicked-garden:mem:memory-recaller`, `wicked-garden:mem:memory-learner`, `wicked-garden:mem:memory-archivist` — wired to a defunct local-JSON store path; never re-pointed to wicked-brain after the v6→v7 brain migration. (cluster-A P0, 2026-04-25)
+- Script `scripts/mem/phase_scoring.py` and associated scenarios (`scenarios/mem/` directory, phase-scoring section of `scenarios/crew/cross-module-integration.md`) — phase affinity ranking now handled by wicked-brain's FTS5/BM25. (cluster-A P0, 2026-04-25)
+- All 9 `scenarios/mem/` scenarios — exercised dead slash commands removed in v8.0.0. (cluster-A P0, 2026-04-25)
+
+### Changed
+- `agents/jam/brainstorm-facilitator.md` and `commands/jam/revisit.md` now query `wicked-brain:memory` directly for past decision recall (was: `wicked-garden:mem:memory-recaller` agent dispatch). (cluster-A P0, 2026-04-25)
+- `scripts/mem/session_fact_extractor.py` moved to `scripts/_brain_ingest/session_fact_extractor.py` — internal infrastructure relocation; no public API change. Caller `hooks/scripts/stop.py` updated. (cluster-A P0, 2026-04-25)
+- Hook chunk metadata now emits `source: wicked-brain:memory` (was: `source: wicked-garden:mem`) in `hooks/scripts/prompt_submit.py` and `hooks/scripts/pre_compact.py`. (cluster-A P0, 2026-04-25)
+- `scripts/smaht/context_package.py` updated: PLUGIN_SKILL_MAP["mem"] now points at `wicked-brain:memory`, `gather_memories()` source filter updated from `"mem"` to `"brain"`. (cluster-A P0, 2026-04-25)
+
+### Documentation
+- README, docs/getting-started.md, docs/advanced.md, docs/crew-workflow.md, docs/cross-phase-intelligence.md, AGENTS.md swept of dead `/wicked-garden:mem:*` slash command syntax (original PR). Fix-up commit (PR #632 council 5-0 CONDITIONAL): swept ~73 live `wicked-garden:mem` tool directives across 37 agent files, 14 command files, 15 skill files, and docs/architecture.md, replacing with `wicked-brain:memory` references. Acceptable historical references (CHANGELOG entries, evidence files, cluster-a/ postmortem, storage namespace constants in `_paths.py`/`_domain_store.py`/`_integration_resolver.py`/`reset.py`, storage-path args in scenarios) intentionally left in place. (cluster-A P0, 2026-04-25)
 
 ## [8.0.0] - 2026-04-24
+
+### Breaking — already shipped in v8.0.0
+
+- Removed all 8 `commands/mem/` slash commands without a deprecation window:
+  `mem:store`, `mem:recall`, `mem:forget`, `mem:stats`, `mem:consolidate`,
+  `mem:retag`, `mem:review`, `mem:help`. Replacement: use `wicked-brain:memory`
+  (store/recall/forget modes), `wicked-brain:status`, `wicked-brain:retag`,
+  `wicked-brain:review`, `wicked-brain:agent` (consolidate) directly. See
+  `docs/cluster-a/mem-zombie-postmortem-and-remediation.md` for migration
+  details and the postmortem on this rollout.
 
 ### Features
 - feat(v8-PR-8): typed hook subscribers with filter + debounce (#592) (#624) (68651b2)

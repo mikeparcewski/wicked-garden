@@ -31,7 +31,7 @@ Invoke this skill when someone new is joining the team. Typical outputs:
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Delivery reports**: `/wicked-garden:delivery:report` for team health overview
-- **Memory**: `wicked-garden:mem:recall` for team conventions and past decisions
+- **Memory**: `wicked-brain:memory` (recall mode) for team conventions and past decisions
 - **Search**: `wicked-garden:search` for codebase navigation (backed by the
   **codebase-narrator** skill for architectural overview)
 - **Tasks**: Inspect native tasks via TaskCreate/TaskUpdate with
@@ -52,9 +52,9 @@ by `metadata.event_type=="task"` for human-visible items.
 
 **From memory**:
 ```
-/wicked-garden:mem:recall "team conventions"
-/wicked-garden:mem:recall "architecture decisions"
-/wicked-garden:mem:recall "onboarding"
+Skill(skill="wicked-brain:memory", args="recall \"team conventions\"")
+Skill(skill="wicked-brain:memory", args="recall \"architecture decisions\"")
+Skill(skill="wicked-brain:memory", args="recall \"onboarding\"")
 ```
 
 **From codebase**:

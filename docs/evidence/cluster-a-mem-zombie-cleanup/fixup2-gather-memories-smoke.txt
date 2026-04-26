@@ -1,0 +1,69 @@
+gather_memories() — Class 3 code bug fix smoke test
+=====================================================
+
+Function: scripts/smaht/context_package.py:gather_memories()
+Fix commit: fixup #2 to PR #632 (cluster-a/mem-zombie-cleanup)
+Date: 2026-04-25
+
+## Root Cause
+
+domain_adapter.query() returns ContextItems tagged with source="crew" or
+source="jam" (see _DOMAIN_QUERIES in scripts/smaht/adapters/domain_adapter.py,
+labels on lines 59 and 72). The old code filtered `if source != "brain": continue`,
+which always dropped every item returned by domain_adapter. result was always [].
+
+brain_adapter.query() (scripts/smaht/adapters/brain_adapter.py:195) returns
+ContextItems tagged with source="brain" (set at line 244 of brain_adapter.py).
+
+## Fix
+
+Before (broken):
+    from adapters import domain_adapter
+    items = await domain_adapter.query(task)
+    for item in items:
+        if getattr(item, "source", "") != "brain":
+            continue   # <-- always dropped; domain_adapter never emits source="brain"
+
+After (correct):
+    from adapters import brain_adapter
+    items = await brain_adapter.query(task)
+    for item in items:    # no source filter needed; brain_adapter always emits source="brain"
+
+## Expected behavior change
+
+Before fix:
+  gather_memories("crew gate workflow") → [] (always, regardless of brain content)
+
+After fix:
+  gather_memories("crew gate workflow") → N items if wicked-brain FTS5 index
+  has matching content for the query; [] only when brain is unreachable or
+  query returns no results (graceful degradation unchanged).
+
+## Local smoke test
+
+Brain server was not running during this fix-up (port 4243 unreachable).
+The fix is verified structurally: brain_adapter.query() is an async function
+with signature `async def query(prompt: str) -> List[ContextItem]` (line 195),
+matching the gather_memories() call contract. Items it returns have
+source="brain" (set at line 244), so the source filter was correctly removed —
+no items need to be dropped.
+
+To verify live behavior after deploying with brain running:
+  python3 -c "
+  import asyncio, sys
+  sys.path.insert(0, 'scripts/smaht')
+  sys.path.insert(0, 'scripts')
+  from context_package import gather_memories
+  result = asyncio.run(gather_memories('crew gate workflow', limit=3))
+  print('gather_memories result:', result)
+  print('count:', len(result))
+  "
+
+Expected output (brain populated): count > 0 with title/summary/type fields
+Expected output (brain unreachable): count: 0 (graceful degradation, no exception)
+
+## Same failure class as PR #630
+
+PR #630 fixed context7_adapter._lookup_cheatsheet missing its return value.
+This fix resolves the same class: an adapter call that silently returned empty
+due to an incorrect source filter on the wrong adapter's output.

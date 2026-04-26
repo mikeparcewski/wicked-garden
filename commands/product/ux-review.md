@@ -272,7 +272,7 @@ Run full review with `/wicked-garden:product:ux-review {target} --focus all` for
 ## Integration
 
 - **Native tasks**: Track issues via TaskCreate/TaskUpdate with `metadata.event_type="task"`
-- **wicked-garden:mem**: Recall design system patterns
+- **wicked-brain:memory**: Recall design system patterns
 - **wicked-crew**: Auto-suggest during build/review phases
 - **engineering**: Coordinate with code review
 

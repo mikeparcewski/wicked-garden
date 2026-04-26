@@ -28,7 +28,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Quality risks**: Use qe risk assessor for technical risks
 - **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` for native risk tracking (see scripts/_event_schema.py).
-- **Memory**: Use wicked-garden:mem to recall past risk patterns
+- **Memory**: Use wicked-brain:memory to recall past risk patterns
 - **Search**: Use wicked-garden:search to find risk indicators
 
 If a wicked-* tool is available, prefer it over manual approaches.
@@ -56,7 +56,7 @@ Inspect the session's active tasks for blockers (native tasks live under `${CLAU
 
 Recall past risks:
 ```
-/wicked-garden:mem:recall "risk {project_type}"
+Skill(skill="wicked-brain:memory", args="recall \"risk {project_type}\"")
 ```
 
 ### 3. Assess Technical Risks
@@ -246,5 +246,5 @@ Skill(skill="wicked-brain:memory", args="store \"risk pattern: {risk type} in {c
 
 Recall for new projects:
 ```
-/wicked-garden:mem:recall "risk {similar project type}"
+Skill(skill="wicked-brain:memory", args="recall \"risk {similar project type}\"")
 ```

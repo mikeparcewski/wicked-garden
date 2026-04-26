@@ -91,7 +91,7 @@ See [examples](refs/examples.md) for schema format.
 |--------|-------------|
 | wicked-garden:data:analyze | Use for SQL-based profiling of large files via DuckDB |
 | Native tasks | Document quality issues via TaskCreate with `metadata.event_type="task"` |
-| wicked-garden:mem | Store quality patterns across sessions |
+| wicked-brain:memory | Store quality patterns across sessions |
 
 ## Large Files
 

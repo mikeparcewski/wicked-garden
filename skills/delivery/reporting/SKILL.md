@@ -9,7 +9,7 @@ description: |
   "project health summary"
 
   Enhanced with:
-  - wicked-garden:mem Stores insights across sessions
+  - wicked-brain:memory Stores insights across sessions
 ---
 
 # Reporting Skill
@@ -82,7 +82,7 @@ For detailed persona configuration, see [refs/personas.md](refs/personas.md).
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
 | data | Data sampling, SQL queries | Cannot process data |
-| wicked-garden:mem | Cross-session insights | Session-only memory |
+| wicked-brain:memory | Cross-session insights | Session-only memory |
 
 For detailed integration patterns, caching strategy, and storage layout, see [refs/integration.md](refs/integration.md).
 

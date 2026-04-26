@@ -5,7 +5,7 @@ description: |
   council sessions, cross-model reviews, and diverse perspective gathering.
   Detects codex, copilot, gemini, opencode, pi, aider, llm, aichat, and goose
   CLIs at runtime via PATH discovery.
-  Decisions stored in wicked-garden:mem. Transcripts persisted via jam scripts.
+  Decisions stored in wicked-brain:memory. Transcripts persisted via jam scripts.
 
   Use when:
   - Running multi-model analysis or design review

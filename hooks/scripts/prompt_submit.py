@@ -91,7 +91,7 @@ def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="ep
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
         lines = ["---"]
-        lines.append("source: wicked-garden:mem")
+        lines.append("source: wicked-brain:memory")
         lines.append(f"memory_type: {mem_type}")
         lines.append(f"memory_tier: {tier}")
         lines.append(f"title: {title}")

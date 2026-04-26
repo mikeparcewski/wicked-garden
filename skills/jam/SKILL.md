@@ -4,7 +4,7 @@ description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
   This skill should be used when the user wants to brainstorm, explore ideas,
   get feedback on concepts, or run a focus group discussion.
-  Sessions are tracked as native tasks (process) and stored in wicked-garden:mem (outcome).
+  Sessions are tracked as native tasks (process) and stored in wicked-brain:memory (outcome).
 
   Use when: "brainstorm this", "explore ideas", "get different perspectives",
   "focus group", "what do you think about", "pros and cons"
@@ -123,11 +123,11 @@ Bad synthesis:
 
 ## Integration
 
-### With wicked-garden:mem
+### With wicked-brain
 
 At session start:
 ```python
-prior = mem_recall(topic)  # via /wicked-garden:mem:recall
+prior = mem_recall(topic)  # via wicked-brain:memory (recall mode)
 inject_context(prior)
 ```
 
@@ -164,7 +164,7 @@ TaskUpdate(taskId, description="{previous}\n\nDecision: {decision_record}")
 ```
 
 Wrap all task calls in graceful degradation — if TaskCreate/TaskUpdate fail, skip silently.
-Native tasks track process; wicked-garden:mem stores outcomes. Both can coexist.
+Native tasks track process; wicked-brain:memory stores outcomes. Both can coexist.
 
 ### With wicked-crew
 

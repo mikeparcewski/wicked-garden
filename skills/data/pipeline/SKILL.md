@@ -107,7 +107,7 @@ Analyzes: Code quality, error handling, performance, maintainability.
 
 - **wicked-garden:search**: Find pipeline code with `/wicked-garden:search:code "dag|pipeline"`
 - **Native tasks**: Track pipeline issues via TaskCreate with `metadata.event_type="task"`
-- **wicked-garden:mem**: Recall pipeline patterns
+- **wicked-brain:memory**: Recall pipeline patterns
 
 ## Best Practices
 

@@ -135,7 +135,7 @@ Format the agent's output into the standard alignment analysis structure.
 
 Automatically:
 - **Native tasks**: Documents alignment status via TaskCreate/TaskUpdate with `metadata.event_type="task"`
-- **wicked-garden:mem**: Tracks stakeholder patterns
+- **wicked-brain:memory**: Stores stakeholder patterns for future reference
 - **Event**: Emits `[product:alignment:achieved:success]` or `[product:concern:raised:warning]`
 
 ## Example

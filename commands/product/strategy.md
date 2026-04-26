@@ -294,7 +294,7 @@ Run `/wicked-garden:product:strategy {target} --focus all` for complete analysis
 - **wicked-garden:product:elicit**: Feed requirements into strategy
 - **wicked-crew**: Strategic analysis in clarify phase
 - **Native tasks**: Track strategic decisions via TaskCreate/TaskUpdate with `metadata.event_type="task"`
-- **wicked-garden:mem**: Store decisions for future reference
+- **wicked-brain:memory**: Store decisions for future reference
 
 ## Example
 

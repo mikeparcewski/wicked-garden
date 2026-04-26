@@ -140,7 +140,7 @@ Every domain works independently. Install the plugin, use any command.
 |--------|-------------|--------------|
 | **crew** | Facilitator-driven workflow engine with 7 archetypes, phase-boundary QE evaluator, convergence lifecycle, challenge gate, yolo guardrails, and multi-reviewer gate enforcement | `crew:start`, `crew:execute`, `crew:convergence`, `crew:swarm`, `crew:retro` |
 | **smaht** | Automatic context assembly on every prompt. 4-tier routing (hot/fast/slow/synthesize). Six adapters: domain, brain, events, context7, tools, delegation. | `smaht:onboard`, `smaht:collaborate`, `smaht:briefing` |
-| **mem** | 3-tier persistent memory (working → episodic → semantic) with auto-consolidation and tag-based search | `mem:store`, `mem:recall`, `mem:consolidate` |
+| **mem** | 3-tier persistent memory (working → episodic → semantic) with auto-consolidation and tag-based search — **requires [wicked-brain](https://github.com/mikeparcewski/wicked-brain) plugin** | Use `wicked-brain:memory` (store/recall modes) directly |
 | **search** | Structural code intelligence — symbols, blast radius, data lineage, service maps | `search:code`, `search:lineage`, `search:blast-radius`, `search:service-map` |
 | **jam** | AI brainstorming with dynamic focus groups and multi-model council sessions | `jam:brainstorm`, `jam:quick`, `jam:council` |
 

@@ -119,7 +119,7 @@ artifact reaches `Integrated`. Stalls at threshold 3 sessions surface as finding
 | Store | What |
 |-------|------|
 | Native tasks | TaskCreate/TaskUpdate with validated `metadata` (see `scripts/_event_schema.py`) |
-| `wicked-garden:mem` | Cross-session learning at project completion and gate failures |
+| `wicked-brain:memory` | Cross-session learning at project completion and gate failures |
 | Local JSON | DomainStore fallback; always available |
 
 ## Refs (load on demand)

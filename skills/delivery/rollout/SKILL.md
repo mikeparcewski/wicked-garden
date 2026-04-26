@@ -176,7 +176,7 @@ Gracefully degrades to manual procedures when capabilities unavailable.
 
 **With native tasks**: Tracks rollout progress per stage via TaskCreate/TaskUpdate with `metadata.event_type="task"`
 **With qe**: Uses test scenarios for validation
-**With wicked-garden:mem**: Recalls past rollout learnings
+**With wicked-brain:memory**: Recalls past rollout learnings
 **With wicked-garden:delivery:experiment**: Uses experiment results for confidence
 
 ## See Also

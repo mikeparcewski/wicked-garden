@@ -187,7 +187,7 @@ After implementing recommendations, measure:
 - **wicked-garden:product:analyze**: Extracts insights
 - **Native tasks**: TaskCreate for approved recommendations with `metadata.event_type="task"`
 - **wicked-crew**: Feed into planning phases
-- **wicked-garden:mem**: Store decisions for future reference
+- **wicked-brain:memory**: Store decisions for future reference
 
 ## Example
 

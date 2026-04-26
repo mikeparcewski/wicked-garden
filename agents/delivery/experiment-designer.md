@@ -27,7 +27,7 @@ You design statistically rigorous experiments for feature validation.
 Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Product**: Use product to understand feature context
-- **Memory**: Use wicked-garden:mem to recall past experiment patterns
+- **Memory**: Use wicked-brain:memory to recall past experiment patterns
 - **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to store experiment plans (see scripts/_event_schema.py).
 
 If a wicked-* tool is available, prefer it over manual approaches.
@@ -56,7 +56,7 @@ Discovery approach: Ask "Do I have analytics capability?" by checking for:
 
 Gather information:
 ```
-/wicked-garden:mem:recall "experiment {feature_type}"
+Skill(skill="wicked-brain:memory", args="recall \"experiment {feature_type}\"")
 /wicked-garden:product:elicit {feature_name}
 ```
 

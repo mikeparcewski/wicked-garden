@@ -48,7 +48,7 @@ recommendations** with prioritization and verbatim customer quotes.
 
 ## First Strategy: Use wicked-* Ecosystem
 
-- **Memory**: Use wicked-garden:mem to recall past customer insights, themes, and decisions
+- **Memory**: Use wicked-brain:memory to recall past customer insights, themes, and decisions
 - **Listen**: Use /wicked-garden:product:listen to aggregate feedback from available sources
 - **Analyze**: Use /wicked-garden:product:analyze for theme/sentiment helpers
 - **Synthesize**: Use /wicked-garden:product:synthesize to convert insights into recommendations

@@ -8,7 +8,7 @@ argument-hint: "<topic> [--personas list] [--rounds n] [--converge fast]"
 Start a full brainstorm with evidence-backed perspectives.
 
 > **Progression**: `quick` (60s gut-check) → `brainstorm` (full session, this command) → `council` (structured verdict).
-> See also: `/wicked-garden:jam:quick`, `/wicked-garden:jam:council` The facilitator gathers evidence from the ecosystem (past decisions, code context, brainstorm outcomes) before assembling personas, so they argue from data — not just opinions. After synthesis, a structured decision record is automatically stored in wicked-garden:mem for organizational memory.
+> See also: `/wicked-garden:jam:quick`, `/wicked-garden:jam:council` The facilitator gathers evidence from the ecosystem (past decisions, code context, brainstorm outcomes) before assembling personas, so they argue from data — not just opinions. After synthesis, a structured decision record is automatically stored via wicked-brain:memory for organizational memory.
 
 ## Convergence Modes
 
@@ -31,5 +31,5 @@ Native-task tracking (fail open on any tool errors):
 1. Session start: TaskCreate(subject='Jam: {topic}', metadata={'event_type':'task','chain_id':'jam-{topic-slug}.root','source_agent':'jam-facilitator','initiative':'{topic-slug}'})
 2. After each persona contributes, after synthesis, and on decision: TaskUpdate(taskId, description='append: {persona_name}: {key_insight}' / 'Synthesis: {summary}' / 'Decision: {decision_record}')
 
-Continue storing outcomes in wicked-garden:mem as before (native task = process, mem = outcome).")
+Continue storing outcomes in wicked-brain:memory (native task = process, brain memory = outcome).")
 ```

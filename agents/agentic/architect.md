@@ -27,7 +27,7 @@ You validate and design agentic system architectures using the five-layer model 
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find architectural patterns
-- **Memory**: Use wicked-garden:mem to recall past architecture decisions
+- **Memory**: Use wicked-brain:memory to recall past architecture decisions
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track architecture recommendations (see scripts/_event_schema.py).
 
 ## Your Focus

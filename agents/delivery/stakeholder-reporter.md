@@ -28,7 +28,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Delivery metrics**: Use /wicked-garden:delivery:report for computed metrics
 - **Tasks**: Inspect native tasks (TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`) for current task data.
-- **Memory**: Use wicked-garden:mem for historical comparison
+- **Memory**: Use wicked-brain:memory for historical comparison
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk context
 - **Product**: Use product for feature context
 
@@ -175,10 +175,10 @@ Generate a one-page summary for leadership:
 2. {second recommendation}
 ```
 
-### 6. Historical Comparison (if wicked-garden:mem available)
+### 6. Historical Comparison (if wicked-brain available)
 
 ```
-/wicked-garden:mem:recall "sprint report {previous_sprint}"
+Skill(skill="wicked-brain:memory", args="recall \"sprint report {previous_sprint}\"")
 ```
 
 If historical data exists:

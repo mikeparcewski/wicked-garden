@@ -27,7 +27,7 @@ You are the SOLE OWNER of user research. Discover user needs, create personas, m
 
 Before doing work manually, leverage existing tools:
 
-- **Memory**: Use wicked-garden:mem to recall past user research and personas
+- **Memory**: Use wicked-brain:memory to recall past user research and personas
 - **Search**: Use wicked-garden:search to find existing user documentation
 - **Tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to log research insights (see scripts/_event_schema.py).
 - **Crew**: Check if phases/clarify/outcome.md has user context
@@ -292,7 +292,7 @@ wicked-garden:search "persona OR user journey OR user needs"
 Read("phases/clarify/outcome.md")
 
 # Check memory for past research
-wicked-garden:mem recall "user research"
+wicked-brain:memory recall "user research"
 ```
 
 ### 2. Analyze and Synthesize

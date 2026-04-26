@@ -8,7 +8,7 @@ This document defines the expected output structure when conducting requirements
 - Consistency across projects
 - Complete traceability
 - Clear handoff to design and QE
-- Integration with native tasks (TaskCreate/TaskUpdate) and wicked-garden:mem
+- Integration with native tasks (TaskCreate/TaskUpdate) and wicked-brain:memory
 
 ## Standard Output Structure
 
@@ -153,7 +153,7 @@ This document defines the expected output structure when conducting requirements
 - **Design Phase**: {Link to phases/design/}
 - **Test Scenarios**: {Link to phases/qe/}
 - **Tasks**: {Native task IDs or initiative name}
-- **Memory**: {wicked-garden:mem tags for recall}
+- **Memory**: {wicked-brain:memory tags for recall}
 
 ## Appendices
 
@@ -240,4 +240,4 @@ cp "${CLAUDE_PLUGIN_ROOT}/templates/requirements-full.md" \
 
 - **User Story Guide**: `refs/user-story-guide.md`
 - **Acceptance Criteria**: See product-management skill
-- **Example Projects**: Search wicked-garden:mem for "requirements-example"
+- **Example Projects**: Search wicked-brain for "requirements-example"

@@ -27,7 +27,7 @@ You identify patterns and anti-patterns in agentic codebases, recommend refactor
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find pattern examples
-- **Memory**: Use wicked-garden:mem to recall past pattern recommendations
+- **Memory**: Use wicked-brain:memory to recall past pattern recommendations
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track refactoring tasks (see scripts/_event_schema.py).
 
 ## Your Focus

@@ -30,7 +30,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Reports**: Use /wicked-garden:delivery:report for delivery metrics
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` for native task-level tracking (see scripts/_event_schema.py).
-- **Memory**: Use wicked-garden:mem for historical progress data
+- **Memory**: Use wicked-brain:memory for historical progress data
 - **Risk**: Use wicked-garden:delivery:risk-monitor for risk context
 
 If a wicked-* tool is available, prefer it over manual approaches.
@@ -66,8 +66,8 @@ Read session tasks under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` — each ent
 
 **From memory** (historical baselines):
 ```
-/wicked-garden:mem:recall "milestone {name}"
-/wicked-garden:mem:recall "progress {project}"
+Skill(skill="wicked-brain:memory", args="recall \"milestone {name}\"")
+Skill(skill="wicked-brain:memory", args="recall \"progress {project}\"")
 ```
 
 ### 3. Calculate Progress Metrics

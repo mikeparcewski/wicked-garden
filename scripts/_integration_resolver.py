@@ -297,7 +297,7 @@ def _store_preference(domain: str, tool: str) -> None:
         title = f"Tool preference: {domain} → {tool}"
 
         lines = ["---"]
-        lines.append("source: wicked-garden:mem")
+        lines.append("source: wicked-brain:memory")
         lines.append("memory_type: preference")
         lines.append("memory_tier: semantic")
         lines.append(f"title: {title}")

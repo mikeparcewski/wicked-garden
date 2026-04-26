@@ -99,11 +99,15 @@ Plain English to SQL results via DuckDB. Works on CSV, Excel, Parquet — files 
 
 ### "I want to remember decisions across sessions"
 
-```bash
-/wicked-garden:mem:store "Chose Postgres over Redis for sessions — need transactions"
-# ... 30 sessions later ...
-/wicked-garden:mem:recall "session storage decisions"
+Memory is provided by the [wicked-brain](https://github.com/mikeparcewski/wicked-brain) companion plugin. Install it first, then:
+
 ```
+Skill(skill="wicked-brain:memory", args="store \"Chose Postgres over Redis for sessions — need transactions\" --type decision")
+# ... 30 sessions later ...
+Skill(skill="wicked-brain:memory", args="recall \"session storage decisions\" --filter_type decision")
+```
+
+Alternatively, the Stop hook auto-promotes learnings from completed tasks to wicked-brain at session end — no manual store needed.
 
 ### "I need to trace decisions across phases"
 

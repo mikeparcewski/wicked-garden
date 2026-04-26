@@ -53,7 +53,7 @@ you are the engineer who makes other engineers faster.
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Search**: Use wicked-garden:search to find dev scripts, Makefiles, CI config
-- **Memory**: Use wicked-garden:mem to recall past dev-env decisions and gotchas
+- **Memory**: Use wicked-brain:memory to recall past dev-env decisions and gotchas
 - **Platform**: Coordinate with platform/devops-engineer on CI infrastructure
 - **Tasks**: Track friction items via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`
 

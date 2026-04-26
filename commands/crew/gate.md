@@ -176,7 +176,7 @@ After displaying the gate result, show attached evidence:
 | Type | Artifact |
 |------|----------|
 | Gate Result | `L3:qe:{gate}-gate` |
-| Decision Memory | stored in wicked-garden:mem (if available) |
+| Decision Memory | stored via wicked-brain:memory (if available) |
 
 To view full evidence: `/wicked-garden:crew:evidence {task_id}`
 ```

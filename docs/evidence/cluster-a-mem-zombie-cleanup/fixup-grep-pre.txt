@@ -1,0 +1,97 @@
+agents/platform/auditor.md:31:- **Memory**: Use wicked-garden:mem for past audit findings
+agents/platform/devops-engineer.md:31:- **Memory**: Use wicked-garden:mem to recall pipeline patterns
+agents/platform/release-engineer.md:31:- **Memory**: Use wicked-garden:mem to recall release patterns
+agents/platform/chaos-engineer.md:56:- **Memory**: Use wicked-garden:mem to recall past incident patterns and experiment outcomes
+agents/platform/security-engineer.md:34:- **Memory**: Use wicked-garden:mem to recall past vulnerabilities
+agents/platform/observability-engineer.md:70:- **Memory**: Use wicked-garden:mem to recall past SLOs, alert decisions, dashboards
+agents/platform/privacy-expert.md:33:- **Memory**: Use wicked-garden:mem for privacy patterns
+agents/platform/infrastructure-engineer.md:31:- **Memory**: Use wicked-garden:mem to recall infrastructure patterns
+agents/platform/compliance-officer.md:31:- **Memory**: Use wicked-garden:mem to recall past compliance findings
+agents/crew/qe-orchestrator.md:36:- **Memory**: Use wicked-garden:mem to recall past QE decisions
+agents/crew/qe-orchestrator.md:128:- Memory: decision stored (if wicked-garden:mem available)
+agents/agentic/architect.md:30:- **Memory**: Use wicked-garden:mem to recall past architecture decisions
+agents/agentic/performance-analyst.md:30:- **Memory**: Use wicked-garden:mem to recall past optimization strategies
+agents/agentic/pattern-advisor.md:30:- **Memory**: Use wicked-garden:mem to recall past pattern recommendations
+agents/agentic/framework-researcher.md:30:- **Memory**: Use wicked-garden:mem to recall past framework evaluations
+agents/agentic/safety-reviewer.md:32:- **Memory**: Use wicked-garden:mem to recall past safety issues
+agents/product/user-voice.md:51:- **Memory**: Use wicked-garden:mem to recall past customer insights, themes, and decisions
+agents/product/a11y-expert.md:31:- **Memory**: Use wicked-garden:mem to recall a11y standards and decisions
+agents/product/ux-designer.md:46:- **Memory**: Use wicked-garden:mem to recall past flow decisions and IA patterns
+agents/product/requirements-analyst.md:44:- **Memory**: Use wicked-garden:mem to recall past patterns
+agents/product/user-researcher.md:30:- **Memory**: Use wicked-garden:mem to recall past user research and personas
+agents/product/user-researcher.md:295:wicked-garden:mem recall "user research"
+agents/product/mockup-generator.md:29:- **Memory**: Use wicked-garden:mem to recall existing design tokens and component library
+agents/product/ui-reviewer.md:52:- **Memory**: Use wicked-garden:mem to recall design-system tokens and past decisions
+agents/product/value-strategist.md:54:- **Memory**: Use wicked-garden:mem to recall customer insights, past value props, and alignment decisions
+agents/delivery/rollout-manager.md:31:- **Memory**: Use wicked-garden:mem to recall past rollout patterns
+agents/product/market-strategist.md:49:- **Memory**: Use wicked-garden:mem to recall strategic decisions, past outcomes, competitor profiles
+agents/delivery/cloud-cost-intelligence.md:52:- **Memory**: Use wicked-garden:mem to recall historical cost data and past optimization outcomes
+agents/delivery/risk-monitor.md:31:- **Memory**: Use wicked-garden:mem to recall past risk patterns
+agents/delivery/experiment-designer.md:30:- **Memory**: Use wicked-garden:mem to recall past experiment patterns
+agents/jam/brainstorm-facilitator.md:304:- **Always store decisions**: After synthesis, store the decision record (wicked-garden:mem if available, inline if not)
+agents/data/data-analyst.md:30:- **wicked-garden:mem**: Recall past analysis patterns
+agents/data/data-engineer.md:34:- **wicked-garden:mem**: Recall past pipeline patterns
+agents/data/data-architect.md:56:- **Memory**: Use wicked-garden:mem to recall architecture patterns, past decisions
+agents/data/ml-engineer.md:32:- **wicked-garden:mem**: Recall model architectures and patterns
+agents/engineering/migration-engineer.md:53:- **Memory**: Use wicked-garden:mem to recall past migration patterns and pitfalls
+agents/engineering/devex-engineer.md:56:- **Memory**: Use wicked-garden:mem to recall past dev-env decisions and gotchas
+commands/crew/gate.md:179:| Decision Memory | stored in wicked-garden:mem (if available) |
+commands/crew/evidence.md:57:### 5. Check wicked-garden:mem for Decisions
+commands/crew/evidence.md:59:If wicked-garden:mem available:
+commands/crew/evidence.md:105:### Related Decisions (from wicked-garden:mem)
+commands/crew/status.md:52:- **Level 2**: Only wicked-garden:mem
+commands/crew/retro.md:8:Aggregate incidents, feedback, and operational metrics into a structured retrospective. Stores the summary in wicked-garden:mem for future crew projects.
+commands/crew/retro.md:109:Store the retrospective summary in wicked-garden:mem for future crew projects:
+commands/crew/retro.md:170:**Retro stored in wicked-garden:mem** for future project context.
+commands/product/synthesize.md:190:- **wicked-garden:mem**: Store decisions for future reference
+commands/product/analyze.md:177:- **wicked-garden:mem**: Store analysis for future reference
+commands/product/elicit.md:132:- **wicked-garden:mem**: Learns requirements patterns
+commands/product/mockup.md:48:- Check wicked-garden:mem for existing design tokens or component library in use
+commands/product/align.md:138:- **wicked-garden:mem**: Tracks stakeholder patterns
+commands/product/listen.md:125:- **wicked-garden:mem**: Recall past customer insights
+commands/product/ux-review.md:275:- **wicked-garden:mem**: Recall design system patterns
+commands/product/strategy.md:297:- **wicked-garden:mem**: Store decisions for future reference
+commands/jam/brainstorm.md:11:> See also: `/wicked-garden:jam:quick`, `/wicked-garden:jam:council` The facilitator gathers evidence from the ecosystem (past decisions, code context, brainstorm outcomes) before assembling personas, so they argue from data — not just opinions. After synthesis, a structured decision record is automatically stored in wicked-garden:mem for organizational memory.
+commands/jam/brainstorm.md:34:Continue storing outcomes in wicked-garden:mem as before (native task = process, mem = outcome).")
+commands/jam/revisit.md:54:Store the outcome in wicked-garden:mem
+commands/jam/quick.md:25:native task = process, wicked-garden:mem = outcome.")
+skills/crew/crew-qe-gate/SKILL.md:67:- **wicked-garden:mem**: Cross-session learning
+skills/integration-discovery/SKILL.md:92:| Store decisions | wicked-garden:mem | Store auth decisions |
+skills/integration-discovery/SKILL.md:109:- wicked-garden:mem - Store decisions for future reference
+skills/integration-discovery/SKILL.md:123:| Architecture design | engineering agents, wicked-garden:mem |
+skills/integration-discovery/refs/discovery-sources.md:91:**Preference storage**: After first selection, store in wicked-garden:mem under `cli-preference:{category}`.
+skills/integration-discovery/refs/discovery-sources.md:189:- [ ] Check wicked-garden:mem for stored cli-preference:{category}
+skills/integration-discovery/refs/discovery-sources.md:192:- [ ] Store selection in wicked-garden:mem after first decision
+skills/integration-discovery/refs/task-patterns.md:35:| Store findings | Skill | wicked-garden:mem |
+skills/integration-discovery/refs/task-patterns.md:41:4. Store critical findings in wicked-garden:mem
+skills/integration-discovery/refs/task-patterns.md:53:| Store decisions | Skill | wicked-garden:mem |
+skills/integration-discovery/refs/task-patterns.md:59:3. Store decisions in wicked-garden:mem
+skills/integration-discovery/refs/task-patterns.md:151:| Post-mortem | Skill | wicked-garden:mem |
+skills/integration-discovery/refs/task-patterns.md:157:4. Store learnings in wicked-garden:mem
+skills/product/ux-review/SKILL.md:102:- **wicked-garden:mem**: Design system memory
+skills/product/product-management/SKILL.md:81:- **wicked-garden:mem**: Cross-project requirements patterns
+skills/product/requirements-analysis/refs/requirements-output-format-template.md:11:- Integration with native tasks (TaskCreate/TaskUpdate) and wicked-garden:mem
+skills/product/requirements-analysis/refs/requirements-output-format-template.md:156:- **Memory**: {wicked-garden:mem tags for recall}
+skills/product/requirements-analysis/refs/requirements-output-format-template.md:243:- **Example Projects**: Search wicked-garden:mem for "requirements-example"
+skills/product/synthesize/SKILL.md:103:**wicked-garden:mem**: Store high-priority insights as decision memories
+skills/search/codebase-narrator/SKILL.md:40:- **Memory**: Use wicked-garden:mem to recall past architecture decisions
+skills/multi-model/SKILL.md:8:  Decisions stored in wicked-garden:mem. Transcripts persisted via jam scripts.
+skills/multi-model/refs/auditability.md:16:│  wicked-garden:mem (long-term decisions)       │  ← Persist important decisions
+skills/multi-model/refs/auditability.md:126:## Level 3: Decision Persistence (wicked-garden:mem)
+skills/multi-model/refs/auditability.md:128:For decisions that matter long-term, persist to wicked-garden:mem.
+skills/multi-model/refs/auditability.md:232:| Long-term decisions | wicked-garden:mem storage |
+skills/multi-model/refs/gemini.md:136:5. **Track decisions** — Use native TaskUpdate and wicked-garden:mem for team visibility
+skills/multi-model/refs/pi.md:185:5. **Track insights** — Record Pi's perspectives via native TaskUpdate or wicked-garden:mem
+skills/workflow/SKILL.md:122:| `wicked-garden:mem` | Cross-session learning at project completion and gate failures |
+skills/delivery/design/SKILL.md:170:**With wicked-garden:mem**: Recalls past experiment patterns
+skills/delivery/reporting/SKILL.md:12:  - wicked-garden:mem Stores insights across sessions
+skills/delivery/reporting/SKILL.md:85:| wicked-garden:mem | Cross-session insights | Session-only memory |
+skills/delivery/reporting/refs/personas.md:53:- **wicked-garden:mem**: Memory storage for cross-session insights
+skills/delivery/reporting/refs/personas.md:63:7. **Caching**: Store results in wicked-garden:mem
+skills/delivery/reporting/refs/integration.md:66:Cache stored via wicked-garden:mem
+skills/delivery/reporting/refs/integration.md:68:.something-wicked/wicked-garden/local/wicked-garden:mem/namespaces/delivery/
+skills/delivery/rollout/SKILL.md:179:**With wicked-garden:mem**: Recalls past rollout learnings
+skills/jam/refs/synthesis-patterns.md:74:When a brainstorm produces a clear decision, store it in wicked-garden:mem:
+skills/data/pipeline/SKILL.md:110:- **wicked-garden:mem**: Recall pipeline patterns
+skills/data/analysis/SKILL.md:104:**wicked-garden:mem** - Store analysis patterns for reuse
+skills/data/data/SKILL.md:94:| wicked-garden:mem | Store quality patterns across sessions |

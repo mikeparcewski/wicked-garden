@@ -27,7 +27,7 @@ You research, compare, and recommend agentic frameworks based on requirements, p
 Before manual research, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find framework usage in codebase
-- **Memory**: Use wicked-garden:mem to recall past framework evaluations
+- **Memory**: Use wicked-brain:memory to recall past framework evaluations
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track framework decisions (see scripts/_event_schema.py).
 
 ## Your Focus

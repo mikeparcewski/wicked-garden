@@ -1,16 +1,18 @@
 ---
 name: cross-module-integration
-title: Cross-Module Integration Across 8 Crew Scripts
-description: End-to-end integration test spanning project registry, knowledge graph, traceability, artifact state, impact analysis, smaht adapter fan-out, phase scoring, verification protocol, and consensus
+title: Cross-Module Integration Across 7 Crew Scripts
+description: End-to-end integration test spanning project registry, knowledge graph, traceability, artifact state, impact analysis, smaht adapter fan-out, verification protocol, and consensus
 type: integration
 difficulty: advanced
 estimated_minutes: 15
 fixes: "#523"
 ---
 
-# Cross-Module Integration Across 8 Crew Scripts
+# Cross-Module Integration Across 7 Crew Scripts
 
-Validates that 8 different scripts work together in a realistic workflow: create a project, register entities in the knowledge graph, create traceability links, manage artifact state transitions, run impact analysis, fan-out through smaht adapters, enrich memories with phase info, run the verification protocol, and synthesize consensus.
+Validates that 7 different scripts work together in a realistic workflow: create a project, register entities in the knowledge graph, create traceability links, manage artifact state transitions, run impact analysis, fan-out through smaht adapters, run the verification protocol, and synthesize consensus.
+
+Note: phase_scoring.py was removed in the v8.0.0 cleanup (cluster-A P0). Phase affinity ranking is now handled by wicked-brain's FTS5/BM25. Step 7 (phase enrichment) has been removed accordingly.
 
 Note: The search lifecycle scoring script was removed. Search-domain scoring is now
 handled by the smaht adapter fan-out (scripts/smaht/adapters/). Step 6 has been
@@ -24,7 +26,6 @@ Set up project name and script path aliases:
 PROJECT="integration-test-$$"
 CREW="${CLAUDE_PLUGIN_ROOT}/scripts/crew"
 SMAHT="${CLAUDE_PLUGIN_ROOT}/scripts/smaht"
-MEM="${CLAUDE_PLUGIN_ROOT}/scripts/mem"
 JAM="${CLAUDE_PLUGIN_ROOT}/scripts/jam"
 ```
 
@@ -141,25 +142,7 @@ print('PASS: DomainAdapter fan-out succeeded (%d impact items queued)' % len(ite
 
 **Expected**: DomainAdapter is importable from smaht adapters and returns a valid result (dict, list, or None). Prints PASS.
 
-### 7. Enrich a memory record with phase info
-
-```bash
-python3 -c "
-import json, sys
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/mem')
-from phase_scoring import enrich_memory_with_phase
-memory = {'content': 'OAuth2 design decision', 'type': 'decision'}
-enriched = enrich_memory_with_phase(memory, active_phase='build')
-assert enriched.get('phase') == 'build', 'Expected phase=build, got %s' % enriched.get('phase')
-print(json.dumps(enriched))
-print('PASS: Memory enriched with phase=build')
-"
-```
-
-**Expected**: Memory record now has `phase` = "build" stamped on it. Prints PASS.
-
-### 8. Run verification protocol
+### 7. Run verification protocol
 
 ```bash
 python3 "${CREW}/verification_protocol.py" run --project "$PROJECT" --phases-dir "${TMPDIR:-/tmp}/phases-$$" | python3 -c "
@@ -178,7 +161,7 @@ for name in expected:
 
 **Expected**: Verification protocol produces valid JSON with all 6 check names: acceptance_criteria, test_suite, debug_artifacts, code_quality, documentation, traceability. Most checks will SKIP since there is no real codebase, but the protocol itself runs without error. Prints PASS.
 
-### 9. Score consensus from minimal proposals
+### 8. Score consensus from minimal proposals
 
 ```bash
 cat > "${TMPDIR:-/tmp}/mini-proposals.json" <<'EOF'
@@ -201,7 +184,7 @@ print('Decision: %s' % result['decision'][:80])
 
 **Expected**: Consensus synthesis completes with 2 participants and produces a structured decision. Prints PASS.
 
-### 10. Traceability coverage report
+### 9. Traceability coverage report
 
 ```bash
 python3 "${CREW}/traceability.py" coverage --project "$PROJECT" | python3 -c "
@@ -227,7 +210,6 @@ if report['covered']:
 - [ ] Artifact state transitions work (DRAFT -> IN_REVIEW -> APPROVED)
 - [ ] Impact analysis finds affected artifacts from requirement
 - [ ] Smaht DomainAdapter fan-out succeeds (replaces removed search lifecycle scoring script)
-- [ ] Phase scoring enriches memory records with active phase (scripts/mem/phase_scoring.py)
 - [ ] Verification protocol produces valid JSON with all 6 check names
 - [ ] Consensus synthesis works with minimal proposals
 - [ ] Traceability coverage report identifies requirement coverage

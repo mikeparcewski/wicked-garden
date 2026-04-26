@@ -138,11 +138,10 @@ def _run_memory_promotion(session_id: str) -> list:
     to stderr.
     """
     try:
-        # scripts/ is already on sys.path; add the mem/ directory for the
-        # sibling import of session_fact_extractor.
-        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "mem"))
-
-        from session_fact_extractor import extract_session_facts
+        # scripts/ is on sys.path via the hook bootstrap; _brain_ingest is a
+        # package under scripts/ so the qualified import resolves without any
+        # additional sys.path manipulation.
+        from _brain_ingest.session_fact_extractor import extract_session_facts
         from _bus import emit_event
 
         facts = extract_session_facts(session_id, limit=20)

@@ -3,7 +3,7 @@
 The facilitator runs inside a Claude session with access to:
 
 - `wicked-brain:search` and `wicked-brain:query` — prior projects, decisions, gotchas.
-- `wicked-garden:mem:recall` — domain memory (cross-session learnings).
+- `wicked-brain:memory (recall mode)` — domain memory (cross-session learnings).
 - `wicked-garden:smaht:briefing` — what happened in the most recent session.
 - `Glob` / `Read` — agent frontmatter roster, existing code, existing priors.
 - `SessionState` — active_chain_id, current_phase, user preferences.
@@ -71,7 +71,7 @@ Read `SessionState` via the smaht briefing OR direct session check for:
 For domain-specific priors (e.g. "we moved away from Redis last year"), use:
 
 ```
-/wicked-garden:mem:recall query="<topic>" limit=3
+Skill(skill="wicked-brain:memory", args="recall \"<topic>\" --limit 3")
 ```
 
 Mem recall is slower than brain search and has less coverage, but it's the
