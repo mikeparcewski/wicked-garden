@@ -278,7 +278,10 @@ def sanitize_permissive(value: str, *, field: str = "<field>") -> str:
 
 
 _STRICT_FIELDS = ("reviewer", "verdict", "result", "recorded_at",
-                  "phase", "gate")
+                  "phase", "gate",
+                  # #651: mode field added for human-inline dispatch results.
+                  # "human-inline" is all Basic Latin — passes strict allow-list.
+                  "mode", "dispatch_mode")
 _PERMISSIVE_FIELDS = ("reason", "summary")
 
 

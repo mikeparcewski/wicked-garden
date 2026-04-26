@@ -1399,6 +1399,15 @@ def main():
 
         briefing_parts = ["\n".join(status_lines)]
 
+        # --- Solo-mode HITL banner (#651) ---
+        # Emit once per session when the active crew project has solo_mode: true.
+        if project_data and project_data.get("solo_mode"):
+            briefing_parts.append(
+                "[SOLO MODE ACTIVE] Council gates replaced with inline human review "
+                "for this project. Gate artifacts are preserved. "
+                "Merge-gate council pattern is unchanged."
+            )
+
         # --- Mode-specific warnings/notes ---
         for note in mode_notes:
             briefing_parts.append(note)
