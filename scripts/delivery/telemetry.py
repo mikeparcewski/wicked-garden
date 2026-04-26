@@ -282,9 +282,11 @@ def capture_session(
         # Task reading routed via _task_reader (#596 v8-PR-2).
         # WG_DAEMON_ENABLED=false → direct file scan (unchanged behaviour).
         tasks: List[Dict[str, Any]] = []
-        # task_files: initialised before try-block so the happy-path (daemon-routed
-        # read_session_tasks) doesn't leave it unbound when sample_window builds
-        # task_files_scanned at line ~325 (issue #647).
+        # task_files: initialised before the try-block so the direct-scan fallback
+        # path populates it.  The happy-path (daemon-routed read_session_tasks)
+        # leaves task_files empty but tasks populated; sample_window now uses
+        # len(tasks) (tasks_observed) rather than len(task_files) so the metric
+        # is accurate for both paths (issues #647, #660).
         task_files: List[Path] = []
         try:
             _scripts_root = str(Path(__file__).resolve().parents[1])
@@ -326,7 +328,13 @@ def capture_session(
             "sample_window": {
                 "first_observation": first_ts,
                 "last_observation": last_ts,
-                "task_files_scanned": len(task_files),
+                # tasks_observed counts tasks from whichever path ran (#660):
+                # daemon-routed happy path (len(tasks)) or direct file scan
+                # (also len(tasks) after tasks are populated from task_files).
+                # Previously used len(task_files) which was always 0 on the
+                # happy path, making the metric meaningless for daemon-routed
+                # sessions.  Renamed from task_files_scanned for clarity.
+                "tasks_observed": len(tasks),
             },
             "metrics": metrics,
         }

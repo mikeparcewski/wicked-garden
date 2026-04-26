@@ -180,18 +180,27 @@ Before emitting the return manifest, verify every deliverable named in the calli
 prompt or in `phases.json` `required_deliverables` for the target phase:
 
 ```
-For each expected_deliverable in required_deliverables:
-    if not file_exists(f"phases/{phase}/{expected_deliverable}"):
+# phases.json entries are dicts: {"file": "<filename>", "min_bytes": <int>, "frontmatter": [...]}
+# Backward-compat: bare strings (legacy) are treated as filename with min_bytes=100.
+For each entry in required_deliverables:
+    if isinstance(entry, dict):
+        filename = entry.get("file")
+        min_bytes = entry.get("min_bytes", 100)
+    else:
+        filename = entry         # legacy bare-string shape
+        min_bytes = 100
+
+    if not file_exists(f"phases/{phase}/{filename}"):
         HALT — do NOT emit status:"ok"
         emit status:"failed", reason:"executor-missing-deliverable",
-             missing: [expected_deliverable, ...]
+             missing: [filename, ...]
         raise an explicit error message to the caller:
-          "Phase executor halting: deliverable '<name>' was not written.
+          "Phase executor halting: deliverable '<filename>' was not written.
            Re-eval bookend completed but phase work was not performed.
            Rework required."
-    if file_size(f"phases/{phase}/{expected_deliverable}") < 100:
-        HALT — emit status:"failed", reason:"deliverable-too-small",
-             file: expected_deliverable
+    if file_size(f"phases/{phase}/{filename}") < min_bytes:
+        HALT — emit status:"failed", reason:"executor-deliverable-too-small",
+             file: filename, min_bytes: min_bytes
 
 # FLOOR GUARD — required even when required_deliverables is empty/undefined.
 # Some phases (notably `build` per phases.json) have required_deliverables=[]
