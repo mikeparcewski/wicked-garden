@@ -1,0 +1,35 @@
+Smoke test: /wicked-garden:crew:guide
+Repo: wicked-garden (worktree cluster-a/p2-crew-guide)
+Date: 2026-04-25
+Invocation: python3 scripts/crew/guide.py
+
+--- JSON output ---
+[
+  {
+    "rank": 1,
+    "command": "git add -p && git commit",
+    "rationale": "3 file(s) with uncommitted changes — commit or stash before advancing the crew phase."
+  },
+  {
+    "rank": 2,
+    "command": "/wicked-garden:crew:start <description>",
+    "rationale": "No active crew project found — start one with a description of the work you want to kick off."
+  }
+]
+
+--- Human-readable output ---
+## What to do next
+
+1. `git add -p && git commit`
+   3 file(s) with uncommitted changes — commit or stash before advancing the crew phase.
+
+2. `/wicked-garden:crew:start <description>`
+   No active crew project found — start one with a description of the work you want to kick off.
+
+--- Interpretation ---
+Signal 1 (uncommitted work): 3 files changed on the feature branch — correct.
+Signal 2 (no active project): no wicked-crew project in this workspace — correct.
+Brain context nudge absent: wicked-brain health probe returned non-200 in this context — correct (brain
+server scoped to project port 4243 responded but returned ok:false for the brain check, so signal suppressed).
+
+Test suite: 1676 passed / 11 pre-existing failures (12 new tests added).
