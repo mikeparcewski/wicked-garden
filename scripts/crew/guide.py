@@ -11,6 +11,7 @@ Signals inspected (priority order):
   2. Active project on stalled phase (no advancement > STALE_HOURS hours)
   3. Uncommitted work in git (staged or unstaged changes)
   4. No active crew project
+  5. Brain context nudge (wicked-brain reachable — surface relevant context)
 
 Output: JSON list of up to MAX_SUGGESTIONS suggestion dicts.
 
@@ -32,21 +33,25 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Resolve scripts/ root so we can import sibling modules regardless of cwd.
+_SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
+if str(_SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_ROOT))
+
+from _brain_port import resolve_port as _resolve_brain_port  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Constants  (R3)
 # ---------------------------------------------------------------------------
 
 MAX_SUGGESTIONS: int = 5
 STALE_HOURS: float = 4.0
-_PHASE_MANAGER = Path(__file__).resolve().parent / "phase_manager.py"
 _CREW_PY = Path(__file__).resolve().parent / "crew.py"
 _PYTHON_SH = Path(__file__).resolve().parents[1] / "_python.sh"
 
 _PHASE_ADVANCE_CMD = "/wicked-garden:crew:execute"
 _GATE_CMD = "/wicked-garden:crew:gate"
 _START_CMD = "/wicked-garden:crew:start <description>"
-_STATUS_CMD = "/wicked-garden:crew:status"
-_APPROVE_CMD = "/wicked-garden:crew:approve"
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +102,7 @@ def _probe_open_conditions(project: dict, project_dir: str | None) -> list[dict]
         return []
     blocking_phases: list[str] = []
     try:
-        for phase_dir in sorted(base.iterdir()):
+        for phase_dir in sorted(p for p in base.iterdir() if p.is_dir()):
             manifest = phase_dir / "conditions-manifest.json"
             if not manifest.is_file():
                 continue
@@ -221,7 +226,7 @@ def _probe_brain_context() -> list[dict]:
     """
     try:
         import urllib.request
-        port = int(os.environ.get("WICKED_BRAIN_PORT", "4243"))
+        port = _resolve_brain_port()
         url = f"http://localhost:{port}/api"
         body = json.dumps({"action": "health", "params": {}}).encode()
         req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
@@ -295,11 +300,13 @@ def build_suggestions(workspace: str = "", cwd: str | None = None) -> list[dict]
         suggestions.extend(_probe_open_conditions(project, project_dir))
         suggestions.extend(_probe_stale_phase(project, project_dir))
         suggestions.extend(_probe_uncommitted_work(cwd=cwd))
-        suggestions.extend(_probe_brain_context())
+        if len(suggestions) < MAX_SUGGESTIONS:
+            suggestions.extend(_probe_brain_context())
     else:
         suggestions.extend(_probe_uncommitted_work(cwd=cwd))
         suggestions.extend(_probe_no_active_project())
-        suggestions.extend(_probe_brain_context())
+        if len(suggestions) < MAX_SUGGESTIONS:
+            suggestions.extend(_probe_brain_context())
 
     # Deduplicate by command (keep first occurrence), cap at MAX_SUGGESTIONS.
     seen: set[str] = set()

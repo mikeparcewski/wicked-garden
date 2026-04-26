@@ -1,0 +1,12 @@
+[
+  {
+    "rank": 1,
+    "command": "git add -p && git commit",
+    "rationale": "3 file(s) with uncommitted changes \u2014 commit or stash before advancing the crew phase."
+  },
+  {
+    "rank": 2,
+    "command": "/wicked-garden:crew:start <description>",
+    "rationale": "No active crew project found \u2014 start one with a description of the work you want to kick off."
+  }
+]
