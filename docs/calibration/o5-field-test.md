@@ -153,6 +153,15 @@ Candidate C1/C2 produce clean fixes on D1 but cannot distinguish D2. Candidate C
 eliminates false positives but leaves D1 broken. C4 combines the selectivity of C3 with
 sufficient weight to fix D1 — the only candidate that satisfies all three criteria.
 
+**Known accepted trade-off — the 999K boundary cliff**: The "> 1M users/rows" criterion
+creates a discrete cliff at exactly 1,000,000. A 999K-row migration without a feature
+flag will read HIGH (o5=NO under the strict reading of ">1M"), while a 1,000,001-row
+migration without a flag reads MEDIUM. This boundary is sharp but the abrupt jump is
+preferred over C1/C2's broader false-positive regime where every typo fix without a
+flag would escalate. Future calibration may smooth this with a sliding scale, but for
+v8.x the cliff is the accepted design trade-off — most consequential migrations have
+clearly-known scale and the in-betweens are rare.
+
 ---
 
 ## Chosen calibration

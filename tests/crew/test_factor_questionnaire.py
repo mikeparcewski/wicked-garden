@@ -804,6 +804,47 @@ def test_operational_risk_o5_with_feature_flag_is_high():
     )
 
 
+def test_operational_risk_o5_small_scale_no_flag_stays_high():
+    """Issue #639 pin (PR #646 council fix-up): D2 false-positive guard.
+
+    A single-line typo fix deployed without a feature flag answers o5=NO
+    under the new wording (no flag, but does NOT affect >1M users/rows).
+    Must stay HIGH — confirms the scale criterion in the rewording prevents
+    the C1/C2 false-positive regime where every no-flag deploy escalates.
+
+    Reference: D2 in docs/calibration/o5-field-test.md.
+    """
+    rubric = _rubric_for("operational_risk")
+    # D2: typo fix, no flag, single user-line affected (well under 1M)
+    answers = {"o1": False, "o2": False, "o3": False, "o4": False, "o5": False}
+    reading, why = score_factor(rubric, answers)
+    assert reading == "HIGH", (
+        f"D2 small-scale no-flag deploy must stay HIGH (no false positive), "
+        f"got {reading!r}. If MEDIUM, the o5 reword has been weakened to match "
+        f"every no-flag deploy regardless of scale. Trace: {why}"
+    )
+
+
+def test_operational_risk_o5_plugin_scope_no_flag_stays_high():
+    """Issue #639 pin (PR #646 council fix-up): D3 false-positive guard.
+
+    A medium plugin update (~50 files, plugin lives in user-installed CLI,
+    no production rows) answers o5=NO under the new wording (plugin distribution
+    has no >1M-user impact at deploy time; users opt-in via marketplace install).
+    Must stay HIGH.
+
+    Reference: D3 in docs/calibration/o5-field-test.md.
+    """
+    rubric = _rubric_for("operational_risk")
+    # D3: plugin update, no flag, opt-in marketplace install (no row-write semantics)
+    answers = {"o1": False, "o2": False, "o3": False, "o4": False, "o5": False}
+    reading, why = score_factor(rubric, answers)
+    assert reading == "HIGH", (
+        f"D3 plugin-scope no-flag update must stay HIGH (plugin distribution is "
+        f"opt-in, no row-write semantics), got {reading!r}. Trace: {why}"
+    )
+
+
 def test_operational_risk_o5_saas_scale_full_signal_is_low():
     """Issue #639 pin: o5 contributes correctly to LOW in a full-signal scenario.
 
