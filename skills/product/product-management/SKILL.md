@@ -78,7 +78,7 @@ Works with:
 - **wicked-crew**: Auto-triggered during clarify phase
 - **Native tasks**: Stores requirements and acceptance criteria via TaskCreate/TaskUpdate with `metadata={event_type:"task", chain_id:"{project}.clarify", source_agent:"requirements-analyst", phase:"clarify"}`
 - **qe**: Acceptance criteria feed test scenarios
-- **wicked-garden:mem**: Cross-project requirements patterns
+- **wicked-brain:memory**: Cross-project requirements patterns
 
 ## Example Flow
 

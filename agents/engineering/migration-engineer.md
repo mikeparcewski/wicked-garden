@@ -50,7 +50,7 @@ role that answers "how do we ship this breaking change safely?"
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Search**: Use wicked-garden:search to inventory call sites, consumers, and references
-- **Memory**: Use wicked-garden:mem to recall past migration patterns and pitfalls
+- **Memory**: Use wicked-brain:memory to recall past migration patterns and pitfalls
 - **Data Architect**: Coordinate on target schema design
 - **Contract Testing**: Coordinate on API version compatibility matrix
 - **Tasks**: Track migration phases via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`

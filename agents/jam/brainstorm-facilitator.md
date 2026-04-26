@@ -301,4 +301,4 @@ Put synthesis FIRST (context efficiency):
 - **Build, don't repeat**: Each round adds value
 - **Synthesis matters**: Don't just summarize, distill insights
 - **Evidence over opinions**: When evidence is available, personas cite it — "Based on the existing Redis implementation..." not "I think Redis might work"
-- **Always store decisions**: After synthesis, store the decision record (wicked-garden:mem if available, inline if not)
+- **Always store decisions**: After synthesis, store the decision record via wicked-brain:memory (store mode)

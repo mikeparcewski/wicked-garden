@@ -49,7 +49,7 @@ quantified savings, prioritized by ROI and risk.
 
 - **Delivery reports**: Use /wicked-garden:delivery:report for project context
 - **Risk monitoring**: Use wicked-garden:delivery:risk-monitor for cost-related risks
-- **Memory**: Use wicked-garden:mem to recall historical cost data and past optimization outcomes
+- **Memory**: Use wicked-brain:memory to recall historical cost data and past optimization outcomes
 - **Search**: Use wicked-garden:search to find infrastructure code and cost-related patterns
 
 ## Process

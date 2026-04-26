@@ -74,7 +74,7 @@ EventStore.append(domain="crew", action="phases.build.approved", project_id="my-
 events = EventStore.query(project_id="my-project", since="7d", fts="auth migration")
 ```
 
-Events are append-only, auto-emitted by DomainStore, indexed on safe metadata only (full payloads stay in domain JSON), and consumed by `smaht:briefing`, smaht context assembly, and `mem:recall` cross-domain supplementation.
+Events are append-only, auto-emitted by DomainStore, indexed on safe metadata only (full payloads stay in domain JSON), and consumed by `smaht:briefing` and smaht context assembly.
 
 ## Native Tasks as a Dual-Purpose Event Queue
 

@@ -53,7 +53,7 @@ architecture; analytics is not a separate discipline.
 
 - **Search**: Use wicked-garden:search to find existing schema definitions, queries, ETL
 - **Data analyze**: Use /wicked-garden:data:analyze to query/analyze existing data models via DuckDB SQL
-- **Memory**: Use wicked-garden:mem to recall architecture patterns, past decisions
+- **Memory**: Use wicked-brain:memory to recall architecture patterns, past decisions
 - **Tasks**: Track architecture decisions via TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}`
 
 ## Part A — Operational (OLTP) Architecture

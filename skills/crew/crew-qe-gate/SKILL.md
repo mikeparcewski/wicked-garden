@@ -64,4 +64,4 @@ Works with:
 - **wicked-crew**: Auto-suggested after phases
 - **Native tasks**: Stores evidence via TaskUpdate description appends on the active gate task (`metadata.event_type="gate-finding"`)
 - **product**: Deep review delegation
-- **wicked-garden:mem**: Cross-session learning
+- **wicked-brain:memory**: Cross-session learning

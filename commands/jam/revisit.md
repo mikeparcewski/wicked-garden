@@ -51,7 +51,7 @@ How did this decision work out?
 
 ### 4. Record Outcome
 
-Store the outcome in wicked-garden:mem
+Store the outcome in wicked-brain:memory
 
 ```
 wicked-brain:memory "Outcome: {topic}\nOriginal decision: {chosen}\nResult: {validated/invalidated/modified}\nReason: {user's explanation}\nLessons: {what we learned}"

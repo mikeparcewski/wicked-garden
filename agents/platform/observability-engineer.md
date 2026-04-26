@@ -67,7 +67,7 @@ Observability is the **instrumentation layer** the others depend on.
 - **Chaos Engineer**: Ensure telemetry is sufficient to observe experiment effects
 - **Incident Responder**: Feed real-incident patterns into alert design
 - **Search**: Use wicked-garden:search to audit existing instrumentation and log statements
-- **Memory**: Use wicked-garden:mem to recall past SLOs, alert decisions, dashboards
+- **Memory**: Use wicked-brain:memory to recall past SLOs, alert decisions, dashboards
 
 ## Three Pillars + One
 

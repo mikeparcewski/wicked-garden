@@ -99,7 +99,7 @@ Works with:
 - **wicked-crew**: Auto-suggested after phases
 - **Read tool**: Analyze screenshots directly; capture via browser automation if available
 - **Native tasks**: Issue tracking via TaskCreate with `metadata.event_type="task"`
-- **wicked-garden:mem**: Design system memory
+- **wicked-brain:memory**: Design system memory
 - **wicked-garden:search**: Pattern discovery
 
 ## Phase Integration

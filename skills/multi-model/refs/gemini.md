@@ -133,7 +133,7 @@ TaskCreate(
 2. **Use for long docs** — Leverage Gemini's context window for large inputs
 3. **Be specific** — Focused prompts yield more actionable output
 4. **Compare perspectives** — Pair Gemini broad analysis with Codex code-specific review
-5. **Track decisions** — Use native TaskUpdate and wicked-garden:mem for team visibility
+5. **Track decisions** — Use native TaskUpdate and wicked-brain:memory for team visibility
 
 ## Session Management
 

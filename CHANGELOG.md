@@ -18,7 +18,7 @@
 - `scripts/smaht/context_package.py` updated: PLUGIN_SKILL_MAP["mem"] now points at `wicked-brain:memory`, `gather_memories()` source filter updated from `"mem"` to `"brain"`. (cluster-A P0, 2026-04-25)
 
 ### Documentation
-- README, docs/getting-started.md, docs/advanced.md, docs/crew-workflow.md, docs/cross-phase-intelligence.md, AGENTS.md, and ~50 skill/agent integration descriptions swept of dead `/wicked-garden:mem:*` slash command syntax. (cluster-A P0, 2026-04-25)
+- README, docs/getting-started.md, docs/advanced.md, docs/crew-workflow.md, docs/cross-phase-intelligence.md, AGENTS.md swept of dead `/wicked-garden:mem:*` slash command syntax (original PR). Fix-up commit (PR #632 council 5-0 CONDITIONAL): swept ~73 live `wicked-garden:mem` tool directives across 37 agent files, 14 command files, 15 skill files, and docs/architecture.md, replacing with `wicked-brain:memory` references. Acceptable historical references (CHANGELOG entries, evidence files, cluster-a/ postmortem, storage namespace constants in `_paths.py`/`_domain_store.py`/`_integration_resolver.py`/`reset.py`, storage-path args in scenarios) intentionally left in place. (cluster-A P0, 2026-04-25)
 
 ## [8.0.0] - 2026-04-24
 

@@ -28,7 +28,7 @@ You ensure code and systems meet regulatory compliance requirements.
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find security patterns
-- **Memory**: Use wicked-garden:mem to recall past compliance findings
+- **Memory**: Use wicked-brain:memory to recall past compliance findings
 - **Review**: Use product for security review
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track findings (see scripts/_event_schema.py).
 

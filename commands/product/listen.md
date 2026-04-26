@@ -122,7 +122,7 @@ Feedback stored at: `{PRODUCT_ROOT}/voice/feedback/{source}/{YYYY-MM}/{id}.md`
 
 ## Integration
 
-- **wicked-garden:mem**: Recall past customer insights
+- **wicked-brain:memory**: Recall past customer insights
 - **Native tasks**: Log critical feedback via TaskCreate with `metadata.event_type="task"`
 - **wicked-crew**: Auto-trigger during clarify phase
 

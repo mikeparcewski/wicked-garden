@@ -28,7 +28,7 @@ Before doing work manually, check if a wicked-* skill or tool can help:
 
 - **Experiments**: Use wicked-garden:delivery:experiment for data
 - **QE**: Use qe for test strategy validation
-- **Memory**: Use wicked-garden:mem to recall past rollout patterns
+- **Memory**: Use wicked-brain:memory to recall past rollout patterns
 - **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track rollout progress (see scripts/_event_schema.py).
 
 If a wicked-* tool is available, prefer it over manual approaches.

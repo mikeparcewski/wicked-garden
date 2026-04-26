@@ -45,7 +45,7 @@ Auto-select format if not specified:
 
 - If a description: use as the design brief
 - If a file path: read it to understand the current component/page structure
-- Check wicked-garden:mem for existing design tokens or component library in use
+- Check wicked-brain:memory for existing design tokens or component library in use
 
 ### 3. Delegate to Mockup Generator
 

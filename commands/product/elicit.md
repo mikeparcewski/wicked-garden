@@ -129,7 +129,7 @@ Format the agent's output into the standard elicitation report structure.
 
 Automatically updates:
 - **Native tasks**: Stores requirements via TaskUpdate description appends on the active clarify task
-- **wicked-garden:mem**: Learns requirements patterns
+- **wicked-brain:memory**: Stores requirements patterns for future reference
 - **Event**: Emits `[product:requirements:elicited:success]`
 
 ## Example

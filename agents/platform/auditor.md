@@ -28,7 +28,7 @@ You collect evidence and verify controls for compliance audits.
 Leverage ecosystem tools:
 
 - **Search**: Use wicked-garden:search to find evidence
-- **Memory**: Use wicked-garden:mem for past audit findings
+- **Memory**: Use wicked-brain:memory to recall past audit findings
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to store audit artifacts (see scripts/_event_schema.py).
 
 ## Your Focus

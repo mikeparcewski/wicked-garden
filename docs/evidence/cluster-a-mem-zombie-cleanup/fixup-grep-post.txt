@@ -1,0 +1,16 @@
+agents/delivery/risk-monitor.md:31:- **Memory**: Use wicked-garden:mem to recall past risk patterns
+agents/delivery/experiment-designer.md:30:- **Memory**: Use wicked-garden:mem to recall past experiment patterns
+skills/search/codebase-narrator/SKILL.md:40:- **Memory**: Use wicked-garden:mem to recall past architecture decisions
+skills/workflow/SKILL.md:122:| `wicked-garden:mem` | Cross-session learning at project completion and gate failures |
+skills/delivery/design/SKILL.md:170:**With wicked-garden:mem**: Recalls past experiment patterns
+skills/delivery/reporting/SKILL.md:12:  - wicked-garden:mem Stores insights across sessions
+skills/delivery/reporting/SKILL.md:85:| wicked-garden:mem | Cross-session insights | Session-only memory |
+skills/delivery/reporting/refs/personas.md:53:- **wicked-garden:mem**: Memory storage for cross-session insights
+skills/delivery/reporting/refs/personas.md:63:7. **Caching**: Store results in wicked-garden:mem
+skills/delivery/reporting/refs/integration.md:66:Cache stored via wicked-garden:mem
+skills/delivery/reporting/refs/integration.md:68:.something-wicked/wicked-garden/local/wicked-garden:mem/namespaces/delivery/
+skills/delivery/rollout/SKILL.md:179:**With wicked-garden:mem**: Recalls past rollout learnings
+skills/jam/refs/synthesis-patterns.md:74:When a brainstorm produces a clear decision, store it in wicked-garden:mem:
+skills/data/pipeline/SKILL.md:110:- **wicked-garden:mem**: Recall pipeline patterns
+skills/data/analysis/SKILL.md:104:**wicked-garden:mem** - Store analysis patterns for reuse
+skills/data/data/SKILL.md:94:| wicked-garden:mem | Store quality patterns across sessions |

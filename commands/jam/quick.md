@@ -22,5 +22,5 @@ Native-task tracking (fail open on any tool errors):
 1. Session start: TaskCreate(subject='Jam: {topic}', metadata={'event_type':'task','chain_id':'jam-{topic-slug}.root','source_agent':'jam-facilitator','initiative':'{topic-slug}'})
 2. After synthesis and on decision: TaskUpdate(taskId, description='append: Synthesis: {summary}' / 'Decision: {decision_record}')
 
-native task = process, wicked-garden:mem = outcome.")
+native task = process, wicked-brain:memory = outcome.")
 ```

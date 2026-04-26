@@ -33,7 +33,7 @@ You route quality engineering requests to the appropriate gate.
 
 Before doing work manually, check if a wicked-* skill or tool can help:
 
-- **Memory**: Use wicked-garden:mem to recall past QE decisions
+- **Memory**: Use wicked-brain:memory to recall past QE decisions
 - **Search**: Use wicked-garden:search for code and test discovery
 - **Review**: Use engineering for deep code review
 - **Tracking**: Use TaskCreate/TaskList for task tracking
@@ -125,7 +125,7 @@ Skill(skill="wicked-brain:memory", args="store \"QE {gate} Gate: {decision} for 
 
 ### Evidence Attached
 - Artifact: `L3:qe:{gate}-gate`
-- Memory: decision stored (if wicked-garden:mem available)
+- Memory: decision stored via wicked-brain:memory (if available)
 ```
 
 ## Decision Criteria

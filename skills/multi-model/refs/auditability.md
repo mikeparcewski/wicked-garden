@@ -13,7 +13,7 @@ How to maintain audit trails for multi-AI conversations. Essential for complianc
 
 ```
 ┌─────────────────────────────────────────┐
-│  wicked-garden:mem (long-term decisions)       │  ← Persist important decisions
+│  wicked-brain:memory (long-term decisions)     │  ← Persist important decisions
 ├─────────────────────────────────────────┤
 │  Native tasks (conversation tracking)   │  ← Track active discussions
 ├─────────────────────────────────────────┤
@@ -123,9 +123,9 @@ Model: ${MODEL} | Logged by: $(whoami)"
 }
 ```
 
-## Level 3: Decision Persistence (wicked-garden:mem)
+## Level 3: Decision Persistence (wicked-brain:memory)
 
-For decisions that matter long-term, persist to wicked-garden:mem.
+For decisions that matter long-term, persist to wicked-brain:memory.
 
 ### What to Store
 
@@ -229,6 +229,6 @@ Skill(skill="wicked-brain:memory", args="store \"Trade algorithm change approved
 |------|----------|
 | Raw AI outputs | Local file logging |
 | Team visibility | Native task description appends via TaskUpdate |
-| Long-term decisions | wicked-garden:mem storage |
+| Long-term decisions | wicked-brain:memory storage |
 | Formal compliance | Audit record template |
 | Cross-reference | Link task ID in all artifacts |

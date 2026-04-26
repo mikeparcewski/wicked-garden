@@ -5,7 +5,7 @@ argument-hint: "[--project project-name]"
 
 # /wicked-garden:crew:retro
 
-Aggregate incidents, feedback, and operational metrics into a structured retrospective. Stores the summary in wicked-garden:mem for future crew projects.
+Aggregate incidents, feedback, and operational metrics into a structured retrospective. Stores the summary in wicked-brain:memory for future crew projects.
 
 ## Arguments
 
@@ -106,7 +106,7 @@ If the delivery manager agent is not available, generate the retrospective inlin
 
 ### 5. Store Retro in Memory
 
-Store the retrospective summary in wicked-garden:mem for future crew projects:
+Store the retrospective summary in wicked-brain:memory for future crew projects:
 
 ```
 Skill(skill="wicked-brain:memory", args={"content": "{retro_summary}", "type": "learning", "tags": "crew,retro,{project-name},operate", "importance": "7"})
@@ -167,7 +167,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/cre
 - **Feedback**: {count} ({positive} positive, {neutral} neutral, {negative} negative)
 - **Coverage**: {coverage_pct}% requirements traced to endpoints
 
-**Retro stored in wicked-garden:mem** for future project context.
+**Retro stored in wicked-brain:memory** for future project context.
 
 To complete the operate phase: `/wicked-garden:crew:approve operate`
 ```

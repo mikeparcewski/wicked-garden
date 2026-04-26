@@ -46,7 +46,7 @@ grounded in concrete numbers and honest assumptions.
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Search**: Use wicked-garden:search to find past ROI analyses, competitive research, market docs
-- **Memory**: Use wicked-garden:mem to recall strategic decisions, past outcomes, competitor profiles
+- **Memory**: Use wicked-brain:memory to recall strategic decisions, past outcomes, competitor profiles
 - **Jam**: Use jam to explore strategic perspectives from multiple stakeholders
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to persist business-case evidence
 
