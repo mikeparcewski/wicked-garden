@@ -192,6 +192,133 @@ for skill in $(find "./skills" -name "SKILL.md" 2>/dev/null); do
 done
 ```
 
+### 3a. Agent Line Counts (#664)
+
+Agents that exceed 200 lines are conflation candidates: prompts that long usually
+encode rubrics, multi-step procedures, or persona archetype tables that belong in
+a sibling skill / refs file. Lessons from PR #666 (jam slim) and PR #670
+(propose-process slim) showed that bloated single-file agents accumulate the kind
+of content that should live behind progressive disclosure. Threshold rationale:
+warn at >200 (matches the skill ceiling); hard error at >400 (effectively
+two-skills-in-an-agent territory).
+
+```bash
+# Threshold rationale: see #664. Warn ≥ 200 (skill ceiling parity), error ≥ 400
+# (two-skills-in-an-agent). The error threshold is intentionally generous so the
+# existing roster only flips a small number of files; the warn threshold gives
+# authors a continuous nudge without blocking releases.
+AGENT_WARN_LINES=200
+AGENT_ERROR_LINES=400
+
+for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
+  lines=$(wc -l < "$agent")
+  rel=$(echo "$agent" | sed 's|^\./||')
+  if [[ "$lines" -gt "$AGENT_ERROR_LINES" ]]; then
+    echo "ERROR: $rel is $lines lines (max ${AGENT_ERROR_LINES} — split rubric/persona content into a sibling skill, see #664)"
+  elif [[ "$lines" -gt "$AGENT_WARN_LINES" ]]; then
+    echo "WARNING: $rel is $lines lines (>${AGENT_WARN_LINES} — conflation candidate per #664; consider extracting refs/* or moving rubric steps to a skill)"
+  fi
+done
+```
+
+### 3b. Skill-as-Agent Conflation Heuristic (#664)
+
+For each skill, look for a sibling agent in the same domain and grep both files
+for shared content classes. If 3+ classes overlap, warn that the skill and the
+agent likely duplicate rubric / persona / mechanics content — this is the
+Pattern A migration smell from #652.
+
+The check is intentionally cheap (no LLM, no diff): four regex probes per file,
+domain-scoped pairing only. False positives are acceptable because the warning is
+informational; the cost of a missed conflation (twin sources of truth) is much
+higher than the cost of a false flag.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT:-.}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT:-.}/scripts/wg/check_conflation.py" 2>/dev/null \
+  || python3 -c "
+import os, re, sys
+from pathlib import Path
+
+# Conflation content classes — each is a regex probe. A class 'matches' a file
+# if the file contains the pattern at least once. If 3+ classes match BOTH the
+# SKILL.md and a sibling agent in the same domain, warn (#664 / #652 Pattern A).
+PROBES = {
+    'persona-archetype-list': re.compile(r'(persona[\s-]?archetype|archetype[\s-]?pool|persona pool|focus group personas?)', re.IGNORECASE),
+    'rubric-step-block': re.compile(r'(^|\n)(#{2,4}\s*)?step\s*[0-9]+\s*[-:—]', re.IGNORECASE),
+    'convergence-or-round-mechanics': re.compile(r'(convergence (check|mode|signal)|round\s*[0-9]+|after each round|next round)', re.IGNORECASE),
+    'transcript-event-bus-emit': re.compile(r'(save_transcript|store the full transcript|emit (a|an) (event|synthesis event)|event log|bus emit|emit_event)', re.IGNORECASE),
+}
+THRESHOLD = 3
+
+skills_root = Path('./skills')
+agents_root = Path('./agents')
+if not skills_root.is_dir() or not agents_root.is_dir():
+    sys.exit(0)
+
+def probe(text):
+    return {name for name, rx in PROBES.items() if rx.search(text)}
+
+def candidate_agents(domain, skill_name):
+    domain_dir = agents_root / domain
+    if not domain_dir.is_dir():
+        return []
+    out = []
+    sk = skill_name.lower().replace('_', '-')
+    for md in sorted(domain_dir.glob('*.md')):
+        stem = md.stem.lower()
+        if stem == sk or sk in stem or stem in sk:
+            out.append(md)
+            continue
+        if sk in ('skill', domain) and stem.endswith(('-facilitator', '-orchestrator', '-coordinator')):
+            out.append(md)
+    if not out:
+        for md in sorted(domain_dir.glob('*.md')):
+            out.append(md)
+    return out
+
+flagged = 0
+for skill_md in sorted(skills_root.rglob('SKILL.md')):
+    parts = skill_md.relative_to(skills_root).parts
+    if not parts:
+        continue
+    domain = parts[0]
+    skill_name = parts[1] if len(parts) >= 3 else domain
+    try:
+        skill_text = skill_md.read_text(errors='replace')
+    except Exception:
+        continue
+    skill_classes = probe(skill_text)
+    if len(skill_classes) < THRESHOLD:
+        continue
+    for agent_md in candidate_agents(domain, skill_name):
+        try:
+            agent_text = agent_md.read_text(errors='replace')
+        except Exception:
+            continue
+        agent_classes = probe(agent_text)
+        shared = skill_classes & agent_classes
+        if len(shared) >= THRESHOLD:
+            flagged += 1
+            rel_skill = skill_md.relative_to(Path('.'))
+            rel_agent = agent_md.relative_to(Path('.'))
+            print(f'WARNING: skill-as-agent conflation detected — {rel_skill} and {rel_agent} share {len(shared)} content classes ({sorted(shared)}). See #652 Pattern A migration.')
+
+if flagged == 0:
+    print('OK: no skill-as-agent conflation patterns detected (#664)')
+" 2>/dev/null || python -c "print('WARNING: could not run conflation heuristic')"
+```
+
+**What this catches**: A SKILL.md that still owns rubric steps + persona pools +
+convergence/round mechanics + transcript/bus emit instructions while a sibling
+agent in the same domain also encodes the same four classes. The fix is the
+Pattern A migration: keep the orchestration prose in the agent, slim the skill
+to navigation + entry-points (~50-100 lines).
+
+**Acceptable false positives**: any skill that legitimately documents what its
+sibling agent does (links + brief overview). The signal is most useful when both
+files contain *full* rubric / mechanics blocks — exactly the duplication that
+PRs #666 and #670 cleaned up.
+
 ### 4. Agent Frontmatter
 
 ```bash
@@ -726,6 +853,141 @@ for domain in domains:
 - Section 10a-10d (summary + warnings) runs as part of every quick check
 - Section 10e (detailed inventory) runs only with `--agents` or `--full` flags
 
+### 11. Pattern A Migration Validation Gate (#665)
+
+When a PR shrinks a `skills/**/SKILL.md` substantially AND adds a new
+`agents/**/*.md` in the same diff, that's the Pattern A migration shape from
+#666 (jam slim) and #670 (propose-process slim). The gate enforces the rule
+codified in #665: **every Pattern A migration must ship with a passing
+acceptance scenario** so reviewers can verify the new agent is wired correctly
+and the slimmed skill still delegates to the right place.
+
+**Signal**: a `SKILL.md` shrunk by ≥40% (lines-removed / lines-before) AND a new
+`agents/**/*.md` file added in the same `git diff origin/main...HEAD`.
+
+**Requirement on detection**: the same diff must add a scenario file matching
+one of these patterns (any domain):
+
+- `scenarios/**/*-pattern-a.md`
+- `scenarios/**/*-shape.md`
+- `scenarios/**/*-dispatch.md`
+- `scenarios/**/*pattern*.md`, `scenarios/**/*shape*.md`, `scenarios/**/*dispatch*.md`
+
+**Behavior**: ERROR (blocks CI) if signal detected and no matching scenario.
+Fail-open if `git diff origin/main...HEAD` returns empty (running on main with
+no PR context). The 40% threshold + same-PR new-agent requirement is calibrated
+so that incremental skill polish never trips the gate — only true Pattern A
+migrations do.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT:-.}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT:-.}/scripts/wg/check_pattern_a_gate.py" 2>/dev/null \
+  || python3 -c "
+import os, re, subprocess, sys
+from pathlib import Path
+
+# Threshold rationale: see #665. SKILL.md must shrink by >= SHRINK_RATIO of its
+# pre-diff size to count as 'slimmed'. Combined with a same-PR new agent file,
+# this is the Pattern A signal. Tuning lower would catch normal polish PRs;
+# tuning higher would miss legitimate slim migrations like PR #666 (jam went
+# from ~120 lines to 43, a 64% drop).
+SHRINK_RATIO = 0.40
+
+def run(cmd):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        return r.stdout if r.returncode == 0 else ''
+    except Exception:
+        return ''
+
+base_ref = os.environ.get('WG_PR_BASE_REF') or os.environ.get('GITHUB_BASE_REF') or 'origin/main'
+if base_ref and not base_ref.startswith('origin/') and base_ref != 'main':
+    base_ref = f'origin/{base_ref}'
+
+diff_range = f'{base_ref}...HEAD'
+
+name_status = run(['git', 'diff', '--name-status', diff_range])
+if not name_status.strip():
+    print('OK: no PR diff against ' + base_ref + ' — Pattern A gate skipped (fail-open)')
+    sys.exit(0)
+
+slimmed_skills = []
+new_agents = []
+new_scenarios = []
+
+for line in name_status.splitlines():
+    parts = line.split('\t')
+    if len(parts) < 2:
+        continue
+    status = parts[0].strip()
+    path = parts[-1].strip()
+    if status.startswith('A') and path.startswith('agents/') and path.endswith('.md'):
+        new_agents.append(path)
+    if status.startswith('A') and path.startswith('scenarios/') and path.endswith('.md'):
+        new_scenarios.append(path)
+    if path.startswith('skills/') and path.endswith('SKILL.md') and status.startswith(('M', 'R')):
+        numstat = run(['git', 'diff', '--numstat', diff_range, '--', path])
+        if not numstat.strip():
+            continue
+        for nl in numstat.splitlines():
+            np = nl.split('\t')
+            if len(np) < 3:
+                continue
+            try:
+                added = int(np[0]); deleted = int(np[1])
+            except ValueError:
+                continue
+            base_blob = run(['git', 'show', f'{base_ref}:{path}'])
+            base_lines = base_blob.count('\n') if base_blob else 0
+            if base_lines == 0:
+                continue
+            shrink = (deleted - added) / base_lines if base_lines else 0
+            if shrink >= SHRINK_RATIO:
+                slimmed_skills.append((path, base_lines, shrink))
+
+if not slimmed_skills or not new_agents:
+    if slimmed_skills:
+        for p, bl, sr in slimmed_skills:
+            print(f'INFO: {p} shrunk by {sr*100:.0f}% (was {bl} lines) — no new agent in this PR, not a Pattern A migration')
+    print('OK: no Pattern A migration signal in this PR (#665)')
+    sys.exit(0)
+
+SCENARIO_PATTERNS = [
+    re.compile(r'^scenarios/.+-pattern-a\.md$'),
+    re.compile(r'^scenarios/.+-shape\.md$'),
+    re.compile(r'^scenarios/.+-dispatch\.md$'),
+    re.compile(r'^scenarios/.*pattern.*\.md$', re.IGNORECASE),
+    re.compile(r'^scenarios/.*shape.*\.md$', re.IGNORECASE),
+    re.compile(r'^scenarios/.*dispatch.*\.md$', re.IGNORECASE),
+]
+
+matching = [s for s in new_scenarios if any(p.match(s) for p in SCENARIO_PATTERNS)]
+
+print('Pattern A migration detected:')
+for p, bl, sr in slimmed_skills:
+    print(f'  slimmed skill: {p} (was {bl} lines, shrunk {sr*100:.0f}%)')
+for a in new_agents:
+    print(f'  new agent:     {a}')
+
+if matching:
+    for s in matching:
+        print(f'OK: Pattern A migration covered by scenario: {s} (#665)')
+    sys.exit(0)
+
+print('ERROR: Pattern A migration detected but no matching scenario added in this PR (#665).')
+print('       Add a scenario in scenarios/{domain}/ matching one of:')
+print('         *-pattern-a.md, *-shape.md, *-dispatch.md, *pattern*.md, *shape*.md, *dispatch*.md')
+print('       Reference scenarios: scenarios/crew/process-facilitator-pattern-a.md (PR #670),')
+print('       scenarios/jam/quick-facilitator-shape.md (PR #666).')
+sys.exit(1)
+" 2>/dev/null || python -c "print('WARNING: Could not run Pattern A migration gate')"
+```
+
+**Override**: there is no env-var bypass. The gate is intentionally narrow
+(40% shrink + same-PR new agent) so genuine non-migration work never trips it.
+If a legitimate Pattern A migration ships with the scenario in a follow-up PR,
+add a placeholder scenario file (`scenarios/{domain}/{name}-pattern-a.md` with
+a short "TODO: implement" body) and replace it in the follow-up.
+
 ### Quick Check Output
 
 ```markdown
@@ -739,6 +1001,8 @@ for domain in domains:
 | gate-policy.json Tier-1 allowlist | ✓/✗ |
 | JSON validity | ✓/✗ |
 | Skills ≤200 lines | ✓/✗ |
+| Agent line counts (#664) | ✓/⚠/✗ |
+| Skill-as-agent conflation (#664) | ✓/⚠ |
 | Agent frontmatter | ✓/✗ |
 | Agent Skills 2.0 (allowed-tools, model) | ✓/✗ |
 | Agent tool-capabilities compliance | ✓/✗ |
@@ -752,6 +1016,7 @@ for domain in domains:
 | README freshness | ✓/✗ |
 | Self-referential integrity | ✓/✗ |
 | Agent trigger analysis | ✓/⚠ |
+| Pattern A migration gate (#665) | ✓/✗/skip |
 
 **Result**: PASS / FAIL
 
