@@ -210,9 +210,11 @@ two-skills-in-an-agent territory).
 AGENT_WARN_LINES=200
 AGENT_ERROR_LINES=400
 
-for agent in $(find "./agents" -name "*.md" 2>/dev/null); do
+# F13 (#675 sweep): use `-print0` + `read -d ''` so filenames with spaces or
+# special chars don't split the loop into garbage tokens.
+find "./agents" -name "*.md" -print0 2>/dev/null | while IFS= read -r -d '' agent; do
   lines=$(wc -l < "$agent")
-  rel=$(echo "$agent" | sed 's|^\./||')
+  rel="${agent#./}"
   if [[ "$lines" -gt "$AGENT_ERROR_LINES" ]]; then
     echo "ERROR: $rel is $lines lines (max ${AGENT_ERROR_LINES} — split rubric/persona content into a sibling skill, see #664)"
   elif [[ "$lines" -gt "$AGENT_WARN_LINES" ]]; then
@@ -873,11 +875,19 @@ one of these patterns (any domain):
 - `scenarios/**/*-dispatch.md`
 - `scenarios/**/*pattern*.md`, `scenarios/**/*shape*.md`, `scenarios/**/*dispatch*.md`
 
-**Behavior**: ERROR (blocks CI) if signal detected and no matching scenario.
-Fail-open if `git diff origin/main...HEAD` returns empty (running on main with
-no PR context). The 40% threshold + same-PR new-agent requirement is calibrated
-so that incremental skill polish never trips the gate — only true Pattern A
-migrations do.
+**Behavior**: ERROR locally (and surfaces in `wg-check` output) if signal
+detected and no matching scenario; fail-open if `git diff origin/main...HEAD`
+returns empty (running on main with no PR context). The 40% threshold + same-PR
+new-agent requirement is calibrated so that incremental skill polish never
+trips the gate — only true Pattern A migrations do.
+
+> **CI integration status (F12, #675 sweep)**: The Pattern A gate is currently
+> **advisory locally** — it surfaces during `wg-check` runs and prints an ERROR
+> exit code. The GitHub Actions workflow at `.github/workflows/validate.yml`
+> runs `python scripts/ci/validate.py`, which does NOT yet invoke
+> `check_pattern_a_gate.py`. Wiring the Pattern A gate into the CI workflow is
+> a follow-up (out of scope for this polish PR). Until then, the gate runs
+> only when an author runs `/wg-check` manually before opening a PR.
 
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT:-.}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT:-.}/scripts/wg/check_pattern_a_gate.py" 2>/dev/null \
@@ -893,19 +903,34 @@ from pathlib import Path
 SHRINK_RATIO = 0.40
 
 def run(cmd):
+    # F10 (#675 sweep): return None on error so callers can distinguish a real
+    # git failure from a clean diff. Previously both returned ''.
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return r.stdout if r.returncode == 0 else ''
-    except Exception:
-        return ''
+        if r.returncode != 0:
+            sys.stderr.write('WARNING: ' + ' '.join(cmd) + ' exited ' + str(r.returncode) + ': ' + (r.stderr or '').strip() + '\n')
+            return None
+        return r.stdout
+    except Exception as exc:
+        sys.stderr.write('WARNING: ' + ' '.join(cmd) + ' raised ' + repr(exc) + '\n')
+        return None
 
-base_ref = os.environ.get('WG_PR_BASE_REF') or os.environ.get('GITHUB_BASE_REF') or 'origin/main'
-if base_ref and not base_ref.startswith('origin/') and base_ref != 'main':
-    base_ref = f'origin/{base_ref}'
+# F11 (#675 sweep): always prepend origin/ when the ref has no remote prefix.
+# WG_PR_BASE_REF is treated as caller-authoritative (escape hatch).
+explicit = os.environ.get('WG_PR_BASE_REF')
+if explicit:
+    base_ref = explicit
+else:
+    base_ref = os.environ.get('GITHUB_BASE_REF') or 'origin/main'
+    if '/' not in base_ref:
+        base_ref = f'origin/{base_ref}'
 
 diff_range = f'{base_ref}...HEAD'
 
 name_status = run(['git', 'diff', '--name-status', diff_range])
+if name_status is None:
+    print('WARNING: git diff --name-status ' + diff_range + ' failed — Pattern A gate skipped (fail-open). Check that the base ref exists locally.')
+    sys.exit(0)
 if not name_status.strip():
     print('OK: no PR diff against ' + base_ref + ' — Pattern A gate skipped (fail-open)')
     sys.exit(0)
@@ -919,30 +944,33 @@ for line in name_status.splitlines():
     if len(parts) < 2:
         continue
     status = parts[0].strip()
-    path = parts[-1].strip()
+    # F9 (#675 sweep): renames look like `R<score>\told\tnew`. Use OLD against
+    # base_ref, NEW against HEAD; previously parts[-1] was used for both,
+    # silently skipping renamed SKILL.md files.
+    if status.startswith('R') and len(parts) >= 3:
+        old_path = parts[1].strip()
+        new_path = parts[2].strip()
+    else:
+        old_path = parts[-1].strip()
+        new_path = parts[-1].strip()
+    path = new_path
     if status.startswith('A') and path.startswith('agents/') and path.endswith('.md'):
         new_agents.append(path)
     if status.startswith('A') and path.startswith('scenarios/') and path.endswith('.md'):
         new_scenarios.append(path)
     if path.startswith('skills/') and path.endswith('SKILL.md') and status.startswith(('M', 'R')):
-        numstat = run(['git', 'diff', '--numstat', diff_range, '--', path])
-        if not numstat.strip():
+        # F9 (#675 sweep): direct line-count comparison handles renames cleanly
+        # without parsing ambiguous numstat output. base from old_path, head
+        # from new_path.
+        base_blob = run(['git', 'show', f'{base_ref}:{old_path}'])
+        head_blob = run(['git', 'show', f'HEAD:{new_path}'])
+        base_lines = base_blob.count('\n') if base_blob else 0
+        head_lines = head_blob.count('\n') if head_blob else 0
+        if base_lines == 0:
             continue
-        for nl in numstat.splitlines():
-            np = nl.split('\t')
-            if len(np) < 3:
-                continue
-            try:
-                added = int(np[0]); deleted = int(np[1])
-            except ValueError:
-                continue
-            base_blob = run(['git', 'show', f'{base_ref}:{path}'])
-            base_lines = base_blob.count('\n') if base_blob else 0
-            if base_lines == 0:
-                continue
-            shrink = (deleted - added) / base_lines if base_lines else 0
-            if shrink >= SHRINK_RATIO:
-                slimmed_skills.append((path, base_lines, shrink))
+        shrink = (base_lines - head_lines) / base_lines
+        if shrink >= SHRINK_RATIO:
+            slimmed_skills.append((path, base_lines, shrink))
 
 if not slimmed_skills or not new_agents:
     if slimmed_skills:

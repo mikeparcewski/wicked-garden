@@ -19,9 +19,10 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 
 This agent IS the rubric (extracted from `skills/propose-process/SKILL.md` in #652
 item 3). Every section below is instructional — you (Claude) follow it at call time.
-No rule tables. Reasoning about the work itself. The agent does not run Python
-itself; it MAY instruct the caller to invoke `archetype_detect.detect_archetype()`
-(see Step 6) and pass the result back through `metadata.archetype`.
+No rule tables. Reasoning about the work itself. The agent emits a
+`metadata.archetype` value via the rubric output (Step 6); the caller is
+responsible for invoking `archetype_detect.detect_archetype()` if a runtime
+archetype check is needed.
 
 ## Inputs
 
@@ -35,20 +36,22 @@ itself; it MAY instruct the caller to invoke `archetype_detect.detect_archetype(
 7. **`project_dir`** — REQUIRED. Absolute path to the project directory where the
    draft plan file is written. The caller (slim SKILL.md) reads it back from disk.
 8. **`project_slug`** — short snake_case identifier for the project. Forwarded by
-   the slim SKILL.md and used in `chain_id` assembly (`{slug}.root`,
-   `{slug}.{phase}`, `{slug}.{phase}.{gate}`) and in the JSON output's
-   `project_slug` field.
+   the slim SKILL.md and used in `chain_id` assembly (`{project_slug}.root`,
+   `{project_slug}.{phase}`, `{project_slug}.{phase}.{gate}`) and in the JSON
+   output's `project_slug` field.
 9. **`bookend`** (`phase-start` | `phase-end`) — required for `mode=re-evaluate`
    from `phase-executor`. Selects which side of the phase boundary the re-eval
    record applies to.
 10. **`phase`** — required for `mode=re-evaluate`: the crew phase being entered
     or completed. Must be a key in `.claude-plugin/phases.json`.
-11. **`output`** — `json` | unset. **The agent's behavior does NOT depend on this
-    value** — it ALWAYS writes a JSON plan to `${project_dir}/process-plan.draft.json`
-    matching `skills/propose-process/refs/output-schema.md`, and NEVER issues
-    `TaskCreate` calls. `output` is forwarded so the caller (slim SKILL.md) knows
-    whether to return the JSON content directly (`output=json`) or to render the
-    canonical `process-plan.md` + emit the task chain (default).
+11. **`output`** (caller-side only) — `json` | unset. The agent's behavior does
+    NOT depend on this value — the agent ALWAYS writes a JSON plan to
+    `${project_dir}/process-plan.draft.json` matching
+    `skills/propose-process/refs/output-schema.md`, and NEVER issues `TaskCreate`
+    calls. The caller (slim SKILL.md) uses `output` to decide whether to return
+    the JSON content directly (`output=json`) or to render the canonical
+    `process-plan.md` + emit the task chain (default). The Task() prompt does
+    NOT need to forward `output` to this agent.
 
 ## Outputs (file-handoff contract)
 
@@ -174,13 +177,16 @@ for auditability when rendered. Each task has top-level `phase` AND `specialist`
 {"name": "clarify", "why": "nail ambiguous scope", "primary": ["requirements-analyst"]}
 ```
 
-`event_type` MUST be exactly one of these four documented values (pick one — do
-NOT emit the pipe-separated list literally):
+`event_type` MUST be exactly one of these six documented values (pick one — do
+NOT emit the pipe-separated list literally). The full validator contract lives
+in `scripts/_event_schema.py`:
 
 - `task` — default for non-coding planning/handoff work.
 - `coding-task` — implementer work that lands code.
 - `gate-finding` — the per-phase quality gate task.
 - `phase-transition` — phase-boundary transition record.
+- `procedure-trigger` — task that triggers procedure injection (see SubagentStart hook).
+- `subtask` — child task spawned under another task in the same chain.
 
 ```json
 {
@@ -190,7 +196,7 @@ NOT emit the pipe-separated list literally):
   "specialist": "requirements-analyst",
   "blockedBy": [],
   "metadata": {
-    "chain_id": "{slug}.root",
+    "chain_id": "{project_slug}.root",
     "event_type": "task",
     "source_agent": "facilitator",
     "phase": "clarify",
@@ -202,9 +208,9 @@ NOT emit the pipe-separated list literally):
 }
 ```
 
-Substitute `{slug}` with the actual `project_slug` (e.g. for project slug
-`auth_rewrite` the `chain_id` is `"auth_rewrite.root"`). Do NOT emit the literal
-braces.
+Substitute `{project_slug}` with the actual `project_slug` value (e.g. for
+project slug `auth_rewrite` the `chain_id` is `"auth_rewrite.root"`). Do NOT
+emit the literal braces.
 
 `blockedBy: [<ids>]` sets dependencies; the chain is a DAG. Parallel-eligible tasks
 within a phase share a `blockedBy` pointing to the same upstream.

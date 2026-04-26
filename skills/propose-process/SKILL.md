@@ -29,7 +29,7 @@ Thin shim. Full rubric lives in [`agents/crew/process-facilitator.md`](../../age
   real project calls; omit only on `output=json` measurement / no-project calls).
 - **`project_dir`** — absolute path; agent writes the draft plan here. If absent,
   the shim resolves it via the `resolve_path.py` subpath form:
-  `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew projects {slug}`.
+  `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew projects {project_slug}`.
   On `output=json` with no project context, an ephemeral tmp dir is used (see Step 0).
 - **`bookend`** (`phase-start` | `phase-end`) and **`phase`** — required for `re-evaluate` from `phase-executor`.
 - **`current_chain`** — required for `re-evaluate`: tasks created so far, status, evidence.
@@ -47,7 +47,7 @@ Two call shapes are supported:
 
 - **Real project call** (`mode=propose|re-evaluate`, `project_slug` or `project`
   provided): `${project_dir}` resolves under
-  `~/.something-wicked/wicked-garden/projects/{session-slug}/wicked-crew/projects/{slug}/`
+  `~/.something-wicked/wicked-garden/projects/{session-slug}/wicked-crew/projects/{project_slug}/`
   (the `{session-slug}` segment is the per-cwd slug from `_paths._get_project_slug()`).
   The draft persists at `${project_dir}/process-plan.draft.json`. The caller
   (`commands/crew/start.md` Step 7, etc.) is responsible for any subsequent
@@ -67,7 +67,7 @@ When invoked:
 0. **Resolve `project_dir`** (in order):
    - If `project_dir` is set, use it as-is and `mkdir -p` it.
    - Else if `project_slug` or `project` is set, resolve via
-     `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew projects {slug}`
+     `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-crew projects {project_slug}`
      (the `resolve_path.py` subpath form auto-creates intermediate dirs).
    - Else if `output=json` AND no project context was provided (measurement /
      no-project call), allocate an ephemeral dir
@@ -98,16 +98,19 @@ Task(
     project_slug: {project_slug}
     bookend: {bookend}
     phase: {phase}
-    output: {output}
 
     For any field whose value is `none`, treat it as absent (use the input's
     documented default).
 
-    Write the resulting JSON to ${project_dir}/process-plan.draft.json before
+    Write the resulting JSON to {project_dir}/process-plan.draft.json before
     returning. Do NOT issue TaskCreate calls — the caller emits the chain.
   """
 )
 ```
+
+   `output` is intentionally NOT forwarded — the agent always writes the draft
+   file regardless, and the shim (Steps 3 / 4 below) decides whether to render
+   `process-plan.md` based on the caller's `output` value.
 
    Concrete example for the `crew:start` Step 5 call (description elided):
 
@@ -123,16 +126,15 @@ Task(
     mode: propose
     current_chain: none
     auto_proceed: none
-    project_dir: /Users/.../wicked-crew/projects/auth_rewrite
+    project_dir: ~/.something-wicked/wicked-garden/projects/{session-slug}/wicked-crew/projects/auth_rewrite
     project_slug: auth_rewrite
     bookend: none
     phase: none
-    output: json
 
     For any field whose value is `none`, treat it as absent (use the input's
     documented default).
 
-    Write the resulting JSON to ${project_dir}/process-plan.draft.json before
+    Write the resulting JSON to {project_dir}/process-plan.draft.json before
     returning. Do NOT issue TaskCreate calls — the caller emits the chain.
   """
 )
