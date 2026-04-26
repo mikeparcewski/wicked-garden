@@ -1,0 +1,24 @@
+Results after all edits (including fix-up commit). Only permitted occurrences remain:
+- CHANGELOG.md: two new Removed entries (correct) + one historical commit message (expected, in v7 section)
+- docs/v9/audit.md: verdicts updated to CUT with cluster-A rationale (correct)
+- scenarios/smaht/06-context7-integration.md: tombstone file — all references are in RETIRED context (correct)
+
+No active production surface (command, skill, agent, or live docs table) references smaht:learn or smaht:libs.
+
+--- FIX-UP ADDITION (2026-04-25): context7_adapter cheatsheet caller severed ---
+
+grep -rln "_CHEATSHEET_STORE|_lookup_cheatsheet|cheatsheet_store" scripts/ tests/ --include="*.py"
+
+scripts/smaht/test_cheatsheet_store.py    [left on disk per council scope — next-batch cleanup]
+scripts/smaht/cheatsheet_store.py         [left on disk per council scope — next-batch cleanup]
+
+context7_adapter.py: ZERO references to _lookup_cheatsheet, _CHEATSHEET_STORE, or cheatsheet_store.
+tests/smaht/test_context7_cheatsheet.py: DELETED (tested the now-removed _lookup_cheatsheet function).
+
+---
+CHANGELOG.md:1031:- feat: smaht:learn tracking, PostToolUse profiling, agent trigger analysis (50b0ff4)
+CHANGELOG.md:6:- `smaht:learn` command — duplicated `wicked-brain:ingest`; zero v8 role (cluster-A P0, 2026-04-25)
+CHANGELOG.md:7:- `smaht:libs` command — orphaned by v8 daemon-first architecture; zero v8 role (cluster-A P0, 2026-04-25)
+docs/v9/audit.md:111:| `smaht:learn` | CUT | Superseded by cluster-A P0 decision (2026-04-25): duplicates wicked-brain:ingest workflow. | wicked-brain:ingest |
+docs/v9/audit.md:112:| `smaht:libs` | CUT | Superseded by cluster-A P0 decision (2026-04-25): orphaned by v8 daemon-first architecture. | — |
+scenarios/smaht/06-context7-integration.md: [all refs inside RETIRED tombstone — non-active]

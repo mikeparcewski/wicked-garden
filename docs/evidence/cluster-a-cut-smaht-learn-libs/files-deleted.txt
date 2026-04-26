@@ -1,0 +1,19 @@
+Files deleted (2 command files):
+  commands/smaht/learn.md
+  commands/smaht/libs.md
+
+Note: No skill subdirectories existed for these commands.
+The smaht domain uses a single top-level skills/smaht/SKILL.md — there were
+no skills/smaht/learn/ or skills/smaht/libs/ directories to delete.
+The commands were the sole artifacts for these surfaces.
+
+The backing script scripts/smaht/cheatsheet_store.py was NOT deleted — it is
+out of scope per the task brief (only commands + cross-refs, not dead-code sweep
+of scripts). This is a separate concern for a future cluster-A cleanup pass.
+
+Files modified (cross-ref updates, 5 files):
+  CHANGELOG.md                              — added [Unreleased] Removed section
+  commands/help.md                          — updated smaht key commands list
+  docs/domains.md                           — removed smaht:learn and smaht:libs table rows
+  docs/v9/audit.md                          — updated verdicts from KEEP-AS-IS/KEEP-SHARPEN to CUT
+  scenarios/smaht/06-context7-integration.md — retired tombstone (scenario tested deleted command)

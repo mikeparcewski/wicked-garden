@@ -29,7 +29,7 @@ The Wicked Garden Marketplace — an AI-native SDLC workflow with 19 command dom
 | **platform** | Security, infrastructure, compliance, CI/CD, incidents, and plugin diagnostics | `platform:security`, `platform:compliance`, `platform:incident` |
 | **product** | Requirements, customer feedback, strategy, UX, and design review | `product:acceptance`, `product:analyze`, `product:strategy` |
 | **search** | Structural code search, lineage, and codebase intelligence | `search:blast-radius`, `search:lineage`, `search:hotspots` |
-| **smaht** | Intelligent context assembly from all sources | `smaht:briefing`, `smaht:debug`, `smaht:learn` |
+| **smaht** | Intelligent context assembly from all sources | `smaht:briefing`, `smaht:debug`, `smaht:events-query` |
 
 ## Quick Start
 

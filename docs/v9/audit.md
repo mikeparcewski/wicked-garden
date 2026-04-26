@@ -108,8 +108,8 @@ The push-orchestrator died in #428. What remains is mostly debug + import. The b
 | `smaht:events-import` | KEEP-AS-IS | One-shot historical migration — niche but unique. | — |
 | `smaht:events-query` | KEEP-AS-IS | Cross-domain event log — pillar #4. | — |
 | `smaht:help` | CUT | Per-domain help overhead. | root help |
-| `smaht:learn` | KEEP-AS-IS | Context7 fetch + cheatsheet persist — unique workflow. | — |
-| `smaht:libs` | KEEP-SHARPEN | Lists cached cheatsheets; description is bare. | description rewrite |
+| `smaht:learn` | CUT | Superseded by cluster-A P0 decision (2026-04-25): duplicates wicked-brain:ingest workflow. | wicked-brain:ingest |
+| `smaht:libs` | CUT | Superseded by cluster-A P0 decision (2026-04-25): orphaned by v8 daemon-first architecture. | — |
 | `smaht:onboard` | MERGE | Codebase onboarding — overlaps with `wicked-brain:agent (onboard)`. | merge into wicked-brain:agent |
 | `smaht:smaht` | CUT | Self-named "thin shim over brain+search" — admit it's redundant. | wicked-brain:query |
 
