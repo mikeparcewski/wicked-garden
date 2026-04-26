@@ -108,6 +108,34 @@ class VerificationReport:
 # Utilities
 # ---------------------------------------------------------------------------
 
+def _phases_with_required_deliverables() -> set:
+    """Return the set of phase names that declare at least one required deliverable.
+
+    Reads .claude-plugin/phases.json directly so the list stays in sync as new
+    phases are added (#667 follow-up — replaces the previous hardcoded
+    {"clarify", "design", "build"} set in check_traceability that omitted
+    "ideate" and any future phases). Falls back to the historical hardcoded
+    set if phases.json is missing or unreadable, preserving prior behavior.
+    """
+    fallback = {"clarify", "design", "build"}
+    try:
+        # .claude-plugin/ sits at the plugin root, two parents above scripts/crew/.
+        phases_json = Path(__file__).resolve().parents[2] / ".claude-plugin" / "phases.json"
+        if not phases_json.exists():
+            return fallback
+        with phases_json.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        phases = data.get("phases", {})
+        result = {
+            name
+            for name, cfg in phases.items()
+            if isinstance(cfg, dict) and cfg.get("required_deliverables")
+        }
+        return result or fallback
+    except Exception:  # noqa: BLE001 — fail-safe: traceability check still runs
+        return fallback
+
+
 def _run_command(
     cmd: List[str],
     cwd: Optional[str] = None,
@@ -850,8 +878,11 @@ def check_traceability(
 
     # Check for broken chains: criteria with no build task linkage
     # Also verify that deliverable directories exist for each phase
+    # that declares required_deliverables in phases.json (#667 follow-up:
+    # was a hardcoded {"clarify", "design", "build"} set, now derived from
+    # phases.json so phases like "ideate" and any future phases are covered).
     phase_dirs = [d.name for d in phases_dir.iterdir() if d.is_dir()]
-    expected_phases = {"clarify", "design", "build"}
+    expected_phases = _phases_with_required_deliverables()
     missing_phases = expected_phases - set(phase_dirs)
 
     if missing_phases:

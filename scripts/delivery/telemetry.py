@@ -64,6 +64,13 @@ _SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_ROOT))
 
+# SCHEMA_VERSION intentionally remains at "1" through v8.3.x — see #667.
+# PR #663 renamed sample_window.task_files_scanned -> tasks_observed, but the
+# deprecated alias (also written into timeline.jsonl) preserves wire compat for
+# any consumer reading the old field name. Because the change is non-breaking
+# from a consumer's perspective, the schema version is held at "1" rather than
+# bumped to "1.1". Drop the alias (and bump the version) only when the old
+# field name is removed entirely.
 SCHEMA_VERSION = "1"
 # Per-session capture worst-case budget. We bail out rather than block session-end.
 _CAPTURE_BUDGET_SECONDS = 0.5

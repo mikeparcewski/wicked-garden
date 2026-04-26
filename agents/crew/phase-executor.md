@@ -267,7 +267,7 @@ you write:
   phase-start bookend without producing deliverables. Halting with a named error is
   correct; silently returning `status: "ok"` with `files_written: []` is not.
 - **Deliverable outside `phases/{phase}/`** → rejected as `"deliverable-out-of-scope"`.
-- **Zero-byte deliverable** → rejected as `"deliverable-too-small"`.
+- **Zero-byte deliverable** → rejected as `"executor-deliverable-too-small"`.
 - **Addendum validator rejects record** → `"addendum-invalid: <reason>"`.
 - **`parallelization_check` missing with multi-sub-task run** → `"parallelization-check-missing"`.
 

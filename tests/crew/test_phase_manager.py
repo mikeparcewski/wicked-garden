@@ -13,6 +13,7 @@ All tests are deterministic (no wall-clock, no random, no sleep).
 Stdlib-only.
 """
 
+import hashlib
 import json
 import os
 import sys
@@ -1022,9 +1023,12 @@ class TestSyncGateFindingTask(unittest.TestCase):
                 },
             }
             task_file = self._write_task(tasks_dir, "task-gate-done", gate_task)
-            # Capture original content for comparison — avoids st_mtime flakiness
-            # on coarse-mtime filesystems (#660).
-            original_content = json.loads(task_file.read_text(encoding="utf-8"))
+            # Capture original bytes for comparison — avoids st_mtime flakiness
+            # on coarse-mtime filesystems (#660). Byte-level (sha256) rather
+            # than json.loads() equality so a formatting-only rewrite (#667)
+            # would also fail this assertion.
+            original_bytes = task_file.read_bytes()
+            original_sha = hashlib.sha256(original_bytes).hexdigest()
 
             state = _make_state(name="skip-proj")
             gate_result = {"verdict": "REJECT", "result": "REJECT", "score": 0.3}
@@ -1035,9 +1039,14 @@ class TestSyncGateFindingTask(unittest.TestCase):
             ):
                 pm._sync_gate_finding_task(state, "design", gate_result)
 
-            # File content must NOT have changed — already-completed task is skipped.
-            after_content = json.loads(task_file.read_text(encoding="utf-8"))
-            self.assertEqual(after_content, original_content)
+            # File bytes must NOT have changed — already-completed task is skipped.
+            after_bytes = task_file.read_bytes()
+            self.assertEqual(
+                hashlib.sha256(after_bytes).hexdigest(),
+                original_sha,
+                "task file was rewritten on a no-op path; even formatting-only "
+                "rewrites (whitespace, key order) would fail this byte check.",
+            )
 
     def test_sync_no_op_when_no_matching_task(self):
         """When no gate-finding task exists for the phase, sync is a no-op."""
@@ -1057,9 +1066,12 @@ class TestSyncGateFindingTask(unittest.TestCase):
                 },
             }
             task_file = self._write_task(tasks_dir, "task-other", other_task)
-            # Capture original content for comparison — avoids st_mtime flakiness
-            # on coarse-mtime filesystems (#660).
-            original_content = json.loads(task_file.read_text(encoding="utf-8"))
+            # Capture original bytes for comparison — avoids st_mtime flakiness
+            # on coarse-mtime filesystems (#660). Byte-level (sha256) rather
+            # than json.loads() equality so a formatting-only rewrite (#667)
+            # would also fail this assertion.
+            original_bytes = task_file.read_bytes()
+            original_sha = hashlib.sha256(original_bytes).hexdigest()
 
             state = _make_state(name="noop-proj")
             gate_result = {"verdict": "APPROVE", "score": 0.9}
@@ -1070,9 +1082,14 @@ class TestSyncGateFindingTask(unittest.TestCase):
             ):
                 pm._sync_gate_finding_task(state, "build", gate_result)
 
-            # coding-task file content must be unchanged — wrong event_type, no match.
-            after_content = json.loads(task_file.read_text(encoding="utf-8"))
-            self.assertEqual(after_content, original_content)
+            # coding-task file bytes must be unchanged — wrong event_type, no match.
+            after_bytes = task_file.read_bytes()
+            self.assertEqual(
+                hashlib.sha256(after_bytes).hexdigest(),
+                original_sha,
+                "non-matching task file was rewritten; even formatting-only "
+                "rewrites (whitespace, key order) would fail this byte check.",
+            )
 
     def test_sync_gate_result_none_does_not_close_pending_task(self):
         """gate_result=None must not close any gate-finding task (#660).

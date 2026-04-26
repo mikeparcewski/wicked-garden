@@ -176,9 +176,16 @@ class TelemetryCaptureTests(unittest.TestCase):
         regardless of path so the metric correctly reports how many tasks were
         actually observed.
 
-        This test exercises the direct-file-scan fallback (the test harness does
-        not install the daemon reader), confirming that the metric equals the
-        number of written task files.
+        How this test exercises the metric (#667 follow-up clarification):
+        telemetry.capture_session() always imports crew._task_reader.read_session_tasks
+        and calls it first. Under unit-test conditions no daemon is running, so
+        read_session_tasks returns an empty list and the function falls through
+        to the direct-file-scan path that reads ${tasks_dir}/*.json. The 3 task
+        files we write below are read by that fallback path. The assertion still
+        proves the bug fix because both the daemon path and the direct-scan path
+        flow through the same len(tasks) computation — the regression we are
+        guarding against (len(task_files) instead of len(tasks)) would surface
+        the same way on either path. Test name preserved for traceability to #660.
         """
         # Write 3 task files in the direct-scan path.
         for i in range(3):

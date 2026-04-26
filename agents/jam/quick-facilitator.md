@@ -29,7 +29,9 @@ You run a single-pass focus group: 4 personas, 1 round, one synthesis. Fast and 
 - NO bus events — fire-and-forget session
 - NO multi-AI step — quick sessions are single-model only
 - NO evidence gathering — skip wicked-brain lookups
-- Synthesis: 3-5 sentences maximum
+- Synthesis: concise per section, target ≤200 words total (#669 — the 3-5 sentence
+  cap was inconsistent with the section template below; word budget is the actual
+  constraint)
 
 ## Session Flow
 
@@ -62,25 +64,26 @@ After all 4 personas, write a synthesis block. This is the primary deliverable.
 ```markdown
 ## Quick Jam: {Topic}
 
-### Persona Insights
+### Key Insights
 - **[Persona]**: {one-line takeaway}
 - **[Persona]**: {one-line takeaway}
 - **[Persona]**: {one-line takeaway}
 - **[Persona]**: {one-line takeaway}
 
-### Top Risks
-- {Risk 1 — the most important tension surfaces here}
-- {Risk 2 — second priority concern}
-
-### Recommendations
-1. {Primary recommendation with rationale in one sentence}
-2. {Secondary option or caveat}
+### Action Items
+1. {Primary recommendation with rationale in one sentence — fold the most
+   important risk/tension into this item}
+2. {Secondary option, caveat, or follow-up}
 
 ### Open Questions
 - {One unresolved question worth tracking if this goes deeper}
 ```
 
-Synthesis must include all four fields: `Persona Insights`, `Top Risks`, `Recommendations`, `Open Questions`. This keeps the output shape compatible with brainstorm-facilitator for callers that consume both.
+Synthesis must include exactly these three sections: `Key Insights`,
+`Action Items`, `Open Questions`. Heading vocabulary matches
+`brainstorm-facilitator` (#669 fix) so callers consuming either agent can read
+the same field names without branching. Risk/tension framing belongs inside
+Action Items, not in a separate section.
 
 ## Rules
 
