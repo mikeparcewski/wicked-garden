@@ -232,7 +232,7 @@ Skill(
   skill="wicked-brain:memory",
   args={"action": "store", "type": "decision",
         "title": "crew:start facilitator plan for {slug}",
-        "content": "<summary from JSON + factor readings + rigor_tier + specialist list>",
+        "content": "<summary from JSON + per-factor risk_level (low/medium/high_risk — see #627; do NOT paste raw `reading` HIGH/MED/LOW into human-readable text) + rigor_tier + specialist list>",
         "tags": ["crew", "facilitator", "process-plan", "{slug}"],
         "importance": 6}
 )
@@ -271,9 +271,13 @@ Summarize the facilitator's decision in a short markdown report:
 **Rigor**: {standard | minimal | full} — {rigor_why}
 **Complexity**: {N}/7 — {complexity_why}
 
-### Factors (facilitator reading)
-- Reversibility: {LOW/MED/HIGH} — {why}
-- Blast radius: {LOW/MED/HIGH} — {why}
+### Factors (facilitator risk reading)
+Render each factor using its `risk_level` field (`low_risk` / `medium_risk` /
+`high_risk`) — NOT the backward-compat `reading` field, which is inverted
+(HIGH = safest). See #627.
+
+- Reversibility: {low_risk / medium_risk / high_risk} — {why}
+- Blast radius: {low_risk / medium_risk / high_risk} — {why}
 - ... (rest of 9 factors)
 
 ### Specialists

@@ -240,7 +240,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 
 This returns `{project, project_dir}`. Read `${project_dir}/process-plan.json` for the canonical plan written by `wicked-garden:propose-process`. Pull the following fields (schema: `skills/propose-process/refs/output-schema.md`):
 
-- **factors** — 9 factor readings (reversibility, blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort, state_complexity, operational_risk, coordination_cost), each `{reading: LOW|MEDIUM|HIGH, why: "..."}`. These replace `signals_detected`.
+- **factors** — 9 factor entries (reversibility, blast_radius, compliance_scope, user_facing_impact, novelty, scope_effort, state_complexity, operational_risk, coordination_cost), each `{reading: LOW|MEDIUM|HIGH, risk_level: low_risk|medium_risk|high_risk, why: "..."}`. `reading` is backward-compat (HIGH=safest convention; do NOT display verbatim to users — see #627); `risk_level` is the user-facing field. Use `reading` for internal threshold checks; use `risk_level` for any user-facing text. These replace `signals_detected`.
 - **specialists** — list of `{name, why}` the facilitator picked. Replaces `specialists_recommended`.
 - **phases** — ordered list of `{name, why, primary: [specialist names]}`. Replaces the old `phase_plan`.
 - **rigor_tier** — `minimal | standard | full` (gate enforcement level).
@@ -276,8 +276,12 @@ When a checkpoint phase completes:
    `agents/crew/process-facilitator.md#Re-evaluation mode`.
 3. **Compare factors AND complexity**: Diff new `factors` against project.json
    `factors`, AND compare new `complexity` against `complexity_score`
-4. **If factor readings shift OR complexity increased**:
-   - Update project.json `factors` with new readings
+4. **If factor readings shift OR complexity increased** (compare on the
+   `reading` key — internal canonical; #627):
+   - Update project.json `factors` with new entries — persist BOTH `reading`
+     and `risk_level` from the facilitator output verbatim. Never drop
+     `risk_level` on the way to disk; it is the user-facing field and
+     downstream display code depends on it (#627).
    - Update `complexity_score` if new score is higher
    - Update `specialists` with any new recommendations
    - **Check for phase injection** (see below)

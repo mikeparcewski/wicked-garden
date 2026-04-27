@@ -88,8 +88,13 @@ When opted in, call `wicked-garden:facilitator-score` with description + priors;
 ### 3. Score the 9 factors (one sentence each)
 
 Prose, not numbers — but each factor emits the dict shape
-`{"reading": "LOW|MEDIUM|HIGH", "why": "..."}`, not a flat string (Issue #574).
-See `skills/propose-process/refs/factor-definitions.md` for calibration and
+`{"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."}`,
+not a flat string (Issue #574). `reading` is the backward-compat key
+(HIGH=safest convention — internal-only); `risk_level` is the direction-explicit
+field downstream consumers and `process-plan.md` render off (Issue #627). When
+authoring by hand, fill BOTH and keep them in sync; the questionnaire scorer
+(Step 2.5) emits both automatically. See
+`skills/propose-process/refs/factor-definitions.md` for calibration and
 `skills/propose-process/refs/output-schema.md` for the envelope.
 
 Factors: **reversibility** (undo without customer impact?), **blast_radius** (who/how

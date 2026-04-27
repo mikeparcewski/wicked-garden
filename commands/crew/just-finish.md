@@ -61,7 +61,7 @@ From `project.json`:
 - What's been completed
 
 From `${project_dir}/process-plan.json` (schema: `skills/propose-process/refs/output-schema.md`):
-- **factors**: 9 factor readings (reversibility, blast_radius, compliance_scope, etc.) — replaces `signals_detected`
+- **factors**: 9 factor entries (reversibility, blast_radius, compliance_scope, etc.) — each entry carries both `reading` (HIGH/MEDIUM/LOW; HIGH=safest, backward-compat per #627) and `risk_level` (low_risk/medium_risk/high_risk; user-facing). Use `reading` for internal threshold/diff logic; use `risk_level` for any text shown to the user. Replaces `signals_detected`
 - **complexity**: 0-7 integer
 - **rigor_tier**: `minimal | standard | full`
 - **specialists**: facilitator-picked roster — replaces `specialists_recommended`
@@ -251,11 +251,15 @@ When a checkpoint phase completes:
      }
    )
    ```
-3. Compare new factor readings against project.json `factors`
+3. Compare new factor `reading` values against project.json `factors[].reading`
+   (internal diff — `reading` is the canonical comparison key; #627)
 4. If factor readings shift or complexity increases:
-   - Update project.json (factors, complexity, specialists)
+   - Update project.json (factors, complexity, specialists) — persist BOTH
+     `reading` and `risk_level` from the facilitator output verbatim; never
+     drop `risk_level` on the way to disk (#627)
    - Check if phases NOT in `phase_plan` should be injected (see execute.md Section 4.5 for injection rules)
-   - Report injections to user (even in yolo mode, injections are informational)
+   - When reporting injections to the user (even in yolo mode), surface
+     `risk_level` (low_risk / medium_risk / high_risk), not raw `reading`
 5. Maximum 2 injections per checkpoint
 
 **Skip if**: project.json has `"phase_plan_mode": "static"`.
