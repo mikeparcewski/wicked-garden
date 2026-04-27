@@ -26,7 +26,7 @@ claude plugins add mikeparcewski/wicked-garden
 v6 leans hard on Claude Code's native surface — it doesn't replace Claude's primitives, it orchestrates them.
 
 - **Facilitator replaces the rule engine.** A `propose-process` skill scores 9 factors, detects 1 of 7 project archetypes, and picks specialists + phases per project instead of matching keyword patterns.
-- **75 specialists routed by frontmatter.** Subagents are discovered at runtime from `agents/**/*.md` — add a markdown file with a `subagent_type` front-matter line and the facilitator can route to it next session. No static maps.
+- **63 specialists routed by frontmatter.** Subagents are discovered at runtime from `agents/**/*.md` — add a markdown file with a `subagent_type` front-matter line and the facilitator can route to it next session. No static maps.
 - **Native tasks carry causality.** `TaskCreate` / `TaskUpdate` metadata (`chain_id`, `event_type`, `source_agent`, `phase`, `archetype`) is validated by a PreToolUse hook and consumed by a SubagentStart hook that injects per-role procedure bundles.
 - **Convergence lifecycle.** Every build/test artifact moves through Designed → Built → Wired → Tested → Integrated → Verified. The `convergence-verify` gate blocks review approval until each artifact reaches at least Integrated.
 - **Contrarian agent + challenge gate** auto-insert at complexity ≥ 4 to steelman the alternative path.
@@ -159,7 +159,7 @@ Tasks use Claude Code's native `TaskCreate` / `TaskUpdate` directly — no separ
 | **Agentic** (5) | Architect, safety, patterns, performance, framework research |
 | **Persona** (1) | On-demand specialist invocation with rich characteristics |
 
-Total: **75 specialist agents**, discovered at runtime via `subagent_type` frontmatter.
+Total: **63 specialist agents**, discovered at runtime via `subagent_type` frontmatter.
 
 ## Integration
 
