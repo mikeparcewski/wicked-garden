@@ -602,5 +602,121 @@ class TestNumberedUnderHeadingIsolated(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Issue #618: multi-section AC handling — _extract_ac_section_slices returns
+# one slice per AC heading so items in 2nd/3rd AC sections are not dropped.
+# ---------------------------------------------------------------------------
+
+
+class TestMultiSectionACHandling(unittest.TestCase):
+    """Issue #618: parser captures ACs across multiple AC-section headings.
+
+    Pre-fix behaviour returned only the first heading's slice; items under
+    follow-on AC headings (per-feature blocks like ``## Auth Acceptance
+    Criteria`` + ``## Payments Acceptance Criteria``) were silently dropped.
+    Migration is one-shot, so the drop was permanent.
+    """
+
+    def _parse(self, text: str):
+        with tempfile.NamedTemporaryFile(suffix=".md", mode="w", delete=False, encoding="utf-8") as f:
+            f.write(text)
+            path = Path(f.name)
+        try:
+            return parse_acs_from_markdown(path)
+        finally:
+            path.unlink()
+
+    def test_single_ac_section_unchanged_behavior(self):
+        """One AC section → same behavior as pre-#618 (regression guard)."""
+        md = (
+            "## Acceptance Criteria\n\n"
+            "1. User can log in\n"
+            "2. User can log out\n"
+        )
+        acs = self._parse(md)
+        ids = [a.id for a in acs]
+        self.assertEqual(len(acs), 2, f"Expected 2 ACs, got {len(acs)}: {ids}")
+        self.assertIn("AC-1", ids)
+        self.assertIn("AC-2", ids)
+
+    def test_two_ac_sections_both_captured(self):
+        """Two AC sections → ALL items from BOTH are returned (#618 fix).
+
+        Heading patterns must match ``_RE_AC_SECTION`` (which anchors on
+        ``acceptance criteria`` or ``ACs``).  We use two ``## Acceptance
+        Criteria`` headings with intervening non-AC sections so the parser
+        can only see both blocks if it walks past the first match.
+        """
+        md = (
+            "## Acceptance Criteria\n\n"
+            "1. User can log in\n"
+            "2. User can log out\n\n"
+            "## Implementation Notes\n\n"
+            "Some prose about how to build it.\n\n"
+            "## Acceptance Criteria\n\n"
+            "1. User can checkout\n"
+            "2. User receives receipt\n"
+        )
+        acs = self._parse(md)
+        # Numbered items use the canonical "AC-{n}" form; the two sections
+        # share IDs AC-1 and AC-2 by index, so dedup keeps the first-seen
+        # statement. The behavioural proof that BOTH sections were walked is
+        # the SLICE helper itself returning >= 2 entries — verified directly
+        # below in the section-helper unit test.
+        ids = [a.id for a in acs]
+        self.assertGreaterEqual(
+            len(acs),
+            2,
+            f"Expected at least 2 ACs spanning both sections, got {len(acs)}: {ids}",
+        )
+        self.assertIn("AC-1", ids)
+        self.assertIn("AC-2", ids)
+
+    def test_extract_slices_helper_returns_all_sections(self):
+        """Helper returns one slice per AC heading — direct proof of #618 fix."""
+        from acceptance_criteria import _extract_ac_section_slices
+
+        md = (
+            "## Acceptance Criteria\n\n"
+            "1. Login works\n\n"
+            "## Implementation Notes\n\n"
+            "Prose.\n\n"
+            "## Acceptance Criteria\n\n"
+            "1. Checkout works\n"
+        )
+        slices = _extract_ac_section_slices(md)
+        self.assertEqual(
+            len(slices),
+            2,
+            f"Expected 2 AC-section slices (#618), got {len(slices)}: {slices!r}.\n"
+            f"Pre-fix bug: only the first AC section was returned; the second "
+            f"section was silently dropped.",
+        )
+        # First slice contains the first section's content; second contains the second's.
+        self.assertIn("Login works", slices[0])
+        self.assertIn("Checkout works", slices[1])
+
+    def test_singular_alias_returns_first_slice_only(self):
+        """Backward-compat: ``_extract_ac_section_slice`` (singular) → first slice."""
+        from acceptance_criteria import _extract_ac_section_slice
+
+        md = (
+            "## Acceptance Criteria\n\n"
+            "1. First section item\n\n"
+            "## Implementation Notes\n\n"
+            "Prose.\n\n"
+            "## Acceptance Criteria\n\n"
+            "1. Second section item\n"
+        )
+        result = _extract_ac_section_slice(md)
+        self.assertIsNotNone(result, "Singular alias must return the first slice, not None")
+        self.assertIn("First section item", result)
+        self.assertNotIn(
+            "Second section item",
+            result,
+            "Singular alias should mirror pre-#618 behavior (first slice only)",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

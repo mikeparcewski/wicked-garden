@@ -144,40 +144,60 @@ def _ac_from_dict(d: dict[str, Any]) -> AcceptanceCriterion:
 # Parsing
 # ---------------------------------------------------------------------------
 
-def _extract_ac_section_slice(text: str) -> str | None:
-    """Return the substring of *text* that is inside the AC section.
+def _extract_ac_section_slices(text: str) -> list[str]:
+    """Return ALL slices matching AC-section headings (Issue #618).
 
-    Scans for the first heading matched by _RE_AC_SECTION. The slice starts
-    on the line after that heading and ends at the next heading whose level is
-    <= the AC heading's level (so a sub-heading like ``### Sub`` under
-    ``## AC`` stays inside; ``## Other`` ends the section).
+    Multiple AC sections (e.g. ``## Auth Acceptance Criteria`` followed by
+    ``## Payments Acceptance Criteria``) used to silently drop items in
+    subsequent sections — only the first heading was sliced. This version
+    walks the whole document and returns one slice per AC-section heading.
 
-    Returns None when no AC section heading is found.
+    Each slice starts on the line after its AC heading and ends at the next
+    heading whose level is <= the AC heading's level (so a sub-heading like
+    ``### Sub`` under ``## AC`` stays inside; ``## Other`` ends the section).
+
+    Returns an empty list when no AC section heading is found.
     """
     lines = text.splitlines(keepends=True)
     _heading_re = re.compile(r"^(#{1,6})\s+")
-    start_idx: int | None = None
-    ac_level: int | None = None
+    slices: list[str] = []
 
-    for i, line in enumerate(lines):
-        if _RE_AC_SECTION.match(line):
-            hm = _heading_re.match(line)
+    i = 0
+    n = len(lines)
+    while i < n:
+        if _RE_AC_SECTION.match(lines[i]):
+            hm = _heading_re.match(lines[i])
             ac_level = len(hm.group(1)) if hm else 1
             start_idx = i + 1
-            break
 
-    if start_idx is None:
-        return None
+            # Find the next heading at the same or higher level (lower # count).
+            end_idx = n
+            for j in range(start_idx, n):
+                hm2 = _heading_re.match(lines[j])
+                if hm2 and len(hm2.group(1)) <= ac_level:
+                    end_idx = j
+                    break
 
-    # Find the next heading at the same or higher level (lower # count).
-    end_idx = len(lines)
-    for j in range(start_idx, len(lines)):
-        hm = _heading_re.match(lines[j])
-        if hm and len(hm.group(1)) <= ac_level:
-            end_idx = j
-            break
+            slices.append("".join(lines[start_idx:end_idx]))
+            # Resume scanning *at* the closing heading so a follow-on AC
+            # section under the same parent is detected as well.
+            i = end_idx
+            continue
+        i += 1
 
-    return "".join(lines[start_idx:end_idx])
+    return slices
+
+
+def _extract_ac_section_slice(text: str) -> str | None:
+    """Backward-compat alias for :func:`_extract_ac_section_slices`.
+
+    Returns the first AC section slice only, mirroring the pre-#618 behaviour
+    for any external callers that depended on the singular return shape.
+    Deprecated — new callers should use the plural helper to capture multiple
+    AC sections.
+    """
+    slices = _extract_ac_section_slices(text)
+    return slices[0] if slices else None
 
 
 def parse_acs_from_markdown(path: Path) -> list[AcceptanceCriterion]:
@@ -227,8 +247,10 @@ def parse_acs_from_markdown(path: Path) -> list[AcceptanceCriterion]:
 
     # Pattern 4: numbered list items ONLY within an "Acceptance Criteria" section.
     # This avoids over-capturing every ordered list in the document.
-    section = _extract_ac_section_slice(text)
-    if section is not None:
+    # Issue #618: walk ALL AC sections, not just the first — multi-section
+    # documents (e.g. per-feature AC blocks) used to silently drop items in
+    # the second and later sections.
+    for section in _extract_ac_section_slices(text):
         for m in _RE_NUMBERED.finditer(section):
             raw_id = m.group("id")
             # Emit as "AC-N" canonical form for numbered items.

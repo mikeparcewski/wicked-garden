@@ -645,5 +645,99 @@ class TestGatePolicy(unittest.TestCase):
         self.assertIn("destructive_ops", d)
 
 
+# ---------------------------------------------------------------------------
+# Issue #620: narrowed exception handling in _check_ac_gate
+# ---------------------------------------------------------------------------
+
+
+class TestCheckAcGateExceptionHandling(unittest.TestCase):
+    """Issue #620: silent fallback to None must distinguish expected vs unexpected.
+
+    - FileNotFoundError + ACParseError are EXPECTED ("no ACs available yet")
+      and should log at debug, NOT warning.
+    - Any other exception is UNEXPECTED (suggests a regression in load_acs or
+      environmental failure) and MUST log at WARNING so operators surface it.
+    """
+
+    def test_expected_acparseerror_returns_none_no_warning(self):
+        """ACParseError raised by load_acs → None, no WARNING-level log."""
+        # Import from BOTH possible names so the exception identity matches the
+        # one ``_check_ac_gate`` will see — autonomy resolves load_acs lazily,
+        # and pytest may resolve the symbol via either ``crew.acceptance_criteria``
+        # (package path) or ``acceptance_criteria`` (direct path) depending on
+        # sys.path ordering.
+        try:
+            from crew.acceptance_criteria import ACParseError as _PkgErr
+        except ImportError:
+            _PkgErr = None
+        from acceptance_criteria import ACParseError as _DirectErr
+
+        # Raise the package-import variant if available, since the lazy import
+        # in ``_check_ac_gate`` prefers ``from crew.acceptance_criteria``.
+        ACParseError = _PkgErr or _DirectErr
+
+        ctx = {"project_dir": "/tmp/_issue_620_does_not_exist"}
+
+        def _raise_parse_error(_project_dir):
+            raise ACParseError("simulated parse failure")
+
+        with patch.object(_aut, "logger") as mock_logger, \
+             patch("acceptance_criteria.load_acs", side_effect=_raise_parse_error), \
+             patch("crew.acceptance_criteria.load_acs", side_effect=_raise_parse_error):
+            result = _aut._check_ac_gate(ctx)
+
+        self.assertIsNone(
+            result,
+            "ACParseError must produce None (silent fallback), not crash.",
+        )
+        mock_logger.warning.assert_not_called()
+        # debug() should have been called with the error
+        self.assertTrue(
+            mock_logger.debug.called,
+            "Expected debug-level log for ACParseError (operators should not see "
+            "WARNING noise during the migration window).",
+        )
+
+    def test_expected_filenotfounderror_returns_none_no_warning(self):
+        """FileNotFoundError raised by load_acs → None, no WARNING-level log."""
+        ctx = {"project_dir": "/tmp/_issue_620_does_not_exist"}
+
+        def _raise_fnf(_project_dir):
+            raise FileNotFoundError("simulated missing file")
+
+        with patch.object(_aut, "logger") as mock_logger, \
+             patch("acceptance_criteria.load_acs", side_effect=_raise_fnf), \
+             patch("crew.acceptance_criteria.load_acs", side_effect=_raise_fnf):
+            result = _aut._check_ac_gate(ctx)
+
+        self.assertIsNone(result)
+        mock_logger.warning.assert_not_called()
+
+    def test_unexpected_exception_returns_none_with_warning(self):
+        """Unexpected exception (e.g. RuntimeError) → None + WARNING log (#620)."""
+        ctx = {"project_dir": "/tmp/_issue_620_does_not_exist"}
+
+        def _raise_runtime(_project_dir):
+            raise RuntimeError("simulated upstream regression")
+
+        with patch.object(_aut, "logger") as mock_logger, \
+             patch("acceptance_criteria.load_acs", side_effect=_raise_runtime), \
+             patch("crew.acceptance_criteria.load_acs", side_effect=_raise_runtime):
+            result = _aut._check_ac_gate(ctx)
+
+        self.assertIsNone(
+            result,
+            "Unexpected exception must still return None — never crash a gate.",
+        )
+        self.assertTrue(
+            mock_logger.warning.called,
+            "Unexpected exception MUST emit a WARNING so operators see the silent "
+            "full→balanced mode downgrade (Issue #620 contract).",
+        )
+        # The warning should mention the fallback so operators can act
+        warning_args = mock_logger.warning.call_args
+        self.assertIn("balanced mode", str(warning_args))
+
+
 if __name__ == "__main__":
     unittest.main()

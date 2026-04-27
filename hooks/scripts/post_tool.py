@@ -737,7 +737,9 @@ def _handle_skill(tool_input: dict) -> dict:
 
     # Memory compliance reset: zero the escalation counter when the model
     # calls wicked-brain:memory, confirming it acted on the directive.
-    if "wicked-brain:memory" not in skill:
+    # Issue #608: exact match only — substring would false-positive on future
+    # skills like wicked-brain:memory-export, wicked-brain:memory-audit, etc.
+    if skill != "wicked-brain:memory":
         return {"continue": True}
     try:
         from _session import SessionState
