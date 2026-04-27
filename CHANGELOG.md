@@ -5,6 +5,7 @@
 ### Added
 - Steering detector event family — `wicked.steer.*` on the bus, reference tail subscriber (`scripts/crew/steering_tail.py`), schema validator (`scripts/crew/steering_event_schema.py`). No detectors yet (PR-1 of epic).
 - First steering detector: `detect_sensitive_path_touch` — emits `wicked.steer.escalated` when sessions touch auth/payments/migration/secrets code (PR-2 of epic #679). Detector + emitter are separated for testability; every emitted payload is re-validated against the PR-1 schema; bus-unreachable is fail-open.
+- Rigor escalator subscriber: `crew:rigor-escalator` mutates project `rigor_tier` in response to `wicked.steer.escalated` events. Closes the steering loop end-to-end (PR-3 of epic #679). Action -> tier mapping is `force-full-rigor → full`; `regen-test-strategy` and `require-council-review` keep tier and append history; `notify-only` is pure no-op. Enforces never-de-escalate rule, in-session idempotency by `(project_slug, event_id)`, and emits `wicked.steer.applied` audit events on every decision branch (escalated/redundant/no-op/error). Adds `wicked.steer.applied` to `KNOWN_EVENT_TYPES`.
 
 ## [8.4.0] - 2026-04-26
 

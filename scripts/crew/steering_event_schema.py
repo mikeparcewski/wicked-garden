@@ -2,10 +2,15 @@
 """
 crew/steering_event_schema.py — Schema validator for the wicked.steer.* event family.
 
-The steering detector registry (epic) emits two event types on the bus:
+The steering detector registry (epic) emits three event types on the bus:
 
   * ``wicked.steer.escalated`` — a detector recommends a rigor change
   * ``wicked.steer.advised``   — a detector observed something but is informational only
+  * ``wicked.steer.applied``   — a behavior subscriber acted (or chose not to act) on
+    an escalated/advised signal. Emitted by ``crew:rigor-escalator`` for every
+    decision branch (escalated, redundant, no-op, error). Same payload shape as
+    the other two — adds an ``action_taken`` field via the catch-all evidence
+    dict so the tail subscriber and audit log don't need a separate validator.
 
 Both share the same payload shape. This module is the single source of truth for
 that shape so that emitters, the reference tail subscriber, and any future
@@ -49,6 +54,7 @@ from typing import Any, List, Tuple
 KNOWN_EVENT_TYPES: frozenset = frozenset({
     "wicked.steer.escalated",
     "wicked.steer.advised",
+    "wicked.steer.applied",
 })
 
 #: Detectors planned for v1 of the registry. New detectors require a PR that
