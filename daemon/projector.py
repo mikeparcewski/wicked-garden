@@ -30,6 +30,7 @@ from time import time
 from typing import Callable
 
 import daemon.db as db
+from daemon._internal import IllegalPhaseTransition, transition_phase
 
 # ---------------------------------------------------------------------------
 # phase_state import — same path bootstrapping as daemon/db.py
@@ -180,18 +181,36 @@ def _phase_transitioned(conn: sqlite3.Connection, event: dict) -> None:
     phase_to = _opt(payload, "phase_to")
 
     # Source phase → approved.
+    #
+    # Drives event: "approve" against the existing source-phase row.  The
+    # historical bus stream does NOT emit a separate "phase started" event
+    # before the gate decision, so the source row may legitimately be at
+    # state='pending' (created lazily by an earlier wicked.gate.decided
+    # APPROVE that only set gate metadata).  Forcing transition_phase("approve")
+    # here would reject those pending→approved completions even though they
+    # are the canonical projector behaviour today (#614 split decision).
+    # Keep upsert_phase: vocabulary still enforced, graph enforcement is the
+    # writer's responsibility at the event source not the projector.
     db.upsert_phase(conn, str(project_id), str(phase_from), {
         "state": _STATE_APPROVED,
         "terminal_at": ts,
         "updated_at": ts,
     })
     # Target phase → active (when present).
+    # Drives event: "start" — graph-enforced.  Either the row does not exist
+    # yet (INSERT fallback inside transition_phase) or it is at PENDING
+    # (start→active is the only legal move) or it is already ACTIVE
+    # (idempotent replay short-circuit).  Any other current state would be a
+    # real bug and IllegalPhaseTransition surfaces it.
     if phase_to is not None:
-        db.upsert_phase(conn, str(project_id), str(phase_to), {
-            "state": _STATE_ACTIVE,
-            "started_at": ts,
-            "updated_at": ts,
-        })
+        transition_phase(
+            conn,
+            str(project_id),
+            str(phase_to),
+            new_state=_STATE_ACTIVE,
+            event="start",
+            extra_fields={"started_at": ts, "updated_at": ts},
+        )
     # Advance project pointer.
     current = str(phase_to) if phase_to is not None else str(phase_from)
     db.upsert_project(conn, str(project_id), {"current_phase": current, "updated_at": ts})
@@ -221,6 +240,12 @@ def _phase_auto_advanced(conn: sqlite3.Connection, event: dict) -> None:
         return
     ts = _to_epoch(event.get("created_at")) or _now()
 
+    # Drives event: "approve" against the auto-advanced phase row.  Same
+    # rationale as the phase_from branch in _phase_transitioned (#614): the
+    # source bus stream may not have emitted a "start" before this auto-advance,
+    # so the row could be at pending.  Vocabulary check is sufficient here;
+    # graph enforcement at the projector boundary would reject the canonical
+    # auto-advance pattern.
     db.upsert_phase(conn, str(project_id), str(phase), {
         "state": _STATE_APPROVED,
         "terminal_at": ts,
@@ -249,16 +274,32 @@ def _gate_decided(conn: sqlite3.Connection, event: dict) -> None:
     if not ok:
         return
     ts = _to_epoch(event.get("created_at")) or _now()
-    fields: dict = {
+    gate_fields: dict = {
         "gate_verdict": result,
         "gate_score": _opt(payload, "score"),
         "gate_reviewer": _opt(payload, "reviewer"),
         "updated_at": ts,
     }
     if str(result) == _VERDICT_REJECT:
-        fields["state"] = _STATE_REJECTED
-        fields["terminal_at"] = ts
-    db.upsert_phase(conn, str(project_id), str(phase), fields)
+        # Drives event: "reject" — graph-enforced.  REJECT is only legal
+        # against an ACTIVE row (or a brand-new INSERT when the gate fires
+        # before any prior projection of the phase, which the transition_phase
+        # fallback handles cleanly).  IllegalPhaseTransition surfaces the
+        # invalid pending→rejected case as a real bug rather than silently
+        # corrupting state.
+        gate_fields["terminal_at"] = ts
+        transition_phase(
+            conn,
+            str(project_id),
+            str(phase),
+            new_state=_STATE_REJECTED,
+            event="reject",
+            extra_fields=gate_fields,
+        )
+    else:
+        # Non-REJECT verdicts only annotate gate metadata; no state mutation,
+        # so vocabulary-only upsert is correct.
+        db.upsert_phase(conn, str(project_id), str(phase), gate_fields)
     logger.debug(
         "projector: applied wicked.gate.decided project_id=%r phase=%r result=%r",
         project_id, phase, result,
@@ -278,18 +319,18 @@ def _rework_triggered(conn: sqlite3.Connection, event: dict) -> None:
     if not ok:
         return
     ts = _to_epoch(event.get("created_at")) or _now()
-    # Apply the ("rework", REJECTED) → ACTIVE transition defined in phase_state.py.
-    # Must come before the rework_iterations write so a single upsert covers both
-    # — but we keep them as two upserts for clarity and idempotency: if the phase
-    # is already ACTIVE (replay), the COALESCE/upsert semantics handle it cleanly.
-    db.upsert_phase(conn, str(project_id), str(phase), {
-        "state": _STATE_ACTIVE,
-        "updated_at": ts,
-    })
-    db.upsert_phase(conn, str(project_id), str(phase), {
-        "rework_iterations": iters,
-        "updated_at": ts,
-    })
+    # Drives event: "rework" — graph-enforced.  Only legal from REJECTED.
+    # On replay the phase is already ACTIVE and transition_phase short-circuits
+    # via its idempotent same-state guard.  rework_iterations rides along in
+    # extra_fields so the whole projection is one transactional upsert.
+    transition_phase(
+        conn,
+        str(project_id),
+        str(phase),
+        new_state=_STATE_ACTIVE,
+        event="rework",
+        extra_fields={"rework_iterations": iters, "updated_at": ts},
+    )
     logger.debug(
         "projector: applied wicked.rework.triggered project_id=%r phase=%r iterations=%r",
         project_id, phase, iters,

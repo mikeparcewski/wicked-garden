@@ -453,24 +453,43 @@ def upsert_phase(
     phase: str,
     fields: dict[str, Any],
 ) -> None:
-    """Insert or update a phase row; missing keys preserve existing column values.
+    """Insert or update a phase row — vocabulary check only, no graph enforcement.
 
-    When ``fields`` contains a ``state`` key the value is validated against the
-    canonical phase state machine (v8-PR-3 #590).  The current DB state is read
-    first so the transition check can verify the move is legal.  Raises
-    ``phase_state.InvalidTransition`` if the write attempts a banned or illegal
-    state transition.
+    SEMANTIC SPLIT (#614, epic #679 brainstorm decision D1):
+    For graph-enforced UPDATEs callers should use ``transition_phase()`` from
+    ``daemon._internal`` instead.  This function exists for INSERTs (creating a
+    row at the target state directly from an event with no prior state to
+    validate against) and for paths where graph enforcement is intentionally
+    bypassed (e.g. recovery, rollback, replay, or backfill migrations).
+
+    Behaviour
+    ---------
+    - Missing keys in ``fields`` preserve existing column values.
+    - When ``fields`` contains a ``state`` key the value is checked against the
+      canonical PhaseState **vocabulary**: banned values (``"completed"``) and
+      unknown strings raise ``phase_state.InvalidTransition``.
+    - The function does **not** read the current row to verify that the
+      requested move is graph-legal.  ``upsert_phase(state="approved")``
+      succeeds even when the current row is ``pending`` — by design, so an
+      INSERT can establish any canonical target state in a single call.
+
+    The previous docstring claimed transition-graph validation was performed
+    here; that was load-bearingly inaccurate (#614 root cause) and led the
+    review of v8-PR-3 to assume an enforcement guarantee that did not exist.
 
     Callers in ``projector.py`` use named constants from ``phase_state.PhaseState``
     so a typo or new banned value is caught at import time rather than at runtime.
     """
-    from phase_state import InvalidTransition, PhaseState, BANNED_STATES, transition as _transition  # type: ignore[import]
+    from phase_state import InvalidTransition, PhaseState, BANNED_STATES  # type: ignore[import]
 
     now = int(time.time())
     fields = dict(fields)
     fields.setdefault("updated_at", now)
 
-    # Validate the requested state transition before touching the DB.
+    # Validate the requested state vocabulary before touching the DB.
+    # NOTE: this is a vocabulary check (banned / unknown values rejected) — it
+    # is NOT a graph-path enforcement check.  See module ``daemon._internal``
+    # for ``transition_phase()`` which adds graph enforcement on top.
     if "state" in fields:
         requested_state = fields["state"]
         # Reject banned states immediately (R2: no silent failures).
@@ -488,12 +507,6 @@ def upsert_phase(
                 f"upsert_phase: unknown state {requested_state!r} for ({project_id!r}, {phase!r}). "
                 f"Valid states: {sorted(PhaseState)}"
             ) from exc
-        # Note: we do NOT call _transition() here because upsert_phase is also
-        # used by the projector for INSERT (creating a row at the target state
-        # directly from an event, not by applying an event to existing state).
-        # The projector's _transition-validated constants (PhaseState.ACTIVE etc.)
-        # already guarantee the value is canonical.  The guard above ensures no
-        # banned / unknown string can slip through regardless of the caller.
 
     # Columns that can be set after (project_id, phase) PK is established.
     mutable_cols = [
@@ -560,6 +573,23 @@ def list_phases(conn: sqlite3.Connection, project_id: str) -> list[dict[str, Any
         (project_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_phase(
+    conn: sqlite3.Connection,
+    project_id: str,
+    phase: str,
+) -> dict[str, Any] | None:
+    """Return a phase row as a dict, or None if not found.
+
+    Used by ``daemon._internal.transition_phase`` to read the current state
+    before validating a graph-legal UPDATE (#614).
+    """
+    row = conn.execute(
+        "SELECT * FROM phases WHERE project_id = ? AND phase = ?",
+        (project_id, phase),
+    ).fetchone()
+    return dict(row) if row else None
 
 
 def get_cursor(
