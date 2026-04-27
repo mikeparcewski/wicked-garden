@@ -2,11 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+- `factor_questionnaire` consumer audit (#627): user-facing render sites now use `risk_level` (`low_risk`/`medium_risk`/`high_risk`) instead of the inverted `reading` field (HIGH=safest backward-compat). Internal-only call sites annotated with the inversion convention. Producer surface unchanged. Affected sites: `skills/propose-process/refs/plan-template.md` (process-plan.md table), `skills/propose-process/refs/output-schema.md` (schema example), `commands/crew/start.md` (user report + brain memory store), `commands/crew/execute.md` (factor diff + injection report), `commands/crew/just-finish.md` (factor diff + injection report), `agents/crew/process-facilitator.md` (Step 3 emit shape), `scripts/crew/validate_plan.py` (now also validates `risk_level` enum + cross-checks against `reading` when present), `scripts/ci/gate4_smoke.py` (annotated as internal-only).
+
+### Deprecation candidates
+- `factors[].reading` (HIGH/MEDIUM/LOW; HIGH=safest) — kept for backward compat in #626; #627 audit migrated all user-facing sites to `risk_level`. Slated for removal in a future major once the inversion convention can no longer surprise downstream contributors. No removal in this release.
+
 ### Added
 - Steering detector event family — `wicked.steer.*` on the bus, reference tail subscriber (`scripts/crew/steering_tail.py`), schema validator (`scripts/crew/steering_event_schema.py`). No detectors yet (PR-1 of epic).
 - First steering detector: `detect_sensitive_path_touch` — emits `wicked.steer.escalated` when sessions touch auth/payments/migration/secrets code (PR-2 of epic #679). Detector + emitter are separated for testability; every emitted payload is re-validated against the PR-1 schema; bus-unreachable is fail-open.
 - Rigor escalator subscriber: `crew:rigor-escalator` mutates project `rigor_tier` in response to `wicked.steer.escalated` events. Closes the steering loop end-to-end (PR-3 of epic #679). Action -> tier mapping is `force-full-rigor → full`; `regen-test-strategy` and `require-council-review` keep tier and append history; `notify-only` is pure no-op. Enforces never-de-escalate rule, in-session idempotency by `(project_slug, event_id)`, and emits `wicked.steer.applied` audit events on every decision branch (escalated/redundant/no-op/error). Adds `wicked.steer.applied` to `KNOWN_EVENT_TYPES`.
 - Steering detectors v1 starter set complete: blast-radius, council-split, test-failure-spike (escalating) + cross-domain-edits (advisory). 5-detector starter set per epic #679 brainstorm now shipped (PR-4). Shared infrastructure factored into `scripts/crew/detectors/_common.py` (validate-then-emit, threaded bus emit, reachability probe, standard CLI surface). cross-domain-edits intentionally emits `wicked.steer.advised` so rigor-escalator does not mutate rigor on it. test-failure-spike ships with explicit `--exit-codes` CLI input; signal-source wiring is a follow-up TODO since post-tool hooks do not yet capture pytest exit codes.
+- `/wicked-garden:crew:reconcile` diagnostic command — walks native TaskList + garden chain stores and surfaces drift without mutating either. First half of issue #579 (Option C interim diagnostic; Option A projection arrives in a follow-up PR once drift patterns from real usage are visible).
 
 ## [8.4.0] - 2026-04-26
 
