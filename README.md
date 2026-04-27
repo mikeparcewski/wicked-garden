@@ -35,6 +35,8 @@ Multi-phase workflow with **enforced gates**, not advisory checklists. The crew 
 
 The trust mechanism IS the product. You can leave Claude alone with `--yolo` and the gates still hold.
 
+**Observational steering** — detectors watch live work and emit `wicked.steer.*` events on the bus when patterns warrant more rigor: touching auth/payments/migrations code, blast radius exceeding the clarify estimate, council reaching a 2-2 split, test failure spikes. The `crew:rigor-escalator` subscriber mutates the active project's rigor tier in response, with full audit trail on the bus. Cross-plugin: wicked-testing can subscribe directly to react to test-failure events. See [`docs/steering-detectors.md`](docs/steering-detectors.md).
+
 ### 2. Context gathering and communication
 
 Claude pulls context from three places automatically: **wicked-brain** (semantic search across past decisions, patterns, gotchas), the **search domain** (code lineage, blast-radius, hotspots), and **smaht context assembly** (tier-aware adapters that fan out by intent — DEBUGGING vs IMPLEMENTATION vs PLANNING). The `ground` skill pulls deeper context when Claude is uncertain and surfaces it back into the active turn.
@@ -49,7 +51,7 @@ You don't have to remember what you did 3 months ago. The brain does.
 
 73 skills cover everything from migration planning to data lineage to risk-based experiment design. Skills use **progressive disclosure**: the YAML frontmatter is always loaded (~100 words), the SKILL.md body loads only when invoked (≤200 lines), and detailed `refs/` content loads on demand. Heavy skills delegate to specialist agents instead of inlining their own rubrics.
 
-**[planned]** [Session-mined skill suggestions](https://github.com/mikeparcewski/wicked-garden/issues/677) — proposes new skills based on patterns Claude detects in your past sessions, so the framework grows from your actual work, not from speculative authoring.
+**`/wicked-garden:smaht:propose-skills`** — proposes new skills based on patterns Claude detects in your past Claude Code sessions (Bash→Read sequences, repeated `gh issue` invocations, etc.), so the framework grows from your actual work, not from speculative authoring. Honors `CLAUDE_CONFIG_DIR` for non-default config locations. Privacy: scrubs absolute paths to `~/...`, skips sessions referencing "secret"/"private".
 
 ## Subtraction is how it stays lean
 
