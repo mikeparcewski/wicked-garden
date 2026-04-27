@@ -274,9 +274,15 @@ class AllowlistContents(unittest.TestCase):
         )
 
     def test_known_event_types_v1_set(self):
+        # PR-3 (#679) added wicked.steer.applied — emitted by the rigor-escalator
+        # subscriber for every decision branch (escalated/redundant/no-op/error).
         self.assertEqual(
             KNOWN_EVENT_TYPES,
-            frozenset({"wicked.steer.escalated", "wicked.steer.advised"}),
+            frozenset({
+                "wicked.steer.escalated",
+                "wicked.steer.advised",
+                "wicked.steer.applied",
+            }),
         )
 
     def test_known_actions_v1_set(self):
