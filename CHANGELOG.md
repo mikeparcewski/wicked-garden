@@ -1,5 +1,25 @@
 # Changelog
 
+## [8.4.0] - 2026-04-26
+
+### Features
+- feat: wg-check conflation heuristic + slim-skill migration gate (#652 items 4+5) (#674) (46818c8)
+- feat: extract process-facilitator agent + slim propose-process SKILL.md (#652 item 3) (#670) (b9e34aa)
+- feat: jam:quick has its own facilitator + slim jam SKILL.md (#652 items 1+2) (#666) (b77360c)
+
+### Bug Fixes
+- fix: v8.4.x polish bundle — 20 fixes (resolves #675, #673+#674 sweep findings) (#676) (50b7d42)
+- fix: v8.3.x/v8.4.x post-merge polish bundle (resolves #667 #669) (#673) (605eb94)
+- fix: v8.4.x polish — Task prompt forwarding + frontmatter drift + scenario accuracy (resolves #671) (#672) (410f483)
+- fix: v8.2.0 late bot findings — gate_result None, required_deliverables shape, telemetry accuracy + polish (resolves #660) (#663) (b5d05f0)
+
+### Documentation
+- docs: correct README specialist count (75 → 63) (484ab10)
+- docs: land #652 Item 3 propose-process wiring research (#668) (865f14b)
+
+### Chores
+- release: v8.3.0 — solo-mode HITL feature (5b56202)
+
 ## [8.3.0] - 2026-04-26
 
 ### Features
