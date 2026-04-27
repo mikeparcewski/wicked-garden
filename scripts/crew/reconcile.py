@@ -81,19 +81,16 @@ _UNREACHABLE_PREFIX: str = "could not read"
 def _projects_root() -> Path:
     """Return the projects root: ${WG_LOCAL_ROOT}/wicked-crew/projects.
 
-    Mirrors the resolution used by phase_manager.get_project_dir but does NOT
-    create the directory — reconcile is read-only.
+    Read-only: this function does NOT call get_local_path() because that helper
+    internally executes mkdir(parents=True, exist_ok=True), which would violate
+    reconcile's read-only contract. We replicate the path-resolution logic
+    directly without the mkdir side-effect.
     """
-    # Try the canonical helper first; fall back to env / default.
-    try:
-        from _paths import get_local_path  # type: ignore[import-not-found]
-        return get_local_path("wicked-crew", "projects")
-    except Exception:
-        base = (
-            os.environ.get("WG_LOCAL_ROOT")
-            or str(Path.home() / ".something-wicked" / "wicked-garden" / "local")
-        )
-        return Path(base) / "wicked-crew" / "projects"
+    base = (
+        os.environ.get("WG_LOCAL_ROOT")
+        or str(Path.home() / ".something-wicked" / "wicked-garden" / "local")
+    )
+    return Path(base) / "wicked-crew" / "projects"
 
 
 def _project_dir(project_slug: str) -> Path:
@@ -474,6 +471,7 @@ def reconcile_project(
     _all_native_tasks: Optional[List[dict]] = None,
     _all_native_error: Optional[str] = None,
     _known_project_slugs: Optional[set[str]] = None,
+    _skip_orphan_detection: bool = False,
 ) -> dict:
     """Walk the garden chain + native task store for ``project_slug``.
 
@@ -504,10 +502,13 @@ def reconcile_project(
         drift.extend(_detect_stale_status(plan, project_slug, native_for_project, gate_results))
         drift.extend(_detect_phase_drift(plan, project_slug, native_for_project, gate_results))
 
-    # Orphan detection only when we have a registry of known slugs;
-    # reconcile_all passes one in. Single-project mode skips it because we
-    # can't tell "old chain" from "different project" without the registry.
-    if _known_project_slugs is not None:
+    # Orphan detection only when we have a registry of known slugs.
+    # When called from reconcile_all (which sets _skip_orphan_detection=True),
+    # orphan detection runs ONCE outside the per-project loop to avoid
+    # O(projects × tasks) duplicate scans. Single-project mode skips entirely
+    # because we can't tell "old chain" from "different project" without the
+    # registry.
+    if _known_project_slugs is not None and not _skip_orphan_detection:
         drift.extend(_detect_orphan_native(all_native_tasks, _known_project_slugs))
 
     errors: List[str] = []
@@ -558,21 +559,53 @@ def _list_known_project_slugs() -> List[str]:
 def reconcile_all() -> List[dict]:
     """Run reconcile_project for every project in the projects root.
 
-    Shares a single native-task scan across all projects so the cost is
-    O(projects + tasks) rather than O(projects * tasks).
+    Shares a single native-task scan across all projects AND a single orphan
+    detection pass so the cost is truly O(projects + tasks) rather than
+    O(projects × tasks). Orphan results are added to the FIRST project's
+    drift list so they appear once in aggregate output.
     """
     slugs = _list_known_project_slugs()
     all_native_tasks, native_error = _scan_all_native_tasks()
     known_slugs_set = set(slugs)
-    return [
+    results = [
         reconcile_project(
             slug,
             _all_native_tasks=all_native_tasks,
             _all_native_error=native_error,
             _known_project_slugs=known_slugs_set,
+            _skip_orphan_detection=True,  # we run it once below, not per-project
         )
         for slug in slugs
     ]
+
+    # Single orphan detection pass across ALL native tasks vs the known-slugs
+    # registry. Attach to first result (or create a synthetic aggregate result
+    # if there are no projects).
+    orphans = _detect_orphan_native(all_native_tasks, known_slugs_set)
+    if orphans:
+        if results:
+            results[0]["drift"].extend(orphans)
+            results[0]["summary"]["orphan_native_count"] = len(orphans)
+            results[0]["summary"]["total_drift_count"] += len(orphans)
+        else:
+            # No projects but orphans exist — synthesize an aggregate-only result
+            results.append({
+                "project_slug": "<orphans-aggregate>",
+                "garden_chain_tasks": 0,
+                "native_tasks": 0,
+                "phases_with_gate_result": [],
+                "drift": orphans,
+                "summary": {
+                    "total_drift_count": len(orphans),
+                    "missing_native_count": 0,
+                    "stale_status_count": 0,
+                    "orphan_native_count": len(orphans),
+                    "phase_drift_count": 0,
+                },
+                "errors": [],
+            })
+
+    return results
 
 
 # ---------------------------------------------------------------------------
