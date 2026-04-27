@@ -8,7 +8,7 @@ Centralizes the bits every detector needs:
     + ``steering_tail.py`` — same npx-status-probe-then-fall-back ladder).
   * Schema-validate-then-emit helper that drops invalid payloads with a stderr
     warning and returns a count of successfully emitted events.
-  * Thread-pooled subprocess emit (``_EMIT_MAX_WORKERS=8`` — same value PR-2
+  * Thread-pooled subprocess emit (``EMIT_MAX_WORKERS=8`` — same value PR-2
     proved out, since wicked-bus has no batch flag).
   * ISO8601 timestamp formatter so detectors don't roll their own.
   * Standard CLI argument additions (``--session-id``, ``--project-slug``,

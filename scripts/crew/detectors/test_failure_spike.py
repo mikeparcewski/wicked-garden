@@ -18,8 +18,9 @@ A repository scan at PR-4 time confirmed the framework does NOT currently
 track pytest exit codes. The relevant places that SHOULD eventually carry
 this signal are:
 
-  * ``hooks/scripts/post_tool.py`` (the Bash PostToolUse handler — no test
-    framework awareness today).
+  * ``hooks/scripts/post_tool.py`` — the unified Python PostToolUse
+    dispatcher. Its ``_handle_bash`` branch already runs on every Bash
+    invocation but does no pytest-specific parsing today.
   * ``scripts/_session.py`` (no per-session test_result list).
   * ``scripts/delivery/telemetry.py`` (gate-rate metrics only — no test
     aggregation).
@@ -29,10 +30,12 @@ API and an explicit-input CLI (``--exit-codes 1,1,1,0,1,1,1``) that lets
 callers (tests, ad-hoc invocations, future hook wiring) drive it directly.
 The signal source is a TODO — see follow-up issue suggestion in epic #679.
 
-# TODO(epic #679): wire signal source — add a PostToolUse-Bash handler in
-#   hooks/scripts/post_tool.py that detects pytest invocations, records
-#   exit codes onto SessionState, and invokes this detector when the
-#   threshold trips.
+# TODO(epic #679): wire signal source — extend the bash dispatch branch in
+#   hooks/scripts/post_tool.py (specifically ``_handle_bash``) to detect
+#   pytest invocations (commands starting with ``pytest``, ``python -m
+#   pytest``, or ``uv run pytest``), capture the exit code from the Bash
+#   tool_response, append it to a per-session list on SessionState, and
+#   invoke this detector when the threshold trips.
 
 ------------------------------------------------------------------------
 THRESHOLD

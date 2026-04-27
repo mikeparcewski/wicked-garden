@@ -171,8 +171,13 @@ def detect_council_split(
     if not gate_findings:
         return []
 
-    # Extract verdicts, dropping malformed entries with a warning.
+    # Extract verdicts, dropping malformed entries with a warning. Track the
+    # contributing records separately so the audit trail in
+    # ``evidence['gate_findings']`` reflects ONLY records that actually
+    # influenced the vote tally — never includes records that were skipped
+    # for missing/invalid verdict.
     verdicts: List[str] = []
+    contributing_records: List[dict] = []
     for record in gate_findings:
         if not isinstance(record, dict):
             sys.stderr.write(
@@ -188,6 +193,7 @@ def detect_council_split(
             )
             continue
         verdicts.append(v.strip())
+        contributing_records.append(record)
 
     voter_count = len(verdicts)
     if voter_count < MIN_VOTERS_FOR_SPLIT:
@@ -223,10 +229,11 @@ def detect_council_split(
             "vote_tally": dict(tally),
             "voter_count": voter_count,
             "leading_count": leading_count,
-            # Pass through the raw findings (without nested non-serializable
-            # values) so the audit trail keeps the reviewer attribution.
+            # Pass through ONLY the records that actually contributed to the
+            # vote count (records skipped for missing/invalid verdict are
+            # excluded — including them would misrepresent the audit trail).
             "gate_findings": [
-                _safe_finding(f) for f in gate_findings if isinstance(f, dict)
+                _safe_finding(f) for f in contributing_records
             ],
             "session_id": session_id,
             "project_slug": project_slug,

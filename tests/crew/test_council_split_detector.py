@@ -162,6 +162,35 @@ class MalformedInput(unittest.TestCase):
         # 4 valid voters (the broken one is dropped), 3-1 → clear quorum, no fire.
         self.assertEqual(events, [])
 
+    def test_evidence_gate_findings_excludes_skipped_records(self):
+        """Audit-trail accuracy: ``evidence['gate_findings']`` MUST contain
+        ONLY records that actually contributed to the vote tally — never
+        records skipped for missing/invalid verdict (Copilot finding F1)."""
+        with mock.patch.object(sys, "stderr", new_callable=io.StringIO):
+            findings = [
+                _v("APPROVE", "alice"),
+                _v("APPROVE", "bob"),
+                {"reviewer": "no-verdict-here"},          # skipped (no verdict)
+                {"verdict": 42, "reviewer": "wrong-type"},  # skipped (non-string verdict)
+                "not-a-dict",                             # type: ignore[list-item]
+                _v("REJECT", "carol"),
+                _v("REJECT", "dave"),
+            ]
+            events = _detect(findings)
+        # 4 valid voters → 2-2 split → fires.
+        self.assertEqual(len(events), 1)
+        audit = events[0]["evidence"]["gate_findings"]
+        # Exactly four records — one per contributing voter.
+        self.assertEqual(len(audit), 4)
+        reviewers = {entry.get("reviewer") for entry in audit}
+        self.assertEqual(reviewers, {"alice", "bob", "carol", "dave"})
+        # Skipped records (and their distinguishing fields) MUST NOT appear.
+        for entry in audit:
+            self.assertNotEqual(entry.get("reviewer"), "no-verdict-here")
+            self.assertNotEqual(entry.get("reviewer"), "wrong-type")
+        # voter_count and audit-list length agree — the contract.
+        self.assertEqual(events[0]["evidence"]["voter_count"], len(audit))
+
 
 # ---------------------------------------------------------------------------
 # Schema integration
