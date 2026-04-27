@@ -131,6 +131,16 @@ class TestRealSubprocessTimeout:
             f"timeout_s={_TIMEOUT_S}, expected concurrent bound < {_WALL_CLOCK_CEILING_S}s."
         )
 
+        # --- Assertion 1b (#616): timeout must actually fire ---
+        # If wall_clock < ~_TIMEOUT_S, the hang CLI short-circuited — regression
+        # in subprocess.TimeoutExpired enforcement. The 0.9s floor is slightly
+        # under _TIMEOUT_S=1.0 to allow for small timer variance but rule out
+        # sub-0.1s returns (which would indicate the hang never blocked).
+        assert wall_clock >= 0.9, (
+            f"wall_clock {wall_clock:.3f}s < 0.9s — timeout path may have short-circuited; "
+            f"hang CLI should have forced ~{_TIMEOUT_S}s elapsed before termination."
+        )
+
         votes = list_council_votes(mem_conn, result.session_id)
         verdicts = {v["model"]: v["verdict"] for v in votes}
 

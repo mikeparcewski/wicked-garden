@@ -379,6 +379,13 @@ This applies to ALL commands that use `AskUserQuestion`: setup, delivery/setup, 
 - Python scripts: use `tempfile.gettempdir()` instead of hardcoding `/tmp` — Windows has no `/tmp`
 - Script invocation: use `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh"` — never bare `python3` (not available on Windows)
 
+## Drop-in plugins (v9 contract)
+
+External plugins integrate with wicked-garden by following the contract in
+`docs/v9/drop-in-plugin-contract.md`. wicked-testing is the canonical example.
+Plugin authors must pass the v9 discovery conventions (`docs/v9/discovery-conventions.md`)
+and the unique-value test before their skills will be accepted in the marketplace.
+
 ### Gate-result security (AC-9 §5.4)
 
 `gate-result.json` ingestion runs a layered defense floor: schema validator, content sanitizer (codepoint allow-list + injection patterns), dispatch-log orphan detection, and append-only audit log. This is a **floor** against content drift and trivial prompt-injection — not a wall against local disk-write attackers. Rollback levers: `WG_GATE_RESULT_SCHEMA_VALIDATION=off`, `WG_GATE_RESULT_CONTENT_SANITIZATION=off`, `WG_GATE_RESULT_DISPATCH_CHECK=off` — all auto-expire at `WG_GATE_RESULT_STRICT_AFTER`. Benchmark SLO re-baseline is owned by the `wicked-garden:platform:gate-benchmark-rebaseline` skill.

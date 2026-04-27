@@ -50,12 +50,18 @@ Precedence (high to low)
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping, Optional
+
+# Module logger — wired to caller's logging config; degrades to a no-op when
+# no handler is configured. Used by ``_check_ac_gate`` to surface unexpected
+# AC-load failures (Issue #620).
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -711,15 +717,21 @@ def _check_ac_gate(
 
     project_dir = Path(project_dir)
 
+    # Resolve load_acs + ACParseError lazily. Both names are required before
+    # Issue #620's narrow exception handling can be wired up; if either is
+    # absent we degrade gracefully to the legacy "AC check unavailable" path.
     try:
+        from crew.acceptance_criteria import ACParseError, load_acs
+    except ImportError:
         try:
-            from crew.acceptance_criteria import load_acs
+            from acceptance_criteria import (  # type: ignore[no-redef]
+                ACParseError,
+                load_acs,
+            )
         except ImportError:
-            try:
-                from acceptance_criteria import load_acs  # type: ignore[no-redef]
-            except ImportError:
-                return None  # PR-5 module not yet available — degrade gracefully
+            return None  # PR-5 module not yet available — degrade gracefully
 
+    try:
         acs = load_acs(project_dir)
         if not acs:
             # No ACs defined — treat as "satisfied" to avoid blocking
@@ -759,7 +771,24 @@ def _check_ac_gate(
         )
         return all_done, detail
 
-    except Exception:  # noqa: BLE001 — degrade gracefully; never crash a gate
+    except (FileNotFoundError, ACParseError) as exc:
+        # Expected "no structured ACs available" path — silent fallback is correct.
+        # Issue #620: surface at debug, not warning, so operators tailing logs
+        # are not spammed during the migration window.
+        logger.debug(
+            "autonomy: AC gate — no structured ACs available: %s", exc
+        )
+        return None
+    except Exception as exc:  # noqa: BLE001 — last-resort guard; never crash a gate
+        # Unexpected error — log at WARNING so operators see it but still fall
+        # back safely. Issue #620: prevents silent full→balanced mode downgrade.
+        logger.warning(
+            "autonomy: AC gate failed unexpectedly; falling back to balanced mode. "
+            "Error: %s. Run WG_DEBUG_AUTONOMY=1 for traceback.",
+            exc,
+        )
+        if os.environ.get("WG_DEBUG_AUTONOMY"):
+            logger.exception("AC gate exception traceback")
         return None
 
 
