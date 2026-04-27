@@ -35,8 +35,14 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
   "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/propose_skills.py" --json
 ```
 
-The script prints the report path on stdout. Read the file, summarize the top 3
-candidates inline, and stop — do not auto-invoke `/wg-scaffold`.
+**Output modes**:
+
+- Default — prints the report file path on stdout (one line). Read the file,
+  summarize the top 3 candidates inline, and stop.
+- `--json` — prints a JSON object on stdout with `report_path`, scan stats, and
+  the full `candidates` array. The markdown report is still written to disk.
+
+Do not auto-invoke `/wg-scaffold` — this is a read-only proposer.
 
 ## What It Detects (3 cheap detectors, no LLM)
 
@@ -48,21 +54,30 @@ candidates inline, and stop — do not auto-invoke `/wg-scaffold`.
 
 ## Pipeline
 
-1. **Locate sessions**: `~/.claude/projects/{project-slug}/*.jsonl`. Default
-   slug is derived from the current working directory.
+1. **Locate sessions**: `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/{project-slug}/*.jsonl`.
+   The analyzer honors `CLAUDE_CONFIG_DIR` so users with custom config dirs
+   (e.g. `/Users/me/alt-configs/.claude`) get matched correctly. Default slug
+   is derived from the current working directory.
 2. **Parse**: each `.jsonl` line, extracting `tool_use` items from assistant
    messages and the leading text of user messages. Robust against malformed
    lines.
 3. **Privacy filter**: skip any session whose user prompt contains the literal
-   token `private` or `secret` (case-insensitive).
-4. **Detect**: run the 3 detectors over the parsed sessions.
+   token `private` or `secret` (case-insensitive). The check runs on the
+   FULL untruncated prompt — a trigger token past the 200-char detector limit
+   still flags the session.
+4. **Detect**: run the 3 detectors over the parsed sessions. A candidate must
+   meet `MIN_FREQUENCY` (total occurrences) AND `MIN_SESSION_COUNT` (distinct
+   sessions) — those are independent counters, not the same number.
 5. **Dedupe**: drop any tool-sequence candidate that is a contiguous
    subsequence of a more-frequent (or equal-frequency) longer parent.
 6. **Propose**: for each candidate, build a kebab-case slug, a frontmatter-ready
    description (≤140 chars), and a `/wg-scaffold skill <name> --domain <d>`
    suggestion. Domain is inferred from tool / bash keywords.
 7. **Render**: write a markdown report to
-   `${TMPDIR:-/tmp}/wg-propose-skills-{timestamp}.md`. Print the path.
+   `tempfile.gettempdir()/wg-propose-skills-{timestamp}.md`. On macOS this
+   resolves to a per-user dir under `/var/folders/...`; on Linux it follows
+   `$TMPDIR` and falls back to `/tmp`. Print the report path (default mode)
+   or a JSON envelope including the full candidates array (`--json` mode).
 8. **Summarize inline**: read the top 3 candidates from the report and quote
    them in the assistant reply.
 
@@ -93,16 +108,21 @@ These are explicit v2 / v3 follow-ups and out of scope for this MVP:
 After running the script, the assistant should reply with something like:
 
 ```
-Report: /tmp/wg-propose-skills-20260427T030000Z.md (4 candidates)
+Report: /var/folders/.../wg-propose-skills-20260427T030000Z.md (4 candidates)
 
 Top 3 candidates:
-1. run-curl-s — `curl -s …` shell pattern, 12x across 12 sessions
-2. run-pnpm-run — `pnpm run …` shell pattern, 6x across 6 sessions
-3. run-lsof-ti-4321 — `lsof -ti:4321 …` shell pattern, 5x across 5 sessions
+1. run-curl-s — `curl -s …` shell pattern, 24 occurrences across 12 sessions
+2. run-pnpm-run — `pnpm run …` shell pattern, 9 occurrences across 6 sessions
+3. run-lsof-ti-4321 — `lsof -ti:4321 …` shell pattern, 5 occurrences across 5 sessions
 
 Run `/wg-scaffold skill <name> --domain <d>` for any candidate that's
 worth building.
 ```
+
+Exit codes:
+
+- `0` — graceful run (even when no candidates are found).
+- `1` — failed to write the report file (I/O error after analysis succeeded).
 
 ## Related
 

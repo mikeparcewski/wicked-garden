@@ -3,19 +3,23 @@
 
 Read-only analyzer over Claude Code session transcripts.
 
-Reads ``~/.claude/projects/{project-slug}/*.jsonl`` for the current project
-(default: cwd basename → slug), detects repetitive patterns across sessions,
-clusters overlapping detections, and writes a markdown report at
-``${TMPDIR:-/tmp}/wg-propose-skills-{timestamp}.md``.
+Reads ``${CLAUDE_CONFIG_DIR:-~/.claude}/projects/{project-slug}/*.jsonl`` for the
+current project (default: cwd basename → slug), detects repetitive patterns across
+sessions, clusters overlapping detections, and writes a markdown report at
+``tempfile.gettempdir()/wg-propose-skills-{timestamp}.md`` (on macOS this resolves
+to a per-user dir under ``/var/folders/...``).
 
 Hard constraints (per scope and CLAUDE.md):
 
 * **stdlib-only** — no external deps.
 * **read-only** — never writes outside ``tempfile.gettempdir()``.
 * **local-only** — no network, no telemetry, no LLM calls.
-* **cross-platform** — uses ``pathlib.Path`` and ``tempfile.gettempdir()``.
-* **privacy** — scrubs absolute paths to ``~/...`` form, skips any session whose
-  user prompt contains the literal token ``private`` or ``secret``.
+* **cross-platform** — uses ``pathlib.Path`` and ``tempfile.gettempdir()``; honors
+  ``CLAUDE_CONFIG_DIR`` for users running Claude Code with a non-default config.
+* **privacy** — scrubs absolute paths to ``~/...`` form (matched at path-segment
+  boundaries to avoid substring scrubbing), skips any session whose user prompt
+  contains the literal token ``private`` or ``secret``. Privacy check runs on the
+  full untruncated prompt before any 200-char trimming.
 
 The MVP intentionally outputs a markdown report only. There is no interactive
 UI and no scaffolding handoff in v1 — both are explicit v2 follow-ups
@@ -27,8 +31,10 @@ Usage::
                                             [--sessions-root PATH]
                                             [--output PATH] [--json]
 
-Exit code is always 0 unless an unexpected error escapes — the analyzer
-prefers an empty report over a hard failure (graceful degradation).
+Exit codes:
+
+* ``0`` — graceful run (even when no candidates are found).
+* ``1`` — failed to write the report (I/O error after analysis succeeded).
 """
 
 from __future__ import annotations
@@ -71,9 +77,12 @@ _GENERIC_BASH_TOKENS: frozenset[str] = frozenset(
     {"ls", "cat", "echo", "cd", "pwd", "true", "false", ":"}
 )
 
-# Min occurrences across distinct sessions before a candidate qualifies.
+# Min total occurrences (across all sessions, with intra-session repeats counted)
+# before a candidate qualifies.
 MIN_FREQUENCY = 3
-MIN_SESSION_COUNT = 1  # at least one distinct session — set higher in tests if needed
+# Min DISTINCT sessions a candidate must appear in. Frequency alone is not enough —
+# a single chatty session shouldn't surface a workflow as a cross-cutting pattern.
+MIN_SESSION_COUNT = 2
 
 # Sequence detection bounds — short sequences are noisy, long sequences are rare.
 SEQUENCE_MIN_LEN = 2
@@ -108,17 +117,43 @@ _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
 def project_slug(cwd: Path | None = None) -> str:
     """Return the Claude Code project slug for ``cwd`` (default: real cwd).
 
-    Claude Code encodes project paths by replacing ``/`` with ``-`` and
-    prefixing with ``-``. Example: ``/Users/x/Projects/wicked-garden`` becomes
+    Claude Code encodes project paths by replacing path separators with ``-``
+    and prefixing with ``-``. Cross-platform: uses ``Path.as_posix()`` so
+    Windows ``\\`` separators and drive letters (``C:``) are normalized before
+    the substitution.
+
+    Example (POSIX): ``/Users/x/Projects/wicked-garden`` →
     ``-Users-x-Projects-wicked-garden``.
+    Example (Windows): ``C:\\Users\\x\\Projects\\wg`` → ``-C-Users-x-Projects-wg``.
     """
-    base = (cwd or Path.cwd()).resolve()
-    return "-" + str(base).strip("/").replace("/", "-")
+    base = (cwd or Path.cwd()).expanduser().resolve()
+    posix = base.as_posix()
+    # Strip the Windows drive colon (e.g. ``C:`` → ``C``) so the slug stays
+    # filesystem-safe under Claude Code's project-dir naming convention.
+    posix = posix.replace(":", "")
+    return "-" + posix.strip("/").replace("/", "-")
+
+
+def resolve_claude_config_dir() -> Path:
+    """Return the active Claude config dir, honoring ``CLAUDE_CONFIG_DIR``.
+
+    Falls back to ``~/.claude`` when the env var is unset or empty. Mirrors
+    the convention documented in CLAUDE.md (``${CLAUDE_CONFIG_DIR:-~/.claude}``).
+    """
+    env = os.environ.get("CLAUDE_CONFIG_DIR")
+    if env:
+        return Path(env).expanduser()
+    return Path.home() / ".claude"
+
+
+def session_root() -> Path:
+    """Return the default Claude Code session root for the active config dir."""
+    return resolve_claude_config_dir() / "projects"
 
 
 def default_sessions_root() -> Path:
-    """Return the default Claude Code session root (``~/.claude/projects``)."""
-    return Path.home() / ".claude" / "projects"
+    """Backward-compat alias for ``session_root()``. Honors ``CLAUDE_CONFIG_DIR``."""
+    return session_root()
 
 
 def find_session_files(
@@ -145,25 +180,38 @@ _HOME_STR = str(Path.home())
 
 
 def scrub_path(text: str, *, home: str = _HOME_STR) -> str:
-    """Replace any occurrence of ``$HOME`` in ``text`` with ``~``.
+    """Replace ``$HOME`` in ``text`` with ``~``, matched at path boundaries only.
 
-    Cross-platform: uses string replacement on the resolved home, not regex on
-    leading slashes. Idempotent.
+    The naive ``str.replace`` approach corrupts neighbouring paths — e.g. with
+    ``home='/Users/alice'`` an input ``/Users/alice2/`` would become ``~2/``.
+    To avoid that, ``home`` only matches when followed by end-of-string, ``/``,
+    or ``\\`` (the path-separator boundary). Idempotent — running twice on an
+    already-scrubbed string is a no-op.
     """
-    if not text:
+    if not text or not home:
         return text
-    out = text.replace(home, "~")
-    return out
+    pattern = re.escape(home) + r"(?=$|[/\\])"
+    return re.sub(pattern, "~", text)
+
+
+def _prompt_is_private(prompt: str) -> bool:
+    """Return True when ``prompt`` (untruncated) contains a privacy-skip token."""
+    low = (prompt or "").lower()
+    for token in PRIVACY_SKIP_TOKENS:
+        if token in low:
+            return True
+    return False
 
 
 def session_is_private(user_prompts: Iterable[str]) -> bool:
-    """Return ``True`` when any prompt contains a privacy-skip token (case-insensitive)."""
-    for p in user_prompts:
-        low = (p or "").lower()
-        for token in PRIVACY_SKIP_TOKENS:
-            if token in low:
-                return True
-    return False
+    """Return ``True`` when any prompt contains a privacy-skip token (case-insensitive).
+
+    Note: ``parse_session`` now sets a ``privacy_skip`` flag on the digest using
+    the full untruncated prompt text. ``analyze`` prefers that flag, so this
+    function is only consulted for tests and external callers that hand-build
+    session digests.
+    """
+    return any(_prompt_is_private(p) for p in user_prompts)
 
 
 # ---------------------------------------------------------------------------
@@ -203,15 +251,25 @@ def _extract_tool_uses(content: Any) -> list[dict[str, Any]]:
 def parse_session(path: Path) -> dict[str, Any]:
     """Parse one ``*.jsonl`` session file and return a structured digest.
 
-    Returns ``{"path": str, "user_prompts": [...], "tool_calls": [...]}``.
-    Robust against malformed lines — each bad line is skipped, never raised.
+    Returns ``{"path": str, "user_prompts": [...], "tool_calls": [...],
+    "privacy_skip": bool}``. The privacy check inspects the FULL untruncated
+    user-prompt text (so a ``private``/``secret`` token past the 200-char
+    detector limit is still caught) — only after that do we trim each prompt
+    to 200 chars for downstream detector economy. Robust against malformed
+    lines: each bad line is skipped, never raised.
     """
     user_prompts: list[str] = []
     tool_calls: list[dict[str, Any]] = []
+    privacy_skip = False
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return {"path": str(path), "user_prompts": user_prompts, "tool_calls": tool_calls}
+        return {
+            "path": str(path),
+            "user_prompts": user_prompts,
+            "tool_calls": tool_calls,
+            "privacy_skip": privacy_skip,
+        }
     for line in text.splitlines():
         line = line.strip()
         if not line:
@@ -228,15 +286,27 @@ def parse_session(path: Path) -> dict[str, Any]:
         if record_type == "user":
             txt = _extract_user_text(content if content is not None else obj.get("message"))
             if txt:
+                # Privacy gate runs on the FULL prompt — never on the truncated
+                # detector view — so a trigger token past char 200 still flags.
+                if not privacy_skip and _prompt_is_private(txt):
+                    privacy_skip = True
                 user_prompts.append(txt[:200])
         elif record_type == "assistant":
             tool_calls.extend(_extract_tool_uses(content))
-    return {"path": str(path), "user_prompts": user_prompts, "tool_calls": tool_calls}
+    return {
+        "path": str(path),
+        "user_prompts": user_prompts,
+        "tool_calls": tool_calls,
+        "privacy_skip": privacy_skip,
+    }
 
 
 # ---------------------------------------------------------------------------
 # Pattern detectors.
 # ---------------------------------------------------------------------------
+
+
+_PROMPT_PUNCT_RE = re.compile(r"[^\w\s]+", re.UNICODE)
 
 
 def _normalize_prompt_prefix(prompt: str) -> str | None:
@@ -246,13 +316,17 @@ def _normalize_prompt_prefix(prompt: str) -> str | None:
     generic-prompt blocklist, or that look like a Claude Code system envelope
     rather than a user-authored prompt (e.g. ``<local-command-...>`` or
     ``<command-name>...</command-name>`` wrappers).
+
+    The punctuation strip uses a Unicode-aware ``\\w``/``\\s`` character class
+    so CJK ideographs, accented Latin characters, and other non-ASCII letters
+    are preserved as part of the prefix instead of being collapsed to spaces.
     """
     if not prompt:
         return None
     stripped = prompt.lstrip()
     if stripped.startswith("<local-command") or stripped.startswith("<command-"):
         return None
-    cleaned = re.sub(r"[^A-Za-z0-9 ]+", " ", prompt.lower()).strip()
+    cleaned = _PROMPT_PUNCT_RE.sub(" ", prompt.lower()).strip()
     if not cleaned:
         return None
     words = cleaned.split()
@@ -261,9 +335,15 @@ def _normalize_prompt_prefix(prompt: str) -> str | None:
     prefix = " ".join(words[:5])
     if prefix in _GENERIC_PROMPT_PREFIXES:
         return None
-    # Reject if first word alone is a generic continuation token.
+    # Reject if first word alone is a generic single-token continuation.
     if words[0] in _GENERIC_PROMPT_PREFIXES:
         return None
+    # Reject if any multi-word generic phrase ("do it", "looks good", "thank you",
+    # "sounds good") appears as a substring of the normalized prefix. These never
+    # match the equality check above because they're shorter than 5 words.
+    for generic in _GENERIC_PROMPT_PREFIXES:
+        if " " in generic and generic in prefix:
+            return None
     return prefix
 
 
@@ -296,42 +376,48 @@ def detect_repeated_sequences(
     min_freq: int = MIN_FREQUENCY,
     min_len: int = SEQUENCE_MIN_LEN,
     max_len: int = SEQUENCE_MAX_LEN,
+    min_sessions: int = MIN_SESSION_COUNT,
 ) -> list[dict[str, Any]]:
     """Detect ordered N-tuples of tool names appearing ``>= min_freq`` times.
 
-    Counts by ``(tuple, session_id)`` — a single session can contribute at most
-    one occurrence per N-tuple, which prevents one chatty session from drowning
-    the report. Homogeneous sequences (all the same tool name) are filtered
-    because they reflect run-of-the-mill repetition, not a procedure.
+    Tracks two independent counters per N-tuple:
+
+    * ``frequency`` — TOTAL occurrences across all sessions (with intra-session
+      repeats included). Reflects how often the agent runs the pattern overall.
+    * ``sessions`` — number of DISTINCT sessions the N-tuple appears in.
+      Reflects how broadly the pattern shows up across the project's history.
+
+    A candidate must satisfy ``frequency >= min_freq`` AND
+    ``sessions >= min_sessions``. Homogeneous sequences (all the same tool name)
+    are filtered because they reflect run-of-the-mill repetition, not a procedure.
     """
-    counter: Counter[tuple[str, ...]] = Counter()
+    total_counter: Counter[tuple[str, ...]] = Counter()
     sessions_by_seq: dict[tuple[str, ...], set[str]] = defaultdict(set)
     examples: dict[tuple[str, ...], str] = {}
     for sess in sessions:
         names = [tc["name"] for tc in sess["tool_calls"]]
         sid = sess["path"]
         for n in range(min_len, max_len + 1):
-            seen_in_session: set[tuple[str, ...]] = set()
             for i in range(0, max(0, len(names) - n + 1)):
                 tup = tuple(names[i : i + n])
-                if tup in seen_in_session:
-                    continue
                 if _is_homogeneous(tup):
                     continue
-                seen_in_session.add(tup)
-                counter[tup] += 1
+                # Count EVERY occurrence — repeats within a session count, so
+                # frequency reflects true workload, not just session breadth.
+                total_counter[tup] += 1
                 sessions_by_seq[tup].add(sid)
                 examples.setdefault(tup, " → ".join(tup))
     out: list[dict[str, Any]] = []
-    for tup, freq in counter.items():
-        if freq < min_freq:
+    for tup, freq in total_counter.items():
+        sess_count = len(sessions_by_seq[tup])
+        if freq < min_freq or sess_count < min_sessions:
             continue
         out.append(
             {
                 "kind": "tool-sequence",
                 "key": tup,
                 "frequency": freq,
-                "sessions": len(sessions_by_seq[tup]),
+                "sessions": sess_count,
                 "example": examples[tup],
                 "names": list(tup),
             }
@@ -343,32 +429,37 @@ def detect_repeated_prompt_templates(
     sessions: list[dict[str, Any]],
     *,
     min_freq: int = MIN_FREQUENCY,
+    min_sessions: int = MIN_SESSION_COUNT,
 ) -> list[dict[str, Any]]:
-    """Detect user prompts whose first 5 normalized words match across sessions."""
-    counter: Counter[str] = Counter()
+    """Detect user prompts whose first 5 normalized words match across sessions.
+
+    Tracks both total occurrences and distinct-session count (see
+    ``detect_repeated_sequences`` for rationale). A candidate must satisfy
+    both ``min_freq`` and ``min_sessions``.
+    """
+    total_counter: Counter[str] = Counter()
     sessions_by_prefix: dict[str, set[str]] = defaultdict(set)
     examples: dict[str, str] = {}
     for sess in sessions:
         sid = sess["path"]
-        seen: set[str] = set()
         for prompt in sess["user_prompts"]:
             prefix = _normalize_prompt_prefix(prompt)
-            if prefix is None or prefix in seen:
+            if prefix is None:
                 continue
-            seen.add(prefix)
-            counter[prefix] += 1
+            total_counter[prefix] += 1
             sessions_by_prefix[prefix].add(sid)
             examples.setdefault(prefix, prompt[:160])
     out: list[dict[str, Any]] = []
-    for prefix, freq in counter.items():
-        if freq < min_freq:
+    for prefix, freq in total_counter.items():
+        sess_count = len(sessions_by_prefix[prefix])
+        if freq < min_freq or sess_count < min_sessions:
             continue
         out.append(
             {
                 "kind": "prompt-template",
                 "key": prefix,
                 "frequency": freq,
-                "sessions": len(sessions_by_prefix[prefix]),
+                "sessions": sess_count,
                 "example": examples[prefix],
             }
         )
@@ -379,36 +470,41 @@ def detect_repeated_bash_shapes(
     sessions: list[dict[str, Any]],
     *,
     min_freq: int = MIN_FREQUENCY,
+    min_sessions: int = MIN_SESSION_COUNT,
 ) -> list[dict[str, Any]]:
-    """Detect bash commands sharing the same first 2 tokens across sessions."""
-    counter: Counter[tuple[str, str]] = Counter()
+    """Detect bash commands sharing the same first 2 tokens across sessions.
+
+    Tracks both total occurrences and distinct-session count (see
+    ``detect_repeated_sequences`` for rationale). A candidate must satisfy
+    both ``min_freq`` and ``min_sessions``.
+    """
+    total_counter: Counter[tuple[str, str]] = Counter()
     sessions_by_shape: dict[tuple[str, str], set[str]] = defaultdict(set)
     examples: dict[tuple[str, str], str] = {}
     for sess in sessions:
         sid = sess["path"]
-        seen: set[tuple[str, str]] = set()
         for tc in sess["tool_calls"]:
             if tc["name"] != "Bash":
                 continue
             shape = _bash_first_tokens(tc.get("input") or {})
-            if shape is None or shape in seen:
+            if shape is None:
                 continue
-            seen.add(shape)
-            counter[shape] += 1
+            total_counter[shape] += 1
             sessions_by_shape[shape].add(sid)
             cmd = (tc.get("input") or {}).get("command", "")
             if isinstance(cmd, str):
                 examples.setdefault(shape, cmd[:160])
     out: list[dict[str, Any]] = []
-    for shape, freq in counter.items():
-        if freq < min_freq:
+    for shape, freq in total_counter.items():
+        sess_count = len(sessions_by_shape[shape])
+        if freq < min_freq or sess_count < min_sessions:
             continue
         out.append(
             {
                 "kind": "bash-shape",
                 "key": shape,
                 "frequency": freq,
-                "sessions": len(sessions_by_shape[shape]),
+                "sessions": sess_count,
                 "example": examples.get(shape, " ".join(shape)),
                 "names": list(shape),
             }
@@ -566,8 +662,11 @@ def render_report(
         lines.append(f"### {idx}. {proposal['slug']}")
         lines.append("")
         lines.append(f"- **Pattern kind**: `{c['kind']}`")
+        # Show TOTAL occurrences and DISTINCT sessions independently — when a
+        # pattern repeats inside a session, the two numbers genuinely differ.
         lines.append(
-            f"- **Frequency**: {c['frequency']} occurrences across {c['sessions']} sessions"
+            f"- **Frequency**: {c['frequency']} total occurrences across "
+            f"{c['sessions']} distinct sessions"
         )
         lines.append(f"- **Proposed description**: {proposal['description']}")
         lines.append(f"- **Suggested scaffold**: `{proposal['scaffold_command']}`")
@@ -612,7 +711,10 @@ def analyze(
     skipped = 0
     for f in files:
         sess = parse_session(f)
-        if session_is_private(sess["user_prompts"]):
+        # Prefer the per-session ``privacy_skip`` flag set by parse_session
+        # (which inspects the FULL untruncated prompt). Fall back to the
+        # truncated-prompt scan for digests built by external callers (tests).
+        if sess.get("privacy_skip") or session_is_private(sess["user_prompts"]):
             skipped += 1
             continue
         parsed.append(sess)
@@ -634,8 +736,23 @@ def _timestamp_slug() -> str:
     return time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
 
 
+def _json_safe_candidate(c: dict[str, Any]) -> dict[str, Any]:
+    """Return a JSON-serializable copy of ``c`` (tuples → lists)."""
+    safe: dict[str, Any] = {}
+    for k, v in c.items():
+        if isinstance(v, tuple):
+            safe[k] = list(v)
+        else:
+            safe[k] = v
+    return safe
+
+
 def run(argv: list[str] | None = None) -> int:
-    """CLI entry point. Returns process exit code (always 0 on graceful runs)."""
+    """CLI entry point. Returns process exit code.
+
+    * ``0`` on graceful runs (including when no candidates are found).
+    * ``1`` when the report file could not be written after a successful analysis.
+    """
     parser = argparse.ArgumentParser(
         prog="propose_skills",
         description="Mine recent Claude Code sessions for skill candidates (MVP, read-only).",
@@ -654,17 +771,23 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--sessions-root",
         default=None,
-        help="Override the Claude session root (default: ~/.claude/projects).",
+        help=(
+            "Override the Claude session root "
+            "(default: ${CLAUDE_CONFIG_DIR:-~/.claude}/projects)."
+        ),
     )
     parser.add_argument(
         "--output",
         default=None,
-        help="Override the report output path (default: ${TMPDIR}/wg-propose-skills-{ts}.md).",
+        help="Override the report output path (default: tempfile.gettempdir()/wg-propose-skills-{ts}.md).",
     )
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Print the structured analysis result as JSON to stdout (in addition to the report).",
+        help=(
+            "Print the structured analysis result as JSON to stdout (in addition to "
+            "the report). Includes the full candidates payload."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -702,7 +825,7 @@ def run(argv: list[str] | None = None) -> int:
         out_path.write_text(report, encoding="utf-8")
     except OSError as exc:
         sys.stderr.write(f"propose_skills: failed to write report: {exc}\n")
-        return 0
+        return 1
 
     if args.json:
         sys.stdout.write(
@@ -710,9 +833,11 @@ def run(argv: list[str] | None = None) -> int:
                 {
                     "report_path": str(out_path),
                     "project": result["project"],
+                    "sessions_root": str(sessions_root),
                     "sessions_scanned": result["sessions_scanned"],
                     "sessions_skipped": result["sessions_skipped"],
                     "candidate_count": len(result["candidates"]),
+                    "candidates": [_json_safe_candidate(c) for c in result["candidates"]],
                 },
                 indent=2,
             )
