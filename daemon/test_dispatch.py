@@ -192,6 +192,22 @@ def detect_test_phases(phases_list: list[dict[str, Any]]) -> list[str]:
     The probe is intentionally conservative — missing fields are treated as empty
     rather than raising, so a partial phase record from the DB does not crash
     detection.
+
+    Known limitation (issue #623, audited 2026-04-27)
+    -------------------------------------------------
+    The detector does NOT scan free-text ``description`` / ``summary`` fields.
+    A hypothetical phase like ``{name: quality-assurance,
+    description: "Run tests and verify"}`` with no QE specialist and no test
+    activities would silently skip dispatch.
+
+    Audit on 2026-04-27 against `.claude-plugin/phases.json` confirmed every
+    phase whose prose mentions testing (``test-strategy``, ``test``) already
+    carries a structured signal (name keyword + qe specialist), so the detector
+    matches every test-engaging phase today. The regression guard at
+    ``tests/daemon/test_test_dispatch.py::TestPhasesJsonProseGuard`` asserts
+    this invariant against the live catalog so any future prose-only phase
+    addition fails CI rather than silently skipping dispatch. Re-audit when
+    phases.json gains new entries.
     """
     detected: list[str] = []
     for phase_row in phases_list:

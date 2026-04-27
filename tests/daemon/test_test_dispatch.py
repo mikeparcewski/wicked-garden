@@ -812,3 +812,67 @@ class TestAvailabilityProbeNodeWithoutWickedTesting:
             "Node-present-but-wicked-testing-absent must degrade gracefully, not error."
         )
         conn.close()
+
+
+# ===========================================================================
+# Issue #623 — phases.json prose vs structured-detector regression guard
+# ===========================================================================
+
+# Words that suggest a phase engages testing when they appear in the prose
+# `description`/`summary` fields. Used by the regression guard below.
+_PROSE_TEST_KEYWORDS: frozenset[str] = frozenset({
+    "test", "verify", "validation", "verification", "qe",
+})
+
+
+class TestPhasesJsonProseGuard:
+    """Regression guard for issue #623.
+
+    `detect_test_phases` matches by name keyword, qe specialist, or test-keyword
+    activity — it does NOT scan free-text `description`/`summary` fields. If a
+    future phases.json entry describes testing only in prose (no structured
+    signal) it would silently skip dispatch. This test fails CI in that case so
+    the author either adds a structured signal or extends the detector.
+    """
+
+    @staticmethod
+    def _load_catalog() -> dict:
+        """Load .claude-plugin/phases.json from repo root."""
+        catalog_path = _REPO_ROOT / ".claude-plugin" / "phases.json"
+        with catalog_path.open() as fh:
+            return json.load(fh)
+
+    def test_every_prose_test_phase_has_structured_signal(self):
+        """For each phase in phases.json: if its description mentions testing,
+        the structured detector must also match it.
+        """
+        catalog = self._load_catalog()
+        phases = catalog["phases"]
+
+        # Build phase rows the way detect_test_phases expects
+        phase_rows = []
+        for name, phase in phases.items():
+            row = dict(phase)
+            row["phase"] = name
+            phase_rows.append(row)
+
+        detected = set(td.detect_test_phases(phase_rows))
+
+        prose_only_misses: list[str] = []
+        for name, phase in phases.items():
+            prose = (
+                (phase.get("description") or "") + " " + (phase.get("summary") or "")
+            ).lower()
+            mentions_test = any(kw in prose for kw in _PROSE_TEST_KEYWORDS)
+            if mentions_test and name not in detected:
+                prose_only_misses.append(name)
+
+        assert prose_only_misses == [], (
+            "Issue #623: the following phases in .claude-plugin/phases.json "
+            "describe testing in prose but lack a structured signal "
+            "(name keyword in {test-strategy,test,qe} / specialists contains 'qe' "
+            f"/ test-keyword activity), so detect_test_phases skips them: "
+            f"{prose_only_misses}. Either add a structured signal to the phase "
+            "(preferred — keeps the detector cheap) or extend "
+            "daemon/test_dispatch.detect_test_phases to scan description/summary."
+        )
