@@ -9,32 +9,64 @@
 
 # Wicked Garden
 
-**Tell Claude to build a feature. It assembles a crew, runs enforced phases, ships clean code.**
+**Helps Claude execute projects you can trust. Learns what you actually need. Stays lean as it grows.**
 
 ```bash
 /wicked-garden:crew:start "add OAuth login with role-based access"
 ```
 
-Claude scores the work on 9 factors, detects the project archetype, assembles the right specialists by reading their frontmatter, and runs gated phases — clarify, design, (challenge), build, test, review, operate. No skipped steps. No hallucinated shortcuts. Every decision is remembered for the next project.
+Claude scores the work on 9 factors, detects 1 of 7 project archetypes, assembles the right specialists by reading their frontmatter, and runs gated phases — clarify, design, (challenge), build, test, review, operate. No skipped steps. No hallucinated shortcuts. Every decision is remembered for the next project.
+
+## Install
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
 ```
 
-## What's new in v6
+**Standalone or full stack.** Wicked-garden runs on its own with local JSON storage and falls back to grep when the optional companions aren't installed. For full SDLC support, install [wicked-brain](https://github.com/mikeparcewski/wicked-brain) (memory + search index) and [wicked-testing](https://github.com/mikeparcewski/wicked-testing) (QE specialist agents). The crew gate dispatches `wicked-testing:*` Tier-1 agents when present.
 
-v6 leans hard on Claude Code's native surface — it doesn't replace Claude's primitives, it orchestrates them.
+## What it does
 
-- **Facilitator replaces the rule engine.** A `propose-process` skill scores 9 factors, detects 1 of 7 project archetypes, and picks specialists + phases per project instead of matching keyword patterns.
-- **63 specialists routed by frontmatter.** Subagents are discovered at runtime from `agents/**/*.md` — add a markdown file with a `subagent_type` front-matter line and the facilitator can route to it next session. No static maps.
-- **Native tasks carry causality.** `TaskCreate` / `TaskUpdate` metadata (`chain_id`, `event_type`, `source_agent`, `phase`, `archetype`) is validated by a PreToolUse hook and consumed by a SubagentStart hook that injects per-role procedure bundles.
-- **Convergence lifecycle.** Every build/test artifact moves through Designed → Built → Wired → Tested → Integrated → Verified. The `convergence-verify` gate blocks review approval until each artifact reaches at least Integrated.
-- **Contrarian agent + challenge gate** auto-insert at complexity ≥ 4 to steelman the alternative path.
-- **Phase-boundary QE evaluator** replaces `test-strategist` at the testability and evidence-quality gates, reading archetype to pick per-type test + evidence expectations.
-- **Semantic reviewer** extracts numbered AC / FR / REQ items from clarify artifacts and emits a Gap Report (aligned / divergent / missing) at review — tests passing isn't the same as spec intent being met.
-- **Ops bundle.** HMAC-signed dispatch log with orphan detection, pre-flip monitoring with a StrictMode latch, yolo guardrails that gate full-rigor grants behind justification + sentinel, and gate-result security hardening.
-- **Process memory + kaizen.** Operate-phase retros auto-populate a facilitator-context digest so future projects inherit learned trade-offs.
-- **Skills are Skill()-invokable.** Heavy skills (propose-process, workflow, acceptance-testing, unified-search, adopt-legacy) were flattened so Claude can call them directly.
+Four things. Each is something a single human + Claude struggles with on real projects.
+
+### 1. Project execution Claude can trust
+
+Multi-phase workflow with **enforced gates**, not advisory checklists. The crew system runs clarify → design → (challenge) → build → test → review → operate. REJECT verdicts block phase advancement. CONDITIONAL verdicts write a `conditions-manifest.json` that must be cleared. Every dispatched specialist appends an HMAC-signed entry to the dispatch log; verdicts without matching dispatches downgrade to CONDITIONAL.
+
+The trust mechanism IS the product. You can leave Claude alone with `--yolo` and the gates still hold.
+
+### 2. Context gathering and communication
+
+Claude pulls context from three places automatically: **wicked-brain** (semantic search across past decisions, patterns, gotchas), the **search domain** (code lineage, blast-radius, hotspots), and **smaht context assembly** (tier-aware adapters that fan out by intent — DEBUGGING vs IMPLEMENTATION vs PLANNING). The `ground` skill pulls deeper context when Claude is uncertain and surfaces it back into the active turn.
+
+You don't have to remember what you did 3 months ago. The brain does.
+
+### 3. Specialist agents called dynamically
+
+63 specialist agents — backend, frontend, security, SRE, data, UX, accessibility, compliance, etc. — discovered at runtime by reading `agents/**/*.md` frontmatter. Add a markdown file with a `subagent_type` line and the facilitator can route to it next session. No static maps. No registration ceremony. The right specialist for the work, not the closest fit.
+
+### 4. Skills that compound your usage
+
+73 skills cover everything from migration planning to data lineage to risk-based experiment design. Skills use **progressive disclosure**: the YAML frontmatter is always loaded (~100 words), the SKILL.md body loads only when invoked (≤200 lines), and detailed `refs/` content loads on demand. Heavy skills delegate to specialist agents instead of inlining their own rubrics.
+
+**[planned]** [Session-mined skill suggestions](https://github.com/mikeparcewski/wicked-garden/issues/677) — proposes new skills based on patterns Claude detects in your past sessions, so the framework grows from your actual work, not from speculative authoring.
+
+## Subtraction is how it stays lean
+
+Each of the 4 outcomes above sounds like the kind of thing that grows into bloat. The discipline that prevents that: **every major version ships substantial deletions of its predecessor's code** as Claude proves it can follow good practices without the wrapping.
+
+| Version | What got deleted | Why it shipped | Net lines |
+|---------|------------------|----------------|-----------|
+| [**v4.6**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v4.6.0) | mem commands collapsed into thin passthroughs to wicked-brain skills | parallel memory store was creating sync bugs | **–25,491** |
+| [**v6.1**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v6.1.0) | v5 rule engine + HOT/FAST/SLOW orchestrator | keyword routing was getting gamed; replaced by 9-factor rubric | partial |
+| [**v7.0**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v7.0.0) | All QE extracted to wicked-testing peer plugin | QE was conflated with workflow; extraction lets each evolve independently | breaking |
+| [**v7.1**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v7.1.0) | `agents/qe/` (11), `skills/qe/` (19), `commands/qe/` (12) | followed through on v7.0 contract | **–6,336** |
+| [**v8.0**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v8.0.0) | `wicked-garden:mem:*` slash commands | shim layer was no longer load-bearing | – |
+| [**v8.4**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v8.4.0) | jam SKILL.md 191→42 (78%); propose-process SKILL.md 600→160 (~73%) | skill files were burning context; agents now own the rubric | – |
+
+**The honest pattern is add-then-slim, not pure subtraction.** v8.0 also added ~30k lines for the daemon (task projection, hook subscribers, typed state machine). The framework adds foundational capability when it's genuinely needed, then aggressively slims the layers above it once they prove unnecessary. Net: the user-facing surface is smaller and clearer than v6.
+
+**Note on the QE deletion (v7.0/v7.1):** the test gate didn't go away — it stays in wicked-garden's phase manager. Only the *specialist agents* moved to wicked-testing. The framework still enforces test evidence at gate boundaries; it just dispatches the work to a peer plugin.
 
 ## Requirements
 
