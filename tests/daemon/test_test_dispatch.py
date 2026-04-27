@@ -818,11 +818,20 @@ class TestAvailabilityProbeNodeWithoutWickedTesting:
 # Issue #623 — phases.json prose vs structured-detector regression guard
 # ===========================================================================
 
+import re
+
 # Words that suggest a phase engages testing when they appear in the prose
 # `description`/`summary` fields. Used by the regression guard below.
+# Matched as whole words via `\b` boundaries so "test" doesn't false-positive
+# on "contest" / "latest" and "qe" doesn't false-positive on "queen".
 _PROSE_TEST_KEYWORDS: frozenset[str] = frozenset({
     "test", "verify", "validation", "verification", "qe",
 })
+
+_PROSE_TEST_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(kw) for kw in _PROSE_TEST_KEYWORDS) + r")\b",
+    re.IGNORECASE,
+)
 
 
 class TestPhasesJsonProseGuard:
@@ -863,7 +872,7 @@ class TestPhasesJsonProseGuard:
             prose = (
                 (phase.get("description") or "") + " " + (phase.get("summary") or "")
             ).lower()
-            mentions_test = any(kw in prose for kw in _PROSE_TEST_KEYWORDS)
+            mentions_test = bool(_PROSE_TEST_PATTERN.search(prose))
             if mentions_test and name not in detected:
                 prose_only_misses.append(name)
 
