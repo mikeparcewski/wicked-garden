@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Steering detector event family — `wicked.steer.*` on the bus, reference tail subscriber (`scripts/crew/steering_tail.py`), schema validator (`scripts/crew/steering_event_schema.py`). No detectors yet (PR-1 of epic).
+
 ## [8.4.0] - 2026-04-26
 
 ### Features
