@@ -10,9 +10,16 @@
 
 ## Specialist Routing (v6)
 
-wicked-garden ships 75 specialist agents across 11 domains. The facilitator skill (`skills/propose-process/`) discovers them at runtime by reading `agents/**/*.md` frontmatter — every agent declares `subagent_type: wicked-garden:{domain}:{name}` for Task-tool dispatch. There is no static `enhances` map. To add a specialist, drop a markdown file with the right frontmatter and it becomes routable next session.
+wicked-garden ships 63 specialist agents across 13 domains. The facilitator skill (`skills/propose-process/`) discovers them at runtime by reading `agents/**/*.md` frontmatter — every agent declares `subagent_type: wicked-garden:{domain}:{name}` for Task-tool dispatch. There is no static `enhances` map. To add a specialist, drop a markdown file with the right frontmatter and it becomes routable next session.
 
 For anything non-trivial, route through `/wicked-garden:crew:start` instead of dispatching specialists directly — the facilitator picks the right panel based on 9-factor scoring, detected archetype, and rigor tier.
+
+## Drop-in plugins (v9 contract)
+
+External plugins integrate with wicked-garden by following the contract in
+`docs/v9/drop-in-plugin-contract.md`. wicked-testing is the canonical example.
+Plugin authors must pass the v9 discovery conventions (`docs/v9/discovery-conventions.md`)
+and the unique-value test before their skills will be accepted in the marketplace.
 
 ## Planning & Execution
 
