@@ -50,6 +50,11 @@ All required fields, regardless of severity:
 
 Validator: `scripts/crew/steering_event_schema.py::validate_payload(event_type, payload)`
 
+Returns a `(errors, warnings)` tuple. Hard errors live in `errors`; advisory
+notes (e.g. unknown `recommended_action` values, since the action set is
+loose) live in `warnings`. A payload is valid when `errors` is empty —
+warnings are informational only.
+
 ### Example payload
 
 ```json
@@ -151,11 +156,21 @@ Auditor) ratifying the design.
 
 ### `wicked-testing:qe-engager` (cross-plugin)
 
-Filter: `wicked.steer.*@wicked-garden` with a payload-level filter for
-`subdomain == crew.detector.test-failure-spike`.
+Filter: `wicked.steer.*@wicked-garden`.
 
-Reacts to test-failure spikes by triggering a wicked-testing strategy
-regeneration.
+The wicked-bus subscribe CLI filter syntax is `event_type@domain` only — it
+does not have a `--subdomain` flag (see `scripts/_bus.py` and `wicked-bus
+subscribe --help`). Subscribers that care about a specific detector must
+apply a client-side filter on the event's top-level `subdomain` field after
+receiving it. The reference subscriber `scripts/crew/steering_tail.py`
+demonstrates this pattern via its `--detector` flag (matches
+`subdomain == crew.detector.<name>` in Python after the bus delivers the
+event).
+
+For `qe-engager`, that means: subscribe to the broad `wicked.steer.*@wicked-garden`
+filter, then in the consumer code drop any event whose top-level `subdomain`
+is not `crew.detector.test-failure-spike`. Reacts to those by triggering a
+wicked-testing strategy regeneration.
 
 ---
 

@@ -48,18 +48,41 @@ _DETECTOR_SUBDOMAIN_PREFIX = "crew.detector."
 _SUBSCRIBER_PLUGIN = "wicked-garden:steering-tail"
 
 
+#: Probe timeout for the wicked-bus reachability check (seconds). Mirrors the
+#: 5s budget used by ``scripts/_bus.py:_EMIT_TIMEOUT_SECONDS`` so the probe
+#: matches what the rest of the plugin considers "fast" for the bus.
+_BUS_PROBE_TIMEOUT_SECONDS = 5.0
+
+
 def _resolve_bus_command() -> Optional[list]:
     """Find the wicked-bus binary or fall back to npx. Returns argv prefix.
 
-    Mirrors the resolution in ``scripts/_bus.py:_resolve_binary``.
+    Mirrors the resolution in ``scripts/_bus.py:_resolve_binary`` — including
+    the actual reachability probe (``wicked-bus status --json``) for the npx
+    path so we don't treat "npx exists" as "wicked-bus reachable" (npx will
+    download the package on first use, which can hang for tens of seconds).
     """
     direct = shutil.which("wicked-bus")
     if direct:
         return [direct]
     npx = shutil.which("npx")
-    if npx:
-        return [npx, "wicked-bus"]
-    return None
+    if npx is None:
+        return None
+    # npx is on PATH — confirm wicked-bus is actually installed/reachable by
+    # running a fast status probe. If this hangs/fails, treat the bus as
+    # unreachable rather than letting `subscribe` block on a package install.
+    try:
+        result = subprocess.run(
+            [npx, "wicked-bus", "status", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=_BUS_PROBE_TIMEOUT_SECONDS,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return [npx, "wicked-bus"]
 
 
 def _parse_args(argv: Optional[list] = None) -> argparse.Namespace:
@@ -159,10 +182,15 @@ def _stream(args: argparse.Namespace) -> int:
     signal.signal(signal.SIGINT, _on_sigint)
 
     try:
+        # IMPORTANT: stream stderr directly to our stderr instead of buffering
+        # to a PIPE. The subscribe child can write enough to stderr to fill the
+        # OS pipe buffer; if we only drain stderr at exit, the child blocks
+        # mid-stream and the tail appears to hang. Routing it straight through
+        # also gives the user live error visibility.
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=sys.stderr,
             text=True,
         )
     except FileNotFoundError:
@@ -200,13 +228,19 @@ def _stream(args: argparse.Namespace) -> int:
                 proc.kill()
         return 0
     finally:
-        # Drain stderr if the child exited with a non-zero status — surface
-        # the bus error to the user instead of swallowing it.
-        rc = proc.poll()
-        if rc is not None and rc != 0 and proc.stderr is not None:
-            err = proc.stderr.read()
-            if err:
-                sys.stderr.write(err)
+        # Ensure the child is fully reaped before we read returncode. proc.poll()
+        # alone can return None for a process that has just exited but hasn't
+        # been waited on yet, masking a non-zero exit. wait(timeout=2) blocks
+        # briefly for the reap; if the child somehow refuses to exit we kill
+        # it so we don't leave an orphan around.
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass  # last-resort: caller will see returncode=None below
 
     return proc.returncode if proc.returncode is not None else 0
 

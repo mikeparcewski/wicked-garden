@@ -23,9 +23,12 @@ Usage::
         validate_payload,
     )
 
-    errors = validate_payload("wicked.steer.escalated", payload_dict)
+    errors, warnings = validate_payload("wicked.steer.escalated", payload_dict)
     if errors:
         # reject — see errors list for details
+        ...
+    for w in warnings:
+        # log/surface warnings but do not block
         ...
 
 PR-1 of the steering detector epic ships ONLY the event family wiring. No
@@ -35,7 +38,8 @@ detectors, no behavior subscribers — see ``docs/steering-detectors.md``.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any, List, Tuple
 
 # ---------------------------------------------------------------------------
 # Allowlists — locked at PR-1, intentionally narrow.
@@ -89,24 +93,34 @@ _ISO8601_RE = re.compile(
 )
 
 
-def validate_payload(event_type: str, payload: Dict[str, Any]) -> List[str]:
+def validate_payload(
+    event_type: str,
+    payload: Any,
+) -> Tuple[List[str], List[str]]:
     """Validate a steering event payload.
 
-    Returns a list of error strings. Empty list = valid.
+    Returns a ``(errors, warnings)`` tuple. Empty errors list = valid (the
+    payload may still produce warnings — those are advisory only).
 
-    Unknown ``recommended_action`` values are reported as warning strings
-    (prefix ``warning:``) rather than hard errors — actions are loose by
-    design (see ``KNOWN_ACTIONS`` docstring). Callers that want to treat
-    warnings as errors can do so explicitly.
+    Unknown ``recommended_action`` values are reported as warnings rather than
+    hard errors — actions are loose by design (see ``KNOWN_ACTIONS``
+    docstring). Callers that want strict mode can treat warnings as errors.
+
+    The ``payload`` parameter is typed as ``Any`` because the validator
+    intentionally handles non-dict inputs (it reports them as a hard error
+    rather than crashing on attribute access).
 
     Args:
         event_type: Bus event_type (e.g. ``wicked.steer.escalated``).
-        payload: The payload dict.
+        payload: The payload (expected to be a dict; non-dicts produce a
+            hard error and short-circuit the rest of the checks).
 
     Returns:
-        List of error/warning strings. Empty if fully valid.
+        ``(errors, warnings)`` — both lists are empty when the payload is
+        fully valid with no advisory notes.
     """
     errors: List[str] = []
+    warnings: List[str] = []
 
     # event_type validation is independent of payload shape.
     if event_type not in KNOWN_EVENT_TYPES:
@@ -117,7 +131,7 @@ def validate_payload(event_type: str, payload: Dict[str, Any]) -> List[str]:
 
     if not isinstance(payload, dict):
         errors.append(f"payload must be a dict, got {type(payload).__name__}")
-        return errors  # nothing more we can validate
+        return errors, warnings  # nothing more we can validate
 
     # Required field presence.
     for field in _REQUIRED_FIELDS:
@@ -153,8 +167,8 @@ def validate_payload(event_type: str, payload: Dict[str, Any]) -> List[str]:
             )
         elif action not in KNOWN_ACTIONS:
             # WARNING, not error — actions are loose by design.
-            errors.append(
-                f"warning: unknown recommended_action: {action!r} "
+            warnings.append(
+                f"unknown recommended_action: {action!r} "
                 f"(known: {sorted(KNOWN_ACTIONS)}; loose set, will not block)"
             )
 
@@ -187,8 +201,20 @@ def validate_payload(event_type: str, payload: Dict[str, Any]) -> List[str]:
             errors.append(
                 f"timestamp must be ISO8601 (e.g. 2026-04-27T10:00:00Z), got {ts!r}"
             )
+        else:
+            # Shape passed. Now confirm the components are real calendar/clock
+            # values — the regex alone accepts e.g. 2026-99-99T99:99:99Z.
+            # datetime.fromisoformat() in Py3.9 doesn't accept the trailing
+            # 'Z' literal, so normalize it to '+00:00' before parsing.
+            normalized = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
+            try:
+                datetime.fromisoformat(normalized)
+            except ValueError as exc:
+                errors.append(
+                    f"timestamp is not a real ISO8601 datetime: {ts!r} ({exc})"
+                )
 
-    return errors
+    return errors, warnings
 
 
 __all__ = [
