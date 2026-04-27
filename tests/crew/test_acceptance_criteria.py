@@ -640,48 +640,72 @@ class TestMultiSectionACHandling(unittest.TestCase):
         self.assertIn("AC-2", ids)
 
     def test_two_ac_sections_both_captured(self):
-        """Two AC sections → ALL items from BOTH are returned (#618 fix).
+        """Two per-feature AC sections → items from BOTH are returned (#618 fix).
 
-        Heading patterns must match ``_RE_AC_SECTION`` (which anchors on
-        ``acceptance criteria`` or ``ACs``).  We use two ``## Acceptance
-        Criteria`` headings with intervening non-AC sections so the parser
-        can only see both blocks if it walks past the first match.
+        Uses the per-feature heading form (``## Auth Acceptance Criteria`` +
+        ``## Payments Acceptance Criteria``) — the exact case the #618
+        regression silently dropped before the fold-in. Asserting on item
+        *content* (not just count) is the load-bearing check: a count-only
+        assertion (`>= 2`) would pass even if section 2's items were silently
+        deduped against section 1's ``AC-1``/``AC-2`` numbering and lost.
+
+        Documented dedup behaviour: ``parse_acs_from_markdown`` dedups by
+        canonical ID. Per-feature sections that share the ``1.``/``2.``
+        numbering will collide and only the first-seen statement wins. We
+        avoid that collision here by using disjoint numbering across the
+        two sections, so both statements survive and the 'walked past first
+        section' invariant is checkable from the output.
         """
         md = (
-            "## Acceptance Criteria\n\n"
+            "## Auth Acceptance Criteria\n\n"
             "1. User can log in\n"
             "2. User can log out\n\n"
             "## Implementation Notes\n\n"
             "Some prose about how to build it.\n\n"
-            "## Acceptance Criteria\n\n"
-            "1. User can checkout\n"
-            "2. User receives receipt\n"
+            "## Payments Acceptance Criteria\n\n"
+            "3. User can checkout\n"
+            "4. User receives receipt\n"
         )
         acs = self._parse(md)
-        # Numbered items use the canonical "AC-{n}" form; the two sections
-        # share IDs AC-1 and AC-2 by index, so dedup keeps the first-seen
-        # statement. The behavioural proof that BOTH sections were walked is
-        # the SLICE helper itself returning >= 2 entries — verified directly
-        # below in the section-helper unit test.
+        statements = [a.statement for a in acs]
         ids = [a.id for a in acs]
-        self.assertGreaterEqual(
-            len(acs),
-            2,
-            f"Expected at least 2 ACs spanning both sections, got {len(acs)}: {ids}",
+
+        # Behavioural proof: a specific item from EACH section must surface.
+        # If the parser stops at the first AC heading (the pre-#618 bug),
+        # "User can checkout" / "User receives receipt" are missing.
+        self.assertIn(
+            "User can log in",
+            statements,
+            f"Section-1 item missing — parser did not walk Auth section. ids={ids}",
         )
-        self.assertIn("AC-1", ids)
-        self.assertIn("AC-2", ids)
+        self.assertIn(
+            "User can checkout",
+            statements,
+            f"Section-2 item missing — parser stopped at Auth heading and "
+            f"never reached Payments (pre-#618 bug). ids={ids}, statements={statements}",
+        )
+        self.assertIn(
+            "User receives receipt",
+            statements,
+            f"Section-2 second item missing — partial walk of Payments section. "
+            f"ids={ids}, statements={statements}",
+        )
 
     def test_extract_slices_helper_returns_all_sections(self):
-        """Helper returns one slice per AC heading — direct proof of #618 fix."""
+        """Helper returns one slice per AC heading — direct proof of #618 fix.
+
+        Uses per-feature heading form to exercise both the slice walker AND
+        the regex extension that lets ``## Auth Acceptance Criteria`` /
+        ``## Payments Acceptance Criteria`` register as AC headings.
+        """
         from acceptance_criteria import _extract_ac_section_slices
 
         md = (
-            "## Acceptance Criteria\n\n"
+            "## Auth Acceptance Criteria\n\n"
             "1. Login works\n\n"
             "## Implementation Notes\n\n"
             "Prose.\n\n"
-            "## Acceptance Criteria\n\n"
+            "## Payments Acceptance Criteria\n\n"
             "1. Checkout works\n"
         )
         slices = _extract_ac_section_slices(md)
@@ -690,7 +714,8 @@ class TestMultiSectionACHandling(unittest.TestCase):
             2,
             f"Expected 2 AC-section slices (#618), got {len(slices)}: {slices!r}.\n"
             f"Pre-fix bug: only the first AC section was returned; the second "
-            f"section was silently dropped.",
+            f"section was silently dropped. Also exercises the regex extension "
+            f"that recognises per-feature heading prefixes.",
         )
         # First slice contains the first section's content; second contains the second's.
         self.assertIn("Login works", slices[0])
@@ -701,11 +726,11 @@ class TestMultiSectionACHandling(unittest.TestCase):
         from acceptance_criteria import _extract_ac_section_slice
 
         md = (
-            "## Acceptance Criteria\n\n"
+            "## Auth Acceptance Criteria\n\n"
             "1. First section item\n\n"
             "## Implementation Notes\n\n"
             "Prose.\n\n"
-            "## Acceptance Criteria\n\n"
+            "## Payments Acceptance Criteria\n\n"
             "1. Second section item\n"
         )
         result = _extract_ac_section_slice(md)

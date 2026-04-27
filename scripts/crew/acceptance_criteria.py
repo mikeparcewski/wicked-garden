@@ -80,8 +80,24 @@ _RE_NUMBERED = re.compile(
 )
 
 # Section header detector for numbered-list context.
+#
+# Matches three families of headings (hashes 1-6, any depth):
+#   1. Canonical:        "## Acceptance Criteria"
+#   2. Per-feature:      "## Auth Acceptance Criteria", "## Payments Acceptance Criteria"
+#                        — any prefix words followed by "Acceptance Criteria"
+#                        (Issue #618: required so multi-section AC handling
+#                        actually picks up the per-feature blocks the
+#                        _extract_ac_section_slices walker is designed to find)
+#   3. Short alias:      "## ACs", "## ACs for module X"
+#
+# The "acceptance[\s_-]*criteri\w*" leg keeps the original camel-case-friendly
+# behaviour (matches "AcceptanceCriteria" with no separator) and tolerates
+# trailing inflections ("Criterion", "Criteria").
 _RE_AC_SECTION = re.compile(
-    r"#{1,4}\s+(?:acceptance[\s_-]*criteri|acs?\b)",
+    r"^#{1,6}\s+(?:"
+    r"(?:[^\n]*?\b)?acceptance[\s_-]*criteri\w*"
+    r"|acs?\b"
+    r")",
     re.IGNORECASE,
 )
 
