@@ -697,6 +697,11 @@ def _stream_loop(
         )
         return 1
 
+    # Track whether SIGINT was received so we can return 0 on graceful exit
+    # while still letting `finally` own all subprocess cleanup. PR #683 had a
+    # bot finding flagging redundant cleanup between this except block and
+    # the finally block — consolidated here.
+    graceful_exit = False
     try:
         assert proc.stdout is not None  # type: ignore[unreachable]
         for line in proc.stdout:
@@ -721,23 +726,22 @@ def _stream_loop(
             )
             sys.stdout.flush()
     except KeyboardInterrupt:
+        graceful_exit = True
+    finally:
+        # Single cleanup path — terminate-then-kill ladder with bounded waits.
         if proc.poll() is None:
             proc.terminate()
             try:
                 proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        return 0
-    finally:
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                pass  # intentional: last-resort cleanup; caller observes exit via returncode
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass  # intentional: last-resort cleanup; caller observes exit via returncode
 
+    if graceful_exit:
+        return 0
     return proc.returncode if proc.returncode is not None else 0
 
 
