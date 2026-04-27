@@ -243,6 +243,61 @@ class InputValidation(unittest.TestCase):
                 patterns=[{"glob": "**/x.py", "extensions": [".py"]}],  # no category
             )
 
+    def test_custom_pattern_extensions_as_string_raises_typeerror(self):
+        # P5 — strings iterate per-char; ``tuple(".py")`` becomes
+        # ``('.', 'p', 'y')`` and silently breaks the extension filter.
+        # Validate early with a clear TypeError.
+        with self.assertRaises(TypeError) as ctx:
+            detector.detect_sensitive_path_touch(
+                ["x.py"],
+                session_id="s1", project_slug="demo",
+                patterns=[{
+                    "glob": "**/foo",
+                    "extensions": ".py",  # WRONG: string, not list
+                    "category": "test",
+                }],
+            )
+        # Message should hint at the fix.
+        self.assertIn("list", str(ctx.exception).lower())
+
+    def test_custom_pattern_extensions_as_int_raises_valueerror(self):
+        with self.assertRaises(ValueError):
+            detector.detect_sensitive_path_touch(
+                ["x.py"],
+                session_id="s1", project_slug="demo",
+                patterns=[{
+                    "glob": "**/foo",
+                    "extensions": 42,  # WRONG: not iterable
+                    "category": "test",
+                }],
+            )
+
+    def test_custom_pattern_extensions_as_tuple_is_accepted(self):
+        # Tuples and sets are valid alongside lists — make sure we don't
+        # accidentally over-restrict.
+        events = detector.detect_sensitive_path_touch(
+            ["src/widget/foo.py"],
+            session_id="s1", project_slug="demo",
+            patterns=[{
+                "glob": "**/widget/**",
+                "extensions": (".py",),
+                "category": "auth",
+            }],
+        )
+        self.assertEqual(len(events), 1, events)
+
+    def test_custom_pattern_extensions_as_set_is_accepted(self):
+        events = detector.detect_sensitive_path_touch(
+            ["src/widget/foo.py"],
+            session_id="s1", project_slug="demo",
+            patterns=[{
+                "glob": "**/widget/**",
+                "extensions": {".py", ".ts"},
+                "category": "auth",
+            }],
+        )
+        self.assertEqual(len(events), 1, events)
+
 
 # ---------------------------------------------------------------------------
 # Emitter — bus interaction

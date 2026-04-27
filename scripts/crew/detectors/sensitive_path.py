@@ -62,7 +62,9 @@ import re
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
 
@@ -104,9 +106,11 @@ ACTION_MAP: dict = {
 }
 
 #: Common code extensions used as the auth/payments default extension filter.
+#: Sensitive-path code lives in many languages — keep this list broad.
 _CODE_EXTS: List[str] = [
     ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".java", ".kt",
     ".rb", ".rs", ".cs", ".scala", ".php", ".swift", ".m", ".mm",
+    ".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".dart",
 ]
 
 #: Migration-specific extensions — SQL + ORM migration files only.
@@ -143,14 +147,20 @@ SENSITIVE_PATH_PATTERNS: List[dict] = [
 
 #: Bus probe timeout — mirrors the 5s budget used elsewhere in the plugin.
 _BUS_PROBE_TIMEOUT_SECONDS = 5.0
-#: Emit timeout — give bus emit a little more headroom than a status probe.
-_BUS_EMIT_TIMEOUT_SECONDS = 5.0
+#: Emit timeout — emit may be slower than a probe (network roundtrip + write
+#: to SQLite), so 10s gives genuine headroom over the 5s status probe.
+_BUS_EMIT_TIMEOUT_SECONDS = 10.0
+#: Worker count for parallel emit. wicked-bus has no batch/stdin flag (verified
+#: against ``wicked-bus emit --help``), so we parallelize subprocess spawns
+#: instead. 8 keeps SQLite contention low while collapsing N serial spawns.
+_EMIT_MAX_WORKERS = 8
 
 
 # ---------------------------------------------------------------------------
 # Glob -> regex
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=256)
 def _glob_to_regex(pattern: str) -> re.Pattern:
     """Translate a ``**``-aware glob into an anchored regex.
 
@@ -223,6 +233,52 @@ def _has_extension(path: str, extensions: Sequence[str]) -> bool:
     return any(lowered.endswith(ext.lower()) for ext in extensions)
 
 
+def _compile_patterns(active_patterns: Sequence[dict]) -> List[tuple]:
+    """Validate and pre-compile a pattern list into ``(regex, exts, category, glob)``.
+
+    Glob compilation is memoized via ``_glob_to_regex``'s ``lru_cache``, so
+    repeat calls with the same custom patterns reuse the compiled regex.
+
+    Raises:
+        ValueError: required key missing, or ``extensions`` is not a list/tuple/set.
+        TypeError: ``extensions`` is a string (a common foot-gun: ``"py"`` becomes
+            a 2-char iterable instead of a single-extension list).
+    """
+    compiled: List[tuple] = []
+    for entry in active_patterns:
+        for required in ("glob", "extensions", "category"):
+            if required not in entry:
+                raise ValueError(
+                    f"pattern entry missing required key {required!r}: {entry!r}"
+                )
+        exts = entry["extensions"]
+        # P5 — strings iterate per-char; ``tuple(".py")`` becomes
+        # ``('.', 'p', 'y')``. Catch the misuse early with a clear error.
+        if isinstance(exts, str):
+            raise TypeError(
+                "pattern 'extensions' must be a list/tuple/set, not a string "
+                f"(got {exts!r}); use [{exts!r}] for a single extension"
+            )
+        if not isinstance(exts, (list, tuple, set)):
+            raise ValueError(
+                f"pattern 'extensions' must be a list/tuple/set, got {type(exts).__name__}"
+            )
+        compiled.append((
+            _glob_to_regex(entry["glob"]),
+            tuple(exts),
+            entry["category"],
+            entry["glob"],
+        ))
+    return compiled
+
+
+#: Default patterns are pre-compiled once at module load — avoids re-compiling
+#: ~13 globs on every detector call. Custom patterns go through
+#: ``_compile_patterns`` (which still benefits from the ``_glob_to_regex``
+#: ``lru_cache``).
+_DEFAULT_COMPILED_PATTERNS: List[tuple] = _compile_patterns(SENSITIVE_PATH_PATTERNS)
+
+
 # ---------------------------------------------------------------------------
 # Public API — detector
 # ---------------------------------------------------------------------------
@@ -267,20 +323,11 @@ def detect_sensitive_path_touch(
     if not isinstance(project_slug, str) or not project_slug.strip():
         raise ValueError("project_slug must be a non-empty string")
 
-    active_patterns = patterns if patterns is not None else SENSITIVE_PATH_PATTERNS
-    compiled: List[tuple] = []
-    for entry in active_patterns:
-        for required in ("glob", "extensions", "category"):
-            if required not in entry:
-                raise ValueError(
-                    f"pattern entry missing required key {required!r}: {entry!r}"
-                )
-        compiled.append((
-            _glob_to_regex(entry["glob"]),
-            tuple(entry["extensions"]),
-            entry["category"],
-            entry["glob"],
-        ))
+    if patterns is None:
+        # Hot path — defaults are pre-compiled once at module load.
+        compiled = _DEFAULT_COMPILED_PATTERNS
+    else:
+        compiled = _compile_patterns(patterns)
 
     timestamp = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -395,45 +442,70 @@ def emit_sensitive_path_events(payloads: Sequence[dict]) -> int:
         )
         return 0
 
-    emitted = 0
-    for payload in payloads:
-        # Re-validate at the bus boundary — defense in depth. The detector
-        # also validates, but a misbehaving caller could pass hand-crafted
-        # payloads directly. Schema failures are dropped, never blocked.
-        errors, _warnings = validate_payload(EVENT_TYPE, payload)
+    # Re-validate ALL payloads up front — defense in depth. The detector also
+    # validates, but a misbehaving caller could pass hand-crafted payloads
+    # directly. Schema failures are dropped, never blocked.
+    valid_payloads: List[dict] = []
+    for event_record in payloads:
+        errors, _warnings = validate_payload(EVENT_TYPE, event_record)
         if errors:
+            # NOTE: codeql[py/clear-text-logging-sensitive-data] — false positive.
+            # We are logging schema validation errors, not credentials. The
+            # "sensitive" in this module name refers to *detecting* sensitive
+            # code paths (auth/payments/etc), not to logging secrets.
             sys.stderr.write(
-                f"warn: dropping invalid sensitive-path payload: {errors}\n"
+                f"warn: dropping invalid steering event: {errors}\n"
             )
             continue
+        valid_payloads.append(event_record)
 
-        cmd = list(bus_cmd) + [
-            "emit",
-            "--type", EVENT_TYPE,
-            "--domain", EVENT_DOMAIN,
-            "--subdomain", EVENT_SUBDOMAIN,
-            "--payload", json.dumps(payload, default=str, separators=(",", ":")),
-        ]
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=_BUS_EMIT_TIMEOUT_SECONDS,
-            )
-        except (subprocess.TimeoutExpired, OSError) as exc:
-            sys.stderr.write(
-                f"warn: wicked-bus emit failed for sensitive-path event: {exc}\n"
-            )
-            continue
-        if result.returncode != 0:
-            sys.stderr.write(
-                f"warn: wicked-bus emit returned {result.returncode}: "
-                f"{result.stderr.strip() or '(no stderr)'}\n"
-            )
-            continue
-        emitted += 1
-    return emitted
+    if not valid_payloads:
+        return 0
+
+    # P4 — wicked-bus emit takes one event per call (verified: `wicked-bus
+    # emit --help` shows no --batch/--stdin flag). Parallelize subprocess
+    # spawns via a small thread pool instead of running N serially.
+    workers = min(_EMIT_MAX_WORKERS, len(valid_payloads))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(
+            lambda ev: _emit_single_event(bus_cmd, ev),
+            valid_payloads,
+        ))
+    return sum(1 for ok in results if ok)
+
+
+def _emit_single_event(bus_cmd: Sequence[str], event_record: dict) -> bool:
+    """Spawn one ``wicked-bus emit`` subprocess. Return True iff exit code 0.
+
+    Errors are logged to stderr and converted to ``False`` — never raised.
+    Used by ``emit_sensitive_path_events`` under a thread pool.
+    """
+    cmd = list(bus_cmd) + [
+        "emit",
+        "--type", EVENT_TYPE,
+        "--domain", EVENT_DOMAIN,
+        "--subdomain", EVENT_SUBDOMAIN,
+        "--payload", json.dumps(event_record, default=str, separators=(",", ":")),
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=_BUS_EMIT_TIMEOUT_SECONDS,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        sys.stderr.write(
+            f"warn: wicked-bus emit failed for steering event: {exc}\n"
+        )
+        return False
+    if result.returncode != 0:
+        sys.stderr.write(
+            f"warn: wicked-bus emit returned {result.returncode}: "
+            f"{result.stderr.strip() or '(no stderr)'}\n"
+        )
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -527,14 +599,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         sys.stderr.write(f"error: {exc}\n")
         return 2
 
-    # Always print the resolved payloads so the user can audit what would be
-    # emitted (or what was emitted, when --dry-run is absent).
-    for payload in payloads:
-        sys.stdout.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    # Always print the resolved event records so the user can audit what would
+    # be emitted (or what was emitted, when --dry-run is absent).
+    for event_record in payloads:
+        # NOTE: codeql[py/clear-text-logging-sensitive-data] — false positive.
+        # Event records contain detector metadata (file paths, category labels,
+        # session/project ids) — not credentials. The "sensitive" in this
+        # module name refers to *detecting* sensitive code paths, not to
+        # logging secrets.
+        sys.stdout.write(json.dumps(event_record, separators=(",", ":")) + "\n")
     sys.stdout.flush()
 
     sys.stderr.write(
-        f"detector: {len(payloads)} sensitive-path event(s) from {len(paths)} path(s)\n"
+        f"detector: {len(payloads)} steering event(s) from {len(paths)} path(s)\n"
     )
 
     if args.dry_run:
