@@ -37,7 +37,23 @@ _CLOSE_MATCHES_N = 3
 _CLOSE_MATCHES_CUTOFF = 0.6
 
 VALID_RIGOR_TIERS = {"minimal", "standard", "full"}
+# NB(#627): `reading` uses the inverted HIGH=safest convention (kept for
+# backward compat). Internal-only — never display to users without translation.
+# `risk_level` (below) is the direction-explicit, user-facing field.
 VALID_FACTOR_READINGS = {"LOW", "MEDIUM", "HIGH"}
+# NB(#627): `risk_level` is the direction-explicit, user-facing field emitted
+# by `factor_questionnaire.score_all()`. Validation here defends against silent
+# producer regression that would drop the field and force consumers back onto
+# the inversion-prone `reading` value.
+VALID_FACTOR_RISK_LEVELS = {"low_risk", "medium_risk", "high_risk"}
+# Mapping mirrors `_RISK_INVERSION` in `scripts/crew/factor_questionnaire.py`.
+# Keep the two in sync — drift here means the validator stops catching producer
+# regression. Tests cover the round-trip in tests/crew/test_validate_plan.py.
+_EXPECTED_RISK_LEVEL_FOR_READING = {
+    "HIGH": "low_risk",
+    "MEDIUM": "medium_risk",
+    "LOW": "high_risk",
+}
 VALID_EVENT_TYPES = {
     "task", "coding-task", "gate-finding",
     "phase-transition", "procedure-trigger", "subtask",
@@ -138,6 +154,24 @@ def _check_factors(plan: dict, violations: list) -> None:
             violations.append(
                 f"factors.{key}.reading — '{reading}' is not one of {sorted(VALID_FACTOR_READINGS)}"
             )
+        # #627: `risk_level` is the user-facing translation of `reading`.
+        # Allow it to be absent on legacy plans (back-compat with pre-#626
+        # facilitator output) but reject any drift when it IS present.
+        if "risk_level" in value:
+            risk_level = value.get("risk_level")
+            if risk_level not in VALID_FACTOR_RISK_LEVELS:
+                violations.append(
+                    f"factors.{key}.risk_level — '{risk_level}' is not one of "
+                    f"{sorted(VALID_FACTOR_RISK_LEVELS)}"
+                )
+            elif reading in _EXPECTED_RISK_LEVEL_FOR_READING:
+                expected = _EXPECTED_RISK_LEVEL_FOR_READING[reading]
+                if risk_level != expected:
+                    violations.append(
+                        f"factors.{key} — risk_level '{risk_level}' does not "
+                        f"match reading '{reading}' (expected '{expected}'; "
+                        f"see scripts/crew/factor_questionnaire.py::_RISK_INVERSION)"
+                    )
         why = value.get("why")
         if not why or not str(why).strip():
             violations.append(f"factors.{key}.why — must be a non-empty string")
@@ -427,6 +461,22 @@ _INVALID_FIXTURES = [
     ("bad event_type", lambda p: {
         **p,
         "tasks": [{**p["tasks"][0], "metadata": {**p["tasks"][0]["metadata"], "event_type": "garbage"}}],
+    }),
+    # #627: bad risk_level enum value
+    ("bad factor risk_level enum", lambda p: {
+        **p,
+        "factors": {
+            **p["factors"],
+            "reversibility": {"reading": "LOW", "risk_level": "wat", "why": "idk"},
+        },
+    }),
+    # #627: risk_level mismatched against reading (LOW reading == high_risk)
+    ("factor risk_level inverted vs reading", lambda p: {
+        **p,
+        "factors": {
+            **p["factors"],
+            "reversibility": {"reading": "LOW", "risk_level": "low_risk", "why": "idk"},
+        },
     }),
 ]
 

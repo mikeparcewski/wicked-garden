@@ -21,16 +21,23 @@ rubric against a scenario's expected-outcome block.
     {"path": "memory/foo.md", "source_type": "memory", "why": "one sentence"}
   ],
   "factors": {
-    "reversibility":      {"reading": "LOW|MEDIUM|HIGH", "why": "..."},
-    "blast_radius":       {"reading": "LOW|MEDIUM|HIGH", "why": "..."},
-    "compliance_scope":   {"reading": "LOW|MEDIUM|HIGH", "why": "..."},
-    "user_facing_impact": {"reading": "LOW|MEDIUM|HIGH", "why": "..."},
-    "novelty":            {"reading": "LOW|MEDIUM|HIGH", "why": "..."},
-    "scope_effort":       {"reading": "LOW|MEDIUM|HIGH", "why": "..."},
-    "state_complexity":   {"reading": "LOW|MEDIUM|HIGH", "why": "..."},
-    "operational_risk":   {"reading": "LOW|MEDIUM|HIGH", "why": "..."},
-    "coordination_cost":  {"reading": "LOW|MEDIUM|HIGH", "why": "..."}
+    "reversibility":      {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "blast_radius":       {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "compliance_scope":   {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "user_facing_impact": {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "novelty":            {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "scope_effort":       {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "state_complexity":   {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "operational_risk":   {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
+    "coordination_cost":  {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."}
   },
+  // NB(#627): each factor entry carries BOTH `reading` (HIGH/MEDIUM/LOW;
+  // HIGH = safest, LOW = riskiest — backward-compat convention) AND
+  // `risk_level` (low_risk/medium_risk/high_risk — direction-explicit,
+  // user-facing). Internal logic (threshold/diff) uses `reading`; any
+  // user-facing display (process-plan.md, brain memory content, status
+  // summaries) MUST use `risk_level` to avoid the inversion footgun.
+  // `reading` is a candidate for deprecation in a future major.
   "specialists": [
     {"name": "requirements-analyst", "why": "one sentence"},
     {

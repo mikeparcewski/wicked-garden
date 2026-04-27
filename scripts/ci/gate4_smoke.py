@@ -201,6 +201,10 @@ def _test_types_union(plan: dict) -> set[str]:
 
 
 def _factor_reading(plan: dict, factor: str) -> str:
+    # NB(#627): scenario YAMLs declare expectations as LOW/MEDIUM/HIGH (the
+    # backward-compat `reading` convention; HIGH=safest). Internal-only CI
+    # comparison — never surfaced to users in this form. User-facing output
+    # should prefer the `risk_level` field (`low_risk`/`medium_risk`/`high_risk`).
     f = (plan.get("factors") or {}).get(factor) or {}
     return str(f.get("reading") or "").upper()
 

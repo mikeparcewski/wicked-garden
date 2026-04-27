@@ -34,17 +34,21 @@ any risk words heard.>
 
 ## 3. Factor scoring
 
-| Factor              | Reading | One-sentence reasoning                          |
-|---------------------|---------|-------------------------------------------------|
-| Reversibility       | LOW/MED/HIGH | <one sentence>                             |
-| Blast radius        | LOW/MED/HIGH | <one sentence>                             |
-| Compliance scope    | LOW/MED/HIGH | <one sentence>                             |
-| User-facing impact  | LOW/MED/HIGH | <one sentence>                             |
-| Novelty             | LOW/MED/HIGH | <one sentence>                             |
-| Scope effort        | LOW/MED/HIGH | <one sentence>                             |
-| State complexity    | LOW/MED/HIGH | <one sentence>                             |
-| Operational risk    | LOW/MED/HIGH | <one sentence>                             |
-| Coordination cost   | LOW/MED/HIGH | <one sentence>                             |
+> **Direction**: this table renders the user-facing `risk_level` field
+> (`low_risk` / `medium_risk` / `high_risk`) — NOT the backward-compat
+> `reading` field, which is inverted (HIGH = safest). See #627.
+
+| Factor              | Risk level | One-sentence reasoning                       |
+|---------------------|------------|----------------------------------------------|
+| Reversibility       | low_risk / medium_risk / high_risk | <one sentence>         |
+| Blast radius        | low_risk / medium_risk / high_risk | <one sentence>         |
+| Compliance scope    | low_risk / medium_risk / high_risk | <one sentence>         |
+| User-facing impact  | low_risk / medium_risk / high_risk | <one sentence>         |
+| Novelty             | low_risk / medium_risk / high_risk | <one sentence>         |
+| Scope effort        | low_risk / medium_risk / high_risk | <one sentence>         |
+| State complexity    | low_risk / medium_risk / high_risk | <one sentence>         |
+| Operational risk    | low_risk / medium_risk / high_risk | <one sentence>         |
+| Coordination cost   | low_risk / medium_risk / high_risk | <one sentence>         |
 
 ## 4. Specialists selected
 

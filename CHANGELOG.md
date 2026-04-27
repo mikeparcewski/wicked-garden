@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- `factor_questionnaire` consumer audit (#627): user-facing render sites now use `risk_level` (`low_risk`/`medium_risk`/`high_risk`) instead of the inverted `reading` field (HIGH=safest backward-compat). Internal-only call sites annotated with the inversion convention. Producer surface unchanged. Affected sites: `skills/propose-process/refs/plan-template.md` (process-plan.md table), `skills/propose-process/refs/output-schema.md` (schema example), `commands/crew/start.md` (user report + brain memory store), `commands/crew/execute.md` (factor diff + injection report), `commands/crew/just-finish.md` (factor diff + injection report), `agents/crew/process-facilitator.md` (Step 3 emit shape), `scripts/crew/validate_plan.py` (now also validates `risk_level` enum + cross-checks against `reading` when present), `scripts/ci/gate4_smoke.py` (annotated as internal-only).
+
+### Deprecation candidates
+- `factors[].reading` (HIGH/MEDIUM/LOW; HIGH=safest) — kept for backward compat in #626; #627 audit migrated all user-facing sites to `risk_level`. Slated for removal in a future major once the inversion convention can no longer surprise downstream contributors. No removal in this release.
+
 ### Added
 - Steering detector event family — `wicked.steer.*` on the bus, reference tail subscriber (`scripts/crew/steering_tail.py`), schema validator (`scripts/crew/steering_event_schema.py`). No detectors yet (PR-1 of epic).
 - First steering detector: `detect_sensitive_path_touch` — emits `wicked.steer.escalated` when sessions touch auth/payments/migration/secrets code (PR-2 of epic #679). Detector + emitter are separated for testability; every emitted payload is re-validated against the PR-1 schema; bus-unreachable is fail-open.
