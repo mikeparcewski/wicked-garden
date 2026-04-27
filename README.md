@@ -213,7 +213,7 @@ The plugin works fully standalone. Each integration adds capability but nothing 
 | Persistent cross-session memory | No — each session starts fresh | Yes — decisions surface automatically when relevant |
 | Automatic context assembly | No — must manually recap | Yes — smaht injects memory + search + project state every turn |
 | Enforced quality gates | No — suggestions, often skipped | Yes — PreToolUse validator + gate-policy denies advancement when evidence is missing |
-| Runtime specialist routing | No — fixed roles | Yes — facilitator reads agent frontmatter dynamically; 75 specialists on disk |
+| Runtime specialist routing | No — fixed roles | Yes — facilitator reads agent frontmatter dynamically; 63 specialists on disk |
 | Native task metadata envelope | No | Yes — `chain_id`, `event_type`, `source_agent`, `phase`, `archetype` validated on every TaskCreate |
 | Procedure injection per role | No | Yes — SubagentStart hook injects R1–R6 for coding-tasks, Gate Finding Protocol for gate-findings |
 | Convergence tracking | No | Yes — Designed → Built → Wired → Tested → Integrated → Verified with stall detection |
