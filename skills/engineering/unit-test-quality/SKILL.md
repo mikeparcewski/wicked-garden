@@ -3,16 +3,18 @@ name: unit-test-quality
 description: |
   Language- and framework-neutral guard against useless unit tests — the kind
   that pass forever, never catch regressions, and inflate coverage without
-  protecting behavior. Provides a pre-write self-check, a taxonomy of seven
-  recurring anti-patterns (tautological, assertion-free, implementation mirror,
-  framework retest, constant verification, sleep-coupled, exception-swallowing),
-  and a one-line decision rule per pattern.
+  protecting behavior. Provides two complementary thought-experiment filters
+  (execution + behavior), a pre-write self-check, a taxonomy of seven recurring
+  anti-patterns (tautological, assertion-free, implementation mirror, framework
+  retest, constant verification, sleep-coupled, exception-swallowing), and a
+  one-line decision rule per pattern.
 
   Use when: writing a new unit test, reviewing a test diff, auditing a suite
   with high coverage but low confidence, "is this test worth keeping",
   "why didn't our tests catch that bug", before approving a PR that adds tests,
   pairing a test with a bug fix, "this test feels redundant".
 status: stable
+portability: portable
 ---
 
 # Unit Test Quality
@@ -21,18 +23,28 @@ A test you cannot break by changing the system under test (SUT) is not a test �
 it is dead weight. This skill exists because suites grow faster than they shrink,
 and "100% coverage" is no defense against a suite that asserts the wrong things.
 
-## The one-question filter
+## Two complementary filters
 
-Before writing or approving a unit test, ask:
+No single mechanical filter catches every useless test — each anti-pattern
+below has its own diagnostic. But two thought experiments catch the most common
+cases and are language-neutral. Apply them in order; if either says "cut," you
+are looking at a test that does not earn its keep.
 
-> **If I delete the body of the function under test and replace it with `throw "intentional"`, does this test fail?**
+### Filter A — execution check
 
-- **Fails** → the test is exercising real behavior. Keep it.
-- **Still passes** → the test is testing nothing the production code controls. Cut it or rewrite it.
-- **Errors out before assertion** → the test is testing wiring, not behavior. Probably an integration concern, not a unit test.
+> **If I replace the body of the SUT with a force-fail (`throw` / `raise` / `panic` / equivalent), does the test still pass?**
 
-This rule is language-agnostic and survives every framework. The seven anti-patterns
-below all fail this filter in different ways.
+- **Still passes** → the test never exercised the SUT at all. Cut it (it is pure coverage theater, see #2 assertion-free, #4 framework retest).
+- **Now fails** → the test at least *invokes* the SUT. Move to Filter B.
+
+### Filter B — behavior check
+
+> **If I replace the body of the SUT with a no-op stub returning sensible defaults (zero, null/None, empty collection, default-constructed value), does the test still pass?**
+
+- **Still passes** → the test asserts nothing the SUT actually computes; the assertion would hold against an empty stub. Cut it (typically #5 constant verification or #4 framework retest).
+- **Now fails** → the test depends on SUT-derived behavior. Likely worth keeping, but still apply the per-pattern rules below.
+
+The filters are first-cut diagnostics — both can pass on #1 tautological (assertion mirrors mock input), #3 implementation mirror (assertion locks structure, not behavior), #6 sleep-coupled (timing flake is orthogonal), and #7 exception-swallowing (assertion-count guards are required regardless). Use the per-pattern decision rules below for those.
 
 ## The seven useless-test anti-patterns
 
@@ -139,9 +151,10 @@ before writing the test.
 
 1. **What contract am I asserting?** State it in one sentence: input → expected
    observable outcome. If you cannot, you are not yet ready to write the test.
-2. **Could this test pass against a broken SUT?** Mentally apply the
-   one-question filter (replace SUT body with a throw). If it still passes,
-   stop and reconsider what you are asserting.
+2. **Could this test pass against a broken SUT?** Mentally apply Filter A
+   (replace SUT body with a force-fail) and Filter B (replace SUT body with a
+   no-op default-returning stub). If the test passes either filter, stop and
+   reconsider what you are asserting.
 3. **Is the assertion about behavior or about plumbing?** Behavior: state
    changed, value derived, event emitted, error raised with specific shape.
    Plumbing: mock was called, function exists, framework worked.
@@ -160,9 +173,10 @@ For each new test in the diff:
 
 - Read the test name. Does it state a contract or a code path? Contract → continue. Code path → flag.
 - Read the assertion(s). Are they against observable outcomes the SUT controls? Yes → continue. No → flag.
-- Apply the one-question filter mentally. Would the test fail if the SUT body became `throw`? Yes → keep. No → flag with which anti-pattern (1-7).
-- If the test uses a mock: does the assertion verify *interaction the SUT chose to make*, not *value the test handed in*? Verifies SUT decision → keep. Echoes test input → flag (#1 tautological).
-- If the test contains `sleep`, `setTimeout(..., N)`, `Thread.sleep`, `time.sleep`, `await delay`: flag (#6 sleep-coupled) unless N=0 (microtask flush).
+- Apply Filter A mentally. Would the test fail if the SUT body became a force-fail (throw/raise/panic)? Yes → continue. No → flag (#2 assertion-free or #4 framework retest).
+- Apply Filter B mentally. Would the test fail if the SUT body became a no-op stub returning defaults? Yes → likely keep. No → flag (#5 constant verification or #4 framework retest).
+- If the test uses a mock: does the assertion verify *interaction the SUT chose to make*, not *value the test handed in*? Verifies SUT decision → keep. Echoes test input → flag (#1 tautological — neither filter catches this; structural inspection only).
+- If the test contains `sleep`, `setTimeout(..., N)`, `Thread.sleep`, `time.sleep`, `await delay`, or any wall-clock-based wait: flag (#6 sleep-coupled). Replace with fake timers / virtual clock, an explicit completion signal/promise, or a poll-with-timeout over a real condition — never with `setTimeout(..., 0)` (which is a macrotask, not deterministic).
 
 ## What this skill does not cover
 
@@ -177,4 +191,4 @@ The seven anti-patterns above show up in pytest, Jest, Vitest, JUnit, RSpec,
 xUnit, Go's `testing`, Rust's `#[test]`, and every framework that has ever
 shipped. The syntax differs; the failure mode is identical. Keeping the rules
 language-neutral is what makes this skill durable — any new framework inherits
-the same filter the day it is adopted.
+the same filters the day it is adopted.
