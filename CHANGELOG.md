@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- `skills/engineering/unit-test-quality/` — language- and framework-neutral skill for guarding against useless unit tests. Provides a one-question filter ("if I replace the SUT body with a throw, does this test fail?"), a taxonomy of seven recurring anti-patterns (tautological / assertion-free / implementation mirror / framework retest / constant verification / sleep-coupled / exception-swallowing) with a one-line decision rule per pattern, a 7-step pre-write self-check, and a reviewer rubric for new tests in PR diffs. Intentionally language-neutral — the same filter applies to pytest, Jest, Vitest, JUnit, RSpec, Go's `testing`, and Rust's `#[test]`.
+
 ## [8.5.0] - 2026-04-28
 
 ### Changed
