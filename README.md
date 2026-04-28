@@ -49,7 +49,7 @@ You don't have to remember what you did 3 months ago. The brain does.
 
 ### 4. Skills that compound your usage
 
-73 skills cover everything from migration planning to data lineage to risk-based experiment design. Skills use **progressive disclosure**: the YAML frontmatter is always loaded (~100 words), the SKILL.md body loads only when invoked (≤200 lines), and detailed `refs/` content loads on demand. Heavy skills delegate to specialist agents instead of inlining their own rubrics.
+75 skills cover everything from migration planning to data lineage to risk-based experiment design. Skills use **progressive disclosure**: the YAML frontmatter is always loaded (~100 words), the SKILL.md body loads only when invoked (≤200 lines), and detailed `refs/` content loads on demand. Heavy skills delegate to specialist agents instead of inlining their own rubrics.
 
 **`/wicked-garden:smaht:propose-skills`** — proposes new skills based on patterns Claude detects in your past Claude Code sessions (Bash→Read sequences, repeated `gh issue` invocations, etc.), so the framework grows from your actual work, not from speculative authoring. Honors `CLAUDE_CONFIG_DIR` for non-default config locations. Privacy: scrubs absolute paths to `~/...`, skips sessions referencing "secret"/"private".
 
