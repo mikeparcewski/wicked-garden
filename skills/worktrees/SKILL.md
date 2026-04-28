@@ -41,7 +41,9 @@ its own commit took place — the harness behavior here is fuzzy).
 **Trust-but-verify rule** — every time a subagent reports a commit:
 
 ```bash
-git merge-base --is-ancestor <sha> HEAD && echo "in main" || echo "DANGLING"
+# Use origin/main (not HEAD) so a checked-out feature branch doesn't
+# false-positive. Run `git fetch origin main` first if origin/main is stale.
+git merge-base --is-ancestor <sha> origin/main && echo "in main" || echo "DANGLING"
 ```
 
 If DANGLING, the fix didn't land. Either re-commit the working-tree
@@ -66,11 +68,11 @@ silently lose anything between fork-point and tip. Detection:
 ```bash
 # Local branches with unique commits not in main
 git for-each-ref refs/heads/ --format='%(refname:short)' \
-  | xargs -I{} sh -c 'unique=$(git log origin/main..{} --oneline 2>/dev/null | wc -l); [ "$unique" -gt 0 ] && echo "{}: $unique unique"'
+  | xargs -I{} sh -c 'unique=$(git rev-list --count origin/main..{} 2>/dev/null); [ "${unique:-0}" -gt 0 ] && echo "{}: $unique unique"'
 
 # Remote crew/* branches with unique commits not in main
 git for-each-ref refs/remotes/origin/crew/ --format='%(refname:short)' \
-  | xargs -I{} sh -c 'unique=$(git log origin/main..{} --oneline 2>/dev/null | wc -l); [ "$unique" -gt 0 ] && echo "{}: $unique unique"'
+  | xargs -I{} sh -c 'unique=$(git rev-list --count origin/main..{} 2>/dev/null); [ "${unique:-0}" -gt 0 ] && echo "{}: $unique unique"'
 ```
 
 Each such branch needs an explicit salvage decision (see Salvage flow
@@ -122,13 +124,13 @@ For each candidate branch:
 1. **Locate** — `.claude/worktrees/agent-*` and project-specific dirs (e.g.
    `~/.command_iq/worktrees/crew-*`). Run `git worktree list`.
 2. **Identify** — branch name + HEAD SHA.
-3. **Compare against main**:
-   - `git diff <branch>..origin/main` empty → content already in main
-   - `git log origin/main --oneline | grep -i <subject-keyword>` matches → squash-merged
-   - `git log origin/main..<branch> --oneline` shows commits not in main → unique work
+3. **Compare against main** — use ancestry-based checks, NOT tree-identity:
+   - `git log origin/main..<branch> --oneline` empty → every branch commit is reachable from main (truly merged, even if main has advanced)
+   - `git cherry -v origin/main <branch>` shows patch equivalence — `-` rows mean the patch is already in main (covers squash + cherry-pick landings); `+` rows mean unique work. More reliable than subject-grepping `git log origin/main | grep -i <subject>` (squashed commits often change subject text).
+   - `git rev-list --count origin/main..<branch>` returns the count of unique-by-ancestry commits. Use as supporting context.
 4. **Classify** as one of:
-   - **ALREADY_MERGED** — content byte-identical to main or commit subject is in main's log. Safe to delete.
-   - **SALVAGEABLE** — orphaned but valuable. Note what's there. Either cherry-pick or extract patterns manually.
+   - **ALREADY_MERGED** — `git log origin/main..<branch>` is empty AND `git cherry -v` shows zero `+` rows. Safe to delete. (Tree-identity diff between branch tips is NOT a valid signal — main may have advanced past a fully-merged branch.)
+   - **SALVAGEABLE** — `git cherry -v` shows `+` rows. Orphaned but valuable. Note what's there. Either cherry-pick or extract patterns manually.
    - **DEAD** — abandoned with no useful changes. Delete with note.
 5. **For ALREADY_MERGED**: delete using the safety check above.
    **For SALVAGEABLE**: do not delete; produce an extract plan; only delete after extraction lands on main.
@@ -152,8 +154,8 @@ git status -s
 
 # If yes, and they look like the fix the subagent claimed:
 git diff --stat                                    # confirm scope is right
-cd packages/<service> && npx tsc --noEmit          # typecheck
-# Run any relevant tests to confirm the fix works
+# Run project-specific verification — typecheck / build / unit tests as appropriate
+# (e.g. `npx tsc --noEmit`, `cargo check`, `pytest`, `go test ./...`, etc.)
 git add <files> && git commit -m "..."
 ```
 
@@ -164,7 +166,7 @@ because the subagent's worktree commit is unreachable.
 
 Whenever a subagent's summary says "commit SHA: XYZ":
 
-1. `git merge-base --is-ancestor XYZ HEAD` — must return true (exit 0)
+1. `git merge-base --is-ancestor XYZ origin/main` — must return true (exit 0). Use `origin/main` (not `HEAD`); the latter false-positives if you're on a feature branch. `git fetch origin main` first if origin is stale.
 2. `git status -s` — should be empty if the commit is real and complete
 3. `git show XYZ --stat | head` — confirm the change set matches what the subagent described
 4. If any of those fail, the subagent's work needs re-landing or follow-up
