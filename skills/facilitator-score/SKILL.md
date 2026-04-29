@@ -1,16 +1,7 @@
 ---
 name: facilitator-score
-description: |
-  Score 9 risk factors for a new project via structured yes/no questionnaire.
-  Use *before* propose-process to skip the manual rubric tax. Returns a factors
-  block (same shape as propose-process output-schema.md) for direct injection
-  into Step 3. NOT for: re-evaluation of an in-flight project (use
-  propose-process re-evaluate mode), one-off complexity guesses (use deliberate),
-  or any use that requires overriding all 9 factors by hand (just use
-  propose-process directly).
-portability: portable
-allowed-tools:
-  - wicked-garden:ground
+description: "Score 9 risk factors (reversibility, blast radius, compliance, etc.) for a new project via structured yes/no questionnaire. Returns a factors block for direct injection into propose-process Step 3. Use when: pre-scoring project risk before propose-process, generating deterministic factor readings from Q&A, or skipping manual rubric justification. NOT for re-evaluation of in-flight projects (use propose-process re-evaluate mode) or one-off complexity guesses (use deliberate)."
+allowed-tools: "wicked-garden:ground"
 ---
 
 # wicked-garden:facilitator-score — Questionnaire Scorer
@@ -47,7 +38,6 @@ A `factors` block matching `skills/propose-process/refs/output-schema.md`:
 `reading` (backward-compat): HIGH = least risky, LOW = most risky. This direction is counter-intuitive
 for downstream display. Prefer `risk_level` when showing results to users: `low_risk` / `medium_risk` /
 `high_risk` maps directly to standard risk language.
-```
 
 ## Procedure
 

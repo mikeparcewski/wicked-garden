@@ -1,14 +1,6 @@
 ---
 name: workflow
-description: |
-  Reference for how the wicked-crew workflow engine operates — phase catalog, gate enforcement,
-  rigor tiers, and facilitator rubric. Use when understanding or troubleshooting crew phase
-  mechanics (gate config, CONDITIONAL resolution, phase dependencies).
-  NOT for starting a project (use crew:start) or proposing a process plan (use propose-process).
-context: fork
-
-**Plain:** wicked-crew v6 — propose-process rubric picks phases and rigor tier;
-gates are hard enforcement; two interaction modes (normal / yolo).
+description: "Reference for wicked-crew v6 workflow engine — phase catalog, gate enforcement, rigor tiers, and facilitator rubric. Use when: troubleshooting crew phase mechanics, understanding gate config, resolving CONDITIONAL verdicts, checking phase dependencies, or debugging specialist routing. NOT for starting a project (use crew:start) or proposing a process plan (use propose-process)."
 ---
 
 # Workflow Skill (v6)

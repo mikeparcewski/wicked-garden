@@ -1,15 +1,25 @@
 ---
 name: mockup
-description: |
-  Use when you need a quick ASCII wireframe or HTML mockup in-chat without Figma overhead.
-  NOT for production design work — use the figma plugin for that.
-portability: portable
+description: "Generate ASCII wireframes, HTML/CSS mockups, and component specs for UI layout exploration and developer handoff. Use when: sketching a layout, quick UI design, wireframing a page, prototyping a component, creating a mockup without Figma, or producing a developer handoff spec. Not for production design work — use Figma for that."
 ---
 
 # Mockup Skill
 
-Generate wireframes and mockup designs in multiple fidelity levels — from quick
-ASCII sketches to HTML/CSS previews ready for developer handoff.
+Generate wireframes and mockups at multiple fidelity levels — from quick ASCII sketches to
+HTML/CSS previews ready for developer handoff.
+
+## Quick Start
+
+```
+# Quick ideation
+"Sketch a login page layout in ASCII"
+
+# Stakeholder review
+"Create an HTML mockup of the dashboard with sidebar navigation"
+
+# Dev handoff
+"Write a component spec for the pricing card"
+```
 
 ## Output Format Selection
 
@@ -22,7 +32,7 @@ ASCII sketches to HTML/CSS previews ready for developer handoff.
 
 ## ASCII Wireframes
 
-Fast, text-based layout sketches. Use for early ideation and flow discussion.
+Fast, text-based layout sketches for early ideation:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -30,145 +40,65 @@ Fast, text-based layout sketches. Use for early ideation and flow discussion.
 │─────────────────────────────────────────│
 │                                         │
 │  ┌──────────────┐  ┌──────────────┐    │
-│  │              │  │              │    │
 │  │   [Image]    │  │   [Image]    │    │
-│  │              │  │              │    │
 │  │  Card Title  │  │  Card Title  │    │
-│  │  Description │  │  Description │    │
 │  │  [Button]    │  │  [Button]    │    │
 │  └──────────────┘  └──────────────┘    │
 │                                         │
 │  ─────── Section Heading ───────────   │
-│                                         │
 │  ████████████████████ [CTA Button]     │
 └─────────────────────────────────────────┘
 ```
 
-### ASCII Symbol Guide
-
-```
-┌─┬─┐  Box borders
-│ │ │  Vertical dividers
-└─┴─┘  Box bottoms
-[...]   Button or interactive element
-{...}   Input field
-████   Image placeholder
-~~~~   Text content placeholder
-────   Horizontal rule / divider
-```
+Conventions: `[...]` = interactive element, `{...}` = input field, `████` = image placeholder.
 
 ## HTML/CSS Preview
 
-For higher-fidelity mockups, generate minimal HTML with inline or embedded CSS:
+For higher-fidelity mockups, generate minimal HTML with embedded CSS using design tokens:
 
 ```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mockup: {component name}</title>
 <style>
-  /* Design tokens */
   :root {
     --color-primary: #3b82f6;
     --color-surface: #f9fafb;
     --space-4: 1rem;
-    --space-6: 1.5rem;
-    --text-sm: 0.875rem;
-    --text-base: 1rem;
-    --text-lg: 1.125rem;
     --radius: 0.5rem;
   }
-  /* Component styles */
-  .card {
-    background: var(--color-surface);
-    border-radius: var(--radius);
-    padding: var(--space-6);
-  }
 </style>
-</head>
-<body>
-  <!-- mockup content -->
-</body>
-</html>
 ```
 
-## Component Specs (Markdown)
-
-For developer handoff without visual preview:
-
-```markdown
-## Component: {Name}
-
-### Anatomy
-- **Container**: {background, border, border-radius, padding}
-- **Header**: {font-size, font-weight, color}
-- **Body**: {font-size, line-height, color}
-- **Action**: {button variant, size}
-
-### States
-| State | Visual Change |
-|-------|--------------|
-| Default | {description} |
-| Hover | {description} |
-| Active | {description} |
-| Disabled | {opacity: 0.5, cursor: not-allowed} |
-
-### Spacing
-- Internal padding: {token}
-- Gap between elements: {token}
-- External margin: {token or "handled by parent"}
-
-### Responsive Behavior
-- Mobile (<768px): {layout change}
-- Tablet (768–1024px): {layout change}
-- Desktop (>1024px): {base layout}
-
-### Accessibility Notes
-- Role: {semantic element or ARIA role}
-- Focus: {keyboard interaction}
-- Labels: {aria-label or visible label}
-```
+Match the project's existing design tokens if available (check `styles/tokens.css` or equivalent).
 
 ## Wireframe from Description
 
-When given a description, generate a wireframe in this sequence:
+When given a description, follow this sequence:
 
-1. **Identify layout pattern**: Single column, two-column, grid, sidebar+main
-2. **List components**: Header, nav, cards, forms, tables, modals
-3. **Arrange hierarchy**: Most important content first (F-pattern or Z-pattern)
-4. **Add interactions**: Buttons, links, inputs, toggles
-5. **Annotate**: Notes on behavior, states, responsive changes
-
-## Integration with Frontend Design
-
-When handing off to developers:
-
-```markdown
-## Handoff Notes for {component}
-
-**Design tokens to use**: See `styles/tokens.css`
-**Closest existing component**: {component name in codebase}
-**New patterns required**: {list any novel patterns}
-**Assets needed**: {icons, images, fonts}
-**Animation**: {transition type, duration}
-```
+1. **Identify layout pattern** — single column, two-column, grid, sidebar+main
+2. **List components** — header, nav, cards, forms, tables, modals
+3. **Arrange hierarchy** — most important content first (F-pattern or Z-pattern)
+4. **Add interactions** — buttons, links, inputs, toggles
+5. **Annotate** — notes on behavior, states, responsive changes
 
 ## Output Checklist
 
-Before delivering a mockup:
+Before delivering any mockup, verify:
 
 - [ ] All states shown (default, hover, error, empty, loading)
 - [ ] Mobile and desktop layouts included
 - [ ] Spacing annotated with token names (not pixel values)
 - [ ] Interactive elements clearly marked
-- [ ] Accessibility notes included
+- [ ] Accessibility notes included (roles, focus, labels)
 - [ ] Open questions flagged for stakeholder input
+
+## Reference
+
+For detailed templates and handoff formats:
+- [Component Specs](refs/component-specs.md) — full component spec template, state tables, responsive behavior
+- [Handoff Notes](refs/handoff-notes.md) — developer handoff template, asset checklist, animation specs
 
 ## Integration
 
-- **ux-review skill**: Pair mockups with the UX flow they support
-- **screenshot skill**: Compare mockup against built implementation
-- **visual-review skill**: Mockups set the standard for visual review
-- **engineering/frontend-design skill**: Coordinate component implementation
+- **ux-review skill** — pair mockups with the UX flow they support
+- **screenshot skill** — compare mockup against built implementation
+- **visual-review skill** — mockups set the standard for visual review
+- **engineering/frontend skill** — coordinate component implementation
