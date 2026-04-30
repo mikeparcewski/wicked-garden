@@ -29,7 +29,7 @@ different fallback chain (e.g. dependency-aware `uv run`).
 1. **uv** (preferred) - Fast, reliable, handles dependencies automatically
 2. **poetry** - Good for projects with poetry.lock
 3. **.venv/bin/python** - Pre-existing virtual environment
-4. **`_python.sh` shim or `python3`** - Cross-platform fallback
+4. **`_python.sh` shim** - Cross-platform fallback; may miss dependencies
 
 ## Node Execution Priority
 
