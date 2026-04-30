@@ -10,12 +10,26 @@ user-invocable: false
 
 Execute Python and Node scripts using the best available package manager.
 
+## Recommended: use the `_python.sh` shim
+
+For Python scripts inside this plugin, prefer the cross-platform shim at
+`${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh`. It resolves `python3`, `python`,
+or `py -3` based on what's available and handles macOS, Linux, and Windows
+in one call. Bare `python3` is not available on Windows.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/some/script.py"
+```
+
+The detection logic below is reference material for skills that need a
+different fallback chain (e.g. dependency-aware `uv run`).
+
 ## Python Execution Priority
 
 1. **uv** (preferred) - Fast, reliable, handles dependencies automatically
 2. **poetry** - Good for projects with poetry.lock
 3. **.venv/bin/python** - Pre-existing virtual environment
-4. **python3** - Last resort, may miss dependencies
+4. **`_python.sh` shim or `python3`** - Cross-platform fallback
 
 ## Node Execution Priority
 

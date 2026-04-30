@@ -14,11 +14,9 @@ Techniques for managing context windows, optimizing token usage, and designing e
 
 **Context Window:** Maximum tokens an LLM can process in a single request (input + output).
 
-**Common Limits:**
-- Claude Opus 4.6: 200K tokens
-- Claude Sonnet 4.5: 200K tokens
-- GPT-4 Turbo: 128K tokens
-- GPT-4: 8K-32K tokens
+Limits vary by provider and model — current frontier models range from ~128K
+to 1M+ tokens. Check the active model's documentation for the exact value;
+hardcoding limits in a skill dates the file.
 
 **Token Efficiency Matters:**
 - Cost: Charged per token (input + output)

@@ -22,7 +22,7 @@ Multi-perspective business analysis to guide technical investment decisions.
 
 ## Analysis Modes
 
-### Full Strategic Analysis (`/wicked-garden:product:analyze`)
+### Full Strategic Analysis (`/wicked-garden:product:strategy`)
 
 - Business impact & ROI
 - Value proposition & differentiation
