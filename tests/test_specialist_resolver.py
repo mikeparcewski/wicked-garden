@@ -192,7 +192,11 @@ def _valid_plan_with_specialist(name: str) -> dict:
         "rigor_tier": "standard",
         "complexity": 3,
         "factors": {
-            key: {"reading": "LOW", "why": "because reasons"}
+            key: {
+                "reading": "LOW",
+                "risk_level": "high_risk",
+                "why": "because reasons",
+            }
             for key in (
                 "reversibility",
                 "blast_radius",

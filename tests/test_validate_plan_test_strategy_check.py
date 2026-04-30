@@ -46,7 +46,11 @@ def _base_plan() -> dict:
         "rigor_tier": "standard",
         "complexity": 3,
         "factors": {
-            key: {"reading": "LOW", "why": "fixture baseline"}
+            key: {
+                "reading": "LOW",
+                "risk_level": "high_risk",
+                "why": "fixture baseline",
+            }
             for key in validate_plan.REQUIRED_FACTOR_KEYS
         },
         "specialists": [
@@ -165,6 +169,39 @@ def test_warning_names_every_offending_task_id():
     [warn] = validate_plan.warnings(plan)
     assert "t1" in warn["message"]
     assert "t2" in warn["message"]
+
+
+def test_validate_rejects_missing_factor_risk_level():
+    """Issue #689: missing factor risk_level is producer regression."""
+    plan = _base_plan()
+    del plan["factors"]["reversibility"]["risk_level"]
+    violations = validate_plan.validate(plan)
+    assert any(
+        "factors.reversibility.risk_level" in v and "missing required key" in v
+        for v in violations
+    ), violations
+
+
+def test_validate_rejects_bad_factor_risk_level_enum():
+    """Issue #689: invalid risk_level enum is rejected."""
+    plan = _base_plan()
+    plan["factors"]["reversibility"]["risk_level"] = "wat"
+    violations = validate_plan.validate(plan)
+    assert any(
+        "factors.reversibility.risk_level" in v and "not one of" in v
+        for v in violations
+    ), violations
+
+
+def test_validate_rejects_inverted_factor_risk_level():
+    """Issue #689: risk_level must agree with reading."""
+    plan = _base_plan()
+    plan["factors"]["reversibility"]["risk_level"] = "low_risk"
+    violations = validate_plan.validate(plan)
+    assert any(
+        "factors.reversibility" in v and "does not match reading" in v
+        for v in violations
+    ), violations
 
 
 def test_existing_specialist_check_still_passes():

@@ -3252,9 +3252,9 @@ def _sync_gate_finding_task(
     if not project_name:
         return
 
-    # Resolve the chain_id prefix that gate-finding tasks carry for this project.
-    # Pattern: "{project}.{phase}.{gate}" or "{project}.{phase}".
-    # We match any chain_id starting with "{project}.{phase}".
+    # Resolve the chain_id prefix that gate-finding tasks carry for this
+    # project. Valid matches are exactly "{project}.{phase}" or
+    # "{project}.{phase}.{gate}".
     expected_chain_prefix = f"{project_name}.{phase}"
 
     verdict: Optional[str] = None
@@ -3275,6 +3275,22 @@ def _sync_gate_finding_task(
             except (TypeError, ValueError):
                 min_score = None
 
+    if min_score is None:
+        print(
+            "WARNING: [approve] _sync_gate_finding_task missing valid min_score "
+            f"for phase={phase} project={project_name}; skipping task sync to "
+            "avoid writing schema-invalid completed metadata",
+            file=sys.stderr,
+        )
+        logger.warning(
+            "[approve] _sync_gate_finding_task missing valid min_score "
+            "for phase=%s (project=%s) — skipping task sync to avoid writing "
+            "schema-invalid completed metadata",
+            phase,
+            project_name,
+        )
+        return
+
     # CONDITIONAL verdict requires conditions_manifest_path in completed
     # metadata (scripts/_event_schema.py#L191-192). The path is deterministic
     # — phase_manager writes it to {project_dir}/phases/{phase}/conditions-manifest.json
@@ -3288,8 +3304,21 @@ def _sync_gate_finding_task(
                 / "conditions-manifest.json"
             )
             conditions_manifest_path = str(manifest_path)
-        except Exception:
-            conditions_manifest_path = None
+        except Exception as exc:
+            print(
+                "WARNING: [approve] _sync_gate_finding_task could not resolve "
+                f"conditions_manifest_path for project={project_name} "
+                f"phase={phase}: {exc}",
+                file=sys.stderr,
+            )
+            logger.warning(
+                "[approve] _sync_gate_finding_task could not resolve "
+                "conditions_manifest_path for project=%s phase=%s: %s",
+                project_name,
+                phase,
+                exc,
+            )
+            return
 
     session_id = os.environ.get("CLAUDE_SESSION_ID", "")
     if not session_id:
@@ -3334,7 +3363,10 @@ def _sync_gate_finding_task(
             if meta.get("phase") != phase:
                 continue
             chain_id = meta.get("chain_id", "")
-            if not isinstance(chain_id, str) or not chain_id.startswith(expected_chain_prefix):
+            if not isinstance(chain_id, str) or (
+                chain_id != expected_chain_prefix
+                and not chain_id.startswith(f"{expected_chain_prefix}.")
+            ):
                 continue
 
             try:
@@ -3345,10 +3377,10 @@ def _sync_gate_finding_task(
     except Exception as exc:
         # Scan error — log and bail. Approve flow continues.
         print(
-            f"[approve] _sync_gate_finding_task scan error: {exc}",
+            f"WARNING: [approve] _sync_gate_finding_task scan error: {exc}",
             file=sys.stderr,
         )
-        logger.debug("[approve] _sync_gate_finding_task scan error: %s", exc)
+        logger.warning("[approve] _sync_gate_finding_task scan error: %s", exc)
         return
 
     if not matches:
@@ -3395,10 +3427,10 @@ def _sync_gate_finding_task(
         # Write failure — log to stderr (visible to operators) and continue.
         # Approve flow MUST NOT fail just because a task-store write broke.
         print(
-            f"[approve] gate-finding task sync write failed: {exc}",
+            f"WARNING: [approve] gate-finding task sync write failed: {exc}",
             file=sys.stderr,
         )
-        logger.debug(
+        logger.warning(
             "[approve] gate-finding task sync write failed: %s", exc
         )
 
