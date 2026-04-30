@@ -88,7 +88,7 @@ Pass the YAML answers block to the scorer:
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
    "${CLAUDE_PLUGIN_ROOT}/scripts/crew/factor_questionnaire.py" score \
-   --answers-file /tmp/answers.yaml
+   --answers-file "${TMPDIR:-/tmp}/answers.yaml"
 ```
 
 Or call `score_all(answers)` directly when composing from Python.
