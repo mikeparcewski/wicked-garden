@@ -23,23 +23,15 @@ Write production-ready GitLab CI/CD pipelines with security and optimization bui
 
 ```yaml
 # .gitlab-ci.yml
-stages:
-  - build
-  - test
-  - deploy
-
-variables:
-  NODE_VERSION: "20"
+stages: [build, test, deploy]
 
 build:
   stage: build
-  script:
-    - npm ci
-    - npm run build
-  artifacts:
-    paths:
-      - dist/
+  script: [npm ci, npm run build]
+  artifacts: { paths: [dist/] }
 ```
+
+See `refs/templates.md` for full Node.js, Python, and other stack-specific templates.
 
 ## GitLab vs GitHub Actions
 
@@ -138,23 +130,7 @@ test:
 
 ### Multi-Environment
 
-```yaml
-.deploy: &deploy
-  script: deploy.sh
-  when: manual
-
-deploy-staging:
-  <<: *deploy
-  environment: staging
-  rules:
-    - if: $CI_COMMIT_BRANCH == "develop"
-
-deploy-production:
-  <<: *deploy
-  environment: production
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-```
+YAML anchor (`&deploy`) lets you share a deploy job and override `environment:` + `rules:` per target (staging on develop, production on main, both `when: manual` for approval gates).
 
 ## References
 
