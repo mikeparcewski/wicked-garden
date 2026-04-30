@@ -14,77 +14,18 @@ Reference guide for proven agentic architecture patterns and common anti-pattern
 
 ## Core Patterns
 
-### Sequential Pattern
-Agents execute in fixed order. Each agent's output feeds the next.
+| Pattern | Use when | Example | Tradeoffs |
+|---------|----------|---------|-----------|
+| **Sequential** | Linear workflow, clear dependencies, predictable stages | Research → Analyze → Draft → Review | Simple coordination; bottlenecks if any agent is slow |
+| **Hierarchical** | Complex task decomposable into subtasks; central coordination | PM agent delegates to designer / dev / QA | Clear accountability, scales; single point of failure at parent |
+| **Collaborative** | Diverse perspectives matter; no clear lead | Multiple reviewers collaborating on code review | Rich outputs; needs conflict resolution + consensus |
+| **Autonomous** | Tasks are fully independent; parallel execution | Multiple monitoring agents checking different services | Max parallelism; no shared learning or coordination |
+| **Human-in-the-Loop** | High-stakes decisions, regulatory gates, human feedback | Agent drafts report; human approves before sending | Adds latency; ensures safety and quality |
+| **ReAct** | Dynamic environments; need adaptive behavior on feedback | Debug agent: try fix → observe tests → adapt | Flexible; high token/latency cost for reasoning |
+| **Plan-Execute** | Predictable environment; planning overhead justified | Multi-step pipeline with known transformations | Efficient; brittle if environment changes |
+| **Reflection** | Quality > speed; self-improvement valuable | Writer drafts → critiques → refines | Higher quality; more tokens and latency |
 
-**Use when:** Linear workflow, clear dependencies, predictable stages.
-
-**Example:** Research → Analyze → Draft → Review
-
-**Tradeoffs:** Simple coordination, but bottlenecks if any agent is slow.
-
-### Hierarchical Pattern
-Parent agent delegates to specialized child agents. Parent aggregates results.
-
-**Use when:** Complex tasks decomposable into subtasks, need centralized coordination.
-
-**Example:** Project manager agent delegates to designer, developer, QA agents.
-
-**Tradeoffs:** Clear accountability, scales well, but single point of failure at parent.
-
-### Collaborative Pattern
-Peer agents work together on shared problem. No fixed hierarchy.
-
-**Use when:** Problem benefits from diverse perspectives, no clear lead agent.
-
-**Example:** Multiple specialized reviewers collaborating on code review.
-
-**Tradeoffs:** Rich outputs, but requires conflict resolution and consensus mechanisms.
-
-### Autonomous Pattern
-Agents operate independently with minimal coordination.
-
-**Use when:** Tasks are fully independent, parallel execution needed.
-
-**Example:** Multiple monitoring agents checking different services.
-
-**Tradeoffs:** Maximum parallelism, but no shared learning or coordination.
-
-### Human-in-the-Loop Pattern
-Human approval gates at critical decision points.
-
-**Use when:** High-stakes decisions, regulatory requirements, learning from human feedback.
-
-**Example:** Agent drafts report, human approves before sending.
-
-**Tradeoffs:** Adds latency, but ensures safety and quality.
-
-### ReAct Pattern
-Reason → Act → Observe cycle. Agent reasons about next action, executes it, observes result, repeats.
-
-**Use when:** Dynamic environments, need adaptive behavior based on feedback.
-
-**Example:** Debugging agent tries fixes, observes test results, adapts approach.
-
-**Tradeoffs:** Flexible and adaptive, but can be inefficient if reasoning is expensive.
-
-### Plan-Execute Pattern
-Agent creates full plan upfront, then executes all steps.
-
-**Use when:** Environment is predictable, planning overhead is justified.
-
-**Example:** Multi-step data pipeline with known transformations.
-
-**Tradeoffs:** Efficient execution, but brittle if environment changes.
-
-### Reflection Pattern
-Agent reviews its own outputs and iteratively improves them.
-
-**Use when:** Quality matters more than speed, self-improvement is valuable.
-
-**Example:** Writer agent drafts, critiques, and refines output.
-
-**Tradeoffs:** Higher quality outputs, but increased token usage and latency.
+See `refs/pattern-catalog.md` for full descriptions and implementation notes per pattern.
 
 ## Anti-Patterns Quick Reference
 

@@ -2,7 +2,10 @@
 name: context-engineering
 description: |
   Context window management, token optimization, and memory patterns for efficient multi-agent systems.
-  Use when: "context window", "token optimization", "agent memory", "reduce token usage", "context engineering"
+
+  Use when: optimizing token usage in an agentic pipeline, designing memory
+  scope for short / long-term / episodic state, or applying a context-loading
+  strategy (anticipatory / JIT / hybrid).
 portability: portable
 ---
 
@@ -24,28 +27,11 @@ the exact value.
 
 ## State Management Patterns
 
-### Shared State
-All agents access common state store.
-
-**Use when:** Agents need synchronized view of world.
-**Pros:** Consistency, simple coordination
-**Cons:** Contention, single point of failure
-
-### Isolated State
-Each agent maintains its own private state.
-
-**Use when:** Agents operate independently, no coordination needed.
-**Pros:** No contention, parallel execution
-**Cons:** Inconsistency possible, harder to coordinate
-
-### Checkpointed State
-Periodically save state snapshots for recovery.
-
-**Use when:** Long-running processes, need recovery from failures.
-**Pros:** Fault tolerance, replayability
-**Cons:** Storage overhead, consistency complexity
-
-See `refs/compression-techniques.md` for implementation details.
+| Pattern | Use when | Pros | Cons |
+|---------|----------|------|------|
+| **Shared** | Agents need synchronized view | Consistency, simple coordination | Contention, single point of failure |
+| **Isolated** | Agents operate independently | No contention, parallel execution | Inconsistency possible, harder to coordinate |
+| **Checkpointed** | Long-running processes, need recovery | Fault tolerance, replayability | Storage overhead, consistency complexity |
 
 ## Token Optimization Techniques
 
@@ -72,26 +58,11 @@ See `refs/selective-loading.md` and `refs/caching-and-optimization.md` for code 
 
 ## Memory Patterns
 
-### Short-Term (Working) Memory
-Recent conversation, current task state.
-
-**Scope:** Current session/task
-**Size:** 1K-10K tokens
-**Retention:** Minutes to hours
-
-### Long-Term Memory
-Persistent knowledge, learned facts.
-
-**Scope:** Cross-session, permanent
-**Size:** Unbounded (stored externally via vector DB)
-**Retention:** Days to forever
-
-### Episodic Memory
-Specific past events/experiences.
-
-**Scope:** Historical episodes
-**Size:** Summaries stored
-**Retention:** Varies by importance
+| Memory | Scope | Size | Retention |
+|--------|-------|------|-----------|
+| **Short-term (working)** | Current session/task | 1K-10K tokens | Minutes to hours |
+| **Long-term** | Cross-session, permanent | Unbounded (vector DB) | Days to forever |
+| **Episodic** | Historical events | Summaries stored | Varies by importance |
 
 See `refs/compression-techniques.md` for implementation patterns.
 
@@ -123,18 +94,11 @@ See `refs/selective-loading.md` for detailed prompting patterns.
 
 ## Context Loading Strategies
 
-### Anticipatory Loading
-Load context before it's needed (if predictable).
-**Pros:** Faster response time
-**Cons:** May load unnecessary data
-
-### Just-in-Time (JIT) Loading
-Load context only when explicitly needed.
-**Pros:** Minimal token usage
-**Cons:** Latency on each request
-
-### Hybrid Approach
-Combine both: Always load core context + JIT load task-specific context.
+| Strategy | Pros | Cons |
+|----------|------|------|
+| **Anticipatory** | Faster response time (load before needed) | May load unnecessary data |
+| **Just-in-Time (JIT)** | Minimal token usage (load only when needed) | Latency on each request |
+| **Hybrid** | Balanced (core context + JIT for task-specific) | More complex implementation |
 
 ## Cost Modeling
 
