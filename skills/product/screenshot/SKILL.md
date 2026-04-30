@@ -5,8 +5,8 @@ description: |
   Analyzes visual design from image files — layout, spacing, color, typography,
   responsiveness — and compares against design system rules.
 
-  Use when: "screenshot review", "UI screenshot", "visual analysis from image",
-  "design from screenshot", "review PNG", "review JPG", "image-based review"
+  Use when: reviewing a UI screenshot for visual design, comparing rendered
+  output against design system rules, or auditing layout from an image file.
 portability: portable
 ---
 

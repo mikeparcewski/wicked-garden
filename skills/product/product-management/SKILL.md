@@ -5,8 +5,8 @@ description: |
   Elicit requirements, define scope, and align stakeholders.
   Works standalone or integrated with wicked-crew.
 
-  Use when: "product strategy", "roadmap", "product backlog",
-  "what should we build next", "scope definition", "feature prioritization"
+  Use when: planning a roadmap, prioritizing a backlog, or defining scope and
+  stakeholder alignment for an upcoming feature.
 ---
 
 # Product Management Skill

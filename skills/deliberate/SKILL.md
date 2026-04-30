@@ -5,9 +5,8 @@ description: |
   reframes problems, identifies hidden opportunities, and validates whether the stated
   ask is the right ask. A way of approaching work, not a specialist discipline.
 
-  Use when: "rethink this approach", "is this the right problem", "challenge assumptions",
-  "reframe the problem", "before implementation", "issue triage", "deliberate on this",
-  "should we even do this", "question the approach", "5 whys"
+  Use when: challenging assumptions before implementation, reframing a stated
+  problem, or asking whether the right thing is being asked at all.
 ---
 
 # Deliberate

@@ -5,8 +5,8 @@ description: |
   social, and direct channels. This skill should be used when the user needs to
   gather customer voice data to inform product decisions or understand sentiment.
 
-  Use when: "listen to customers", "what are customers saying", "gather feedback",
-  "customer sentiment", "aggregate feedback", "voice of customer"
+  Use when: aggregating customer feedback from discovered sources, gathering
+  voice-of-customer data, or surveying sentiment across channels.
 ---
 
 # Listen Skill

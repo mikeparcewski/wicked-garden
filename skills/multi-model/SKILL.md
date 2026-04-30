@@ -7,13 +7,9 @@ description: |
   CLIs at runtime via PATH discovery.
   Decisions stored in wicked-brain:memory. Transcripts persisted via jam scripts.
 
-  Use when:
-  - Running multi-model analysis or design review
-  - Getting diverse AI perspectives on a decision
-  - Council sessions with multiple AI models
-  - Second opinion from a different AI
-  - Multi-model code review or architecture critique
-  - "multi-model", "council", "cross-ai", "diverse perspectives", "second opinion"
+  Use when: running a council session across multiple LLM CLIs, getting a
+  second opinion from a different model on a decision, or doing a cross-model
+  code or architecture review.
 ---
 
 # Multi-Model Collaboration Skill
