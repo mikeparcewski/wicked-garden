@@ -65,55 +65,15 @@ run: echo "$TITLE"  # Safe
 
 ## Core Patterns
 
-### Minimal CI
+Full copy-paste templates live in `refs/templates.md`. Quick reference:
 
-```yaml
-name: CI
-on: [push, pull_request]
-permissions:
-  contents: read
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm test
-```
-
-### Multi-Environment Deploy
-
-```yaml
-jobs:
-  deploy-staging:
-    environment: staging
-    # ...
-  deploy-production:
-    needs: deploy-staging
-    environment: production
-    # Requires approval in GitHub settings
-```
-
-### OIDC for Cloud (No Secrets!)
-
-```yaml
-permissions:
-  id-token: write  # Required for OIDC
-  contents: read
-steps:
-  - uses: aws-actions/configure-aws-credentials@v4
-    with:
-      role-to-assume: arn:aws:iam::123456789:role/github-actions
-      aws-region: us-east-1
-```
+| Template | Key shape | See |
+|----------|-----------|-----|
+| **Minimal CI** | `permissions: contents: read` + concurrency + `actions/setup-node@v4` cache | refs/templates.md § Node.js CI |
+| **Multi-Environment Deploy** | Chained jobs via `needs:`, each with `environment:` for approval gates | refs/templates.md § Deploy to AWS (OIDC) |
+| **OIDC for Cloud (No Secrets)** | `permissions: id-token: write` + `aws-actions/configure-aws-credentials@v4` | refs/templates.md § Deploy to AWS (OIDC) |
+| **Docker build/push** | `docker/setup-buildx-action` + `docker/build-push-action` with GHA cache | refs/templates.md § Docker Build and Push |
+| **Security scanning** | CodeQL on schedule + push, `security-events: write` permission | refs/templates.md § Security Scanning |
 
 ## Performance Optimization
 
