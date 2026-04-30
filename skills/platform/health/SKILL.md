@@ -4,6 +4,7 @@ description: |
   System health overview from discovered observability sources. Aggregates errors,
   performance metrics, and SLO status across services. Correlates with deployments
   and code changes. Use for proactive health monitoring and post-deployment validation.
+
   Use when: checking aggregated system health, validating a post-deployment
   state, or correlating production status with recent changes.
 portability: portable

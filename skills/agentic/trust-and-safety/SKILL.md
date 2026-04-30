@@ -2,6 +2,7 @@
 name: trust-and-safety
 description: |
   Trust, safety, and control patterns for production agentic systems with human-in-the-loop gates and guardrails.
+
   Use when: designing guardrails or human-in-the-loop gates for an agent, or
   hardening an agentic system against prompt injection.
 portability: portable
