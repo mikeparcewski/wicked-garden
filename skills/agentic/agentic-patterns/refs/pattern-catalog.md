@@ -204,7 +204,7 @@ Even autonomous agents may need minimal coordination via shared event bus, share
 ## Human-in-the-Loop Pattern
 
 ### Description
-Agent execution includes explicit gates where a human approves, rejects, or modifies a proposed action before it takes effect. The human is part of the control loop, not just a downstream consumer. Sits naturally on top of any other pattern (sequential, hierarchical, autonomous) — a workflow can have one HITL gate before a high-stakes step or many gates throughout.
+Agent execution includes explicit gates where a human approves, rejects, or modifies a proposed action before it takes effect. The human is part of the control loop, not just a downstream consumer. Human-in-the-Loop (HITL) sits naturally on top of any other pattern in this catalog — a workflow can have one HITL gate before a high-stakes step or many gates throughout.
 
 ### When to Use
 - High-stakes decisions where an unreviewed agent action could cause material harm (sending external email, paying invoices, altering production state)
