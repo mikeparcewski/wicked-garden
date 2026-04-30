@@ -1079,7 +1079,7 @@ class TestSyncGateFindingTask(unittest.TestCase):
             original_sha = hashlib.sha256(original_bytes).hexdigest()
 
             state = _make_state(name="noop-proj")
-            gate_result = {"verdict": "APPROVE", "score": 0.9}
+            gate_result = {"verdict": "APPROVE", "score": 0.9, "min_score": 0.7}
 
             with patch.dict(
                 os.environ,
@@ -1140,7 +1140,7 @@ class TestSyncGateFindingTask(unittest.TestCase):
     def test_sync_fail_open_no_session_id(self):
         """Missing CLAUDE_SESSION_ID is silently a no-op (fail-open)."""
         state = _make_state(name="failopen-proj")
-        gate_result = {"verdict": "APPROVE", "score": 0.9}
+        gate_result = {"verdict": "APPROVE", "score": 0.9, "min_score": 0.7}
         # Remove CLAUDE_SESSION_ID from env; must not raise.
         env = {k: v for k, v in os.environ.items() if k != "CLAUDE_SESSION_ID"}
         with patch.dict(os.environ, env, clear=True):

@@ -3276,8 +3276,14 @@ def _sync_gate_finding_task(
                 min_score = None
 
     if min_score is None:
-        logger.warning(
+        print(
             "WARNING: [approve] _sync_gate_finding_task missing valid min_score "
+            f"for phase={phase} project={project_name}; skipping task sync to "
+            "avoid writing schema-invalid completed metadata",
+            file=sys.stderr,
+        )
+        logger.warning(
+            "[approve] _sync_gate_finding_task missing valid min_score "
             "for phase=%s (project=%s) — skipping task sync to avoid writing "
             "schema-invalid completed metadata",
             phase,
@@ -3306,7 +3312,7 @@ def _sync_gate_finding_task(
                 file=sys.stderr,
             )
             logger.warning(
-                "WARNING: [approve] _sync_gate_finding_task could not resolve "
+                "[approve] _sync_gate_finding_task could not resolve "
                 "conditions_manifest_path for project=%s phase=%s: %s",
                 project_name,
                 phase,
@@ -3374,7 +3380,7 @@ def _sync_gate_finding_task(
             f"WARNING: [approve] _sync_gate_finding_task scan error: {exc}",
             file=sys.stderr,
         )
-        logger.warning("WARNING: [approve] _sync_gate_finding_task scan error: %s", exc)
+        logger.warning("[approve] _sync_gate_finding_task scan error: %s", exc)
         return
 
     if not matches:
@@ -3425,7 +3431,7 @@ def _sync_gate_finding_task(
             file=sys.stderr,
         )
         logger.warning(
-            "WARNING: [approve] gate-finding task sync write failed: %s", exc
+            "[approve] gate-finding task sync write failed: %s", exc
         )
 
 
