@@ -1,6 +1,6 @@
 # Mockup Templates
 
-Copy-paste templates for the three mockup output formats. The SKILL.md selection table tells you when to use each.
+Copy-paste templates for three common mockup deliverables: HTML/CSS preview, component spec, and handoff notes. See the SKILL.md selection table for when to use each output format.
 
 ## HTML/CSS Preview
 

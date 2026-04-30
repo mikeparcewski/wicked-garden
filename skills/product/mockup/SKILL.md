@@ -67,7 +67,7 @@ Full template: `refs/templates.md` § HTML/CSS Preview.
 
 For developer handoff without visual preview, use the spec template. Sections: Anatomy, States table, Spacing tokens, Responsive Behavior, Accessibility Notes.
 
-Full template: `refs/templates.md` § Component Spec.
+Full template: `refs/templates.md` § Component Spec (Markdown).
 
 ## Wireframe from Description
 
