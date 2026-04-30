@@ -70,7 +70,7 @@ Full copy-paste templates live in `refs/templates.md`. Quick reference:
 | Template | Key shape | See |
 |----------|-----------|-----|
 | **Minimal CI** | `permissions: contents: read` + concurrency + `actions/setup-node@v4` cache | refs/templates.md § Node.js CI |
-| **Multi-Environment Deploy** | Chained jobs via `needs:`, each with `environment:` for approval gates | refs/templates.md § Deploy to AWS (OIDC) |
+| **Multi-Environment Deploy** | Deploy job with `environment:` approval gates + OIDC-based AWS auth | refs/templates.md § Deploy to AWS (OIDC) |
 | **OIDC for Cloud (No Secrets)** | `permissions: id-token: write` + `aws-actions/configure-aws-credentials@v4` | refs/templates.md § Deploy to AWS (OIDC) |
 | **Docker build/push** | `docker/setup-buildx-action` + `docker/build-push-action` with GHA cache | refs/templates.md § Docker Build and Push |
 | **Security scanning** | CodeQL on schedule + push, `security-events: write` permission | refs/templates.md § Security Scanning |

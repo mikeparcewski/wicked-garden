@@ -130,7 +130,7 @@ test:
 
 ### Multi-Environment
 
-YAML anchor (`&deploy`) lets you share a deploy job and override `environment:` + `rules:` per target (staging on develop, production on main, both `when: manual` for approval gates). Full template in `refs/templates.md`.
+YAML anchor (`&deploy`) lets you share a deploy job and override `environment:` + `rules:` per target (staging on develop, production on main, both `when: manual` for approval gates).
 
 ## References
 
