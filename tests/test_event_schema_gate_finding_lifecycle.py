@@ -76,6 +76,19 @@ def test_gate_finding_completion_with_approve_fields_passes():
     assert err is None, f"completed APPROVE should validate, got: {err}"
 
 
+def test_gate_finding_completion_without_min_score_fails():
+    """#689: completed gate-finding missing min_score must fail validation."""
+    metadata = {
+        **_SHELL_METADATA,
+        "verdict": "APPROVE",
+        "score": 0.85,
+    }
+    err = validate_metadata(metadata, status="completed")
+    assert err is not None and "min_score" in err, (
+        f"completed metadata missing min_score should fail, got: {err}"
+    )
+
+
 def test_gate_finding_completion_approve_below_min_score_fails():
     """#570: completion still enforces APPROVE score >= min_score ordering."""
     metadata = {

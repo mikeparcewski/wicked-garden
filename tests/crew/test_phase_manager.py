@@ -994,7 +994,12 @@ class TestSyncGateFindingTask(unittest.TestCase):
             task_file = self._write_task(tasks_dir, "task-gate-1", gate_task)
 
             state = _make_state(name="sync-proj")
-            gate_result = {"verdict": "APPROVE", "result": "APPROVE", "score": 0.82}
+            gate_result = {
+                "verdict": "APPROVE",
+                "result": "APPROVE",
+                "score": 0.82,
+                "min_score": 0.7,
+            }
 
             with patch.dict(
                 os.environ,
@@ -1183,7 +1188,7 @@ class TestSyncGateFindingTask(unittest.TestCase):
             os.utime(new_path, (1_900_000_000.0, 1_900_000_000.0))
 
             state = _make_state(name="multi-proj")
-            gate_result = {"verdict": "APPROVE", "score": 0.81}
+            gate_result = {"verdict": "APPROVE", "score": 0.81, "min_score": 0.7}
 
             with patch.dict(
                 os.environ,
@@ -1201,6 +1206,39 @@ class TestSyncGateFindingTask(unittest.TestCase):
                 old_sha,
                 "older gate-finding task was rewritten — only the most-recent "
                 "(mtime) match should be touched on re-eval scenarios",
+            )
+
+    def test_sync_ignores_chain_id_prefix_collisions(self):
+        """A sibling phase prefix must not match the requested phase (#689)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-prefix"
+            colliding_task = {
+                "id": "task-collide",
+                "subject": "Gate: design-review",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "design",
+                    "chain_id": "prefix-proj.design-review.code-quality",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+            task_file = self._write_task(tasks_dir, "task-collide", colliding_task)
+            original_sha = hashlib.sha256(task_file.read_bytes()).hexdigest()
+
+            state = _make_state(name="prefix-proj")
+            gate_result = {"verdict": "APPROVE", "score": 0.81, "min_score": 0.7}
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-prefix", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                pm._sync_gate_finding_task(state, "design", gate_result)
+
+            self.assertEqual(
+                hashlib.sha256(task_file.read_bytes()).hexdigest(),
+                original_sha,
+                "phase prefix collision rewrote the wrong gate-finding task",
             )
 
     def test_sync_conditional_writes_conditions_manifest_path(self):
@@ -1254,6 +1292,43 @@ class TestSyncGateFindingTask(unittest.TestCase):
             )
             self.assertTrue(cmp.endswith("conditions-manifest.json"))
             self.assertIn("clarify", cmp)
+
+    def test_sync_conditional_skips_completion_when_manifest_path_unavailable(self):
+        """A CONDITIONAL verdict must not complete without manifest path (#689)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-cond-missing"
+            gate_task = {
+                "id": "task-gate-cond-missing",
+                "subject": "Gate: clarify",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "clarify",
+                    "chain_id": "cond-missing-proj.clarify.requirements",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+            task_file = self._write_task(tasks_dir, "task-gate-cond-missing", gate_task)
+            original = json.loads(task_file.read_text())
+
+            state = _make_state(name="cond-missing-proj")
+            gate_result = {
+                "verdict": "CONDITIONAL",
+                "result": "CONDITIONAL",
+                "score": 0.65,
+                "min_score": 0.6,
+            }
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-cond-missing", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                with patch.object(pm, "get_project_dir", side_effect=RuntimeError("boom")):
+                    pm._sync_gate_finding_task(state, "clarify", gate_result)
+
+            after = json.loads(task_file.read_text())
+            self.assertEqual(after, original)
+            self.assertEqual(after["status"], "in_progress")
 
     def test_sync_reject_marks_task_completed_with_reject_verdict(self):
         """REJECT verdict still marks task completed with REJECT in metadata.
@@ -1327,7 +1402,7 @@ class TestSyncGateFindingTask(unittest.TestCase):
             self._write_task(tasks_dir, "task-write-fail", gate_task)
 
             state = _make_state(name="writefail-proj")
-            gate_result = {"verdict": "APPROVE", "score": 0.9}
+            gate_result = {"verdict": "APPROVE", "score": 0.9, "min_score": 0.7}
 
             # Patch Path.write_text to raise OSError on the gate-finding
             # task file, simulating a permission / ENOSPC failure.
@@ -1384,6 +1459,40 @@ class TestSyncGateFindingTask(unittest.TestCase):
             updated = json.loads(task_file.read_text())
             self.assertEqual(updated["status"], "completed")
             self.assertAlmostEqual(updated["metadata"]["min_score"], 0.8)
+
+    def test_sync_skips_completion_when_min_score_missing(self):
+        """Completed gate-finding metadata must not omit min_score (#689)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tasks_dir = Path(tmpdir) / "tasks" / "sess-min-missing"
+            gate_task = {
+                "id": "task-gate-min-missing",
+                "subject": "Gate: review",
+                "status": "in_progress",
+                "metadata": {
+                    "event_type": "gate-finding",
+                    "phase": "review",
+                    "chain_id": "min-missing-proj.review.evidence",
+                    "source_agent": "gate-adjudicator",
+                },
+            }
+            task_file = self._write_task(tasks_dir, "task-gate-min-missing", gate_task)
+            original = json.loads(task_file.read_text())
+
+            state = _make_state(name="min-missing-proj")
+            gate_result = {
+                "verdict": "APPROVE",
+                "score": 0.92,
+            }
+
+            with patch.dict(
+                os.environ,
+                {"CLAUDE_SESSION_ID": "sess-min-missing", "CLAUDE_CONFIG_DIR": tmpdir},
+            ):
+                pm._sync_gate_finding_task(state, "review", gate_result)
+
+            after = json.loads(task_file.read_text())
+            self.assertEqual(after, original)
+            self.assertEqual(after["status"], "in_progress")
 
 
 if __name__ == "__main__":

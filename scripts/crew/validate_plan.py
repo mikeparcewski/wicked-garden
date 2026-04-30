@@ -48,7 +48,8 @@ VALID_FACTOR_READINGS = {"LOW", "MEDIUM", "HIGH"}
 VALID_FACTOR_RISK_LEVELS = {"low_risk", "medium_risk", "high_risk"}
 # Mapping mirrors `_RISK_INVERSION` in `scripts/crew/factor_questionnaire.py`.
 # Keep the two in sync — drift here means the validator stops catching producer
-# regression. Tests cover the round-trip in tests/crew/test_validate_plan.py.
+# regression. Tests cover the round-trip in tests/test_validate_plan_test_strategy_check.py
+# plus the validate_plan selftest fixtures below.
 _EXPECTED_RISK_LEVEL_FOR_READING = {
     "HIGH": "low_risk",
     "MEDIUM": "medium_risk",
@@ -155,10 +156,14 @@ def _check_factors(plan: dict, violations: list) -> None:
                 f"factors.{key}.reading — '{reading}' is not one of {sorted(VALID_FACTOR_READINGS)}"
             )
         # #627: `risk_level` is the user-facing translation of `reading`.
-        # Allow it to be absent on legacy plans (back-compat with pre-#626
-        # facilitator output) but reject any drift when it IS present.
-        if "risk_level" in value:
-            risk_level = value.get("risk_level")
+        # Facilitator output is expected to carry it on every factor; missing
+        # it is now treated as producer regression.
+        risk_level = value.get("risk_level")
+        if "risk_level" not in value:
+            violations.append(
+                f"factors.{key}.risk_level — missing required key 'risk_level'"
+            )
+        else:
             if risk_level not in VALID_FACTOR_RISK_LEVELS:
                 violations.append(
                     f"factors.{key}.risk_level — '{risk_level}' is not one of "
@@ -419,7 +424,7 @@ _VALID_FIXTURE = {
     "rigor_tier": "standard",
     "complexity": 3,
     "factors": {
-        key: {"reading": "LOW", "why": "because reasons"}
+        key: {"reading": "LOW", "risk_level": "high_risk", "why": "because reasons"}
         for key in REQUIRED_FACTOR_KEYS
     },
     "specialists": [{"name": "backend-engineer", "why": "writes the code"}],
@@ -447,7 +452,10 @@ _INVALID_FIXTURES = [
     ("bad rigor_tier", lambda p: {**p, "rigor_tier": "turbo"}),
     ("bad factor reading", lambda p: {
         **p,
-        "factors": {**p["factors"], "reversibility": {"reading": "MAYBE", "why": "idk"}},
+        "factors": {
+            **p["factors"],
+            "reversibility": {"reading": "MAYBE", "risk_level": "high_risk", "why": "idk"},
+        },
     }),
     ("missing task metadata key", lambda p: {
         **p,
@@ -468,6 +476,14 @@ _INVALID_FIXTURES = [
         "factors": {
             **p["factors"],
             "reversibility": {"reading": "LOW", "risk_level": "wat", "why": "idk"},
+        },
+    }),
+    # #689: risk_level is now required on every factor entry.
+    ("missing factor risk_level", lambda p: {
+        **p,
+        "factors": {
+            **p["factors"],
+            "reversibility": {"reading": "LOW", "why": "idk"},
         },
     }),
     # #627: risk_level mismatched against reading (LOW reading == high_risk)

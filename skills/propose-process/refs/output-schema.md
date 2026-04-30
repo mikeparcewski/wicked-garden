@@ -31,13 +31,6 @@ rubric against a scenario's expected-outcome block.
     "operational_risk":   {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."},
     "coordination_cost":  {"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."}
   },
-  // NB(#627): each factor entry carries BOTH `reading` (HIGH/MEDIUM/LOW;
-  // HIGH = safest, LOW = riskiest — backward-compat convention) AND
-  // `risk_level` (low_risk/medium_risk/high_risk — direction-explicit,
-  // user-facing). Internal logic (threshold/diff) uses `reading`; any
-  // user-facing display (process-plan.md, brain memory content, status
-  // summaries) MUST use `risk_level` to avoid the inversion footgun.
-  // `reading` is a candidate for deprecation in a future major.
   "specialists": [
     {"name": "requirements-analyst", "why": "one sentence"},
     {
@@ -89,6 +82,13 @@ rubric against a scenario's expected-outcome block.
   ]
 }
 ```
+
+Note: each factor entry carries BOTH `reading` (HIGH/MEDIUM/LOW; HIGH = safest,
+LOW = riskiest, for backward compatibility) AND `risk_level`
+(`low_risk`/`medium_risk`/`high_risk`, direction-explicit and user-facing).
+Internal logic may still use `reading`, but any human-readable output should use
+`risk_level` to avoid the inversion footgun. `reading` remains a candidate for
+future deprecation.
 
 ---
 

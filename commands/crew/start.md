@@ -232,7 +232,7 @@ Skill(
   skill="wicked-brain:memory",
   args={"action": "store", "type": "decision",
         "title": "crew:start facilitator plan for {slug}",
-        "content": "<summary from JSON + per-factor risk_level (low/medium/high_risk — see #627; do NOT paste raw `reading` HIGH/MED/LOW into human-readable text) + rigor_tier + specialist list>",
+        "content": "<summary from JSON + per-factor risk_level (low_risk/medium_risk/high_risk — see #627; do NOT paste raw `reading` HIGH/MED/LOW into human-readable text) + rigor_tier + specialist list>",
         "tags": ["crew", "facilitator", "process-plan", "{slug}"],
         "importance": 6}
 )
