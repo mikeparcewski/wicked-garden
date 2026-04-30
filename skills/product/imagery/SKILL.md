@@ -4,8 +4,8 @@ description: |
   Visual asset lifecycle management — analysis, generation, modification, and review.
   Three sub-skills cover the full creative pipeline with provider abstraction.
 
-  Use when: "image", "visual", "generate", "review image", "edit image",
-  "create image", "analyze image", "brand check", "accessibility review"
+  Use when: generating, editing, analyzing, or reviewing an image — routes to
+  the appropriate sub-skill (create / alter / review).
 ---
 
 # Imagery: Visual Asset Lifecycle

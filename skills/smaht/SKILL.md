@@ -6,9 +6,8 @@ description: |
   subagents call this skill directly when they need a context briefing rather
   than having one pushed onto every prompt.
 
-  Use when: "context briefing", "gather background", "what do we know about",
-  "resume where we left off", "catch me up", "what happened before",
-  "context assembly", "prompt enrichment"
+  Use when: gathering a context briefing before a task, resuming work after
+  a session break, or assembling background on an unfamiliar area.
 user-invocable: true
 ---
 

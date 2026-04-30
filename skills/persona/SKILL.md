@@ -2,9 +2,8 @@
 name: persona
 description: |
   On-demand persona invocation system for applying named perspectives to any task.
-  Use when: "invoke persona", "act as", "apply perspective", "use a persona",
-  "persona:as", "define persona", "list personas", "custom persona",
-  "review as <role>", "from the perspective of", "--persona flag"
+  Use when: invoking a named persona via persona:as, defining or listing
+  personas, or reviewing work through a specific role's perspective.
 disable-model-invocation: true
 ---
 

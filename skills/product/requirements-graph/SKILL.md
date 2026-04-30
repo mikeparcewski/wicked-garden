@@ -5,8 +5,8 @@ description: |
   Filesystem-as-graph: each AC is a node, directories are groupings,
   meta.md files are the human interface, frontmatter traces are the edges.
 
-  Use when: "requirements", "user stories", "acceptance criteria",
-  "elicit requirements", "define requirements", "graph requirements"
+  Use when: defining requirements as a filesystem graph of atomic ACs, eliciting
+  user stories, or laying out acceptance criteria with traceable edges.
 ---
 
 # Requirements Graph

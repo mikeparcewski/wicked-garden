@@ -4,8 +4,8 @@ description: |
   Multi-dimensional visual analysis and quality review of images.
   No external provider required — reads image files directly.
 
-  Use when: "review image", "analyze image", "visual review", "brand check",
-  "accessibility review", "production readiness", "image quality"
+  Use when: reviewing an image for visual quality, brand-guideline adherence,
+  or accessibility before production use.
 portability: portable
 ---
 

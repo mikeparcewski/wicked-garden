@@ -4,8 +4,8 @@ description: |
   Strategic business analysis for technical investments. Evaluates ROI, value proposition,
   competitive positioning, and market alignment. Provides decision support with business justification.
 
-  Use when: "competitive analysis", "market strategy", "ROI", "business case",
-  "value proposition", "strategic alignment", "investment decision"
+  Use when: building a business case for a technical investment, evaluating
+  ROI or value proposition, or doing competitive positioning analysis.
 ---
 
 # Strategy Skill

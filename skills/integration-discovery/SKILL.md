@@ -5,10 +5,8 @@ description: |
   Discovers CLI tools in PATH alongside MCP servers, skills, and agents.
   Reduces cognitive load on the main agent by making tool selection decisions.
 
-  Use when: planning work for unfamiliar domains, evaluating task scope before execution,
-  discovering what integrations or MCP servers could help, CLI detection, which tools are
-  installed, available CLIs, building task execution strategies, or when unsure which tools,
-  skills, or agents to use for current work.
+  Use when: planning work in an unfamiliar domain, deciding which tools or
+  agents fit a task, or discovering installed CLIs / MCP servers.
 user-invocable: false
 status: experimental
 ---
