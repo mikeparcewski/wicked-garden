@@ -21,7 +21,7 @@ Reference guide for proven agentic architecture patterns and common anti-pattern
 | **Collaborative** | Diverse perspectives matter; no clear lead | Multiple reviewers collaborating on code review | Rich outputs; needs conflict resolution + consensus |
 | **Autonomous** | Tasks are fully independent; parallel execution | Multiple monitoring agents checking different services | Max parallelism; no shared learning or coordination |
 | **Human-in-the-Loop** | High-stakes decisions, regulatory gates, human feedback | Agent drafts report; human approves before sending | Adds latency; ensures safety and quality |
-| **ReAct** | Dynamic environments; need adaptive behavior on feedback | Debug agent: try fix → observe tests → adapt | Flexible; expensive if reasoning is costly |
+| **ReAct** | Dynamic environments; need adaptive behavior on feedback | Debug agent: try fix → observe tests → adapt | Flexible; high token/latency cost for reasoning |
 | **Plan-Execute** | Predictable environment; planning overhead justified | Multi-step pipeline with known transformations | Efficient; brittle if environment changes |
 | **Reflection** | Quality > speed; self-improvement valuable | Writer drafts → critiques → refines | Higher quality; more tokens and latency |
 

@@ -33,8 +33,6 @@ the exact value.
 | **Isolated** | Agents operate independently | No contention, parallel execution | Inconsistency possible, harder to coordinate |
 | **Checkpointed** | Long-running processes, need recovery | Fault tolerance, replayability | Storage overhead, consistency complexity |
 
-See `refs/compression-techniques.md` for implementation details.
-
 ## Token Optimization Techniques
 
 ### 1. Aggressive Summarization
@@ -98,9 +96,9 @@ See `refs/selective-loading.md` for detailed prompting patterns.
 
 | Strategy | Pros | Cons |
 |----------|------|------|
-| **Anticipatory** — load before needed | Faster response time | May load unnecessary data |
-| **Just-in-Time (JIT)** — load only when needed | Minimal token usage | Latency on each request |
-| **Hybrid** — core context + JIT for task-specific | Balanced | More complex implementation |
+| **Anticipatory** | Faster response time (load before needed) | May load unnecessary data |
+| **Just-in-Time (JIT)** | Minimal token usage (load only when needed) | Latency on each request |
+| **Hybrid** | Balanced (core context + JIT for task-specific) | More complex implementation |
 
 ## Cost Modeling
 
