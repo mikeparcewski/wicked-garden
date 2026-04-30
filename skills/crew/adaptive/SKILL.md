@@ -4,9 +4,8 @@ description: |
   Adaptive engagement patterns for wicked-crew based on context, phase, and user preferences.
   Controls autonomy levels (just-finish, balanced, ask-first) and communication style.
 
-  Use when: "autonomy mode", "crew autonomy", "how much to ask", "just finish it",
-  "ask me before", "adapt to my style", "preference profile", "autonomy level",
-  "just-finish", "ask-first", "balanced autonomy", or setting engagement preferences.
+  Use when: setting or changing autonomy level (just-finish / balanced / ask-first),
+  adjusting communication style, or applying a saved engagement preference profile.
 ---
 
 # Adaptive Engagement Skill
