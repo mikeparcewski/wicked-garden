@@ -121,6 +121,6 @@ Detection uses `command -v` — no external dependencies.
 
 ## Integration
 
-- **wicked-smaht**: Context assembly uses trace data to detect degraded adapters
-- **wicked-crew**: Health probes run during execution gates
+- **smaht** (domain): Context assembly uses trace data to detect degraded adapters
+- **crew** (domain): Health probes run during execution gates
 - **DomainStore**: Traces stored via DomainStore (local JSON), with SqliteStore for search
