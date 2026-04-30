@@ -201,6 +201,32 @@ class MonitoringAgent:
 ### Coordination Patterns
 Even autonomous agents may need minimal coordination via shared event bus, shared state store, or rate limiting to stay under global limits.
 
+## Human-in-the-Loop Pattern
+
+### Description
+Agent execution includes explicit gates where a human approves, rejects, or modifies a proposed action before it takes effect. The human is part of the control loop, not just a downstream consumer. Sits naturally on top of any other pattern (sequential, hierarchical, autonomous) — a workflow can have one HITL gate before a high-stakes step or many gates throughout.
+
+### When to Use
+- High-stakes decisions where an unreviewed agent action could cause material harm (sending external email, paying invoices, altering production state)
+- Regulatory or compliance regimes that require a human sign-off in the audit trail
+- Tasks where the agent's confidence is low and human judgment is the cheapest correction
+- Early deployment of a new agent capability — gates are a useful safety scaffold while trust is being built and metered down later
+
+### When NOT to Use
+- Hot-path or latency-sensitive workflows where pause-for-approval defeats the purpose
+- High-volume actions where the human review queue would saturate
+- Decisions that are reversible cheaply — an undo button is often a better trade-off than a gate
+- The human reviewer cannot meaningfully evaluate the proposed action (no context, no UI, no time)
+
+### Variations
+- **Pre-approval gate** — human approves before any side effect happens
+- **Post-execution review** — agent acts, human reviews and rolls back if needed (only when reversal is safe)
+- **Sampled review** — only every Nth action is gated; balances coverage vs throughput
+- **Risk-tiered gating** — low-risk actions auto-proceed, medium-risk get sampled review, high-risk always block on a human
+
+### Common Pitfalls
+Approval fatigue (humans rubber-stamp without reading), implicit bypass paths (the gate only fires on the happy path), no audit trail of who approved what, and gates that block without timeout (a missing reviewer halts the whole pipeline).
+
 ## ReAct Pattern
 
 ### Description
