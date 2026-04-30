@@ -5,9 +5,8 @@ description: |
   at the appropriate level for the task's complexity score. Three tiers (low,
   medium, high) map to complexity ranges 1-2, 3-4, 5-7.
 
-  Use when: "validate evidence", "check task completion", "evidence required",
-  "missing evidence", "evidence schema", "task description review",
-  or validating a TaskUpdate description before marking complete.
+  Use when: validating a TaskUpdate description before marking complete, or
+  checking that evidence fields match the task's complexity tier.
 ---
 
 # Evidence Validation Skill

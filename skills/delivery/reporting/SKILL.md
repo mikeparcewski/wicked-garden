@@ -4,9 +4,8 @@ description: |
   Multi-perspective project delivery reporting with persona-based analysis.
   Generates actionable reports from project data using 6 specialized stakeholder perspectives.
 
-  Use when: "generate report", "delivery report", "project status report",
-  "sprint retrospective", "steering committee report", "stakeholder update",
-  "project health summary"
+  Use when: generating a delivery / status report, preparing a sprint
+  retrospective, or producing a stakeholder update from project data.
 
   Enhanced with:
   - wicked-brain:memory Stores insights across sessions

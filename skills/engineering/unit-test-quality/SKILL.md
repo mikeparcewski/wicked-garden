@@ -9,10 +9,8 @@ description: |
   retest, constant verification, sleep-coupled, exception-swallowing), and a
   one-line decision rule per pattern.
 
-  Use when: writing a new unit test, reviewing a test diff, auditing a suite
-  with high coverage but low confidence, "is this test worth keeping",
-  "why didn't our tests catch that bug", before approving a PR that adds tests,
-  pairing a test with a bug fix, "this test feels redundant".
+  Use when: writing or reviewing a unit test, auditing a suite with high
+  coverage but low confidence, or pairing a regression test with a bug fix.
 status: stable
 portability: portable
 ---

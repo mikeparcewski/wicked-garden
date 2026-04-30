@@ -5,9 +5,8 @@ description: |
   Runs gate analysis at crew checkpoints (post-clarify, post-design, post-build) to validate
   readiness before advancing. Quality checkpoint within the wicked-crew workflow.
 
-  Use when: "quality gate", "value gate", "strategy gate", "execution gate",
-  "gate analysis", "quality checkpoint", "phase gate", "crew quality gate",
-  "ready to advance", "should we build this", "does it work", "crew QE checkpoint"
+  Use when: running a value / strategy / execution gate at a crew checkpoint,
+  validating phase-transition readiness, or asking "is this ready to advance".
 ---
 
 # Crew QE Gate Skill
