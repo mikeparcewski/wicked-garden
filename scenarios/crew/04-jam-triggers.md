@@ -34,7 +34,7 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
 
-echo '{"prompt": "We need to choose between caching with Redis or computing on demand for the leaderboard.", "session_id": "sess-1"}' \
+echo '{"prompt": "Compare the tradeoffs of caching with Redis versus computing on demand for the leaderboard.", "session_id": "sess-1"}' \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('JAM_FOUND' if 'jam:' in ctx else 'NO_JAM')"
 ```
