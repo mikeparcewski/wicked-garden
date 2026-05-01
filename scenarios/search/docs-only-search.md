@@ -5,6 +5,7 @@ description: Filter search to only documentation, excluding code
 type: feature
 difficulty: basic
 estimated_minutes: 5
+execution: manual
 ---
 
 # Search Documentation Only

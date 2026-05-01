@@ -5,6 +5,7 @@ description: Profile a CSV dataset to understand structure, quality, and generat
 type: data
 difficulty: basic
 estimated_minutes: 5
+execution: manual
 ---
 
 # CSV Data Profiling and Analysis

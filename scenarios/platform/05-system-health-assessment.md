@@ -5,6 +5,7 @@ description: Aggregate health metrics across services, detect trends, and provid
 type: infrastructure
 difficulty: intermediate
 estimated_minutes: 10
+execution: manual
 ---
 
 # System Health Assessment and SLO Monitoring

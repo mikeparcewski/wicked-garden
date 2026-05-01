@@ -5,6 +5,7 @@ description: Full-spectrum quality review before code is written
 type: testing
 difficulty: intermediate
 estimated_minutes: 12
+execution: manual
 ---
 
 # Shift-Left QE Review

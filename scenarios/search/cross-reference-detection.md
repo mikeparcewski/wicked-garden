@@ -5,6 +5,7 @@ description: Detect imports, calls, inheritance, and doc references automaticall
 type: feature
 difficulty: intermediate
 estimated_minutes: 8
+execution: manual
 ---
 
 # Automatic Cross-Reference Detection

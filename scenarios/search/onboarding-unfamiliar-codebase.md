@@ -5,6 +5,7 @@ description: Complete workflow for understanding a new codebase using wicked-sea
 type: workflow
 difficulty: advanced
 estimated_minutes: 20
+execution: manual
 ---
 
 # Onboarding to an Unfamiliar Codebase

@@ -5,6 +5,7 @@ description: Design a new data pipeline and review existing pipeline architectur
 type: pipeline
 difficulty: intermediate
 estimated_minutes: 10
+execution: manual
 ---
 
 # ETL Pipeline Design and Review

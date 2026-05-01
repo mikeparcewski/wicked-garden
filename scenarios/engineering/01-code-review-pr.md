@@ -5,6 +5,7 @@ description: Comprehensive code review of a feature branch before merging
 type: review
 difficulty: basic
 estimated_minutes: 10
+execution: manual
 ---
 
 # Pull Request Code Review

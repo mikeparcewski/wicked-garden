@@ -55,7 +55,9 @@ def discover_plugin(plugin_name: str) -> "Path | None":
 def parse_frontmatter(filepath: Path) -> dict:
     """Parse YAML frontmatter from a scenario markdown file.
 
-    Returns dict with name, description, category, tools, difficulty, timeout.
+    Returns dict with name, description, category, tools, difficulty, timeout, execution.
+    `execution` defaults to "auto" when absent; "manual" indicates the scenario
+    contains only slash commands and needs a Claude runtime to dispatch.
     Uses simple regex parsing to avoid PyYAML dependency.
     """
     try:
@@ -78,13 +80,16 @@ def parse_frontmatter(filepath: Path) -> dict:
         kv = re.match(r"^(\w+):\s*(.+)$", line)
         if kv:
             key, val = kv.group(1), kv.group(2).strip().strip('"').strip("'")
-            if key in ("name", "description", "category", "difficulty"):
+            if key in ("name", "description", "category", "difficulty", "execution"):
                 result[key] = val
             elif key == "timeout":
                 try:
                     result["timeout"] = int(val)
                 except ValueError:
                     pass  # intentional: invalid timeout ignored
+
+    # Default execution to "auto" if absent
+    result.setdefault("execution", "auto")
 
     # Parse tools block (required/optional arrays)
     # Supports both inline [curl, hurl] and list (- curl) syntax

@@ -7,6 +7,7 @@ tools:
   required: [slash-command]
 difficulty: basic
 timeout: 30
+execution: manual
 ---
 
 # Observability Trace Capture

@@ -6,6 +6,7 @@ type: workflow
 difficulty: advanced
 estimated_minutes: 15
 timeout: 300
+execution: manual
 ---
 
 # Impact Analysis Before Refactoring

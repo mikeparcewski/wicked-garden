@@ -5,6 +5,7 @@ description: Analyze microservice architecture for design issues and improvement
 type: architecture
 difficulty: advanced
 estimated_minutes: 15
+execution: manual
 ---
 
 # Service Architecture Analysis

@@ -5,6 +5,7 @@ description: Use delivery reports to orient a new developer to team velocity, bl
 type: workflow
 difficulty: basic
 estimated_minutes: 8
+execution: manual
 ---
 
 # New Developer Onboarding via Delivery Reporting

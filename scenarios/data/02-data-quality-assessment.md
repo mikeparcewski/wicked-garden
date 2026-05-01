@@ -5,6 +5,7 @@ description: Assess data quality dimensions and validate against expected schema
 type: data
 difficulty: intermediate
 estimated_minutes: 8
+execution: manual
 ---
 
 # Data Quality Assessment and Validation

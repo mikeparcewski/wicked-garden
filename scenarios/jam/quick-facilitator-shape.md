@@ -7,6 +7,7 @@ difficulty: basic
 estimated_minutes: 3
 tags: [jam, quick, synthesis-shape, context-budget]
 complexity: 2
+execution: manual
 ---
 
 # Scenario: jam:quick Facilitator Shape

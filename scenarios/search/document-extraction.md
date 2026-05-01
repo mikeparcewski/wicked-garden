@@ -5,6 +5,7 @@ description: Extract content from PDF, Word, Excel, PowerPoint and link to imple
 type: feature
 difficulty: intermediate
 estimated_minutes: 10
+execution: manual
 ---
 
 # Extract and Search Office Documents

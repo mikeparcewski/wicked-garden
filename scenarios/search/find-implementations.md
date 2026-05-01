@@ -5,6 +5,7 @@ description: Trace from specification sections to implementing code
 type: workflow
 difficulty: intermediate
 estimated_minutes: 10
+execution: manual
 ---
 
 # Find Implementations from Specifications

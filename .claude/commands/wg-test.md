@@ -109,6 +109,8 @@ Neither command files nor plugin skills exist.
 
 Use the tier detected in Step 4 to select the execution path. Try Tier 1 first; if the Skill call fails with "Unknown skill", fall through to Tier 2.
 
+**Pre-dispatch check (applies to both tiers):** before dispatching any scenario, parse its YAML frontmatter and check for `execution: manual`. If present, do NOT dispatch — record the scenario with verdict **MANUAL-ONLY** and continue to the next scenario. This applies to both Tier 1 (Skill delegation) and Tier 2 (inline fallback). Hybrid scenarios (no `execution: manual` flag but containing slash command steps in their bodies) are dispatched normally; per-step MANUAL-ONLY recording happens inside Step 6 of the inline fallback.
+
 ---
 
 **Tier 1 — Skill delegation (plugin loaded OR skills registered):**
@@ -153,24 +155,30 @@ When plugin skills can't be invoked (common in web environments or when `CLAUDE_
 For each scenario file:
 
 1. **Read the scenario markdown** using the Read tool
-2. **Parse YAML frontmatter** — extract `name`, `description`, `tools.required`, `tools.optional`, `env`, `timeout`
-3. **Run CLI discovery** — check tools manually with `which {tool}` for each required/optional tool.
-4. **Execute Setup** — find the `## Setup` section, extract its fenced code block, run via Bash
-5. **Execute Steps** — for each `### Step N:` section:
+2. **Parse YAML frontmatter** — extract `name`, `description`, `execution`, `tools.required`, `tools.optional`, `env`, `timeout`
+3. **Honor `execution: manual`** — if frontmatter declares `execution: manual`, skip directly to Step 9 with the scenario marked **MANUAL-ONLY** (3). Do NOT run Setup/Steps/Cleanup. This separates "needs interactive runtime to dispatch slash commands" from SKIP (tool missing) and from PASS/FAIL/PARTIAL (actually executed).
+4. **Run CLI discovery** — check tools manually with `which {tool}` for each required/optional tool.
+5. **Execute Setup** — find the `## Setup` section, extract its fenced code block, run via Bash
+6. **Execute Steps** — for each `### Step N:` section:
    - Extract the fenced code block
-   - If the code block contains slash commands (e.g., `/wicked-garden:agentic:review ...`), invoke them via the Skill tool instead of Bash
-   - If CLI not available, record as **SKIPPED**
+   - **If the code block contains a slash command (`/wicked-garden:*` or `/wicked-testing:*`)**:
+     - In a tagged scenario this path never runs (Step 3 short-circuited).
+     - In an **untagged hybrid** scenario: dispatch via the Skill tool when available; if Skill is unavailable, record the step as **MANUAL-ONLY** (do NOT mark FAIL or SKIP).
+   - If a CLI dependency is not available, record the step as **SKIPPED**
    - Otherwise execute via Bash with the scenario's timeout (default 120s)
    - Capture: stdout, stderr, exit code, duration
-   - Exit code 0 → **PASS**, non-zero → **FAIL**, CLI missing → **SKIPPED**
-6. **Execute Cleanup** — if a `## Cleanup` section exists, run its code block via Bash
-7. **Aggregate** — All PASS → **PASS** (0), Any FAIL → **FAIL** (1), No FAILs but SKIPs → **PARTIAL** (2)
-8. **Report** — produce the markdown results table:
+   - Exit code 0 → **PASS**, non-zero → **FAIL**, CLI missing → **SKIPPED**, slash-without-Skill → **MANUAL-ONLY**
+7. **Execute Cleanup** — if a `## Cleanup` section exists, run its code block via Bash
+8. **Aggregate** — Scenario-level `execution: manual` is already handled at Step 3. For all others:
+   - All steps PASS → **PASS** (0)
+   - Any step FAIL → **FAIL** (1)
+   - No FAILs but at least one SKIP or MANUAL-ONLY → **PARTIAL** (2)
+9. **Report** — produce the markdown results table:
 
 ```markdown
 ## Scenario Results: {name}
 
-**Status**: {PASS|FAIL|PARTIAL}
+**Status**: {PASS|FAIL|PARTIAL|MANUAL-ONLY}
 **Duration**: {total seconds}s
 **Steps**: {pass_count} passed, {fail_count} failed, {skip_count} skipped
 
@@ -179,6 +187,7 @@ For each scenario file:
 | {step name} | PASS | 0.5s | |
 | {step name} | FAIL | 2.0s | Exit code 1: {stderr snippet} |
 | {step name} | SKIPPED | - | Tool not installed |
+| {step name} | MANUAL-ONLY | - | Requires Claude runtime to dispatch slash commands |
 ```
 
 ---
@@ -243,6 +252,7 @@ Each batch debug log captures:
   "failed": 5,
   "errors": 2,
   "skipped": 0,
+  "manual_only": 31,
   "duration_ms": 180000,
   "batches": 13,
   "batch_size": 8,

@@ -5,6 +5,7 @@ description: Explore approaches to refactoring risky legacy code
 type: workflow
 difficulty: advanced
 estimated_minutes: 12
+execution: manual
 ---
 
 # Legacy Code Refactoring Strategy
