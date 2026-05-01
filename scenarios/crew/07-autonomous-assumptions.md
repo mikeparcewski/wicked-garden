@@ -88,12 +88,12 @@ When the project completes, the final output should include:
 - **Review**: {list of assumptions}
 ```
 
-### 5. Verify smaht context gathered (if available)
+### 5. Verify context assembly (v6 pull-model)
 
 Expected:
-1. wicked-smaht context_package.py called before phase work
-2. Context package included in subagent Task() dispatches
-3. Graceful degradation if smaht not installed
+1. Either the `smaht` (`context-assembly`) skill is invoked, or `wicked-brain:search` / `wicked-brain:query` is called directly, at least once during phase work to gather context.
+2. Context retrieved is referenced or summarized in subagent Task() dispatches when relevant.
+3. When `wicked-brain` is not installed, the brain-backed lookup degrades to empty results — phase work continues without producing a hard failure that blocks completion.
 
 ### 6. Verify orchestrator-only behavior
 

@@ -21,8 +21,10 @@ Each scenario follows a standard structure with YAML frontmatter, setup steps, n
 
 ## Data Access
 
-All scenarios query plugin data via local storage (DomainStore + SQLite). Scripts are invoked through the `_run.py` wrapper:
+All scenarios query plugin data via local storage (DomainStore + SQLite). Scripts are invoked through the cross-platform `_python.sh` shim and the `_run.py` wrapper:
 
 ```bash
-python3 scripts/_run.py scripts/{domain}/{script}.py {args}
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/{domain}/{script}.py {args}
 ```
+
+The shim resolves `python3`, `python`, or `py -3` based on what's available — bare `python3` is not present on Windows. See `skills/runtime-exec/SKILL.md` for the resolution chain.
