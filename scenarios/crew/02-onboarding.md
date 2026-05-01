@@ -34,8 +34,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "show me the current task list", "session_id": "sess-1"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('SETUP_DIRECTIVE' if 'wicked-garden:setup' in ctx else 'NO_DIRECTIVE')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('SETUP_DIRECTIVE' if 'wicked-garden:setup' in ctx else 'NO_DIRECTIVE')"
 ```
 
 **Expected**: `SETUP_DIRECTIVE`
@@ -85,8 +85,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "show me current tasks", "session_id": "sess-3"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('NO_DIRECTIVE' if 'wicked-garden:setup' not in ctx and 'search:index' not in ctx else 'DIRECTIVE_FOUND')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('NO_DIRECTIVE' if 'wicked-garden:setup' not in ctx and 'search:index' not in ctx else 'DIRECTIVE_FOUND')"
 ```
 
 **Expected**: `NO_DIRECTIVE`
@@ -99,7 +99,7 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "/wicked-garden:setup", "session_id": "sess-4"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null
 echo "Exit code: $?"
 ```
 
@@ -113,8 +113,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "what tasks are pending?", "session_id": "sess-5"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('CLEAN' if 'setup' not in ctx.lower() else 'UNEXPECTED_DIRECTIVE')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('CLEAN' if 'setup' not in ctx.lower() else 'UNEXPECTED_DIRECTIVE')"
 ```
 
 **Expected**: `CLEAN`
@@ -127,7 +127,7 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 result=$(echo '{"prompt": "what is next?", "session_id": "sess-6"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null; echo $?)
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null; echo $?)
 
 echo "Exit code: ${result}"
 ```

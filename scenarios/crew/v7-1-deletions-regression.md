@@ -22,7 +22,7 @@ or structural grep audits — no side-effects on the repo.
 ## Step 1: 4 deleted directories are absent (GA-01..GA-04)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 absent = ['agents/qe', 'skills/qe', 'skills/acceptance-testing', 'commands/qe']
@@ -47,7 +47,7 @@ print('PASS (GA-01..GA-04): all 4 directories absent')
 ## Step 2: Zero wicked-garden:qe: refs in dispatch-path code (GA-05, GA-07..GA-09)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys, pathlib
 root = pathlib.Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'))
 targets = [
@@ -87,7 +87,7 @@ print('PASS (GA-05, GA-07..GA-09): dispatch-path files clean')
 ## Step 3: cli_discovery.py deleted (GA-10)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 path = os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts', 'qe', 'cli_discovery.py')
 if os.path.exists(path):
@@ -106,7 +106,7 @@ print('PASS (GA-10): cli_discovery.py absent')
 ## Step 4: CHANGELOG has [7.1.0] entry with all 4 deleted dirs (CA-01, CA-02)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 path = os.path.join(root, 'CHANGELOG.md')
@@ -143,7 +143,7 @@ print('PASS (CA-01..CA-04): CHANGELOG checks passed')
 ## Step 5: plugin.json version is 7.1.0 and v7.0.0 git tag exists (CA-05, CA-06)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys, json, subprocess
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 plugin_path = os.path.join(root, '.claude-plugin', 'plugin.json')

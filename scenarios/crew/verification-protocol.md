@@ -46,7 +46,7 @@ def login(user, pw):
 PYEOF
 
 # Verify verification_protocol.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" --help > /dev/null 2>&1 \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" --help > /dev/null 2>&1 \
   && echo "verification_protocol.py available" || echo "NOT FOUND"
 ```
 
@@ -55,10 +55,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" --help > /
 ### 1. Debug artifacts check (FAIL)
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
   --project test-vp --phases-dir "${VP_TMPDIR}/phases" \
   --check debug_artifacts --files "${VP_TMPDIR}/code.py" \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 checks = d.get('checks', [d]) if not d.get('status') else [d]
@@ -83,10 +83,10 @@ def login(user, pw):
     return authenticate(user, pw)
 PYEOF
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
   --project test-vp --phases-dir "${VP_TMPDIR}/phases" \
   --check debug_artifacts --files "${VP_TMPDIR}/code_clean.py" \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 checks = d.get('checks', [d]) if not d.get('status') else [d]
@@ -102,10 +102,10 @@ for c in checks:
 ### 3. Acceptance criteria check
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
   --project test-vp --phases-dir "${VP_TMPDIR}/phases" \
   --check acceptance_criteria \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 checks = d.get('checks', [d]) if not d.get('status') else [d]
@@ -123,10 +123,10 @@ for c in checks:
 ### 4. Test suite check (SKIP)
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
   --project test-vp --phases-dir "${VP_TMPDIR}/phases" \
   --check test_suite \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 checks = d.get('checks', [d]) if not d.get('status') else [d]
@@ -142,10 +142,10 @@ for c in checks:
 ### 5. Full protocol run
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
   --project test-vp --phases-dir "${VP_TMPDIR}/phases" \
   --files "${VP_TMPDIR}/code.py" \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 checks = d.get('checks', [])
@@ -165,10 +165,10 @@ print('SUMMARY_EXISTS:', bool(summary))
 
 ```bash
 # With debug artifacts present (code.py has TODO + print), expect FAIL verdict
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
   --project test-vp --phases-dir "${VP_TMPDIR}/phases" \
   --files "${VP_TMPDIR}/code.py" \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 verdict = d.get('verdict', d.get('summary', {}).get('verdict', 'N/A'))
@@ -176,10 +176,10 @@ print('VERDICT_WITH_ISSUES:', verdict)
 "
 
 # With clean code, check for improved verdict
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/verification_protocol.py" run \
   --project test-vp --phases-dir "${VP_TMPDIR}/phases" \
   --files "${VP_TMPDIR}/code_clean.py" \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 verdict = d.get('verdict', d.get('summary', {}).get('verdict', 'N/A'))

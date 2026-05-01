@@ -39,7 +39,7 @@ EOF
 ### 1. Score consensus from proposals
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" score --proposals "${TMPDIR:-/tmp}/proposals.json" | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" score --proposals "${TMPDIR:-/tmp}/proposals.json" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 result = json.load(sys.stdin)
 assert 'consensus_points' in result, 'Missing consensus_points'
@@ -57,10 +57,10 @@ print('Consensus points: %d, Divergent points: %d' % (len(result['consensus_poin
 ### 2. Full synthesis with proposals and reviews
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" synthesize \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" synthesize \
   --proposals "${TMPDIR:-/tmp}/proposals.json" \
   --reviews "${TMPDIR:-/tmp}/reviews.json" \
-  --question "How should we handle API authentication?" | tee "${TMPDIR:-/tmp}/result.json" | python3 -c "
+  --question "How should we handle API authentication?" | tee "${TMPDIR:-/tmp}/result.json" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 result = json.load(sys.stdin)
 assert 'decision' in result, 'Missing decision'
@@ -80,7 +80,7 @@ print('Decision: %s' % result['decision'][:100])
 ### 3. Dissent extraction from synthesis
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 result = json.load(open('${TMPDIR:-/tmp}/result.json'))
 dissents = result.get('dissenting_views', [])
@@ -98,7 +98,7 @@ print('PASS: Found %d dissenting views with strengths: %s' % (len(dissents), str
 ### 4. Confidence is in valid range
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 result = json.load(open('${TMPDIR:-/tmp}/result.json'))
 conf = result['confidence']
@@ -112,7 +112,7 @@ print('PASS: Confidence %.3f is in valid range [0.0, 1.0]' % conf)
 ### 5. Format for display
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" format --result "${TMPDIR:-/tmp}/result.json" | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" format --result "${TMPDIR:-/tmp}/result.json" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 output = sys.stdin.read()
 assert '## Council Consensus' in output, 'Missing header'
@@ -127,7 +127,7 @@ print('PASS: Display format has expected markdown headers')
 ### 6. Format for display with dissent section
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" format --result "${TMPDIR:-/tmp}/result.json" --show-dissent | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" format --result "${TMPDIR:-/tmp}/result.json" --show-dissent | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 output = sys.stdin.read()
 assert '### Dissenting Views' in output, 'Missing Dissenting Views section when --show-dissent used'
@@ -140,7 +140,7 @@ print('PASS: --show-dissent flag includes Dissenting Views section')
 ### 7. Format for memory produces correct structure
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/jam')
@@ -165,9 +165,9 @@ print('Dissent count: %d, Strong: %d' % (md['dissent_count'], md['strong_dissent
 ### 8. Synthesis works without reviews (optional cross-reviews)
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" synthesize \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" synthesize \
   --proposals "${TMPDIR:-/tmp}/proposals.json" \
-  --question "test without reviews" | python3 -c "
+  --question "test without reviews" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 result = json.load(sys.stdin)
 assert 'decision' in result, 'Missing decision'

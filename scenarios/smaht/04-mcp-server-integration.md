@@ -34,7 +34,7 @@ if [ ! -f "${HOME}/.claude/mcp.json" ]; then
 fi
 
 # Check context7 MCP configuration exists
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 cfg = json.load(open('${HOME}/.claude/mcp.json'))
 c7 = cfg.get('context7', {})
@@ -66,7 +66,7 @@ if [ ! -f "${HOME}/.claude/mcp.json" ]; then
   echo "SKIP: ~/.claude/mcp.json not found — MCP not configured"
   exit 0
 fi
-cat ~/.claude/mcp.json | python3 -c "import json,sys; cfg = json.load(sys.stdin); c7 = cfg.get('context7', {}); print('type:', c7.get('type')); print('command:', c7.get('command')); print('args:', c7.get('args'))"
+cat ~/.claude/mcp.json | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; cfg = json.load(sys.stdin); c7 = cfg.get('context7', {}); print('type:', c7.get('type')); print('command:', c7.get('command')); print('args:', c7.get('args'))"
 ```
 
 Expected:
@@ -139,7 +139,7 @@ if [ ! -f "${HOME}/.claude/mcp.json" ]; then
   exit 0
 fi
 # Temporarily corrupt context7 config to test fallback behavior
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 with open('$HOME/.claude/mcp.json') as f:
     cfg = json.load(f)
@@ -177,7 +177,7 @@ if [ ! -f "${HOME}/.claude/mcp.json" ]; then
   echo "SKIP: ~/.claude/mcp.json not found — MCP not configured"
   exit 0
 fi
-cat ~/.claude/mcp.json | python3 -c "
+cat ~/.claude/mcp.json | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 cfg = json.load(sys.stdin)
 args = cfg.get('context7', {}).get('args', [])

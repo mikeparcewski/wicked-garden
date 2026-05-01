@@ -33,7 +33,7 @@ return a JSON object with a `languages` array that includes `"Python"`.
 
 ```bash
 cd "${PROJ_DIR}"
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 from pathlib import Path
 cwd = Path.cwd()
@@ -62,7 +62,7 @@ detected_langs = [l for l, fs in markers.items() if any((cwd / f).exists() for f
 detected_fws = [fw for fw, fs in frameworks.items() if any((cwd / f).exists() for f in fs)]
 result = {'languages': detected_langs, 'frameworks': detected_fws}
 print(json.dumps(result))
-" | python3 -c "
+" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 data = json.load(sys.stdin)
 langs = data.get('languages', [])
@@ -89,7 +89,7 @@ with boolean values for each tool. When `gh` is installed on the test machine, `
 be `true`.
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import shutil, json
 tools = {
     'gh': shutil.which('gh') is not None,
@@ -100,7 +100,7 @@ tools = {
     'kubectl': shutil.which('kubectl') is not None,
 }
 print(json.dumps(tools))
-" | python3 -c "
+" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 data = json.load(sys.stdin)
 all_bool = all(isinstance(v, bool) for v in data.values())
@@ -130,7 +130,7 @@ object, mimicking how `setup.md` uses `DETECTED_LANGS`, `DETECTED_FWS`, and `DET
 
 ```bash
 cd "${PROJ_DIR}"
-python3 - <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PYEOF'
 import json, shutil
 from pathlib import Path
 

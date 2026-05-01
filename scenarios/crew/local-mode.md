@@ -43,7 +43,7 @@ echo "Sandbox ready: $WG_TMP"
   - The file contains the correct payload fields
 
 ```bash
-python3 - <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PYEOF'
 import sys, os, json
 from pathlib import Path
 
@@ -92,7 +92,7 @@ PYEOF
 **Then**: The record is returned correctly — local JSON is the durable store
 
 ```bash
-python3 - <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PYEOF'
 import sys, os, json
 from pathlib import Path
 
@@ -144,7 +144,7 @@ PYEOF
   - `list` after `delete` excludes the record
 
 ```bash
-python3 - <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PYEOF'
 import sys, os
 from pathlib import Path
 
@@ -196,7 +196,7 @@ PYEOF
 **Then**: The JSON output's `additionalContext` contains the string `"Storage:"` and `"local"`
 
 ```bash
-python3 - <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PYEOF'
 import sys, os, json, subprocess
 from pathlib import Path
 
@@ -243,7 +243,7 @@ PYEOF
 **Then**: Only the record containing "authentication" is returned
 
 ```bash
-python3 - <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PYEOF'
 import sys, os
 from pathlib import Path
 

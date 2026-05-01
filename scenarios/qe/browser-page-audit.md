@@ -11,7 +11,7 @@ timeout: 60
 
 # Browser Page Audit
 
-Verifies that a web page loads successfully, renders expected content, and responds to basic interactions using browser CLI tools. Uses a local HTML fixture served via `python3 -m http.server` so assertions are deterministic and never break due to external content changes.
+Verifies that a web page loads successfully, renders expected content, and responds to basic interactions using browser CLI tools. Uses a local HTML fixture served via `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -m http.server` so assertions are deterministic and never break due to external content changes.
 
 ## Setup
 
@@ -33,11 +33,11 @@ cat > "${TMPDIR:-/tmp}/wicked-scenario-pw/index.html" << 'HTML_EOF'
 HTML_EOF
 
 # Pick a free port (fall back to 8765 if python one-liner fails)
-SCEN_PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" 2>/dev/null || echo 8765)
+SCEN_PORT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" 2>/dev/null || echo 8765)
 echo "$SCEN_PORT" > "${TMPDIR:-/tmp}/wicked-scenario-pw/port"
 
 # Start a local server in the background
-python3 -m http.server "$SCEN_PORT" --directory "${TMPDIR:-/tmp}/wicked-scenario-pw" &
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -m http.server "$SCEN_PORT" --directory "${TMPDIR:-/tmp}/wicked-scenario-pw" &
 SERVER_PID=$!
 echo "$SERVER_PID" > "${TMPDIR:-/tmp}/wicked-scenario-pw/server.pid"
 

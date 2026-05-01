@@ -76,8 +76,8 @@ Assert: PASS: parallel dispatch referenced
 
 ```bash
 Run: echo '{"tool_name": "Write", "tool_input": {"file_path": "/tmp/test_output.py", "content": "print(hello)"}}' | \
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py" | \
-  python3 -c "
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py" | \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 data = json.load(sys.stdin)
 # Hook should allow (fail open) — never deny writes
@@ -93,8 +93,8 @@ Assert: PASS: pre_tool allows writes (fail open)
 
 ```bash
 Run: echo '{"tool_name": "Write", "tool_input": {"file_path": "/home/user/.something-wicked/wicked-garden/projects/test-slug/wicked-crew/projects/test/status.md", "content": "status: ok"}}' | \
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py" | \
-  python3 -c "
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre_tool.py" | \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 data = json.load(sys.stdin)
 decision = data.get('hookSpecificOutput', {}).get('permissionDecision', '')

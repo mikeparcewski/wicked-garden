@@ -34,8 +34,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "What are the tradeoffs between using Redis vs Postgres for session storage? Compare the alternatives.", "session_id": "sess-1"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('JAM_FOUND' if 'jam:' in ctx else 'NO_JAM')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('JAM_FOUND' if 'jam:' in ctx else 'NO_JAM')"
 ```
 
 **Expected**: `JAM_FOUND`
@@ -48,8 +48,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "Should we use a monorepo or separate repos? Explore the options.", "session_id": "sess-2"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); has_quick='jam:quick' in ctx; has_brainstorm='jam:brainstorm' in ctx; print('NAMED' if has_quick or has_brainstorm else 'UNNAMED')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); has_quick='jam:quick' in ctx; has_brainstorm='jam:brainstorm' in ctx; print('NAMED' if has_quick or has_brainstorm else 'UNNAMED')"
 ```
 
 **Expected**: `NAMED`
@@ -62,8 +62,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "/wicked-garden:jam:quick thinking through tradeoffs for session storage options", "session_id": "sess-3"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); count=ctx.count('jam:'); print('DUPLICATE' if count > 1 else 'OK')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); count=ctx.count('jam:'); print('DUPLICATE' if count > 1 else 'OK')"
 ```
 
 **Expected**: `OK` (no duplicate suggestion appended)
@@ -76,8 +76,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "Should we use option A or B? Compare the alternatives and tradeoffs.", "session_id": "sess-4"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('JAM_FOUND' if '[Suggestion]' in ctx and 'jam:' in ctx else 'NO_JAM')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('JAM_FOUND' if '[Suggestion]' in ctx and 'jam:' in ctx else 'NO_JAM')"
 ```
 
 **Expected**: `NO_JAM`
@@ -90,9 +90,9 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "What are the tradeoffs between GraphQL and REST for our API?", "session_id": "sess-5"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null > /dev/null
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null > /dev/null
 
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, glob
 files = glob.glob('${TMPDIR}/wicked-garden-session-*.json')
 if files:
@@ -118,8 +118,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "What are the tradeoffs between these design options? Compare alternatives.", "session_id": "sess-6"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); has_jam='[Suggestion]' in ctx and 'jam:' in ctx; has_onboarding='setup' in ctx.lower(); print(f'jam={has_jam} onboarding={has_onboarding}')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); has_jam='[Suggestion]' in ctx and 'jam:' in ctx; has_onboarding='setup' in ctx.lower(); print(f'jam={has_jam} onboarding={has_onboarding}')"
 ```
 
 **Expected**: `jam=False onboarding=True`
@@ -142,8 +142,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "I need to design and implement a migration strategy — but should we use a strangler fig pattern or big bang? Help me think through the tradeoffs and alternatives across the system architecture", "session_id": "sess-7"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); is_synthesis='path=synthesis' in ctx or 'synthesize' in ctx.lower(); has_jam='[Suggestion]' in ctx and 'jam:' in ctx; print(f'synthesis={is_synthesis} jam={has_jam}')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); is_synthesis='path=synthesis' in ctx or 'synthesize' in ctx.lower(); has_jam='[Suggestion]' in ctx and 'jam:' in ctx; print(f'synthesis={is_synthesis} jam={has_jam}')"
 ```
 
 **Expected**: `synthesis=True jam=False` (synthesis path returns early; jam hint never appended)

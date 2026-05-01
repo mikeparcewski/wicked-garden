@@ -16,8 +16,8 @@ This scenario validates that `scripts/crew/evidence.py` correctly validates task
 No special setup needed. Uses `evidence.py` directly.
 
 ```bash
-python3 -c "from scripts.crew.evidence import validate_evidence; print('evidence.py importable')" 2>/dev/null || \
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/evidence.py" --help > /dev/null 2>&1 && echo "evidence.py available"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "from scripts.crew.evidence import validate_evidence; print('evidence.py importable')" 2>/dev/null || \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/evidence.py" --help > /dev/null 2>&1 && echo "evidence.py available"
 ```
 
 ## Steps
@@ -25,7 +25,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/evidence.py" --help > /dev/null 2>&1
 ### 1. Low complexity (score 1-2): requires code_diff + test_results
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from evidence import validate_evidence
@@ -57,7 +57,7 @@ Expected: `PASS: Low complexity evidence accepted`
 ### 2. Low complexity: missing evidence fields blocked
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from evidence import validate_evidence
@@ -84,7 +84,7 @@ Expected: `PASS: Missing evidence detected for complexity 2`
 ### 3. Medium complexity (score 3-4): requires code_diff + test_results + verification
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from evidence import validate_evidence
@@ -116,7 +116,7 @@ Expected: `PASS: Verification required for complexity 4`
 ### 4. Medium complexity: full evidence passes
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from evidence import validate_evidence
@@ -148,7 +148,7 @@ Expected: `PASS: Full medium complexity evidence accepted`
 ### 5. High complexity (score 5+): requires performance + assumptions
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from evidence import validate_evidence
@@ -181,7 +181,7 @@ Expected: `PASS: Performance metrics required for complexity 6`
 ### 6. High complexity: complete evidence passes
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from evidence import validate_evidence
@@ -216,7 +216,7 @@ Expected: `PASS: High complexity evidence accepted`
 ### 7. EVIDENCE_SCHEMA is exported and inspectable
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from evidence import EVIDENCE_SCHEMA

@@ -19,7 +19,7 @@ Requires wicked-jam plugin installed and wicked-brain plugin installed and runni
 
 ```bash
 # Verify wicked-brain is running
-curl -s http://localhost:${WICKED_BRAIN_PORT:-4242}/health | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('ok'), 'Brain not running'"
+curl -s http://localhost:${WICKED_BRAIN_PORT:-4242}/health | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; d=json.load(sys.stdin); assert d.get('ok'), 'Brain not running'"
 
 # Create test project directory
 mkdir -p ~/test-wicked-jam/database-migration
@@ -167,12 +167,12 @@ cat > /tmp/test-proposals.json <<'EOF'
 EOF
 
 # Synthesize consensus
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" synthesize \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/consensus.py" synthesize \
   --proposals /tmp/test-proposals.json \
   --question "Which database for time-series data?" > /tmp/consensus-result.json
 
 # Verify structured output
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 r = json.load(open('/tmp/consensus-result.json'))
 assert 'decision' in r, 'Missing decision'
@@ -190,7 +190,7 @@ print(f'Dissenting views: {len(r[\"dissenting_views\"])}')
 ### 10. Verify format_for_memory Returns Brain-Compatible Dict
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/jam')

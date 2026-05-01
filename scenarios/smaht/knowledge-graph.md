@@ -27,16 +27,16 @@ Note: The script uses DomainStore by default for its DB path. We will use the CL
 ### 1. Create entities of four different types
 
 ```bash
-REQ=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type requirement --name "Auth must use OAuth2" --phase clarify --project test-kg)
+REQ=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type requirement --name "Auth must use OAuth2" --phase clarify --project test-kg)
 echo "$REQ"
 
-DESIGN=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type design_artifact --name "OAuth2 flow diagram" --phase design --project test-kg)
+DESIGN=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type design_artifact --name "OAuth2 flow diagram" --phase design --project test-kg)
 echo "$DESIGN"
 
-TASK=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type task --name "Implement OAuth2 middleware" --phase build --project test-kg)
+TASK=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type task --name "Implement OAuth2 middleware" --phase build --project test-kg)
 echo "$TASK"
 
-TEST=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type test_scenario --name "OAuth2 token validation tests" --phase test --project test-kg)
+TEST=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type test_scenario --name "OAuth2 token validation tests" --phase test --project test-kg)
 echo "$TEST"
 ```
 
@@ -45,8 +45,8 @@ echo "$TEST"
 ### 2. Get entity by ID
 
 ```bash
-REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" get-entity --id "$REQ_ID"
+REQ_ID=$(echo "$REQ" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" get-entity --id "$REQ_ID"
 ```
 
 **Expected**: Returns the same requirement entity with matching `entity_id`, `name` = "Auth must use OAuth2", `entity_type` = "requirement".
@@ -54,7 +54,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" get-entity --id
 ### 3. List entities with type filter
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" list-entities --type requirement --project test-kg
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" list-entities --type requirement --project test-kg
 ```
 
 **Expected**: Returns a JSON array containing only requirement entities. The "Auth must use OAuth2" entity is present. No design_artifact, task, or test_scenario entities appear.
@@ -62,18 +62,18 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" list-entities -
 ### 4. Create relationships between entities
 
 ```bash
-REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-DESIGN_ID=$(echo "$DESIGN" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-TASK_ID=$(echo "$TASK" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-TEST_ID=$(echo "$TEST" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+REQ_ID=$(echo "$REQ" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+DESIGN_ID=$(echo "$DESIGN" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+TASK_ID=$(echo "$TASK" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+TEST_ID=$(echo "$TEST" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
 
-REL1=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-rel --source "$REQ_ID" --target "$DESIGN_ID" --type TRACES_TO)
+REL1=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-rel --source "$REQ_ID" --target "$DESIGN_ID" --type TRACES_TO)
 echo "$REL1"
 
-REL2=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-rel --source "$DESIGN_ID" --target "$TASK_ID" --type IMPLEMENTED_BY)
+REL2=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-rel --source "$DESIGN_ID" --target "$TASK_ID" --type IMPLEMENTED_BY)
 echo "$REL2"
 
-REL3=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-rel --source "$REQ_ID" --target "$TEST_ID" --type TESTED_BY)
+REL3=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-rel --source "$REQ_ID" --target "$TEST_ID" --type TESTED_BY)
 echo "$REL3"
 ```
 
@@ -82,8 +82,8 @@ echo "$REL3"
 ### 5. Get related entities (forward direction)
 
 ```bash
-REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" related --id "$REQ_ID" --direction forward
+REQ_ID=$(echo "$REQ" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" related --id "$REQ_ID" --direction forward
 ```
 
 **Expected**: Returns JSON array with the design_artifact and test_scenario entities (both are forward targets from the requirement). Each result includes `_rel_type` and `_direction` = "forward".
@@ -91,8 +91,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" related --id "$
 ### 6. Get related entities (reverse direction)
 
 ```bash
-TASK_ID=$(echo "$TASK" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" related --id "$TASK_ID" --direction reverse
+TASK_ID=$(echo "$TASK" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" related --id "$TASK_ID" --direction reverse
 ```
 
 **Expected**: Returns JSON array containing the design_artifact entity (the only entity with a forward link to the task). Result includes `_direction` = "reverse".
@@ -100,8 +100,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" related --id "$
 ### 7. Subgraph traversal from requirement
 
 ```bash
-REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" subgraph --id "$REQ_ID" --depth 3
+REQ_ID=$(echo "$REQ" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" subgraph --id "$REQ_ID" --depth 3
 ```
 
 **Expected**: Returns JSON with `entities` and `relationships` arrays. The entities array contains all 4 entities (requirement, design, task, test). The relationships array contains all 3 relationships. Depth 3 ensures the full chain is traversed.
@@ -109,7 +109,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" subgraph --id "
 ### 8. Stats reflect created data
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" stats | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" stats | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 s = json.load(sys.stdin)
 assert s['total_entities'] >= 4, 'Expected at least 4 entities, got %d' % s['total_entities']
@@ -125,7 +125,7 @@ print('PASS: Stats match expected counts')
 ### 9. Invalid entity type is rejected
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type invalid_type --name "Should fail" --project test-kg 2>&1; echo "EXIT: $?"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity --type invalid_type --name "Should fail" --project test-kg 2>&1; echo "EXIT: $?"
 ```
 
 **Expected**: Returns an error message mentioning "Invalid entity_type" and exits with non-zero status.
@@ -133,7 +133,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" create-entity -
 ### 10. List entities with project filter returns scoped results
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" list-entities --project test-kg | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" list-entities --project test-kg | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 entities = json.load(sys.stdin)
 for e in entities:
@@ -147,8 +147,8 @@ print('PASS: All %d entities scoped to test-kg' % len(entities))
 ### 11. Subgraph with depth 1 returns only immediate neighbors
 
 ```bash
-REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" subgraph --id "$REQ_ID" --depth 1 | python3 -c "
+REQ_ID=$(echo "$REQ" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/knowledge_graph.py" subgraph --id "$REQ_ID" --depth 1 | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 sg = json.load(sys.stdin)
 entity_count = len(sg['entities'])

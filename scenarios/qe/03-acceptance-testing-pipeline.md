@@ -66,7 +66,7 @@ cd ~/test-wicked-qe/acceptance-test
 ### 1. Test addition
 
 ```bash
-python3 -c "from src.calc import add; print(f'result={add(3, 4)}')"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "from src.calc import add; print(f'result={add(3, 4)}')"
 ```
 
 **Expected**: Output shows result=7
@@ -74,7 +74,7 @@ python3 -c "from src.calc import add; print(f'result={add(3, 4)}')"
 ### 2. Test subtraction
 
 ```bash
-python3 -c "from src.calc import subtract; print(f'result={subtract(10, 3)}')"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "from src.calc import subtract; print(f'result={subtract(10, 3)}')"
 ```
 
 **Expected**: Output shows result=7
@@ -82,7 +82,7 @@ python3 -c "from src.calc import subtract; print(f'result={subtract(10, 3)}')"
 ### 3. Test multiplication
 
 ```bash
-python3 -c "from src.calc import multiply; print(f'result={multiply(3, 4)}')"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "from src.calc import multiply; print(f'result={multiply(3, 4)}')"
 ```
 
 **Expected**: Output shows result=12
@@ -90,7 +90,7 @@ python3 -c "from src.calc import multiply; print(f'result={multiply(3, 4)}')"
 ### 4. Test division by zero
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 from src.calc import divide
 try:
     divide(10, 0)

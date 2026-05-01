@@ -17,7 +17,7 @@ and unarchiving, finding by name, and producing correct filter output.
 
 ```bash
 # Verify project_registry.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" --help > /dev/null 2>&1 \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" --help > /dev/null 2>&1 \
   && echo "project_registry.py available" || echo "NOT FOUND"
 ```
 
@@ -26,9 +26,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" --help > /dev/n
 ### 1. Create project
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
   --name test-proj-1 --workspace test-ws --json \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('HAS_ID:', bool(d.get('id')))
@@ -45,9 +45,9 @@ print('PROJ1_ID:', proj_id)
 ### 2. Create second project
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
   --name test-proj-2 --workspace test-ws --json \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('NAME:', d.get('name', 'N/A'))
@@ -60,9 +60,9 @@ print('PROJ2_ID:', d.get('id', ''))
 ### 3. List projects
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" list \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" list \
   --workspace test-ws --json \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 projects = d.get('projects', d if isinstance(d, list) else [])
@@ -79,17 +79,17 @@ print('BOTH_PRESENT:', 'test-proj-1' in names and 'test-proj-2' in names)
 
 ```bash
 # Get proj-1 ID
-PROJ1_ID=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" find \
+PROJ1_ID=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" find \
   --name test-proj-1 --workspace test-ws --json \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id', d.get('projects',[{}])[0].get('id','') if isinstance(d.get('projects'),list) else ''))")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); print(d.get('id', d.get('projects',[{}])[0].get('id','') if isinstance(d.get('projects'),list) else ''))")
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" set-active \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" set-active \
   --id "${PROJ1_ID}" 2>&1
 echo "Exit: $?"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" get-active \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" get-active \
   --workspace test-ws --json \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('ACTIVE_NAME:', d.get('name', 'N/A'))
@@ -101,13 +101,13 @@ print('ACTIVE_NAME:', d.get('name', 'N/A'))
 ### 5. Switch project
 
 ```bash
-PROJ2_ID=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" find \
+PROJ2_ID=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" find \
   --name test-proj-2 --workspace test-ws --json \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id', d.get('projects',[{}])[0].get('id','') if isinstance(d.get('projects'),list) else ''))")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); print(d.get('id', d.get('projects',[{}])[0].get('id','') if isinstance(d.get('projects'),list) else ''))")
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" switch \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" switch \
   --id "${PROJ2_ID}" --json \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('SWITCHED_TO:', d.get('name', 'N/A'))
@@ -119,8 +119,8 @@ print('SWITCHED_TO:', d.get('name', 'N/A'))
 ### 6. Get project filter
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" filter --json \
-  | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" filter --json \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 has_project = bool(d.get('project_id'))
@@ -133,13 +133,13 @@ print('HAS_PROJECT_ID:', has_project)
 ### 7. Archive
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" archive \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" archive \
   --id "${PROJ1_ID}" 2>&1
 echo "Exit: $?"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" list \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" list \
   --workspace test-ws --active --json \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 projects = d.get('projects', d if isinstance(d, list) else [])
@@ -154,13 +154,13 @@ print('PROJ2_VISIBLE:', 'test-proj-2' in names)
 ### 8. Unarchive
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" unarchive \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" unarchive \
   --id "${PROJ1_ID}" 2>&1
 echo "Exit: $?"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" list \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" list \
   --workspace test-ws --json \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 projects = d.get('projects', d if isinstance(d, list) else [])
@@ -174,9 +174,9 @@ print('BOTH_BACK:', 'test-proj-1' in names and 'test-proj-2' in names)
 ### 9. Find by name
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" find \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" find \
   --name test-proj-1 --workspace test-ws --json \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 name = d.get('name', d.get('projects', [{}])[0].get('name', '') if isinstance(d.get('projects'), list) else '')
@@ -190,11 +190,11 @@ print('FOUND:', name == 'test-proj-1')
 
 ```bash
 # Archive both projects
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" archive --id "${PROJ1_ID}" 2>/dev/null
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" archive --id "${PROJ2_ID}" 2>/dev/null
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" archive --id "${PROJ1_ID}" 2>/dev/null
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" archive --id "${PROJ2_ID}" 2>/dev/null
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" filter --json \
-  | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" filter --json \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('EMPTY_FILTER:', d == {} or not d.get('project_id'))
@@ -219,6 +219,6 @@ print('EMPTY_FILTER:', d == {} or not d.get('project_id'))
 
 ```bash
 # Unarchive to enable deletion if needed
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" unarchive --id "${PROJ1_ID}" 2>/dev/null || true
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" unarchive --id "${PROJ2_ID}" 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" unarchive --id "${PROJ1_ID}" 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" unarchive --id "${PROJ2_ID}" 2>/dev/null || true
 ```

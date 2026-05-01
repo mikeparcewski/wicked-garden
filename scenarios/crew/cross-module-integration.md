@@ -34,7 +34,7 @@ JAM="${CLAUDE_PLUGIN_ROOT}/scripts/jam"
 ### 1. Create project via project_registry
 
 ```bash
-python3 "${CREW}/project_registry.py" create --name "$PROJECT" --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/project_registry.py" create --name "$PROJECT" --json
 ```
 
 **Expected**: Returns JSON with the project record including `id`, `name` matching the project name, `status` = "active". Capture the project ID for subsequent steps.
@@ -42,15 +42,15 @@ python3 "${CREW}/project_registry.py" create --name "$PROJECT" --json
 ### 2. Register entities in knowledge graph
 
 ```bash
-REQ=$(python3 "${SMAHT}/knowledge_graph.py" create-entity --type requirement --name "Users must authenticate via OAuth2" --phase clarify --project "$PROJECT")
-DESIGN=$(python3 "${SMAHT}/knowledge_graph.py" create-entity --type design_artifact --name "OAuth2 flow architecture" --phase design --project "$PROJECT")
-TASK=$(python3 "${SMAHT}/knowledge_graph.py" create-entity --type task --name "Implement OAuth2 middleware" --phase build --project "$PROJECT")
-TEST=$(python3 "${SMAHT}/knowledge_graph.py" create-entity --type test_scenario --name "OAuth2 token validation" --phase test --project "$PROJECT")
+REQ=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${SMAHT}/knowledge_graph.py" create-entity --type requirement --name "Users must authenticate via OAuth2" --phase clarify --project "$PROJECT")
+DESIGN=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${SMAHT}/knowledge_graph.py" create-entity --type design_artifact --name "OAuth2 flow architecture" --phase design --project "$PROJECT")
+TASK=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${SMAHT}/knowledge_graph.py" create-entity --type task --name "Implement OAuth2 middleware" --phase build --project "$PROJECT")
+TEST=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${SMAHT}/knowledge_graph.py" create-entity --type test_scenario --name "OAuth2 token validation" --phase test --project "$PROJECT")
 
-echo "$REQ" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('REQ: %s' % d['entity_id'])"
-echo "$DESIGN" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('DESIGN: %s' % d['entity_id'])"
-echo "$TASK" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('TASK: %s' % d['entity_id'])"
-echo "$TEST" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('TEST: %s' % d['entity_id'])"
+echo "$REQ" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('REQ: %s' % d['entity_id'])"
+echo "$DESIGN" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('DESIGN: %s' % d['entity_id'])"
+echo "$TASK" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('TASK: %s' % d['entity_id'])"
+echo "$TEST" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; d=json.load(sys.stdin); assert d['state']=='DRAFT'; print('TEST: %s' % d['entity_id'])"
 ```
 
 **Expected**: Four entities created with state=DRAFT. Each prints its entity_id.
@@ -58,22 +58,22 @@ echo "$TEST" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['st
 ### 3. Create traceability links between artifacts
 
 ```bash
-REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-DESIGN_ID=$(echo "$DESIGN" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-TASK_ID=$(echo "$TASK" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-TEST_ID=$(echo "$TEST" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+REQ_ID=$(echo "$REQ" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+DESIGN_ID=$(echo "$DESIGN" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+TASK_ID=$(echo "$TASK" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+TEST_ID=$(echo "$TEST" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
 
-python3 "${CREW}/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/traceability.py" create \
   --source-id "$REQ_ID" --source-type requirement \
   --target-id "$DESIGN_ID" --target-type design \
   --link-type TRACES_TO --project "$PROJECT" --created-by clarify
 
-python3 "${CREW}/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/traceability.py" create \
   --source-id "$DESIGN_ID" --source-type design \
   --target-id "$TASK_ID" --target-type task \
   --link-type IMPLEMENTED_BY --project "$PROJECT" --created-by design
 
-python3 "${CREW}/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/traceability.py" create \
   --source-id "$REQ_ID" --source-type requirement \
   --target-id "$TEST_ID" --target-type test_scenario \
   --link-type TESTED_BY --project "$PROJECT" --created-by clarify
@@ -84,12 +84,12 @@ python3 "${CREW}/traceability.py" create \
 ### 4. Register and transition artifact via artifact_state
 
 ```bash
-ART=$(python3 "${CREW}/artifact_state.py" register --name "OAuth2 architecture doc" --type design --project "$PROJECT" --phase design --json)
-ART_ID=$(echo "$ART" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+ART=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/artifact_state.py" register --name "OAuth2 architecture doc" --type design --project "$PROJECT" --phase design --json)
+ART_ID=$(echo "$ART" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['id'])")
 echo "Registered artifact: $ART_ID"
 
-python3 "${CREW}/artifact_state.py" transition --id "$ART_ID" --to IN_REVIEW --by "design-phase" --json
-python3 "${CREW}/artifact_state.py" transition --id "$ART_ID" --to APPROVED --by "gate-check" --json | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/artifact_state.py" transition --id "$ART_ID" --to IN_REVIEW --by "design-phase" --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/artifact_state.py" transition --id "$ART_ID" --to APPROVED --by "gate-check" --json | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 art = json.load(sys.stdin)
 assert art['state'] == 'APPROVED', 'Expected APPROVED, got %s' % art['state']
@@ -103,8 +103,8 @@ print('PASS: Artifact transitioned to APPROVED with 2 history entries')
 ### 5. Run impact analysis from requirement
 
 ```bash
-REQ_ID=$(echo "$REQ" | python3 -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
-python3 "${CREW}/impact_analyzer.py" analyze --source-id "$REQ_ID" --project "$PROJECT" --depth 3 | tee "${TMPDIR:-/tmp}/impact.json" | python3 -c "
+REQ_ID=$(echo "$REQ" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['entity_id'])")
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/impact_analyzer.py" analyze --source-id "$REQ_ID" --project "$PROJECT" --depth 3 | tee "${TMPDIR:-/tmp}/impact.json" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 report = json.load(sys.stdin)
 assert 'impact' in report, 'Missing impact key'
@@ -123,7 +123,7 @@ Note: The search lifecycle scoring script was removed. This step now tests the s
 domain adapter fan-out, which is the current mechanism for scoring/prioritising items.
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/smaht')
@@ -145,7 +145,7 @@ print('PASS: DomainAdapter fan-out succeeded (%d impact items queued)' % len(ite
 ### 7. Run verification protocol
 
 ```bash
-python3 "${CREW}/verification_protocol.py" run --project "$PROJECT" --phases-dir "${TMPDIR:-/tmp}/phases-$$" | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/verification_protocol.py" run --project "$PROJECT" --phases-dir "${TMPDIR:-/tmp}/phases-$$" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 report = json.load(sys.stdin)
 check_names = [c['name'] for c in report.get('checks', [])]
@@ -171,7 +171,7 @@ cat > "${TMPDIR:-/tmp}/mini-proposals.json" <<'EOF'
 ]
 EOF
 
-python3 "${JAM}/consensus.py" synthesize --proposals "${TMPDIR:-/tmp}/mini-proposals.json" --question "Auth approach" | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${JAM}/consensus.py" synthesize --proposals "${TMPDIR:-/tmp}/mini-proposals.json" --question "Auth approach" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 result = json.load(sys.stdin)
 assert 'decision' in result, 'Missing decision'
@@ -187,7 +187,7 @@ print('Decision: %s' % result['decision'][:80])
 ### 9. Traceability coverage report
 
 ```bash
-python3 "${CREW}/traceability.py" coverage --project "$PROJECT" | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/traceability.py" coverage --project "$PROJECT" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 report = json.load(sys.stdin)
 assert 'total_requirements' in report, 'Missing total_requirements'
@@ -217,10 +217,10 @@ if report['covered']:
 ## Cleanup
 
 ```bash
-python3 "${CREW}/traceability.py" delete --project "$PROJECT" 2>/dev/null
-PROJECT_ID=$(python3 "${CREW}/project_registry.py" find --name "$PROJECT" --json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null)
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/traceability.py" delete --project "$PROJECT" 2>/dev/null
+PROJECT_ID=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/project_registry.py" find --name "$PROJECT" --json 2>/dev/null | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null)
 if [ -n "$PROJECT_ID" ]; then
-  python3 "${CREW}/project_registry.py" archive --id "$PROJECT_ID" --json 2>/dev/null
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/project_registry.py" archive --id "$PROJECT_ID" --json 2>/dev/null
 fi
 rm -f "${TMPDIR:-/tmp}/impact.json" "${TMPDIR:-/tmp}/impact_items.json" "${TMPDIR:-/tmp}/mini-proposals.json"
 rm -rf "${TMPDIR:-/tmp}/phases-$$"
