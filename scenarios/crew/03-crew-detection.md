@@ -38,7 +38,7 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 }
 EOF
 
-echo '{"prompt": "Help me plan and architect a complete migration of our monolith to microservices — first design the service boundaries, then implement the first service with full testing and after that build the full data migration pipeline with rollback support", "session_id": "sess-1"}' \
+echo '{"prompt": "Add a help command to the crew CLI that prints available subcommands.", "session_id": "sess-1"}' \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
 ```

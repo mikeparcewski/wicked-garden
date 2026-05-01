@@ -190,7 +190,7 @@ sh "${PLUGIN_ROOT}/scripts/_python.sh" "${DETECTOR}" \
 RC=$?
 echo "EXIT_CODE: $RC"
 echo "STDOUT_PAYLOADS: $(grep -c '"detector"' /tmp/sensitive-path-empty.out || true)"
-echo "STDERR_REPORTS_ZERO: $(grep -c '0 sensitive-path event' /tmp/sensitive-path-empty.err || true)"
+echo "STDERR_REPORTS_ZERO: $(grep -c '0 steering event' /tmp/sensitive-path-empty.err || true)"
 rm -f /tmp/sensitive-path-empty.out /tmp/sensitive-path-empty.err
 ```
 

@@ -302,7 +302,7 @@ import json, sys, pathlib
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
 phase_dir = get_local_path('wicked-crew', 'projects') / '${TEST_PROJECT}' / 'phases' / 'test'
-engagement = [{'domain': 'testing', 'agent': 'wicked-testing:review', 'engaged_at': '2026-04-05T00:00:00Z'}]
+engagement = [{'domain': 'qe', 'agent': 'wicked-testing:review', 'engaged_at': '2026-04-05T00:00:00Z'}]
 (phase_dir / 'specialist-engagement.json').write_text(json.dumps(engagement, indent=2))
 print('specialist-engagement.json written')
 "

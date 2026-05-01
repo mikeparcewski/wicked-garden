@@ -114,7 +114,7 @@ before_lines = len([l for l in addendum_path.read_text().splitlines() if l.strip
 # Append a second record
 record2 = {
     'phase': 'design',
-    'trigger': 'gate-conditional',
+    'trigger': 'task-completion',
     'chain_id': '${TEST_PROJECT}.design',
     'summary': 'AC clarification: FR-3 scope narrowed to API layer only',
     'plan_mutations': [{'type': 'scope-narrowing', 'detail': 'FR-3 limited to API layer'}],

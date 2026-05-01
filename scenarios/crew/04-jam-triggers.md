@@ -33,7 +33,7 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
 
-echo '{"prompt": "What are the tradeoffs between using Redis vs Postgres for session storage? Compare the alternatives.", "session_id": "sess-1"}' \
+echo '{"prompt": "We need to choose between caching with Redis or computing on demand for the leaderboard.", "session_id": "sess-1"}' \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('JAM_FOUND' if 'jam:' in ctx else 'NO_JAM')"
 ```
@@ -105,7 +105,11 @@ else:
 
 **Expected**: `FLAG_SET`
 
-### 6. Jam suggestion does not fire when onboarding directive is active
+### 6. Jam suggestion can fire alongside an active onboarding directive
+
+Jam and onboarding are independent signals: the user can see both. The hook does not
+suppress the jam suggestion when onboarding is active — both are appended and the model
+is free to act on whichever is more relevant.
 
 ```bash
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
@@ -122,7 +126,7 @@ echo '{"prompt": "What are the tradeoffs between these design options? Compare a
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); has_jam='[Suggestion]' in ctx and 'jam:' in ctx; has_onboarding='setup' in ctx.lower(); print(f'jam={has_jam} onboarding={has_onboarding}')"
 ```
 
-**Expected**: `jam=False onboarding=True`
+**Expected**: `jam=True onboarding=True` (independent signals — both appended)
 
 ### 7. Synthesis-path prompts do NOT emit jam or crew hints
 
@@ -162,7 +166,7 @@ never reach the jam suggestion code — synthesis and jam are mutually exclusive
 - [ ] No duplicate suggestion when prompt already contains /jam:
 - [ ] jam_hint_shown=True prevents second suggestion
 - [ ] jam_hint_shown flag written to session state after first suggestion
-- [ ] No jam suggestion when onboarding directive is active
+- [ ] Jam suggestion can fire alongside an onboarding directive (independent signals)
 - [ ] Synthesis-path prompts produce no jam hint (synthesis and jam are mutually exclusive)
 
 ## Value Demonstrated

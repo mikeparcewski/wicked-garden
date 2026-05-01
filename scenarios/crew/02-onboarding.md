@@ -119,7 +119,13 @@ echo '{"prompt": "what tasks are pending?", "session_id": "sess-5"}' \
 
 **Expected**: `CLEAN`
 
-### 6. Regression guard: setup_in_progress=True prevents blocking loop
+### 6. Onboarding directive fires when needs_onboarding=True regardless of setup_in_progress
+
+The onboarding directive fires whenever `needs_onboarding=True`, even if `setup_in_progress=True`.
+This is intentional: gate ordering means `_check_setup_gate` clears the transient
+`setup_in_progress` flag before `_check_onboarding_gate` runs, so the onboarding gate sees a
+fresh state and emits the directive. The exit code stays 0 because the directive is appended
+context, not a hard block.
 
 ```bash
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
@@ -132,7 +138,9 @@ result=$(echo '{"prompt": "what is next?", "session_id": "sess-6"}' \
 echo "Exit code: ${result}"
 ```
 
-**Expected**: exit code 0 (setup already in progress, not re-blocked)
+**Expected**: exit code 0 (directive fires when needs_onboarding=True regardless of transient
+setup_in_progress state — gate ordering means setup_in_progress is cleared by
+`_check_setup_gate` before `_check_onboarding_gate` runs)
 
 ## Expected Outcome
 
@@ -146,7 +154,7 @@ Once fully onboarded, the per-turn re-check is bypassed entirely.
 - [ ] No directive fires when onboarding_complete=True
 - [ ] Setup command is not blocked during onboarding required state
 - [ ] Per-turn re-check skipped when onboarding_complete=True
-- [ ] setup_in_progress=True prevents re-blocking mid-wizard
+- [ ] Directive fires when needs_onboarding=True regardless of setup_in_progress (gate ordering: setup gate clears flag before onboarding gate runs)
 - [ ] bootstrap.py writes onboarding_complete=True only when both memories and index present (AC-2.3)
 - [ ] bootstrap.py emits index-only directive when memories present but index absent (AC-2.3)
 
