@@ -52,7 +52,7 @@ export CLAUDE_PROJECT_NAME="wg-scenario-challenge-gate"
 # directory. Crew stores projects as a sibling pair:
 #   wicked-crew/projects/{id}.json   — DomainStore record (list() reads this)
 #   wicked-crew/projects/{id}/       — phase artifacts (challenge-artifacts.md)
-export PROJECTS_ROOT=$(python3 -c "
+export PROJECTS_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -71,7 +71,7 @@ mkdir -p "${PROJECT_DIR}"
 # DomainStore record + phase directory. The record sits at
 # projects/{id}.json so `DomainStore('wicked-crew').list('projects')`
 # picks it up; phase content goes under projects/{id}/phases/...
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -112,7 +112,7 @@ hook's JSON output so each step can assert on `permissionDecision` and
 ```bash
 write_guard() {
   local file_path="$1"
-  python3 -c "
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json, os
 sys.path.insert(0, '${PLUGIN_ROOT}/hooks/scripts')
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
@@ -140,7 +140,7 @@ must be permitted.
 ```bash
 mkdir -p "${PROJECT_DIR}/phases/design"
 
-python3 <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" <<'PYEOF'
 import os, textwrap, pathlib
 project_dir = pathlib.Path(os.environ['PROJECT_DIR'])
 body = textwrap.dedent("""\
@@ -197,7 +197,7 @@ PYEOF
 
 result=$(write_guard "src/payments/processor.py")
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.loads(sys.stdin.read())
 decision = d.get('hookSpecificOutput', {}).get('permissionDecision', 'allow')
@@ -223,7 +223,7 @@ rm -f "${PROJECT_DIR}/phases/design/challenge-artifacts.md"
 
 result=$(write_guard "src/payments/processor.py")
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.loads(sys.stdin.read())
 out = d.get('hookSpecificOutput', {})
@@ -251,7 +251,7 @@ but has all three challenges resolved under a single theme. The
 convergence-collapse detector must fire and the gate must deny.
 
 ```bash
-python3 <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" <<'PYEOF'
 import os, textwrap, pathlib
 project_dir = pathlib.Path(os.environ['PROJECT_DIR'])
 body = textwrap.dedent("""\
@@ -300,7 +300,7 @@ PYEOF
 
 result=$(write_guard "src/payments/processor.py")
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.loads(sys.stdin.read())
 out = d.get('hookSpecificOutput', {})
@@ -323,7 +323,7 @@ be allowed — no hook-server restart, no cache bust, no state outside
 the filesystem.
 
 ```bash
-python3 <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" <<'PYEOF'
 import os, textwrap, pathlib
 project_dir = pathlib.Path(os.environ['PROJECT_DIR'])
 body = textwrap.dedent("""\
@@ -377,7 +377,7 @@ PYEOF
 
 result=$(write_guard "src/payments/processor.py")
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.loads(sys.stdin.read())
 decision = d.get('hookSpecificOutput', {}).get('permissionDecision', 'allow')
@@ -400,7 +400,7 @@ escape hatch works exactly as advertised.
 
 ```bash
 # Restore the collapsed-theme artifact that failed in Step 3
-python3 <<'PYEOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" <<'PYEOF'
 import os, textwrap, pathlib
 project_dir = pathlib.Path(os.environ['PROJECT_DIR'])
 body = textwrap.dedent("""\
@@ -450,7 +450,7 @@ PYEOF
 # Confirm it blocks without the bypass (baseline — the bypass MUST actually change behavior)
 unset WG_CHALLENGE_GATE
 result=$(write_guard "src/payments/processor.py")
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.loads(sys.stdin.read())
 decision = d.get('hookSpecificOutput', {}).get('permissionDecision', 'allow')
@@ -462,7 +462,7 @@ print('baseline: deny (as expected — bypass not set)')
 export WG_CHALLENGE_GATE=off
 result=$(write_guard "src/payments/processor.py")
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.loads(sys.stdin.read())
 decision = d.get('hookSpecificOutput', {}).get('permissionDecision', 'allow')

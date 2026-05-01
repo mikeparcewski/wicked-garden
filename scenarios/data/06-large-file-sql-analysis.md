@@ -17,7 +17,7 @@ Create a larger dataset that simulates real-world file sizes. This example uses 
 
 ```bash
 # Create a 10,000 row transaction log
-python3 << 'EOF'
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" << 'EOF'
 import csv
 import random
 from datetime import datetime, timedelta

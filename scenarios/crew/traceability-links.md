@@ -17,11 +17,11 @@ reports, filtering by link type, rejecting invalid link types, and bulk deletion
 
 ```bash
 # Verify traceability.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" --help > /dev/null 2>&1 \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" --help > /dev/null 2>&1 \
   && echo "traceability.py available" || echo "NOT FOUND"
 
 # Clean slate — delete any leftover links from prior runs
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-trace 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-trace 2>/dev/null || true
 ```
 
 ## Steps
@@ -30,32 +30,32 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project te
 
 ```bash
 # req-1 TRACES_TO design-1
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id req-1 --source-type requirement \
   --target-id design-1 --target-type design \
   --link-type TRACES_TO --project test-trace --created-by clarify-phase
 
 # design-1 IMPLEMENTED_BY task-1
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id design-1 --source-type design \
   --target-id task-1 --target-type code \
   --link-type IMPLEMENTED_BY --project test-trace --created-by build-phase
 
 # req-1 TESTED_BY test-1
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id req-1 --source-type requirement \
   --target-id test-1 --target-type test \
   --link-type TESTED_BY --project test-trace --created-by test-phase
 
 # test-1 VERIFIES req-1
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id test-1 --source-type test \
   --target-id req-1 --target-type requirement \
   --link-type VERIFIES --project test-trace --created-by test-phase
 
 # Validate link count
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" list --project test-trace \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print('LINK_COUNT:', len(d.get('links', d if isinstance(d, list) else [])))"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" list --project test-trace \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); print('LINK_COUNT:', len(d.get('links', d if isinstance(d, list) else [])))"
 ```
 
 **Expected**: 4 links created, each returns JSON with source_id, target_id, link_type. `LINK_COUNT: 4`.
@@ -63,9 +63,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" list --project test
 ### 2. Forward trace from requirement
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" forward \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" forward \
   --source-id req-1 --project test-trace \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 ids = [n.get('id', n.get('target_id', '')) for n in d.get('trace', d.get('nodes', []))]
@@ -80,9 +80,9 @@ print('HAS_DESIGN:', has_design)
 ### 3. Reverse trace from test
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" reverse \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" reverse \
   --target-id test-1 --project test-trace \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 ids = [n.get('id', n.get('source_id', '')) for n in d.get('trace', d.get('nodes', []))]
@@ -96,9 +96,9 @@ print('WALKS_TO_REQ:', has_req)
 ### 4. Coverage report — full coverage
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" coverage \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" coverage \
   --project test-trace \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('TOTAL_REQS:', d.get('total_requirements', 'N/A'))
@@ -114,14 +114,14 @@ print('REQ1_COVERED:', 'req-1' in covered)
 
 ```bash
 # Create a second requirement with no test link
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id req-2 --source-type requirement \
   --target-id design-2 --target-type design \
   --link-type TRACES_TO --project test-trace --created-by clarify-phase
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" coverage \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" coverage \
   --project test-trace \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 pct = d.get('coverage_pct', 100)
@@ -136,9 +136,9 @@ print('HAS_GAP_REQ2:', 'req-2' in gaps)
 ### 6. List with filters
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" list \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" list \
   --project test-trace --link-type TRACES_TO \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 links = d.get('links', d if isinstance(d, list) else [])
@@ -153,7 +153,7 @@ print('COUNT:', len(links))
 ### 7. Invalid link type rejected
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id req-1 --source-type requirement \
   --target-id bogus --target-type design \
   --link-type INVALID --project test-trace --created-by test 2>&1
@@ -165,16 +165,16 @@ echo "Exit: $?"
 ### 8. Delete by project
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-trace \
-  | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-trace \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('DELETED:', d.get('deleted', d.get('count', 0)))
 "
 
 # Confirm empty
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" list --project test-trace \
-  | python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" list --project test-trace \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 links = d.get('links', d if isinstance(d, list) else [])
@@ -198,5 +198,5 @@ print('EMPTY:', len(links) == 0)
 ## Cleanup
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-trace 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-trace 2>/dev/null || true
 ```

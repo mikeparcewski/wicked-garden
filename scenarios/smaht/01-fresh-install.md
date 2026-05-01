@@ -36,7 +36,7 @@ echo "$PLUGIN_DIR" > "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir"
 PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
 PLUGIN_JSON="$PLUGIN_DIR/.claude-plugin/plugin.json"
 [ -f "$PLUGIN_JSON" ] || { echo "FAIL: plugin.json not found at $PLUGIN_JSON"; exit 1; }
-python3 -c "import json; d=json.load(open('$PLUGIN_JSON')); print(f\"Plugin: {d['name']} v{d['version']}\"); assert d.get('name'), 'missing name'; assert d.get('version'), 'missing version'"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json; d=json.load(open('$PLUGIN_JSON')); print(f\"Plugin: {d['name']} v{d['version']}\"); assert d.get('name'), 'missing name'; assert d.get('version'), 'missing version'"
 echo "PASS: plugin.json is valid"
 ```
 
@@ -48,7 +48,7 @@ echo "PASS: plugin.json is valid"
 PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
 HOOKS_JSON="$PLUGIN_DIR/hooks/hooks.json"
 [ -f "$HOOKS_JSON" ] || { echo "FAIL: hooks.json not found"; exit 1; }
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 hooks = json.load(open('$HOOKS_JSON'))
 hooks_data = hooks.get('hooks', {})
@@ -69,7 +69,7 @@ echo "PASS: SessionStart hook configured in hooks.json"
 PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
 BOOTSTRAP="$PLUGIN_DIR/hooks/scripts/bootstrap.py"
 [ -f "$BOOTSTRAP" ] || { echo "FAIL: bootstrap.py not found"; exit 1; }
-echo '{"session_id": "test-fresh-install"}' | python3 "$BOOTSTRAP" 2>/dev/null
+echo '{"session_id": "test-fresh-install"}' | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "$BOOTSTRAP" 2>/dev/null
 EXIT_CODE=$?
 [ $EXIT_CODE -eq 0 ] || { echo "FAIL: bootstrap.py exited with $EXIT_CODE"; exit 1; }
 echo "PASS: SessionStart hook script runs without errors"
@@ -123,7 +123,7 @@ echo "PASS: key domains have command files"
 PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wicked-scenario-plugin-dir")
 SPEC_JSON="$PLUGIN_DIR/.claude-plugin/specialist.json"
 [ -f "$SPEC_JSON" ] || { echo "FAIL: specialist.json not found"; exit 1; }
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 d = json.load(open('$SPEC_JSON'))
 specs = d.get('specialists', [])

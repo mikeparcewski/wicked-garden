@@ -20,7 +20,7 @@ This scenario validates that:
 
 ```bash
 # Verify traceability_generator.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" --help > /dev/null 2>&1 && echo "traceability_generator.py available"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" --help > /dev/null 2>&1 && echo "traceability_generator.py available"
 
 # Verify evidence-taxonomy.md exists
 test -f "${CLAUDE_PLUGIN_ROOT}/skills/qe/qe-strategy/refs/evidence-taxonomy.md" && echo "evidence-taxonomy.md exists"
@@ -69,7 +69,7 @@ cat > /tmp/tdd-test-scenario/phases/test-strategy/test-strategy.md << 'STRATEGY'
 | AC-003 | Session expires after 30 minutes | tests/auth/test_session.py |
 STRATEGY
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" \
   --phases-dir /tmp/tdd-test-scenario/phases \
   --output /tmp/tdd-test-scenario/phases/build/traceability-matrix.md \
   --dry-run 2>&1 | head -20 && echo "PASS: traceability_generator.py ran without error"
@@ -91,11 +91,11 @@ cat > /tmp/tdd-test-scenario/phases/test-strategy/test-strategy.md << 'STRATEGY'
 | AC-002 | Password reset works | tests/auth/test_reset.py |
 STRATEGY
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" \
   --phases-dir /tmp/tdd-test-scenario/phases \
   --output /tmp/tdd-test-scenario/phases/build/traceability-matrix.md
 
-cat /tmp/tdd-test-scenario/phases/build/traceability-matrix.md | python3 -c "
+cat /tmp/tdd-test-scenario/phases/build/traceability-matrix.md | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 content = sys.stdin.read()
 print('Content preview:', content[:500])
@@ -111,7 +111,7 @@ Expected: `PASS: All required columns present in traceability matrix`
 ### 6. evidence-taxonomy.md exists with required table
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os
 path = os.environ.get('CLAUDE_PLUGIN_ROOT', '${CLAUDE_PLUGIN_ROOT}') + '/skills/qe/qe-strategy/refs/evidence-taxonomy.md'
 with open(path) as f:
@@ -136,7 +136,7 @@ Expected: `PASS: When required column present`
 ### 8. traceability_generator.py --help shows expected options
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" --help
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" --help
 ```
 
 Expected: Help output showing `--phases-dir`, `--output`, `--project` options

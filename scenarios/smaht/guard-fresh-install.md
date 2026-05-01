@@ -39,7 +39,7 @@ EOF
 
 CLAUDE_SESSION_ID="ac277-1" \
 HOME="${TEST_HOME}" \
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
   <<< '{"prompt": "show me all open tasks", "session_id": "ac277-1"}' \
   2>&1
 echo "Exit code: $?"
@@ -65,12 +65,12 @@ EOF
 
 result=$(CLAUDE_SESSION_ID="ac277-3" \
 HOME="${TEST_HOME}" \
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
   <<< '{"prompt": "/wicked-garden:setup", "session_id": "ac277-3"}' \
   2>/dev/null)
 
 echo "Exit code: $?"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('PASS_THROUGH' if d.get('continue') else 'BLOCKED')
@@ -93,12 +93,12 @@ EOF
 
 result=$(CLAUDE_SESSION_ID="ac277-3b" \
 HOME="${TEST_HOME}" \
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
   <<< '{"prompt": "/wicked-garden:help", "session_id": "ac277-3b"}' \
   2>/dev/null)
 
 echo "Exit code: $?"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('PASS_THROUGH' if d.get('continue') else 'BLOCKED')
@@ -138,12 +138,12 @@ EOF
 
 result=$(CLAUDE_SESSION_ID="ac277-5" \
 HOME="${TEST_HOME}" \
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
   <<< '{"prompt": "show me open tasks", "session_id": "ac277-5"}' \
   2>/dev/null)
 
 echo "Exit code: $?"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('PASS_THROUGH' if d.get('continue') else 'BLOCKED')

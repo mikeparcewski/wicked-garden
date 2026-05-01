@@ -241,7 +241,7 @@ Exercise the `project_registry.py` CLI directly to verify formal project isolati
 
 ```bash
 # Create a project via the registry API
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
   --name "registry-test" --workspace "multi-project-test" --json
 ```
 
@@ -249,15 +249,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
 
 ```bash
 # Set it as the active project for the workspace
-PROJECT_ID=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
+PROJECT_ID=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" create \
   --name "registry-test-2" --workspace "multi-project-test" --json \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['id'])")
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" set-active \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" set-active \
   --id "${PROJECT_ID}" --json
 
 # Verify active project
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" get-active \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" get-active \
   --workspace "multi-project-test" --json
 ```
 
@@ -265,14 +265,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" get-active \
 
 ```bash
 # Get project filter for cross-domain isolation
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" filter --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" filter --json
 ```
 
 **Expected**: `{"project_id": "<PROJECT_ID>"}` — non-empty filter when project is active
 
 ```bash
 # Switch between projects
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" list \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/project_registry.py" list \
   --workspace "multi-project-test" --json
 ```
 

@@ -49,7 +49,7 @@ Expected:
 Assumptions are stored in `project.json` by the just-finish orchestrator. Read them directly from the project file (assumptions bypass the status summary):
 
 ```bash
-Run: python3 -c "
+Run: sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 from _paths import get_local_path

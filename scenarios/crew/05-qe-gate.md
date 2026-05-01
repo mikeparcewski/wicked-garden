@@ -86,7 +86,7 @@ seed_preconditions() {
 
   # 1. Re-eval addendum — must post-date phase.started_at. We write "now"
   #    in ISO-8601 which is always >= the phase start recorded on entry.
-  python3 -c "
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib, datetime
 p = pathlib.Path('${phase_dir}/reeval-log.jsonl')
 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -101,7 +101,7 @@ p.write_text(json.dumps({
   # 2. Required deliverables for design phase (architecture.md, min_bytes=200).
   #    For other phases this is a no-op; extend as needed.
   if [ "${phase}" = "design" ]; then
-    python3 -c "
+    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import pathlib
 p = pathlib.Path('${phase_dir}/architecture.md')
 # 300+ bytes of plausible architecture content to clear the 200-byte floor
@@ -111,7 +111,7 @@ p.write_text('# Architecture\n\n' + ('Design notes for gate-enforcement-test. ' 
 }
 
 reset_phase() {
-  python3 -c "
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 p = pathlib.Path('${PROJECT_DIR}/project.json')
 d = json.loads(p.read_text())
@@ -132,7 +132,7 @@ p.write_text(json.dumps(d, indent=2))
 ```bash
 seed_preconditions design
 mock_gate design NONE
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
@@ -144,7 +144,7 @@ echo "Exit: $?"
 - project.json current_phase still "design" (not advanced)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 d = json.loads(pathlib.Path('${PROJECT_DIR}/project.json').read_text())
 print('PHASE_HELD' if d['current_phase'] == 'design' else 'PHASE_ADVANCED_UNEXPECTEDLY')
@@ -159,7 +159,7 @@ print('PHASE_HELD' if d['current_phase'] == 'design' else 'PHASE_ADVANCED_UNEXPE
 reset_phase
 mock_gate design REJECT "test coverage below threshold"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
@@ -169,7 +169,7 @@ echo "Exit: $?"
 - project.json current_phase still "design"
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 d = json.loads(pathlib.Path('${PROJECT_DIR}/project.json').read_text())
 print('PHASE_HELD' if d['current_phase'] == 'design' else 'PHASE_ADVANCED_UNEXPECTEDLY')
@@ -184,7 +184,7 @@ print('PHASE_HELD' if d['current_phase'] == 'design' else 'PHASE_ADVANCED_UNEXPE
 reset_phase
 mock_gate design PASS
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
@@ -193,7 +193,7 @@ echo "Exit: $?"
 - project current_phase advances to "build"
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 d = json.loads(pathlib.Path('${PROJECT_DIR}/project.json').read_text())
 print('ADVANCED' if d['current_phase'] == 'build' else 'NOT_ADVANCED')
@@ -208,7 +208,7 @@ print('ADVANCED' if d['current_phase'] == 'build' else 'NOT_ADVANCED')
 reset_phase
 mock_gate design REJECT "known issue tracked in JIRA-456"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design \
   --override-gate --reason "known issue tracked in JIRA-456, not blocking release" \
   2>&1
 echo "Exit: $?"
@@ -229,7 +229,7 @@ grep -A5 "Gate Override" "${PROJECT_DIR}/phases/design/status.md" 2>/dev/null ||
 reset_phase
 mock_gate design NONE
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design \
   --override-gate --reason "fast-pass waived for hotfix" \
   2>&1
 echo "Exit: $?"
@@ -243,7 +243,7 @@ grep "Gate Override" "${PROJECT_DIR}/phases/design/status.md" 2>/dev/null && ech
 
 ```bash
 # Advance project back to ideate phase (gate_required=false)
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 p = pathlib.Path('${PROJECT_DIR}/project.json')
 d = json.loads(p.read_text())
@@ -257,7 +257,7 @@ mkdir -p "${PROJECT_DIR}/phases/ideate"
 # ideate is gate_required=false, but the re-eval addendum check (AC-8) still
 # runs for every phase. Seed the addendum + the brainstorm-summary.md
 # deliverable so the only thing we're exercising is the "no gate" path.
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib, datetime
 phase_dir = pathlib.Path('${PROJECT_DIR}/phases/ideate')
 phase_dir.mkdir(parents=True, exist_ok=True)
@@ -273,7 +273,7 @@ now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 # No gate-result.json present for ideate
 rm -f "${PROJECT_DIR}/phases/ideate/gate-result.json"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase ideate 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase ideate 2>&1
 echo "Exit: $?"
 ```
 
@@ -285,7 +285,7 @@ echo "Exit: $?"
 reset_phase
 echo 'not valid json{' > "${PROJECT_DIR}/phases/design/gate-result.json"
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
@@ -303,7 +303,7 @@ reset_phase
 rm -f "${PROJECT_DIR}/phases/design/reeval-log.jsonl"
 mock_gate design NONE
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 
@@ -321,7 +321,7 @@ reset_phase
 rm -f "${PROJECT_DIR}/phases/design/architecture.md"
 mock_gate design NONE
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
 ```
 

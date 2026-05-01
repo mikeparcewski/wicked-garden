@@ -30,7 +30,7 @@ codes, stderr output) — no LLM response is asserted.
 export PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 export TEST_PROJECT="phase-reeval-test"
 
-export PROJECT_DIR=$(python3 -c "
+export PROJECT_DIR=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -41,7 +41,7 @@ rm -rf "${PROJECT_DIR}"
 mkdir -p "${PROJECT_DIR}/phases/design"
 
 # Minimal project.json
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 d = {
     'id': '${TEST_PROJECT}',
@@ -125,7 +125,7 @@ Approve is invoked without `--skip-reeval`.
 rm -f "${PROJECT_DIR}/phases/design/reeval-log.jsonl"
 
 # Record design start timestamp in project state
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib
 p = pathlib.Path('${PROJECT_DIR}/project.json')
 d = json.loads(p.read_text())
@@ -386,7 +386,7 @@ echo "Teardown complete"
 
 ```bash
 # Run all case scripts directly (Python)
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import subprocess, sys
 cases = [
     'structured-current-chain',

@@ -22,10 +22,10 @@ This scenario validates that:
 git worktree list > /dev/null 2>&1 && echo "worktrees supported"
 
 # Verify worktree_manager.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/worktree_manager.py" --help > /dev/null 2>&1 && echo "worktree_manager.py available"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/worktree_manager.py" --help > /dev/null 2>&1 && echo "worktree_manager.py available"
 
 # Verify build_dependency_analyzer.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/build_dependency_analyzer.py" --help > /dev/null 2>&1 && echo "build_dependency_analyzer.py available"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/build_dependency_analyzer.py" --help > /dev/null 2>&1 && echo "build_dependency_analyzer.py available"
 ```
 
 ## Steps
@@ -33,7 +33,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/build_dependency_analyzer.py" --help
 ### 1. worktree_manager.py check_capability returns bool
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from worktree_manager import check_capability
@@ -49,7 +49,7 @@ Expected: `PASS: check_capability() returns bool`
 ### 2. build_dependency_analyzer.py batches independent tasks as parallel
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from build_dependency_analyzer import analyze_dependencies
@@ -76,7 +76,7 @@ Expected: `PASS: Independent tasks batched as parallel`
 ### 3. build_dependency_analyzer.py separates conflicting tasks
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from build_dependency_analyzer import analyze_dependencies
@@ -103,7 +103,7 @@ Expected: `PASS: Conflicting tasks separated into different batches`
 ### 4. build_dependency_analyzer.py respects max_parallelism
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from build_dependency_analyzer import analyze_dependencies
@@ -127,7 +127,7 @@ Expected: `PASS: max_parallelism=2 respected`
 ### 5. worktree_manager.py list_active_worktrees returns list
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/crew')
 from worktree_manager import list_active_worktrees
@@ -168,8 +168,8 @@ Expected: `PASS: Conflict escalation guardrail referenced`
 
 ```bash
 echo '[{"id":"1","subject":"Build: proj - task1","description":"Implement auth.py"},{"id":"2","subject":"Build: proj - task2","description":"Implement profile.py"}]' | \
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/build_dependency_analyzer.py" --stdin | \
-  python3 -c "
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/build_dependency_analyzer.py" --stdin | \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 data = json.load(sys.stdin)
 assert isinstance(data, list), f'Expected list, got {type(data)}'

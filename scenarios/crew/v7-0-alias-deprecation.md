@@ -95,7 +95,7 @@ grep -F '[DEPRECATED] /wicked-garden:qe:report is removed in v7.1 — use /wicke
 ### Step 9: No shim body exceeds 25 lines (thin shim check) (bash)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 shims = ['qe.md','qe-plan.md','scenarios.md','automate.md','run.md','acceptance.md','qe-review.md','report.md']
@@ -135,7 +135,7 @@ print('PASS: all shims are thin (<= 30 lines)')
 ### Step 10: Each shim delegates to correct wicked-testing:* target (bash)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 expected = {
@@ -184,7 +184,7 @@ print('PASS: all shims reference correct delegation targets')
 ### Step 11: All shims check wicked_testing_missing before emitting deprecation (bash)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 shims = ['qe.md','qe-plan.md','scenarios.md','automate.md','run.md','acceptance.md','qe-review.md','report.md']
@@ -242,7 +242,7 @@ grep -F 'Deprecated — removed in v7.1' \
 ### Step 13: help.md names all 8 aliases in the deprecated section (bash)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 path = os.path.join(root, 'commands', 'help.md')
@@ -281,7 +281,7 @@ print('PASS')
 ### Step 14: help.md names all 4 wicked-testing replacement targets (bash)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 path = os.path.join(root, 'commands', 'help.md')
@@ -314,7 +314,7 @@ print('PASS')
 ### Step 15: Non-shim QE commands do not contain DEPRECATED marker (bash)
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, sys
 root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
 preserved = ['check.md', 'list.md', 'setup.md', 'help.md']

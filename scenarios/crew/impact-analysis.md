@@ -18,26 +18,26 @@ and producing valid JSON under all conditions.
 
 ```bash
 # Clean slate
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-impact 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-impact 2>/dev/null || true
 
 # Create a chain: req-1 -> design-1 -> task-1 -> test-1
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id req-1 --source-type requirement \
   --target-id design-1 --target-type design \
   --link-type TRACES_TO --project test-impact --created-by setup
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id design-1 --source-type design \
   --target-id task-1 --target-type code \
   --link-type IMPLEMENTED_BY --project test-impact --created-by setup
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
   --source-id task-1 --source-type code \
   --target-id test-1 --target-type test \
   --link-type TESTED_BY --project test-impact --created-by setup
 
 # Verify impact_analyzer.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" --help > /dev/null 2>&1 \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" --help > /dev/null 2>&1 \
   && echo "impact_analyzer.py available" || echo "NOT FOUND"
 ```
 
@@ -46,9 +46,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" --help > /dev/nu
 ### 1. Analyze from requirement
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
   --source-id req-1 --project test-impact \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 items = d.get('impacts', d.get('affected', d.get('direct', [])))
@@ -72,9 +72,9 @@ print('VALID_JSON: True')
 ### 2. Risk classification
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
   --source-id req-1 --project test-impact \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 risk = d.get('risk_summary', d.get('risk', {}))
@@ -89,9 +89,9 @@ print('NOT_NONE:', level != 'none')
 ### 3. Phases affected
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
   --source-id req-1 --project test-impact \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 phases = d.get('phases_affected', d.get('phases', []))
@@ -105,9 +105,9 @@ print('MULTI_PHASE:', len(phases) > 1 if isinstance(phases, list) else False)
 ### 4. Shallow analysis
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
   --source-id req-1 --project test-impact --depth 1 \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 # With depth=1, should only see direct impacts (design-1), not transitive
@@ -129,9 +129,9 @@ print('TRANSITIVE_COUNT:', len(trans_ids))
 ### 5. No impacts
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
   --source-id nonexistent --project test-impact \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 items = d.get('impacts', d.get('affected', d.get('direct', [])))
@@ -150,9 +150,9 @@ print('VALID_JSON: True')
 
 ```bash
 # Run analysis against a project with no knowledge graph data
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/impact_analyzer.py" analyze \
   --source-id req-1 --project nonexistent-project \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -177,5 +177,5 @@ echo "Exit: $?"
 ## Cleanup
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-impact 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" delete --project test-impact 2>/dev/null || true
 ```

@@ -32,7 +32,7 @@ The facilitator reads `agents/**/*.md` frontmatter directly. Validate the QE
 lifecycle agent files exist and their body mentions quality/testing cues.
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import re
 from pathlib import Path
 plugin_root = Path('${CLAUDE_PLUGIN_ROOT}')
@@ -130,7 +130,7 @@ done
 #### 2. Validate YAML frontmatter has required fields
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import re
 from pathlib import Path
 
@@ -187,7 +187,7 @@ No external setup required.
 #### 1. Verify specialist.json QE entry
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 from pathlib import Path
 
@@ -227,7 +227,7 @@ PASS: persona registered — Production Quality Engineer
 #### 2. Verify phases.json has qe in clarify and design
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json
 from pathlib import Path
 

@@ -33,8 +33,8 @@ EOF
 
 ```bash
 echo '{"subject": "build: implement auth service", "task_id": "t1", "status": "completed", "project_id": "test-proj"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if 'wicked-brain:memory' in msg else 'MISSING'); print('PROCEDURAL' if 'type=procedural' in msg else 'NO_TYPE'); print('NO_ESCALATION' if '[ESCALATION]' not in msg else 'ESCALATION_FOUND')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if 'wicked-brain:memory' in msg else 'MISSING'); print('PROCEDURAL' if 'type=procedural' in msg else 'NO_TYPE'); print('NO_ESCALATION' if '[ESCALATION]' not in msg else 'ESCALATION_FOUND')"
 ```
 
 **Expected**:
@@ -48,8 +48,8 @@ NO_ESCALATION
 
 ```bash
 echo '{"subject": "fix: resolve race condition in queue processor", "task_id": "t2", "status": "completed", "project_id": "test-proj"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('DECISION' if 'type=decision' in msg else 'WRONG_TYPE')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('DECISION' if 'type=decision' in msg else 'WRONG_TYPE')"
 ```
 
 **Expected**: `DECISION`
@@ -58,8 +58,8 @@ echo '{"subject": "fix: resolve race condition in queue processor", "task_id": "
 
 ```bash
 echo '{"subject": "Phase: design - authentication architecture", "task_id": "t3", "status": "completed", "project_id": "test-proj"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('EPISODIC' if 'type=episodic' in msg else 'WRONG_TYPE')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('EPISODIC' if 'type=episodic' in msg else 'WRONG_TYPE')"
 ```
 
 **Expected**: `EPISODIC`
@@ -72,8 +72,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"subject": "build: fourth task without storing memory", "task_id": "t4", "status": "completed", "project_id": "test-proj"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('ESCALATION' if msg.startswith('[ESCALATION]') else 'NO_ESCALATION')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('ESCALATION' if msg.startswith('[ESCALATION]') else 'NO_ESCALATION')"
 ```
 
 **Expected**: `ESCALATION`
@@ -87,8 +87,8 @@ EOF
 
 for subject in "test: write unit tests for queue" "review: security audit of auth" "document: API reference v2" "configure: set up CI pipeline" "analyze: performance bottlenecks"; do
   result=$(echo "{\"subject\": \"${subject}\", \"task_id\": \"tx\", \"status\": \"completed\", \"project_id\": \"test-proj\"}" \
-    | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print('OK' if 'wicked-brain:memory' in d.get('systemMessage','') else 'MISSING')")
+    | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
+    | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); print('OK' if 'wicked-brain:memory' in d.get('systemMessage','') else 'MISSING')")
   echo "${subject}: ${result}"
 done
 ```
@@ -103,9 +103,9 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 output=$(echo '{"subject": "build: standalone work", "task_id": "t9", "status": "completed"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py")
 
-echo "${output}" | python3 -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('SOFT_NUDGE' if msg and '[ESCALATION]' not in msg and 'wicked-brain:memory' in msg else 'NO_NUDGE')"
+echo "${output}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('SOFT_NUDGE' if msg and '[ESCALATION]' not in msg and 'wicked-brain:memory' in msg else 'NO_NUDGE')"
 ```
 
 **Expected**: `SOFT_NUDGE`

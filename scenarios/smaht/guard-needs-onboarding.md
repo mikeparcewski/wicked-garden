@@ -51,12 +51,12 @@ EOF
 
 result=$(CLAUDE_SESSION_ID="ac277-2" \
 HOME="${TEST_HOME}" \
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
   <<< '{"prompt": "what tasks are in progress?", "session_id": "ac277-2"}' \
   2>/dev/null)
 
 echo "Exit code: $?"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 ctx = d.get('hookSpecificOutput', {}).get('additionalContext', '') or d.get('additionalContext', '')
@@ -86,12 +86,12 @@ printf '{broken json!!' > "${TMPDIR}/wicked-garden-session-ac277-6.json"
 
 result=$(CLAUDE_SESSION_ID="ac277-6" \
 HOME="${TEST_HOME}" \
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" \
   <<< '{"prompt": "what tasks are in progress?", "session_id": "ac277-6"}' \
   2>/dev/null)
 
 echo "Exit code: $?"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 try:
     d = json.load(sys.stdin)

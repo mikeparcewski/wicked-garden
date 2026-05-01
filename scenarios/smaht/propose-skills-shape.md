@@ -49,7 +49,7 @@ PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wg-propose-skills-scenario-dir")
 HELPER="$PLUGIN_DIR/scripts/smaht/propose_skills.py"
 [ -f "$HELPER" ] || { echo "FAIL: helper missing at $HELPER"; exit 1; }
 # Reject any third-party import — the helper must be stdlib-only.
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import ast, sys
 tree = ast.parse(open('$HELPER').read())
 banned = {'requests','httpx','aiohttp','urllib3','numpy','pandas','pydantic'}
@@ -70,7 +70,7 @@ PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wg-propose-skills-scenario-dir")
 HELPER="$PLUGIN_DIR/scripts/smaht/propose_skills.py"
 # Use a project slug that is unlikely to exist (no sessions) so the helper
 # emits an empty report rather than processing real user data.
-OUT_PATH=$(python3 "$HELPER" --project=__nonexistent_test_project__)
+OUT_PATH=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "$HELPER" --project=__nonexistent_test_project__)
 [ -f "$OUT_PATH" ] || { echo "FAIL: report file not created at $OUT_PATH"; exit 1; }
 case "$OUT_PATH" in
   "${TMPDIR:-/tmp}"/wg-propose-skills-*.md|/tmp/wg-propose-skills-*.md|/var/folders/*/wg-propose-skills-*.md)
@@ -95,7 +95,7 @@ echo "PASS: report has the expected header + summary"
 PLUGIN_DIR=$(cat "${TMPDIR:-/tmp}/wg-propose-skills-scenario-dir")
 HELPER="$PLUGIN_DIR/scripts/smaht/propose_skills.py"
 # The helper must not import any networking module — verify by AST scan.
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import ast
 tree = ast.parse(open('$HELPER').read())
 banned = {'socket','http','urllib','urllib3','httpx','requests','aiohttp','smtplib','ftplib','telnetlib'}

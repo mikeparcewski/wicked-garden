@@ -18,7 +18,7 @@ and enforcing CLOSED as a terminal state.
 
 ```bash
 # Verify artifact_state.py is available
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --help > /dev/null 2>&1 \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --help > /dev/null 2>&1 \
   && echo "artifact_state.py available" || echo "NOT FOUND"
 ```
 
@@ -27,9 +27,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --help > /dev/nul
 ### 1. Register artifact
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
   --name arch.md --type design --project test-asm --phase design \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 print('STATE:', d.get('state', 'N/A'))
@@ -45,36 +45,36 @@ print('ARTIFACT_ID:', aid)
 
 ```bash
 # Capture artifact ID from registration
-ART_ID=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
+ART_ID=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
   --name lifecycle.md --type design --project test-asm --phase design \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
 echo "Artifact: ${ART_ID}"
 
 # DRAFT -> IN_REVIEW
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${ART_ID}" --to IN_REVIEW --by reviewer \
-  | python3 -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
 
 # IN_REVIEW -> APPROVED
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${ART_ID}" --to APPROVED --by gate-pass \
-  | python3 -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
 
 # APPROVED -> IMPLEMENTED
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${ART_ID}" --to IMPLEMENTED --by build-phase \
-  | python3 -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
 
 # IMPLEMENTED -> VERIFIED
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${ART_ID}" --to VERIFIED --by test-phase \
-  | python3 -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
 
 # VERIFIED -> CLOSED
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${ART_ID}" --to CLOSED --by delivery \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print('STATE:', d.get('state')); print('HISTORY_LEN:', len(d.get('state_history', [])))"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); print('STATE:', d.get('state')); print('HISTORY_LEN:', len(d.get('state_history', [])))"
 ```
 
 **Expected**: States progress DRAFT -> IN_REVIEW -> APPROVED -> IMPLEMENTED -> VERIFIED -> CLOSED. `HISTORY_LEN:` >= 5.
@@ -83,11 +83,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition
 
 ```bash
 # Register a fresh artifact in DRAFT, try to skip to APPROVED
-SKIP_ID=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
+SKIP_ID=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
   --name skip-test.md --type design --project test-asm --phase design \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${SKIP_ID}" --to APPROVED --by shortcut 2>&1
 echo "Exit: $?"
 ```
@@ -98,16 +98,16 @@ echo "Exit: $?"
 
 ```bash
 # Register artifact, move to IN_REVIEW, then revert to DRAFT (simulating gate reject)
-GATE_ID=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
+GATE_ID=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
   --name gate-test.md --type design --project test-asm --phase design \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${GATE_ID}" --to IN_REVIEW --by reviewer > /dev/null
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${GATE_ID}" --to DRAFT --by gate-reject \
-  | python3 -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print('STATE:', json.load(sys.stdin).get('state'))"
 ```
 
 **Expected**: `STATE: DRAFT` -- IN_REVIEW can revert to DRAFT.
@@ -116,30 +116,30 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition
 
 ```bash
 # Register 3 artifacts in design phase, approve 2
-BULK1=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
+BULK1=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
   --name bulk-1.md --type design --project test-asm --phase design \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
-BULK2=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
+BULK2=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
   --name bulk-2.md --type design --project test-asm --phase design \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
-BULK3=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
+BULK3=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json register \
   --name bulk-3.md --type design --project test-asm --phase design \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
 # Approve bulk-1 and bulk-2 (DRAFT -> IN_REVIEW -> APPROVED)
 for AID in "${BULK1}" "${BULK2}"; do
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
     --id "${AID}" --to IN_REVIEW --by reviewer > /dev/null
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
     --id "${AID}" --to APPROVED --by gate > /dev/null
 done
 
 # bulk-3 stays in DRAFT
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json bulk-check \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json bulk-check \
   --project test-asm --phase design --required-state APPROVED \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 d = json.load(sys.stdin)
 # CLI returns {pass: bool, total: int, passing: int, failing: [ids]}
@@ -156,9 +156,9 @@ print('PASSING:', d.get('passing', 0))
 ### 6. List with filters
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json list \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json list \
   --project test-asm --state APPROVED \
-  | python3 -c "
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 # CLI returns a JSON array of artifact records directly
 items = json.load(sys.stdin)
@@ -176,7 +176,7 @@ print('COUNT:', len(items))
 
 ```bash
 # Use the lifecycle artifact from step 2 (already CLOSED)
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/artifact_state.py" --json transition \
   --id "${ART_ID}" --to DRAFT --by reopen 2>&1
 echo "Exit: $?"
 ```

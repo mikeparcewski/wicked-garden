@@ -33,7 +33,7 @@ curl -sfL --max-time 10 "${API_URL}/get" -o /dev/null -w '%{http_code}'
 ### Step 2: JSON response validation (curl)
 
 ```bash
-curl -sfL --max-time 10 "${API_URL}/get" -H "Accept: application/json" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'url' in d, 'Missing url field'; print('OK: JSON valid with url field')"
+curl -sfL --max-time 10 "${API_URL}/get" -H "Accept: application/json" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); assert 'url' in d, 'Missing url field'; print('OK: JSON valid with url field')"
 ```
 
 **Expect**: Exit code 0, JSON parsed successfully with expected field

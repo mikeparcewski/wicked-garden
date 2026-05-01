@@ -73,7 +73,7 @@ Assert: PASS: halt reason present
 as a distinct reason from `executor-empty-deliverables`.
 
 ```bash
-Run: python3 -c "
+Run: sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import pathlib, sys
 text = pathlib.Path('${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md').read_text()
 assert 'executor-missing-deliverable' in text, 'executor-missing-deliverable reason not found'
@@ -92,7 +92,7 @@ make a silent empty-manifest exit impossible — the verification must run befor
 any ok return.
 
 ```bash
-Run: python3 -c "
+Run: sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import pathlib, sys, re
 text = pathlib.Path('${CLAUDE_PLUGIN_ROOT}/agents/crew/phase-executor.md').read_text()
 

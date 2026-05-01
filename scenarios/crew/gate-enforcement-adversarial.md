@@ -36,7 +36,7 @@ export PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 
 # Resolve the project directory using the same path logic as the hook.
 # get_local_path is project-scoped so it must be resolved at runtime.
-export PROJECT_DIR=$(python3 -c "
+export PROJECT_DIR=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -49,7 +49,7 @@ rm -rf "${PROJECT_DIR}"
 mkdir -p "${PROJECT_DIR}"
 
 # project.json — complexity 7, full 6-phase plan
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, pathlib, sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -86,7 +86,7 @@ bypassing the hook dispatch machinery while exercising the exact same logic.
 ```bash
 preflight() {
   local phase="$1"
-  python3 -c "
+  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, os
 sys.path.insert(0, '${PLUGIN_ROOT}/hooks/scripts')
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
@@ -109,7 +109,7 @@ The phase has no directory at all — it has produced zero output.
 # No phases/ directory yet — every phase directory is absent
 result=$(preflight clarify)
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.load(sys.stdin)
 assert not d['ok'], 'Expected block but got ok=True'
@@ -136,7 +136,7 @@ mkdir -p "${PROJECT_DIR}/phases/clarify"
 
 result=$(preflight clarify)
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.load(sys.stdin)
 assert not d['ok'], 'Expected block but got ok=True'
@@ -162,7 +162,7 @@ rm -rf "${PROJECT_DIR}/phases/clarify"
 
 result=$(preflight design)
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.load(sys.stdin)
 assert not d['ok'], 'Expected block but got ok=True'
@@ -188,7 +188,7 @@ minimum coverage gate must block approval.
 
 ```bash
 # Build out all preceding phases with minimal valid deliverables
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, pathlib
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -236,7 +236,7 @@ print('phase directories written')
 
 result=$(preflight test)
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.load(sys.stdin)
 assert not d['ok'], 'Expected block but got ok=True'
@@ -259,7 +259,7 @@ Fix coverage to 20/20 (100%). No `specialist-engagement.json` exists. Complexity
 
 ```bash
 # Fix test-results.md to 20/20 executed
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, pathlib
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -277,7 +277,7 @@ ls "${PROJECT_DIR}/phases/test/" 2>&1 | grep specialist || echo "(no specialist-
 
 result=$(preflight test)
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.load(sys.stdin)
 assert not d['ok'], 'Expected block but got ok=True'
@@ -297,7 +297,7 @@ Create `specialist-engagement.json` with the required `qe` specialist. All other
 checks already pass. The preflight must return `ok: true`.
 
 ```bash
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys, pathlib
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -309,7 +309,7 @@ print('specialist-engagement.json written')
 
 result=$(preflight test)
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.load(sys.stdin)
 assert d['ok'], f'Expected ok=True but got: {d}'
@@ -327,7 +327,7 @@ phase (`test-strategy`) must be blocked with a specific unresolved-conditions me
 
 ```bash
 # Write an unresolved conditions manifest for the design phase
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys, pathlib
 sys.path.insert(0, '${PLUGIN_ROOT}/scripts')
 from _paths import get_local_path
@@ -352,7 +352,7 @@ print('conditions-manifest.json written with 1 unresolved condition')
 
 result=$(preflight test-strategy)
 echo "${result}"
-echo "${result}" | python3 -c "
+echo "${result}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, sys
 d = json.load(sys.stdin)
 assert not d['ok'], 'Expected block but got ok=True'

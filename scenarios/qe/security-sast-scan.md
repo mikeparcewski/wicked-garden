@@ -40,7 +40,7 @@ if ! command -v semgrep &>/dev/null; then
   echo "SKIP: semgrep not installed. Run /wicked-testing:execution to install."
   exit 0
 fi
-semgrep scan --config p/security-audit --json --quiet "${SCAN_TARGET}" 2>&1 | python3 -c "
+semgrep scan --config p/security-audit --json --quiet "${SCAN_TARGET}" 2>&1 | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys, json
 data = json.load(sys.stdin)
 findings = data.get('results', [])

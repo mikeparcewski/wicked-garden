@@ -39,8 +39,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "Help me plan and architect a complete migration of our monolith to microservices — first design the service boundaries, then implement the first service with full testing and after that build the full data migration pipeline with rollback support", "session_id": "sess-1"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
 ```
 
 **Expected**: `HINT_FOUND`
@@ -58,8 +58,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "I need to design and implement a new authentication system with OAuth2 providers, database schema migrations, and changes to three API services", "session_id": "sess-2"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
 ```
 
 **Expected**: `NO_HINT`
@@ -80,8 +80,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "Help me plan and architect a complete migration of our monolith to microservices — first design the service boundaries, then implement the first service with full testing and after that build the full data migration pipeline with rollback support", "session_id": "sess-3"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
 ```
 
 **Expected**: `NO_HINT` (suppressed by crew_hint_shown=True — once per session, no re-fire)
@@ -99,8 +99,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "fix a typo in README", "session_id": "sess-4"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
 ```
 
 **Expected**: `NO_HINT`
@@ -113,9 +113,9 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 echo '{"prompt": "I need to design and implement a complete OAuth2 migration with database changes and API versioning strategy across multiple services", "session_id": "sess-5"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null > /dev/null
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null > /dev/null
 
-python3 -c "
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import json, os, glob
 session_files = glob.glob('${TMPDIR}/wicked-garden-session-*.json')
 if session_files:
@@ -139,8 +139,8 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 EOF
 
 output=$(echo '{"prompt": "Help me plan and architect a complete migration of our monolith to microservices — first design the service boundaries, then implement the first service with full testing and after that build the full data migration pipeline with rollback support", "session_id": "sess-6"}' \
-  | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print(ctx.count('crew:start'))")
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print(ctx.count('crew:start'))")
 
 echo "Hint count in output: ${output}"
 [ "${output}" -eq 0 ] && echo "NO_SPAM_OK" || echo "SPAM_DETECTED"

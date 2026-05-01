@@ -15,7 +15,7 @@ This scenario verifies that wicked-jam records and exposes individual persona co
 
 ```bash
 # Confirm jam.py is accessible
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" --help
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" --help
 ```
 
 ## Steps
@@ -74,12 +74,12 @@ Verify the output:
 
 ```bash
 # First get the session ID from list-sessions
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" list-sessions --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" list-sessions --json
 
 # Then retrieve transcript for that specific session
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" transcript --session-id <SESSION_ID>
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" persona "Cost Optimizer" --session-id <SESSION_ID>
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" thinking --session-id <SESSION_ID>
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" transcript --session-id <SESSION_ID>
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" persona "Cost Optimizer" --session-id <SESSION_ID>
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" thinking --session-id <SESSION_ID>
 ```
 
 Expected: All three subcommands accept `--session-id` and retrieve data from the specified session, not just the latest.
@@ -87,8 +87,8 @@ Expected: All three subcommands accept `--session-id` and retrieve data from the
 ### 6. Test JSON Output
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" transcript --json
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" thinking --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" transcript --json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" thinking --json
 ```
 
 Expected: Valid JSON output with `entries` array and `session_id` at the top level. Suitable for programmatic use by other scripts.
@@ -113,8 +113,8 @@ Verify:
 ### 8. Test Error Handling
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" transcript --session-id nonexistent-id-xyz
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" persona "Nobody Real"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" transcript --session-id nonexistent-id-xyz
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/jam.py" persona "Nobody Real"
 ```
 
 Expected: Graceful output like "No transcript found for session: nonexistent-id-xyz" and "No contributions found for persona: Nobody Real". Exit code 0 (not a crash).
