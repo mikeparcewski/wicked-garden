@@ -5,6 +5,7 @@ description: Diagnose a production error using systematic debugging methodology
 type: debugging
 difficulty: intermediate
 estimated_minutes: 12
+execution: manual
 ---
 
 # Systematic Root Cause Analysis

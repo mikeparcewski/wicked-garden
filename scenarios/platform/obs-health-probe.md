@@ -7,6 +7,7 @@ tools:
   required: [slash-command]
 difficulty: basic
 timeout: 60
+execution: manual
 ---
 
 # Observability Health Probe

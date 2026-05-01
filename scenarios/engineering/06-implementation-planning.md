@@ -5,6 +5,7 @@ description: Create a detailed implementation plan for a feature with risk analy
 type: review
 difficulty: advanced
 estimated_minutes: 15
+execution: manual
 ---
 
 # Implementation Planning with Risk Assessment

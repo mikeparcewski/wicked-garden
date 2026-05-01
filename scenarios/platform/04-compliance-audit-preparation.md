@@ -5,6 +5,7 @@ description: Prepare for SOC2 audit by systematically collecting control evidenc
 type: compliance
 difficulty: advanced
 estimated_minutes: 15
+execution: manual
 ---
 
 # SOC2 Compliance Audit Evidence Collection

@@ -7,6 +7,7 @@ tools:
   required: [slash-command]
 difficulty: intermediate
 timeout: 60
+execution: manual
 ---
 
 # Observability Contract Assertions

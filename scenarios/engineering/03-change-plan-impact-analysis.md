@@ -5,6 +5,7 @@ description: Preview change impact before making modifications using dry-run pla
 type: safety
 difficulty: basic
 estimated_minutes: 5
+execution: manual
 ---
 
 # Impact Analysis with Change Planning

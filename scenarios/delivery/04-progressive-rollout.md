@@ -5,6 +5,7 @@ description: Plan a safe, staged rollout with risk assessment, canary deployment
 type: workflow
 difficulty: intermediate
 estimated_minutes: 8
+execution: manual
 ---
 
 # Progressive Feature Rollout

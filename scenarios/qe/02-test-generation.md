@@ -5,6 +5,7 @@ description: Generate comprehensive test scenarios and convert to automated test
 type: testing
 difficulty: intermediate
 estimated_minutes: 10
+execution: manual
 ---
 
 # Test Scenario Generation and Automation
