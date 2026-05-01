@@ -389,7 +389,7 @@ def _brain_api(action, params=None, timeout=3):
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
             return json.loads(resp.read().decode("utf-8"))
     except Exception:
         return None
@@ -421,7 +421,7 @@ def _check_search_staleness():
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=2) as resp:
+        with urllib.request.urlopen(req, timeout=2) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
             stats = json.loads(resp.read().decode("utf-8"))
             total = stats.get("total", 0)
             if total == 0:
@@ -455,7 +455,7 @@ def _check_onboarding_status():
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=2) as resp:
+        with urllib.request.urlopen(req, timeout=2) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
             stats = json.loads(resp.read().decode("utf-8"))
             if stats.get("total", 0) > 0:
                 has_index = True
@@ -657,7 +657,7 @@ def _check_brain_dependency():
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=1) as resp:
+            with urllib.request.urlopen(req, timeout=1) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
                 pass  # Server responded — healthy
         except Exception:
             # Server not running, connection refused, or timeout — informational only
@@ -1320,7 +1320,7 @@ def main():
                     headers={"Content-Type": "application/json"},
                     method="POST",
                 )
-                with urllib.request.urlopen(req, timeout=2) as resp:
+                with urllib.request.urlopen(req, timeout=2) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
                     stats = json.loads(resp.read().decode("utf-8"))
                     if stats.get("total", 0) == 0:
                         mode_notes.append(
