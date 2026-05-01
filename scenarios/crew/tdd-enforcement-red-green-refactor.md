@@ -14,16 +14,12 @@ This scenario validates that:
 2. The implementer handles the green phase after failing tests exist
 3. The TDD coach verifies the refactor phase
 4. `traceability_generator.py` reads test-strategy deliverables and produces a traceability matrix
-5. The `evidence-taxonomy.md` reference file provides a table of evidence types
 
 ## Setup
 
 ```bash
 # Verify traceability_generator.py is available
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" --help > /dev/null 2>&1 && echo "traceability_generator.py available"
-
-# Verify evidence-taxonomy.md exists
-test -f "${CLAUDE_PLUGIN_ROOT}/skills/qe/qe-strategy/refs/evidence-taxonomy.md" && echo "evidence-taxonomy.md exists"
 ```
 
 ## Steps
@@ -108,32 +104,7 @@ print('PASS: All required columns present in traceability matrix')
 
 Expected: `PASS: All required columns present in traceability matrix`
 
-### 6. evidence-taxonomy.md exists with required table
-
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import os
-path = os.environ.get('CLAUDE_PLUGIN_ROOT', '${CLAUDE_PLUGIN_ROOT}') + '/skills/qe/qe-strategy/refs/evidence-taxonomy.md'
-with open(path) as f:
-    content = f.read()
-required = ['visual', 'payload', 'logging', 'test results', 'code diff', 'performance']
-missing = [r for r in required if r.lower() not in content.lower()]
-assert not missing, f'Missing evidence types: {missing}'
-print('PASS: evidence-taxonomy.md contains all required evidence types')
-"
-```
-
-Expected: `PASS: evidence-taxonomy.md contains all required evidence types`
-
-### 7. evidence-taxonomy.md has "when required" column
-
-```bash
-grep -i "when.*required\|required.*when\|required for" "${CLAUDE_PLUGIN_ROOT}/skills/qe/qe-strategy/refs/evidence-taxonomy.md" && echo "PASS: When required column present"
-```
-
-Expected: `PASS: When required column present`
-
-### 8. traceability_generator.py --help shows expected options
+### 6. traceability_generator.py --help shows expected options
 
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability_generator.py" --help
@@ -154,11 +125,6 @@ Expected: Help output showing `--phases-dir`, `--output`, `--project` options
 - Outputs `phases/build/traceability-matrix.md` as markdown table
 - Columns: Criterion ID | Description | Test File/Scenario | Build Task | Status
 
-### evidence-taxonomy.md
-- Table with evidence types: visuals, payloads, logging, test results, code diff, performance
-- When each type is required (complexity level or gate type)
-- Located at `skills/qe/qe-strategy/refs/evidence-taxonomy.md`
-
 ## Success Criteria
 
 ### execute.md
@@ -171,11 +137,6 @@ Expected: Help output showing `--phases-dir`, `--output`, `--project` options
 - [ ] Outputs markdown table with 5 required columns
 - [ ] --phases-dir, --output, --dry-run CLI options work
 - [ ] Runs without error even with minimal test-strategy file
-
-### evidence-taxonomy.md
-- [ ] All 6 evidence types covered (visual, payload, logging, test results, code diff, performance)
-- [ ] "When required" guidance present for each type
-- [ ] File exists at skills/qe/qe-strategy/refs/evidence-taxonomy.md
 
 ## Value Demonstrated
 

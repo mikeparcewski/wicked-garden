@@ -29,6 +29,7 @@ The crew hint gate requires `Router._estimate_complexity(prompt) >= 3`. The 0-3 
 A prompt must score all three to trigger the hint.
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "active_project_id": null,
@@ -38,7 +39,7 @@ cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 }
 EOF
 
-echo '{"prompt": "Help me plan and architect a complete migration of our monolith to microservices — first design the service boundaries, then implement the first service with full testing and after that build the full data migration pipeline with rollback support", "session_id": "sess-1"}' \
+echo '{"prompt": "Add a help command to the crew CLI that prints available subcommands.", "session_id": "sess-1"}' \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('HINT_FOUND' if 'crew:start' in ctx else 'NO_HINT')"
 ```
@@ -48,6 +49,7 @@ echo '{"prompt": "Help me plan and architect a complete migration of our monolit
 ### 2. Crew hint suppressed when active project exists
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "active_project_id": "my-auth-project",
@@ -70,6 +72,7 @@ The hint gate checks `crew_hint_shown` and does NOT re-fire at any complexity le
 Once shown, crew_hint_shown=True suppresses all subsequent hints.
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "active_project_id": null,
@@ -89,6 +92,7 @@ echo '{"prompt": "Help me plan and architect a complete migration of our monolit
 ### 4. Low-complexity prompt does not trigger hint
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "active_project_id": null,
@@ -108,6 +112,7 @@ echo '{"prompt": "fix a typo in README", "session_id": "sess-4"}' \
 ### 5. crew_hint_shown flag is written after first hint
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"active_project_id": null, "crew_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -134,6 +139,7 @@ With crew_hint_shown=True in session state, `crew:start` must never appear in ou
 the once-per-session gate is respected regardless of complexity.
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"active_project_id": null, "crew_hint_shown": true, "onboarding_complete": true, "needs_onboarding": false}
 EOF

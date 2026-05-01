@@ -29,11 +29,12 @@ export TMPDIR=$(mktemp -d)
 ### 1. Jam suggestion fires on tradeoff prompt
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
 
-echo '{"prompt": "What are the tradeoffs between using Redis vs Postgres for session storage? Compare the alternatives.", "session_id": "sess-1"}' \
+echo '{"prompt": "Compare the tradeoffs of caching with Redis versus computing on demand for the leaderboard.", "session_id": "sess-1"}' \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prompt_submit.py" 2>/dev/null \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); print('JAM_FOUND' if 'jam:' in ctx else 'NO_JAM')"
 ```
@@ -43,6 +44,7 @@ echo '{"prompt": "What are the tradeoffs between using Redis vs Postgres for ses
 ### 2. Jam suggestion names specific commands
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -57,6 +59,7 @@ echo '{"prompt": "Should we use a monorepo or separate repos? Explore the option
 ### 3. Jam suggestion suppressed when /jam: already in prompt
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -71,6 +74,7 @@ echo '{"prompt": "/wicked-garden:jam:quick thinking through tradeoffs for sessio
 ### 4. Session gate prevents second jam suggestion
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": true, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -85,6 +89,7 @@ echo '{"prompt": "Should we use option A or B? Compare the alternatives and trad
 ### 5. jam_hint_shown flag written after first suggestion
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -105,9 +110,14 @@ else:
 
 **Expected**: `FLAG_SET`
 
-### 6. Jam suggestion does not fire when onboarding directive is active
+### 6. Jam suggestion can fire alongside an active onboarding directive
+
+Jam and onboarding are independent signals: the user can see both. The hook does not
+suppress the jam suggestion when onboarding is active — both are appended and the model
+is free to act on whichever is more relevant.
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "jam_hint_shown": false,
@@ -122,7 +132,7 @@ echo '{"prompt": "What are the tradeoffs between these design options? Compare a
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); ctx=d.get('additionalContext',''); has_jam='[Suggestion]' in ctx and 'jam:' in ctx; has_onboarding='setup' in ctx.lower(); print(f'jam={has_jam} onboarding={has_onboarding}')"
 ```
 
-**Expected**: `jam=False onboarding=True`
+**Expected**: `jam=True onboarding=True` (independent signals — both appended)
 
 ### 7. Synthesis-path prompts do NOT emit jam or crew hints
 
@@ -131,6 +141,7 @@ to return early with only the synthesis directive. The jam suggestion and crew h
 never reached. Verify that a clearly synthesis-eligible prompt produces no jam hint.
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "jam_hint_shown": false,
@@ -162,7 +173,7 @@ never reach the jam suggestion code — synthesis and jam are mutually exclusive
 - [ ] No duplicate suggestion when prompt already contains /jam:
 - [ ] jam_hint_shown=True prevents second suggestion
 - [ ] jam_hint_shown flag written to session state after first suggestion
-- [ ] No jam suggestion when onboarding directive is active
+- [ ] Jam suggestion can fire alongside an onboarding directive (independent signals)
 - [ ] Synthesis-path prompts produce no jam hint (synthesis and jam are mutually exclusive)
 
 ## Value Demonstrated

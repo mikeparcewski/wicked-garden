@@ -84,7 +84,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/traceability.py" create \
 ### 4. Register and transition artifact via artifact_state
 
 ```bash
-ART=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/artifact_state.py" register --name "OAuth2 architecture doc" --type design --project "$PROJECT" --phase design --json)
+ART=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CREW}/artifact_state.py" --json register --name "OAuth2 architecture doc" --type design --project "$PROJECT" --phase design)
 ART_ID=$(echo "$ART" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import json,sys; print(json.load(sys.stdin)['id'])")
 echo "Registered artifact: $ART_ID"
 
@@ -124,23 +124,23 @@ domain adapter fan-out, which is the current mechanism for scoring/prioritising 
 
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import json, sys
+import asyncio, json, sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/smaht')
-from adapters.domain_adapter import DomainAdapter
+from adapters.domain_adapter import query
 
 report = json.load(open('${TMPDIR:-/tmp}/impact.json'))
 items = report.get('impact', {}).get('direct', []) + report.get('impact', {}).get('transitive', [])
 
-# domain_adapter expects a query_context dict; verify it is importable and callable
-adapter = DomainAdapter()
-result = adapter.query({'query': 'OAuth2 impact', 'phase': 'build', 'session_id': 'integration-test'})
-assert isinstance(result, (dict, list, type(None))), 'Unexpected return type from domain adapter'
-print('PASS: DomainAdapter fan-out succeeded (%d impact items queued)' % len(items))
+# domain_adapter.query is async and accepts (prompt: str, project: str = None).
+# Run it through an event loop and verify it returns a list of ContextItem-like values.
+result = asyncio.run(query('OAuth2 impact', project=None))
+assert isinstance(result, list), 'Expected list from domain adapter, got %r' % type(result).__name__
+print('PASS: domain_adapter.query() fan-out succeeded (%d impact items queued, %d context items returned)' % (len(items), len(result)))
 "
 ```
 
-**Expected**: DomainAdapter is importable from smaht adapters and returns a valid result (dict, list, or None). Prints PASS.
+**Expected**: `query()` is importable from `smaht.adapters.domain_adapter` and returns a valid result (dict, list, or None). Prints PASS.
 
 ### 7. Run verification protocol
 
@@ -209,7 +209,7 @@ if report['covered']:
 - [ ] Three traceability links created (TRACES_TO, IMPLEMENTED_BY, TESTED_BY)
 - [ ] Artifact state transitions work (DRAFT -> IN_REVIEW -> APPROVED)
 - [ ] Impact analysis finds affected artifacts from requirement
-- [ ] Smaht DomainAdapter fan-out succeeds (replaces removed search lifecycle scoring script)
+- [ ] Smaht domain_adapter.query() fan-out succeeds (replaces removed search lifecycle scoring script)
 - [ ] Verification protocol produces valid JSON with all 6 check names
 - [ ] Consensus synthesis works with minimal proposals
 - [ ] Traceability coverage report identifies requirement coverage

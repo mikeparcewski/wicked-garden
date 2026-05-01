@@ -12,7 +12,7 @@ estimated_minutes: 12
 This scenario verifies that `phase_manager.py approve` enforces gate requirements by blocking
 when the gate was not run, blocking on REJECT results, and allowing bypass only with
 `--override-gate` while writing an audit record. It uses the gate-result.json mock mechanism
-to test REJECT and PASS outcomes without running the full QE orchestrator.
+to test REJECT and APPROVE outcomes without running the full QE orchestrator.
 
 ## v6 approval-check ordering (important)
 
@@ -63,16 +63,16 @@ EOF
 # Helper function for mocking gate results
 mock_gate() {
   local phase="$1"
-  local result="$2"   # PASS | REJECT | NONE
+  local result="$2"   # APPROVE | REJECT | NONE
   local findings="${3:-}"
   local gate_file="${PROJECT_DIR}/phases/${phase}/gate-result.json"
 
   if [ "${result}" = "NONE" ]; then
     rm -f "${gate_file}"
   elif [ "${result}" = "REJECT" ]; then
-    echo "{\"result\": \"REJECT\", \"findings\": [\"${findings}\"], \"type\": \"mock\"}" > "${gate_file}"
+    echo "{\"result\": \"REJECT\", \"findings\": [\"${findings}\"], \"type\": \"mock\", \"reviewer\": \"test-mock\", \"recorded_at\": \"2026-01-01T00:00:00Z\", \"score\": 0.30}" > "${gate_file}"
   else
-    echo '{"result": "PASS", "findings": [], "type": "mock"}' > "${gate_file}"
+    echo '{"result": "APPROVE", "findings": [], "type": "mock", "reviewer": "test-mock", "recorded_at": "2026-01-01T00:00:00Z", "score": 0.85}' > "${gate_file}"
   fi
 }
 
@@ -178,11 +178,11 @@ print('PHASE_HELD' if d['current_phase'] == 'design' else 'PHASE_ADVANCED_UNEXPE
 
 **Expected**: `PHASE_HELD`
 
-### 3. PASS gate result allows approval to proceed
+### 3. APPROVE gate result allows approval to proceed
 
 ```bash
 reset_phase
-mock_gate design PASS
+mock_gate design APPROVE
 
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/phase_manager.py" "${TEST_PROJECT}" approve --phase design 2>&1
 echo "Exit: $?"
@@ -347,7 +347,7 @@ a time and observing which error surfaces first.
 - [ ] Approval blocked (exit 1) when no gate-result.json present for gate_required phase
       (with re-eval + deliverable preconditions satisfied, so gate is the first error)
 - [ ] Approval blocked (exit 1) when gate-result.json contains REJECT
-- [ ] Approval succeeds (exit 0) when gate-result.json contains PASS and phase advances
+- [ ] Approval succeeds (exit 0) when gate-result.json contains APPROVE and phase advances
 - [ ] --override-gate with --reason bypasses REJECT and phase advances
 - [ ] Gate override written to status.md with reason and timestamp
 - [ ] --override-gate bypasses gate-not-run state with audit trail
