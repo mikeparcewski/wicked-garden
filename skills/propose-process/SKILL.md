@@ -112,33 +112,7 @@ Task(
    file regardless, and the shim (Steps 3 / 4 below) decides whether to render
    `process-plan.md` based on the caller's `output` value.
 
-   Concrete example for the `crew:start` Step 5 call (description elided):
-
-```
-Task(
-  subagent_type="wicked-garden:crew:process-facilitator",
-  prompt="""
-    Run the propose-process rubric. Documented inputs (one field per line):
-
-    description: Add MFA to the existing login flow.
-    priors: none
-    constraints: none
-    mode: propose
-    current_chain: none
-    auto_proceed: none
-    project_dir: /Users/alex/.something-wicked/wicked-garden/projects/2026-04-26-1430/wicked-crew/projects/auth_rewrite
-    project_slug: auth_rewrite
-    bookend: none
-    phase: none
-
-    For any field whose value is `none`, treat it as absent (use the input's
-    documented default).
-
-    Write the resulting JSON to {project_dir}/process-plan.draft.json before
-    returning. Do NOT issue TaskCreate calls — the caller emits the chain.
-  """
-)
-```
+   See [`refs/dispatch-example.md`](refs/dispatch-example.md) for a concrete example with documented inputs filled in for the `crew:start` Step 5 call.
 
 2. After the agent returns, read `${project_dir}/process-plan.draft.json` from disk.
 

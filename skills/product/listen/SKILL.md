@@ -22,37 +22,15 @@ Aggregate customer feedback from multiple channels with automatic source discove
 
 ## Capability Discovery
 
-The skill automatically discovers available feedback capabilities:
+The skill automatically discovers available feedback capabilities and routes to whichever are present:
 
-### support-tickets capability
-```bash
-# Discovers CLI tools, APIs, and exports that provide ticket data
-# Examples: ticket system CLIs, support platform exports, help desk APIs
-```
-
-### customer-feedback capability
-```bash
-# Discovers feedback platforms, voting systems, feature request tools
-# Examples: feedback exports, product board files, customer labels in issue trackers
-```
-
-### surveys capability
-```bash
-# Discovers survey response exports (CSV, JSON)
-# Examples: survey platform exports, NPS data files, form responses
-```
-
-### conversations capability
-```bash
-# Discovers chat and messaging data sources
-# Examples: chat exports, messaging platform data
-```
-
-### issue-tracking capability
-```bash
-# Discovers bug/issue tracking systems with customer-reported items
-# Examples: issue tracker CLIs with customer labels or tags
-```
+| Capability | Discovers | Examples |
+|------------|-----------|----------|
+| `support-tickets` | CLI tools, APIs, exports providing ticket data | Ticket system CLIs, support platform exports, help desk APIs |
+| `customer-feedback` | Feedback platforms, voting systems, feature request tools | Feedback exports, product board files, customer labels in issue trackers |
+| `surveys` | Survey response exports (CSV, JSON) | Survey platform exports, NPS data files, form responses |
+| `conversations` | Chat and messaging data sources | Chat exports, messaging platform data |
+| `issue-tracking` | Bug/issue trackers with customer-reported items | Issue tracker CLIs with customer labels or tags |
 
 ## Usage
 

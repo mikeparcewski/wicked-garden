@@ -107,45 +107,9 @@ trackEvent('purchase_completed', {
 
 ## Output Format
 
-```markdown
-## Experiment Design: {Name}
+The skill emits a markdown experiment design with sections: Hypothesis, Metrics (Primary / Secondary / Guardrail), Variants, Sample Size, Statistical Parameters, Instrumentation, Success Criteria, Risks & Mitigations.
 
-### Hypothesis
-{Clear, testable hypothesis}
-
-### Metrics
-- **Primary**: {metric} - {how measured}
-- **Secondary**: {list}
-- **Guardrail**: {list}
-
-### Variants
-- **Control**: {current experience}
-- **Treatment**: {new experience}
-
-### Sample Size
-- Per variant: {n} users
-- Total: {total} users
-- Duration: {days} at {%} traffic
-
-### Statistical Parameters
-- Significance: 0.05
-- Confidence: 95%
-- Power: 80%
-- MDE: {minimum detectable effect}%
-
-### Instrumentation
-**Feature Flag**: {name}
-**Analytics Events**:
-- experiment_viewed
-- {primary_metric_event}
-- {secondary_metric_events}
-
-### Success Criteria
-{What constitutes success}
-
-### Risks & Mitigations
-{Potential issues and how to handle}
-```
+Full template with substitutable placeholders: [`refs/output-template.md`](refs/output-template.md).
 
 ## Capability Discovery
 
