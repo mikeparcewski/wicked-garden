@@ -18,6 +18,7 @@ un-actioned completions and that the hook is silent when no crew project is acti
 ```bash
 export TMPDIR=$(mktemp -d)
 
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "memory_compliance_required": true,
@@ -82,6 +83,7 @@ grep -q '\[ESCALATION\]' "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py"
 ### 5. Expanded deliverable keywords trigger directive
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"memory_compliance_required": true, "memory_compliance_escalations": 0, "cp_project_id": "test-proj"}
 EOF
@@ -99,6 +101,7 @@ done
 ### 6. Hook emits soft nudge when memory_compliance_required=False
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"memory_compliance_required": false}
 EOF

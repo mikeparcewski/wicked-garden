@@ -25,6 +25,7 @@ export TMPDIR=$(mktemp -d)
 ### 1. Full setup directive fires when memories absent
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "onboarding_complete": false,
@@ -47,6 +48,7 @@ pointing to `search:index`, not the full setup wizard invocation.
 
 ```bash
 # Simulate the state that bootstrap writes when: memories=present, index=absent
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "onboarding_complete": false,
@@ -76,6 +78,7 @@ confirming memories exist in the local memory store before running bootstrap.py.
 ### 3. No directive fires when both memories and index present
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "onboarding_complete": true,
@@ -94,6 +97,7 @@ echo '{"prompt": "show me current tasks", "session_id": "sess-3"}' \
 ### 4. Setup command passes through even when onboarding required
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"onboarding_complete": false, "needs_onboarding": true, "setup_in_progress": false}
 EOF
@@ -108,6 +112,7 @@ echo "Exit code: $?"
 ### 5. Per-turn re-check skipped when onboarding_complete=True
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"onboarding_complete": true, "needs_onboarding": false, "setup_in_progress": false}
 EOF
@@ -128,6 +133,7 @@ fresh state and emits the directive. The exit code stays 0 because the directive
 context, not a hard block.
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"onboarding_complete": false, "needs_onboarding": true, "setup_in_progress": true}
 EOF

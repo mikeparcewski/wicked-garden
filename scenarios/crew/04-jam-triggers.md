@@ -29,6 +29,7 @@ export TMPDIR=$(mktemp -d)
 ### 1. Jam suggestion fires on tradeoff prompt
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -43,6 +44,7 @@ echo '{"prompt": "We need to choose between caching with Redis or computing on d
 ### 2. Jam suggestion names specific commands
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -57,6 +59,7 @@ echo '{"prompt": "Should we use a monorepo or separate repos? Explore the option
 ### 3. Jam suggestion suppressed when /jam: already in prompt
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -71,6 +74,7 @@ echo '{"prompt": "/wicked-garden:jam:quick thinking through tradeoffs for sessio
 ### 4. Session gate prevents second jam suggestion
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": true, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -85,6 +89,7 @@ echo '{"prompt": "Should we use option A or B? Compare the alternatives and trad
 ### 5. jam_hint_shown flag written after first suggestion
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {"jam_hint_shown": false, "onboarding_complete": true, "needs_onboarding": false}
 EOF
@@ -112,6 +117,7 @@ suppress the jam suggestion when onboarding is active — both are appended and 
 is free to act on whichever is more relevant.
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "jam_hint_shown": false,
@@ -135,6 +141,7 @@ to return early with only the synthesis directive. The jam suggestion and crew h
 never reached. Verify that a clearly synthesis-eligible prompt produces no jam hint.
 
 ```bash
+export CLAUDE_SESSION_ID=test
 cat > "${TMPDIR}/wicked-garden-session-test.json" <<'EOF'
 {
   "jam_hint_shown": false,

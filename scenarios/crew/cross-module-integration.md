@@ -124,7 +124,7 @@ domain adapter fan-out, which is the current mechanism for scoring/prioritising 
 
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import json, sys
+import asyncio, json, sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/smaht')
 from adapters.domain_adapter import query
@@ -132,10 +132,11 @@ from adapters.domain_adapter import query
 report = json.load(open('${TMPDIR:-/tmp}/impact.json'))
 items = report.get('impact', {}).get('direct', []) + report.get('impact', {}).get('transitive', [])
 
-# domain_adapter exposes a module-level query() function; verify it is importable and callable
-result = query({'query': 'OAuth2 impact', 'phase': 'build', 'session_id': 'integration-test'})
-assert isinstance(result, (dict, list, type(None))), 'Unexpected return type from domain adapter'
-print('PASS: domain_adapter.query() fan-out succeeded (%d impact items queued)' % len(items))
+# domain_adapter.query is async and accepts (prompt: str, project: str = None).
+# Run it through an event loop and verify it returns a list of ContextItem-like values.
+result = asyncio.run(query('OAuth2 impact', project=None))
+assert isinstance(result, list), 'Expected list from domain adapter, got %r' % type(result).__name__
+print('PASS: domain_adapter.query() fan-out succeeded (%d impact items queued, %d context items returned)' % (len(items), len(result)))
 "
 ```
 
