@@ -112,7 +112,7 @@ Task(
    file regardless, and the shim (Steps 3 / 4 below) decides whether to render
    `process-plan.md` based on the caller's `output` value.
 
-   See [`refs/dispatch-example.md`](refs/dispatch-example.md) for a fully-substituted concrete example matching the `crew:start` Step 5 call.
+   See [`refs/dispatch-example.md`](refs/dispatch-example.md) for a concrete example with documented inputs filled in for the `crew:start` Step 5 call.
 
 2. After the agent returns, read `${project_dir}/process-plan.draft.json` from disk.
 

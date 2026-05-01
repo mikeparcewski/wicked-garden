@@ -1,6 +1,6 @@
 # Experiment Design Output Template
 
-Markdown template for the experiment design returned by `/wicked-garden:delivery:experiment`. Substitute the placeholders with values from the hypothesis, metrics, sample-size, and instrumentation steps.
+Markdown template for the experiment design output emitted by the `delivery:design` skill. Substitute the placeholders with values from the hypothesis, metrics, sample-size, and instrumentation steps.
 
 ```markdown
 ## Experiment Design: {Name}

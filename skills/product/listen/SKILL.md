@@ -32,8 +32,6 @@ The skill automatically discovers available feedback capabilities and routes to 
 | `conversations` | Chat and messaging data sources | Chat exports, messaging platform data |
 | `issue-tracking` | Bug/issue trackers with customer-reported items | Issue tracker CLIs with customer labels or tags |
 
-See [channels.md](refs/channels.md) for detailed capability integration patterns.
-
 ## Usage
 
 ```bash
