@@ -1,7 +1,7 @@
 ---
 name: v7-1-deletions-regression
 title: v7.1 Deletion Wave Regression Guard
-description: "GA-01..GA-12: absence-assertions for all v7.1-deleted paths, grep audits, wg-check guard, CHANGELOG/version assertions"
+description: "GA-01..GA-12: absence-assertions for all v7.1-deleted paths, grep audits, wg-check guard, CHANGELOG entry, and v7.0.0 git-tag presence"
 type: testing
 difficulty: basic
 estimated_minutes: 5
@@ -31,14 +31,6 @@ if failures:
     for f in failures: print('FAIL: directory still exists:', f)
     sys.exit(1)
 print('PASS (GA-01..GA-04): all 4 directories absent')
-" 2>/dev/null || python -c "
-import os, sys
-root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
-absent = ['agents/qe', 'skills/qe', 'skills/acceptance-testing', 'commands/qe']
-failures = [p for p in absent if os.path.exists(os.path.join(root, p))]
-if failures:
-    for f in failures: print('FAIL:', f); sys.exit(1)
-print('PASS (GA-01..GA-04): all 4 directories absent')
 "
 ```
 
@@ -66,19 +58,6 @@ if stray:
     for s in stray: print('FAIL:', s)
     sys.exit(1)
 print('PASS (GA-05, GA-07..GA-09): zero qe: refs in dispatch-path files')
-" 2>/dev/null || python -c "
-import os, sys, pathlib
-root = pathlib.Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'))
-targets = ['hooks/scripts/bootstrap.py', 'hooks/scripts/post_tool.py', 'hooks/scripts/prompt_submit.py']
-stray = []
-for t in targets:
-    p = root / t
-    if not p.exists(): continue
-    txt = p.read_text(errors='replace')
-    if 'wicked-garden:qe:' in txt or 'wicked-garden:acceptance-testing:' in txt:
-        stray.append(t)
-if stray: print('FAIL:', stray); sys.exit(1)
-print('PASS (GA-05, GA-07..GA-09): dispatch-path files clean')
 "
 ```
 
@@ -93,11 +72,6 @@ path = os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts', 'qe', 
 if os.path.exists(path):
     print('FAIL (GA-10): cli_discovery.py still exists at', path); sys.exit(1)
 print('PASS (GA-10): scripts/qe/cli_discovery.py absent')
-" 2>/dev/null || python -c "
-import os, sys
-path = os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts', 'qe', 'cli_discovery.py')
-if os.path.exists(path): print('FAIL'); sys.exit(1)
-print('PASS (GA-10): cli_discovery.py absent')
 "
 ```
 
@@ -127,14 +101,6 @@ if fails:
     for f in fails: print('FAIL:', f)
     sys.exit(1)
 print('PASS (CA-01..CA-04): CHANGELOG [7.1.0] entry complete')
-" 2>/dev/null || python -c "
-import os, sys
-root = os.environ.get('CLAUDE_PLUGIN_ROOT', '.')
-c = open(os.path.join(root, 'CHANGELOG.md')).read()
-checks = {'[7.1.0]': '## [7.1.0]' in c, 'agents/qe': 'agents/qe' in c, 'skills/qe': 'skills/qe' in c, 'migrate_script': 'migrate_qe_evaluator_name.py' in c}
-fails = [k for k,v in checks.items() if not v]
-if fails: print('FAIL:', fails); sys.exit(1)
-print('PASS (CA-01..CA-04): CHANGELOG checks passed')
 "
 ```
 
