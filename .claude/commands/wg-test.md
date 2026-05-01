@@ -252,7 +252,7 @@ Each batch debug log captures:
   "failed": 5,
   "errors": 2,
   "skipped": 0,
-  "manual_only": 18,
+  "manual_only": 31,
   "duration_ms": 180000,
   "batches": 13,
   "batch_size": 8,
