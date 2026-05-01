@@ -5,6 +5,7 @@ description: Index a project with mixed code and docs, then search across everyt
 type: workflow
 difficulty: basic
 estimated_minutes: 5
+execution: manual
 ---
 
 # Index and Search Across Code and Documentation

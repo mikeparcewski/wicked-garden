@@ -5,6 +5,7 @@ description: Gather multi-stakeholder perspectives on a proposed feature
 type: feature
 difficulty: basic
 estimated_minutes: 8
+execution: manual
 ---
 
 # Product Feature Validation

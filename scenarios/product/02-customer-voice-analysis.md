@@ -5,6 +5,7 @@ description: Aggregate and analyze customer feedback to identify actionable them
 type: research
 difficulty: intermediate
 estimated_minutes: 12
+execution: manual
 ---
 
 # Customer Feedback Theme Extraction

@@ -5,6 +5,7 @@ description: Use brainstorming to evaluate competing technical approaches
 type: workflow
 difficulty: intermediate
 estimated_minutes: 10
+execution: manual
 ---
 
 # Architecture Decision Making

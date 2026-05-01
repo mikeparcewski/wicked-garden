@@ -5,6 +5,7 @@ description: Filter search to only code, excluding documentation
 type: feature
 difficulty: basic
 estimated_minutes: 5
+execution: manual
 ---
 
 # Search Code Symbols Only

@@ -5,6 +5,7 @@ description: Scout common code patterns without building full index
 type: feature
 difficulty: basic
 estimated_minutes: 5
+execution: manual
 ---
 
 # Quick Pattern Reconnaissance
