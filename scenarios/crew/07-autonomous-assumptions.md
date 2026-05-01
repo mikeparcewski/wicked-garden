@@ -88,12 +88,12 @@ When the project completes, the final output should include:
 - **Review**: {list of assumptions}
 ```
 
-### 5. Verify smaht context assembly (v6 pull-model)
+### 5. Verify context assembly (v6 pull-model)
 
 Expected:
-1. The `smaht` skill (or its `wicked-brain:search` / `wicked-brain:query` adapters) is invoked at least once during phase work to gather context — the v6 pull-model replaces the deleted v5 push-model orchestrator (`scripts/smaht/v2/orchestrator.py`, removed in #428).
+1. Either the `smaht` (`context-assembly`) skill is invoked, or `wicked-brain:search` / `wicked-brain:query` is called directly, at least once during phase work to gather context.
 2. Context retrieved is referenced or summarized in subagent Task() dispatches when relevant.
-3. If `wicked-brain` is not installed (smaht itself is a domain within wicked-garden, not a separate plugin, so it is always present), the brain adapter degrades to empty results and the work continues without raising.
+3. When `wicked-brain` is not installed, the brain-backed lookup degrades to empty results — phase work continues without producing a hard failure that blocks completion.
 
 ### 6. Verify orchestrator-only behavior
 
