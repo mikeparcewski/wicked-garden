@@ -162,11 +162,11 @@ Coverage notation:
 
 `hooks/scripts/stop.py` emits `wicked.fact.extracted` (L162) but does not write to disk in that flow — emit-only, no write to pair with.
 
-`hooks/scripts/subscribers/on_gate_decided.py` is a pure message-passing subscriber — no disk writes, emits `wicked.hook.gate-decided-processed`. Canonical example of the bus-as-truth pattern.
+`hooks/scripts/subscribers/on_gate_decided.py` is a pure message-passing subscriber — no disk writes, emits `wicked.hook.gate_decided_processed` (underscores, not hyphens — verified at L58 of the subscriber). Canonical example of the bus-as-truth pattern.
 
 ## Notes on SessionState writes
 
-All hooks call `SessionState.load()` → mutate → `state.save()`. This persists to `~/.something-wicked/wicked-garden/sessions/{session_id}.json` and is **intentionally NOT event-sourced**:
+All hooks call `SessionState.load()` → mutate → `state.save()`. This persists to `${TMPDIR or tempfile.gettempdir()}/wicked-garden-session-{session_id}.json` (per `scripts/_session.py:60-62`) and is **intentionally NOT event-sourced**:
 
 - Hot-path: 100s of mutations per session (turn count, context flags, memory compliance)
 - Per-mutation emit = bus churn with no consumer
