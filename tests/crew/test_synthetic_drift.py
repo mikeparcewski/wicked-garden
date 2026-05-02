@@ -682,10 +682,15 @@ class TestPostCutoverContract(unittest.TestCase):
                     matching_classes.append(node)
 
             if not matching_classes:
-                # A post-cutover drift class with no test class targeting
-                # it is a coverage gap, not a meta-test failure. Other
-                # tests in this file (AllSupportedClassesBuildableTests)
-                # already assert manifest-level coverage. Skip here.
+                # #757: silent skip defeats half the contract. A
+                # post-cutover drift class in _DAEMON_DB_BEARING with NO
+                # matching test class is a real coverage gap — name it.
+                violations.append(
+                    f"  {drift_class}: no test class found matching "
+                    f"PascalCase {pascal!r} (expected e.g. {pascal}Tests). "
+                    f"Add a test class for this _DAEMON_DB_BEARING slug "
+                    f"or remove it from the registry."
+                )
                 continue
 
             has_v2_assertion = False

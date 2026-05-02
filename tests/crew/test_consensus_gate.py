@@ -264,6 +264,42 @@ def test_evaluate_consensus_gate_threads_eval_id_into_result_dict() -> None:
 
 
 # ---------------------------------------------------------------------------
+# #760 — eval_id width regression pin (defense-in-depth)
+# ---------------------------------------------------------------------------
+
+
+def test_eval_id_is_at_least_64_bits_wide() -> None:
+    """eval_id width regression pin (#760).
+
+    PR #758 minted eval_id at 12 hex chars (48 bits, ~16.7M evals per
+    (project, phase) at 50% birthday collision risk). #760 widened to
+    16 hex chars (64 bits, ~4.3B evals at 50% risk) as defense-in-depth
+    before all 5 cutover sites stack on long-lived projects.
+
+    A future shrinkage would silently re-introduce the collision risk.
+    This test catches it. Storage is opaque TEXT (no length constraint),
+    so wider future widths are fine — the assertion is a floor only.
+    """
+    import consensus_gate
+    src = Path(consensus_gate.__file__).read_text()
+    # All eval_id mint sites must use hex[:N] with N >= 16.
+    import re
+    matches = re.findall(r"uuid\.uuid4\(\)\.hex\[:(\d+)\]", src)
+    assert matches, (
+        "Could not find any uuid.uuid4().hex[:N] mint sites in "
+        "consensus_gate.py — has the eval_id source moved?"
+    )
+    for width in matches:
+        assert int(width) >= 16, (
+            f"#760 contract violation: eval_id width {width} < 16. "
+            f"PR #760 widened from 12 -> 16 (48b -> 64b entropy) as "
+            f"defense-in-depth before Sites 3-5 stack on long-lived "
+            f"projects. Do not shrink without re-evaluating birthday "
+            f"collision risk at the new scale."
+        )
+
+
+# ---------------------------------------------------------------------------
 # C4 — disk write still wins (daemon-down contract)
 # ---------------------------------------------------------------------------
 

@@ -356,7 +356,7 @@ def evaluate_consensus_gate(
     # and evidence emits distinct even within the same eval (otherwise both
     # would dedupe against each other).  See brain memory
     # ``bus-chain-id-must-include-uniqueness-segment-gotcha``.
-    eval_id = uuid.uuid4().hex[:12]
+    eval_id = uuid.uuid4().hex[:16]
 
     # Write consensus report to project dir
     scores = {"agreement_ratio": agreement_ratio, "divergent_points": []}
@@ -445,7 +445,7 @@ def _write_consensus_report(
     if eval_id is None:
         # Defensive: legacy callers pre-#746 did not pass eval_id.  Mint
         # one inline so the chain_id contract still holds.
-        eval_id = uuid.uuid4().hex[:12]
+        eval_id = uuid.uuid4().hex[:16]
 
     report = {
         "phase": phase,
@@ -538,7 +538,7 @@ def _write_consensus_evidence(
     """
     eval_id = consensus_result.get("eval_id")
     if not isinstance(eval_id, str) or not eval_id:
-        eval_id = uuid.uuid4().hex[:12]
+        eval_id = uuid.uuid4().hex[:16]
 
     evidence = {
         "type": "consensus-rejection",
