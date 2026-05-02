@@ -1,5 +1,7 @@
 ---
 description: Show current project status, phase, and next steps
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:status

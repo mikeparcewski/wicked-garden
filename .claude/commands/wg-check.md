@@ -489,6 +489,32 @@ echo "  disable-model-invocation: true — $dmi_true skills (user-only invocatio
 echo "  portability: portable — $portable skills (cross-platform compatible)"
 ```
 
+### 5d. Relevance Frontmatter (Issue #725 — context-aware crew:guide)
+
+Scan `commands/**/*.md` and `skills/**/*.md` for the `phase_relevance` and
+`archetype_relevance` frontmatter fields used by `crew:guide` to filter
+suggestions by current archetype + phase.
+
+**Mode**: warn-only this release. The reframe lands frontmatter on a CURATED
+15-command subset (the daily-driver list); the remaining ~225 commands/skills
+get filled in by a follow-up bulk-pass PR. Once that PR ships, set
+`WG_RELEVANCE_LINT=deny` as the default to fail CI on missing fields.
+
+**Env var**: `WG_RELEVANCE_LINT=warn|deny|off` (default `warn`).
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT:-.}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT:-.}/scripts/wg/check_relevance_frontmatter.py" 2>/dev/null \
+  || python3 "${CLAUDE_PLUGIN_ROOT:-.}/scripts/wg/check_relevance_frontmatter.py" 2>/dev/null \
+  || python "${CLAUDE_PLUGIN_ROOT:-.}/scripts/wg/check_relevance_frontmatter.py"
+```
+
+**Output shape**:
+
+- `OK: ...` when every command/skill declares both fields.
+- `WARN: missing relevance frontmatter — N files: a, b, c (and N more)` in
+  warn mode (exit 0).
+- `ERROR: ...` (exit 1) in deny mode — flips on after the bulk-pass PR.
+
 ### 6. Capability-Based Discovery Compliance
 
 Skills should discover integrations by capability, not hardcoded tool names.
@@ -1061,6 +1087,7 @@ a short "TODO: implement" body) and replace it in the follow-up.
 | Agent description budget (≤600 chars) | ✓/⚠ |
 | Skill portability compliance | ✓/✗ |
 | Skill invocation control audit | ✓/info |
+| Relevance frontmatter (#725) | ✓/⚠ |
 | Specialist schema | ✓/✗/- |
 | Capability compliance | ✓/✗ |
 | Implementation rationalization | ✓/✗ |

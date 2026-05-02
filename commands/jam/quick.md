@@ -1,6 +1,8 @@
 ---
 description: Quick exploration with fewer personas and one round
 argument-hint: "<idea or question>"
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:jam:quick

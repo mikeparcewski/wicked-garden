@@ -4,6 +4,8 @@ description: |
   dependencies (what this uses) and dependents (what uses this) via the graph index.
   NOT for full data lineage tracing (use search:lineage) or general code search (use wicked-brain:search).
 argument-hint: "<symbol> [--depth N]"
+phase_relevance: ["build", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:search:blast-radius

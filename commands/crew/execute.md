@@ -1,5 +1,7 @@
 ---
 description: Execute current phase work with adaptive role engagement
+phase_relevance: ["build", "test"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:execute

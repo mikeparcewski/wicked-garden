@@ -1,6 +1,8 @@
 ---
 description: Invoke a named persona to perform a task with a specific perspective
 argument-hint: "<persona-name> <task description>"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:persona:as

@@ -2,6 +2,8 @@
 allowed-tools: ["Bash"]
 description: "Emit a compact path manifest (plugin, source, project, brain, bus) for the current session"
 argument-hint: "[--fence] [--env]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:where-am-i

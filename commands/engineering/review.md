@@ -1,6 +1,8 @@
 ---
 description: Code review with senior engineering perspective on quality, patterns, and maintainability
 argument-hint: "[file or directory path] [--focus security|performance|patterns|tests] [--scenarios] [--persona <name>]"
+phase_relevance: ["build", "review"]
+archetype_relevance: ["code-repo", "schema-migration", "config-infra"]
 ---
 
 # /wicked-garden:engineering:review

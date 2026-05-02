@@ -1,6 +1,8 @@
 ---
 description: Start a new wicked-crew project with outcome clarification
 argument-hint: "<project description>"
+phase_relevance: ["bootstrap"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:start
