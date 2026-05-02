@@ -40,9 +40,9 @@ v1 (``strongest opposing view`` / ``challenges`` / ``convergence check`` /
 ``resolution``) is replaced — there is no flag to revert. Callers that
 depended on the per-challenge ``CH-XX`` block parser still get
 ``parsed["challenges"]`` because the old block format is still recognised
-inside the v2 ``## Challenges`` section *if* the author chooses to
-include it (it is now optional). The dissent-vector list is the
-load-bearing convergence signal in v2.
+*anywhere in the artifact* (parsing is unscoped — the regex scans the whole
+body). The blocks are optional in v2 and the dissent-vector list is the
+load-bearing convergence signal.
 
 This module is intentionally stdlib-only so the PreToolUse hook can
 import it without pulling in any third-party dependency.
@@ -116,8 +116,9 @@ _MIN_INCONGRUENT_SENTENCES = 3
 _MIN_STEELMAN_SENTENCES = 5
 _MIN_UNASKED_QUESTIONS = 1
 
-# Optional CH-XX block parser, kept for tools that still emit them inside
-# the (now optional) ``## Challenges`` block. Not load-bearing in v2.
+# Optional CH-XX block parser, kept for tools that still emit them. The
+# regex scans the whole body — there is no required parent section. Not
+# load-bearing in v2; the dissent-vector list is the convergence signal.
 _CHALLENGE_HEADER_RE = re.compile(
     r"^#{2,4}\s+challenge\s+([A-Za-z0-9][A-Za-z0-9_\-]{0,32})\s*[:\-]?\s*(.*)$",
     re.IGNORECASE | re.MULTILINE,
@@ -139,10 +140,14 @@ _CHECKMARK_RE = re.compile(
     re.MULTILINE,
 )
 
-# Crude but effective sentence terminator (period, question, exclamation).
-# Code blocks are stripped before counting to avoid counting code punctuation.
+# Sentence/question counters strip fenced and inline code blocks first so
+# punctuation inside ``v2.0`` or ``foo()`` does not inflate the count, then
+# only count terminators followed by whitespace or end-of-text. Crude but
+# good enough for a structural gate.
 _CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
-_SENTENCE_TERMINATOR_RE = re.compile(r"[.!?]")
+_INLINE_CODE_RE = re.compile(r"`[^`]*`")
+_SENTENCE_TERMINATOR_RE = re.compile(r"[.!](?=\s|$)|\?(?=\s|$)")
+_QUESTION_TERMINATOR_RE = re.compile(r"\?(?=\s|$)")
 
 
 # ---------------------------------------------------------------------------
@@ -155,8 +160,10 @@ def required_sections() -> tuple[str, ...]:
 
 
 def _has_section(text: str, heading: str) -> bool:
+    # Mirror _extract_section's tolerance — ``\b`` for word boundary, then
+    # ``.*$`` to allow trailing decoration on the heading line.
     pattern = re.compile(
-        rf"^#{{2,4}}\s+{re.escape(heading)}\b",
+        rf"^#{{2,4}}\s+{re.escape(heading)}\b.*$",
         re.IGNORECASE | re.MULTILINE,
     )
     return bool(pattern.search(text))
@@ -169,8 +176,11 @@ def _extract_section(text: str, heading: str) -> str:
     matched header to (exclusive) the next ``##``/``###``/``####`` header
     or end-of-file.
     """
+    # Tolerate trailing decoration like ``## Incongruent Representation (v2)``
+    # or ``## Steelman of Alternative Path — design``. ``\b`` enforces a word
+    # boundary so ``unasked questions`` does not match ``unasked question``.
     pattern = re.compile(
-        rf"^#{{2,4}}\s+{re.escape(heading)}\b\s*$",
+        rf"^#{{2,4}}\s+{re.escape(heading)}\b.*$",
         re.IGNORECASE | re.MULTILINE,
     )
     match = pattern.search(text)
@@ -182,15 +192,23 @@ def _extract_section(text: str, heading: str) -> str:
     return text[start:end]
 
 
+def _strip_code(text: str) -> str:
+    """Remove fenced ``` blocks and inline `code` spans before counting.
+
+    Punctuation inside ``v2.0`` or ``arr[1].len()`` should not inflate the
+    sentence or question count.
+    """
+    return _INLINE_CODE_RE.sub("", _CODE_BLOCK_RE.sub("", text))
+
+
 def _count_sentences(text: str) -> int:
-    """Count sentence terminators outside fenced code blocks."""
-    cleaned = _CODE_BLOCK_RE.sub("", text)
-    return len(_SENTENCE_TERMINATOR_RE.findall(cleaned))
+    """Count sentence terminators outside code blocks."""
+    return len(_SENTENCE_TERMINATOR_RE.findall(_strip_code(text)))
 
 
 def _count_questions(text: str) -> int:
-    cleaned = _CODE_BLOCK_RE.sub("", text)
-    return cleaned.count("?")
+    """Count ``?`` terminators outside code blocks."""
+    return len(_QUESTION_TERMINATOR_RE.findall(_strip_code(text)))
 
 
 # ---------------------------------------------------------------------------

@@ -103,6 +103,44 @@ class TestParseArtifact(unittest.TestCase):
         self.assertNotIn("vibes", parsed["dissent_vectors"])
         self.assertEqual(parsed["dissent_vectors"], ["security", "cost", "operability"])
 
+    def test_decorated_section_headers_recognised(self):
+        """Headings tolerate trailing decoration like ``(v2)`` or ``— design``.
+
+        Regression: ``_extract_section`` previously required the heading to
+        be the entire line, so ``## Incongruent Representation (v2)`` reported
+        the section as missing even though ``_has_section`` saw it.
+        """
+        body = _well_formed_artifact().replace(
+            "## Incongruent Representation",
+            "## Incongruent Representation (v2)",
+        ).replace(
+            "## Steelman of Alternative Path",
+            "## Steelman of Alternative Path — design",
+        )
+        parsed = cm.parse_artifact(body)
+        self.assertEqual(parsed["sections_missing"], [])
+        self.assertGreaterEqual(parsed["incongruent_sentences"], 3)
+        self.assertGreaterEqual(parsed["steelman_sentences"], 5)
+
+    def test_inline_code_does_not_inflate_sentence_count(self):
+        """Punctuation inside ``v2.0`` or backticked code must not count."""
+        body = (
+            "## Incongruent Representation\n\n"
+            "We ship `v2.0` and `arr[1].len()` and `foo.bar.baz()` in one PR.\n\n"
+            "## Unasked Question\n\n"
+            "Is `arr[1].len() == 0` actually a question or just code?\n\n"
+            "## Steelman of Alternative Path\n\n"
+            "Stub.\n\n"
+            "## Dissent Vectors Covered\n\n"
+            "- [x] security\n"
+        )
+        parsed = cm.parse_artifact(body)
+        # The incongruent section has exactly one real sentence terminator.
+        self.assertEqual(parsed["incongruent_sentences"], 1)
+        # The unasked-question section has exactly one real ``?`` (the ``==``
+        # inside backticks is stripped before counting).
+        self.assertEqual(parsed["questions_count"], 1)
+
 
 # ---------------------------------------------------------------------------
 # validate_artifact
@@ -255,8 +293,16 @@ class TestArtifactSatisfiesGate(unittest.TestCase):
                 f"expected vector-coverage failure, got: {reason!r}",
             )
 
-    def test_sidecar_satisfies_when_markdown_thin(self):
-        """Sidecar is preferred for vector counting when present."""
+    def test_sidecar_preferred_for_collapse_detection(self):
+        """Sidecar is preferred for *convergence-collapse* detection.
+
+        The contract tested here: ``artifact_satisfies_gate`` validates the
+        markdown first (so a thin markdown still fails validation), and
+        only *after* validation passes does it prefer the sidecar's vector
+        list over re-parsing the markdown checklist for collapse detection.
+        This test fixes the markdown to be valid and proves the sidecar
+        path is wired in for the collapse step.
+        """
         body = _well_formed_artifact()
         with TemporaryDirectory() as tmp:
             project_dir = Path(tmp)

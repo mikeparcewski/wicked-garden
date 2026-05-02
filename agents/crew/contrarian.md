@@ -118,10 +118,11 @@ re-parsing markdown). Markdown remains the source of truth for humans.
 ### Optional CH-XX challenge blocks
 
 The legacy `### Challenge CH-XX: <title>` blocks (with `theme:` /
-`status:` / `steelman:` fields) are still parseable inside the
-`## Dissent Vectors Covered` section if you want enumerated entries —
-but the load-bearing convergence signal in v2 is the checkmark list, not
-per-challenge themes.
+`status:` / `steelman:` fields) are still parseable *anywhere in the
+artifact* — the parser scans the whole body, not a specific section. Use
+them if you want enumerated entries, but the load-bearing convergence
+signal in v2 is the dissent-vector checkmark list, not per-challenge
+themes.
 
 ## Process
 
