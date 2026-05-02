@@ -438,14 +438,22 @@ class TestPhaseFromChainId(unittest.TestCase):
 class TestCliSmokeTest(unittest.TestCase):
 
     def test_all_json_with_no_db_outputs_valid_json(self) -> None:
-        """reconcile_v2 --all --json must always produce valid JSON even when DB absent."""
+        """reconcile_v2 --all --json must always produce valid JSON even when DB absent.
+
+        Per staging plan §5 the output is now:
+          {"header": {...}, "results": [...]}
+        rather than a bare list (schema bump from v1 bare-list shape).
+        """
         buf = io.StringIO()
         with redirect_stdout(buf), \
              patch.dict(os.environ, {"WG_DAEMON_DB": "/no/such/projections.db"}):
             rc = reconcile_v2.main(["--all", "--json"])
         self.assertEqual(rc, 0)
         payload = json.loads(buf.getvalue())
-        self.assertIsInstance(payload, list)
+        self.assertIsInstance(payload, dict)
+        self.assertIn("header", payload)
+        self.assertIn("results", payload)
+        self.assertIsInstance(payload["results"], list)
 
     def test_all_text_with_no_db_outputs_string(self) -> None:
         buf = io.StringIO()
@@ -475,6 +483,255 @@ class TestDriftTypeConstants(unittest.TestCase):
         self.assertEqual(
             reconcile_v2.DRIFT_PROJECTION_WITHOUT_EVENT, "projection-without-event"
         )
+
+
+# ---------------------------------------------------------------------------
+# Finding #1 — gate_pending maps to reviewer-report.md
+# ---------------------------------------------------------------------------
+
+class TestGatePendingMapsToReviewerReport(_ReconcileV2Fixture):
+    """Regression: wicked.consensus.gate_pending must map to reviewer-report.md.
+
+    Before the fix, only gate_completed was in _PROJECTION_MAP.  A pending
+    event would be unmapped, and an existing reviewer-report.md would be
+    flagged as projection-without-event.
+    """
+
+    def test_gate_pending_event_with_reviewer_report_is_not_drift(self) -> None:
+        """gate_pending event + reviewer-report.md on disk → zero drift."""
+        project_dir = _make_project_dir(self.workspace, "pending-rpt-proj")
+        phase_dir = _make_phase_dir(project_dir, "review")
+        _write_file(phase_dir / "reviewer-report.md", "# pending review\n")
+
+        _insert_event_row(
+            self.db_path,
+            event_id=100,
+            event_type="wicked.consensus.gate_pending",
+            chain_id="pending-rpt-proj.review.consensus.aabbccdd",
+            projection_status="applied",
+        )
+        conn = self._conn()
+        result = reconcile_v2.reconcile_project("pending-rpt-proj", _daemon_conn=conn)
+        conn.close()
+
+        self.assertEqual(
+            result["drift"],
+            [],
+            f"Expected no drift for gate_pending + reviewer-report.md, got: {result['drift']}",
+        )
+
+    def test_gate_pending_event_without_reviewer_report_is_event_without_projection(
+        self,
+    ) -> None:
+        """gate_pending event but no reviewer-report.md → event-without-projection drift."""
+        _make_project_dir(self.workspace, "pending-missing-proj")
+        _insert_event_row(
+            self.db_path,
+            event_id=101,
+            event_type="wicked.consensus.gate_pending",
+            chain_id="pending-missing-proj.review.consensus.ccddee00",
+            projection_status="applied",
+        )
+        conn = self._conn()
+        result = reconcile_v2.reconcile_project("pending-missing-proj", _daemon_conn=conn)
+        conn.close()
+
+        drift_types = [d["type"] for d in result["drift"]]
+        self.assertIn(reconcile_v2.DRIFT_EVENT_WITHOUT_PROJECTION, drift_types)
+
+
+# ---------------------------------------------------------------------------
+# Finding #2 — conditions-manifest.json excluded during pre-Site-5 coexistence
+# ---------------------------------------------------------------------------
+
+class TestConditionsManifestExcludedPreSite5(_ReconcileV2Fixture):
+    """Regression: conditions-manifest.json must NOT trigger projection-without-event
+    before Site 5 ships.  Every existing CONDITIONAL phase would fire false drift
+    otherwise.
+
+    TODO (Site 5): when WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST ships, re-add
+    conditions-manifest.json to _collect_projection_files + _PROJECTION_MAP and
+    flip this test to assert drift IS detected when the file has no event.
+    """
+
+    def test_conditions_manifest_without_event_does_not_report_drift(self) -> None:
+        """Pre-Site-5 coexistence: conditions-manifest.json is not a tracked
+        projection and must produce zero drift even when no event exists for it."""
+        project_dir = _make_project_dir(self.workspace, "cond-manifest-proj")
+        phase_dir = _make_phase_dir(project_dir, "design")
+        _write_file(
+            phase_dir / "conditions-manifest.json",
+            '{"conditions": []}',
+        )
+        # No event rows inserted — simulating pre-Site-5 state.
+        conn = self._conn()
+        result = reconcile_v2.reconcile_project("cond-manifest-proj", _daemon_conn=conn)
+        conn.close()
+
+        pwe = [
+            d for d in result["drift"]
+            if d["type"] == reconcile_v2.DRIFT_PROJECTION_WITHOUT_EVENT
+        ]
+        self.assertEqual(
+            pwe,
+            [],
+            "conditions-manifest.json should not trigger projection-without-event "
+            "before Site 5 cuts over.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Finding #3 — --daemon-db honoured in single-project CLI mode
+# ---------------------------------------------------------------------------
+
+class TestDaemonDbHonouredInSingleProjectMode(unittest.TestCase):
+    """Regression: --project X --daemon-db /path must use the override path,
+    not silently fall back to the default DB."""
+
+    def test_single_project_mode_uses_daemon_db_override(self) -> None:
+        """reconcile_project receives daemon_db_path when --daemon-db is supplied."""
+        captured: dict = {}
+
+        def fake_reconcile_project(slug: str, **kwargs: Any) -> dict:
+            captured["daemon_db_path"] = kwargs.get("daemon_db_path")
+            return {
+                "project_slug": slug,
+                "events_for_project": 0,
+                "projections_materialized": {},
+                "drift": [],
+                "summary": {
+                    "total_drift_count": 0,
+                    "projection_stale_count": 0,
+                    "event_without_projection_count": 0,
+                    "projection_without_event_count": 0,
+                },
+                "errors": [],
+            }
+
+        override_path = "/tmp/fake-override.db"
+        buf = io.StringIO()
+        with redirect_stdout(buf), \
+             patch.object(reconcile_v2, "reconcile_project", side_effect=fake_reconcile_project):
+            rc = reconcile_v2.main(["--project", "myproj", "--daemon-db", override_path])
+
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "daemon_db_path",
+            captured,
+            "reconcile_project was not called with daemon_db_path kwarg",
+        )
+        self.assertEqual(
+            str(captured["daemon_db_path"]),
+            override_path,
+            f"Expected daemon_db_path={override_path!r}, got {captured['daemon_db_path']!r}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Finding #4 — explicit --daemon-db with wrong schema returns empty-list / no drift
+# ---------------------------------------------------------------------------
+
+class TestExplicitDaemonDbWithWrongSchema(_ReconcileV2Fixture):
+    """Regression: passing an empty SQLite file (no event_log table) via
+    --daemon-db must not produce fake drift — it must be treated as
+    "DB unavailable" (empty-list / no projector)."""
+
+    def test_empty_db_via_daemon_db_path_kwarg_returns_db_unavailable_error(
+        self,
+    ) -> None:
+        """reconcile_project with an empty DB (no event_log table) must report
+        the DB as unavailable, not fake drift."""
+        empty_db = self.workspace / "no-schema.db"
+        sqlite3.connect(str(empty_db)).close()  # empty file, no tables
+
+        project_dir = _make_project_dir(self.workspace, "bad-db-proj")
+        _make_phase_dir(project_dir, "build")
+
+        result = reconcile_v2.reconcile_project(
+            "bad-db-proj",
+            daemon_db_path=str(empty_db),
+        )
+
+        # Must carry an error entry documenting the unavailability.
+        self.assertTrue(
+            len(result["errors"]) > 0,
+            "Expected at least one error for missing event_log table, got none",
+        )
+        # Must NOT report projection-without-event based on a broken DB read.
+        pwe = [
+            d for d in result["drift"]
+            if d["type"] == reconcile_v2.DRIFT_PROJECTION_WITHOUT_EVENT
+        ]
+        self.assertEqual(
+            pwe,
+            [],
+            "Empty/wrong-schema DB must not produce projection-without-event drift",
+        )
+
+    def test_reconcile_all_with_empty_db_returns_empty_list(self) -> None:
+        """reconcile_all with a no-schema DB via daemon_db_path must return []."""
+        empty_db = self.workspace / "no-schema-all.db"
+        sqlite3.connect(str(empty_db)).close()
+
+        result = reconcile_v2.reconcile_all(daemon_db_path=str(empty_db))
+        self.assertEqual(result, [])
+
+
+# ---------------------------------------------------------------------------
+# Finding #5 — --json output includes header + results keys
+# ---------------------------------------------------------------------------
+
+class TestJsonOutputSchema(_ReconcileV2Fixture):
+    """The --json output must match the staging plan §5 schema:
+    {"header": {..., "event_log_head_seq": int, ...}, "results": [...]}."""
+
+    def test_json_output_has_header_and_results_keys(self) -> None:
+        """--all --json must produce top-level 'header' and 'results' keys."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = reconcile_v2.main(
+                ["--all", "--json", "--daemon-db", str(self.db_path)]
+            )
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertIn("header", payload, "Missing 'header' key in --json output")
+        self.assertIn("results", payload, "Missing 'results' key in --json output")
+
+    def test_json_header_contains_event_log_head_seq(self) -> None:
+        """header.event_log_head_seq must be a non-negative integer."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            reconcile_v2.main(
+                ["--all", "--json", "--daemon-db", str(self.db_path)]
+            )
+        payload = json.loads(buf.getvalue())
+        head_seq = payload["header"]["event_log_head_seq"]
+        self.assertIsInstance(head_seq, int)
+        self.assertGreaterEqual(head_seq, 0)
+
+    def test_single_project_json_output_has_header_and_results_keys(self) -> None:
+        """--project X --json must also produce 'header' and 'results' keys."""
+        _make_project_dir(self.workspace, "json-proj")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = reconcile_v2.main(
+                ["--project", "json-proj", "--json", "--daemon-db", str(self.db_path)]
+            )
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertIn("header", payload)
+        self.assertIn("results", payload)
+        self.assertIsInstance(payload["results"], list)
+        self.assertEqual(len(payload["results"]), 1)
+
+    def test_json_output_header_unreachable_when_no_db(self) -> None:
+        """When DB is absent, header.projector_health must be 'unreachable'."""
+        buf = io.StringIO()
+        with redirect_stdout(buf), \
+             patch.dict(os.environ, {"WG_DAEMON_DB": "/no/such/projections.db"}):
+            reconcile_v2.main(["--all", "--json"])
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(payload["header"]["projector_health"], "unreachable")
 
 
 if __name__ == "__main__":

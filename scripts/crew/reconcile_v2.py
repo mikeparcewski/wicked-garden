@@ -76,8 +76,15 @@ _PROJECTION_MAP: Dict[str, str] = {
     # Consensus artifacts (Site 2)
     "wicked.consensus.report_created": "phases/{phase}/consensus-report.json",
     "wicked.consensus.evidence_recorded": "phases/{phase}/consensus-evidence.json",
-    # Reviewer report (Site 3 — this PR)
+    # Reviewer report (Site 3 — this PR).
+    # Both gate_completed (approved/rejected path) and gate_pending (deferred
+    # verdict path) materialise the same reviewer-report.md file.  The drift
+    # detector supports N event-types → 1 file; both entries are legal because
+    # _collect_projection_files returns each path once, and
+    # _detect_projection_without_event builds a set of resolved paths from
+    # ALL known events — so a file covered by either event is not flagged.
     "wicked.consensus.gate_completed": "phases/{phase}/reviewer-report.md",
+    "wicked.consensus.gate_pending": "phases/{phase}/reviewer-report.md",
 }
 
 # ---------------------------------------------------------------------------
@@ -118,6 +125,34 @@ def _daemon_db_path() -> Optional[Path]:
         return None
 
     # Verify event_log table exists — half-formed DBs must not pass.
+    try:
+        conn = sqlite3.connect(str(candidate))
+        try:
+            row = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='event_log'"
+            ).fetchone()
+            return candidate if row is not None else None
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def _validate_explicit_db_path(candidate: Path) -> Optional[Path]:
+    """Validate an explicitly-supplied DB path before opening it.
+
+    Mirrors ``_daemon_db_path()``'s validation: checks file existence AND
+    verifies the ``event_log`` table exists.  A wrong SQLite file (e.g. an
+    empty DB or a different schema) must return None so the caller falls back
+    to the documented empty-list "DB unavailable" result rather than silently
+    reading the wrong data and faking drift.
+
+    Returns the Path when valid, None otherwise.
+    """
+    if not candidate.is_file():
+        return None
+
     try:
         conn = sqlite3.connect(str(candidate))
         try:
@@ -257,6 +292,13 @@ def _collect_projection_files(project_dir: Path) -> List[Path]:
 
     Includes the known artifact filenames across all phases.  This is
     the exhaustive set for projection-without-event detection.
+
+    ``conditions-manifest.json`` is intentionally excluded during the
+    pre-Site-5 coexistence window.  Site 5 has not yet cut over, so no
+    event in _PROJECTION_MAP maps to that file.  Including it here would
+    fire a false ``projection-without-event`` finding for every existing
+    CONDITIONAL phase.  Re-add it (and the matching _PROJECTION_MAP entry)
+    when Site 5 ships — see docs/v9/bus-cutover-staging-plan.md §Site-5.
     """
     projection_names = {
         "gate-result.json",
@@ -264,6 +306,7 @@ def _collect_projection_files(project_dir: Path) -> List[Path]:
         "consensus-report.json",
         "consensus-evidence.json",
         "reviewer-report.md",
+        # NOTE: "conditions-manifest.json" deliberately omitted — Site 5 not yet cut over.
     }
     phases_dir = project_dir / "phases"
     if not phases_dir.is_dir():
@@ -450,6 +493,7 @@ def reconcile_project(
     *,
     conn: Optional["sqlite3.Connection"] = None,
     _daemon_conn: Optional["sqlite3.Connection"] = None,  # alias for internal use
+    daemon_db_path: "Path | str | None" = None,
 ) -> Dict[str, Any]:
     """Run the post-cutover drift check for a single project.
 
@@ -457,6 +501,9 @@ def reconcile_project(
         project_slug: The project directory name (slug).
         conn: Optional pre-opened SQLite connection (for test injection).
               When None, opens and closes the DB internally.
+        daemon_db_path: Optional path override for the projector DB.
+              Honoured in single-project mode (mirrors ``reconcile_all``).
+              When None, resolves via WG_DAEMON_DB env var or the default path.
 
     Returns a per-project result dict per the staging plan §5 schema.
     Errors are reported inside the result, not raised.
@@ -473,10 +520,17 @@ def reconcile_project(
     owns_conn = False
     db_conn: Optional[sqlite3.Connection] = effective_conn
     if db_conn is None:
-        db_path = _daemon_db_path()
-        if db_path is not None:
+        # Resolve DB path: explicit override → env var / default path.
+        if daemon_db_path is not None:
+            resolved_path: Optional[Path] = _validate_explicit_db_path(
+                Path(daemon_db_path)
+            )
+        else:
+            resolved_path = _daemon_db_path()
+
+        if resolved_path is not None:
             try:
-                db_conn = _open_db(db_path)
+                db_conn = _open_db(resolved_path)
                 owns_conn = True
             except (sqlite3.Error, OSError) as exc:
                 errors.append(f"could not open projector DB: {exc}")
@@ -714,15 +768,68 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.all:
         results = reconcile_all(daemon_db_path=daemon_db_override)
         if args.as_json:
-            sys.stdout.write(json.dumps(results, indent=2) + "\n")
+            # Wire _build_report_header per staging plan §5 JSON schema.
+            # Open a transient connection to read event_log head/total; if
+            # the DB is unavailable reconcile_all already returned [] and we
+            # emit an "unreachable" header.
+            _header_conn: Optional[sqlite3.Connection] = None
+            if daemon_db_override is not None:
+                _resolved = _validate_explicit_db_path(daemon_db_override)
+            else:
+                _resolved = _daemon_db_path()
+            if _resolved is not None:
+                try:
+                    _header_conn = _open_db(_resolved)
+                except (sqlite3.Error, OSError):
+                    _header_conn = None
+            try:
+                header = _build_report_header(
+                    _header_conn,
+                    command_invoked=" ".join(
+                        ["reconcile_v2"] + (sys.argv[1:] if argv is None else list(argv))
+                    ),
+                )
+            finally:
+                if _header_conn is not None:
+                    try:
+                        _header_conn.close()
+                    except sqlite3.Error:
+                        pass
+            payload = {"header": header, "results": results}
+            sys.stdout.write(json.dumps(payload, indent=2) + "\n")
         else:
             sys.stdout.write(render_text_report_all(results))
         return 0
 
-    # Single-project mode.
-    result = reconcile_project(args.project)
+    # Single-project mode — honour --daemon-db the same way --all does.
+    result = reconcile_project(args.project, daemon_db_path=daemon_db_override)
     if args.as_json:
-        sys.stdout.write(json.dumps(result, indent=2) + "\n")
+        # Wire _build_report_header for single-project JSON output too.
+        _header_conn2: Optional[sqlite3.Connection] = None
+        if daemon_db_override is not None:
+            _resolved2 = _validate_explicit_db_path(daemon_db_override)
+        else:
+            _resolved2 = _daemon_db_path()
+        if _resolved2 is not None:
+            try:
+                _header_conn2 = _open_db(_resolved2)
+            except (sqlite3.Error, OSError):
+                _header_conn2 = None
+        try:
+            header2 = _build_report_header(
+                _header_conn2,
+                command_invoked=" ".join(
+                    ["reconcile_v2"] + (sys.argv[1:] if argv is None else list(argv))
+                ),
+            )
+        finally:
+            if _header_conn2 is not None:
+                try:
+                    _header_conn2.close()
+                except sqlite3.Error:
+                    pass
+        payload2 = {"header": header2, "results": [result]}
+        sys.stdout.write(json.dumps(payload2, indent=2) + "\n")
     else:
         sys.stdout.write(render_text_report(result))
     return 0
