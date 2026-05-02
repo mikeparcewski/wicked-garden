@@ -11,6 +11,8 @@
 
 **Helps Claude execute projects you can trust. Learns what you actually need. Stays lean as it grows.**
 
+> **Identity at a glance:** see [`ETHOS.md`](ETHOS.md) — what we believe, what we refuse, what we optimize for. One page, ≤200 lines. Read it once and you'll know whether this fits the way you think about software.
+
 ```bash
 /wicked-garden:crew:start "add OAuth login with role-based access"
 ```

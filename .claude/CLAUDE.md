@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Identity:** see [`ETHOS.md`](../ETHOS.md) for what wicked-garden believes / refuses / optimizes for. CLAUDE.md is *how*; ETHOS.md is *why*.
+
 ## Overview
 
 This repository **is** the **wicked-garden** plugin — an AI-Native SDLC delivered as a single Claude Code plugin. 13 domain areas cover the full software development lifecycle: ideation, requirements, architecture, implementation, testing, delivery, operations, persistent memory/learning, and on-demand persona invocation.

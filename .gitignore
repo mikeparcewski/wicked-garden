@@ -111,6 +111,7 @@ Thumbs.db
 # Test output artifacts
 TEST-RESULTS.md
 COVERAGE_SUMMARY.md
+.wicked-testing/
 
 # Working directories
 experiments/
