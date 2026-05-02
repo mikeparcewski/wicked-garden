@@ -95,7 +95,7 @@ API_FRAMEWORKS: frozenset[str] = frozenset({
 
 # Go module-path -> framework key mapping. Defensive parsing extracts
 # `module/path vX.Y.Z` lines from go.mod's require block(s).
-# Source: https://pkg.go.dev/std (web framework idioms).
+# These are third-party Go web framework module paths (not stdlib).
 GO_MODULE_FRAMEWORKS: Dict[str, str] = {
     "github.com/gin-gonic/gin": "gin",
     "github.com/labstack/echo": "echo",
@@ -135,7 +135,8 @@ def detect_stack(repo_root: Path) -> Dict[str, Any]:
             "language":        "python" | "typescript" | "javascript" |
                                 "go" | "rust" | "java" | "unknown",
             "package_manager": "uv" | "pip" | "npm" | "pnpm" | "yarn" |
-                                "go-mod" | "cargo" | "maven" | "unknown",
+                                "go-mod" | "cargo" | "maven" | "gradle" |
+                                "unknown",
             "frameworks":      sorted list[str] of detected framework keys,
             "has_ui":          bool — UI framework present OR .tsx/.jsx in src/,
             "has_api_surface": bool — API framework present in deps,
@@ -447,7 +448,7 @@ def _read_go_deps(go_mod: Path) -> Set[str]:
 
     # Single-line require statements.
     for m in re.finditer(
-        r"^\s*require\s+([^\s\(]+)\s+v[\w\.\-]+",
+        r"^\s*require\s+([^\s\(]+)\s+v[\w\.\-\+]+",
         text,
         re.MULTILINE,
     ):
@@ -464,7 +465,7 @@ def _read_go_deps(go_mod: Path) -> Set[str]:
             stripped = line.split("//", 1)[0].strip()
             if not stripped:
                 continue
-            m = re.match(r"^([^\s]+)\s+v[\w\.\-]+", stripped)
+            m = re.match(r"^([^\s]+)\s+v[\w\.\-\+]+", stripped)
             if m:
                 paths.add(m.group(1).strip())
 
@@ -500,7 +501,7 @@ def _read_rust_deps(cargo_toml: Path) -> Set[str]:
                 stripped = line.split("#", 1)[0].strip()
                 if not stripped or "=" not in stripped:
                     continue
-                key = stripped.split("=", 1)[0].strip().strip('"').lower()
+                key = stripped.split("=", 1)[0].strip().strip('"\'').lower()
                 framework = RUST_CRATE_FRAMEWORKS.get(key)
                 if framework:
                     deps.add(framework)
@@ -509,11 +510,14 @@ def _read_rust_deps(cargo_toml: Path) -> Set[str]:
 
 
 def _read_java_pom_deps(pom_xml: Path) -> Set[str]:
-    """Detect Spring (Boot) usage from a Maven pom.xml.
+    """Parse pom.xml looking for Spring framework signals.
 
-    Best-effort: looks for any `<groupId>org.springframework...</groupId>`
-    element. Returns {'spring'} when present, else empty.
-    Malformed XML -> empty set, never raises.
+    Reads the file as text (no XML parser needed for this scope) and matches
+    `<groupId>org.springframework</groupId>` / `<artifactId>spring-*</artifactId>`
+    pairs. Returns the set of detected framework keys — typically `{"spring"}`
+    when only the core framework is present, or `{"spring", "spring-boot"}`
+    when `spring-boot-starter-web` is detected. Never raises — malformed XML
+    or unreadable files return an empty set.
     """
     deps: Set[str] = set()
     try:
