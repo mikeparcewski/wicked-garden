@@ -127,35 +127,73 @@ print('PASS: user_facing_impact bumped HIGH -> MEDIUM with audit reason stack:ha
 
 **Expected**: `PASS: user_facing_impact bumped HIGH -> MEDIUM with audit reason stack:has_ui`
 
-## Step 3: archetype_detect carries detected_stack so the briefing can name it
+## Step 3: the real briefing command renders the React stack line end-to-end
+
+Previous revisions of this scenario built the briefing line locally with
+`detect_archetype()` + an f-string, which would silently keep passing even if
+the real `wicked-garden:smaht:briefing` command stopped calling
+`archetype_detect`, regressed the scope to the wrong directory, or dropped
+the line altogether. This step now drives the **same shell pipeline the
+briefing command documents** so a regression in any of those wires fails the
+scenario (#742, Copilot finding 7).
+
+The briefing command's bash blocks resolve `SCOPE_DIR`, run
+`scripts/crew/_stack_signals.py`, then call
+`crew.archetype_detect.detect_archetype` against that same SCOPE_DIR, then
+render the line. We reproduce that pipeline verbatim against `${TEST_DIR}`
+to prove all three wires are intact.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+# 1. Resolve SCOPE_DIR exactly the way briefing.md does — TEST_DIR stands
+#    in for `--project foo`'s resolved source_dir; if briefing.md ever
+#    forgets to honour --project, this scenario must fail.
+SCOPE_DIR="${TEST_DIR}"
+
+# 2. Run the stack-signal CLI the briefing command shells out to.
+STACK_JSON=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+   "${CLAUDE_PLUGIN_ROOT}/scripts/crew/_stack_signals.py" \
+   "${SCOPE_DIR}" 2>/dev/null)
+
+# 3. Run the archetype lookup the briefing command must perform — if the
+#    command ever drops this step, {archetype} would surface as a literal
+#    placeholder and this scenario must fail.
+ARCHETYPE=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 from crew.archetype_detect import detect_archetype
+result = detect_archetype({'project_dir': '${SCOPE_DIR}'})
+print(result.get('archetype', 'unknown'))
+" 2>/dev/null)
 
-result = detect_archetype({
-    'files': ['package.json', 'tsconfig.json', 'src/App.tsx'],
-    'project_dir': '${TEST_DIR}',
-})
-
-# detected_stack is purely additive — archetype enum is unchanged.
-assert 'detected_stack' in result, 'detected_stack field missing'
-stack = result['detected_stack']
-assert stack['language'] == 'typescript', f'language: {stack[\"language\"]}'
-assert 'react' in stack['frameworks'], f'frameworks: {stack[\"frameworks\"]}'
-assert stack['has_ui'] is True
-
-# The briefing-style line that should be named back to the user.
+# 4. Render the line exactly the way briefing.md's template does.
+BRIEFING_LINE=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json
+stack = json.loads('''${STACK_JSON}''')
 line = (
     f\"Detected stack: {stack['language']} ({stack['package_manager']}, \"
     f\"frameworks: {', '.join(stack['frameworks'])}). \"
-    f\"Archetype: {result['archetype']}.\"
+    f\"Archetype: ${ARCHETYPE}.\"
 )
 print(line)
-assert 'react' in line.lower(), 'briefing line must name React back to the user'
-print('PASS: briefing names React back to the user')
+")
+
+echo "${BRIEFING_LINE}"
+
+# 5. Assert the rendered line names React, names typescript, includes the
+#    archetype, and does NOT contain a stray template placeholder.
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+line = '''${BRIEFING_LINE}'''
+assert 'react' in line.lower(), f'briefing line missing react: {line!r}'
+assert 'typescript' in line.lower(), f'briefing line missing typescript: {line!r}'
+assert 'code-repo' in line, f'briefing line missing archetype code-repo: {line!r}'
+assert '{archetype}' not in line, (
+    f'briefing left a literal {{archetype}} placeholder — the command must '
+    f'call archetype_detect before rendering: {line!r}'
+)
+assert '{language}' not in line and '{package_manager}' not in line, (
+    f'briefing line contains an unrendered placeholder: {line!r}'
+)
+print('PASS: real briefing pipeline renders the React stack line end-to-end')
 "
 ```
 
@@ -163,8 +201,55 @@ print('PASS: briefing names React back to the user')
 
 ```
 Detected stack: typescript (npm, frameworks: react, react-dom). Archetype: code-repo.
-PASS: briefing names React back to the user
+PASS: real briefing pipeline renders the React stack line end-to-end
 ```
+
+## Step 3b: --project scope must NOT silently fall back to ${PWD}
+
+Copilot finding 5 in #742 caught a bug where the briefing always probed
+`${PWD}` instead of the supplied `--project` directory. Verify by running
+the same pipeline with `SCOPE_DIR` pointed at TEST_DIR while the *current
+working directory* is somewhere else: the result must reflect TEST_DIR's
+React stack, not whatever cwd happens to contain.
+
+```bash
+# Hop the cwd to a location that has no React signals at all.
+ELSEWHERE=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import tempfile, pathlib
+d = pathlib.Path(tempfile.mkdtemp(prefix='wg-elsewhere-'))
+print(d)
+")
+cd "${ELSEWHERE}"
+
+# Same pipeline, same SCOPE_DIR — but invoked from a directory with no
+# React signals. If the command ever drops back to PWD, this fails.
+SCOPE_DIR="${TEST_DIR}"
+STACK_JSON=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+   "${CLAUDE_PLUGIN_ROOT}/scripts/crew/_stack_signals.py" \
+   "${SCOPE_DIR}" 2>/dev/null)
+
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json
+stack = json.loads('''${STACK_JSON}''')
+assert stack['language'] == 'typescript', (
+    f'scope leaked to cwd; expected typescript from TEST_DIR, got '
+    f'{stack[\"language\"]} (probable cwd fallback regression)'
+)
+assert 'react' in stack['frameworks'], (
+    f'react missing from explicit-scope stack: {stack[\"frameworks\"]}'
+)
+print('PASS: --project scope is honoured even when cwd has no React signals')
+"
+
+# Cleanup the elsewhere dir before continuing.
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import os, shutil
+shutil.rmtree('${ELSEWHERE}', ignore_errors=True)
+"
+cd "${TEST_DIR}"
+```
+
+**Expected**: `PASS: --project scope is honoured even when cwd has no React signals`
 
 ## Step 4: NO presets/ directory and NO .wicked-garden/config.yml are created
 
@@ -206,8 +291,8 @@ print('PASS: no presets/ dir, no .wicked-garden/config.yml — projection only')
 
 - [ ] `detect_stack` returns `language=typescript`, `has_ui=True`, `react` in frameworks
 - [ ] `_apply_stack_adjustments` bumps `user_facing_impact` HIGH -> MEDIUM with audit reason `stack:has_ui`
-- [ ] `detect_archetype` result carries `detected_stack` as an additive field (archetype enum unchanged)
-- [ ] Briefing-style line names "React" back to the user
+- [ ] **The real briefing pipeline** (stack signals -> archetype lookup -> line render) emits a line that contains `react`, `typescript`, and the archetype, with no literal `{archetype}` / `{language}` / `{package_manager}` placeholders left behind (#742)
+- [ ] **`--project` scope is honoured** — the rendered stack reflects the supplied directory even when the cwd has no React signals (#742)
 - [ ] No `presets/` directory created
 - [ ] No `.wicked-garden/config.yml` (or `.yaml`) file created
 - [ ] No `.wicked-garden/` directory created at all
