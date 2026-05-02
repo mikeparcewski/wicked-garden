@@ -81,8 +81,30 @@ Group events from the timeline by type:
 
 ### 4. Synthesize Briefing
 
+Before composing the briefing, name the **detected stack** back to the user
+so it is obvious wicked-garden has read the project shape (#723 — stack
+identity is a projection of the repo, never a hand-edited preset).
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+   "${CLAUDE_PLUGIN_ROOT}/scripts/crew/_stack_signals.py" \
+   "${PWD}" 2>/dev/null
+```
+
+If `language` is not `unknown`, include this single line at the top of the
+briefing (omit entirely when language is `unknown`):
+
+```
+Detected stack: {language} ({package_manager}, frameworks: {frameworks}). Archetype: {archetype}.
+```
+
+In JSON-mode briefings, surface the same projection under a top-level
+`detected_stack` field; do not invent a parallel state file.
+
 ```markdown
 ## Session Briefing ({days}d window)
+
+Detected stack: python (uv, frameworks: click). Archetype: code-repo.
 
 ### Recent Decisions
 {events from mem domain — decisions stored, patterns learned}

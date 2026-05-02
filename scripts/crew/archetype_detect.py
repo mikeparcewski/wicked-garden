@@ -37,6 +37,18 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+# Stack-shape projection (#723). Imported lazily-tolerant: if the module is
+# absent for any reason the archetype result still ships, just without the
+# additive `detected_stack` field. Stack identity is a *projection*, never
+# persisted state.
+try:
+    from crew._stack_signals import detect_stack as _detect_stack  # type: ignore
+except Exception:  # pragma: no cover — optional dependency at runtime
+    try:
+        from _stack_signals import detect_stack as _detect_stack  # type: ignore
+    except Exception:
+        _detect_stack = None  # type: ignore
+
 # ---------------------------------------------------------------------------
 # Module-level constants
 # ---------------------------------------------------------------------------
@@ -543,6 +555,12 @@ def detect_archetype(
     try:
         return _detect_archetype_inner(project_dir, plan_path)
     except Exception as exc:
+        # Resolve a plausible stack-projection root from whatever raw input
+        # the caller passed, but never raise from this fallback branch.
+        if isinstance(project_dir, dict):
+            stack_root: "Path | str | None" = project_dir.get("project_dir") or "."
+        else:
+            stack_root = project_dir
         return {
             "archetype": "code-repo",
             "confidence": 0.3,
@@ -550,6 +568,7 @@ def detect_archetype(
             "priority_matched": 7,
             "fallback": True,
             "detector_version": DETECTOR_VERSION,
+            "detected_stack": _safe_detect_stack(stack_root),
         }
 
 
@@ -595,6 +614,8 @@ def _detect_archetype_inner(
         (6, "docs-only",             lambda: _detect_docs_only(files, plan_text, project_dir)),
     ]
 
+    detected_stack = _safe_detect_stack(project_dir)
+
     for priority, archetype, detector in checks:
         confidence, signals = detector()
         if confidence > 0.0:
@@ -605,6 +626,7 @@ def _detect_archetype_inner(
                 "priority_matched": priority,
                 "fallback": False,
                 "detector_version": DETECTOR_VERSION,
+                "detected_stack": detected_stack,
             }
 
     # Fallback: code-repo
@@ -616,7 +638,39 @@ def _detect_archetype_inner(
         "priority_matched": 7,
         "fallback": True,
         "detector_version": DETECTOR_VERSION,
+        "detected_stack": detected_stack,
     }
+
+
+def _safe_detect_stack(project_dir: "Path | str | None") -> Dict[str, Any]:
+    """Run the stack-shape projector with belt-and-braces guards.
+
+    The archetype detector is the gate-keeper for downstream phase routing,
+    so it must never raise. The stack signal is purely additive — return a
+    safe default on any error so the archetype path is unaffected.
+    """
+    if _detect_stack is None:
+        return {
+            "language": "unknown",
+            "package_manager": "unknown",
+            "frameworks": [],
+            "has_ui": False,
+            "has_api_surface": False,
+            "signals": {"files_seen": [], "deps_seen": []},
+        }
+    try:
+        if project_dir is None:
+            return _detect_stack(Path("."))
+        return _detect_stack(Path(project_dir) if not isinstance(project_dir, Path) else project_dir)
+    except Exception as exc:  # pragma: no cover — defensive
+        return {
+            "language": "unknown",
+            "package_manager": "unknown",
+            "frameworks": [],
+            "has_ui": False,
+            "has_api_surface": False,
+            "signals": {"files_seen": [f"error: {exc}"], "deps_seen": []},
+        }
 
 
 def _collect_project_files(project_dir: Path) -> List[str]:
