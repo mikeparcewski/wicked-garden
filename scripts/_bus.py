@@ -70,6 +70,17 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.rework",
         "description": "Rework initiated after gate REJECT or CONDITIONAL",
     },
+    # Crew domain — issue #717 (resolve skill: classify-don't-retry path).
+    # Emitted per accepted resolution by `crew:resolve --accept`. The verdict
+    # on gate-result.json is NEVER mutated by this event — the resolution is
+    # surfaced as a first-class bus event so downstream consumers can audit
+    # who accepted what without crawling sidecar files. Pairs with the
+    # "bus-as-truth" decision from #732.
+    "wicked.gate.condition.resolved": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.condition",
+        "description": "Mechanical CONDITIONAL finding resolved via crew:resolve skill (verdict unchanged)",
+    },
     # Jam domain — jam.py
     "wicked.session.started": {
         "domain": "wicked-garden",

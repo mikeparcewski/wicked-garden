@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "rules": [
+    {
+      "id": "ac-numbering",
+      "matches": [
+        "acceptance criterion .* missing",
+        "AC-\\d+ not found"
+      ],
+      "classification": "mechanical"
+    },
+    {
+      "id": "missing-evidence-ref",
+      "matches": [
+        "evidence file not found",
+        "no evidence reference"
+      ],
+      "classification": "mechanical"
+    },
+    {
+      "id": "spec-gap",
+      "matches": [
+        "specification gap detected"
+      ],
+      "classification": "mechanical"
+    },
+    {
+      "id": "intent-change",
+      "matches": [
+        "intent change",
+        "scope expansion"
+      ],
+      "classification": "judgment"
+    },
+    {
+      "id": "security-finding",
+      "matches": [
+        "security finding",
+        "vulnerability"
+      ],
+      "classification": "escalation"
+    },
+    {
+      "id": "reviewer-disagreement",
+      "matches": [
+        "reviewer disagreement",
+        "score gap > 0.3"
+      ],
+      "classification": "escalation"
+    }
+  ]
+}
