@@ -412,24 +412,12 @@ def _check_search_staleness():
     Brain is the unified knowledge layer — no legacy SQLite fallback.
     Fails open — any exception returns None so the session always continues.
     """
-    try:
-        import urllib.request
-        port = resolve_port()
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=2) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
-            stats = json.loads(resp.read().decode("utf-8"))
-            total = stats.get("total", 0)
-            if total == 0:
-                return "Brain index is empty — run `wicked-brain:ingest` to index your codebase"
-            return None  # Brain is healthy
-
-    except Exception:
+    stats = _brain_api("stats", {}, timeout=2)
+    if stats is None:
         return "Brain server is not reachable — start wicked-brain to enable context assembly"
+    if stats.get("total", 0) == 0:
+        return "Brain index is empty — run `wicked-brain:ingest` to index your codebase"
+    return None  # Brain is healthy
 
 
 def _check_onboarding_status():
@@ -445,22 +433,10 @@ def _check_onboarding_status():
     has_memories = False  # default: assume not onboarded (fail-closed for new projects)
 
     # Check search index — brain is the knowledge layer
-    try:
-        import urllib.request
-        import urllib.error
-        port = resolve_port()
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=2) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
-            stats = json.loads(resp.read().decode("utf-8"))
-            if stats.get("total", 0) > 0:
-                has_index = True
-    except Exception:
-        pass  # brain unavailable — covered by _check_brain_dependency directive
+    stats = _brain_api("stats", {}, timeout=2)
+    if stats and stats.get("total", 0) > 0:
+        has_index = True
+    # else: brain unavailable or empty — covered by _check_brain_dependency directive
 
     # Check for any stored memories (broad: any brain result, not just /mem- paths).
     # If brain has an index with content (has_index=True), that alone is sufficient
@@ -642,25 +618,11 @@ def _check_brain_dependency():
             return False, note
 
         # wicked-brain is installed — optionally probe server health
-        # Use a short timeout so we never block the hook budget
+        # Use a short timeout so we never block the hook budget.
+        # _brain_api returns None on any error (server not running, connection
+        # refused, timeout, parse error) — informational note covers all cases.
         server_note = None
-        try:
-            import urllib.request
-            import urllib.error
-
-            # Resolve brain port: env var → project brain config → root config → 4242
-            port = resolve_port()
-            url = f"http://localhost:{port}/api"
-            req = urllib.request.Request(
-                url,
-                data=json.dumps({"action": "health"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=1) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
-                pass  # Server responded — healthy
-        except Exception:
-            # Server not running, connection refused, or timeout — informational only
+        if _brain_api("health", {}, timeout=1) is None:
             server_note = (
                 "[wicked-brain] Plugin installed but server is not running. "
                 "Start it to enable enhanced code intelligence."
@@ -1310,37 +1272,26 @@ def main():
         # 7e. Brain auto-init and auto-ingest
         #     If brain is installed but has no content for this project, emit
         #     a directive so the agent auto-runs init + ingest on first use.
+        #     If the server isn't reachable, emit a start directive instead.
         if brain_available:
-            try:
-                import urllib.request
-                port = resolve_port()
-                req = urllib.request.Request(
-                    f"http://localhost:{port}/api",
-                    data=json.dumps({"action": "stats", "params": {}}).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
+            stats = _brain_api("stats", {}, timeout=2)
+            if stats is None:
+                mode_notes.append(
+                    "[wicked-brain] Plugin installed but server is not running. "
+                    "You MUST invoke `wicked-brain-server` to start the brain server, "
+                    "then run the brain pipeline: ingest → retag → compile."
                 )
-                with urllib.request.urlopen(req, timeout=2) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
-                    stats = json.loads(resp.read().decode("utf-8"))
-                    if stats.get("total", 0) == 0:
-                        mode_notes.append(
-                            "[wicked-brain] Brain is empty for this project. "
-                            "You MUST run the full brain pipeline now as background agents:\n"
-                            "  1. `wicked-brain:init` — initialize the brain if needed\n"
-                            "  2. `wicked-brain:ingest` with the current working directory\n"
-                            "  3. `wicked-brain:retag` — expand keywords into semantic tags\n"
-                            "  4. `wicked-brain:compile` — synthesize wiki articles from chunks\n"
-                            "Run these sequentially in a background agent. "
-                            "Do NOT wait for completion before responding to the user."
-                        )
-            except Exception:
-                # Brain server not running — emit start directive
-                if brain_available:
-                    mode_notes.append(
-                        "[wicked-brain] Plugin installed but server is not running. "
-                        "You MUST invoke `wicked-brain-server` to start the brain server, "
-                        "then run the brain pipeline: ingest → retag → compile."
-                    )
+            elif stats.get("total", 0) == 0:
+                mode_notes.append(
+                    "[wicked-brain] Brain is empty for this project. "
+                    "You MUST run the full brain pipeline now as background agents:\n"
+                    "  1. `wicked-brain:init` — initialize the brain if needed\n"
+                    "  2. `wicked-brain:ingest` with the current working directory\n"
+                    "  3. `wicked-brain:retag` — expand keywords into semantic tags\n"
+                    "  4. `wicked-brain:compile` — synthesize wiki articles from chunks\n"
+                    "Run these sequentially in a background agent. "
+                    "Do NOT wait for completion before responding to the user."
+                )
 
         # 8. Assemble session briefing
         # --- Status block (user-facing) ---
