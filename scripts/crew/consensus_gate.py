@@ -423,6 +423,7 @@ def _write_consensus_report(
     }
 
     report_path = project_dir / "phases" / phase / "consensus-report.json"
+    write_succeeded = False
     try:
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2, default=str))
@@ -430,10 +431,35 @@ def _write_consensus_report(
             "[consensus-gate] Wrote consensus report to %s",
             report_path,
         )
+        write_succeeded = True
     except OSError as exc:
         logger.warning(
             "[consensus-gate] Failed to write consensus report: %s", exc,
         )
+
+    # Part C of #734: emit AFTER successful write so the bus-emit lint and
+    # resume projector can subscribe to consensus activity. Fail-open.
+    if write_succeeded:
+        try:
+            from _bus import emit_event  # type: ignore[import]
+            project_id = project_dir.name
+            emit_event(
+                "wicked.consensus.report_created",
+                {
+                    "project_id": project_id,
+                    "phase": phase,
+                    "decision": result.decision,
+                    "confidence": result.confidence,
+                    "agreement_ratio": scores.get("agreement_ratio", 0.0),
+                    "participants": result.participants,
+                    "rounds": result.rounds,
+                },
+                chain_id=f"{project_id}.{phase}",
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.debug(
+                "[consensus-gate] bus emit failed (fail-open): %s", exc,
+            )
 
 
 def _write_consensus_evidence(
@@ -458,10 +484,37 @@ def _write_consensus_evidence(
     }
 
     evidence_path = project_dir / "phases" / phase / "consensus-evidence.json"
+    write_succeeded = False
     try:
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         evidence_path.write_text(json.dumps(evidence, indent=2, default=str))
+        write_succeeded = True
     except OSError as exc:
         logger.warning(
             "[consensus-gate] Failed to write consensus evidence: %s", exc,
         )
+
+    # Part C of #734: emit AFTER successful write so the bus-emit lint and
+    # resume projector can subscribe to consensus rejection evidence.
+    # Fail-open.
+    if write_succeeded:
+        try:
+            from _bus import emit_event  # type: ignore[import]
+            project_id = project_dir.name
+            emit_event(
+                "wicked.consensus.evidence_recorded",
+                {
+                    "project_id": project_id,
+                    "phase": phase,
+                    "result": consensus_result.get("result"),
+                    "reason": consensus_result.get("reason"),
+                    "consensus_confidence": consensus_result.get("consensus_confidence"),
+                    "agreement_ratio": consensus_result.get("agreement_ratio"),
+                    "participants": consensus_result.get("participants"),
+                },
+                chain_id=f"{project_id}.{phase}",
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.debug(
+                "[consensus-gate] bus emit failed (fail-open): %s", exc,
+            )

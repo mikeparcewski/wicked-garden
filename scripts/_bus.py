@@ -170,6 +170,24 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "delivery.telemetry",
         "description": "Cross-session quality metric drifted past baseline threshold (special-cause or >=15% drop)",
     },
+    # Crew domain — Part C of #734 (bus-as-truth emit additions paired with
+    # the load-bearing artifact writes the resume projector + bus-emit lint
+    # need to track. See PR #735 audit for the silent-write inventory.)
+    "wicked.dispatch.log_entry_appended": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.dispatch",
+        "description": "HMAC-signed dispatch-log.jsonl entry appended (orphan-check sentinel)",
+    },
+    "wicked.consensus.report_created": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.consensus",
+        "description": "Consensus gate report written to consensus-report.json",
+    },
+    "wicked.consensus.evidence_recorded": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.consensus",
+        "description": "Consensus rejection evidence written to consensus-evidence.json (audit trail)",
+    },
 }
 
 # Payload deny-list — these fields must NEVER appear in bus payloads.

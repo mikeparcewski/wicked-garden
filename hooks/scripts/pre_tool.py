@@ -524,14 +524,27 @@ _BUS_EMIT_LINT_PARENT_MARKERS = ("phases",)
 #: emit" only counts if its event_type is in this set — otherwise an
 #: unrelated ``wicked.project.created`` at session start would buy 60s of
 #: silent orphan-write passes, which is exactly the false-negative the
-#: lint exists to catch. Part C (#734) will add wicked.consensus.* and
-#: wicked.crew.dispatch_log_entry_appended once those emit points land.
+#: lint exists to catch.
+#:
+#: Pairing rationale per target:
+#:   gate-result.json        ← wicked.gate.decided
+#:   conditions-manifest.json ← wicked.gate.decided (CONDITIONAL branch)
+#:   dispatch-log.jsonl      ← wicked.dispatch.log_entry_appended (Part C)
+#:   reviewer-report.md      ← wicked.consensus.report_created /
+#:                             wicked.consensus.evidence_recorded (Part C)
+#:
+#: Phase + project lifecycle events stay in the set because callers may
+#: write multiple state files in the wake of a single phase/project event.
 _BUS_EMIT_LINT_PAIR_EVENTS = (
     "wicked.gate.decided",
     "wicked.gate.blocked",
     "wicked.rework.triggered",
     "wicked.phase.transitioned",
     "wicked.project.completed",
+    # Part C of #734 — new emits paired with their target artifact writes
+    "wicked.dispatch.log_entry_appended",
+    "wicked.consensus.report_created",
+    "wicked.consensus.evidence_recorded",
 )
 
 
