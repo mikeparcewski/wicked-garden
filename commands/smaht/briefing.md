@@ -96,14 +96,31 @@ invoked from.
 # and known to crew; otherwise the user's current working directory.
 SCOPE_DIR="${PWD}"
 if [ -n "${project:-}" ]; then
-  PROJECT_DIR=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import json, sys
+  # Resolve the named project's recorded directory via the public API.
+  # IMPORTANT: pass the project name through an environment variable, NOT
+  # via shell-string interpolation — names may contain quotes or special
+  # chars and direct interpolation would be a shell-injection risk.
+  #
+  # API surface (verified against scripts/crew/crew.py):
+  #   list_projects(active_only=True) -> {"projects": [...]}
+  #
+  # Note: project_dir is the LOCAL crew workspace path
+  # (~/.something-wicked/wicked-garden/projects/...), NOT the source repo
+  # tree. Crew project records don't currently carry a `source_dir` field
+  # — adding one is a separate change (#742 follow-up). Until then, named
+  # briefings can resolve the project's metadata dir but stack signals
+  # may still need to be probed from \${PWD}; we surface this gap rather
+  # than silently using the wrong directory.
+  PROJECT_DIR=$(WG_BRIEFING_PROJECT="${project}" \
+    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import os, sys
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 try:
-    from crew.crew import find_active  # type: ignore
-    for entry in find_active() or []:
-        if entry.get('name') == '${project}' or entry.get('id') == '${project}':
-            print(entry.get('source_dir') or entry.get('project_dir') or '')
+    from crew.crew import list_projects  # type: ignore
+    name = os.environ.get('WG_BRIEFING_PROJECT', '')
+    for entry in list_projects(active_only=True).get('projects', []):
+        if entry.get('name') == name or entry.get('id') == name:
+            print(entry.get('project_dir') or '')
             break
 except Exception:
     pass
@@ -124,11 +141,18 @@ same `SCOPE_DIR` *before* rendering the line — never leave `{archetype}` as
 a literal placeholder.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import json, sys
+SCOPE_DIR="${SCOPE_DIR}" sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, sys, os
 sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
 from crew.archetype_detect import detect_archetype
-result = detect_archetype({'project_dir': '${SCOPE_DIR}'})
+# Pass project_dir via env var to avoid shell-string interpolation of
+# paths that may contain single quotes or special characters.
+# NOTE: detect_archetype uses rglob('*') under the hood when no explicit
+# file list is provided. On large repos with node_modules/.venv/etc.
+# this can be slow. Mitigation tracked in a #742 follow-up; for now
+# the briefing accepts the cost in exchange for a real archetype value
+# instead of a literal {archetype} placeholder.
+result = detect_archetype({'project_dir': os.environ.get('SCOPE_DIR', '')})
 print(result.get('archetype', 'unknown'))
 " 2>/dev/null
 ```

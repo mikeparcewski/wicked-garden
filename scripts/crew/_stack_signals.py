@@ -600,7 +600,11 @@ def _walk_for_extensions(
         if depth > MAX_SCAN_DEPTH:
             return
         try:
-            entries = list(current.iterdir())
+            # Sort iterdir results so traversal order is deterministic
+            # across filesystems. Without this, the cap-unwind regression
+            # test (PR #744) is filesystem-flaky because tmpfs/APFS/ext4
+            # yield siblings in different orders.
+            entries = sorted(current.iterdir())
         except OSError:
             return
         for entry in entries:

@@ -580,7 +580,22 @@ def _detect_archetype_inner(
     if isinstance(project_dir_or_dict, dict):
         files: List[str] = project_dir_or_dict.get("files") or []
         raw_plan_path = project_dir_or_dict.get("plan_path")
-        project_dir = Path(project_dir_or_dict.get("project_dir") or ".")
+        # When the dict carries no project_dir AND no files, fall back to
+        # an unknown-stub result instead of `Path('.')` — which would
+        # surface the current working directory's stack to a caller that
+        # explicitly didn't provide one. (PR #744 review fix.)
+        raw_project_dir = project_dir_or_dict.get("project_dir")
+        if not raw_project_dir and not files:
+            return {
+                "archetype": "code-repo",
+                "confidence": 0.3,
+                "signals": ["fallback: no project_dir or files supplied"],
+                "priority_matched": 7,
+                "fallback": True,
+                "detector_version": DETECTOR_VERSION,
+                "detected_stack": _safe_detect_stack(None),
+            }
+        project_dir = Path(raw_project_dir or ".")
         if raw_plan_path:
             plan_path = Path(raw_plan_path)
     else:
