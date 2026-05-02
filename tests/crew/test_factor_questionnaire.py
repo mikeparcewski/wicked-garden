@@ -871,3 +871,41 @@ def test_operational_risk_o5_saas_scale_full_signal_is_low():
         f"All-YES operational_risk must yield LOW; o5 contributes 2pts. "
         f"Got {reading!r}. Trace: {why}"
     )
+
+
+
+def test_score_all_wires_detected_stack_into_adjustments():
+    """The critical #740 review fix — score_all must call _apply_stack_adjustments.
+
+    Without this wiring the entire #723 feature was dead code: callers of
+    score_all() received un-adjusted scores even when stack signals were
+    present. This test asserts the wiring is in place by passing a
+    detected_stack with has_ui=True and verifying user_facing_impact moves.
+    """
+    import sys
+    from pathlib import Path
+    _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+    if str(_SCRIPTS) not in sys.path:
+        sys.path.insert(0, str(_SCRIPTS))
+    from crew import factor_questionnaire as fq
+
+    # Empty answers → all factors at HIGH (safest reading).
+    base = fq.score_all({})
+    assert "user_facing_impact" in base
+    base_reading = base["user_facing_impact"]["reading"]
+
+    # Same answers, with detected_stack signaling has_ui=True. Adjustment
+    # should bump user_facing_impact by 1 band (HIGH -> MEDIUM).
+    detected = {"has_ui": True, "has_api_surface": False}
+    adjusted = fq.score_all({}, detected_stack=detected)
+    assert adjusted["user_facing_impact"]["reading"] != base_reading, (
+        "score_all did not apply _apply_stack_adjustments — feature is dead"
+    )
+
+    # Audit trail must be in the result so callers can observe what changed.
+    assert "_stack_audit" in adjusted
+    audit = adjusted["_stack_audit"]
+    assert any(e["factor"] == "user_facing_impact" for e in audit)
+
+    # Without detected_stack, no audit key is added (backward compat).
+    assert "_stack_audit" not in fq.score_all({})

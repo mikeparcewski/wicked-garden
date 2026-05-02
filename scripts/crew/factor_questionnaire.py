@@ -337,12 +337,25 @@ def _apply_stack_adjustments(
     return adjusted, audit
 
 
-def score_all(answers: Dict[str, Dict[str, bool]]) -> Dict[str, Dict]:
+def score_all(
+    answers: Dict[str, Dict[str, bool]],
+    *,
+    detected_stack: Dict | None = None,
+) -> Dict[str, Dict]:
     """Score all 9 factors from a nested answers dict.
 
     Args:
         answers: Outer key = factor name, inner key = question id, value = bool.
                  Missing factors default to empty (all-no).
+        detected_stack: Optional projection from
+            ``crew._stack_signals.detect_stack``. When provided, the helper
+            ``_apply_stack_adjustments`` runs after factor scoring and bumps
+            ``user_facing_impact`` by +1 band when ``has_ui`` is true and
+            ``blast_radius`` by +1 band when ``has_api_surface`` is true.
+            The audit trail of bumps is exposed via the ``_stack_audit``
+            key in the returned dict (sentinel name keeps it from colliding
+            with any future factor name). When ``None``, scoring behaves
+            exactly as it did before #723 — backward-compatible.
 
     Returns:
         Dict matching the factors block of output-schema.md:
@@ -353,11 +366,12 @@ def score_all(answers: Dict[str, Dict[str, bool]]) -> Dict[str, Dict]:
                 "why": "..."
             },
             ...
+            "_stack_audit": [...]   # only present when detected_stack passed
         }
         Existing consumers reading `reading` are unaffected. New consumers should
         prefer `risk_level` to avoid the direction-inversion footgun.
     """
-    result = {}
+    result: Dict[str, Dict] = {}
     for name, rubric in QUESTIONNAIRE.items():
         reading, why = score_factor(rubric, answers.get(name, {}))
         result[name] = {
@@ -365,6 +379,12 @@ def score_all(answers: Dict[str, Dict[str, bool]]) -> Dict[str, Dict]:
             "risk_level": _RISK_INVERSION[reading],
             "why": why,
         }
+    if detected_stack is not None:
+        # Stack-shape projection feeds the rubric. Adjustment is capped at
+        # +1 band per factor and audited in the returned _stack_audit key.
+        adjusted, audit = _apply_stack_adjustments(result, detected_stack)
+        adjusted["_stack_audit"] = audit  # type: ignore[assignment]
+        return adjusted
     return result
 
 
