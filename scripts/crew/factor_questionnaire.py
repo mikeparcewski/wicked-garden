@@ -219,6 +219,123 @@ _RISK_INVERSION: Dict[Reading, str] = {
     "LOW": "high_risk",
 }
 
+# ---------------------------------------------------------------------------
+# Stack-shape adjustments (#723)
+#
+# Reframe of #723: stack identity is a *projection* — the rubric absorbs
+# stack signals as small score adjustments rather than carrying a separate
+# preset selector. Each adjustment moves the reading at most one band toward
+# higher risk; LOW (the riskiest band) is the cap. Adjustments are visible
+# in the rubric output so downstream reviewers can audit them.
+#
+# Band order from safest -> riskiest: HIGH -> MEDIUM -> LOW. MAX_BAND is LOW.
+# ---------------------------------------------------------------------------
+
+MAX_BAND: Reading = "LOW"
+
+# Bump table for +1 band (more risk). LOW saturates at LOW.
+_BUMP_ONE_BAND: Dict[Reading, Reading] = {
+    "HIGH": "MEDIUM",
+    "MEDIUM": "LOW",
+    "LOW": "LOW",
+}
+
+
+def _bump_one_band(reading: Reading) -> Reading:
+    """Move a reading one band toward higher risk, saturating at MAX_BAND."""
+    return _BUMP_ONE_BAND.get(reading, reading)
+
+
+def _apply_stack_adjustments(
+    scores: Dict[str, Dict],
+    detected_stack: Dict | None,
+) -> Tuple[Dict[str, Dict], list]:
+    """Apply +1-band rubric adjustments based on stack-shape projection.
+
+    Args:
+        scores: Output of ``score_all`` — outer key = factor name, value =
+                {"reading": ..., "risk_level": ..., "why": ...}.
+        detected_stack: The projection from ``crew._stack_signals.detect_stack``.
+                When None or missing keys, no adjustment is made.
+
+    Returns:
+        (adjusted_scores, audit_entries) — ``adjusted_scores`` is a deep copy
+        with bumped readings/risk_level/why entries; ``audit_entries`` is a
+        list of ``{"factor": str, "adjustment": "+1", "reason": str,
+        "from": Reading, "to": Reading}`` records suitable for inclusion in
+        the rubric output.
+
+    Adjustments applied:
+        - has_ui          -> user_facing_impact  +1 band (cap at LOW)
+        - has_api_surface -> blast_radius        +1 band (cap at LOW)
+
+    Each rule fires at most once. Multiple rules can apply to the same
+    factor in principle, but never to one factor at +2 — the per-factor
+    cap is +1 band per call. Stack identity is read fresh from disk on
+    every call; this function never persists or caches anything.
+    """
+    audit: list = []
+
+    # Defensive copy — never mutate the caller's dict.
+    adjusted: Dict[str, Dict] = {
+        name: dict(entry) for name, entry in scores.items()
+    }
+
+    if not detected_stack or not isinstance(detected_stack, dict):
+        return adjusted, audit
+
+    bumps: Tuple[Tuple[str, str, str], ...] = (
+        # (stack_flag, factor_name, audit_reason)
+        ("has_ui", "user_facing_impact", "stack:has_ui"),
+        ("has_api_surface", "blast_radius", "stack:has_api_surface"),
+    )
+
+    # Track which factors have already been bumped this call so we never
+    # apply +2 to a single factor even if a future bump rule overlaps.
+    already_bumped: set = set()
+
+    for flag, factor, reason in bumps:
+        if not detected_stack.get(flag):
+            continue
+        if factor in already_bumped:
+            continue
+        if factor not in adjusted:
+            # Caller passed partial scores; skip rather than raise.
+            continue
+
+        before: Reading = adjusted[factor].get("reading", "HIGH")  # type: ignore[assignment]
+        after = _bump_one_band(before)
+        if after == before:
+            # Already at MAX_BAND — record as a no-op so the audit shows
+            # the rule fired but the cap held.
+            audit.append({
+                "factor": factor,
+                "adjustment": "+1",
+                "reason": reason,
+                "from": before,
+                "to": after,
+                "capped": True,
+            })
+            already_bumped.add(factor)
+            continue
+
+        adjusted[factor]["reading"] = after
+        adjusted[factor]["risk_level"] = _RISK_INVERSION[after]
+        existing_why = adjusted[factor].get("why", "")
+        suffix = f"; {reason} +1 band ({before} -> {after})"
+        adjusted[factor]["why"] = f"{existing_why}{suffix}".lstrip("; ")
+        audit.append({
+            "factor": factor,
+            "adjustment": "+1",
+            "reason": reason,
+            "from": before,
+            "to": after,
+            "capped": False,
+        })
+        already_bumped.add(factor)
+
+    return adjusted, audit
+
 
 def score_all(answers: Dict[str, Dict[str, bool]]) -> Dict[str, Dict]:
     """Score all 9 factors from a nested answers dict.
