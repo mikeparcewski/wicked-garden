@@ -135,6 +135,14 @@ baseline may surface `phase_drift` or `stale_status` patterns that
 re-prioritize sites — at which point this section is updated with a new
 datestamped baseline JSON and section 3 amended.
 
+**Synthetic-drift suite (#746 sample-size mitigation)**: PR #XXX
+ships `scripts/crew/synthetic_drift.py` + `tests/crew/test_synthetic_drift.py`
++ `scenarios/crew/synthetic-drift-coverage.md`. The suite proves the
+reconciler correctly catches every drift class on demand — substituting
+coverage-by-construction for the absent organic >=10 projects / >=50
+phases sample. Sites 3-5 of the cutover order are gated on this suite
+passing in CI.
+
 ## 3. Cutover order — by write-site
 
 Each subsection follows the same shape: **Site / Current write path /
