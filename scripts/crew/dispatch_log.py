@@ -348,7 +348,12 @@ def append(
             from _bus import emit_event  # type: ignore[import]
             # project_dir is already typed as Path in the signature; no wrap needed.
             project_id = project_dir.name
-            chain_id = f"{project_id}.{phase}.{gate}" if gate else f"{project_id}.{phase}"
+            # #746 C5 — chain_id MUST include dispatch_id to keep two retry
+            # dispatches from collapsing on the bus dedupe ledger
+            # (`_bus.py:569` is_processed keyed on `(event_type, chain_id)`).
+            # Per brain memory `bus-chain-id-must-include-uniqueness-segment-gotcha`.
+            assert gate, "dispatch_log.append() requires gate"
+            chain_id = f"{project_id}.{phase}.{gate}.{dispatch_id}"
             emit_event(
                 "wicked.dispatch.log_entry_appended",
                 {
@@ -360,7 +365,14 @@ def append(
                     "dispatcher_agent": dispatcher_agent,
                     "expected_result_path": expected_result_path,
                     "dispatched_at": record["dispatched_at"],
+                    "hmac": record.get("hmac"),
                     "hmac_present": "hmac" in record,
+                    # #746 C4 — `raw_payload` is the canonical bytes the
+                    # projector replays into `dispatch_log_entries`.  Without
+                    # this the projector cannot reproduce the on-disk JSONL
+                    # line under flag-on (Site 1 dual-write).  Carved out of
+                    # the bus deny-list at `_bus.py:_PAYLOAD_ALLOW_OVERRIDES`.
+                    "raw_payload": json.dumps(record, separators=(",", ":")),
                 },
                 chain_id=chain_id,
             )

@@ -115,6 +115,37 @@ def init_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_event_log_type
             ON event_log(event_type, event_id DESC);
 
+        -- Site 1 of bus-cutover (#746): projection target for
+        -- wicked.dispatch.log_entry_appended events.  Written by
+        -- daemon/projector.py::_dispatch_log_appended ONLY when
+        -- WG_BUS_AS_TRUTH_DISPATCH_LOG=on; otherwise the handler is a
+        -- registered no-op that returns _APPLIED (event projected, table
+        -- untouched).  Disk file at phases/{phase}/dispatch-log.jsonl
+        -- remains the source of truth during dual-write — see
+        -- docs/v9/bus-cutover-staging-plan.md.
+        --
+        -- dispatched_at note: stored as INTEGER epoch seconds even though
+        -- the event payload carries an ISO-8601 string.  The handler
+        -- normalises the string at insertion time so range queries
+        -- (`WHERE dispatched_at BETWEEN ...`) avoid ISO comparison gymnastics.
+        CREATE TABLE IF NOT EXISTS dispatch_log_entries (
+            event_id              INTEGER PRIMARY KEY,
+            project_id            TEXT NOT NULL,
+            phase                 TEXT NOT NULL,
+            gate                  TEXT NOT NULL,
+            reviewer              TEXT NOT NULL,
+            dispatch_id           TEXT NOT NULL,
+            dispatcher_agent      TEXT NOT NULL,
+            expected_result_path  TEXT NOT NULL,
+            dispatched_at         INTEGER NOT NULL,
+            hmac                  TEXT,
+            hmac_present          INTEGER NOT NULL DEFAULT 0,
+            raw_payload           TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_dispatch_log_entries_lookup
+            ON dispatch_log_entries(project_id, phase, gate, dispatched_at DESC);
+
         CREATE TABLE IF NOT EXISTS tasks (
             id          TEXT PRIMARY KEY,
             session_id  TEXT NOT NULL,

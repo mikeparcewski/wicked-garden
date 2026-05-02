@@ -216,8 +216,15 @@ _PAYLOAD_DENY_LIST = frozenset({
 #
 # wicked.fact.extracted — content is the whole point of the event. The brain
 # auto-memorize subscriber requires payload.content to produce a memory.
+# wicked.dispatch.log_entry_appended — `raw_payload` is the canonical JSONL
+# bytes the projector replays into the `dispatch_log_entries` table under
+# Site 1 of the bus-cutover (#746).  Without it the projector cannot
+# reproduce the on-disk line.  Audit note in the PR body: this carve-out
+# only ships an already-on-disk dispatch record (HMAC-signed), so payload
+# inspection here is bounded by what the orphan check already trusts.
 _PAYLOAD_ALLOW_OVERRIDES: Dict[str, frozenset] = {
     "wicked.fact.extracted": frozenset({"content"}),
+    "wicked.dispatch.log_entry_appended": frozenset({"raw_payload"}),
 }
 
 # ---------------------------------------------------------------------------
@@ -242,6 +249,23 @@ _CURSOR_FILE = os.path.join(
 def _is_disabled() -> bool:
     """Check if bus is disabled via env var."""
     return os.environ.get("WICKED_BUS_DISABLED", "").strip() in ("1", "true", "yes")
+
+
+def _bus_as_truth_enabled() -> bool:
+    """Return True iff `WG_BUS_AS_TRUTH_DISPATCH_LOG` is the literal string `on`.
+
+    Site 1 of the bus-cutover staging plan (#746).  Helper exists in `_bus.py`
+    so future cutover sites (consensus reports, evidence files, conditions
+    manifests, resume projector) can reuse the same gate by adding analogous
+    helpers here.  Reading the env var directly in projector handlers or
+    emitters is forbidden — every read MUST go through this helper so we have
+    one place to flip and one place to audit.
+
+    Values other than the literal `on` (including unset, empty, `dry-run`,
+    `1`, `true`, `True`) MUST return False — flag-off is the byte-identity
+    contract per Council Condition C2.
+    """
+    return os.environ.get("WG_BUS_AS_TRUTH_DISPATCH_LOG", "") == "on"
 
 
 def _resolve_binary() -> Optional[str]:

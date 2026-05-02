@@ -536,6 +536,117 @@ def _ac_declared(conn: sqlite3.Connection, event: dict) -> None:
     )
 
 
+# --- bus-cutover Site 1 (#746) handler ------------------------------------
+
+def _dispatch_log_appended(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.dispatch.log_entry_appended → dispatch_log_entries.
+
+    Site 1 of the bus-cutover staging plan (#746).  Behaviour is gated on
+    `WG_BUS_AS_TRUTH_DISPATCH_LOG` via the `_bus_as_truth_enabled()` helper:
+
+      * flag-off (default): handler is a no-op.  The projector wrapper
+        still records the event_log row as ``applied`` (event is projected
+        per Decision #6 — reconciliation does not flag the event as
+        orphan); the projection table is intentionally untouched while
+        the disk file remains source of truth.
+
+      * flag-on: INSERT OR IGNORE one row per (event_id) into
+        ``dispatch_log_entries``.  Idempotent on duplicate event_id per
+        Decision #6 — replaying the same event yields the same row state.
+
+    HMAC policy (Council Condition C7): the emitter (`dispatch_log.append`)
+    signs; this projector stores the verbatim ``hmac`` and ``hmac_present``
+    fields from the event payload.  Verification still happens against
+    the on-disk JSONL via `dispatch_log.check_orphan` — that path is
+    untouched at `dispatch_log.py:476-547`.
+    """
+    # Defer import to avoid a hard dependency at module load — the projector
+    # boots in environments where scripts/_bus.py may not be on sys.path
+    # (e.g. some test harnesses).  Failure to import is treated as flag-off.
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled()
+    except Exception:
+        flag_on = False
+
+    if not flag_on:
+        # No-op under flag-off — projection table intentionally untouched.
+        # The wrapper records the event_log row as `applied` (Decision #6
+        # contract: every projected event gets one row) so reconcilers do
+        # not flag this as orphan.  Dual-write contract: disk file is
+        # truth, bus emit is observability.
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    gate, ok = _require(payload, "gate", et)
+    if not ok:
+        return
+    reviewer, ok = _require(payload, "reviewer", et)
+    if not ok:
+        return
+    dispatch_id, ok = _require(payload, "dispatch_id", et)
+    if not ok:
+        return
+    raw_payload, ok = _require(payload, "raw_payload", et)
+    if not ok:
+        return
+
+    event_id = event.get("event_id")
+    if not isinstance(event_id, int):
+        logger.warning(
+            "projector: wicked.dispatch.log_entry_appended missing event_id — ignored"
+        )
+        return
+
+    # `dispatched_at` arrives as an ISO-8601 string per dispatch_log.py:299.
+    # Store as INTEGER epoch seconds so the table is queryable by range
+    # without ISO comparison gymnastics (council note on the schema add).
+    dispatched_at_iso = _opt(payload, "dispatched_at")
+    dispatched_at = _to_epoch(dispatched_at_iso) or _now()
+
+    dispatcher_agent = _opt(payload, "dispatcher_agent", "")
+    expected_result_path = _opt(payload, "expected_result_path", "")
+    hmac_value = _opt(payload, "hmac")
+    hmac_present_flag = 1 if _opt(payload, "hmac_present") else 0
+
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO dispatch_log_entries
+            (event_id, project_id, phase, gate, reviewer, dispatch_id,
+             dispatcher_agent, expected_result_path, dispatched_at,
+             hmac, hmac_present, raw_payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            int(event_id),
+            str(project_id),
+            str(phase),
+            str(gate),
+            str(reviewer),
+            str(dispatch_id),
+            str(dispatcher_agent),
+            str(expected_result_path),
+            int(dispatched_at),
+            str(hmac_value) if hmac_value is not None else None,
+            int(hmac_present_flag),
+            str(raw_payload),
+        ),
+    )
+    logger.debug(
+        "projector: applied wicked.dispatch.log_entry_appended "
+        "project_id=%r phase=%r gate=%r event_id=%r",
+        project_id, phase, gate, event_id,
+    )
+
+
 def _ac_evidence_linked(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.ac.evidence_linked → add row to ac_evidence.
 
@@ -601,6 +712,11 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     # Stream 2 — #591 v8-PR-5: AC structured records
     "wicked.ac.declared": _ac_declared,
     "wicked.ac.evidence_linked": _ac_evidence_linked,
+    # Site 1 of bus-cutover (#746): dispatch-log dual-write.  Handler is
+    # registered ALWAYS so the _HANDLERS map stays static and inspectable;
+    # gating happens inside the handler via _bus_as_truth_enabled().
+    # Flag-off → no-op; flag-on → INSERT OR IGNORE into dispatch_log_entries.
+    "wicked.dispatch.log_entry_appended": _dispatch_log_appended,
 }
 
 
