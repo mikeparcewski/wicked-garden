@@ -85,10 +85,52 @@ Before composing the briefing, name the **detected stack** back to the user
 so it is obvious wicked-garden has read the project shape (#723 — stack
 identity is a projection of the repo, never a hand-edited preset).
 
+**Project scope (#742, finding 5):** if `--project` was supplied, scan that
+project's source directory; otherwise fall back to `${PWD}`. Look up the
+project's `source_dir` from its crew metadata when available — `--project foo`
+must always read foo's tree, never whichever cwd the briefing happened to be
+invoked from.
+
 ```bash
+# Resolve the scope dir: use --project's recorded source_dir when supplied
+# and known to crew; otherwise the user's current working directory.
+SCOPE_DIR="${PWD}"
+if [ -n "${project:-}" ]; then
+  PROJECT_DIR=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, sys
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+try:
+    from crew.crew import find_active  # type: ignore
+    for entry in find_active() or []:
+        if entry.get('name') == '${project}' or entry.get('id') == '${project}':
+            print(entry.get('source_dir') or entry.get('project_dir') or '')
+            break
+except Exception:
+    pass
+" 2>/dev/null)
+  if [ -n "${PROJECT_DIR}" ] && [ -d "${PROJECT_DIR}" ]; then
+    SCOPE_DIR="${PROJECT_DIR}"
+  fi
+fi
+
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
    "${CLAUDE_PLUGIN_ROOT}/scripts/crew/_stack_signals.py" \
-   "${PWD}" 2>/dev/null
+   "${SCOPE_DIR}" 2>/dev/null
+```
+
+**Archetype lookup (#742, finding 6):** the briefing template requires
+`{archetype}`. Always run `archetype_detect.detect_archetype` against the
+same `SCOPE_DIR` *before* rendering the line — never leave `{archetype}` as
+a literal placeholder.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, sys
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+from crew.archetype_detect import detect_archetype
+result = detect_archetype({'project_dir': '${SCOPE_DIR}'})
+print(result.get('archetype', 'unknown'))
+" 2>/dev/null
 ```
 
 If `language` is not `unknown`, include this single line at the top of the

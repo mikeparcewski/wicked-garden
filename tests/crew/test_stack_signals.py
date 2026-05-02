@@ -694,3 +694,125 @@ def test_archetype_detect_detected_stack_safe_on_bad_input():
     assert isinstance(stack["frameworks"], list)
     assert isinstance(stack["has_ui"], bool)
     assert isinstance(stack["has_api_surface"], bool)
+
+
+# ---------------------------------------------------------------------------
+# #742 regression — depth-cap must short-circuit *every* recursion frame
+# ---------------------------------------------------------------------------
+
+def test_walk_for_extensions_cap_short_circuits_ancestor_frames(monkeypatch):
+    """Hitting MAX_MATCHES must stop ancestor recursion frames, not just the
+    current one (#742, Copilot finding 1).
+
+    Build a deep src/ tree where ``MAX_MATCHES`` matching .tsx files all sit
+    under the *first* sibling directory we'd descend into. Then assert we
+    never visit the second sibling — the cap unwinds the full stack via the
+    sentinel exception. Without the fix, ancestor frames keep iterating.
+    """
+    tmp = _make_repo({"package.json": PACKAGE_JSON_REACT, "tsconfig.json": "{}"})
+
+    # Sibling A: stuff MAX_MATCHES + 3 tsx files at one depth so we trip the cap
+    # immediately while still inside Sibling A.
+    src_a = tmp / "src" / "a"
+    src_a.mkdir(parents=True)
+    cap = _stack_signals.MAX_MATCHES
+    for i in range(cap + 3):
+        (src_a / f"Comp{i}.tsx").write_text("export const x = 1;\n", encoding="utf-8")
+
+    # Sibling B: place a unique sentinel file. If the cap fix works the walker
+    # never sees this directory.
+    src_b = tmp / "src" / "b"
+    src_b.mkdir(parents=True)
+    sentinel = src_b / "ShouldNeverBeVisited.tsx"
+    sentinel.write_text("export const y = 2;\n", encoding="utf-8")
+
+    # Track every directory iterdir() visits. If ancestor frames truly unwind,
+    # src/b should never be iterated.
+    visited: list = []
+    real_iterdir = Path.iterdir
+
+    def tracked_iterdir(self):  # type: ignore[no-untyped-def]
+        visited.append(str(self.resolve()))
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", tracked_iterdir)
+
+    matches = _stack_signals._walk_for_extensions(
+        tmp / "src",
+        _stack_signals.UI_FILE_SUFFIXES,
+        tmp,
+    )
+
+    # Cap honored.
+    assert len(matches) == cap, (
+        f"cap not honoured; got {len(matches)} matches, expected {cap}"
+    )
+
+    # Sibling B was NOT walked — proves the sentinel exception unwinds
+    # ancestor frames instead of letting them iterate further.
+    sib_b_resolved = str(src_b.resolve())
+    assert sib_b_resolved not in visited, (
+        f"ancestor frame kept walking after cap; visited sibling B: "
+        f"{sib_b_resolved} in {visited}"
+    )
+
+
+def test_walk_for_extensions_returns_at_most_max_matches():
+    """Total returned paths never exceed MAX_MATCHES (#742)."""
+    tmp = _make_repo({"package.json": PACKAGE_JSON_EXPRESS})
+    src = tmp / "src"
+    src.mkdir(parents=True)
+    # 20 tsx files spread across siblings.
+    for d in range(4):
+        sib = src / f"dir{d}"
+        sib.mkdir()
+        for i in range(5):
+            (sib / f"x{i}.tsx").write_text("export const z = 0;\n", encoding="utf-8")
+
+    matches = _stack_signals._walk_for_extensions(
+        src, _stack_signals.UI_FILE_SUFFIXES, tmp,
+    )
+    assert len(matches) <= _stack_signals.MAX_MATCHES
+
+
+def test_max_matches_constant_exposed():
+    """MAX_MATCHES must be a module-level named constant for the cap (R3 + #742)."""
+    assert hasattr(_stack_signals, "MAX_MATCHES")
+    assert isinstance(_stack_signals.MAX_MATCHES, int)
+    assert _stack_signals.MAX_MATCHES >= 1
+
+
+# ---------------------------------------------------------------------------
+# #742 regression — _safe_detect_stack refuses to fall back to cwd
+# ---------------------------------------------------------------------------
+
+def test_safe_detect_stack_returns_unknown_when_project_dir_is_none():
+    """project_dir=None must NOT silently scan the current working directory
+    (#742, Copilot finding 3) — that would surface an unrelated repo's stack.
+    """
+    from crew.archetype_detect import _safe_detect_stack
+
+    result = _safe_detect_stack(None)
+    assert result["language"] == "unknown", (
+        f"None project_dir leaked cwd stack info; got language="
+        f"{result['language']}"
+    )
+    assert result["package_manager"] == "unknown"
+    assert result["frameworks"] == []
+    assert result["has_ui"] is False
+    assert result["has_api_surface"] is False
+    # Reason marker must be in signals so debugging is possible.
+    files_seen = result["signals"]["files_seen"]
+    assert any("project_dir not provided" in s for s in files_seen), (
+        f"reason marker missing; files_seen={files_seen}"
+    )
+
+
+def test_safe_detect_stack_with_explicit_dir_still_works():
+    """Passing an explicit project_dir to _safe_detect_stack must still scan it."""
+    from crew.archetype_detect import _safe_detect_stack
+
+    tmp = _make_repo({"pyproject.toml": PYPROJECT_CLICK})
+    result = _safe_detect_stack(tmp)
+    assert result["language"] == "python"
+    assert "click" in result["frameworks"]
