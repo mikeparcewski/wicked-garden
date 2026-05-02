@@ -585,7 +585,12 @@ def _dispatch_log_appended(conn: sqlite3.Connection, event: dict) -> None:
     global _BUS_IMPORT_WARNED
     try:
         from _bus import _bus_as_truth_enabled  # type: ignore[import]
-        flag_on = _bus_as_truth_enabled()
+        # Site 2 (#746) parameterized the helper.  Pass the explicit site
+        # name even though it is the default, because Site 2's two new
+        # handlers also live in this module and pass their own site names —
+        # making the dispatch-log call explicit avoids any reader confusion
+        # over which env var this handler gates on.
+        flag_on = _bus_as_truth_enabled("DISPATCH_LOG")
     except ImportError as exc:
         if not _BUS_IMPORT_WARNED:
             logger.warning(
@@ -676,6 +681,197 @@ def _dispatch_log_appended(conn: sqlite3.Connection, event: dict) -> None:
     )
 
 
+# --- bus-cutover Site 2 (#746) handlers -----------------------------------
+#
+# Council Condition C8 (DO NOT extract a base class at N=2): the two handlers
+# below are deliberate twins of `_dispatch_log_appended` (Site 1) — sharing
+# the same `_BUS_IMPORT_WARNED` latch (Council Condition C7), the same
+# import-fail = flag-off fallback, and the same INSERT OR IGNORE keyed on
+# event_id (Decision #6 idempotency).  They differ in:
+#
+#   * which env var name they pass to `_bus_as_truth_enabled()`
+#     (`CONSENSUS_REPORT` vs `CONSENSUS_EVIDENCE`)
+#   * which projection table they target (`consensus_reports` vs
+#     `consensus_evidence`) — the schemas differ enough to keep separate
+#   * their required-key sets (report has `decision/confidence/rounds`;
+#     evidence has `result/reason`)
+#
+# Wait until Site 3 lands a third instance before refactoring shared
+# behaviour into a base class — at N=3 the actual divergence shape is
+# observable, at N=2 abstraction risks freezing the wrong contract.
+
+
+def _consensus_report_created(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.consensus.report_created → consensus_reports.
+
+    Site 2 of the bus-cutover staging plan (#746).  Behaviour is gated on
+    `WG_BUS_AS_TRUTH_CONSENSUS_REPORT` via `_bus_as_truth_enabled("CONSENSUS_REPORT")`:
+
+      * flag-off (default): handler is a no-op.  The projector wrapper still
+        records the event_log row as `applied` (Decision #6); the projection
+        table is intentionally untouched while the disk file remains source
+        of truth.
+      * flag-on: INSERT OR IGNORE one row per (event_id) into
+        `consensus_reports`.  Idempotent on duplicate event_id.
+
+    The `raw_payload` field is REQUIRED per Council Condition C10 — it
+    carries the canonical on-disk bytes (json.dumps with indent=2) so the
+    projector can reproduce `consensus-report.json` byte-for-byte.
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("CONSENSUS_REPORT")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off (will not re-warn this process): %s",
+                exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    decision, ok = _require(payload, "decision", et)
+    if not ok:
+        return
+    raw_payload, ok = _require(payload, "raw_payload", et)
+    if not ok:
+        return
+
+    event_id = event.get("event_id")
+    if not isinstance(event_id, int):
+        logger.warning(
+            "projector: wicked.consensus.report_created missing event_id — ignored"
+        )
+        return
+
+    created_at = _to_epoch(event.get("created_at")) or _now()
+
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO consensus_reports
+            (event_id, project_id, phase, decision, confidence,
+             agreement_ratio, participants, rounds, created_at, raw_payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            int(event_id),
+            str(project_id),
+            str(phase),
+            str(decision),
+            _opt(payload, "confidence"),
+            _opt(payload, "agreement_ratio"),
+            _opt(payload, "participants"),
+            _opt(payload, "rounds"),
+            int(created_at),
+            str(raw_payload),
+        ),
+    )
+    logger.debug(
+        "projector: applied wicked.consensus.report_created "
+        "project_id=%r phase=%r event_id=%r",
+        project_id, phase, event_id,
+    )
+
+
+def _consensus_evidence_recorded(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.consensus.evidence_recorded → consensus_evidence.
+
+    Site 2 of the bus-cutover staging plan (#746).  Behaviour is gated on
+    `WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE` via
+    `_bus_as_truth_enabled("CONSENSUS_EVIDENCE")`.  Same idempotency and
+    fail-open contract as the report handler above.
+
+    Evidence emits ONLY fire on consensus REJECT outcomes (the two flags
+    are independent — operators may flip one without the other).
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("CONSENSUS_EVIDENCE")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off (will not re-warn this process): %s",
+                exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    result, ok = _require(payload, "result", et)
+    if not ok:
+        return
+    raw_payload, ok = _require(payload, "raw_payload", et)
+    if not ok:
+        return
+
+    event_id = event.get("event_id")
+    if not isinstance(event_id, int):
+        logger.warning(
+            "projector: wicked.consensus.evidence_recorded missing event_id — ignored"
+        )
+        return
+
+    created_at = _to_epoch(event.get("created_at")) or _now()
+
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO consensus_evidence
+            (event_id, project_id, phase, result, reason,
+             consensus_confidence, agreement_ratio, participants,
+             created_at, raw_payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            int(event_id),
+            str(project_id),
+            str(phase),
+            str(result),
+            _opt(payload, "reason"),
+            _opt(payload, "consensus_confidence"),
+            _opt(payload, "agreement_ratio"),
+            _opt(payload, "participants"),
+            int(created_at),
+            str(raw_payload),
+        ),
+    )
+    logger.debug(
+        "projector: applied wicked.consensus.evidence_recorded "
+        "project_id=%r phase=%r event_id=%r",
+        project_id, phase, event_id,
+    )
+
+
 def _ac_evidence_linked(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.ac.evidence_linked → add row to ac_evidence.
 
@@ -746,6 +942,13 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     # gating happens inside the handler via _bus_as_truth_enabled().
     # Flag-off → no-op; flag-on → INSERT OR IGNORE into dispatch_log_entries.
     "wicked.dispatch.log_entry_appended": _dispatch_log_appended,
+    # Site 2 of bus-cutover (#746): consensus report + evidence dual-write.
+    # Two handlers, two independent env-var flags
+    # (WG_BUS_AS_TRUTH_CONSENSUS_REPORT / WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE),
+    # two separate projection tables (consensus_reports / consensus_evidence).
+    # Same registered-always pattern as Site 1.
+    "wicked.consensus.report_created": _consensus_report_created,
+    "wicked.consensus.evidence_recorded": _consensus_evidence_recorded,
 }
 
 
