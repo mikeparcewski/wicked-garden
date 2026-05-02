@@ -21,6 +21,7 @@ Stdlib + pytest only — no extra deps.
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import sqlite3
@@ -540,6 +541,182 @@ class CliSmokeTests(unittest.TestCase):
                 rc = synthetic_drift.main(["teardown", "--manifest", str(manifest_path)])
             self.assertEqual(rc, 0)
             self.assertFalse(Path(manifest["process_plan_path"]).is_file())
+
+
+# ---------------------------------------------------------------------------
+# Post-cutover contract meta-test (Issue #750, ADR adr-reconcile-v2.md)
+# ---------------------------------------------------------------------------
+
+class TestPostCutoverContract(unittest.TestCase):
+    """Meta-test: every post-cutover synthetic-drift test class MUST be
+    exercised by a test method that imports/references ``reconcile_v2``
+    (the post-cutover reconciler shipped by Site 3 of #746).
+
+    Today, before Site 3 lands ``scripts/crew/reconcile_v2.py``, this
+    test passes trivially: NO test in this file references
+    ``reconcile_v2`` yet, and NO post-cutover test asserts against a
+    reconciler — they all assert fixture state only (the documented
+    council deferral on #750).
+
+    The moment ``reconcile_v2`` lands AND the post-cutover test classes
+    grow real detector assertions, this meta-test starts enforcing the
+    contract: any test method inside a class that targets a
+    post-cutover drift class MUST reference ``reconcile_v2`` somewhere
+    in its body. This blocks the "fixture-shape only assertion"
+    pattern from sneaking back in.
+
+    No escape hatch (no ``# fixture-only-OK`` comment marker). If a
+    test is genuinely fixture-only it does not belong in
+    ``test_synthetic_drift.py`` — move it to a unit test for the
+    fixture builder.
+
+    Adapts to real ``synthetic_drift`` structure:
+      - canonical post-cutover set is ``synthetic_drift._DAEMON_DB_BEARING``
+        (a frozenset of drift class names)
+      - test classes for those drift classes follow the convention of
+        embedding the kebab-case slug as PascalCase in the class name
+        (e.g. ``projection-stale`` -> ``ProjectionStale*``)
+
+    See ``docs/v9/adr-reconcile-v2.md`` for the contract this enforces.
+    """
+
+    # When Site 3 ships reconcile_v2, the meta-test transitions from
+    # "trivially passes" to "actively enforces". The transition is
+    # automatic — no flag flip needed.
+    _RECONCILE_V2_MODULE = "reconcile_v2"
+
+    def _post_cutover_drift_classes(self) -> set[str]:
+        """Return the canonical set of post-cutover drift classes, or
+        an empty set if the underlying registry is missing.
+
+        Skips gracefully if ``synthetic_drift`` is restructured so
+        ``_DAEMON_DB_BEARING`` no longer exists — the meta-test should
+        never fail because the registry layout changed.
+        """
+        registry = getattr(synthetic_drift, "_DAEMON_DB_BEARING", None)
+        if registry is None:
+            return set()
+        try:
+            return {str(c) for c in registry}
+        except TypeError:
+            return set()
+
+    @staticmethod
+    def _slug_to_pascal(slug: str) -> str:
+        """``projection-stale`` -> ``ProjectionStale``. Stable for matching
+        against PascalCase class names in the test file."""
+        parts = slug.replace("_", "-").split("-")
+        return "".join(p[:1].upper() + p[1:].lower() for p in parts if p)
+
+    @staticmethod
+    def _identifiers_in_node(node: ast.AST) -> set[str]:
+        """Collect every identifier and module reference under ``node``.
+
+        Captures Name, Attribute, ImportFrom (module + aliases), and
+        Import (module names). This is conservative on purpose — we
+        want any reference to ``reconcile_v2`` to count, not just
+        explicit imports, because a test could receive the module via
+        a fixture.
+        """
+        idents: set[str] = set()
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Name):
+                idents.add(sub.id)
+            elif isinstance(sub, ast.Attribute):
+                idents.add(sub.attr)
+            elif isinstance(sub, ast.ImportFrom):
+                if sub.module:
+                    idents.add(sub.module)
+                for alias in sub.names:
+                    idents.add(alias.name)
+                    if alias.asname:
+                        idents.add(alias.asname)
+            elif isinstance(sub, ast.Import):
+                for alias in sub.names:
+                    idents.add(alias.name)
+                    if alias.asname:
+                        idents.add(alias.asname)
+        return idents
+
+    def test_every_post_cutover_class_has_a_reconciler_test(self) -> None:
+        # Local import keeps top-of-file imports unchanged for readers
+        # tracing the v1 test suite.
+        import ast as _ast  # noqa: F401  -- kept explicit for the docstring contract
+
+        post_cutover_classes = self._post_cutover_drift_classes()
+        if not post_cutover_classes:
+            # Registry layout changed or post-cutover set was emptied.
+            # Skip rather than failing — the contract is "test EVERY
+            # post-cutover class", not "fail when the set is empty".
+            self.skipTest(
+                "synthetic_drift._DAEMON_DB_BEARING is missing or empty; "
+                "meta-test has nothing to enforce"
+            )
+
+        # Module-existence gate. If ``scripts/crew/reconcile_v2.py``
+        # does not exist on disk, Site 3 has not landed yet — the
+        # contract passes trivially. This is the documented deferral
+        # path from #750 + adr-reconcile-v2.md. We check for the FILE
+        # rather than try to import (importing would mutate sys.modules
+        # and could interact with the existing ``import reconcile``
+        # statement at the top of this file).
+        reconcile_v2_path = (
+            _REPO_ROOT / "scripts" / "crew" / f"{self._RECONCILE_V2_MODULE}.py"
+        )
+        if not reconcile_v2_path.is_file():
+            return  # trivial pass — Site 3 has not landed yet
+
+        # Site 3 has landed (reconcile_v2.py exists on disk). The
+        # contract becomes enforceable: every post-cutover class needs
+        # at least one test that references reconcile_v2.
+        test_file = Path(__file__).resolve()
+        source = test_file.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        violations: list[str] = []
+
+        for drift_class in sorted(post_cutover_classes):
+            pascal = self._slug_to_pascal(drift_class)
+            matching_classes: list[ast.ClassDef] = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef) and pascal in node.name:
+                    matching_classes.append(node)
+
+            if not matching_classes:
+                # A post-cutover drift class with no test class targeting
+                # it is a coverage gap, not a meta-test failure. Other
+                # tests in this file (AllSupportedClassesBuildableTests)
+                # already assert manifest-level coverage. Skip here.
+                continue
+
+            has_v2_assertion = False
+            for cls in matching_classes:
+                for item in cls.body:
+                    if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        continue
+                    if not item.name.startswith("test_"):
+                        continue
+                    idents = self._identifiers_in_node(item)
+                    if self._RECONCILE_V2_MODULE in idents:
+                        has_v2_assertion = True
+                        break
+                if has_v2_assertion:
+                    break
+
+            if not has_v2_assertion:
+                violations.append(
+                    f"  {drift_class}: classes "
+                    f"{[c.name for c in matching_classes]} have no test "
+                    f"method that references {self._RECONCILE_V2_MODULE!r}; "
+                    f"add a detector assertion (see ADR adr-reconcile-v2.md)"
+                )
+
+        self.assertEqual(
+            violations, [],
+            "Post-cutover synthetic-drift tests MUST assert against "
+            "reconcile_v2's detector output, not just fixture state. "
+            "Per ADR docs/v9/adr-reconcile-v2.md and Issue #750.\n"
+            "Violations:\n" + "\n".join(violations)
+        )
 
 
 if __name__ == "__main__":
