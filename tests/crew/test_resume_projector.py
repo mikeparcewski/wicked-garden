@@ -20,10 +20,16 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT / "scripts" / "crew"))
+# Add scripts/ (NOT scripts/crew/) so `from crew.X import` works as a
+# package import. tests/crew/conftest.py applies the same setup under
+# pytest; this block keeps unittest working too. Do NOT insert
+# scripts/crew/ at index 0 — it shadows the crew/ package namespace and
+# breaks sibling tests in the same process (see conftest docstring).
+_SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
 
-import resume_projector as rp  # noqa: E402  (after sys.path edit)
+from crew import resume_projector as rp  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +246,65 @@ class TestBuildSnapshot(unittest.TestCase):
             self.assertEqual(
                 snap["pointers"]["dispatch_log"],
                 "phases/build/dispatch-log.jsonl",
+            )
+
+    def test_underscore_in_project_id_does_not_match_unrelated(self):
+        """LIKE wildcard escape regression: ``test_proj`` MUST NOT match ``testxproj``.
+
+        SQLite ``LIKE`` treats ``_`` as a single-character wildcard, so an
+        unescaped ``test_proj.%`` would match ``testxproj.clarify``. This
+        test seeds two sibling projects whose ids differ only by the
+        underscore being literal vs. a wildcard match, and verifies the
+        snapshot for ``test_proj`` does not see ``testxproj``'s events.
+        """
+        with TemporaryDirectory() as tmp:
+            db = Path(tmp) / "projections.db"
+            _init_projector_schema(db)
+            conn = sqlite3.connect(str(db))
+            # Real project: literal underscore.
+            conn.execute(
+                """INSERT INTO projects (id, name, current_phase, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("test_proj", "Underscore Project", "build", 1, 1),
+            )
+            # Sibling that LIKE wildcards would falsely match without ESCAPE.
+            conn.execute(
+                """INSERT INTO projects (id, name, current_phase, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                ("testxproj", "Wildcard Confusion", "design", 2, 2),
+            )
+            # An event on the SIBLING — must not bleed into test_proj's snapshot.
+            conn.execute(
+                """INSERT INTO event_log
+                   (event_id, event_type, chain_id, payload_json,
+                    projection_status, ingested_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (1, "wicked.gate.decided", "testxproj.clarify",
+                 json.dumps({"phase": "clarify", "result": "REJECT"}),
+                 "applied", 1700000100),
+            )
+            # Active task on the SIBLING.
+            conn.execute(
+                """INSERT INTO tasks (id, session_id, status, chain_id,
+                                       created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                ("t-bleed", "s", "in_progress", "testxproj.build", 1, 1),
+            )
+            conn.commit()
+            conn.close()
+
+            snap = rp.build_snapshot("test_proj", db_path=str(db))
+            self.assertEqual(
+                snap["gate_history"], [],
+                "LIKE wildcard escape failed: sibling project's events bled in",
+            )
+            self.assertEqual(
+                snap["active_tasks_count"], 0,
+                "LIKE wildcard escape failed: sibling project's tasks bled in",
+            )
+            self.assertIsNone(
+                snap["last_event"],
+                "LIKE wildcard escape failed: sibling project's events bled in",
             )
 
     def test_pointers_skip_phase_template_when_no_current_phase(self):

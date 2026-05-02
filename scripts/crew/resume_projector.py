@@ -68,15 +68,22 @@ _POINTER_TEMPLATES = {
 # ---------------------------------------------------------------------------
 
 def _connect(db_path: "str | None" = None) -> "sqlite3.Connection | None":
-    """Open the projector DB read-only. Return ``None`` if the DB does not exist.
+    """Open the projector DB read-only. Return ``None`` if unavailable.
 
-    Resolution order: explicit ``db_path`` arg → ``WG_PROJECTOR_DB_PATH`` env →
-    daemon default (``~/.something-wicked/wicked-garden-daemon/projections.db``).
-    Read-only because resume_projector never mutates the projector tables.
+    Resolution order: explicit ``db_path`` arg → ``WG_DAEMON_DB`` env (matches
+    ``daemon/db.py``) → ``WG_PROJECTOR_DB_PATH`` env (legacy alias kept so
+    existing call sites don't break) → daemon default
+    (``~/.something-wicked/wicked-garden-daemon/projections.db``).
+
+    Returns ``None`` on any of: missing file, sqlite3.Error (corrupt DB,
+    permission denied, locked, etc.), URI construction failure. Never
+    raises — fail-open is the contract for hooks and CLI consumers.
     """
     resolved: str
     if db_path:
         resolved = db_path
+    elif os.environ.get("WG_DAEMON_DB"):
+        resolved = os.environ["WG_DAEMON_DB"]
     elif os.environ.get("WG_PROJECTOR_DB_PATH"):
         resolved = os.environ["WG_PROJECTOR_DB_PATH"]
     else:
@@ -88,10 +95,30 @@ def _connect(db_path: "str | None" = None) -> "sqlite3.Connection | None":
         )
     if not Path(resolved).is_file():
         return None
-    # Read-only URI mode keeps us honest about not mutating the projector.
-    conn = sqlite3.connect(f"file:{resolved}?mode=ro", uri=True)
+    try:
+        # Path.as_uri() handles spaces, '#', '?', and other special chars
+        # correctly per RFC 8089 — safer than f"file:{resolved}".
+        uri = Path(resolved).absolute().as_uri() + "?mode=ro"
+        conn = sqlite3.connect(uri, uri=True)
+    except (sqlite3.Error, ValueError, OSError):
+        return None
     conn.row_factory = sqlite3.Row
     return conn
+
+
+# SQLite LIKE treats '_' and '%' as wildcards. Project ids commonly contain
+# underscores (e.g. ``test_proj``), which would match unintended chains
+# (``test_proj`` matches ``test-proj``, ``testxproj``, etc.). Escape with
+# '!' as the escape character — used in ESCAPE '!' clauses below.
+def _like_escape_chain_prefix(project_id: str) -> str:
+    """Return ``{project_id}.%`` with LIKE wildcards in project_id escaped."""
+    escaped = (
+        project_id
+        .replace("!", "!!")
+        .replace("_", "!_")
+        .replace("%", "!%")
+    )
+    return f"{escaped}.%"
 
 
 def _now_iso() -> str:
@@ -186,10 +213,10 @@ def _read_gate_history(conn: sqlite3.Connection, project_id: str) -> list[dict]:
         SELECT event_id, event_type, chain_id, payload_json, ingested_at
         FROM event_log
         WHERE event_type = 'wicked.gate.decided'
-          AND chain_id LIKE ?
+          AND chain_id LIKE ? ESCAPE '!'
         ORDER BY event_id ASC
         """,
-        (f"{project_id}.%",),
+        (_like_escape_chain_prefix(project_id),),
     ).fetchall()
     history: list[dict] = []
     for r in rows:
@@ -215,10 +242,10 @@ def _read_active_tasks_count(conn: sqlite3.Connection, project_id: str) -> int:
     row = conn.execute(
         """
         SELECT COUNT(*) AS n FROM tasks
-        WHERE chain_id LIKE ?
+        WHERE chain_id LIKE ? ESCAPE '!'
           AND status IN ('pending', 'in_progress')
         """,
-        (f"{project_id}.%",),
+        (_like_escape_chain_prefix(project_id),),
     ).fetchone()
     return int(row["n"]) if row else 0
 
@@ -229,10 +256,10 @@ def _read_last_event(conn: sqlite3.Connection, project_id: str) -> "dict | None"
         """
         SELECT event_id, event_type, chain_id, ingested_at
         FROM event_log
-        WHERE chain_id LIKE ?
+        WHERE chain_id LIKE ? ESCAPE '!'
         ORDER BY event_id DESC LIMIT 1
         """,
-        (f"{project_id}.%",),
+        (_like_escape_chain_prefix(project_id),),
     ).fetchone()
     if not row:
         return None
@@ -267,15 +294,17 @@ def snapshot_path(project_dir: "str | Path") -> Path:
 def read_snapshot(project_dir: "str | Path") -> "dict | None":
     """Read ``resume.json`` from disk. Return ``None`` on missing or unreadable.
 
-    Never raises. Corrupted JSON returns ``None`` so the caller can decide
-    whether to replay from the projector or surface the corruption.
+    Never raises. Decodes UTF-8 STRICTLY (no ``errors="replace"``) so a
+    corrupted byte sequence becomes ``None`` instead of a silently-normalized
+    document that happens to parse as JSON. Caller decides whether to
+    replay from the projector or surface the corruption.
     """
     path = snapshot_path(project_dir)
     if not path.is_file():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, ValueError):
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError):
         return None
 
 
@@ -305,10 +334,26 @@ def write_snapshot(
             json.dump(snapshot, f, indent=2, sort_keys=True)
             f.write("\n")
             f.flush()
-            os.fsync(f.fileno())
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                # Best-effort durability: fsync isn't supported on every
+                # filesystem (some FUSE mounts, tmpfs in containers).
+                # Mirrors conditions_manifest.atomic_write_json behavior.
+                pass
         os.replace(tmp, target)
+        # Best-effort parent-directory fsync for crash-after-rename
+        # durability on POSIX. Silently skipped on Windows / FUSE / etc.
+        try:
+            dir_fd = os.open(str(target.parent), os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except (OSError, AttributeError):
+            pass
     except Exception:
-        # Best-effort cleanup; never leak temps.
+        # Cleanup; never leak temps.
         try:
             tmp.unlink(missing_ok=True)
         except OSError:
@@ -325,13 +370,26 @@ def verify_snapshot(
     """Re-derive the snapshot from the projector and compare with on-disk.
 
     Returns ``(True, "")`` when on-disk matches a freshly-built snapshot
-    on the load-bearing fields (project state, phases, gate history,
-    active task count, last event id). Returns ``(False, reason)`` on
-    divergence. The ``snapshot_taken_at`` timestamp is intentionally
-    excluded from the comparison.
+    on these load-bearing fields:
 
-    NEVER auto-rewrites on divergence — corruption must surface, not hide.
-    Caller decides whether to overwrite via ``write_snapshot``.
+      * ``schema_version`` — incompatible-schema detection
+      * ``project_id`` — wrong-project detection
+      * ``project`` — full project row dict from the projector
+      * ``phases`` — full per-phase list from the projector
+      * ``gate_history`` — full gate-decided event list for this project
+      * ``active_tasks_count`` — pending + in_progress task count
+      * ``last_event`` — the FULL latest-event dict (event_id, event_type,
+        chain_id, ingested_at). Comparing the dict (not just event_id)
+        catches event_type or chain_id changes the projector recorded
+        that a file-based snapshot might still claim are stale.
+
+    The ``snapshot_taken_at`` timestamp is intentionally excluded.
+    ``projector_available`` and ``pointers`` are excluded because they
+    are derived locally per-call, not from projector state.
+
+    Returns ``(False, reason)`` on any divergence. NEVER auto-rewrites —
+    corruption must surface, not hide. Caller decides whether to overwrite
+    via ``write_snapshot``.
     """
     on_disk = read_snapshot(project_dir)
     if on_disk is None:
