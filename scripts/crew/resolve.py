@@ -75,12 +75,22 @@ NO_MATCH_RULE_ID = "no-rule-matched"
 # ---------------------------------------------------------------------------
 
 def load_rules(path: "str | Path | None" = None) -> list[dict]:
-    """Load classification rules from disk.
+    """Load classification rules from disk and pre-compile their regexes.
 
     Resolution: explicit ``path`` arg → ``.claude-plugin/finding-classification.json``
     in the plugin root. Project-local override (when ``project_dir`` is
     threaded through ``resolve_phase``) is layered on top by
     :func:`_load_rules_with_overrides`.
+
+    Each returned rule has an extra ``_compiled`` field — a list of
+    pre-compiled ``re.Pattern`` objects (with ``re.IGNORECASE``).
+    Patterns that fail to compile are dropped at load time with a
+    stderr note, so :func:`classify_finding` can use them directly
+    without per-classification try/except. Pre-compilation moves regex
+    parsing out of the classification hot path AND surfaces malformed
+    rules early; it also limits ReDoS exposure to load time, where a
+    project-local override could otherwise inject untrusted regexes
+    silently.
 
     Returns ``[]`` on missing file or malformed JSON. Callers MUST handle
     the empty case — falling back to ``DEFAULT_CLASSIFICATION`` for every
@@ -96,7 +106,26 @@ def load_rules(path: "str | Path | None" = None) -> list[dict]:
     rules = raw.get("rules") or []
     if not isinstance(rules, list):
         return []
-    return [r for r in rules if _is_well_formed_rule(r)]
+    out: list[dict] = []
+    for rule in rules:
+        if not _is_well_formed_rule(rule):
+            continue
+        compiled: list[re.Pattern] = []
+        for pat in rule["matches"]:
+            try:
+                compiled.append(re.compile(pat, re.IGNORECASE))
+            except re.error as exc:
+                sys.stderr.write(
+                    f"[crew:resolve] dropped malformed regex in rule "
+                    f"{rule.get('id')!r}: {pat!r} ({exc})\n"
+                )
+        if not compiled:
+            # Every pattern in the rule was malformed — drop the rule.
+            continue
+        prepared = dict(rule)  # shallow copy; don't mutate caller-owned dicts
+        prepared["_compiled"] = compiled
+        out.append(prepared)
+    return out
 
 
 def _is_well_formed_rule(rule: Any) -> bool:
@@ -151,16 +180,24 @@ def classify_finding(finding: Any, rules: Iterable[dict]) -> dict:
     """
     haystack = _extract_match_text(finding)
     for rule in rules:
-        for pattern in rule["matches"]:
-            try:
-                if re.search(pattern, haystack, re.IGNORECASE):
-                    return {
-                        "classification": rule["classification"],
-                        "applied_rule": rule["id"],
-                    }
-            except re.error:
-                # Malformed regex in a rule — skip it, never raise.
-                continue
+        # Prefer pre-compiled patterns from load_rules. Fall back to a
+        # one-shot compile when callers hand-build rules (test fixtures,
+        # ad-hoc programmatic use). Malformed patterns are skipped in
+        # the fallback path to preserve the never-raise contract.
+        compiled = rule.get("_compiled")
+        if compiled is None:
+            compiled = []
+            for pat in rule.get("matches", []):
+                try:
+                    compiled.append(re.compile(pat, re.IGNORECASE))
+                except re.error:
+                    continue
+        for pattern in compiled:
+            if pattern.search(haystack):
+                return {
+                    "classification": rule["classification"],
+                    "applied_rule": rule["id"],
+                }
     return {
         "classification": DEFAULT_CLASSIFICATION,
         "applied_rule": NO_MATCH_RULE_ID,
@@ -252,7 +289,11 @@ def resolve_phase(
             continue
         if condition.get("verified") is True:
             continue
-        cid = condition.get("id") or condition.get("condition_id")
+        # Use ``id`` only — matches the conditions_manifest.py convention
+        # (mark_cleared / _find_condition_index both look up by ``id``).
+        # Falling back to ``condition_id`` would diverge from manifest
+        # tooling and write sidecars no other helper can find.
+        cid = condition.get("id")
         if not cid:
             continue
         if cluster_id and cid != cluster_id:
@@ -284,13 +325,22 @@ def resolve_phase(
         result["mechanical"].append(entry)
 
         if accept:
+            # Prefer the manifest's existing ``resolution`` key (the
+            # convention used by mark_cleared/recover in conditions_manifest.py)
+            # so a specialist-proposed resolution is captured first;
+            # fall back to ``resolution_ref`` for any caller that still
+            # uses that name; finally synthesize a placeholder.
+            resolution_ref = (
+                condition.get("resolution")
+                or condition.get("resolution_ref")
+                or f"crew:resolve/{cid}"
+            )
             sidecar_path = cm.mark_resolved(
                 project_dir,
                 phase,
                 cid,
                 applied_rule=applied_rule,
-                resolution_ref=condition.get("resolution_ref")
-                or f"crew:resolve/{cid}",
+                resolution_ref=resolution_ref,
                 note=f"Resolved via crew:resolve (--accept) on rule {applied_rule}",
             )
             emit_status = _emit_resolved_event(
@@ -338,7 +388,12 @@ def _emit_resolved_event(
     """
     try:
         from _bus import emit_event  # type: ignore[import]
-        chain_id = f"{project_id}.{phase}"
+        # Per-condition chain_id — `_bus.is_processed` keys idempotency
+        # off chain_id, so a phase-level chain would let consumers
+        # silently skip every resolution after the first in the same
+        # phase. Including condition_id makes each resolution event
+        # uniquely identifiable downstream.
+        chain_id = f"{project_id}.{phase}.{condition_id}"
         emit_event(
             "wicked.gate.condition.resolved",
             {

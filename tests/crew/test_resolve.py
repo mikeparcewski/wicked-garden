@@ -116,6 +116,37 @@ class TestLoadRules(unittest.TestCase):
             self.assertEqual(len(rules), 1)
             self.assertEqual(rules[0]["id"], "good")
 
+    def test_load_rules_pre_compiles_regex(self):
+        """load_rules attaches _compiled re.Pattern objects per rule."""
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rules.json"
+            path.write_text(json.dumps({"rules": _well_formed_rules()}),
+                            encoding="utf-8")
+            rules = rv.load_rules(path)
+            self.assertEqual(len(rules), 4)
+            for rule in rules:
+                self.assertIn("_compiled", rule)
+                self.assertEqual(len(rule["_compiled"]), len(rule["matches"]))
+                for pattern in rule["_compiled"]:
+                    # Real re.Pattern objects expose .search.
+                    self.assertTrue(hasattr(pattern, "search"))
+
+    def test_load_rules_drops_rule_when_all_patterns_malformed(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rules.json"
+            path.write_text(json.dumps({"rules": [
+                {"id": "all-bad", "matches": ["[unclosed", "(also"],
+                 "classification": "mechanical"},
+                {"id": "one-good", "matches": ["[unclosed", "AC-3"],
+                 "classification": "mechanical"},
+            ]}), encoding="utf-8")
+            rules = rv.load_rules(path)
+            ids = {r["id"] for r in rules}
+            self.assertNotIn("all-bad", ids,
+                             "rule with no surviving patterns must be dropped")
+            self.assertIn("one-good", ids,
+                          "rule with at least one good pattern survives")
+
 
 # ---------------------------------------------------------------------------
 # classify_finding
@@ -295,6 +326,77 @@ class TestResolvePhase(unittest.TestCase):
                     )
             self.assertEqual(len(result["mechanical"]), 1)
             self.assertEqual(result["mechanical"][0]["condition_id"], "mech-2")
+
+    def test_resolution_key_takes_precedence_over_resolution_ref(self):
+        """A specialist-proposed `resolution` in the manifest is preferred.
+
+        Matches the conditions_manifest.py convention (mark_cleared /
+        recover use ``resolution``). The fallback chain is:
+        ``resolution`` → ``resolution_ref`` → synthesized placeholder.
+        """
+        with TemporaryDirectory() as tmp:
+            project_dir = Path(tmp)
+            _seed_manifest(project_dir, "design", [
+                {
+                    "id": "c1",
+                    "message": "AC-3 not found",
+                    "verified": False,
+                    "resolution": "patch:fix-ac-3.diff",
+                    "resolution_ref": "should-not-be-used",
+                },
+            ])
+            with TemporaryDirectory() as rules_tmp:
+                rules_path = Path(rules_tmp) / "rules.json"
+                rules_path.write_text(json.dumps(
+                    {"rules": _well_formed_rules()}
+                ), encoding="utf-8")
+                with patch.object(rv, "_DEFAULT_RULES_PATH", rules_path):
+                    result = rv.resolve_phase(project_dir, "design", accept=True)
+            sidecar_path = Path(result["resolved"][0]["sidecar_path"])
+            sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            self.assertEqual(sidecar["resolution_ref"], "patch:fix-ac-3.diff")
+
+    def test_per_condition_chain_id_includes_condition_id(self):
+        """chain_id MUST include condition_id so bus consumers don't dedupe.
+
+        wicked-bus.is_processed keys idempotency by chain_id; a phase-level
+        chain would let consumers silently skip every resolution after the
+        first in the same phase.
+        """
+        captured: list[dict] = []
+
+        def fake_emit(event_type, payload, chain_id=None, **kwargs):
+            captured.append({
+                "event_type": event_type,
+                "chain_id": chain_id,
+                "payload": payload,
+            })
+
+        with TemporaryDirectory() as tmp:
+            project_dir = Path(tmp)
+            _seed_manifest(project_dir, "design", [
+                {"id": "mech-1", "message": "AC-3 not found", "verified": False},
+                {"id": "mech-2", "message": "AC-7 not found", "verified": False},
+            ])
+            with TemporaryDirectory() as rules_tmp:
+                rules_path = Path(rules_tmp) / "rules.json"
+                rules_path.write_text(json.dumps(
+                    {"rules": _well_formed_rules()}
+                ), encoding="utf-8")
+                # Patch the lazy _bus.emit_event import.
+                import _bus  # type: ignore[import]
+                with patch.object(rv, "_DEFAULT_RULES_PATH", rules_path), \
+                     patch.object(_bus, "emit_event", side_effect=fake_emit):
+                    rv.resolve_phase(project_dir, "design", accept=True)
+
+        chains = [c["chain_id"] for c in captured]
+        self.assertEqual(len(chains), 2)
+        # Each chain MUST be unique and include the condition_id segment.
+        self.assertEqual(len(set(chains)), 2,
+                         f"chain_ids must be unique per condition; got {chains}")
+        for chain in chains:
+            self.assertTrue(chain.endswith(".mech-1") or chain.endswith(".mech-2"),
+                            f"chain_id must end with condition_id; got {chain}")
 
     def test_emit_failure_does_not_raise(self):
         with TemporaryDirectory() as tmp:
