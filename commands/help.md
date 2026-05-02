@@ -1,5 +1,7 @@
 ---
 description: Show all available wicked-garden domains and commands
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:help

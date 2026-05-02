@@ -2,6 +2,8 @@
 allowed-tools: ["AskUserQuestion", "Bash", "Read", "Write", "Skill", "Agent"]
 description: "Configure wicked-garden connection and onboard the current codebase"
 argument-hint: "[--reconfigure]"
+phase_relevance: ["bootstrap"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:setup

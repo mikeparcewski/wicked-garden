@@ -13,6 +13,8 @@ description: |
   initial task chain for `/wicked-garden:crew:start`, or invoked on `TaskCompleted` to
   prune / augment / re-tier the remaining chain. Also used by
   `/wicked-garden:crew:just-finish` (yolo mode) to drive autonomous completion.
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
 ---
 
 # Propose Process (Delegation Shim)

@@ -1,6 +1,8 @@
 ---
 description: "Context-aware next-step suggestions — what should I do next? Stuck? Need next steps? Use this for context-aware command discovery."
 argument-hint: "[workspace]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:guide
@@ -11,6 +13,12 @@ and a one-line rationale. Use this when you are stuck, unsure what to run
 next, or want context-aware command discovery.
 
 > **Read-only** — this command never writes state.
+
+> **Context-aware (Issue #725)**: when an active crew project exists, the
+> suggestion list is filtered by the project's current phase + detected
+> archetype. With no active project, the bootstrap entry-point set surfaces
+> instead — derived from `phase_relevance: ["bootstrap"]` frontmatter, not a
+> hand-curated starter list.
 
 ## Instructions
 

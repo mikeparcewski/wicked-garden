@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -52,6 +53,30 @@ _PYTHON_SH = Path(__file__).resolve().parents[1] / "_python.sh"
 _PHASE_ADVANCE_CMD = "/wicked-garden:crew:execute"
 _GATE_CMD = "/wicked-garden:crew:gate"
 _START_CMD = "/wicked-garden:crew:start <description>"
+
+# ---------------------------------------------------------------------------
+# Phase + archetype-aware filtering (Issue #725 reframe)
+# ---------------------------------------------------------------------------
+#
+# Each command may declare two relevance fields in its YAML frontmatter:
+#
+#     phase_relevance: ["build", "review"]      # crew phases this command fits
+#     archetype_relevance: ["code-repo", ...]   # archetypes this command fits
+#
+# The wildcard ``["*"]`` matches every value. Missing frontmatter does not drop
+# a command from the result — it's annotated with ``"missing-relevance"`` so
+# the gap surfaces instead of silently filtering useful commands away. A
+# wg-check lint warns on missing fields (warn-only this release; flips to deny
+# after the bulk-pass PR — see ``scripts/wg/check_relevance_frontmatter.py``).
+#
+# The bootstrap entry-point set is the union of commands tagged with
+# ``"bootstrap"`` in ``phase_relevance``. It's surfaced when no active crew
+# project exists, replacing the hand-curated "starter list" the issue
+# originally proposed.
+
+WILDCARD: str = "*"
+BOOTSTRAP_PHASE: str = "bootstrap"
+MISSING_RELEVANCE_ANNOTATION: str = "missing-relevance"
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +366,304 @@ def format_output(suggestions: list[dict]) -> str:
         lines.append(f"   {s['rationale']}")
         lines.append("")
     return "\n".join(lines).rstrip()
+
+
+# ---------------------------------------------------------------------------
+# Frontmatter scanner + relevance filters (Issue #725)
+# ---------------------------------------------------------------------------
+
+# Match commands/{domain}/{name}.md or commands/{name}.md and emit a
+# colon-namespaced id. Frontmatter parsing is intentionally tiny and stdlib —
+# the canonical pattern lives in hooks/scripts/pre_tool.py::_parse_frontmatter
+# but it doesn't decode list values, which we need here.
+
+_FRONTMATTER_BLOCK = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
+_INLINE_LIST = re.compile(r"\[(.*?)\]")
+_QUOTED_TOKEN = re.compile(r"""['"]([^'"]+)['"]|([^,\s'"]+)""")
+
+
+def _parse_inline_list(raw: str) -> list[str]:
+    """Parse a YAML inline list like ``["a", "b", c]`` to ``["a", "b", "c"]``.
+
+    Returns ``[]`` if the value isn't an inline list. Multiline list syntax
+    (`- item\n- item`) is intentionally not supported here — relevance fields
+    are meant to be short and inline so they stay readable in frontmatter.
+    """
+    m = _INLINE_LIST.match(raw.strip())
+    if not m:
+        return []
+    body = m.group(1)
+    out: list[str] = []
+    for tok in _QUOTED_TOKEN.finditer(body):
+        value = tok.group(1) if tok.group(1) is not None else tok.group(2)
+        if value:
+            out.append(value.strip())
+    return out
+
+
+def _parse_frontmatter_with_lists(text: str) -> dict:
+    """Frontmatter parser that understands inline-list values.
+
+    Returns a dict where scalar fields stay as strings and inline-list fields
+    become ``list[str]``. Missing frontmatter returns an empty dict.
+    """
+    out: dict = {}
+    m = _FRONTMATTER_BLOCK.match(text)
+    if not m:
+        return out
+    block = m.group(1)
+    lines = block.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        kv = re.match(r"^([\w][\w_-]*):\s*(.*)$", line)
+        if not kv:
+            i += 1
+            continue
+        key, raw = kv.group(1), kv.group(2).strip()
+        if raw in ("|", ">"):
+            # YAML block scalar — collect indented continuation lines.
+            # Either folded (>) or literal (|); we treat both as plain
+            # text join since nothing in the schema needs the distinction.
+            val_lines: list = []
+            i += 1
+            while i < len(lines):
+                nxt = lines[i]
+                if not nxt.strip():
+                    val_lines.append("")
+                    i += 1
+                    continue
+                # Continuation lines must be indented more than the key.
+                # Bare "key: " in column 0 means the block ended.
+                if nxt[:1] in (" ", "\t"):
+                    val_lines.append(nxt.strip())
+                    i += 1
+                else:
+                    break
+            joined = "\n".join(val_lines).strip("\n")
+            if raw == ">":
+                # Folded scalar — collapse internal newlines to spaces.
+                joined = " ".join(s for s in joined.split("\n") if s)
+            out[key] = joined
+        elif raw.startswith("[") and raw.endswith("]"):
+            out[key] = _parse_inline_list(raw)
+        else:
+            # Strip surrounding quotes for scalar string values.
+            if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"'):
+                raw = raw[1:-1]
+            out[key] = raw
+            i += 1
+            continue
+        # When we handled a `|`/`>` block we already incremented i past
+        # the consumed lines; for the inline-list and scalar branches the
+        # ``continue`` above (or the lack of `i += 1` here for inline-list)
+        # would leave i unchanged, so handle that explicitly:
+        if raw in ("|", ">"):
+            continue  # i already advanced inside the block-scalar loop
+        i += 1
+    return out
+
+
+def _command_id_from_path(path: Path, commands_root: Path) -> str:
+    """Build the colon-namespaced id from a commands/**.md path.
+
+    ``commands/setup.md`` → ``wicked-garden:setup``
+    ``commands/crew/start.md`` → ``wicked-garden:crew:start``
+    """
+    rel = path.relative_to(commands_root).with_suffix("")
+    return ":".join(("wicked-garden",) + rel.parts)
+
+
+def read_command_metadata(commands_dir: Path) -> list[dict]:
+    """Walk ``commands/**/*.md`` and return per-command metadata dicts.
+
+    Each entry has:
+        id: ``wicked-garden:domain:name`` (or ``wicked-garden:name`` at root)
+        path: absolute path to the .md file
+        description: scalar description string (empty if missing)
+        phase_relevance: list[str] | None (None when the field is absent)
+        archetype_relevance: list[str] | None (None when the field is absent)
+
+    The function never raises on individual file errors — bad frontmatter or
+    unreadable files are skipped, which matches the read-only inspector
+    contract of guide.py.
+    """
+    commands_dir = Path(commands_dir)
+    if not commands_dir.is_dir():
+        return []
+
+    out: list[dict] = []
+    for md in sorted(commands_dir.rglob("*.md")):
+        # Skip non-command documentation files. README.md, CHANGELOG.md,
+        # and underscore-prefixed files are not slash commands and would
+        # produce false-positive missing-relevance lint warnings.
+        if md.name in ("README.md", "CHANGELOG.md", "CONTRIBUTING.md"):
+            continue
+        if md.name.startswith("_"):
+            continue
+        try:
+            text = md.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        fm = _parse_frontmatter_with_lists(text)
+        out.append(
+            {
+                "id": _command_id_from_path(md, commands_dir),
+                "path": str(md),
+                "description": fm.get("description", "") or "",
+                "phase_relevance": (
+                    fm["phase_relevance"]
+                    if isinstance(fm.get("phase_relevance"), list)
+                    else None
+                ),
+                "archetype_relevance": (
+                    fm["archetype_relevance"]
+                    if isinstance(fm.get("archetype_relevance"), list)
+                    else None
+                ),
+            }
+        )
+    return out
+
+
+def _matches_value(declared: list[str] | None, target: str) -> tuple[bool, bool]:
+    """Return (included, missing) for a single command.
+
+    ``included``: True if the declared list matches ``target`` OR is wildcard.
+                  Also True when declared is None (so missing frontmatter
+                  doesn't silently drop the command — see annotation contract).
+    ``missing``:  True when the field is absent (declared is None). Lets
+                  callers attach a ``missing-relevance`` annotation instead of
+                  silently letting the command through unflagged.
+    """
+    if declared is None:
+        return True, True
+    if not declared:
+        return False, False
+    if WILDCARD in declared:
+        return True, False
+    return target in declared, False
+
+
+def filter_by_phase(commands: list[dict], phase: str) -> list[dict]:
+    """Return commands relevant to ``phase`` (wildcard + missing both pass).
+
+    Each returned dict is a shallow copy — callers may add an
+    ``annotations`` field (list[str]) without mutating the original record.
+    """
+    out: list[dict] = []
+    for cmd in commands:
+        included, missing = _matches_value(cmd.get("phase_relevance"), phase)
+        if not included:
+            continue
+        record = dict(cmd)
+        if missing:
+            existing = list(record.get("annotations") or [])
+            if MISSING_RELEVANCE_ANNOTATION not in existing:
+                existing.append(MISSING_RELEVANCE_ANNOTATION)
+            record["annotations"] = existing
+        out.append(record)
+    return out
+
+
+def filter_by_archetype(commands: list[dict], archetype: str) -> list[dict]:
+    """Return commands relevant to ``archetype`` (wildcard + missing both pass)."""
+    out: list[dict] = []
+    for cmd in commands:
+        included, missing = _matches_value(cmd.get("archetype_relevance"), archetype)
+        if not included:
+            continue
+        record = dict(cmd)
+        if missing:
+            existing = list(record.get("annotations") or [])
+            if MISSING_RELEVANCE_ANNOTATION not in existing:
+                existing.append(MISSING_RELEVANCE_ANNOTATION)
+            record["annotations"] = existing
+        out.append(record)
+    return out
+
+
+def filter_for_context(
+    commands: list[dict],
+    *,
+    phase: str | None,
+    archetype: str | None,
+) -> list[dict]:
+    """Combined phase × archetype filter.
+
+    Either filter is skipped when the corresponding argument is None — this is
+    the bootstrap path where archetype hasn't been picked yet. ``annotations``
+    accumulates across both filters when a command is missing both fields.
+    """
+    if phase is None and archetype is None:
+        return [dict(c) for c in commands]
+    result = list(commands)
+    if phase is not None:
+        result = filter_by_phase(result, phase)
+    if archetype is not None:
+        result = filter_by_archetype(result, archetype)
+    return result
+
+
+def bootstrap_entry_points(commands: list[dict]) -> list[dict]:
+    """Return the entry-point set: commands whose phase_relevance includes
+    ``"bootstrap"``.
+
+    This replaces the hand-curated starter list the original issue proposed.
+    The set is derived from frontmatter, not a separate JSON manifest, so the
+    catalog stays the single source of truth.
+    """
+    out: list[dict] = []
+    for cmd in commands:
+        phases = cmd.get("phase_relevance")
+        if isinstance(phases, list) and BOOTSTRAP_PHASE in phases:
+            out.append(dict(cmd))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Active project context (DomainStore-backed, hook-mode safe)
+# ---------------------------------------------------------------------------
+
+def read_active_project_context() -> dict | None:
+    """Return ``{"archetype": ..., "current_phase": ...}`` for the active
+    crew project, or ``None`` when no project is active in this workspace.
+
+    Mirrors the workspace-scoped lookup used by
+    ``hooks/scripts/pre_tool.py::_find_active_crew_project`` so guide and
+    pre_tool agree on which project counts as "active". DomainStore is opened
+    in ``hook_mode=True`` so this can be called from hot paths without
+    triggering integration discovery side-effects.
+    """
+    workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+    try:
+        from _domain_store import DomainStore  # noqa: WPS433 — local import keeps cold start cheap
+        ds = DomainStore("wicked-crew", hook_mode=True)
+        projects = ds.list("projects") or []
+    except Exception:
+        return None
+
+    for project in sorted(
+        projects,
+        key=lambda x: x.get("updated_at", x.get("created_at", "")),
+        reverse=True,
+    ):
+        if project.get("archived"):
+            continue
+        if workspace and project.get("workspace", "") != workspace:
+            continue
+        phase = project.get("current_phase", "")
+        if phase and phase not in ("complete", "done", ""):
+            archetype = project.get("archetype")
+            if not archetype:
+                metadata = project.get("metadata") or {}
+                archetype = metadata.get("archetype")
+            return {
+                "archetype": archetype,
+                "current_phase": phase,
+                "project_name": project.get("name", ""),
+            }
+    return None
 
 
 # ---------------------------------------------------------------------------

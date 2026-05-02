@@ -1,6 +1,8 @@
 ---
 description: Approve a phase and advance to next stage
 argument-hint: "<phase> [project-name] [--override-reviewer]"
+phase_relevance: ["clarify", "design", "build", "test", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:approve

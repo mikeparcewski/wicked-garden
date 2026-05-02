@@ -97,6 +97,10 @@ Then start a project:
 
 The plugin detects your stack, assembles specialists, and runs enforced phases. wicked-testing must be installed for test and review phases to work.
 
+### Start here
+
+Use `/wicked-garden:crew:guide` once a project is active — it ranks "what to do next" against the current phase + detected archetype. With no active project, `/wicked-garden:help` lists every command. Discovery is context-aware via `crew:guide`, not a curated subset.
+
 ## What's the relationship with wicked-testing?
 
 wicked-garden orchestrates the full SDLC — crew workflow, phase management, gate enforcement, memory, and context assembly. wicked-testing is a separate peer plugin that owns all QE behavior: test planning, authoring, execution, and review. The two communicate through a stable public contract (agent `subagent_type` names, bus events, and an evidence manifest schema). wicked-garden's crew gate dispatches QE agents by their `wicked-testing:*` subagent names and subscribes to `wicked.verdict.recorded` for results. You can use wicked-testing independently on projects that don't use wicked-garden's crew workflow. See the [wicked-garden integration guide](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/WICKED-GARDEN.md) for the full contract.

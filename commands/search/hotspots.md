@@ -1,6 +1,8 @@
 ---
 description: Find the most-referenced symbols in the codebase — classes, functions, and modules with the highest connectivity
 argument-hint: "[--limit <n>] [--layer <layer>] [--type <type>]"
+phase_relevance: ["build", "test", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:search:hotspots

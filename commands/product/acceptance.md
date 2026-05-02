@@ -1,6 +1,8 @@
 ---
 description: Define acceptance criteria from requirements and design
 argument-hint: "<requirements/design path> [--story US-ID] [--feature name] [--format gherkin|table|markdown] [--scenarios]"
+phase_relevance: ["test", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:acceptance
