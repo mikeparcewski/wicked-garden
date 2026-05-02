@@ -149,9 +149,23 @@ class TestTargetClassification(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestRecentEmitQuery(unittest.TestCase):
-    def test_missing_db_returns_false(self):
+    def test_missing_db_returns_true_fail_open(self):
+        """Fail-open contract: when we can't verify (no DB), assume emit happened.
+
+        Mirrors ``_check_challenge_gate``'s "any unexpected error →
+        return '' (fail-open)" convention. Users running without the
+        daemon must not get false-positive lint warnings.
+        """
         with patch.dict(os.environ, {"WG_DAEMON_DB": "/no/such/file.db"}):
-            self.assertFalse(pre_tool._has_recent_bus_emit("anything", 60))
+            self.assertTrue(pre_tool._has_recent_bus_emit("anything", 60))
+
+    def test_corrupt_db_returns_true_fail_open(self):
+        """sqlite3.Error path also fail-opens to True."""
+        with TemporaryDirectory() as tmp:
+            corrupt = Path(tmp) / "corrupt.db"
+            corrupt.write_bytes(b"this is not a sqlite database")
+            with patch.dict(os.environ, {"WG_DAEMON_DB": str(corrupt)}):
+                self.assertTrue(pre_tool._has_recent_bus_emit("anything", 60))
 
     def test_recent_emit_within_window(self):
         with TemporaryDirectory() as tmp:
@@ -268,6 +282,37 @@ class TestCheckBusEmitLint(unittest.TestCase):
                     "/proj/foo/phases/build/gate-result.json")
                 self.assertEqual(action, "allow", f"got msg: {msg!r}")
                 self.assertEqual(msg, "")
+
+    def test_missing_db_fails_open_to_allow(self):
+        """End-to-end: target + warn mode + missing DB → allow, no message.
+
+        This is the fail-open contract surfaced through the public lint
+        API. Users running without the daemon (common in dev) must not
+        see false-positive lint warnings on every gate-result.json write.
+        """
+        with patch.dict(os.environ, {
+            "WG_BUS_EMIT_LINT": "warn",
+            "WG_DAEMON_DB": "/no/such/db/file.db",
+        }), patch.object(pre_tool, "_find_active_crew_project",
+                         return_value=({"id": "proj-x"}, "proj-x", "init-x")):
+            action, msg = pre_tool._check_bus_emit_lint(
+                "/proj/foo/phases/build/gate-result.json")
+            self.assertEqual(action, "allow",
+                             f"missing DB must fail-open, got {action}: {msg!r}")
+            self.assertEqual(msg, "")
+
+    def test_missing_db_fails_open_even_in_strict(self):
+        """Strict mode + missing DB → still fails open. Daemon-not-running must not deny."""
+        with patch.dict(os.environ, {
+            "WG_BUS_EMIT_LINT": "strict",
+            "WG_DAEMON_DB": "/no/such/db/file.db",
+        }), patch.object(pre_tool, "_find_active_crew_project",
+                         return_value=({"id": "proj-x"}, "proj-x", "init-x")):
+            action, msg = pre_tool._check_bus_emit_lint(
+                "/proj/foo/phases/build/gate-result.json")
+            self.assertEqual(action, "allow",
+                             f"strict mode must fail-open on missing DB, got {action}")
+            self.assertEqual(msg, "")
 
     def test_unexpected_error_in_project_lookup_fails_open(self):
         with patch.dict(os.environ, {"WG_BUS_EMIT_LINT": "strict"}), \

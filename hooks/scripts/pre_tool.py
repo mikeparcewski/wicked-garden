@@ -548,13 +548,18 @@ def _resolve_daemon_db_path() -> "str | None":
 def _has_recent_bus_emit(project_id: str, window_sec: int) -> bool:
     """Query event_log for a recent emit on this project's chain.
 
-    Returns False on any error or missing DB — the lint will then fire (in
-    warn mode that's just a systemMessage; in strict it's a deny). Read-only
-    URI mode keeps us honest about not mutating the projector.
+    Returns ``True`` on any error or missing DB — fail-open per this file's
+    convention (mirrors ``_check_challenge_gate``'s "any unexpected error
+    → return '' (fail-open)" docstring). The lint stays silent when we
+    cannot verify; users running without the daemon don't get false
+    positives. The lint only fires when we CAN verify and find no
+    matching emit.
+
+    Read-only URI mode keeps us honest about not mutating the projector.
     """
     db_path = _resolve_daemon_db_path()
     if not db_path:
-        return False
+        return True  # fail-open — daemon not running / no projector
     try:
         import sqlite3
         import time as _time
@@ -582,7 +587,9 @@ def _has_recent_bus_emit(project_id: str, window_sec: int) -> bool:
         finally:
             conn.close()
     except Exception:
-        return False
+        # sqlite3.Error, OSError on connect, anything unexpected — same
+        # fail-open convention as the missing-DB case above.
+        return True
 
 
 def _check_bus_emit_lint(file_path: str) -> "tuple[str, str]":
