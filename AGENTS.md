@@ -1,5 +1,7 @@
 # Agent Instructions
 
+> **Identity:** see [`ETHOS.md`](ETHOS.md) for what wicked-garden believes / refuses / optimizes for. AGENTS.md is *how to act*; ETHOS.md is *why we act this way*.
+
 ## General
 
 - When working with GitHub issues you should use a team to ensure proper execution.
