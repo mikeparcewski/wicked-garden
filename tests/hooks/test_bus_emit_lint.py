@@ -143,6 +143,30 @@ class TestTargetClassification(unittest.TestCase):
         self.assertFalse(pre_tool._is_bus_emit_lint_target(
             "/proj/foo/phases/build/status.md"))
 
+    def test_scratch_file_outside_phases_dir_not_target(self):
+        """Suffix-only matching would falsely flag /tmp/notes/gate-result.json.
+
+        The path must actually live under a ``phases/`` parent for the
+        lint to fire — that's the wicked-crew artifact convention.
+        """
+        self.assertFalse(pre_tool._is_bus_emit_lint_target(
+            "/tmp/notes/gate-result.json"))
+        self.assertFalse(pre_tool._is_bus_emit_lint_target(
+            "/home/user/scratch/dispatch-log.jsonl"))
+
+    def test_basename_match_is_platform_agnostic(self):
+        """Path.name handles both POSIX and native-Windows separators.
+
+        On Windows, file_path may be ``C:\\proj\\phases\\build\\gate-result.json``.
+        The previous suffix-with-leading-slash check would never match.
+        """
+        # Construct a Windows-style path that pathlib will normalize.
+        # On POSIX this becomes a single segment; on Windows, real path.
+        # Either way ``.name`` is "gate-result.json" and "phases" appears
+        # in parts when constructed from forward-slash form.
+        win_like = "C:/proj/phases/build/gate-result.json"
+        self.assertTrue(pre_tool._is_bus_emit_lint_target(win_like))
+
 
 # ---------------------------------------------------------------------------
 # Recent-emit query
@@ -173,6 +197,37 @@ class TestRecentEmitQuery(unittest.TestCase):
             _init_event_log_only(db)
             _seed_event(db, event_id=1, event_type="wicked.gate.decided",
                         chain_id="proj-x.build", ingested_at=int(time.time()))
+            with patch.dict(os.environ, {"WG_DAEMON_DB": str(db)}):
+                self.assertTrue(pre_tool._has_recent_bus_emit("proj-x", 60))
+
+    def test_unrelated_event_type_does_not_count_as_pairing(self):
+        """A wicked.project.created at session start MUST NOT pair an orphan
+        gate-result.json write 30s later. Without an event_type filter the
+        query would falsely return True; with the filter it stays False.
+        """
+        with TemporaryDirectory() as tmp:
+            db = Path(tmp) / "projections.db"
+            _init_event_log_only(db)
+            _seed_event(db, event_id=1, event_type="wicked.project.created",
+                        chain_id="proj-x.root", ingested_at=int(time.time()))
+            with patch.dict(os.environ, {"WG_DAEMON_DB": str(db)}):
+                self.assertFalse(
+                    pre_tool._has_recent_bus_emit("proj-x", 60),
+                    "wicked.project.created must NOT count as pairing for "
+                    "gate/dispatch/conditions/reviewer-report writes",
+                )
+
+    def test_recent_gate_decided_pairs_correctly(self):
+        """Sanity check the paired set — gate.decided is the most common pair."""
+        with TemporaryDirectory() as tmp:
+            db = Path(tmp) / "projections.db"
+            _init_event_log_only(db)
+            for ev_type in ("wicked.gate.decided", "wicked.gate.blocked",
+                            "wicked.rework.triggered"):
+                _seed_event(db, event_id=hash(ev_type) & 0xFFFFFF,
+                            event_type=ev_type,
+                            chain_id="proj-x.build",
+                            ingested_at=int(time.time()))
             with patch.dict(os.environ, {"WG_DAEMON_DB": str(db)}):
                 self.assertTrue(pre_tool._has_recent_bus_emit("proj-x", 60))
 

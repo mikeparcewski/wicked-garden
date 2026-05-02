@@ -503,13 +503,35 @@ _APPROVE_RE = re.compile(
 # ``{active_project_id}.``. Read-only sqlite URI mode keeps the projector
 # untouched. ANY error fail-opens — the lint is advisory unless strict.
 
-#: Suffixes that mark a path as load-bearing crew state. Each is a
-#: post-audit-#735 high-priority gap with no covering emit today.
-_BUS_EMIT_LINT_TARGET_SUFFIXES = (
-    "/gate-result.json",
-    "/dispatch-log.jsonl",
-    "/conditions-manifest.json",
-    "/reviewer-report.md",
+#: Filenames (basename match, platform-agnostic) that mark a path as
+#: load-bearing crew state. Each is a post-audit-#735 high-priority gap.
+#: Basename matching avoids the "Windows backslash vs POSIX forward-slash"
+#: bug — Path(file_path).name is the same on every platform.
+_BUS_EMIT_LINT_TARGET_BASENAMES = frozenset({
+    "gate-result.json",
+    "dispatch-log.jsonl",
+    "conditions-manifest.json",
+    "reviewer-report.md",
+})
+
+#: A file with a target basename only counts as crew state if its parent
+#: chain contains a ``phases`` directory — the wicked-crew artifact
+#: convention. This prevents a scratch file like
+#: ``/tmp/notes/gate-result.json`` from triggering the lint.
+_BUS_EMIT_LINT_PARENT_MARKERS = ("phases",)
+
+#: Event types that semantically pair with the target artifacts. A "recent
+#: emit" only counts if its event_type is in this set — otherwise an
+#: unrelated ``wicked.project.created`` at session start would buy 60s of
+#: silent orphan-write passes, which is exactly the false-negative the
+#: lint exists to catch. Part C (#734) will add wicked.consensus.* and
+#: wicked.crew.dispatch_log_entry_appended once those emit points land.
+_BUS_EMIT_LINT_PAIR_EVENTS = (
+    "wicked.gate.decided",
+    "wicked.gate.blocked",
+    "wicked.rework.triggered",
+    "wicked.phase.transitioned",
+    "wicked.project.completed",
 )
 
 
@@ -528,7 +550,24 @@ def _bus_emit_lint_window_sec() -> int:
 
 
 def _is_bus_emit_lint_target(file_path: str) -> bool:
-    return any(file_path.endswith(s) for s in _BUS_EMIT_LINT_TARGET_SUFFIXES)
+    """True iff file_path's basename matches a target AND it lives under a
+    crew-style ``phases/`` parent chain.
+
+    Basename-based to be Windows-safe (``C:\\proj\\phases\\build\\gate-result.json``
+    matches the same as the POSIX form). The parent-marker check prevents a
+    scratch file like ``/tmp/notes/gate-result.json`` from triggering the
+    lint just because the basename collides.
+    """
+    try:
+        p = Path(file_path)
+    except (TypeError, ValueError):
+        return False
+    if p.name not in _BUS_EMIT_LINT_TARGET_BASENAMES:
+        return False
+    # Walk parent components looking for a wicked-crew style marker. Use
+    # ``parts`` (Path.parts) so the comparison is OS-native.
+    parts = p.parts
+    return any(marker in parts for marker in _BUS_EMIT_LINT_PARENT_MARKERS)
 
 
 def _resolve_daemon_db_path() -> "str | None":
@@ -546,7 +585,7 @@ def _resolve_daemon_db_path() -> "str | None":
 
 
 def _has_recent_bus_emit(project_id: str, window_sec: int) -> bool:
-    """Query event_log for a recent emit on this project's chain.
+    """Query event_log for a recent SEMANTICALLY-PAIRED emit on this project's chain.
 
     Returns ``True`` on any error or missing DB — fail-open per this file's
     convention (mirrors ``_check_challenge_gate``'s "any unexpected error
@@ -554,6 +593,20 @@ def _has_recent_bus_emit(project_id: str, window_sec: int) -> bool:
     cannot verify; users running without the daemon don't get false
     positives. The lint only fires when we CAN verify and find no
     matching emit.
+
+    "Semantically paired" means the event_type is in
+    :data:`_BUS_EMIT_LINT_PAIR_EVENTS` — gate / phase / project lifecycle
+    events. An unrelated ``wicked.project.created`` at session start MUST
+    NOT buy a 60-second window of silent orphan-write passes; that would
+    be the exact false-negative the lint exists to catch.
+
+    Caveat — daemon projection race: ``emit_event()`` is fire-and-forget
+    and the daemon's consumer ingests into ``event_log`` on its polling
+    loop. A caller that emits and then writes within milliseconds may be
+    flagged because the projection has not yet caught up. The 60s default
+    window is sized to absorb realistic poll intervals; production users
+    can widen via ``WG_BUS_EMIT_LINT_WINDOW_SEC`` if their daemon polls
+    more slowly.
 
     Read-only URI mode keeps us honest about not mutating the projector.
     """
@@ -576,12 +629,19 @@ def _has_recent_bus_emit(project_id: str, window_sec: int) -> bool:
                 .replace("_", "!_")
                 .replace("%", "!%")
             )
+            placeholders = ",".join("?" for _ in _BUS_EMIT_LINT_PAIR_EVENTS)
+            params = (
+                f"{escaped}.%",
+                since,
+                *_BUS_EMIT_LINT_PAIR_EVENTS,
+            )
             row = conn.execute(
-                """SELECT 1 FROM event_log
-                   WHERE chain_id LIKE ? ESCAPE '!'
-                     AND ingested_at >= ?
-                   LIMIT 1""",
-                (f"{escaped}.%", since),
+                f"""SELECT 1 FROM event_log
+                    WHERE chain_id LIKE ? ESCAPE '!'
+                      AND ingested_at >= ?
+                      AND event_type IN ({placeholders})
+                    LIMIT 1""",
+                params,
             ).fetchone()
             return row is not None
         finally:
