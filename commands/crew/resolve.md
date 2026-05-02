@@ -37,7 +37,9 @@ behaviour. See the [reframe comment][reframe-comment] for rationale.
 ## Usage
 
 ```bash
-# Preview classification + diff. No files written, no events emitted.
+# Preview classification only. No files written, no events emitted.
+# (Specialist dispatch and diff generation are out of scope for this PR;
+# tracked as a follow-up on the same #717 thread.)
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
   "${CLAUDE_PLUGIN_ROOT}/scripts/crew/resolve.py" \
   ${project_dir} ${phase}
@@ -57,9 +59,13 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
 
 ## What gets written
 
-- **`phases/{phase}/conditions-manifest.{condition_id}.resolution.json`**
-  — one sidecar per accepted resolution. Records `applied_rule`,
-  `resolution_ref`, `note`, `written_at`, `verdict_unchanged: true`.
+- **`phases/{phase}/conditions-manifest.{condition_id}.proposed-resolution.json`**
+  — one PROPOSED-resolution sidecar per accepted invocation. Records
+  `applied_rule`, `resolution_ref`, `note`, `written_at`,
+  `verdict_unchanged: true`. The `.proposed-resolution.json` suffix is
+  distinct from the `.resolution.json` suffix used by `mark_cleared`/
+  `recover` so a stray `recover()` call cannot silently flip
+  `verified=True` on a proposal.
 - Bus event **`wicked.gate.condition.resolved`** (chain
   `{project_id}.{phase}`) — one per accepted resolution.
 
@@ -78,20 +84,21 @@ defaults; new ids append).
 
 | classification | examples                                                | resolve behaviour |
 |----------------|---------------------------------------------------------|-------------------|
-| `mechanical`   | AC numbering, missing evidence ref, simple spec gap     | dispatch + sidecar on `--accept` |
+| `mechanical`   | AC numbering, missing evidence ref, simple spec gap     | proposed-resolution sidecar on `--accept`; specialist dispatch is a follow-up |
 | `judgment`     | unknown findings, scope ambiguity                       | surfaced; user must address |
 | `escalation`   | security finding, reviewer disagreement >0.3 score gap  | refused with pointer to swarm/council |
 
 Unknown findings default to `judgment` — never auto-classified as
 `mechanical`. The classifier is conservative on purpose.
 
-## Telemetry
+## Telemetry (planned, not yet shipped)
 
-Per-rule acceptance + rejection rates land in delivery process-health
-under `crew.condition.resolution`. Rules with >95% acceptance over 50
-invocations trigger an SPC flag (rule may be over-broad). Rules with
->20% rejection over 20 invocations trigger an SPC flag (rule may be
-misclassifying).
+Per-rule acceptance + rejection telemetry is **not implemented in this
+PR**. The shipped behaviour is just `wicked.gate.condition.resolved`
+emit per accepted resolution; aggregation into delivery process-health
+and SPC flagging on over-broad / misclassifying rules is tracked as a
+follow-up. Mentioned here so the contract is documented, not because
+it works today.
 
 ## Example
 

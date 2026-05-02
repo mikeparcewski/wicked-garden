@@ -419,5 +419,59 @@ class TestResolvePhase(unittest.TestCase):
                                  "failed:RuntimeError")
 
 
+class TestRecoverDoesNotTouchProposedResolutions(unittest.TestCase):
+    """The load-bearing isolation test for the #717 contract.
+
+    Sidecars written by mark_resolved use a distinct suffix
+    (.proposed-resolution.json) so conditions_manifest.recover() — which
+    scans the .resolution.json suffix — never picks them up and silently
+    flips verified=True. Without this isolation a stray recover() call
+    would convert every crew:resolve --accept proposal into an approved
+    condition, violating the contract that only crew:approve verifies.
+    """
+
+    def test_recover_ignores_proposed_resolution_sidecars(self):
+        from crew import conditions_manifest as cm
+        with TemporaryDirectory() as tmp:
+            project_dir = Path(tmp)
+            phase_dir = project_dir / "phases" / "design"
+            phase_dir.mkdir(parents=True)
+            manifest_path = phase_dir / "conditions-manifest.json"
+            manifest_path.write_text(json.dumps({
+                "conditions": [
+                    {"id": "c1", "message": "AC-3 not found", "verified": False},
+                ],
+            }), encoding="utf-8")
+
+            # Run resolve --accept (writes a proposed-resolution sidecar).
+            with TemporaryDirectory() as rtmp:
+                rules_path = Path(rtmp) / "rules.json"
+                rules_path.write_text(json.dumps(
+                    {"rules": _well_formed_rules()}
+                ), encoding="utf-8")
+                with patch.object(rv, "_DEFAULT_RULES_PATH", rules_path):
+                    result = rv.resolve_phase(project_dir, "design", accept=True)
+            self.assertEqual(len(result["resolved"]), 1)
+
+            # Sidecar must use the PROPOSED suffix, not the resolved suffix.
+            proposed = phase_dir / "conditions-manifest.c1.proposed-resolution.json"
+            standard = phase_dir / "conditions-manifest.c1.resolution.json"
+            self.assertTrue(proposed.is_file(),
+                            "mark_resolved must write proposed-resolution sidecar")
+            self.assertFalse(standard.is_file(),
+                             "mark_resolved must NOT write to .resolution.json — "
+                             "that file is owned by mark_cleared and consumed by recover")
+
+            # Now run recover. It MUST NOT pick up the proposed sidecar
+            # and MUST NOT flip verified=True.
+            reconciled = cm.recover(manifest_path)
+            self.assertEqual(reconciled, [],
+                             "recover must not match proposed-resolution sidecars")
+            updated = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertFalse(updated["conditions"][0]["verified"],
+                             "recover must NEVER silently flip verified=True on a "
+                             "mark_resolved proposal — only crew:approve verifies")
+
+
 if __name__ == "__main__":
     unittest.main()

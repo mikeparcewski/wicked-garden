@@ -27,8 +27,11 @@ Public helpers:
 
 Schema additions for issue #717 (additive, backward-compatible):
     Each condition entry MAY include the following optional fields. Old
-    manifests without them still load and behave identically — the only
-    consumer that reads them is ``crew:resolve``.
+    manifests without them still load and behave identically. ``crew:resolve``
+    re-classifies on every run rather than reading these fields, so they are
+    purely informational metadata for human inspection / external tooling
+    today; reading them in resolve is reserved for a follow-up that wants to
+    avoid re-classification cost on large manifests.
 
         classification: "mechanical" | "judgment" | "escalation"
         applied_rule:    string id from finding-classification.json
@@ -57,6 +60,10 @@ from typing import Any, Dict, List, Optional
 # The resolution-reference file written by ``mark_cleared`` BEFORE the
 # manifest flip. Recovery keys off the presence of this sidecar.
 RESOLUTION_SIDECAR_SUFFIX = ".resolution.json"
+#: Distinct suffix for mark_resolved (#717) sidecars so recover() never
+#: picks them up and silently flips verified=True. Contract: crew:resolve
+#: --accept writes a PROPOSAL; only crew:approve verifies.
+PROPOSED_RESOLUTION_SIDECAR_SUFFIX = ".proposed-resolution.json"
 
 
 def _utc_now_iso() -> str:
@@ -124,6 +131,26 @@ def _resolution_sidecar_path(manifest_path: Path, condition_id: str) -> Path:
     stem = manifest_path.stem  # "conditions-manifest"
     safe_id = condition_id.replace("/", "_").replace("\\", "_")
     return manifest_path.parent / f"{stem}.{safe_id}{RESOLUTION_SIDECAR_SUFFIX}"
+
+
+def _proposed_resolution_sidecar_path(
+    manifest_path: Path, condition_id: str
+) -> Path:
+    """Return path used by :func:`mark_resolved` for a *proposed* resolution.
+
+    Distinct from :func:`_resolution_sidecar_path` so :func:`recover` —
+    which scans the ``.resolution.json`` suffix and flips ``verified=True``
+    on matched conditions — never picks up these files. The contract is:
+    ``crew:resolve --accept`` writes a *proposal*, only ``crew:approve``
+    verifies. Conflating the two would let recover silently complete
+    resolutions the user never approved.
+    """
+    stem = manifest_path.stem  # "conditions-manifest"
+    safe_id = condition_id.replace("/", "_").replace("\\", "_")
+    return (
+        manifest_path.parent
+        / f"{stem}.{safe_id}{PROPOSED_RESOLUTION_SIDECAR_SUFFIX}"
+    )
 
 
 def _load_manifest(manifest_path: Path) -> Dict[str, Any]:
@@ -313,11 +340,13 @@ def mark_resolved(
           ``crew:approve``. The verdict on ``gate-result.json`` is never
           touched. This preserves the honest CONDITIONAL signal end-to-end.
 
-    The sidecar lives at the canonical path
-    ``phases/{phase}/conditions-manifest.{condition_id}.resolution.json``
-    so :func:`recover` would still pick it up, but production callers
-    don't run recover on resolve outputs — the manifest flip is gated on
-    the user, not on disk state.
+    The sidecar lives at a DISTINCT path
+    ``phases/{phase}/conditions-manifest.{condition_id}.proposed-resolution.json``
+    (built via :func:`_proposed_resolution_sidecar_path`) so :func:`recover`
+    NEVER picks it up. recover scans only the ``.resolution.json`` suffix —
+    isolating the proposed-resolution bucket means a stray recover invocation
+    cannot silently flip ``verified=True`` on a proposal the user never
+    approved.
 
     Args:
         project_dir: Project root (parent of ``phases/``).
@@ -338,7 +367,7 @@ def mark_resolved(
     """
     project_dir = Path(project_dir)
     manifest_path = project_dir / "phases" / phase / "conditions-manifest.json"
-    sidecar_path = _resolution_sidecar_path(manifest_path, condition_id)
+    sidecar_path = _proposed_resolution_sidecar_path(manifest_path, condition_id)
 
     timestamp = _utc_now_iso()
     sidecar = {
@@ -354,6 +383,7 @@ def mark_resolved(
 
 
 __all__ = [
+    "PROPOSED_RESOLUTION_SIDECAR_SUFFIX",
     "RESOLUTION_SIDECAR_SUFFIX",
     "atomic_write_json",
     "mark_cleared",

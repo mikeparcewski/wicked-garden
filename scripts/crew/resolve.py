@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -77,10 +76,13 @@ NO_MATCH_RULE_ID = "no-rule-matched"
 def load_rules(path: "str | Path | None" = None) -> list[dict]:
     """Load classification rules from disk and pre-compile their regexes.
 
-    Resolution: explicit ``path`` arg → ``.claude-plugin/finding-classification.json``
-    in the plugin root. Project-local override (when ``project_dir`` is
-    threaded through ``resolve_phase``) is layered on top by
-    :func:`_load_rules_with_overrides`.
+    When ``path`` is given, that file is read verbatim. When ``path`` is
+    ``None``, the default ``.claude-plugin/finding-classification.json``
+    in the plugin root is used. The project-local override layering
+    (``.wicked-garden/finding-classification.json`` taking precedence by
+    rule id over plugin defaults) is applied separately by
+    :func:`_load_rules_with_overrides`, which calls this function twice
+    and merges.
 
     Each returned rule has an extra ``_compiled`` field — a list of
     pre-compiled ``re.Pattern`` objects (with ``re.IGNORECASE``).
@@ -231,10 +233,17 @@ def resolve_phase(
     This function NEVER modifies ``gate-result.json``. It only:
       * Reads ``conditions-manifest.json``
       * Classifies each unverified condition
-      * For ``mechanical`` clusters: prepares a dispatch payload (the diff
-        the user must review). When ``accept=True``, also writes a
-        resolution sidecar via :func:`conditions_manifest.mark_resolved`
-        and emits ``wicked.gate.condition.resolved``.
+      * For ``mechanical`` clusters: surfaces the condition's classified
+        details (id, applied rule, message). This module does NOT itself
+        dispatch a specialist or generate a diff in this PR — that's the
+        caller's job (the slash command can render the message and prompt
+        the user). When ``accept=True``, the module ALSO writes a
+        proposed-resolution sidecar via
+        :func:`conditions_manifest.mark_resolved` and emits
+        ``wicked.gate.condition.resolved`` so downstream consumers (the
+        resume projector, telemetry) can record the resolution intent.
+        Specialist re-dispatch is a follow-up; tracked in #717's reframe
+        comment as the next step after this skill ships.
       * For ``escalation`` clusters: refuses with a structured pointer to
         the appropriate higher-rigor surface.
       * For ``judgment`` clusters: surfaces them in the result without
