@@ -41,6 +41,17 @@ sys.path.insert(0, str(_REPO_ROOT / "scripts" / "crew"))
 import reconcile  # noqa: E402
 import synthetic_drift  # noqa: E402
 
+# Site 3 (Issue #746 PR-AB): import reconcile_v2 now that the module exists.
+# This import activates Tier B of the two-tier meta-test in
+# TestPostCutoverContract (the detector-assertion contract that was deferred
+# until Site 3 landed per ADR docs/v9/adr-reconcile-v2.md and Issue #750).
+try:
+    import reconcile_v2  # noqa: E402
+    _RECONCILE_V2_AVAILABLE = True
+except ImportError:
+    reconcile_v2 = None  # type: ignore[assignment]
+    _RECONCILE_V2_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # Pre-cutover helpers
@@ -435,6 +446,38 @@ class ProjectionStaleTests(_PostCutoverFixture):
             conn.close()
         self.assertIsNone(row, "teardown left synthetic event_log row behind")
 
+    @pytest.mark.skipif(
+        not _RECONCILE_V2_AVAILABLE,
+        reason="reconcile_v2 not importable — Tier B detector skip",
+    )
+    def test_reconcile_v2_detects_projection_stale(self) -> None:
+        """Tier B: reconcile_v2 must classify this fixture as projection-stale drift.
+
+        Activates once scripts/crew/reconcile_v2.py lands (Site 3 PR-AB).
+        Per ADR docs/v9/adr-reconcile-v2.md and Issue #750.
+        """
+        manifest = synthetic_drift.build_drift_fixture(
+            "projection-stale",
+            project_slug=self.SLUG,
+            workspace_dir=self.workspace,
+        )
+        self.assertTrue(manifest["ok"], manifest)
+        self.addCleanup(synthetic_drift.teardown_drift_fixture, manifest)
+
+        db_path = manifest["daemon_db_path"]
+        results = reconcile_v2.reconcile_all(daemon_db_path=db_path)
+        all_drift_types = [
+            d["type"]
+            for r in results
+            for d in r.get("drift", [])
+        ]
+        self.assertIn(
+            reconcile_v2.DRIFT_PROJECTION_STALE,
+            all_drift_types,
+            f"reconcile_v2 did not detect projection-stale drift. "
+            f"All drift types found: {all_drift_types}",
+        )
+
 
 @_SKIP_DAEMON
 class EventWithoutProjectionTests(_PostCutoverFixture):
@@ -464,6 +507,38 @@ class EventWithoutProjectionTests(_PostCutoverFixture):
         self.assertEqual(row[0], "wicked.consensus.report_created")
         self.assertEqual(row[1], "error")
         self.assertIn("synthetic", (row[2] or "").lower())
+
+    @pytest.mark.skipif(
+        not _RECONCILE_V2_AVAILABLE,
+        reason="reconcile_v2 not importable — Tier B detector skip",
+    )
+    def test_reconcile_v2_detects_event_without_projection(self) -> None:
+        """Tier B: reconcile_v2 must classify this fixture as event-without-projection.
+
+        Activates once scripts/crew/reconcile_v2.py lands (Site 3 PR-AB).
+        Per ADR docs/v9/adr-reconcile-v2.md and Issue #750.
+        """
+        manifest = synthetic_drift.build_drift_fixture(
+            "event-without-projection",
+            project_slug=self.SLUG,
+            workspace_dir=self.workspace,
+        )
+        self.assertTrue(manifest["ok"], manifest)
+        self.addCleanup(synthetic_drift.teardown_drift_fixture, manifest)
+
+        db_path = manifest["daemon_db_path"]
+        results = reconcile_v2.reconcile_all(daemon_db_path=db_path)
+        all_drift_types = [
+            d["type"]
+            for r in results
+            for d in r.get("drift", [])
+        ]
+        self.assertIn(
+            reconcile_v2.DRIFT_EVENT_WITHOUT_PROJECTION,
+            all_drift_types,
+            f"reconcile_v2 did not detect event-without-projection drift. "
+            f"All drift types found: {all_drift_types}",
+        )
 
 
 @_SKIP_DAEMON
@@ -497,6 +572,47 @@ class ProjectionWithoutEventTests(_PostCutoverFixture):
         finally:
             conn.close()
         self.assertEqual(head_now, manifest["event_log_head_at_build"])
+
+    @pytest.mark.skipif(
+        not _RECONCILE_V2_AVAILABLE,
+        reason="reconcile_v2 not importable — Tier B detector skip",
+    )
+    def test_reconcile_v2_detects_projection_without_event(self) -> None:
+        """Tier B: reconcile_v2 must classify this fixture as projection-without-event.
+
+        Activates once scripts/crew/reconcile_v2.py lands (Site 3 PR-AB).
+        Per ADR docs/v9/adr-reconcile-v2.md and Issue #750.
+        """
+        manifest = synthetic_drift.build_drift_fixture(
+            "projection-without-event",
+            project_slug=self.SLUG,
+            workspace_dir=self.workspace,
+        )
+        self.assertTrue(manifest["ok"], manifest)
+        self.addCleanup(synthetic_drift.teardown_drift_fixture, manifest)
+
+        db_path = manifest["daemon_db_path"]
+        # reconcile_v2 needs the project dir to exist under its _projects_root.
+        # For this fixture the orphan file lives inside the workspace; we need
+        # to tell reconcile_v2 where the projects root is.
+        orphan_path = Path(manifest["orphan_projection_path"])
+        # orphan_path layout: {workspace}/wicked-crew/projects/{slug}/phases/{phase}/gate-result.json
+        projects_root = orphan_path.parents[3]
+
+        with mock.patch.object(reconcile_v2, "_projects_root", return_value=projects_root):
+            results = reconcile_v2.reconcile_all(daemon_db_path=db_path)
+
+        all_drift_types = [
+            d["type"]
+            for r in results
+            for d in r.get("drift", [])
+        ]
+        self.assertIn(
+            reconcile_v2.DRIFT_PROJECTION_WITHOUT_EVENT,
+            all_drift_types,
+            f"reconcile_v2 did not detect projection-without-event drift. "
+            f"All drift types found: {all_drift_types}",
+        )
 
 
 # ---------------------------------------------------------------------------

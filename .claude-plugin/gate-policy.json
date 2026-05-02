@@ -1,6 +1,10 @@
 {
-  "version": "1.0.0",
-  "description": "Codified Gate x Rigor reviewer matrix (D1, D4). Source of truth loaded by phase_manager._resolve_gate_reviewer(). Human-readable description at skills/propose-process/refs/gate-policy.md.",
+  "version": "1.1.0",
+  "description": "Codified Gate x Rigor reviewer matrix (D1, D4). Source of truth loaded by phase_manager._resolve_gate_reviewer(). Human-readable description at skills/propose-process/refs/gate-policy.md. v1.1.0: added bus_health block for Site 3 emit-success monitoring (threshold in config, not code — per site-3-threshold-lives-in-gate-policy-user-override-2026-05-02.md).",
+  "bus_health": {
+    "emit_success_threshold": 0.999,
+    "min_n_for_assertion": 500
+  },
   "gates": {
     "requirements-quality": {
       "minimal": {

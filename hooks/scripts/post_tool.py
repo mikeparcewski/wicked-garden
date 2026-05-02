@@ -25,6 +25,7 @@ import os
 import re
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -70,6 +71,21 @@ def _sanitize_session_id(raw: str) -> str:
 def _get_session_id() -> str:
     return _sanitize_session_id(os.environ.get("CLAUDE_SESSION_ID", "default"))
 
+
+def _bus_as_truth_flag_on() -> bool:
+    """Return True iff Site 3 bus-as-truth cutover flag is enabled.
+
+    Site 3 of the bus cutover (#746) gates on ``WG_BUS_AS_TRUTH_REVIEWER_REPORT``
+    == ``"on"``.  Default is OFF — never flip this default in this PR.
+
+    Mirrors the ``_bus_as_truth_enabled(site)`` helper in ``scripts/_bus.py``
+    (same literal-``on``-only contract) but lives in this hook module so the
+    hook does not need to import ``_bus`` merely to read the flag.
+
+    Reading the env var directly anywhere else in this module is forbidden —
+    all reads go through this helper so there is one place to flip and audit.
+    """
+    return os.environ.get("WG_BUS_AS_TRUTH_REVIEWER_REPORT", "") == "on"
 
 
 # ---------------------------------------------------------------------------
@@ -947,44 +963,115 @@ def _build_reviewer_report_yaml(verdict: str, consensus_result: dict) -> str:
     )
 
 
-def _write_reviewer_report(phase_dir: "Path", verdict: str, consensus_result: dict) -> None:
+def _write_reviewer_report(
+    phase_dir: "Path",
+    verdict: str,
+    consensus_result: dict,
+    eval_id: str,
+) -> None:
     """Write or append consensus findings to reviewer-report.md.
 
     If the file already exists (written by the independent-reviewer agent from #367),
     append the consensus section rather than overwriting it.
+
+    Site 3 of bus-cutover (#746): emits ``wicked.consensus.gate_completed``
+    AFTER each write (write-then-emit, mirrors Sites 1+2).  ``eval_id`` is
+    threaded from ``_handle_bash_consensus`` so the chain_id is unique across
+    all emits in one hook invocation (bus-chain-id dedupe gotcha).
+
+    ``_bus.emit_event`` is non-raising — no try/except wrapper needed here.
     """
     report_path = phase_dir / "reviewer-report.md"
     yaml_block = _build_reviewer_report_yaml(verdict, consensus_result)
+
+    # Extract project_id and phase from phase_dir for payload + chain_id.
+    # phase_dir layout: {project_dir}/phases/{phase}
+    phase = phase_dir.name
+    project_id = phase_dir.parents[1].name
 
     if report_path.exists():
         # Append consensus section to existing report
         existing = report_path.read_text(encoding="utf-8")
         separator = "\n\n---\n## Consensus Gate Evaluation\n\n"
-        report_path.write_text(
-            existing + separator + yaml_block,
-            encoding="utf-8",
-        )
+        new_content = existing + separator + yaml_block
+        report_path.write_text(new_content, encoding="utf-8")
+
+        # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
+        # Flag check: only emit when Site 3 cutover is enabled.
+        if _bus_as_truth_flag_on():
+            from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
+            emit_event(
+                "wicked.consensus.gate_completed",
+                {
+                    "project_id": project_id,
+                    "phase": phase,
+                    "verdict": verdict,
+                    "eval_id": eval_id,
+                    "branch": "append",
+                    "raw_payload": new_content,
+                },
+                chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
+            )
     else:
         # Create new report with full frontmatter
         phase_dir.mkdir(parents=True, exist_ok=True)
         report_path.write_text(yaml_block, encoding="utf-8")
 
+        # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
+        if _bus_as_truth_flag_on():
+            from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
+            emit_event(
+                "wicked.consensus.gate_completed",
+                {
+                    "project_id": project_id,
+                    "phase": phase,
+                    "verdict": verdict,
+                    "eval_id": eval_id,
+                    "branch": "create",
+                    "raw_payload": yaml_block,
+                },
+                chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
+            )
 
-def _write_pending_reviewer_report(phase_dir: "Path") -> None:
+
+def _write_pending_reviewer_report(phase_dir: "Path", eval_id: str) -> None:
     """Write a pending reviewer-report.md when consensus evaluation fails.
 
     Only writes if no report exists yet — never overwrites a real result.
+
+    Site 3 of bus-cutover (#746): emits ``wicked.consensus.gate_pending``
+    AFTER the write (write-then-emit invariant).  ``eval_id`` MUST be
+    threaded from the caller — no consensus_result is available on this
+    failure path, so the caller mints eval_id at the entry point and passes
+    it in explicitly (Option A from the pre-impl council).
+
+    ``_bus.emit_event`` is non-raising — no try/except wrapper needed here.
     """
     report_path = phase_dir / "reviewer-report.md"
     if report_path.exists():
         return  # Don't clobber an existing report
 
+    phase = phase_dir.name
+    project_id = phase_dir.parents[1].name
+    pending_content = _REVIEWER_REPORT_PENDING.format(reviewed_at=_now_iso())
+
     try:
         phase_dir.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(
-            _REVIEWER_REPORT_PENDING.format(reviewed_at=_now_iso()),
-            encoding="utf-8",
-        )
+        report_path.write_text(pending_content, encoding="utf-8")
+
+        # Emit AFTER write — write-then-emit invariant.
+        if _bus_as_truth_flag_on():
+            from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
+            emit_event(
+                "wicked.consensus.gate_pending",
+                {
+                    "project_id": project_id,
+                    "phase": phase,
+                    "eval_id": eval_id,
+                    "raw_payload": pending_content,
+                },
+                chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
+            )
     except Exception:
         pass
 
@@ -1086,6 +1173,14 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
             # No gate-result.json to evaluate — not an error, just nothing to do
             return {"continue": True}
 
+        # Site 3 of bus-cutover (#746): mint eval_id at the entry point so
+        # every emit in this hook invocation carries a unique chain_id
+        # discriminator segment.  Prefer eval_id already carried by
+        # consensus_result (set by consensus_gate.py at Site 2) to avoid
+        # minting a second UUID for the same evaluation.
+        # Width: uuid4().hex[:16] == 64 bits (matches Site 2's PR #762 widening).
+        eval_id: str = consensus_result.get("eval_id") or uuid.uuid4().hex[:16]
+
         verdict = consensus_result.get("result", "pending").lower()
         if verdict not in ("approved", "conditional", "rejected"):
             # Map gate result codes to reviewer-report verdicts
@@ -1093,7 +1188,7 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
                            "conditional": "conditional"}
             verdict = verdict_map.get(verdict, "pending")
 
-        _write_reviewer_report(phase_dir, verdict, consensus_result)
+        _write_reviewer_report(phase_dir, verdict, consensus_result, eval_id)
         _log("crew", "info", "consensus_gate.complete",
              detail={"project": project_name, "phase": phase, "verdict": verdict,
                      "complexity": complexity})
@@ -1101,7 +1196,11 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
     except Exception as exc:
         # Fail-open: write pending report, log error, never crash
         try:
-            _write_pending_reviewer_report(phase_dir)
+            # eval_id may not be bound yet (exception before the mint).
+            # Mint a fresh one for the pending emit so the chain_id is
+            # always populated and unique.
+            _pending_eval_id: str = uuid.uuid4().hex[:16]
+            _write_pending_reviewer_report(phase_dir, _pending_eval_id)
             _log("crew", "warn", "consensus_gate.error",
                  ok=False, detail={"project": project_name, "phase": phase,
                                    "error": str(exc)[:200]})
