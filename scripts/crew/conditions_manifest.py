@@ -15,9 +15,23 @@ recovery pass can reconcile deterministically.
 Public helpers:
     - ``mark_cleared(manifest_path, condition_id, resolution_ref)``:
       clear one condition atomically. Returns the updated manifest dict.
+    - ``mark_resolved(project_dir, phase, condition_id, applied_rule,
+      resolution_ref)``: per-condition resolution sidecar for the
+      classify-don't-retry path (issue #717). Does NOT flip the condition
+      to ``verified=True`` — that decision still belongs to the user via
+      ``crew:approve``. The sidecar records *who* (rule id) resolved
+      *what* (resolution_ref) at *when* (timestamp) for the audit trail.
     - ``recover(manifest_path, resolutions_dir)``: scan the resolutions
       directory on disk and fill in manifest entries where the resolution
       artifact landed but the flip never completed.
+
+Schema additions for issue #717 (additive, backward-compatible):
+    Each condition entry MAY include the following optional fields. Old
+    manifests without them still load and behave identically — the only
+    consumer that reads them is ``crew:resolve``.
+
+        classification: "mechanical" | "judgment" | "escalation"
+        applied_rule:    string id from finding-classification.json
 
 All writes go through :func:`atomic_write_json` which writes to a
 ``<path>.tmp`` file, ``fsync``s it, and then ``os.replace``s the
@@ -278,9 +292,71 @@ def recover(
     return reconciled
 
 
+def mark_resolved(
+    project_dir: Path,
+    phase: str,
+    condition_id: str,
+    *,
+    applied_rule: str,
+    resolution_ref: str,
+    note: Optional[str] = None,
+) -> Path:
+    """Write a resolution sidecar for the classify-don't-retry path (#717).
+
+    Distinct from :func:`mark_cleared`:
+
+        - ``mark_cleared`` flips ``verified=True`` on the manifest entry.
+          It is the verification step run AFTER the user has approved a
+          resolution.
+        - ``mark_resolved`` writes ONLY the resolution sidecar — the
+          condition stays ``verified=False`` until the user approves via
+          ``crew:approve``. The verdict on ``gate-result.json`` is never
+          touched. This preserves the honest CONDITIONAL signal end-to-end.
+
+    The sidecar lives at the canonical path
+    ``phases/{phase}/conditions-manifest.{condition_id}.resolution.json``
+    so :func:`recover` would still pick it up, but production callers
+    don't run recover on resolve outputs — the manifest flip is gated on
+    the user, not on disk state.
+
+    Args:
+        project_dir: Project root (parent of ``phases/``).
+        phase: Phase name (e.g. ``"design"``).
+        condition_id: ID of the condition being resolved.
+        applied_rule: ID of the classification rule that matched the
+            finding (from ``finding-classification.json``).
+        resolution_ref: Path or URI to the resolution artifact (e.g. a
+            patch path, a commit SHA, a regenerated AC document).
+        note: Optional free-text note explaining the resolution.
+
+    Returns:
+        Absolute path to the sidecar file just written.
+
+    Raises:
+        OSError: If the sidecar write fails. Callers should treat this
+            as a hard failure — there is nothing to recover from.
+    """
+    project_dir = Path(project_dir)
+    manifest_path = project_dir / "phases" / phase / "conditions-manifest.json"
+    sidecar_path = _resolution_sidecar_path(manifest_path, condition_id)
+
+    timestamp = _utc_now_iso()
+    sidecar = {
+        "condition_id": condition_id,
+        "applied_rule": applied_rule,
+        "resolution_ref": resolution_ref,
+        "note": note,
+        "written_at": timestamp,
+        "verdict_unchanged": True,  # explicit assertion for auditors
+    }
+    atomic_write_json(sidecar_path, sidecar)
+    return sidecar_path
+
+
 __all__ = [
     "RESOLUTION_SIDECAR_SUFFIX",
     "atomic_write_json",
     "mark_cleared",
+    "mark_resolved",
     "recover",
 ]
