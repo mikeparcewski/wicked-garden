@@ -281,11 +281,26 @@ def _handle_write_guard(tool_input: dict) -> str:
     if challenge_block:
         return _deny(challenge_block)
 
+    # Issue #734 Part B: bus-emit lint for orphan writes to load-bearing
+    # state artifacts. WG_BUS_EMIT_LINT=warn (default) emits a systemMessage;
+    # =strict denies the write; =off disables. Fail-open on any error.
+    lint_action, lint_msg = _check_bus_emit_lint(file_path)
+    if lint_action == "deny":
+        return _deny(lint_msg)
+
     # Orchestrator-only warning (Issue #251): warn when writing outside allowlist
     # during build or review phases. Fail open — always allow, but emit systemMessage.
     warning = _check_orchestrator_write(file_path)
+
+    # Combine lint warn + orchestrator warn into a single systemMessage
+    # rather than letting the second overwrite the first.
+    messages: list[str] = []
+    if lint_action == "warn" and lint_msg:
+        messages.append(lint_msg)
     if warning:
-        return _allow(system_message=warning)
+        messages.append(warning)
+    if messages:
+        return _allow(system_message="\n\n".join(messages))
 
     return _allow()
 
@@ -467,6 +482,217 @@ _APPROVE_RE = re.compile(
     r"phase_manager\.py\s+(\S+)\s+approve(?:\s+.*?)?(?:--phase\s+(\S+))?",
     re.DOTALL,
 )
+
+
+# ---------------------------------------------------------------------------
+# Bus-emit lint (Issue #734 Part B)
+# ---------------------------------------------------------------------------
+#
+# Detects orphan writes to load-bearing crew state artifacts that are not
+# accompanied by a recent ``wicked-bus`` event on the project's chain. The
+# resume projector (#734 Part A) and any future bus-as-truth subscriber
+# rely on emits to stay current — silent writes leave projections stale
+# and force callers back to file polling.
+#
+# Configuration:
+#   WG_BUS_EMIT_LINT=warn|strict|off   (default: warn)
+#   WG_BUS_EMIT_LINT_WINDOW_SEC=<int>  (default: 60)
+#
+# Detection mechanism: query the daemon's projections.db ``event_log`` table
+# for any event ingested in the last N seconds whose chain_id starts with
+# ``{active_project_id}.``. Read-only sqlite URI mode keeps the projector
+# untouched. ANY error fail-opens — the lint is advisory unless strict.
+
+#: Filenames (basename match, platform-agnostic) that mark a path as
+#: load-bearing crew state. Each is a post-audit-#735 high-priority gap.
+#: Basename matching avoids the "Windows backslash vs POSIX forward-slash"
+#: bug — Path(file_path).name is the same on every platform.
+_BUS_EMIT_LINT_TARGET_BASENAMES = frozenset({
+    "gate-result.json",
+    "dispatch-log.jsonl",
+    "conditions-manifest.json",
+    "reviewer-report.md",
+})
+
+#: A file with a target basename only counts as crew state if its parent
+#: chain contains a ``phases`` directory — the wicked-crew artifact
+#: convention. This prevents a scratch file like
+#: ``/tmp/notes/gate-result.json`` from triggering the lint.
+_BUS_EMIT_LINT_PARENT_MARKERS = ("phases",)
+
+#: Event types that semantically pair with the target artifacts. A "recent
+#: emit" only counts if its event_type is in this set — otherwise an
+#: unrelated ``wicked.project.created`` at session start would buy 60s of
+#: silent orphan-write passes, which is exactly the false-negative the
+#: lint exists to catch. Part C (#734) will add wicked.consensus.* and
+#: wicked.crew.dispatch_log_entry_appended once those emit points land.
+_BUS_EMIT_LINT_PAIR_EVENTS = (
+    "wicked.gate.decided",
+    "wicked.gate.blocked",
+    "wicked.rework.triggered",
+    "wicked.phase.transitioned",
+    "wicked.project.completed",
+)
+
+
+def _bus_emit_lint_mode() -> str:
+    """Return ``'off' | 'warn' | 'strict'`` (default ``'warn'``)."""
+    raw = (os.environ.get("WG_BUS_EMIT_LINT") or "warn").strip().lower()
+    return raw if raw in ("off", "warn", "strict") else "warn"
+
+
+def _bus_emit_lint_window_sec() -> int:
+    """Return the recent-emit window in seconds (default 60)."""
+    try:
+        return max(1, int(os.environ.get("WG_BUS_EMIT_LINT_WINDOW_SEC") or "60"))
+    except (TypeError, ValueError):
+        return 60
+
+
+def _is_bus_emit_lint_target(file_path: str) -> bool:
+    """True iff file_path's basename matches a target AND it lives under a
+    crew-style ``phases/`` parent chain.
+
+    Basename-based to be Windows-safe (``C:\\proj\\phases\\build\\gate-result.json``
+    matches the same as the POSIX form). The parent-marker check prevents a
+    scratch file like ``/tmp/notes/gate-result.json`` from triggering the
+    lint just because the basename collides.
+    """
+    try:
+        p = Path(file_path)
+    except (TypeError, ValueError):
+        return False
+    if p.name not in _BUS_EMIT_LINT_TARGET_BASENAMES:
+        return False
+    # Walk parent components looking for a wicked-crew style marker. Use
+    # ``parts`` (Path.parts) so the comparison is OS-native.
+    parts = p.parts
+    return any(marker in parts for marker in _BUS_EMIT_LINT_PARENT_MARKERS)
+
+
+def _resolve_daemon_db_path() -> "str | None":
+    """Find the daemon DB. Honors ``WG_DAEMON_DB`` first (matches daemon/db.py)."""
+    candidates = [
+        os.environ.get("WG_DAEMON_DB"),
+        os.environ.get("WG_PROJECTOR_DB_PATH"),  # legacy alias
+        str(Path.home() / ".something-wicked"
+            / "wicked-garden-daemon" / "projections.db"),
+    ]
+    for c in candidates:
+        if c and Path(c).is_file():
+            return c
+    return None
+
+
+def _has_recent_bus_emit(project_id: str, window_sec: int) -> bool:
+    """Query event_log for a recent SEMANTICALLY-PAIRED emit on this project's chain.
+
+    Returns ``True`` on any error or missing DB — fail-open per this file's
+    convention (mirrors ``_check_challenge_gate``'s "any unexpected error
+    → return '' (fail-open)" docstring). The lint stays silent when we
+    cannot verify; users running without the daemon don't get false
+    positives. The lint only fires when we CAN verify and find no
+    matching emit.
+
+    "Semantically paired" means the event_type is in
+    :data:`_BUS_EMIT_LINT_PAIR_EVENTS` — gate / phase / project lifecycle
+    events. An unrelated ``wicked.project.created`` at session start MUST
+    NOT buy a 60-second window of silent orphan-write passes; that would
+    be the exact false-negative the lint exists to catch.
+
+    Caveat — daemon projection race: ``emit_event()`` is fire-and-forget
+    and the daemon's consumer ingests into ``event_log`` on its polling
+    loop. A caller that emits and then writes within milliseconds may be
+    flagged because the projection has not yet caught up. The 60s default
+    window is sized to absorb realistic poll intervals; production users
+    can widen via ``WG_BUS_EMIT_LINT_WINDOW_SEC`` if their daemon polls
+    more slowly.
+
+    Read-only URI mode keeps us honest about not mutating the projector.
+    """
+    db_path = _resolve_daemon_db_path()
+    if not db_path:
+        return True  # fail-open — daemon not running / no projector
+    try:
+        import sqlite3
+        import time as _time
+        uri = Path(db_path).absolute().as_uri() + "?mode=ro"
+        conn = sqlite3.connect(uri, uri=True)
+        try:
+            since = int(_time.time()) - window_sec
+            # LIKE escape: '_' and '%' in project_id would otherwise match
+            # unrelated chains. Same idiom as scripts/crew/resume_projector.py
+            # — see brain memory "sqlite-like-wildcard-escape-gotcha".
+            escaped = (
+                project_id
+                .replace("!", "!!")
+                .replace("_", "!_")
+                .replace("%", "!%")
+            )
+            placeholders = ",".join("?" for _ in _BUS_EMIT_LINT_PAIR_EVENTS)
+            params = (
+                f"{escaped}.%",
+                since,
+                *_BUS_EMIT_LINT_PAIR_EVENTS,
+            )
+            row = conn.execute(
+                f"""SELECT 1 FROM event_log
+                    WHERE chain_id LIKE ? ESCAPE '!'
+                      AND ingested_at >= ?
+                      AND event_type IN ({placeholders})
+                    LIMIT 1""",
+                params,
+            ).fetchone()
+            return row is not None
+        finally:
+            conn.close()
+    except Exception:
+        # sqlite3.Error, OSError on connect, anything unexpected — same
+        # fail-open convention as the missing-DB case above.
+        return True
+
+
+def _check_bus_emit_lint(file_path: str) -> "tuple[str, str]":
+    """Return ``(action, message)``.
+
+    ``action``:
+      * ``'allow'`` — no message; lint disabled, not a target, no active
+        project, or recent emit found
+      * ``'warn'`` — caller should attach ``message`` as systemMessage
+      * ``'deny'`` — strict mode, no recent emit; caller should deny
+
+    Fail-open on any unexpected error.
+    """
+    try:
+        mode = _bus_emit_lint_mode()
+        if mode == "off":
+            return "allow", ""
+        if not _is_bus_emit_lint_target(file_path):
+            return "allow", ""
+
+        data, project_name, _ = _find_active_crew_project()
+        if not data or not project_name:
+            return "allow", ""
+
+        project_id = data.get("id") or project_name
+        window = _bus_emit_lint_window_sec()
+        if _has_recent_bus_emit(project_id, window):
+            return "allow", ""
+
+        msg = (
+            f"[bus-emit lint] writing to {file_path} but no wicked-bus "
+            f"event was emitted on chain '{project_id}.*' in the last "
+            f"{window}s. The resume projector (#734) and future bus-as-truth "
+            f"subscribers (#732) rely on emits to track state — silent "
+            f"writes leave projections stale. "
+            f"Bypass: WG_BUS_EMIT_LINT=off | "
+            f"adjust window: WG_BUS_EMIT_LINT_WINDOW_SEC=<sec>"
+        )
+        if mode == "strict":
+            return "deny", msg
+        return "warn", msg
+    except Exception:
+        return "allow", ""
 
 
 def _parse_frontmatter(text: str) -> dict:
