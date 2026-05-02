@@ -325,10 +325,12 @@ def append(
     except ImportError:  # pragma: no cover — defensive
         pass  # fail-open: rotation module unavailable, append continues unbounded
 
+    write_succeeded = False
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fp:
             fp.write(json.dumps(record, separators=(",", ":")) + "\n")
+        write_succeeded = True
     except OSError as exc:
         # Non-fatal: dispatch can still proceed; downstream orphan check
         # will warn on the missing record.
@@ -336,6 +338,36 @@ def append(
             "[wicked-garden:gate-result] dispatch-log append failed "
             f"(phase={phase}, reviewer={reviewer}): {exc}.\n"
         )
+
+    # Part C of #734: emit AFTER successful write so the bus-emit lint and
+    # the resume projector can subscribe to dispatch activity. Fail-open —
+    # a missing emit must not break the dispatch flow (orphan-check still
+    # catches missing entries via the file-based path).
+    if write_succeeded:
+        try:
+            from _bus import emit_event  # type: ignore[import]
+            project_id = Path(project_dir).name
+            chain_id = f"{project_id}.{phase}.{gate}" if gate else f"{project_id}.{phase}"
+            emit_event(
+                "wicked.dispatch.log_entry_appended",
+                {
+                    "project_id": project_id,
+                    "phase": phase,
+                    "gate": gate,
+                    "reviewer": reviewer,
+                    "dispatch_id": dispatch_id,
+                    "dispatcher_agent": dispatcher_agent,
+                    "expected_result_path": expected_result_path,
+                    "dispatched_at": record["dispatched_at"],
+                    "hmac_present": "hmac" in record,
+                },
+                chain_id=chain_id,
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            sys.stderr.write(
+                "[wicked-garden:gate-result] dispatch-log bus emit failed "
+                f"(phase={phase}, reviewer={reviewer}): {exc}\n"
+            )
 
 
 def read_entries(project_dir: Path, phase: str) -> List[Dict[str, Any]]:
