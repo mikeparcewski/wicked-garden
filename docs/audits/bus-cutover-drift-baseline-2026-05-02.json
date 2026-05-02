@@ -1,0 +1,149 @@
+{
+  "header": {
+    "captured_at": "2026-05-02T15:35:56Z",
+    "command_invoked": "sh scripts/_python.sh scripts/crew/reconcile.py --all --json",
+    "repo_state": {
+      "branch": "docs/issue-746-bus-cutover-staging-plan",
+      "head_sha": "c0e0e62094c48bfe3572dcc3e6fe23fd0b8084b4",
+      "head_subject": "fix(crew): #742 — depth-cap recursion + briefing scope + cwd fallback (#744)",
+      "worktree_clean_at_capture": true
+    },
+    "project_count": 2,
+    "phase_count": 1,
+    "total_drift_count": 10,
+    "drift_class_distribution": {
+      "missing_native": 0,
+      "stale_status": 0,
+      "orphan_native": 10,
+      "phase_drift": 0
+    },
+    "store_population": {
+      "process_plan_present": 0,
+      "process_plan_missing": 2,
+      "garden_chain_tasks_total": 0,
+      "native_tasks_matching_chain_total": 0,
+      "phases_with_gate_result_total": 1
+    },
+    "interpretation": "Sample is BELOW the issue-#746 sample-size floor (need >=10 distinct projects OR >=50 distinct phases). Locally we observe 2 project directories under wicked-crew/projects, both with NO process-plan.json (likely cleaned up after their crew runs ended). The only non-zero signal is 10 orphan_native entries — all from one historic project ('issue-689-polish-bundle') whose native tasks linger under ~/.claude/tasks/{session_id}/ even though its project directory has been removed. This is the 'tasklist-without-garden-chain' drift class: native tasks outlive the garden chain because TaskList persistence and crew/projects/ cleanup are decoupled. Zero missing_native, zero stale_status, zero phase_drift on this machine — but the absence is a sample-size artifact, not a clean-bill-of-health signal. The cutover staging plan derives its order from PR #735's audit (the substrate/coverage map), not from these counts.",
+    "sample_adequacy": "INSUFFICIENT_FOR_CUTOVER_GATING. Need broader telemetry from at least 10 distinct projects or 50 distinct phases — see staging-plan section 2 for runway analysis."
+  },
+  "results": [
+    {
+      "project_slug": "feat-build-all-features",
+      "garden_chain_tasks": 0,
+      "native_tasks": 0,
+      "phases_with_gate_result": [],
+      "drift": [
+        {
+          "type": "orphan_native",
+          "native_task_id": "6",
+          "native_subject": "Gate: build code-quality",
+          "chain_id": "issue-689-polish-bundle.build.code-quality",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "7",
+          "native_subject": "Run full test suite",
+          "chain_id": "issue-689-polish-bundle.test",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "10",
+          "native_subject": "Gate: review final-audit",
+          "chain_id": "issue-689-polish-bundle.review.final-audit",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "1",
+          "native_subject": "Functional fixes: phase_manager.py + validate_plan.py (6 findings)",
+          "chain_id": "issue-689-polish-bundle.root",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "2",
+          "native_subject": "Functional fixes: reconcile.py (8 findings)",
+          "chain_id": "issue-689-polish-bundle.root",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "3",
+          "native_subject": "Functional fixes: daemon/projector.py (2 findings)",
+          "chain_id": "issue-689-polish-bundle.root",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "8",
+          "native_subject": "Gate: test evidence-quality",
+          "chain_id": "issue-689-polish-bundle.test.evidence-quality",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "4",
+          "native_subject": "Add missing regression fixtures",
+          "chain_id": "issue-689-polish-bundle.root",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "5",
+          "native_subject": "Cosmetic fixes (logger consistency, doc clean-ups)",
+          "chain_id": "issue-689-polish-bundle.root",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        },
+        {
+          "type": "orphan_native",
+          "native_task_id": "9",
+          "native_subject": "Council review (correctness + independence + docs)",
+          "chain_id": "issue-689-polish-bundle.review",
+          "orphan_project_slug": "issue-689-polish-bundle",
+          "reason": "native task carries chain_id for project 'issue-689-polish-bundle' which has no process-plan.json"
+        }
+      ],
+      "summary": {
+        "total_drift_count": 10,
+        "missing_native_count": 0,
+        "stale_status_count": 0,
+        "orphan_native_count": 10,
+        "phase_drift_count": 0
+      },
+      "errors": [
+        "could not read process-plan.json (not found at /Users/michael.parcewski/.something-wicked/wicked-garden/local/wicked-crew/projects/feat-build-all-features/process-plan.json)"
+      ]
+    },
+    {
+      "project_slug": "gate-enforcement-test",
+      "garden_chain_tasks": 0,
+      "native_tasks": 0,
+      "phases_with_gate_result": [
+        "design"
+      ],
+      "drift": [],
+      "summary": {
+        "total_drift_count": 0,
+        "missing_native_count": 0,
+        "stale_status_count": 0,
+        "orphan_native_count": 0,
+        "phase_drift_count": 0
+      },
+      "errors": [
+        "could not read process-plan.json (not found at /Users/michael.parcewski/.something-wicked/wicked-garden/local/wicked-crew/projects/gate-enforcement-test/process-plan.json)"
+      ]
+    }
+  ]
+}
