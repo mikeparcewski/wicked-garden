@@ -518,6 +518,16 @@ release as the LAST cutover flip (N+5) so one full release runs at the
 new shape under flag-default-on before strict mode removes the opt-out
 at N+6.
 
+**Implementation contract** (per ADR `docs/v9/adr-reconcile-v2.md`,
+decided 2026-05-02 via the pre-Site-3 design jam on issue #750): the
+post-cutover reconciler ships as a new module
+`scripts/crew/reconcile_v2.py` co-existing with v1 during the cutover
+window. v1 is deprecated when Site 5 lands and removed in release N+5.
+Site 3's PR ships `reconcile_v2.py` and the detector assertions in
+`tests/crew/test_synthetic_drift.py`'s three post-cutover test classes
+per the meta-test contract already locked in #750
+(`TestPostCutoverContract` — see the ADR for the exact rule).
+
 ### Required template patterns for Sites 2-5 projection tables (#753 + #754)
 
 The pre-merge council on PR #751 (Site 1) named two template warts that
