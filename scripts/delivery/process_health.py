@@ -20,6 +20,8 @@ _SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_SCRIPTS_ROOT))
 
 from delivery import process_memory as pm
+from delivery import drift as drift_mod
+from delivery import telemetry as tm
 
 
 def _rollup(memory: dict) -> dict:
@@ -127,6 +129,85 @@ def render_report(project: str, memory: dict, rollup: dict) -> str:
     return "\n".join(lines)
 
 
+def _spc_section(project: str) -> dict:
+    """Build the SPC drift summary for a project (issue #719).
+
+    Classifies the gate_pass_rate timeline + per-gate min_score series,
+    surfaces the warmup status, and lists recent persisted flags. Always
+    returns a dict — empty fields when telemetry hasn't accumulated yet.
+    """
+    timeline = tm.read_timeline(project)
+    classifications: list[dict] = []
+    # Always classify the headline metric.
+    headline = drift_mod.classify(timeline, "gate_pass_rate")
+    classifications.append(headline)
+    # Per-(phase, tier) min_score series — one classification per gate slot
+    # observed in the most recent record. We synthesize a synthetic series by
+    # pulling each slot's min_score from each timeline record.
+    if timeline:
+        latest_slots = (timeline[-1].get("metrics") or {}).get("gate_breakdown") or {}
+        for slot_key in sorted(latest_slots.keys()):
+            synth: list[dict] = []
+            for rec in timeline:
+                gb = (rec.get("metrics") or {}).get("gate_breakdown") or {}
+                slot = gb.get(slot_key) or {}
+                min_score = slot.get("min_score")
+                if isinstance(min_score, (int, float)):
+                    synth.append({"metrics": {f"{slot_key}.min_score": float(min_score)}})
+            if len(synth) >= 5:
+                classifications.append(
+                    drift_mod.classify(synth, f"{slot_key}.min_score")
+                )
+    flags = drift_mod.list_recent_flags(project, limit=10)
+    return {
+        "sample_count": len(timeline),
+        "warmup_min_samples": drift_mod.WARMUP_MIN_SAMPLES,
+        "warmup_satisfied": len(timeline) >= drift_mod.WARMUP_MIN_SAMPLES,
+        "classifications": classifications,
+        "recent_flags": flags,
+    }
+
+
+def render_spc(spc: dict) -> str:
+    """Format the SPC section as a markdown block."""
+    lines = ["## SPC Drift", ""]
+    lines.append(
+        f"- Samples: **{spc['sample_count']}** "
+        f"(warmup threshold: {spc['warmup_min_samples']})"
+    )
+    lines.append(
+        f"- Warmup: **{'satisfied' if spc['warmup_satisfied'] else 'PENDING'}**"
+    )
+    lines.append("")
+    lines.append("### Classifications")
+    lines.append("")
+    for cls in spc["classifications"]:
+        zone = cls.get("zone", "unknown")
+        metric = cls.get("metric", "?")
+        n = cls.get("session_count", 0)
+        rules = ", ".join(cls.get("we_rules") or []) or "—"
+        lines.append(
+            f"- `{metric}` n={n} zone=**{zone}** drift={cls.get('drift', False)} "
+            f"rules=[{rules}]"
+        )
+    lines.append("")
+    flags = spc.get("recent_flags") or []
+    if flags:
+        lines.append("### Recent flags")
+        lines.append("")
+        lines.append("| Recorded | Metric | Rule | Severity |")
+        lines.append("|----------|--------|------|----------|")
+        for f in flags:
+            lines.append(
+                f"| {f.get('recorded_at', '—')} | {f.get('metric', '—')} "
+                f"| {f.get('rule', '—')} | {f.get('severity', '—')} |"
+            )
+    else:
+        lines.append("_No SPC flags persisted yet._")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Render process-health summary for a crew project."
@@ -138,23 +219,33 @@ def main(argv: list[str] | None = None) -> int:
         choices=("text", "json", "both"),
         help="Output format. 'both' prints JSON to stderr and text to stdout.",
     )
+    parser.add_argument(
+        "--spc",
+        action="store_true",
+        help="Include SPC drift section (issue #719). Default off for back-compat.",
+    )
     args = parser.parse_args(argv)
 
     memory = pm.load_memory(args.project)
     rollup = _rollup(memory)
     context = pm.facilitator_context(args.project)
+    spc = _spc_section(args.project) if args.spc else None
     # Merge rollup into context for JSON consumers.
     payload = {
         "project": args.project,
         "context": context,
         "rollup": rollup,
     }
+    if spc is not None:
+        payload["spc"] = spc
 
     if args.format == "json":
         print(json.dumps(payload, indent=2))
         return 0
 
     report = render_report(args.project, memory, rollup)
+    if spc is not None:
+        report += "\n" + render_spc(spc)
     if args.format == "both":
         sys.stderr.write(json.dumps(payload, indent=2) + "\n")
     sys.stdout.write(report)

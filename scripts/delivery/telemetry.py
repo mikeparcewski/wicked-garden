@@ -178,6 +178,11 @@ def _extract_metrics_from_tasks(
     phase_started: Dict[str, float] = {}
     cycle_time_by_phase: Dict[str, float] = {}
 
+    # Per-(phase, tier) verdict + score breakdown — issue #719 ACs need
+    # `{phase}.{tier}.min_score` and verdict ratios per gate. Stored as a
+    # nested dict keyed by ``f"{phase}.{tier}"`` for stable JSON addressing.
+    gate_breakdown: Dict[str, Dict[str, Any]] = {}
+
     for t in tasks:
         if not isinstance(t, dict):
             continue
@@ -203,6 +208,32 @@ def _extract_metrics_from_tasks(
             if isinstance(score, (int, float)):
                 scores.append(float(score))
 
+            # Per phase × tier rollup. Tier defaults to "standard" when the
+            # gate-finding event doesn't carry an explicit rigor tag — most
+            # phase events do, but legacy fallbacks may not.
+            phase_name = meta.get("phase") or "unknown"
+            tier = (meta.get("rigor_tier") or meta.get("tier") or "standard")
+            key = f"{phase_name}.{tier}"
+            slot = gate_breakdown.setdefault(key, {
+                "phase": phase_name,
+                "tier": tier,
+                "approve": 0,
+                "conditional": 0,
+                "reject": 0,
+                "scores": [],
+                "min_score": None,
+            })
+            if verdict == "APPROVE":
+                slot["approve"] += 1
+            elif verdict == "CONDITIONAL":
+                slot["conditional"] += 1
+            elif verdict == "REJECT":
+                slot["reject"] += 1
+            if isinstance(score, (int, float)):
+                slot["scores"].append(float(score))
+                cur_min = slot["min_score"]
+                slot["min_score"] = float(score) if cur_min is None else min(cur_min, float(score))
+
         elif et == "phase-transition":
             phase = meta.get("phase") or meta.get("from_phase")
             ts_end = _parse_iso(t.get("updated_at") or t.get("created_at"))
@@ -212,6 +243,14 @@ def _extract_metrics_from_tasks(
                     cycle_time_by_phase[phase] = round(ts_end - start, 3)
                 # Any transition on the phase resets its start anchor.
                 phase_started[phase] = ts_end
+
+    # Finalize per-gate avg scores (kept alongside min for SPC of mean lines).
+    for slot in gate_breakdown.values():
+        scores_list = slot.pop("scores", [])
+        slot["avg_score"] = round(sum(scores_list) / len(scores_list), 4) if scores_list else None
+        total = slot["approve"] + slot["conditional"] + slot["reject"]
+        slot["total"] = total
+        slot["reject_rate"] = round(slot["reject"] / total, 4) if total else None
 
     total_verdicts = approve + conditional + reject
     if total_verdicts >= _MIN_VERDICTS_FOR_RATE:
@@ -232,7 +271,67 @@ def _extract_metrics_from_tasks(
         "task_count": task_count,
         "task_completed": task_completed,
         "cycle_time_by_phase": cycle_time_by_phase,
+        # Issue #719: nested per-(phase, tier) rollups for SPC drift.
+        "gate_breakdown": gate_breakdown,
     }
+
+
+def _extract_convergence_metrics(project: Optional[str]) -> Dict[str, Any]:
+    """Read crew convergence stalls for the active project.
+
+    Returns counts of stalled artifacts (sessions_in_state >= threshold) and
+    the count of recorded transitions in the most recent log scan. Fail-open:
+    any failure → all-zero metrics.
+    """
+    out = {"convergence_stalls": 0, "convergence_artifacts": 0}
+    if not project or project == "_global":
+        return out
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from crew import convergence  # type: ignore
+        # convergence APIs take a project *directory*, not the slug. Resolve
+        # via the same helper its CLI uses so we honor _paths.
+        project_dir = convergence._resolve_project_dir(project)
+        stalls = convergence.detect_stalls(project_dir) or []
+        status = convergence.project_status(project_dir) or {}
+        out["convergence_stalls"] = len(stalls)
+        out["convergence_artifacts"] = int(status.get("total") or 0)
+    except Exception:
+        pass
+    return out
+
+
+def _extract_scenario_metrics(project: Optional[str]) -> Dict[str, Any]:
+    """Read scenario verdict counts for the active project.
+
+    Looks for a wicked-testing DomainStore source; if absent, returns zeros.
+    Acceptance criterion (#719) is "capture if available" — we never hard-fail
+    when wicked-testing isn't installed.
+    """
+    out = {"scenario_pass": 0, "scenario_partial": 0, "scenario_fail": 0}
+    if not project or project == "_global":
+        return out
+    try:
+        from _domain_store import DomainStore  # type: ignore
+        ds = DomainStore("wicked-testing", hook_mode=True)
+        for source in ("verdicts", "runs", "scenarios"):
+            try:
+                rows = ds.list(source, project=project) or []
+            except Exception:
+                rows = []
+            for row in rows:
+                v = str(row.get("verdict") or row.get("result") or "").upper()
+                if v == "PASS":
+                    out["scenario_pass"] += 1
+                elif v in ("PARTIAL", "WARN"):
+                    out["scenario_partial"] += 1
+                elif v in ("FAIL", "ERROR"):
+                    out["scenario_fail"] += 1
+            if any(out.values()):
+                break  # first source that yielded data wins
+    except Exception:
+        pass
+    return out
 
 
 def _extract_session_extras() -> Dict[str, Any]:
@@ -315,6 +414,10 @@ def capture_session(
         metrics = _extract_metrics_from_tasks(tasks)
         metrics["skip_reeval_count"] = extras["skip_reeval_count"]
         metrics["complexity_delta"] = extras["complexity_delta"]
+        # Issue #719: convergence + scenario rollups join the per-session metric
+        # bag. Fail-open on both — empty zeros are better than dropped records.
+        metrics.update(_extract_convergence_metrics(raw_project))
+        metrics.update(_extract_scenario_metrics(raw_project))
 
         # Build sample window from the first/last task timestamps observed.
         first_ts: Optional[str] = None
