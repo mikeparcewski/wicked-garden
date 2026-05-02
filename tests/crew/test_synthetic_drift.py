@@ -663,12 +663,22 @@ class TestPostCutoverContract(unittest.TestCase):
         reconcile_v2_path = (
             _REPO_ROOT / "scripts" / "crew" / f"{self._RECONCILE_V2_MODULE}.py"
         )
-        if not reconcile_v2_path.is_file():
-            return  # trivial pass — Site 3 has not landed yet
-
-        # Site 3 has landed (reconcile_v2.py exists on disk). The
-        # contract becomes enforceable: every post-cutover class needs
-        # at least one test that references reconcile_v2.
+        # Two-tier check, both ALWAYS run:
+        #
+        #   Tier A (#757 — coverage gap): every post-cutover slug in
+        #   _DAEMON_DB_BEARING MUST have at least one matching test
+        #   class. This runs whether or not Site 3 has landed —
+        #   the test-class-existence requirement is independent of
+        #   the reconcile_v2 module itself.
+        #
+        #   Tier B (#750 — detector-assertion contract): every matched
+        #   class MUST have at least one test method that references
+        #   reconcile_v2. This is gated on Site 3 having landed —
+        #   if reconcile_v2.py does not exist on disk, the detector
+        #   check is skipped (the documented deferral from #750 +
+        #   adr-reconcile-v2.md). #757 fix: this gate is now narrow,
+        #   it does NOT skip Tier A's coverage check.
+        site_3_landed = reconcile_v2_path.is_file()
         test_file = Path(__file__).resolve()
         source = test_file.read_text(encoding="utf-8")
         tree = ast.parse(source)
@@ -681,6 +691,7 @@ class TestPostCutoverContract(unittest.TestCase):
                 if isinstance(node, ast.ClassDef) and pascal in node.name:
                     matching_classes.append(node)
 
+            # Tier A — always runs.
             if not matching_classes:
                 # #757: silent skip defeats half the contract. A
                 # post-cutover drift class in _DAEMON_DB_BEARING with NO
@@ -691,6 +702,10 @@ class TestPostCutoverContract(unittest.TestCase):
                     f"Add a test class for this _DAEMON_DB_BEARING slug "
                     f"or remove it from the registry."
                 )
+                continue
+
+            # Tier B — gated on Site 3 landing.
+            if not site_3_landed:
                 continue
 
             has_v2_assertion = False
