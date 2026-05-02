@@ -41,6 +41,7 @@ Hard constraints (mirror v1)
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sqlite3
@@ -58,6 +59,12 @@ from typing import Any, Dict, List, Optional
 DRIFT_PROJECTION_STALE: str = "projection-stale"
 DRIFT_EVENT_WITHOUT_PROJECTION: str = "event-without-projection"
 DRIFT_PROJECTION_WITHOUT_EVENT: str = "projection-without-event"
+
+# chain_id format: {slug}.{phase}[.{gate}] — minimum 2 dot-separated parts.
+_MIN_CHAIN_ID_PARTS = 2
+
+# Projector is considered lagging when pending-event backlog exceeds this count.
+_LAG_EVENTS_THRESHOLD = 10
 
 # ---------------------------------------------------------------------------
 # Event types the projector is expected to materialise as on-disk artifacts.
@@ -188,7 +195,7 @@ def _phase_from_chain_id(chain_id: Optional[str]) -> Optional[str]:
     if not isinstance(chain_id, str) or not chain_id:
         return None
     parts = chain_id.split(".", 2)
-    if len(parts) < 2:
+    if len(parts) < _MIN_CHAIN_ID_PARTS:
         return None
     phase = parts[1]
     # Reserved non-phase tokens that reconcile.py uses at the root level.
@@ -312,7 +319,9 @@ def _collect_projection_files(project_dir: Path) -> List[Path]:
     if not phases_dir.is_dir():
         return []
     out: List[Path] = []
-    try:
+    # Race window: a phase directory may be removed between is_dir() and iterdir();
+    # suppress OSError and return whatever partial list was collected so far.
+    with contextlib.suppress(OSError):
         for phase_dir in sorted(phases_dir.iterdir()):
             if not phase_dir.is_dir():
                 continue
@@ -320,8 +329,6 @@ def _collect_projection_files(project_dir: Path) -> List[Path]:
                 candidate = phase_dir / name
                 if candidate.is_file():
                     out.append(candidate)
-    except OSError:
-        pass
     return out
 
 
@@ -453,7 +460,9 @@ def _build_projections_materialised(project_dir: Path) -> Dict[str, Any]:
     process_plan = project_dir / "process-plan.json"
 
     if phases_dir.is_dir():
-        try:
+        # Race window: a phase directory may disappear between is_dir() and
+        # iterdir(); suppress OSError and return the partial inventory collected.
+        with contextlib.suppress(OSError):
             for phase_dir in sorted(phases_dir.iterdir()):
                 if not phase_dir.is_dir():
                     continue
@@ -470,8 +479,6 @@ def _build_projections_materialised(project_dir: Path) -> Dict[str, Any]:
                     consensus_report_phases.append(name)
                 if (phase_dir / "consensus-evidence.json").is_file():
                     consensus_evidence_phases.append(name)
-        except OSError:
-            pass
 
     return {
         "process_plan_json": str(process_plan) if process_plan.is_file() else None,
@@ -544,10 +551,10 @@ def reconcile_project(
         errors.append(f"event_log query failed: {exc}")
     finally:
         if owns_conn and db_conn is not None:
-            try:
+            # Closing a read-only SQLite connection can raise sqlite3.Error in
+            # degraded states (e.g. WAL checkpoint race); safe to suppress.
+            with contextlib.suppress(sqlite3.Error):
                 db_conn.close()
-            except sqlite3.Error:
-                pass
 
     drift: List[Dict[str, Any]] = []
     if project_dir.is_dir():
@@ -625,10 +632,11 @@ def reconcile_all(
     except Exception:  # pragma: no cover — unexpected; fail-open
         return []
     finally:
-        try:
+        # Closing a shared read-only connection may raise sqlite3.Error on WAL
+        # checkpoint races; suppressing is safe — the scan results are already in
+        # `results` and no mutation was performed.
+        with contextlib.suppress(sqlite3.Error):
             shared_conn.close()
-        except sqlite3.Error:
-            pass
 
 
 def _build_report_header(
@@ -639,18 +647,18 @@ def _build_report_header(
     head_seq = 0
     total_seq = 0
     if conn is not None:
-        try:
+        # DB access failure here just means the header reports zeros for
+        # head/total; the report is still valid and fail-open is correct.
+        with contextlib.suppress(sqlite3.Error):
             head_seq = _event_log_head(conn)
             total_seq = _event_log_total(conn)
-        except sqlite3.Error:
-            pass
 
     # Simple projector health signal: if total > head, assume lagging
     # (head is the max event_id; total counts all rows including pending).
     lag = max(0, total_seq - head_seq) if total_seq > head_seq else 0
     if conn is None:
         projector_health = "unreachable"
-    elif lag > 10:
+    elif lag > _LAG_EVENTS_THRESHOLD:
         projector_health = "lagging"
     else:
         projector_health = "ok"
@@ -791,10 +799,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 )
             finally:
                 if _header_conn is not None:
-                    try:
+                    # Read-only connection; close failure is benign.
+                    with contextlib.suppress(sqlite3.Error):
                         _header_conn.close()
-                    except sqlite3.Error:
-                        pass
             payload = {"header": header, "results": results}
             sys.stdout.write(json.dumps(payload, indent=2) + "\n")
         else:
@@ -824,10 +831,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
         finally:
             if _header_conn2 is not None:
-                try:
+                # Read-only connection; close failure is benign.
+                with contextlib.suppress(sqlite3.Error):
                     _header_conn2.close()
-                except sqlite3.Error:
-                    pass
         payload2 = {"header": header2, "results": [result]}
         sys.stdout.write(json.dumps(payload2, indent=2) + "\n")
     else:
