@@ -518,6 +518,36 @@ release as the LAST cutover flip (N+5) so one full release runs at the
 new shape under flag-default-on before strict mode removes the opt-out
 at N+6.
 
+### Required template patterns for Sites 2-5 projection tables (#753 + #754)
+
+The pre-merge council on PR #751 (Site 1) named two template warts that
+MUST be fixed in the projector template before Site 2 clones the pattern.
+Both ship in the follow-up PR cited by issues **#753** and **#754** and
+become preconditions for Sites 2-5:
+
+1. **FK + ON DELETE CASCADE on every projection table's event-id column.**
+   Each cutover-site projection table (`dispatch_log_entries`,
+   `consensus_report_entries`, `consensus_evidence_entries`,
+   `reviewer_report_entries`, `gate_result_entries`, `conditions_entries`)
+   declares `event_id INTEGER PRIMARY KEY REFERENCES event_log(event_id)
+   ON DELETE CASCADE`. Without this, retention/cleanup workflows that
+   prune `event_log` will leak orphan projection rows. `PRAGMA
+   foreign_keys=ON` is set at every connection in `daemon/db.py::connect()`
+   — without that PRAGMA the FK is parsed but not enforced.
+
+2. **WARN-once on `_bus` ImportError in projector handlers.** The Site 1
+   handler `_dispatch_log_appended` swallowed `_bus` import failures into
+   silent `flag_on=False`. The follow-up promotes that to a single
+   `logger.warning` (latched via a module-level `_BUS_IMPORT_WARNED`
+   flag) so a real misconfiguration (e.g. PYTHONPATH missing `scripts/`)
+   surfaces in operator logs without breaking the fail-open contract.
+   Sites 2-5 inherit this WARN-once pattern, NOT the silent skip.
+
+Both fixes ship as one PR because they are the same "template wart"
+cluster from one council session. The byte-identity contract from
+Council Condition C2 is preserved: flag-off behaviour still returns
+`applied` with the projection table untouched.
+
 ## 6. Scenario coverage
 
 All scenarios live under `scenarios/crew/`. #746's "Scenario covers a

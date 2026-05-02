@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import sys
 import time
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Phase state machine import (v8-PR-3 #590).
@@ -128,6 +131,20 @@ def init_schema(conn: sqlite3.Connection) -> None:
         -- the event payload carries an ISO-8601 string.  The handler
         -- normalises the string at insertion time so range queries
         -- (`WHERE dispatched_at BETWEEN ...`) avoid ISO comparison gymnastics.
+        --
+        -- FK + ON DELETE CASCADE (#754): event_id REFERENCES event_log so
+        -- retention/cleanup workflows that prune event_log rows do not leak
+        -- orphan projection rows.  PRAGMA foreign_keys=ON is set in connect()
+        -- (every connection); without it SQLite parses but does not enforce
+        -- the FK.  Cutover Sites 2-5's projection tables MUST follow this
+        -- pattern — staging plan §5 names FK + WARN as REQUIRED.
+        --
+        -- Migration note (#754): if a developer's local DB created this table
+        -- before this PR landed (no FK), CREATE TABLE IF NOT EXISTS will skip
+        -- and the table stays FK-less.  Detection helper:
+        -- `_dispatch_log_entries_has_event_id_fk()` below; recreation only
+        -- happens when the table is empty, otherwise the developer is asked
+        -- to manually re-create.  No destructive auto-migration ships.
         CREATE TABLE IF NOT EXISTS dispatch_log_entries (
             event_id              INTEGER PRIMARY KEY,
             project_id            TEXT NOT NULL,
@@ -140,7 +157,8 @@ def init_schema(conn: sqlite3.Connection) -> None:
             dispatched_at         INTEGER NOT NULL,
             hmac                  TEXT,
             hmac_present          INTEGER NOT NULL DEFAULT 0,
-            raw_payload           TEXT NOT NULL
+            raw_payload           TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES event_log(event_id) ON DELETE CASCADE
         );
 
         CREATE INDEX IF NOT EXISTS idx_dispatch_log_entries_lookup
@@ -345,6 +363,12 @@ def init_schema(conn: sqlite3.Connection) -> None:
     # that were created before this column was introduced.
     _run_migration(conn, "hook_invocations_add_debounce_key",
                    _migrate_hook_invocations_add_debounce_key)
+    # #754: rebuild dispatch_log_entries with FK + ON DELETE CASCADE on
+    # event_id when a pre-#754 schema is detected and the table is empty.
+    # Non-empty tables are left alone with a logger.warning so the developer
+    # can decide how to migrate; we never silently drop projection rows.
+    _run_migration(conn, "dispatch_log_entries_add_event_id_fk",
+                   _migrate_dispatch_log_entries_add_event_id_fk)
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +447,107 @@ def _migrate_hook_invocations_add_debounce_key(conn: sqlite3.Connection) -> None
     if "debounce_key" not in col_names:
         conn.execute("ALTER TABLE hook_invocations ADD COLUMN debounce_key TEXT")
     # Commit is handled by _run_migration after the migration row is written.
+
+
+def _dispatch_log_entries_has_event_id_fk(conn: sqlite3.Connection) -> bool:
+    """Return True iff dispatch_log_entries has the FK on event_id → event_log.
+
+    SQLite reports FKs through ``PRAGMA foreign_key_list(<table>)``.  Each row
+    has columns (id, seq, table, from, to, on_update, on_delete, match).  We
+    look for one where ``from`` is ``event_id``, ``table`` is ``event_log``,
+    and ``on_delete`` is ``CASCADE`` — the exact contract from #754.
+    """
+    rows = conn.execute("PRAGMA foreign_key_list(dispatch_log_entries)").fetchall()
+    for r in rows:
+        # Tuple form to stay row_factory-agnostic in tests.
+        from_col = r["from"] if hasattr(r, "keys") else r[3]
+        ref_table = r["table"] if hasattr(r, "keys") else r[2]
+        on_delete = r["on_delete"] if hasattr(r, "keys") else r[6]
+        if from_col == "event_id" and ref_table == "event_log" and on_delete == "CASCADE":
+            return True
+    return False
+
+
+def _migrate_dispatch_log_entries_add_event_id_fk(conn: sqlite3.Connection) -> None:
+    """Backfill the event_id FK on dispatch_log_entries for pre-#754 DBs.
+
+    Why this exists (#754): PR #751 created ``dispatch_log_entries`` without
+    an explicit FK on ``event_id``.  CREATE TABLE IF NOT EXISTS in
+    ``init_schema`` will not modify a pre-existing table, so a developer who
+    ran the daemon between #751 and #754 has an FK-less table that will leak
+    orphan rows when ``event_log`` is pruned.
+
+    SQLite cannot ADD a FOREIGN KEY via ALTER TABLE; the canonical fix is the
+    "rename / recreate / copy / drop" dance.  We refuse to ship that as a
+    silent destructive auto-migration:
+
+      * If the table is empty → safe to DROP and recreate.  Do it.
+      * If the table is non-empty → emit a `logger.warning` with the recovery
+        steps and leave the table alone.  Future writes still go in; they
+        just lack FK enforcement until the developer migrates manually.
+
+    The fresh-DB path also hits this migration — the FK already exists, so
+    the function is a no-op.  We use the existence check to keep the
+    _migrations row idempotent across both paths.
+    """
+    # Skip when the table does not exist yet (defensive; init_schema runs
+    # CREATE TABLE IF NOT EXISTS above so this should not happen, but a
+    # partially initialised DB should not crash the migration.)
+    table_exists = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'dispatch_log_entries'"
+    ).fetchone()
+    if table_exists is None:
+        return
+
+    if _dispatch_log_entries_has_event_id_fk(conn):
+        return  # already migrated (fresh DB or prior run)
+
+    row_count_row = conn.execute(
+        "SELECT COUNT(*) FROM dispatch_log_entries"
+    ).fetchone()
+    row_count = row_count_row[0] if row_count_row else 0
+    if row_count > 0:
+        logger.warning(
+            "daemon/db.py: dispatch_log_entries has %d row(s) and is missing "
+            "the event_id → event_log FK (#754). Auto-migration skipped to "
+            "avoid silent data loss. To migrate manually: BEGIN; CREATE TABLE "
+            "dispatch_log_entries_new (... FOREIGN KEY (event_id) REFERENCES "
+            "event_log(event_id) ON DELETE CASCADE); INSERT INTO "
+            "dispatch_log_entries_new SELECT * FROM dispatch_log_entries; "
+            "DROP TABLE dispatch_log_entries; ALTER TABLE "
+            "dispatch_log_entries_new RENAME TO dispatch_log_entries; COMMIT;",
+            row_count,
+        )
+        return
+
+    # Empty table → safe to recreate with the FK in place.  Schema kept in
+    # lockstep with the CREATE TABLE block above so the two paths converge.
+    conn.execute("DROP TABLE dispatch_log_entries")
+    conn.execute(
+        """
+        CREATE TABLE dispatch_log_entries (
+            event_id              INTEGER PRIMARY KEY,
+            project_id            TEXT NOT NULL,
+            phase                 TEXT NOT NULL,
+            gate                  TEXT NOT NULL,
+            reviewer              TEXT NOT NULL,
+            dispatch_id           TEXT NOT NULL,
+            dispatcher_agent      TEXT NOT NULL,
+            expected_result_path  TEXT NOT NULL,
+            dispatched_at         INTEGER NOT NULL,
+            hmac                  TEXT,
+            hmac_present          INTEGER NOT NULL DEFAULT 0,
+            raw_payload           TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES event_log(event_id) ON DELETE CASCADE
+        )
+        """
+    )
+    # Re-create the lookup index that init_schema declares (idempotent).
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_dispatch_log_entries_lookup "
+        "ON dispatch_log_entries(project_id, phase, gate, dispatched_at DESC)"
+    )
+    # Commit handled by _run_migration after the migration row is written.
 
 
 def upsert_project(conn: sqlite3.Connection, project_id: str, fields: dict[str, Any]) -> None:

@@ -66,6 +66,14 @@ _VERDICT_REJECT = "REJECT"
 # caused by out-of-order bus events; the update is silently dropped.
 _STATUS_RANK: dict[str, int] = {"pending": 0, "in_progress": 1, "completed": 2}
 
+# One-time WARN latch for the `_bus` ImportError path (#753).  The first time
+# `_dispatch_log_appended` (or any future cutover-site handler that imports
+# `_bus_as_truth_enabled`) cannot import the helper, we log a single WARN so
+# operators see the misconfiguration in logs.  Subsequent calls keep the same
+# fail-open behaviour but stay silent — re-logging on every projection run
+# would flood the log under sustained traffic.
+_BUS_IMPORT_WARNED = False
+
 
 # --- helpers ---------------------------------------------------------------
 
@@ -562,11 +570,32 @@ def _dispatch_log_appended(conn: sqlite3.Connection, event: dict) -> None:
     """
     # Defer import to avoid a hard dependency at module load — the projector
     # boots in environments where scripts/_bus.py may not be on sys.path
-    # (e.g. some test harnesses).  Failure to import is treated as flag-off.
+    # (e.g. some test harnesses).  Failure to import is treated as flag-off
+    # so the dual-write contract (disk truth, bus observability) keeps the
+    # projection table empty and the wrapper still records the event_log row
+    # as `applied`.
+    #
+    # Observability promotion (#753): the previous implementation swallowed
+    # the ImportError silently, which made a real misconfiguration (e.g.
+    # PYTHONPATH missing scripts/) invisible.  We now WARN exactly once per
+    # process via the `_BUS_IMPORT_WARNED` module-level latch — operators
+    # see the misconfiguration in logs without sustained-traffic spam.
+    # Cutover Sites 2-5 MUST inherit this WARN-once pattern, not the silent
+    # skip, per the staging plan (docs/v9/bus-cutover-staging-plan.md §5).
+    global _BUS_IMPORT_WARNED
     try:
         from _bus import _bus_as_truth_enabled  # type: ignore[import]
         flag_on = _bus_as_truth_enabled()
-    except Exception:
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_DISPATCH_LOG "
+                "as off (will not re-warn this process): %s",
+                exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open for any other error
         flag_on = False
 
     if not flag_on:
