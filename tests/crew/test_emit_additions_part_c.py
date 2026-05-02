@@ -63,7 +63,13 @@ class TestDispatchLogEmits(unittest.TestCase):
                     self.assertEqual(payload["reviewer"], "rev-1")
                     self.assertEqual(payload["dispatch_id"], "abc123")
                     self.assertTrue(payload["hmac_present"])
-                    self.assertEqual(kwargs.get("chain_id"), "demo-proj.build.testability")
+                    # Site 1 (#751) C5 — chain_id includes dispatch_id so retries
+                    # do not collide on the bus dedupe ledger.  This assertion
+                    # was originally `"demo-proj.build.testability"` (pre-#751).
+                    self.assertEqual(
+                        kwargs.get("chain_id"),
+                        "demo-proj.build.testability.abc123",
+                    )
 
     def test_no_emit_when_write_fails(self):
         """Disk write fails → no orphan emit. Otherwise the projector
@@ -153,7 +159,14 @@ class TestConsensusEmits(unittest.TestCase):
             scores = {"agreement_ratio": 0.92, "divergent_points": []}
             import _bus  # type: ignore[import]
             with patch.object(_bus, "emit_event") as mock_emit:
-                cg._write_consensus_report(project_dir, "design", result, scores)
+                # Site 2 (#746) C9 — pass an explicit eval_id so the chain_id
+                # is deterministic.  When the caller omits eval_id, the helper
+                # mints a uuid; this test pins the format independent of uuid
+                # generation by supplying it explicitly.
+                cg._write_consensus_report(
+                    project_dir, "design", result, scores,
+                    eval_id="abcdef123456",
+                )
                 # Find the report-created emit (there should be exactly one).
                 report_calls = [c for c in mock_emit.call_args_list
                                 if c.args and c.args[0] == "wicked.consensus.report_created"]
@@ -164,8 +177,16 @@ class TestConsensusEmits(unittest.TestCase):
                 self.assertEqual(payload["phase"], "design")
                 self.assertEqual(payload["decision"], "APPROVE")
                 self.assertAlmostEqual(payload["agreement_ratio"], 0.92)
-                self.assertEqual(report_calls[0].kwargs.get("chain_id"),
-                                 "demo-proj.design")
+                # Site 2 (#746) C9 — chain_id includes eval_id discriminator.
+                # Pre-#746 was `"demo-proj.design"` which collided on retries.
+                self.assertEqual(
+                    report_calls[0].kwargs.get("chain_id"),
+                    "demo-proj.design.consensus.abcdef123456",
+                )
+                # Site 2 (#746) C10 — raw_payload REQUIRED in the emit.
+                self.assertIn("raw_payload", payload,
+                              "C10 violation: raw_payload missing from emit")
+                self.assertEqual(payload["eval_id"], "abcdef123456")
 
     def test_evidence_emit_after_successful_write(self):
         with TemporaryDirectory() as tmp:
@@ -179,6 +200,9 @@ class TestConsensusEmits(unittest.TestCase):
                 "agreement_ratio": 0.45,
                 "dissenting_views": [],
                 "participants": ["rev-a", "rev-b"],
+                # Site 2 (#746) C9 — caller threads eval_id through so
+                # report and evidence chain_ids share the same eval segment.
+                "eval_id": "abcdef123456",
             }
             import _bus  # type: ignore[import]
             with patch.object(_bus, "emit_event") as mock_emit:
@@ -190,8 +214,18 @@ class TestConsensusEmits(unittest.TestCase):
                 self.assertEqual(payload["project_id"], "demo-proj")
                 self.assertEqual(payload["phase"], "review")
                 self.assertEqual(payload["result"], "REJECT")
-                self.assertEqual(evidence_calls[0].kwargs.get("chain_id"),
-                                 "demo-proj.review")
+                # Site 2 (#746) C9 — evidence chain_id includes both eval_id
+                # AND a `.evidence` discriminator so it stays distinct from
+                # the report emit's chain_id within the same eval.
+                # Pre-#746 was `"demo-proj.review"` which collided.
+                self.assertEqual(
+                    evidence_calls[0].kwargs.get("chain_id"),
+                    "demo-proj.review.consensus.abcdef123456.evidence",
+                )
+                # Site 2 (#746) C10 — raw_payload REQUIRED.
+                self.assertIn("raw_payload", payload,
+                              "C10 violation: raw_payload missing from evidence emit")
+                self.assertEqual(payload["eval_id"], "abcdef123456")
 
     def test_evidence_no_emit_when_write_fails(self):
         with TemporaryDirectory() as tmp:

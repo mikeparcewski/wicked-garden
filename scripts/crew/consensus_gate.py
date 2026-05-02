@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import sys
+import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -339,11 +340,31 @@ def evaluate_consensus_gate(
     except Exception as exc:
         logger.warning("[consensus-gate] Failed to store council result: %s", exc)
 
+    # Mint a per-evaluation discriminator and thread it through both writes.
+    #
+    # Site 2 of the bus-cutover (#746) — Council Condition C9 (latent dedup
+    # bug fix).  Pre-#746 both emits used ``chain_id=f"{project_id}.{phase}"``,
+    # so a second consensus eval on the same phase would collide on the bus
+    # dedupe ledger (see ``_bus.py`` ``is_processed`` keyed on
+    # ``(event_type, chain_id)``).  ``eval_id`` is unique per call to
+    # ``evaluate_consensus_gate`` and is woven into BOTH the report and
+    # evidence chain_ids:
+    #   * report   chain_id = f"{project_id}.{phase}.consensus.{eval_id}"
+    #   * evidence chain_id = f"{project_id}.{phase}.consensus.{eval_id}.evidence"
+    #
+    # The ``.evidence`` discriminator on the second chain_id keeps the report
+    # and evidence emits distinct even within the same eval (otherwise both
+    # would dedupe against each other).  See brain memory
+    # ``bus-chain-id-must-include-uniqueness-segment-gotcha``.
+    eval_id = uuid.uuid4().hex[:12]
+
     # Write consensus report to project dir
     scores = {"agreement_ratio": agreement_ratio, "divergent_points": []}
-    _write_consensus_report(project_path, phase, consensus_result, scores)
+    _write_consensus_report(project_path, phase, consensus_result, scores, eval_id=eval_id)
 
-    # Build base result dict (shared across all outcomes)
+    # Build base result dict (shared across all outcomes).  ``eval_id`` is
+    # carried in the dict so callers (notably phase_manager.py) thread it
+    # into ``_write_consensus_evidence`` for the matching chain_id.
     base = {
         "consensus_confidence": consensus_result.confidence,
         "consensus_points": consensus_result.consensus_points,
@@ -351,6 +372,7 @@ def evaluate_consensus_gate(
         "open_questions": consensus_result.open_questions,
         "participants": consensus_result.participants,
         "agreement_ratio": agreement_ratio,
+        "eval_id": eval_id,
     }
 
     # Map consensus result to gate outcome
@@ -406,8 +428,25 @@ def _write_consensus_report(
     phase: str,
     result: ConsensusResult,
     scores: Dict[str, Any],
+    eval_id: Optional[str] = None,
 ) -> None:
-    """Write consensus report to {project_dir}/phases/{phase}/consensus-report.json."""
+    """Write consensus report to {project_dir}/phases/{phase}/consensus-report.json.
+
+    Site 2 of the bus-cutover (#746).  ``eval_id`` was added per Council
+    Condition C9 — the chain_id MUST include a per-evaluation discriminator
+    so a second consensus eval on the same phase does not collide on the
+    bus dedupe ledger.  When the caller does not supply one (legacy callers
+    in tests), we mint one locally so the chain_id stays unique.
+
+    The disk-write at ``report_path.write_text()`` is UNCHANGED per Council
+    Condition C4 — daemon-down still wins, and bus emit is observability
+    only this release (step 5 of cutover is three releases away).
+    """
+    if eval_id is None:
+        # Defensive: legacy callers pre-#746 did not pass eval_id.  Mint
+        # one inline so the chain_id contract still holds.
+        eval_id = uuid.uuid4().hex[:12]
+
     report = {
         "phase": phase,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -426,6 +465,8 @@ def _write_consensus_report(
     write_succeeded = False
     try:
         report_path.parent.mkdir(parents=True, exist_ok=True)
+        # KEEP UNCHANGED per Council Condition C4 — daemon-down → disk write
+        # still wins.  Bus emit below is observability only this release.
         report_path.write_text(json.dumps(report, indent=2, default=str))
         logger.info(
             "[consensus-gate] Wrote consensus report to %s",
@@ -439,10 +480,21 @@ def _write_consensus_report(
 
     # Part C of #734: emit AFTER successful write so the bus-emit lint and
     # resume projector can subscribe to consensus activity. Fail-open.
+    #
+    # Site 2 of bus-cutover (#746):
+    #   * raw_payload (Council Condition C10) carries the canonical on-disk
+    #     bytes (matching ``indent=2`` so the projector reproduces the file
+    #     byte-for-byte under flag-on)
+    #   * chain_id includes the eval_id discriminator (Council Condition C9)
     if write_succeeded:
         try:
             from _bus import emit_event  # type: ignore[import]
             project_id = project_dir.name
+            # Match the on-disk indent=2 exactly.  ``default=str`` mirrors
+            # the disk-write so dataclass-derived fields serialize the same
+            # way.  Worst-case pre-flight C8 sized this at ~3-8 KB
+            # (5 participants, 3 dissents, 5 open questions).
+            raw_payload = json.dumps(report, default=str, indent=2)
             emit_event(
                 "wicked.consensus.report_created",
                 {
@@ -453,8 +505,10 @@ def _write_consensus_report(
                     "agreement_ratio": scores.get("agreement_ratio", 0.0),
                     "participants": result.participants,
                     "rounds": result.rounds,
+                    "eval_id": eval_id,
+                    "raw_payload": raw_payload,
                 },
-                chain_id=f"{project_id}.{phase}",
+                chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
             )
         except Exception as exc:  # pragma: no cover — defensive
             logger.debug(
@@ -470,7 +524,22 @@ def _write_consensus_evidence(
     """Write consensus rejection evidence for audit trail.
 
     Stored alongside gate-result.json in the phase directory.
+
+    Site 2 of bus-cutover (#746):
+      * eval_id is read from ``consensus_result["eval_id"]`` so the chain_id
+        matches the report emit's eval_id (Council Condition C9 — caller is
+        responsible for threading it through; ``evaluate_consensus_gate``
+        already does this).  Falls back to a fresh uuid when absent so
+        legacy callers do not crash.
+      * raw_payload carries the canonical on-disk bytes (Council Condition
+        C10) so the projector reproduces the file byte-for-byte.
+      * The disk write at ``evidence_path.write_text()`` is UNCHANGED per
+        Council Condition C4 — daemon-down still wins.
     """
+    eval_id = consensus_result.get("eval_id")
+    if not isinstance(eval_id, str) or not eval_id:
+        eval_id = uuid.uuid4().hex[:12]
+
     evidence = {
         "type": "consensus-rejection",
         "phase": phase,
@@ -487,6 +556,8 @@ def _write_consensus_evidence(
     write_succeeded = False
     try:
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        # KEEP UNCHANGED per Council Condition C4 — daemon-down → disk write
+        # still wins.  Bus emit below is observability only this release.
         evidence_path.write_text(json.dumps(evidence, indent=2, default=str))
         write_succeeded = True
     except OSError as exc:
@@ -494,13 +565,12 @@ def _write_consensus_evidence(
             "[consensus-gate] Failed to write consensus evidence: %s", exc,
         )
 
-    # Part C of #734: emit AFTER successful write so the bus-emit lint and
-    # resume projector can subscribe to consensus rejection evidence.
-    # Fail-open.
+    # Part C of #734 + Site 2 of bus-cutover (#746).  Fail-open.
     if write_succeeded:
         try:
             from _bus import emit_event  # type: ignore[import]
             project_id = project_dir.name
+            raw_payload = json.dumps(evidence, default=str, indent=2)
             emit_event(
                 "wicked.consensus.evidence_recorded",
                 {
@@ -511,8 +581,13 @@ def _write_consensus_evidence(
                     "consensus_confidence": consensus_result.get("consensus_confidence"),
                     "agreement_ratio": consensus_result.get("agreement_ratio"),
                     "participants": consensus_result.get("participants"),
+                    "eval_id": eval_id,
+                    "raw_payload": raw_payload,
                 },
-                chain_id=f"{project_id}.{phase}",
+                # ``.evidence`` discriminator on the second chain_id keeps
+                # the report and evidence emits distinct within the same
+                # eval (otherwise both would dedupe against each other).
+                chain_id=f"{project_id}.{phase}.consensus.{eval_id}.evidence",
             )
         except Exception as exc:  # pragma: no cover — defensive
             logger.debug(

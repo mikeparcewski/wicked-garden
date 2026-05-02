@@ -164,6 +164,60 @@ def init_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_dispatch_log_entries_lookup
             ON dispatch_log_entries(project_id, phase, gate, dispatched_at DESC);
 
+        -- Site 2 of bus-cutover (#746): two projection tables for the
+        -- consensus emit pair.  Per Council Condition C6 these are
+        -- INTENTIONALLY SEPARATE tables (not one shared schema) — the two
+        -- handlers will diverge (different required-key sets, different
+        -- conditional-emit semantics) so co-locating them would force a
+        -- premature abstraction.
+        --
+        -- Both tables follow the Site 1 pattern:
+        --   * INTEGER PRIMARY KEY on event_id (one row per bus event)
+        --   * raw_payload TEXT NOT NULL (canonical on-disk JSON for replay)
+        --   * created_at stored as INTEGER epoch seconds
+        --   * FK + ON DELETE CASCADE on event_id → event_log so retention
+        --     prunes do not leak orphan projection rows (#754 contract)
+        --
+        -- Migration helpers `_consensus_reports_has_event_id_fk()` and
+        -- `_consensus_evidence_has_event_id_fk()` plus the two
+        -- `_run_migration` invocations below mirror the dispatch-log
+        -- pattern so a developer who somehow created these tables
+        -- pre-#746 (e.g. via a partial test fixture) gets the FK
+        -- backfilled when the table is empty.
+        CREATE TABLE IF NOT EXISTS consensus_reports (
+            event_id              INTEGER PRIMARY KEY,
+            project_id            TEXT NOT NULL,
+            phase                 TEXT NOT NULL,
+            decision              TEXT NOT NULL,
+            confidence            REAL,
+            agreement_ratio       REAL,
+            participants          INTEGER,
+            rounds                INTEGER,
+            created_at            INTEGER NOT NULL,
+            raw_payload           TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES event_log(event_id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_consensus_reports_lookup
+            ON consensus_reports(project_id, phase, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS consensus_evidence (
+            event_id              INTEGER PRIMARY KEY,
+            project_id            TEXT NOT NULL,
+            phase                 TEXT NOT NULL,
+            result                TEXT NOT NULL,
+            reason                TEXT,
+            consensus_confidence  REAL,
+            agreement_ratio       REAL,
+            participants          INTEGER,
+            created_at            INTEGER NOT NULL,
+            raw_payload           TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES event_log(event_id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_consensus_evidence_lookup
+            ON consensus_evidence(project_id, phase, created_at DESC);
+
         CREATE TABLE IF NOT EXISTS tasks (
             id          TEXT PRIMARY KEY,
             session_id  TEXT NOT NULL,
@@ -369,6 +423,15 @@ def init_schema(conn: sqlite3.Connection) -> None:
     # can decide how to migrate; we never silently drop projection rows.
     _run_migration(conn, "dispatch_log_entries_add_event_id_fk",
                    _migrate_dispatch_log_entries_add_event_id_fk)
+    # Site 2 of bus-cutover (#746): mirror the dispatch-log FK migration for
+    # the two consensus projection tables.  No pre-#746 DBs have these tables
+    # today, but the migration pattern is the contract — a future developer
+    # who creates the tables via a test fixture or a partial init must get
+    # the FK backfilled the next time init_schema runs.
+    _run_migration(conn, "consensus_reports_add_event_id_fk",
+                   _migrate_consensus_reports_add_event_id_fk)
+    _run_migration(conn, "consensus_evidence_add_event_id_fk",
+                   _migrate_consensus_evidence_add_event_id_fk)
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +611,165 @@ def _migrate_dispatch_log_entries_add_event_id_fk(conn: sqlite3.Connection) -> N
         "ON dispatch_log_entries(project_id, phase, gate, dispatched_at DESC)"
     )
     # Commit handled by _run_migration after the migration row is written.
+
+
+# ---------------------------------------------------------------------------
+# Site 2 of bus-cutover (#746) — FK detection + backfill for the two
+# consensus projection tables.  Both helpers are direct analogues of the
+# dispatch-log helper above; the duplication is deliberate per Council
+# Condition C8 (DO NOT extract a base class at N=2).
+# ---------------------------------------------------------------------------
+
+
+def _consensus_reports_has_event_id_fk(conn: sqlite3.Connection) -> bool:
+    """Return True iff consensus_reports has the FK on event_id → event_log.
+
+    Mirrors `_dispatch_log_entries_has_event_id_fk` (#754).  The contract is
+    identical: one row in PRAGMA foreign_key_list with from='event_id',
+    table='event_log', on_delete='CASCADE'.
+    """
+    rows = conn.execute("PRAGMA foreign_key_list(consensus_reports)").fetchall()
+    for r in rows:
+        from_col = r["from"] if hasattr(r, "keys") else r[3]
+        ref_table = r["table"] if hasattr(r, "keys") else r[2]
+        on_delete = r["on_delete"] if hasattr(r, "keys") else r[6]
+        if from_col == "event_id" and ref_table == "event_log" and on_delete == "CASCADE":
+            return True
+    return False
+
+
+def _consensus_evidence_has_event_id_fk(conn: sqlite3.Connection) -> bool:
+    """Return True iff consensus_evidence has the FK on event_id → event_log."""
+    rows = conn.execute("PRAGMA foreign_key_list(consensus_evidence)").fetchall()
+    for r in rows:
+        from_col = r["from"] if hasattr(r, "keys") else r[3]
+        ref_table = r["table"] if hasattr(r, "keys") else r[2]
+        on_delete = r["on_delete"] if hasattr(r, "keys") else r[6]
+        if from_col == "event_id" and ref_table == "event_log" and on_delete == "CASCADE":
+            return True
+    return False
+
+
+def _migrate_consensus_reports_add_event_id_fk(conn: sqlite3.Connection) -> None:
+    """Backfill the event_id FK on consensus_reports for any pre-#746 DBs.
+
+    No production DBs have this table today (Site 2 ships it for the first
+    time), but the migration pattern is the contract per Council Condition
+    C6 — Sites 3-5 will add their own projection tables and inherit this
+    same pattern, and a developer who creates the table via a test fixture
+    today and then upgrades must NOT lose the FK.
+
+    Same safety rule as the dispatch-log migration: empty table → recreate
+    with FK; non-empty table → WARN + leave alone (no destructive
+    auto-migration).
+    """
+    table_exists = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'consensus_reports'"
+    ).fetchone()
+    if table_exists is None:
+        return
+
+    if _consensus_reports_has_event_id_fk(conn):
+        return
+
+    row_count_row = conn.execute(
+        "SELECT COUNT(*) FROM consensus_reports"
+    ).fetchone()
+    row_count = row_count_row[0] if row_count_row else 0
+    if row_count > 0:
+        logger.warning(
+            "daemon/db.py: consensus_reports has %d row(s) and is missing "
+            "the event_id → event_log FK (#746). Auto-migration skipped to "
+            "avoid silent data loss. To migrate manually: BEGIN; CREATE TABLE "
+            "consensus_reports_new (... FOREIGN KEY (event_id) REFERENCES "
+            "event_log(event_id) ON DELETE CASCADE); INSERT INTO "
+            "consensus_reports_new SELECT * FROM consensus_reports; "
+            "DROP TABLE consensus_reports; ALTER TABLE "
+            "consensus_reports_new RENAME TO consensus_reports; COMMIT;",
+            row_count,
+        )
+        return
+
+    conn.execute("DROP TABLE consensus_reports")
+    conn.execute(
+        """
+        CREATE TABLE consensus_reports (
+            event_id              INTEGER PRIMARY KEY,
+            project_id            TEXT NOT NULL,
+            phase                 TEXT NOT NULL,
+            decision              TEXT NOT NULL,
+            confidence            REAL,
+            agreement_ratio       REAL,
+            participants          INTEGER,
+            rounds                INTEGER,
+            created_at            INTEGER NOT NULL,
+            raw_payload           TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES event_log(event_id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_consensus_reports_lookup "
+        "ON consensus_reports(project_id, phase, created_at DESC)"
+    )
+
+
+def _migrate_consensus_evidence_add_event_id_fk(conn: sqlite3.Connection) -> None:
+    """Backfill the event_id FK on consensus_evidence (mirror of the report
+    migration above).  See `_migrate_consensus_reports_add_event_id_fk` for
+    the contract — they are intentional twins per Council Condition C8 (no
+    base-class extraction at N=2).
+    """
+    table_exists = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'consensus_evidence'"
+    ).fetchone()
+    if table_exists is None:
+        return
+
+    if _consensus_evidence_has_event_id_fk(conn):
+        return
+
+    row_count_row = conn.execute(
+        "SELECT COUNT(*) FROM consensus_evidence"
+    ).fetchone()
+    row_count = row_count_row[0] if row_count_row else 0
+    if row_count > 0:
+        logger.warning(
+            "daemon/db.py: consensus_evidence has %d row(s) and is missing "
+            "the event_id → event_log FK (#746). Auto-migration skipped to "
+            "avoid silent data loss. To migrate manually: BEGIN; CREATE TABLE "
+            "consensus_evidence_new (... FOREIGN KEY (event_id) REFERENCES "
+            "event_log(event_id) ON DELETE CASCADE); INSERT INTO "
+            "consensus_evidence_new SELECT * FROM consensus_evidence; "
+            "DROP TABLE consensus_evidence; ALTER TABLE "
+            "consensus_evidence_new RENAME TO consensus_evidence; COMMIT;",
+            row_count,
+        )
+        return
+
+    conn.execute("DROP TABLE consensus_evidence")
+    conn.execute(
+        """
+        CREATE TABLE consensus_evidence (
+            event_id              INTEGER PRIMARY KEY,
+            project_id            TEXT NOT NULL,
+            phase                 TEXT NOT NULL,
+            result                TEXT NOT NULL,
+            reason                TEXT,
+            consensus_confidence  REAL,
+            agreement_ratio       REAL,
+            participants          INTEGER,
+            created_at            INTEGER NOT NULL,
+            raw_payload           TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES event_log(event_id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_consensus_evidence_lookup "
+        "ON consensus_evidence(project_id, phase, created_at DESC)"
+    )
+
 
 
 def upsert_project(conn: sqlite3.Connection, project_id: str, fields: dict[str, Any]) -> None:
