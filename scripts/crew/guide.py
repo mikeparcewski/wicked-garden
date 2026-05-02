@@ -412,18 +412,55 @@ def _parse_frontmatter_with_lists(text: str) -> dict:
     if not m:
         return out
     block = m.group(1)
-    for line in block.splitlines():
+    lines = block.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         kv = re.match(r"^([\w][\w_-]*):\s*(.*)$", line)
         if not kv:
+            i += 1
             continue
         key, raw = kv.group(1), kv.group(2).strip()
-        if raw.startswith("["):
+        if raw in ("|", ">"):
+            # YAML block scalar — collect indented continuation lines.
+            # Either folded (>) or literal (|); we treat both as plain
+            # text join since nothing in the schema needs the distinction.
+            val_lines: list = []
+            i += 1
+            while i < len(lines):
+                nxt = lines[i]
+                if not nxt.strip():
+                    val_lines.append("")
+                    i += 1
+                    continue
+                # Continuation lines must be indented more than the key.
+                # Bare "key: " in column 0 means the block ended.
+                if nxt[:1] in (" ", "\t"):
+                    val_lines.append(nxt.strip())
+                    i += 1
+                else:
+                    break
+            joined = "\n".join(val_lines).strip("\n")
+            if raw == ">":
+                # Folded scalar — collapse internal newlines to spaces.
+                joined = " ".join(s for s in joined.split("\n") if s)
+            out[key] = joined
+        elif raw.startswith("[") and raw.endswith("]"):
             out[key] = _parse_inline_list(raw)
         else:
             # Strip surrounding quotes for scalar string values.
             if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"'):
                 raw = raw[1:-1]
             out[key] = raw
+            i += 1
+            continue
+        # When we handled a `|`/`>` block we already incremented i past
+        # the consumed lines; for the inline-list and scalar branches the
+        # ``continue`` above (or the lack of `i += 1` here for inline-list)
+        # would leave i unchanged, so handle that explicitly:
+        if raw in ("|", ">"):
+            continue  # i already advanced inside the block-scalar loop
+        i += 1
     return out
 
 
@@ -457,6 +494,13 @@ def read_command_metadata(commands_dir: Path) -> list[dict]:
 
     out: list[dict] = []
     for md in sorted(commands_dir.rglob("*.md")):
+        # Skip non-command documentation files. README.md, CHANGELOG.md,
+        # and underscore-prefixed files are not slash commands and would
+        # produce false-positive missing-relevance lint warnings.
+        if md.name in ("README.md", "CHANGELOG.md", "CONTRIBUTING.md"):
+            continue
+        if md.name.startswith("_"):
+            continue
         try:
             text = md.read_text(encoding="utf-8", errors="replace")
         except OSError:

@@ -305,3 +305,66 @@ def test_read_command_metadata_parses_inline_lists_and_id_namespace():
 def test_read_command_metadata_returns_empty_when_dir_missing():
     """AC: walking a non-existent directory returns ``[]`` (read-only contract)."""
     assert guide.read_command_metadata(Path("/nonexistent/wg-guide-test")) == []
+
+
+
+def test_frontmatter_parser_handles_multiline_block_scalar():
+    """#741 review fix: | and > YAML block scalars must be captured.
+
+    skills/propose-process/SKILL.md and others use ``description: |``
+    with the body on indented continuation lines. The simple-line
+    parser would have captured only the ``|`` literal, leaving
+    description empty and breaking guide rendering.
+    """
+    import sys
+    from pathlib import Path
+    _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+    if str(_SCRIPTS) not in sys.path:
+        sys.path.insert(0, str(_SCRIPTS))
+    from crew.guide import _parse_frontmatter_with_lists
+
+    text = """---
+name: example
+description: |
+  This is a multi-line
+  description with two
+  paragraphs.
+phase_relevance: ["build"]
+---
+
+# body
+"""
+    fm = _parse_frontmatter_with_lists(text)
+    assert fm.get("name") == "example"
+    assert "multi-line" in fm.get("description", ""), (
+        f"block scalar parser failed; got: {fm.get('description')!r}"
+    )
+    assert "paragraphs" in fm.get("description", "")
+    assert fm.get("phase_relevance") == ["build"]
+
+
+def test_read_command_metadata_skips_readme_files(tmp_path):
+    """#741 review fix: rglob must not pick up README.md / CHANGELOG."""
+    import sys
+    from pathlib import Path
+    _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+    if str(_SCRIPTS) not in sys.path:
+        sys.path.insert(0, str(_SCRIPTS))
+    from crew.guide import read_command_metadata
+
+    cmd_dir = tmp_path / "commands"
+    cmd_dir.mkdir()
+    (cmd_dir / "README.md").write_text("# README — not a command\n")
+    (cmd_dir / "CHANGELOG.md").write_text("# CHANGELOG\n")
+    (cmd_dir / "_internal.md").write_text("# internal\n")
+    (cmd_dir / "real-cmd.md").write_text(
+        "---\nname: real-cmd\ndescription: real\n---\n# Real command\n"
+    )
+
+    entries = read_command_metadata(cmd_dir)
+    ids = [e["id"] for e in entries]
+    assert "wicked-garden:real-cmd" in ids
+    for entry in entries:
+        assert "README" not in entry["id"]
+        assert "CHANGELOG" not in entry["id"]
+        assert "_internal" not in entry["id"]
