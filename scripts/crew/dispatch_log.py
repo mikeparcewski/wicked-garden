@@ -346,7 +346,8 @@ def append(
     if write_succeeded:
         try:
             from _bus import emit_event  # type: ignore[import]
-            project_id = Path(project_dir).name
+            # project_dir is already typed as Path in the signature; no wrap needed.
+            project_id = project_dir.name
             chain_id = f"{project_id}.{phase}.{gate}" if gate else f"{project_id}.{phase}"
             emit_event(
                 "wicked.dispatch.log_entry_appended",
