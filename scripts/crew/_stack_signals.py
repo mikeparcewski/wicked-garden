@@ -42,6 +42,12 @@ from typing import Any, Dict, List, Set
 # 3 levels covers project root + immediate package dirs (e.g. src/, packages/x/).
 MAX_SCAN_DEPTH = 3
 
+# Cap on how many matching files to collect before short-circuiting the walk.
+# Five is plenty — callers usually break on the first hit. Named so the test
+# suite can assert the cap is honoured rather than re-derive it from a magic
+# number (R3).
+MAX_MATCHES = 5
+
 # Directories we never descend into — vendored or ignored content has no
 # bearing on the project's own stack identity.
 SKIP_DIR_NAMES: frozenset[str] = frozenset({
@@ -426,6 +432,15 @@ def _read_node_deps(package_json: Path) -> Set[str]:
     return deps
 
 
+class _WalkCapReached(Exception):
+    """Sentinel used to short-circuit nested directory walks once MAX_MATCHES
+    matches have been collected. Without this, hitting the cap inside a deep
+    branch only returns from the *current* recursion frame — ancestor frames
+    keep iterating siblings, which on a large `src/` tree can mean walking
+    almost the entire project. (#742, Copilot finding 1.)
+    """
+
+
 def _read_go_deps(go_mod: Path) -> Set[str]:
     """Extract framework keys from a go.mod file's require block(s).
 
@@ -571,8 +586,11 @@ def _walk_for_extensions(
 ) -> List[str]:
     """Yield relative paths under root with matching suffixes, depth-capped.
 
-    Returns at most a handful — callers usually break on first hit. Skips
-    SKIP_DIR_NAMES so node_modules content cannot trip framework detection.
+    Returns at most ``MAX_MATCHES`` paths — callers usually break on the first
+    hit. Skips ``SKIP_DIR_NAMES`` so node_modules content cannot trip framework
+    detection. Hitting the match cap raises ``_WalkCapReached`` internally so
+    every ancestor frame unwinds at once instead of continuing to walk
+    siblings (was a silent perf footgun on large source trees).
     """
     matches: List[str] = []
     root = root.resolve()
@@ -582,7 +600,11 @@ def _walk_for_extensions(
         if depth > MAX_SCAN_DEPTH:
             return
         try:
-            entries = list(current.iterdir())
+            # Sort iterdir results so traversal order is deterministic
+            # across filesystems. Without this, the cap-unwind regression
+            # test (PR #744) is filesystem-flaky because tmpfs/APFS/ext4
+            # yield siblings in different orders.
+            entries = sorted(current.iterdir())
         except OSError:
             return
         for entry in entries:
@@ -600,12 +622,18 @@ def _walk_for_extensions(
                     except ValueError:
                         rel = entry.name
                     matches.append(rel)
-                    if len(matches) >= 5:
-                        return
+                    if len(matches) >= MAX_MATCHES:
+                        # Short-circuit *every* recursion frame, not just this
+                        # one — a plain `return` would let ancestor loops
+                        # keep iterating siblings.
+                        raise _WalkCapReached
             except OSError:
                 continue
 
-    _walk(root, depth=0)
+    try:
+        _walk(root, depth=0)
+    except _WalkCapReached:
+        pass
     return matches
 
 

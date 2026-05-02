@@ -580,7 +580,22 @@ def _detect_archetype_inner(
     if isinstance(project_dir_or_dict, dict):
         files: List[str] = project_dir_or_dict.get("files") or []
         raw_plan_path = project_dir_or_dict.get("plan_path")
-        project_dir = Path(project_dir_or_dict.get("project_dir") or ".")
+        # When the dict carries no project_dir AND no files, fall back to
+        # an unknown-stub result instead of `Path('.')` — which would
+        # surface the current working directory's stack to a caller that
+        # explicitly didn't provide one. (PR #744 review fix.)
+        raw_project_dir = project_dir_or_dict.get("project_dir")
+        if not raw_project_dir and not files:
+            return {
+                "archetype": "code-repo",
+                "confidence": 0.3,
+                "signals": ["fallback: no project_dir or files supplied"],
+                "priority_matched": 7,
+                "fallback": True,
+                "detector_version": DETECTOR_VERSION,
+                "detected_stack": _safe_detect_stack(None),
+            }
+        project_dir = Path(raw_project_dir or ".")
         if raw_plan_path:
             plan_path = Path(raw_plan_path)
     else:
@@ -642,35 +657,50 @@ def _detect_archetype_inner(
     }
 
 
+def _unknown_stack_stub(reason: str | None = None) -> Dict[str, Any]:
+    """Return the canonical 'no stack info available' projection shape.
+
+    Used both when the optional `_stack_signals` import is missing and when
+    the caller passed no project_dir to scan — falling back to the current
+    working directory would surface an unrelated repo's stack (#742, Copilot
+    finding 3).
+    """
+    files_seen: List[str] = []
+    if reason:
+        files_seen.append(f"reason: {reason}")
+    return {
+        "language": "unknown",
+        "package_manager": "unknown",
+        "frameworks": [],
+        "has_ui": False,
+        "has_api_surface": False,
+        "signals": {"files_seen": files_seen, "deps_seen": []},
+    }
+
+
 def _safe_detect_stack(project_dir: "Path | str | None") -> Dict[str, Any]:
     """Run the stack-shape projector with belt-and-braces guards.
 
     The archetype detector is the gate-keeper for downstream phase routing,
     so it must never raise. The stack signal is purely additive — return a
     safe default on any error so the archetype path is unaffected.
+
+    When ``project_dir`` is None we *do not* fall back to ``Path('.')`` —
+    doing so would surface an unrelated repo's stack signals to whichever
+    caller happened to be running from a different cwd. Instead we return
+    the unknown stub so the caller has to pass an explicit directory.
     """
     if _detect_stack is None:
-        return {
-            "language": "unknown",
-            "package_manager": "unknown",
-            "frameworks": [],
-            "has_ui": False,
-            "has_api_surface": False,
-            "signals": {"files_seen": [], "deps_seen": []},
-        }
+        return _unknown_stack_stub(reason="_stack_signals module unavailable")
+    if project_dir is None:
+        # Explicit refusal — the caller must name the project directory.
+        # See #742, Copilot finding 3 ("cwd fallback surfaces wrong repo").
+        return _unknown_stack_stub(reason="project_dir not provided")
     try:
-        if project_dir is None:
-            return _detect_stack(Path("."))
-        return _detect_stack(Path(project_dir) if not isinstance(project_dir, Path) else project_dir)
+        path = Path(project_dir) if not isinstance(project_dir, Path) else project_dir
+        return _detect_stack(path)
     except Exception as exc:  # pragma: no cover — defensive
-        return {
-            "language": "unknown",
-            "package_manager": "unknown",
-            "frameworks": [],
-            "has_ui": False,
-            "has_api_surface": False,
-            "signals": {"files_seen": [f"error: {exc}"], "deps_seen": []},
-        }
+        return _unknown_stack_stub(reason=f"error: {exc}")
 
 
 def _collect_project_files(project_dir: Path) -> List[str]:
