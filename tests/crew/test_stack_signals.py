@@ -203,11 +203,11 @@ def test_pom_xml_detected_as_java_maven():
 
 
 def test_build_gradle_detected_as_java():
-    """build.gradle -> language=java, package_manager=maven (gradle bucketed under maven)."""
+    """build.gradle -> language=java, package_manager=gradle (#742 — distinguish from maven)."""
     tmp = _make_repo({"build.gradle": "plugins { id 'java' }\n"})
     result = detect_stack(tmp)
     assert result["language"] == "java"
-    assert result["package_manager"] == "maven"
+    assert result["package_manager"] == "gradle"
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +393,288 @@ def test_archetype_detect_includes_detected_stack_field():
     assert "detected_stack" in result
     assert result["detected_stack"]["language"] == "typescript"
     assert result["detected_stack"]["has_ui"] is True
+
+
+# ---------------------------------------------------------------------------
+# #742 regression — TOML headers with trailing comments
+# ---------------------------------------------------------------------------
+
+def test_pyproject_with_trailing_comment_on_project_header_still_detects_deps():
+    """`[project] # comment` is valid TOML and must not break dep extraction (#742)."""
+    pyproject = """\
+[project] # metadata table
+name = "demo-cli"
+version = "0.1.0"
+dependencies = [
+    "click>=8.0",
+]
+"""
+    tmp = _make_repo({"pyproject.toml": pyproject})
+    result = detect_stack(tmp)
+    assert result["language"] == "python"
+    assert "click" in result["frameworks"], (
+        f"trailing comment broke header match; deps_seen={result['signals']['deps_seen']}"
+    )
+
+
+def test_pyproject_optional_dependencies_with_trailing_comment_still_detects():
+    """`[project.optional-dependencies] # comment` must not break dep extraction."""
+    pyproject = """\
+[project]
+name = "demo"
+version = "0.1.0"
+dependencies = []
+
+[project.optional-dependencies] # extras tables
+test = ["click"]
+"""
+    tmp = _make_repo({"pyproject.toml": pyproject})
+    result = detect_stack(tmp)
+    assert result["language"] == "python"
+    assert "click" in result["frameworks"]
+
+
+def test_poetry_table_with_trailing_comment_still_detects_deps():
+    """`[tool.poetry.dependencies] # comment` must not break the poetry parser."""
+    pyproject = """\
+[tool.poetry]
+name = "demo"
+version = "0.1.0"
+
+[tool.poetry.dependencies] # poetry deps
+python = "^3.11"
+click = "^8.0"
+"""
+    tmp = _make_repo({"pyproject.toml": pyproject})
+    result = detect_stack(tmp)
+    assert result["language"] == "python"
+    assert "click" in result["frameworks"]
+
+
+# ---------------------------------------------------------------------------
+# #742 regression — Go framework parsing
+# ---------------------------------------------------------------------------
+
+GO_MOD_GIN_SINGLE = """\
+module example.com/demo
+
+go 1.21
+
+require github.com/gin-gonic/gin v1.9.1
+"""
+
+GO_MOD_MULTI_FRAMEWORKS = """\
+module example.com/demo
+
+go 1.21
+
+require (
+\tgithub.com/labstack/echo/v4 v4.11.4
+\tgithub.com/gofiber/fiber/v2 v2.50.0
+\tgithub.com/gorilla/mux v1.8.1 // indirect
+\tgithub.com/go-chi/chi/v5 v5.0.10
+)
+"""
+
+
+def test_go_mod_gin_single_line_require_detected():
+    """Single-line `require github.com/gin-gonic/gin v1.x` -> gin in frameworks (#742)."""
+    tmp = _make_repo({"go.mod": GO_MOD_GIN_SINGLE})
+    result = detect_stack(tmp)
+    assert result["language"] == "go"
+    assert "gin" in result["frameworks"], (
+        f"gin not detected; deps_seen={result['signals']['deps_seen']}"
+    )
+    assert result["has_api_surface"] is True
+
+
+def test_go_mod_multi_framework_require_block_detected():
+    """`require (...)` block with echo/fiber/mux/chi -> all frameworks detected (#742)."""
+    tmp = _make_repo({"go.mod": GO_MOD_MULTI_FRAMEWORKS})
+    result = detect_stack(tmp)
+    assert result["language"] == "go"
+    for fw in ("echo", "fiber", "mux", "chi"):
+        assert fw in result["frameworks"], (
+            f"{fw} missing; got {result['frameworks']}"
+        )
+    assert result["has_api_surface"] is True
+
+
+def test_go_mod_without_frameworks_has_api_surface_false():
+    """Plain go.mod with no recognised web framework -> has_api_surface False."""
+    tmp = _make_repo({"go.mod": "module example.com/lib\ngo 1.21\n"})
+    result = detect_stack(tmp)
+    assert result["language"] == "go"
+    assert result["frameworks"] == []
+    assert result["has_api_surface"] is False
+
+
+def test_go_mod_malformed_returns_unknown_frameworks_no_raise():
+    """A garbled go.mod must not raise — frameworks list comes back empty."""
+    tmp = _make_repo({"go.mod": "this is not a valid go.mod file at all"})
+    result = detect_stack(tmp)
+    # Language still pegs as 'go' because the file exists; frameworks empty.
+    assert result["language"] == "go"
+    assert result["frameworks"] == []
+
+
+# ---------------------------------------------------------------------------
+# #742 regression — Rust framework parsing
+# ---------------------------------------------------------------------------
+
+CARGO_TOML_AXUM = """\
+[package]
+name = "demo"
+version = "0.1.0"
+
+[dependencies]
+axum = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+"""
+
+CARGO_TOML_MULTI_WEB = """\
+[package]
+name = "demo"
+version = "0.1.0"
+
+[dependencies] # web stack
+actix-web = "4.4"
+rocket = "0.5"
+warp = "0.3"
+tide = "0.16"
+"""
+
+
+def test_cargo_toml_axum_detected_as_api_framework():
+    """Cargo.toml [dependencies] with axum -> axum in frameworks + has_api_surface (#742)."""
+    tmp = _make_repo({"Cargo.toml": CARGO_TOML_AXUM})
+    result = detect_stack(tmp)
+    assert result["language"] == "rust"
+    assert "axum" in result["frameworks"]
+    assert result["has_api_surface"] is True
+
+
+def test_cargo_toml_multi_web_frameworks_all_detected():
+    """actix-web/rocket/warp/tide all surface, even with trailing comment on header (#742)."""
+    tmp = _make_repo({"Cargo.toml": CARGO_TOML_MULTI_WEB})
+    result = detect_stack(tmp)
+    assert result["language"] == "rust"
+    for fw in ("actix-web", "rocket", "warp", "tide"):
+        assert fw in result["frameworks"], (
+            f"{fw} missing; got {result['frameworks']}"
+        )
+    assert result["has_api_surface"] is True
+
+
+def test_cargo_toml_malformed_returns_no_frameworks_no_raise():
+    """Garbled Cargo.toml must not raise — language stays rust, frameworks empty."""
+    tmp = _make_repo({"Cargo.toml": "completely{bogus]content"})
+    result = detect_stack(tmp)
+    assert result["language"] == "rust"
+    assert result["frameworks"] == []
+
+
+# ---------------------------------------------------------------------------
+# #742 regression — Java/Spring framework parsing
+# ---------------------------------------------------------------------------
+
+POM_XML_SPRING_BOOT = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <groupId>com.example</groupId>
+  <artifactId>demo</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+  </dependencies>
+</project>
+"""
+
+BUILD_GRADLE_SPRING_BOOT = """\
+plugins {
+    id 'org.springframework.boot' version '3.2.0'
+    id 'io.spring.dependency-management' version '1.1.4'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+}
+"""
+
+BUILD_GRADLE_KTS_SPRING_BOOT = """\
+plugins {
+    id("org.springframework.boot") version "3.2.0"
+}
+
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-web")
+}
+"""
+
+
+def test_pom_xml_with_spring_boot_starter_detected():
+    """pom.xml with spring-boot-starter-web -> spring frameworks + has_api_surface (#742)."""
+    tmp = _make_repo({"pom.xml": POM_XML_SPRING_BOOT})
+    result = detect_stack(tmp)
+    assert result["language"] == "java"
+    assert result["package_manager"] == "maven"
+    assert "spring" in result["frameworks"], (
+        f"spring missing; got {result['frameworks']}"
+    )
+    assert "spring-boot" in result["frameworks"]
+    assert result["has_api_surface"] is True
+
+
+def test_build_gradle_groovy_with_spring_boot_detected():
+    """build.gradle with spring-boot plugin -> spring frameworks + has_api_surface (#742)."""
+    tmp = _make_repo({"build.gradle": BUILD_GRADLE_SPRING_BOOT})
+    result = detect_stack(tmp)
+    assert result["language"] == "java"
+    assert result["package_manager"] == "gradle"
+    assert "spring" in result["frameworks"]
+    assert "spring-boot" in result["frameworks"]
+    assert result["has_api_surface"] is True
+
+
+def test_build_gradle_kts_with_spring_boot_detected():
+    """build.gradle.kts (Kotlin DSL) variants must also surface spring frameworks (#742)."""
+    tmp = _make_repo({"build.gradle.kts": BUILD_GRADLE_KTS_SPRING_BOOT})
+    result = detect_stack(tmp)
+    assert result["language"] == "java"
+    assert result["package_manager"] == "gradle"
+    assert "spring" in result["frameworks"]
+    assert "spring-boot" in result["frameworks"]
+    assert result["has_api_surface"] is True
+
+
+def test_pom_xml_malformed_returns_no_frameworks_no_raise():
+    """Garbled pom.xml must not raise — language stays java, frameworks empty."""
+    tmp = _make_repo({"pom.xml": "<<not valid xml>>"})
+    result = detect_stack(tmp)
+    assert result["language"] == "java"
+    assert result["frameworks"] == []
+
+
+def test_pom_xml_takes_precedence_over_gradle_for_package_manager():
+    """When both pom.xml and build.gradle present -> package_manager=maven (#742)."""
+    tmp = _make_repo({
+        "pom.xml": "<project></project>",
+        "build.gradle": "plugins { id 'java' }",
+    })
+    result = detect_stack(tmp)
+    assert result["language"] == "java"
+    assert result["package_manager"] == "maven"
+
+
+def test_build_gradle_kts_only_reports_gradle_package_manager():
+    """build.gradle.kts alone -> package_manager=gradle (#742)."""
+    tmp = _make_repo({"build.gradle.kts": "plugins { kotlin(\"jvm\") version \"1.9.0\" }"})
+    result = detect_stack(tmp)
+    assert result["language"] == "java"
+    assert result["package_manager"] == "gradle"
 
 
 def test_archetype_detect_detected_stack_safe_on_bad_input():

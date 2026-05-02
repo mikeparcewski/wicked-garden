@@ -73,11 +73,11 @@ KNOWN_FRAMEWORKS: frozenset[str] = frozenset({
     # Python CLI
     "click", "typer", "argparse-manpage", "rich-cli", "fire",
     # Go web
-    "gin", "echo", "fiber", "chi",
+    "gin", "echo", "fiber", "chi", "mux",
     # Rust web
-    "actix-web", "axum", "rocket", "warp",
+    "actix-web", "axum", "rocket", "warp", "tide",
     # Java web
-    "spring-boot", "spring-web",
+    "spring", "spring-boot", "spring-web",
 })
 
 UI_FRAMEWORKS: frozenset[str] = frozenset({
@@ -88,10 +88,34 @@ UI_FRAMEWORKS: frozenset[str] = frozenset({
 API_FRAMEWORKS: frozenset[str] = frozenset({
     "express", "fastify", "koa", "hapi", "@nestjs/core", "@hono/node-server", "hono",
     "fastapi", "flask", "django", "starlette", "quart", "sanic", "tornado",
-    "gin", "echo", "fiber", "chi",
-    "actix-web", "axum", "rocket", "warp",
-    "spring-boot", "spring-web",
+    "gin", "echo", "fiber", "chi", "mux",
+    "actix-web", "axum", "rocket", "warp", "tide",
+    "spring", "spring-boot", "spring-web",
 })
+
+# Go module-path -> framework key mapping. Defensive parsing extracts
+# `module/path vX.Y.Z` lines from go.mod's require block(s).
+# Source: https://pkg.go.dev/std (web framework idioms).
+GO_MODULE_FRAMEWORKS: Dict[str, str] = {
+    "github.com/gin-gonic/gin": "gin",
+    "github.com/labstack/echo": "echo",
+    "github.com/labstack/echo/v4": "echo",
+    "github.com/gofiber/fiber": "fiber",
+    "github.com/gofiber/fiber/v2": "fiber",
+    "github.com/gofiber/fiber/v3": "fiber",
+    "github.com/gorilla/mux": "mux",
+    "github.com/go-chi/chi": "chi",
+    "github.com/go-chi/chi/v5": "chi",
+}
+
+# Rust crate -> framework key mapping for [dependencies] keys in Cargo.toml.
+RUST_CRATE_FRAMEWORKS: Dict[str, str] = {
+    "actix-web": "actix-web",
+    "rocket": "rocket",
+    "axum": "axum",
+    "warp": "warp",
+    "tide": "tide",
+}
 
 UI_FILE_SUFFIXES: frozenset[str] = frozenset({".tsx", ".jsx"})
 
@@ -210,19 +234,31 @@ def _detect_stack_inner(repo_root: Path) -> Dict[str, Any]:
         language = "go"
         package_manager = "go-mod"
         files_seen.append("go.mod")
+        deps_seen.update(_read_go_deps(go_mod))
     elif cargo_toml.exists():
         language = "rust"
         package_manager = "cargo"
         files_seen.append("Cargo.toml")
+        deps_seen.update(_read_rust_deps(cargo_toml))
     elif pom_xml.exists() or build_gradle_groovy.exists() or build_gradle_kts.exists():
         language = "java"
-        package_manager = "maven"
+        # Maven and Gradle are distinct toolchains — pom.xml drives Maven,
+        # build.gradle{,.kts} drives Gradle. When only Gradle files exist,
+        # report `gradle`; pom.xml takes precedence when both are present
+        # (a multi-module project may carry build.gradle wrappers).
+        if pom_xml.exists():
+            package_manager = "maven"
+        else:
+            package_manager = "gradle"
         if pom_xml.exists():
             files_seen.append("pom.xml")
+            deps_seen.update(_read_java_pom_deps(pom_xml))
         if build_gradle_groovy.exists():
             files_seen.append("build.gradle")
+            deps_seen.update(_read_java_gradle_deps(build_gradle_groovy))
         if build_gradle_kts.exists():
             files_seen.append("build.gradle.kts")
+            deps_seen.update(_read_java_gradle_deps(build_gradle_kts))
     elif requirements.exists():
         # Bare requirements.txt without pyproject.toml → still python+pip.
         language = "python"
@@ -300,12 +336,17 @@ def _read_python_deps(pyproject: Path | None, requirements: Path) -> Set[str]:
 
 
 def _extract_pep621_deps(toml_text: str) -> Set[str]:
-    """Best-effort PEP 621 [project] dependencies extractor."""
+    """Best-effort PEP 621 [project] dependencies extractor.
+
+    Tolerates trailing comments on the table header — `[project] # metadata`
+    is valid TOML and must not break detection.
+    """
     out: Set[str] = set()
 
     # Find the [project] table body and look for dependencies = [ ... ].
+    # `(?:#[^\n]*)?` allows an optional trailing comment on the header line.
     proj = re.search(
-        r"^\[project\]\s*$(.*?)(?=^\[|\Z)",
+        r"^\[project\]\s*(?:#[^\n]*)?$(.*?)(?=^\[|\Z)",
         toml_text,
         re.DOTALL | re.MULTILINE,
     )
@@ -325,7 +366,7 @@ def _extract_pep621_deps(toml_text: str) -> Set[str]:
 
     # Optional dependencies: [project.optional-dependencies] table.
     for tbl in re.finditer(
-        r"^\[project\.optional-dependencies\]\s*$(.*?)(?=^\[|\Z)",
+        r"^\[project\.optional-dependencies\]\s*(?:#[^\n]*)?$(.*?)(?=^\[|\Z)",
         toml_text,
         re.DOTALL | re.MULTILINE,
     ):
@@ -340,10 +381,13 @@ def _extract_pep621_deps(toml_text: str) -> Set[str]:
 
 
 def _extract_poetry_deps(toml_text: str) -> Set[str]:
-    """Best-effort Poetry [tool.poetry.dependencies] extractor."""
+    """Best-effort Poetry [tool.poetry.dependencies] extractor.
+
+    Tolerates trailing comments on the table header.
+    """
     out: Set[str] = set()
     poetry = re.search(
-        r"^\[tool\.poetry\.dependencies\]\s*$(.*?)(?=^\[|\Z)",
+        r"^\[tool\.poetry\.dependencies\]\s*(?:#[^\n]*)?$(.*?)(?=^\[|\Z)",
         toml_text,
         re.DOTALL | re.MULTILINE,
     )
@@ -377,6 +421,141 @@ def _read_node_deps(package_json: Path) -> Set[str]:
             for name in section.keys():
                 if isinstance(name, str):
                     deps.add(name.lower())
+
+    return deps
+
+
+def _read_go_deps(go_mod: Path) -> Set[str]:
+    """Extract framework keys from a go.mod file's require block(s).
+
+    Best-effort regex parser — defensively handles single-line `require x v0`
+    statements and multi-line `require ( ... )` blocks. Returns the framework
+    *key* (gin, echo, fiber, mux, chi) for any recognised module path.
+    Malformed go.mod -> empty set, never raises.
+    """
+    deps: Set[str] = set()
+    try:
+        text = go_mod.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return deps
+
+    # Collect every `module/path vX.Y.Z` line. Two forms:
+    #   require github.com/foo/bar v1.2.3
+    #   require (\n  github.com/foo/bar v1.2.3\n)
+    # We don't try to be a full go.mod parser — we only need the path tokens.
+    paths: Set[str] = set()
+
+    # Single-line require statements.
+    for m in re.finditer(
+        r"^\s*require\s+([^\s\(]+)\s+v[\w\.\-]+",
+        text,
+        re.MULTILINE,
+    ):
+        paths.add(m.group(1).strip())
+
+    # Multi-line require ( ... ) blocks — capture every non-comment line
+    # that looks like `module/path vX.Y.Z`.
+    for block in re.finditer(
+        r"^\s*require\s*\((.*?)\)",
+        text,
+        re.DOTALL | re.MULTILINE,
+    ):
+        for line in block.group(1).splitlines():
+            stripped = line.split("//", 1)[0].strip()
+            if not stripped:
+                continue
+            m = re.match(r"^([^\s]+)\s+v[\w\.\-]+", stripped)
+            if m:
+                paths.add(m.group(1).strip())
+
+    for path in paths:
+        key = GO_MODULE_FRAMEWORKS.get(path)
+        if key:
+            deps.add(key)
+
+    return deps
+
+
+def _read_rust_deps(cargo_toml: Path) -> Set[str]:
+    """Extract framework keys from Cargo.toml [dependencies] section.
+
+    Best-effort: scans `[dependencies]` and `[dev-dependencies]` table
+    bodies for `crate-name = ...` lines and matches against
+    RUST_CRATE_FRAMEWORKS. Tolerates trailing comments on table headers.
+    Malformed Cargo.toml -> empty set, never raises.
+    """
+    deps: Set[str] = set()
+    try:
+        text = cargo_toml.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return deps
+
+    for header in (r"\[dependencies\]", r"\[dev-dependencies\]"):
+        for tbl in re.finditer(
+            r"^" + header + r"\s*(?:#[^\n]*)?$(.*?)(?=^\[|\Z)",
+            text,
+            re.DOTALL | re.MULTILINE,
+        ):
+            for line in tbl.group(1).splitlines():
+                stripped = line.split("#", 1)[0].strip()
+                if not stripped or "=" not in stripped:
+                    continue
+                key = stripped.split("=", 1)[0].strip().strip('"').lower()
+                framework = RUST_CRATE_FRAMEWORKS.get(key)
+                if framework:
+                    deps.add(framework)
+
+    return deps
+
+
+def _read_java_pom_deps(pom_xml: Path) -> Set[str]:
+    """Detect Spring (Boot) usage from a Maven pom.xml.
+
+    Best-effort: looks for any `<groupId>org.springframework...</groupId>`
+    element. Returns {'spring'} when present, else empty.
+    Malformed XML -> empty set, never raises.
+    """
+    deps: Set[str] = set()
+    try:
+        text = pom_xml.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return deps
+
+    # Generous Spring detection — matches Spring Boot, Spring Web,
+    # spring-cloud-starter-*, etc. We only need to know "Spring is here".
+    if re.search(r"<groupId>\s*org\.springframework", text):
+        deps.add("spring")
+    # Spring Boot has a distinct artifactId pattern worth surfacing too.
+    if re.search(r"<artifactId>\s*spring-boot-starter-web", text):
+        deps.add("spring-boot")
+
+    return deps
+
+
+def _read_java_gradle_deps(build_gradle: Path) -> Set[str]:
+    """Detect Spring (Boot) usage from a build.gradle or build.gradle.kts.
+
+    Best-effort: looks for `implementation 'org.springframework...'` style
+    dependency declarations or the Spring Boot plugin id. Returns the
+    framework keys ('spring', 'spring-boot') as detected. Malformed file ->
+    empty set, never raises.
+    """
+    deps: Set[str] = set()
+    try:
+        text = build_gradle.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return deps
+
+    # Match dependency strings like 'org.springframework.boot:spring-boot-starter-web:3.0.0'
+    # in either single or double quotes (Groovy + Kotlin DSL both supported).
+    if re.search(r"['\"]org\.springframework[^'\"]*['\"]", text):
+        deps.add("spring")
+    if re.search(r"spring-boot-starter-web", text):
+        deps.add("spring-boot")
+    # Gradle Spring Boot plugin id is also a strong signal.
+    if re.search(r"id\s*[\(\s]['\"]org\.springframework\.boot['\"]", text):
+        deps.add("spring-boot")
+        deps.add("spring")
 
     return deps
 
