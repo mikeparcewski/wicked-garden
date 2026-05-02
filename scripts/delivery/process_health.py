@@ -159,10 +159,19 @@ def _spc_section(project: str) -> dict:
                     drift_mod.classify(synth, f"{slot_key}.min_score")
                 )
     flags = drift_mod.list_recent_flags(project, limit=10)
+    # PR #730 review: warmup gate inside drift.classify() counts numeric samples
+    # (skipping records with None for the metric). Mirror that here so the
+    # report doesn't show "satisfied" while the headline classification still
+    # reports insufficient_warmup=true. headline_metric_samples is the most
+    # honest count to surface — derived from the headline classification's
+    # session_count (which already skipped None).
+    headline_classification = classifications[0] if classifications else {}
+    metric_sample_count = headline_classification.get("session_count", len(timeline))
     return {
-        "sample_count": len(timeline),
+        "sample_count": metric_sample_count,
+        "timeline_length": len(timeline),
         "warmup_min_samples": drift_mod.WARMUP_MIN_SAMPLES,
-        "warmup_satisfied": len(timeline) >= drift_mod.WARMUP_MIN_SAMPLES,
+        "warmup_satisfied": metric_sample_count >= drift_mod.WARMUP_MIN_SAMPLES,
         "classifications": classifications,
         "recent_flags": flags,
     }

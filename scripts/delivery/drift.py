@@ -192,21 +192,26 @@ def _we_4_of_5_zone_c(
     mean: float,
     stddev: float,
     *,
+    side: str = "below",
     zone_c_sigma: float = DEFAULT_ZONE_C_SIGMA,
 ) -> bool:
-    """WE rule (#719): 4 of the last 5 points beyond 1σ below the baseline mean.
+    """WE rule (#719): 4 of the last 5 points beyond 1σ on one side of the baseline.
 
-    Same shape as ``_we_2_of_3_zone_b`` — only the bad (below-baseline) side
-    fires for higher-is-better metrics. Requires non-zero baseline stddev and
-    at least ``WE_4OF5_WINDOW`` observations.
+    ``side`` mirrors ``_we_8_consecutive_one_side``: "below" (default — the
+    bad side for higher-is-better metrics) or "above". Requires non-zero
+    baseline stddev and at least ``WE_4OF5_WINDOW`` observations.
     """
     if stddev <= 0:
         return False
     if len(series) < WE_4OF5_WINDOW:
         return False
     recent = series[-WE_4OF5_WINDOW:]
-    threshold = mean - zone_c_sigma * stddev
-    breaches = sum(1 for x in recent if x < threshold)
+    if side == "above":
+        threshold = mean + zone_c_sigma * stddev
+        breaches = sum(1 for x in recent if x > threshold)
+    else:
+        threshold = mean - zone_c_sigma * stddev
+        breaches = sum(1 for x in recent if x < threshold)
     return breaches >= WE_4OF5_COUNT
 
 
@@ -330,6 +335,10 @@ def classify(
     result["ewma_slope"] = round(slope, 6)
 
     # Zone classification (zone-A sigma test).
+    # Surface structured fields so _classify_rule doesn't have to substring-match
+    # the human-readable reasons text (Copilot review on PR #730).
+    result["outside_special_cause_sigma"] = z >= special_cause_sigma
+    result["special_cause_sigma_threshold"] = special_cause_sigma
     if z >= special_cause_sigma:
         zone = "special-cause"
         result["reasons"].append(f"outside {special_cause_sigma:.0f}σ (z={z:.2f})")
@@ -514,14 +523,12 @@ def _classify_rule(classification: Dict[str, Any]) -> List[str]:
     forcing the priority decision here.
     """
     rules = list(classification.get("we_rules") or [])
-    # Synthesize a rule id for the zone-A z-score breach so it gets a flag too.
-    if classification.get("zone") == "special-cause":
-        # Reasons array contains "outside 3σ" only on a sigma breach.
-        for reason in classification.get("reasons") or []:
-            if "outside" in reason and "σ" in reason and "3" in reason:
-                if "1_outside_3sigma" not in rules:
-                    rules.append("1_outside_3sigma")
-                break
+    # Synthesize a rule id for the zone-A z-score breach using the structured
+    # field set by classify() — substring-matching the reasons text was brittle
+    # against tuned ``special_cause_sigma`` (e.g. "z=4.2" matches "3" by accident).
+    if classification.get("outside_special_cause_sigma"):
+        if "1_outside_3sigma" not in rules:
+            rules.append("1_outside_3sigma")
     drop = classification.get("drop_pct") or 0.0
     if drop >= DEFAULT_DROP_PCT_THRESHOLD and not rules:
         rules.append("drop_pct_threshold")

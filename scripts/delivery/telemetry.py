@@ -74,6 +74,7 @@ if str(_SCRIPTS_ROOT) not in sys.path:
 SCHEMA_VERSION = "1"
 # Per-session capture worst-case budget. We bail out rather than block session-end.
 _CAPTURE_BUDGET_SECONDS = 0.5
+_MAX_SCENARIO_SCAN = 500  # PR #730: bound DomainStore iteration in scenario extractor
 # Max tasks to scan in one capture. Covers any realistic session.
 _MAX_TASKS_SCAN = 500
 # Minimum total verdicts before gate_pass_rate is considered meaningful.
@@ -276,18 +277,25 @@ def _extract_metrics_from_tasks(
     }
 
 
-def _extract_convergence_metrics(project: Optional[str]) -> Dict[str, Any]:
+def _extract_convergence_metrics(
+    project: Optional[str],
+    deadline: Optional[float] = None,
+) -> Dict[str, Any]:
     """Read crew convergence stalls for the active project.
 
     Returns counts of stalled artifacts (sessions_in_state >= threshold) and
     the count of recorded transitions in the most recent log scan. Fail-open:
-    any failure → all-zero metrics.
+    any failure → all-zero metrics. Honors capture deadline (PR #730 review):
+    if budget already exhausted on entry, returns zeros without doing any work.
     """
     out = {"convergence_stalls": 0, "convergence_artifacts": 0}
     if not project or project == "_global":
         return out
+    if deadline is not None and time.monotonic() > deadline:
+        return out  # over budget — skip rather than block the hook
     try:
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        # `_SCRIPTS_ROOT` is already on sys.path at module-load (lines 63-65).
+        # No per-call insert needed — flagged in gemini's PR #730 review.
         from crew import convergence  # type: ignore
         # convergence APIs take a project *directory*, not the slug. Resolve
         # via the same helper its CLI uses so we honor _paths.
@@ -301,25 +309,53 @@ def _extract_convergence_metrics(project: Optional[str]) -> Dict[str, Any]:
     return out
 
 
-def _extract_scenario_metrics(project: Optional[str]) -> Dict[str, Any]:
-    """Read scenario verdict counts for the active project.
+def _extract_scenario_metrics(
+    project: Optional[str],
+    deadline: Optional[float] = None,
+    since_iso: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Read PER-SESSION scenario verdict counts for the active project.
 
-    Looks for a wicked-testing DomainStore source; if absent, returns zeros.
-    Acceptance criterion (#719) is "capture if available" — we never hard-fail
-    when wicked-testing isn't installed.
+    Counts only verdicts whose recorded timestamp is later than ``since_iso``
+    (the previous session's recorded_at). This produces session-delta counts
+    suitable for ratio drift detection — Copilot flagged the prior cumulative
+    behavior in PR #730 as semantically wrong (lifetime cumulative counts can
+    only grow, so per-session ratios cannot drift).
+
+    Honors ``deadline``: if budget exhausted on entry, returns zeros. Caps the
+    iteration at _MAX_SCENARIO_SCAN to bound the worst-case scan even when no
+    deadline is provided.
+
+    Falls back to all-zero output when wicked-testing is not installed.
     """
     out = {"scenario_pass": 0, "scenario_partial": 0, "scenario_fail": 0}
     if not project or project == "_global":
         return out
+    if deadline is not None and time.monotonic() > deadline:
+        return out
     try:
         from _domain_store import DomainStore  # type: ignore
         ds = DomainStore("wicked-testing", hook_mode=True)
+        scanned = 0
         for source in ("verdicts", "runs", "scenarios"):
+            if deadline is not None and time.monotonic() > deadline:
+                break
             try:
                 rows = ds.list(source, project=project) or []
             except Exception:
                 rows = []
             for row in rows:
+                scanned += 1
+                if scanned > _MAX_SCENARIO_SCAN:
+                    break
+                # Only count verdicts after the previous session's capture.
+                # Records older than `since_iso` (or all rows on the first ever
+                # capture, where since_iso is None) are excluded so each
+                # session emits its own delta, not the running total.
+                if since_iso:
+                    rec_ts = str(row.get("recorded_at") or row.get("created_at") or "")
+                    if rec_ts and rec_ts <= since_iso:
+                        continue
                 v = str(row.get("verdict") or row.get("result") or "").upper()
                 if v == "PASS":
                     out["scenario_pass"] += 1
@@ -327,7 +363,7 @@ def _extract_scenario_metrics(project: Optional[str]) -> Dict[str, Any]:
                     out["scenario_partial"] += 1
                 elif v in ("FAIL", "ERROR"):
                     out["scenario_fail"] += 1
-            if any(out.values()):
+            if any(out.values()) and scanned <= _MAX_SCENARIO_SCAN:
                 break  # first source that yielded data wins
     except Exception:
         pass
@@ -416,8 +452,19 @@ def capture_session(
         metrics["complexity_delta"] = extras["complexity_delta"]
         # Issue #719: convergence + scenario rollups join the per-session metric
         # bag. Fail-open on both — empty zeros are better than dropped records.
-        metrics.update(_extract_convergence_metrics(raw_project))
-        metrics.update(_extract_scenario_metrics(raw_project))
+        # PR #730 review: pass `deadline` so these helpers respect the same
+        # _CAPTURE_BUDGET_SECONDS guardrail the task scanner honors.
+        # Scenario extractor also gets the previous session's recorded_at as
+        # `since_iso` so it counts session deltas, not lifetime cumulative.
+        prev_recorded_at: Optional[str] = None
+        try:
+            prior = read_timeline(resolved_project, limit=1)
+            if prior:
+                prev_recorded_at = prior[-1].get("recorded_at")
+        except Exception:
+            pass
+        metrics.update(_extract_convergence_metrics(raw_project, deadline=deadline))
+        metrics.update(_extract_scenario_metrics(raw_project, deadline=deadline, since_iso=prev_recorded_at))
 
         # Build sample window from the first/last task timestamps observed.
         first_ts: Optional[str] = None
