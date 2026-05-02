@@ -190,7 +190,7 @@ assert '{archetype}' not in line, (
     f'briefing left a literal {{archetype}} placeholder — the command must '
     f'call archetype_detect before rendering: {line!r}'
 )
-assert '{language}' not in line and '{package_manager}' not in line, (
+assert all(p not in line for p in ['{language}', '{package_manager}', '{frameworks}']), (
     f'briefing line contains an unrendered placeholder: {line!r}'
 )
 print('PASS: real briefing pipeline renders the React stack line end-to-end')
@@ -242,6 +242,7 @@ print('PASS: --project scope is honoured even when cwd has no React signals')
 "
 
 # Cleanup the elsewhere dir before continuing.
+cd "${TEST_DIR}"
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
 import os, shutil
 shutil.rmtree('${ELSEWHERE}', ignore_errors=True)
