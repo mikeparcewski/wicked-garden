@@ -135,6 +135,28 @@ absorb scenario authoring into build. For each phase, emit: `name`, `why` (one s
 `archetype_detect.detect_archetype()` when available; see
 `skills/propose-process/refs/evidence-framing.md`.
 
+**Multi-repo guidance (Issue #722)**: when the selected archetype is
+`multi-repo`, do **not** model the work as a single crew project that
+spans repos. Instead:
+
+1. Open one crew project per repo and link them with a shared
+   `chain_id` prefix (e.g. `cross-feature-X.repo-foo.root`,
+   `cross-feature-X.repo-bar.root`). The bus's chain hierarchy is the
+   coordination surface — N siblings under one root, NOT a new write
+   store.
+2. Populate the optional `affected_repos: [string]` field on each
+   project's `process-plan.json` so `crew:status` and `smaht:briefing`
+   surface the multi-repo context as an advisory line. The field is
+   read-only metadata (no DAG, no worktree provisioning, no validation
+   beyond shape) — the facilitator picks the names; downstream
+   tooling renders them.
+3. For richer cross-repo workflow (worktree provisioning, merge-order
+   DAG, cross-repo evidence aggregation), point the user at
+   `docs/v9/sibling-plugin-monorepo.md`. That doc is the design brief
+   for the future `wicked-garden-monorepo` sibling v9 plugin; core crew
+   intentionally stays out of that machinery until a sibling-plugin
+   author signs up to build it.
+
 - `test_required` — bool. False only for pure docs, rename with no behavior change, or
   config flag flips with no new code paths.
 - `test_types` — subset of `{unit, integration, api, ui, acceptance, migration, security,

@@ -93,6 +93,7 @@ _SECTION_ANCHORS = {
     "tasks": "§ Schema — tasks",
     "rigor_tier": "§ rigor_tier enum (minimal|standard|full)",
     "complexity": "§ complexity bounds (0..7)",
+    "affected_repos": "§ affected_repos (advisory, optional)",
 }
 
 
@@ -126,6 +127,27 @@ def _check_top_level(plan: dict, violations: list) -> None:
         c = plan["complexity"]
         if not isinstance(c, int) or not (0 <= c <= 7):
             violations.append(f"complexity — must be an integer in [0, 7], got {c!r}")
+
+    # Issue #722: optional advisory `affected_repos` field. Read-only
+    # metadata for the multi-repo archetype — no DAG, no worktree
+    # provisioning, no validation beyond shape. Plans omitting the key
+    # behave exactly as today (backward compat). The full DAG-of-repos
+    # workflow is deferred to the `wicked-garden-monorepo` sibling plugin
+    # (see docs/v9/sibling-plugin-monorepo.md).
+    if "affected_repos" in plan:
+        repos = plan["affected_repos"]
+        if not isinstance(repos, list):
+            violations.append(
+                "affected_repos — must be a list of strings (advisory field, "
+                "see docs/v9/sibling-plugin-monorepo.md)"
+            )
+        else:
+            for i, entry in enumerate(repos):
+                if not isinstance(entry, str) or not entry.strip():
+                    violations.append(
+                        f"affected_repos[{i}] — every entry must be a "
+                        f"non-empty string, got {entry!r}"
+                    )
 
 
 def _check_factors(plan: dict, violations: list) -> None:
@@ -494,6 +516,11 @@ _INVALID_FIXTURES = [
             "reversibility": {"reading": "LOW", "risk_level": "low_risk", "why": "idk"},
         },
     }),
+    # #722: affected_repos must be a list when present
+    ("affected_repos not a list", lambda p: {**p, "affected_repos": "foo"}),
+    # #722: affected_repos entries must be non-empty strings
+    ("affected_repos contains a non-string", lambda p: {**p, "affected_repos": ["foo", 42]}),
+    ("affected_repos contains an empty string", lambda p: {**p, "affected_repos": ["foo", "  "]}),
 ]
 
 

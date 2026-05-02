@@ -54,6 +54,33 @@ Based on available plugins:
 - **Level 2**: Only wicked-brain (no specialized plugins)
 - **Level 1**: Standalone (no optional plugins)
 
+### 4b. Surface `affected_repos` (advisory, optional — Issue #722)
+
+If the active project's `process-plan.json` declares `affected_repos`,
+render a single advisory line. The helper script is fail-open: it
+prints nothing when the field is unset, missing, or malformed, so this
+block stays silent on every legacy project.
+
+```bash
+# Resolve the project dir from find-active output (Step 1) and pipe it
+# through the renderer. Empty output → nothing to display.
+PROJECT_DIR="${project_dir}"  # from find-active --json above
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+   "${CLAUDE_PLUGIN_ROOT}/scripts/crew/affected_repos.py" \
+   render --project-dir "${PROJECT_DIR}" 2>/dev/null
+```
+
+Render the output (when non-empty) as its own line above the Phase
+Progress table. Format is fixed (so downstream parsers can match):
+
+```
+Affected repos: foo, bar (advisory — see docs/v9/sibling-plugin-monorepo.md)
+```
+
+The full DAG-of-repos workflow (worktrees, merge ordering, cross-repo
+evidence) lives in the `wicked-garden-monorepo` sibling plugin — see
+the doc above for the design brief.
+
 ### 5. Display Status
 
 ```markdown

@@ -167,6 +167,30 @@ Detected stack: {language} ({package_manager}, frameworks: {frameworks}). Archet
 In JSON-mode briefings, surface the same projection under a top-level
 `detected_stack` field; do not invent a parallel state file.
 
+**Affected repos (#722, advisory):** when the active project (or the one
+named via `--project`) carries an optional `affected_repos` list in its
+`process-plan.json`, surface it as a single advisory line directly under
+the `Detected stack:` line. The helper script below is fail-open: it
+prints NOTHING when the field is missing, empty, or malformed, so this
+block stays silent on every legacy project. The full DAG / worktrees /
+cross-repo evidence workflow lives in the `wicked-garden-monorepo`
+sibling plugin (see `docs/v9/sibling-plugin-monorepo.md`).
+
+```bash
+# Resolve the active project's directory the same way Step 4 does.
+# When PROJECT_DIR is empty (no active project), the helper still
+# accepts a missing path and stays silent.
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+   "${CLAUDE_PLUGIN_ROOT}/scripts/crew/affected_repos.py" \
+   render --project-dir "${PROJECT_DIR:-/dev/null}" 2>/dev/null
+```
+
+Format (when non-empty):
+
+```
+Affected repos: foo, bar (advisory — see docs/v9/sibling-plugin-monorepo.md)
+```
+
 ```markdown
 ## Session Briefing ({days}d window)
 

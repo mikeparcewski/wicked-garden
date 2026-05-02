@@ -79,9 +79,27 @@ rubric against a scenario's expected-outcome block.
   "anticipated_reevaluations": [
     {"trigger": "if clarify phase surfaces a bigger scope than expected",
      "likely_impact": "augment with migration-engineer + data specialist"}
-  ]
+  ],
+
+  "affected_repos": ["repo-foo", "repo-bar"]
 }
 ```
+
+## affected_repos (advisory, optional)
+
+Optional `affected_repos: [string]` field added by Issue #722. When
+the archetype is `multi-repo`, populate this list with the repository
+short-names the project touches. Crew core treats it as **read-only
+advisory metadata**:
+
+- `crew:status` and `smaht:briefing` surface a single advisory line
+  (`Affected repos: foo, bar (advisory — see docs/v9/sibling-plugin-monorepo.md)`).
+- Validator rules: must be a list of non-empty strings if present;
+  empty list / missing field are both valid (backward-compatible).
+- No DAG, no worktree provisioning, no merge-order validation, no
+  cross-repo evidence aggregation. Those workflows are deferred to the
+  `wicked-garden-monorepo` sibling v9 plugin —
+  see `docs/v9/sibling-plugin-monorepo.md` for the design brief.
 
 Note: each factor entry carries BOTH `reading` (HIGH/MEDIUM/LOW; HIGH = safest,
 LOW = riskiest, for backward compatibility) AND `risk_level`
