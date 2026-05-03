@@ -37,6 +37,22 @@ because those helpers are the public API for those controls. Coverage by call pa
 
 All Cases 3–5 now go through the orchestrator. No remaining helper-direct sub-cases.
 
+Per-sub-test composition layer exercised:
+
+- **Case 3 STRICT**: schema passes; sanitizer passes; orphan fires (STRICT_AFTER past) → raises +
+  writes `unauthorized_dispatch`. Audit reset before sub-test.
+- **Case 3 SOFT**: schema passes; sanitizer passes; orphan fires (STRICT_AFTER future) → returns +
+  writes `unauthorized_dispatch_accepted_legacy`. Audit reset before sub-test.
+- **Case 5A** (`WG_GATE_RESULT_SCHEMA_VALIDATION=off`): schema layer bypassed (including embedded
+  sanitizer); orphan still fires (soft-window) → writes `unauthorized_dispatch_accepted_legacy`.
+  No `sanitization_violation`. Audit reset before sub-test.
+- **Case 5B** (`WG_GATE_RESULT_CONTENT_SANITIZATION=off`): schema fires (missing verdict) → raises
+  + writes `schema_violation`. Sanitizer bypassed (never reached anyway — schema raised first).
+  No `sanitization_violation`. No `unauthorized_dispatch*`. Audit reset before sub-test.
+- **Case 5C** (`WG_GATE_RESULT_DISPATCH_CHECK=off`): schema passes (valid payload); sanitizer fires
+  (injection in reason) → raises + writes `sanitization_violation`. Orphan bypassed (never
+  reached — sanitizer raised first). No `unauthorized_dispatch*`. Audit reset before sub-test.
+
 The actual composition inside `_load_gate_result()` is:
 
 ```
@@ -440,6 +456,14 @@ import dispatch_log as dl
 dl._reset_state_for_tests()
 
 import phase_manager
+from gate_result_schema import _clear_cache_for_tests
+
+# Reset audit log — the strict sub-test above already wrote one entry to this
+# same PROJECT_DIR. Each sub-test must be independently runnable; audit
+# assertions must reference only what THIS sub-test produced.
+audit_path = PROJECT_DIR / "phases" / "design" / "gate-ingest-audit.jsonl"
+audit_path.write_bytes(b"")  # truncate to empty (append-only invariant tested in Case 4)
+_clear_cache_for_tests()
 
 # Write a valid-schema, no-dispatch-entry gate-result (triggers orphan path)
 gate_file = PROJECT_DIR / "phases" / "design" / "gate-result.json"
@@ -787,7 +811,14 @@ sys.path.insert(0, PLUGIN_ROOT + "/scripts/crew")
 import dispatch_log as dl
 dl._reset_state_for_tests()
 import phase_manager
-from gate_result_schema import GateResultSchemaError
+from gate_result_schema import GateResultSchemaError, _clear_cache_for_tests
+
+# Reset audit log — sub-test A already wrote one entry to this same PROJECT_DIR.
+# Each sub-test must be independently runnable; audit assertions must reference
+# only what THIS sub-test produced.
+audit_path = PROJECT_DIR / "phases" / "design" / "gate-ingest-audit.jsonl"
+audit_path.write_bytes(b"")  # truncate to empty
+_clear_cache_for_tests()
 
 # Payload: no verdict/result (schema viol), injection in reason (sanitizer viol — bypassed),
 # no dispatch entry (orphan viol — soft-window). With SANITIZATION=off, sanitizer is skipped.
@@ -870,7 +901,14 @@ sys.path.insert(0, PLUGIN_ROOT + "/scripts/crew")
 import dispatch_log as dl
 dl._reset_state_for_tests()
 import phase_manager
-from gate_result_schema import GateResultSchemaError
+from gate_result_schema import GateResultSchemaError, _clear_cache_for_tests
+
+# Reset audit log — sub-tests A and B already wrote entries to this same
+# PROJECT_DIR. Each sub-test must be independently runnable; audit assertions
+# must reference only what THIS sub-test produced.
+audit_path = PROJECT_DIR / "phases" / "design" / "gate-ingest-audit.jsonl"
+audit_path.write_bytes(b"")  # truncate to empty
+_clear_cache_for_tests()
 
 # Payload: schema-valid (verdict+result+score are present and well-typed),
 # injection in reason (sanitizer viol — SANITIZATION is ON so this fires),
