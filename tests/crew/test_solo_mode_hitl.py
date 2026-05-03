@@ -635,6 +635,119 @@ class TestDispatchHumanInlineArtifacts(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Site W1 (#787) — bus emit wiring before disk writes
+# ---------------------------------------------------------------------------
+
+
+class TestDispatchHumanInlineBusEmit(unittest.TestCase):
+    """Site W1 of bus-cutover wave-2: dispatch_human_inline must emit
+    wicked.gate.decided + wicked.crew.inline_review_context_recorded
+    BEFORE the legacy disk writes (#787).  Without these emits the
+    direct writes would surface as projection-without-event drift in
+    reconcile_v2 since Sites 4+5 went default-ON.
+    """
+
+    def _capture_emits(self, state, verdict_response: str, tmpdir: str) -> list:
+        """Run dispatch with a mock emit_event; return captured calls."""
+        captured: list = []
+
+        def _fake_emit(event_type, payload, *, chain_id=None):
+            captured.append({
+                "event_type": event_type,
+                "payload": payload,
+                "chain_id": chain_id,
+            })
+
+        with patch("solo_mode._is_interactive", return_value=True), \
+             patch("phase_manager.get_project_dir", return_value=Path(tmpdir)), \
+             patch("dispatch_log.append"), \
+             patch("_bus.emit_event", _fake_emit):
+            dispatch_human_inline(
+                state, "build", "code-quality", _minimal_gate_policy(),
+                _input_fn=lambda _="": verdict_response,
+                _print_fn=lambda _: None,
+            )
+        return captured
+
+    def test_approve_emits_gate_decided_and_inline_context(self):
+        """APPROVE verdict → both events fire with chain_id including phase."""
+        state = _make_state(name="proj-emit-approve")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            captured = self._capture_emits(state, "APPROVE", tmpdir)
+
+        types = [e["event_type"] for e in captured]
+        self.assertIn("wicked.gate.decided", types)
+        self.assertIn("wicked.crew.inline_review_context_recorded", types)
+
+        gate_emit = next(e for e in captured if e["event_type"] == "wicked.gate.decided")
+        self.assertEqual(gate_emit["payload"]["project_id"], "proj-emit-approve")
+        self.assertEqual(gate_emit["payload"]["phase"], "build")
+        self.assertEqual(gate_emit["payload"]["result"], "APPROVE")
+        self.assertEqual(gate_emit["payload"]["reviewer"], REVIEWER_NAME)
+        # Critical: payload carries the full data dict for the projector's
+        # payload-aware resolver to materialise gate-result.json (and
+        # conditions-manifest.json on CONDITIONAL).
+        self.assertIn("data", gate_emit["payload"])
+        self.assertEqual(gate_emit["payload"]["data"]["verdict"], "APPROVE")
+        self.assertEqual(gate_emit["payload"]["data"]["dispatch_mode"], DISPATCH_MODE)
+
+        ctx_emit = next(
+            e for e in captured
+            if e["event_type"] == "wicked.crew.inline_review_context_recorded"
+        )
+        self.assertEqual(ctx_emit["payload"]["gate_name"], "code-quality")
+        self.assertEqual(ctx_emit["payload"]["raw_response"], "APPROVE")
+        self.assertIn("bullets", ctx_emit["payload"])
+        self.assertIn("gate_result_ref", ctx_emit["payload"])
+
+    def test_conditional_emits_gate_decided_with_conditions_in_data(self):
+        """CONDITIONAL verdict carries conditions in data so the projector
+        resolver fans out to materialise conditions-manifest.json."""
+        state = _make_state(name="proj-emit-cond")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            captured = self._capture_emits(
+                state,
+                # The CONDITIONAL parser flow: this minimum input keeps the
+                # conditions list populated by the human-inline parser.
+                "CONDITIONAL: missing test coverage on the new helper",
+                tmpdir,
+            )
+
+        gate_emit = next(
+            e for e in captured if e["event_type"] == "wicked.gate.decided"
+        )
+        self.assertEqual(gate_emit["payload"]["data"]["verdict"], "CONDITIONAL")
+
+    def test_bus_emit_failure_does_not_block_disk_writes(self):
+        """A bus-emit failure must NOT block the legacy disk writes
+        (fail-open per Decision #8)."""
+        state = _make_state(name="proj-emit-fail")
+
+        def _raising_emit(event_type, payload, *, chain_id=None):
+            raise RuntimeError("simulated bus failure")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proj_dir = Path(tmpdir)
+            with patch("solo_mode._is_interactive", return_value=True), \
+                 patch("phase_manager.get_project_dir", return_value=proj_dir), \
+                 patch("dispatch_log.append"), \
+                 patch("_bus.emit_event", _raising_emit):
+                result = dispatch_human_inline(
+                    state, "build", "code-quality", _minimal_gate_policy(),
+                    _input_fn=lambda _="": "APPROVE",
+                    _print_fn=lambda _: None,
+                )
+
+            # Verdict still computed.
+            self.assertEqual(result["verdict"], "APPROVE")
+            # Disk writes still completed.
+            gr_path = proj_dir / "phases" / "build" / "gate-result.json"
+            ctx_path = proj_dir / "phases" / "build" / "inline-review-context.md"
+            self.assertTrue(gr_path.exists())
+            self.assertTrue(ctx_path.exists())
+
+
+# ---------------------------------------------------------------------------
 # Blocker 1 (#662): rigor upgraded to full mid-flight → council fallback
 # ---------------------------------------------------------------------------
 

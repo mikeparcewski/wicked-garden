@@ -154,13 +154,27 @@ _PROJECTION_RESOLVERS: Dict[str, Callable[[Dict[str, Any], str, Path], "list[Pat
     "wicked.consensus.gate_pending": _resolve_single_file(
         "phases/{phase}/reviewer-report.md"
     ),
-    # Site 5 (this PR) — condition verification flip.
+    # Site 5 (PR #785) — condition verification flip.
     # ``wicked.condition.marked_cleared`` updates the manifest AND writes a
     # resolution sidecar.  Sidecar paths vary per condition_id and are
     # transient (the manifest is the source of truth; ``recover()``
     # re-derives sidecars on demand) so they are NOT tracked here.
     "wicked.condition.marked_cleared": _resolve_single_file(
         "phases/{phase}/conditions-manifest.json"
+    ),
+    # Site W1 (#787) — solo_mode inline-HITL evidence record.
+    # ``wicked.crew.inline_review_context_recorded`` materialises the
+    # markdown evidence file at phases/{phase}/inline-review-context.md.
+    # Solo-mode also fires ``wicked.gate.decided`` for the same gate, which
+    # the existing gate.decided resolver maps to gate-result.json (+
+    # conditions-manifest.json on CONDITIONAL).  This is a SECOND, distinct
+    # event because the inline-review-context.md is a different artifact
+    # written from the same flow — separate file, separate semantics
+    # (evidence/audit), so a separate event is the right shape (per
+    # ``memory/workaround-vs-fix-stop-shaping-plans-around-bad-design.md``:
+    # don't dodge the structural answer; new artifact = new event).
+    "wicked.crew.inline_review_context_recorded": _resolve_single_file(
+        "phases/{phase}/inline-review-context.md"
     ),
 }
 
@@ -210,7 +224,8 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
     "consensus-evidence.json":  "CONSENSUS_EVIDENCE",  # Site 2 (flag B — independent)
     "reviewer-report.md":       "REVIEWER_REPORT",     # Site 3
     "gate-result.json":         "GATE_RESULT",         # Site 4 — active (PR #782 + #780 default-ON)
-    "conditions-manifest.json": "CONDITIONS_MANIFEST", # Site 5 — active (this PR default-ON)
+    "conditions-manifest.json": "CONDITIONS_MANIFEST", # Site 5 — active (PR #785 default-ON)
+    "inline-review-context.md": "INLINE_REVIEW_CONTEXT", # Site W1 (#787) — solo_mode evidence record
 }
 
 # ---------------------------------------------------------------------------
@@ -289,12 +304,19 @@ _PROJECTION_HANDLERS_AVAILABLE: Dict[str, bool] = {
     # ``data["conditions"]`` is non-empty.  Same registry entry — one
     # event, multiple files (the new _PROJECTION_RESOLVERS shape).
     "wicked.gate.decided":                True,
-    # Site 5 (this PR) — _condition_marked_cleared materialises the
+    # Site 5 (PR #785) — _condition_marked_cleared materialises the
     # verification flip on conditions-manifest.json + writes the resolution
     # sidecar.  Wired into conditions_manifest.mark_cleared() as a
     # bus emit; projector handler in daemon/projector.py replays the
     # same atomic two-step write order.
     "wicked.condition.marked_cleared":    True,
+    # Site W1 (#787) — _inline_review_context_recorded materialises the
+    # solo_mode evidence markdown at phases/{phase}/inline-review-context.md.
+    # Wired into solo_mode.dispatch_human_inline() as a bus emit BEFORE the
+    # legacy direct write; projector handler in daemon/projector.py
+    # rebuilds the markdown deterministically from the event payload so the
+    # projection and direct-write paths produce byte-identical output.
+    "wicked.crew.inline_review_context_recorded": True,
     # Site 5 — no event handler mapping yet
     # (conditions-manifest.json has no event type in _PROJECTION_RESOLVERS)
 }

@@ -93,6 +93,19 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.condition",
         "description": "Condition verification flipped to verified=True via mark_cleared() (Site 5 cutover)",
     },
+    # Site W1 of bus-cutover wave-2 (#787): solo_mode inline-HITL
+    # evidence record.  Emitted from solo_mode.dispatch_human_inline()
+    # BEFORE the disk write at phases/{phase}/inline-review-context.md.
+    # Solo-mode also fires wicked.gate.decided for the same gate which
+    # carries the verdict + conditions; this event is for the markdown
+    # evidence file specifically (separate artifact, separate event).
+    # chain_id format: {project}.{phase}.gate (one inline-review-context
+    # per gate per phase, no per-condition split).
+    "wicked.crew.inline_review_context_recorded": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.solo_mode",
+        "description": "Inline-HITL gate review evidence recorded by solo_mode (Site W1 cutover)",
+    },
     # Jam domain — jam.py
     "wicked.session.started": {
         "domain": "wicked-garden",
@@ -319,12 +332,13 @@ def _is_disabled() -> bool:
 # ---------------------------------------------------------------------------
 
 _BUS_AS_TRUTH_DEFAULT_ON: frozenset = frozenset({
-    "DISPATCH_LOG",        # Site 1 — dispatch-log.jsonl (PR #751)
-    "CONSENSUS_REPORT",    # Site 2 — consensus-report.json (PR #758)
-    "CONSENSUS_EVIDENCE",  # Site 2 — consensus-evidence.json (PR #758)
-    "REVIEWER_REPORT",     # Site 3 — reviewer-report.md (PR #776)
-    "GATE_RESULT",         # Site 4 — gate-result.json (PR #782 + #784)
-    "CONDITIONS_MANIFEST", # Site 5 — conditions-manifest.json (this PR)
+    "DISPATCH_LOG",          # Site 1 — dispatch-log.jsonl (PR #751)
+    "CONSENSUS_REPORT",      # Site 2 — consensus-report.json (PR #758)
+    "CONSENSUS_EVIDENCE",    # Site 2 — consensus-evidence.json (PR #758)
+    "REVIEWER_REPORT",       # Site 3 — reviewer-report.md (PR #776)
+    "GATE_RESULT",           # Site 4 — gate-result.json (PR #782 + #784)
+    "CONDITIONS_MANIFEST",   # Site 5 — conditions-manifest.json (PR #785)
+    "INLINE_REVIEW_CONTEXT", # Site W1 — inline-review-context.md (#787, this PR)
 })
 
 

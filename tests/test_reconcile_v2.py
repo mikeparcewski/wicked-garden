@@ -790,12 +790,13 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
     def test_all_flags_off_returns_empty_set(self) -> None:
         """With all WG_BUS_AS_TRUTH_* flags explicitly ``"off"``, active names is empty."""
         env_clear = {
-            "WG_BUS_AS_TRUTH_DISPATCH_LOG":        "off",
-            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT":    "off",
-            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE":  "off",
-            "WG_BUS_AS_TRUTH_REVIEWER_REPORT":     "off",
-            "WG_BUS_AS_TRUTH_GATE_RESULT":         "off",
-            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST": "off",
+            "WG_BUS_AS_TRUTH_DISPATCH_LOG":          "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT":      "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE":    "off",
+            "WG_BUS_AS_TRUTH_REVIEWER_REPORT":       "off",
+            "WG_BUS_AS_TRUTH_GATE_RESULT":           "off",
+            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST":   "off",
+            "WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT": "off",  # Site W1 (#787)
         }
         with patch.dict(os.environ, env_clear):
             result = reconcile_v2._active_projection_names()
@@ -805,22 +806,18 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
     def test_site3_flag_on_returns_reviewer_report_only(self) -> None:
         """With only REVIEWER_REPORT flag ON, active names is {'reviewer-report.md'}.
 
-        Note (#769 fold): the handler-presence gate uses per-event-type keys.
-        This test patches _PROJECTION_HANDLERS_AVAILABLE to mark both
-        gate_completed and gate_pending as True (simulating Site 3 handler
-        present) so the flag-gate behaviour is testable in isolation.  The
-        handler-gate behaviour is covered separately in TestHandlerPresenceGate.
+        PR #781 flipped the Site 3 registry entries True natively;
+        no handler-presence patching required.
         """
         env = {
-            "WG_BUS_AS_TRUTH_DISPATCH_LOG":        "off",
-            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT":    "off",
-            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE":  "off",
-            "WG_BUS_AS_TRUTH_REVIEWER_REPORT":     "on",
-            "WG_BUS_AS_TRUTH_GATE_RESULT":         "off",
-            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST": "off",
+            "WG_BUS_AS_TRUTH_DISPATCH_LOG":          "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT":      "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE":    "off",
+            "WG_BUS_AS_TRUTH_REVIEWER_REPORT":       "on",
+            "WG_BUS_AS_TRUTH_GATE_RESULT":           "off",
+            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST":   "off",
+            "WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT": "off",  # Site W1 (#787)
         }
-        # PR #781 flipped the Site 3 registry entries True natively;
-        # no handler-presence patching required.
         with patch.dict(os.environ, env):
             result = reconcile_v2._active_projection_names()
         self.assertEqual(result, frozenset({"reviewer-report.md"}))
