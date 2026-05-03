@@ -311,14 +311,22 @@ class TestProjectionWithoutEventDrift(_ReconcileV2Fixture):
         Note: gate-result.json is owned by Site 4.  The test sets
         WG_BUS_AS_TRUTH_GATE_RESULT=on so the file is included in the active
         projection set — otherwise Finding #1 correctly suppresses it.
+
+        Note (#769): the handler-presence gate also requires that the file's
+        handler is available.  This test patches _PROJECTION_HANDLERS_AVAILABLE
+        to mark gate-result.json as True (simulating that Site 4's handler has
+        landed) so the flag-gate behaviour remains testable in isolation.
         """
         project_dir = _make_project_dir(self.workspace, "pwe-proj")
         phase_dir = _make_phase_dir(project_dir, "build")
         _write_file(phase_dir / "gate-result.json")
         # No event rows in DB.
         conn = self._conn()
+        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
+        registry["gate-result.json"] = True  # simulate Site 4 handler present
         with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "on"}):
-            result = reconcile_v2.reconcile_project("pwe-proj", _daemon_conn=conn)
+            with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
+                result = reconcile_v2.reconcile_project("pwe-proj", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]
@@ -764,7 +772,13 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
                          f"Expected empty frozenset with all flags off, got {result!r}")
 
     def test_site3_flag_on_returns_reviewer_report_only(self) -> None:
-        """With only REVIEWER_REPORT flag ON, active names is {'reviewer-report.md'}."""
+        """With only REVIEWER_REPORT flag ON, active names is {'reviewer-report.md'}.
+
+        Note (#769): the handler-presence gate now also applies.  This test
+        patches _PROJECTION_HANDLERS_AVAILABLE to mark reviewer-report.md as
+        True so the flag-gate behaviour is testable in isolation.  The
+        handler-gate behaviour is covered separately in TestHandlerPresenceGate.
+        """
         env = {
             "WG_BUS_AS_TRUTH_DISPATCH_LOG": "",
             "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "",
@@ -772,8 +786,11 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
             "WG_BUS_AS_TRUTH_GATE_RESULT": "",
             "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST": "",
         }
+        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
+        registry["reviewer-report.md"] = True  # simulate Site 3 handler present
         with patch.dict(os.environ, env):
-            result = reconcile_v2._active_projection_names()
+            with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
+                result = reconcile_v2._active_projection_names()
         self.assertEqual(result, frozenset({"reviewer-report.md"}))
 
 
@@ -824,15 +841,26 @@ class TestProjWithoutEventFlagGating(_ReconcileV2Fixture):
                          f"Expected no drift with Site 3 flag ON and matching event, got {result['drift']}")
 
     def test_reviewer_report_with_site3_flag_on_and_no_event_reports_drift(self) -> None:
-        """Site 3 flag ON + reviewer-report.md but no matching event → drift fires."""
+        """Site 3 flag ON + reviewer-report.md but no matching event → drift fires.
+
+        Note (#769): the handler-presence gate now also applies.  This test
+        patches _PROJECTION_HANDLERS_AVAILABLE to mark reviewer-report.md as
+        True so we can verify the flag-gate + drift-detection path without
+        the handler-gate vetoing the file first.  The handler-gate behaviour
+        (handler absent → file excluded even when flag is on) is covered in
+        TestHandlerPresenceGate.test_active_projection_names_excludes_files_with_no_handler.
+        """
         project_dir = _make_project_dir(self.workspace, "s3-flag-on-orphan")
         phase_dir = _make_phase_dir(project_dir, "review")
         _write_file(phase_dir / "reviewer-report.md", "# orphan report\n")
         # No event rows.
         conn = self._conn()
         env = {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}
+        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
+        registry["reviewer-report.md"] = True  # simulate Site 3 handler present
         with patch.dict(os.environ, env):
-            result = reconcile_v2.reconcile_project("s3-flag-on-orphan", _daemon_conn=conn)
+            with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
+                result = reconcile_v2.reconcile_project("s3-flag-on-orphan", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]
@@ -1092,6 +1120,156 @@ class TestSite2DualFlagIndependence(unittest.TestCase):
         self.assertEqual(
             reconcile_v2.PROJECTION_FILE_FLAGS["consensus-report.json"],
             "CONSENSUS_REPORT",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Issue #769 — handler-presence gate on _active_projection_names()
+# ---------------------------------------------------------------------------
+
+class TestHandlerPresenceGate(unittest.TestCase):
+    """Tests for the #769 handler-presence gate added to _active_projection_names().
+
+    A file must be included in the active scan set iff BOTH:
+      (a) its WG_BUS_AS_TRUTH_<TOKEN> flag is "on"   (flag gate)
+      (b) _PROJECTION_HANDLERS_AVAILABLE[filename] is True  (handler gate — new in #769)
+    """
+
+    def _active_with_registry(
+        self,
+        env: dict,
+        registry: dict,
+    ) -> frozenset:
+        """Invoke _active_projection_names() with controlled env and registry."""
+        with patch.dict(os.environ, {k: "" for k in [
+            "WG_BUS_AS_TRUTH_DISPATCH_LOG",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE",
+            "WG_BUS_AS_TRUTH_REVIEWER_REPORT",
+            "WG_BUS_AS_TRUTH_GATE_RESULT",
+            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST",
+        ]}, clear=False):
+            with patch.dict(os.environ, env):
+                with patch.object(
+                    reconcile_v2,
+                    "_PROJECTION_HANDLERS_AVAILABLE",
+                    registry,
+                ):
+                    return reconcile_v2._active_projection_names()
+
+    def test_active_projection_names_excludes_files_with_no_handler(self) -> None:
+        """Flag ON but handler False → file excluded from scan set.
+
+        Scenario: WG_BUS_AS_TRUTH_REVIEWER_REPORT=on but reviewer-report.md
+        handler has not yet landed in daemon/projector.py (pending #768).
+        The drift detector must NOT scan for reviewer-report.md because the
+        projector can never materialise it — scanning would produce false
+        event-without-projection drift.
+        """
+        registry = {
+            "dispatch-log.jsonl":       True,
+            "consensus-report.json":    True,
+            "consensus-evidence.json":  True,
+            "reviewer-report.md":       False,   # handler absent — pending #768
+            "gate-result.json":         False,
+            "conditions-manifest.json": False,
+        }
+        result = self._active_with_registry(
+            {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"},
+            registry,
+        )
+        self.assertNotIn(
+            "reviewer-report.md",
+            result,
+            "reviewer-report.md must be excluded when handler is absent, even if flag is ON",
+        )
+
+    def test_active_projection_names_includes_files_with_handler_and_flag(self) -> None:
+        """Both flag ON and handler True → file included in scan set.
+
+        Scenario: dispatch-log.jsonl with flag on and handler available.
+        """
+        registry = {
+            "dispatch-log.jsonl":       True,    # handler present
+            "consensus-report.json":    False,
+            "consensus-evidence.json":  False,
+            "reviewer-report.md":       False,
+            "gate-result.json":         False,
+            "conditions-manifest.json": False,
+        }
+        result = self._active_with_registry(
+            {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "on"},
+            registry,
+        )
+        self.assertIn(
+            "dispatch-log.jsonl",
+            result,
+            "dispatch-log.jsonl must be included when both flag is ON and handler is True",
+        )
+
+    def test_active_projection_names_excludes_when_handler_present_but_flag_off(self) -> None:
+        """Handler True but flag OFF → file excluded from scan set.
+
+        The flag gate (pre-existing) must still apply even when the handler
+        is available: both conditions are required.
+        """
+        registry = {
+            "dispatch-log.jsonl":       True,    # handler present
+            "consensus-report.json":    True,
+            "consensus-evidence.json":  True,
+            "reviewer-report.md":       False,
+            "gate-result.json":         False,
+            "conditions-manifest.json": False,
+        }
+        result = self._active_with_registry(
+            {"WG_BUS_AS_TRUTH_DISPATCH_LOG": ""},   # flag explicitly OFF
+            registry,
+        )
+        self.assertNotIn(
+            "dispatch-log.jsonl",
+            result,
+            "dispatch-log.jsonl must be excluded when flag is OFF, even if handler is True",
+        )
+
+    def test_active_projection_names_excludes_when_flag_on_but_handler_missing(self) -> None:
+        """Flag ON but handler False → file excluded (the core #769 invariant).
+
+        This is the canonical test for the new behaviour: a flag enabled for
+        a site whose handler has not yet landed must NOT expand the scan set.
+        """
+        registry = {
+            "dispatch-log.jsonl":       True,
+            "consensus-report.json":    True,
+            "consensus-evidence.json":  True,
+            "reviewer-report.md":       False,   # handler absent
+            "gate-result.json":         False,   # handler absent
+            "conditions-manifest.json": False,   # handler absent
+        }
+        # Enable flags for both an absent-handler file and present-handler files.
+        result = self._active_with_registry(
+            {
+                "WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on",    # flag on, handler False
+                "WG_BUS_AS_TRUTH_GATE_RESULT":     "on",    # flag on, handler False
+                "WG_BUS_AS_TRUTH_DISPATCH_LOG":    "on",    # flag on, handler True
+            },
+            registry,
+        )
+        # Handler-absent files must be excluded despite flag-on.
+        self.assertNotIn(
+            "reviewer-report.md",
+            result,
+            "reviewer-report.md must be excluded: flag ON but handler absent",
+        )
+        self.assertNotIn(
+            "gate-result.json",
+            result,
+            "gate-result.json must be excluded: flag ON but handler absent",
+        )
+        # Handler-present file must still be included.
+        self.assertIn(
+            "dispatch-log.jsonl",
+            result,
+            "dispatch-log.jsonl must be included: flag ON and handler present",
         )
 
 
