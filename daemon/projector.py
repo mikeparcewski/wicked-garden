@@ -312,6 +312,19 @@ def _gate_decided(conn: sqlite3.Connection, event: dict) -> None:
         "projector: applied wicked.gate.decided project_id=%r phase=%r result=%r",
         project_id, phase, result,
     )
+    # Site 4 of bus-cutover (#746, #778) fan-out: disk projection for
+    # gate-result.json.  DB-row work above always runs; disk projection runs
+    # only when WG_BUS_AS_TRUTH_GATE_RESULT=on and the payload carries the
+    # full gate_result dict (PR-2 / #779 widens the emit).  Wrapped in
+    # try/except so disk failures NEVER break the DB-row projection
+    # (Decision #6 idempotency, Decision #8 never-raise).
+    try:
+        _gate_decided_disk(conn, event)
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        logger.exception(
+            "projector: _gate_decided_disk fan-out raised — DB-row "
+            "projection preserved; disk projection skipped"
+        )
 
 
 def _rework_triggered(conn: sqlite3.Connection, event: dict) -> None:
@@ -1173,6 +1186,318 @@ def _ac_evidence_linked(conn: sqlite3.Connection, event: dict) -> None:
     )
 
 
+# --- Site 4 of bus-cutover (#746, #778): gate-result.json disk projection --
+#
+# Two handlers, both gated on WG_BUS_AS_TRUTH_GATE_RESULT via
+# ``_bus_as_truth_enabled("GATE_RESULT")``:
+#
+#   * ``_gate_decided_disk``  — invoked from the tail of the existing
+#     ``_gate_decided`` (DB-row handler).  Materialises gate-result.json
+#     from the full gate_result dict carried in ``event["payload"]["data"]``.
+#     PR-2 (#779) widens the emit to carry that key; until then this
+#     handler is inert (early-returns with a debug log).
+#
+#   * ``_gate_blocked``       — registered fresh for ``wicked.gate.blocked``.
+#     INERT no-op in PR-1: the file is already in REJECT state from the
+#     wicked.gate.decided projection that fires immediately before
+#     wicked.gate.blocked in approve_phase's REJECT branch.  Registered
+#     so reconcile_v2._handler_available_for_file's conservative
+#     "ALL event types must have handlers" rule passes for gate-result.json.
+#
+# Security floor on the projection path mirrors phase_manager._load_gate_result
+# composition (AC-9 §5.4):
+#   1. validate_gate_result(data)              — schema + sanitizer (embedded)
+#   2. check_orphan(data, project_dir, phase)  — soft-window or strict reject
+#   3. append_audit_entry(...)                 — every reject path
+#
+# Idempotency: content-hash on the full serialized JSON.  When the file
+# already matches the new payload byte-for-byte, the write is skipped.
+
+def _gate_decided_disk(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.gate.decided → phases/{phase}/gate-result.json on disk.
+
+    Site 4 of the bus-cutover staging plan (#746, #778).  Behaviour gated
+    on ``WG_BUS_AS_TRUTH_GATE_RESULT`` via
+    ``_bus_as_truth_enabled("GATE_RESULT")``:
+
+      * flag-off (default): no-op.
+      * flag-on: validate the full gate_result dict from the event payload,
+        run the AC-9 §5.4 security floor (schema + sanitizer via
+        ``validate_gate_result``, dispatch-log orphan check via
+        ``check_orphan``, audit log on every reject path), then write
+        ``gate-result.json`` with content-hash idempotency.
+
+    Payload contract (PR-2 / #779 ships the emit widening):
+      ``payload["data"]`` — the full gate_result dict that
+      ``phase_manager._persist_gate_result`` would otherwise write.
+      When absent (current 5-field emit at phase_manager.py:3931),
+      the handler logs at debug level and returns inertly.
+
+    Idempotency guard: content-hash on the canonical JSON serialization.
+    The daemon consumer does not deduplicate before calling handlers
+    (``append_event_log`` uses INSERT OR REPLACE), so without this guard
+    every replay would rewrite the file.
+
+    project_dir resolved via ``db.get_project(conn, project_id).directory``.
+    Absent row or NULL directory → warn and skip (mirrors Site 3).
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("GATE_RESULT")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off (will not re-warn this process): %s",
+                exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+
+    # Payload contract: the full gate_result dict ships under "data".
+    # Until PR-2 (#779) widens the emit, this key is absent and the
+    # handler returns inertly — flag-on can be enabled safely.
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        logger.debug(
+            "projector: wicked.gate.decided disk projection — payload lacks "
+            "'data' dict (project_id=%r phase=%r); inert until #779 ships "
+            "emit-payload widening",
+            project_id, phase,
+        )
+        return
+
+    # Resolve project_dir from the DB.
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: wicked.gate.decided disk projection — project %r has "
+            "no directory in DB; skipping file write (project must be "
+            "projected via wicked.project.created before Site 4 handlers can "
+            "write files)",
+            project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    phase_dir = project_dir / "phases" / str(phase)
+    target = phase_dir / "gate-result.json"
+
+    # Lazy imports — security floor modules + stdlib helpers only loaded
+    # when the projection actually fires.  Keeps the import-time cost of
+    # the projector module low for callers that never opt into Site 4.
+    import json
+    import hashlib
+    try:
+        from gate_result_schema import (
+            GateResultAuthorizationError,
+            GateResultSchemaError,
+            validate_gate_result,
+        )
+        from gate_ingest_audit import append_audit_entry
+        from dispatch_log import check_orphan, _get_strict_after_date
+    except ImportError as exc:
+        logger.warning(
+            "projector: wicked.gate.decided disk projection — security "
+            "floor modules unavailable: %s; skipping write to avoid "
+            "shipping unvalidated bytes",
+            exc,
+        )
+        return
+
+    # Serialize candidate bytes once: used for hash compare, audit
+    # raw_bytes, and the actual write.  Keeps the canonical form
+    # consistent across all three.
+    candidate_bytes = json.dumps(
+        data, indent=2, sort_keys=True
+    ).encode("utf-8")
+
+    # Schema + sanitizer (sanitizer is embedded inside validate_gate_result
+    # per AC-9 §5.4 composition; one call covers both).  Raise on either
+    # → audit + skip write.  Surface the schema/content distinction in the
+    # audit event tag so downstream tooling can triage.
+    try:
+        validate_gate_result(data)
+    except GateResultSchemaError as exc:
+        event_tag = (
+            "sanitization_violation" if exc.violation_class == "content"
+            else "schema_violation"
+        )
+        append_audit_entry(
+            project_dir, str(phase),
+            event=event_tag,
+            reason=exc.reason,
+            offending_field=exc.offending_field,
+            offending_value=exc.offending_value_excerpt,
+            raw_bytes=candidate_bytes,
+        )
+        logger.warning(
+            "projector: wicked.gate.decided disk projection — schema/"
+            "sanitizer violation (project_id=%r phase=%r): %s; audit "
+            "entry written, file NOT updated",
+            project_id, phase, exc.reason,
+        )
+        return
+
+    # Orphan detection — soft-window allows fall-through with audit;
+    # strict mode rejects the write.  Mirrors the composition in
+    # ``phase_manager._load_gate_result`` byte-for-byte so the projection
+    # path enforces the same security contract as direct writes.
+    try:
+        check_orphan(data, project_dir, str(phase))
+    except GateResultAuthorizationError as exc:
+        today = datetime.now(timezone.utc).date()
+        if today >= _get_strict_after_date():
+            append_audit_entry(
+                project_dir, str(phase),
+                event="unauthorized_dispatch",
+                reason=exc.reason,
+                offending_field=exc.offending_field,
+                offending_value=exc.offending_value_excerpt,
+                raw_bytes=candidate_bytes,
+            )
+            logger.warning(
+                "projector: wicked.gate.decided disk projection — "
+                "strict-mode orphan reject (project_id=%r phase=%r); "
+                "audit entry written, file NOT updated",
+                project_id, phase,
+            )
+            return
+        # Soft window — audit as accepted_legacy and fall through to write.
+        append_audit_entry(
+            project_dir, str(phase),
+            event="unauthorized_dispatch_accepted_legacy",
+            reason=exc.reason,
+            offending_field=exc.offending_field,
+            offending_value=exc.offending_value_excerpt,
+            raw_bytes=candidate_bytes,
+        )
+
+    # Content-hash idempotency: skip rewrite when existing bytes match.
+    # Required because the daemon consumer does not dedupe before calling
+    # handlers (append_event_log uses INSERT OR REPLACE — handler fires
+    # for every event in the batch).  This is the ONLY layer preventing
+    # gratuitous re-writes on replay.
+    try:
+        if target.exists():
+            existing_bytes = target.read_bytes()
+            if (
+                hashlib.sha256(existing_bytes).digest()
+                == hashlib.sha256(candidate_bytes).digest()
+            ):
+                logger.debug(
+                    "projector: wicked.gate.decided disk projection — "
+                    "content hash matches existing %s; skipping rewrite",
+                    target,
+                )
+                return
+    except OSError as exc:
+        logger.warning(
+            "projector: wicked.gate.decided disk projection — could not "
+            "read existing %s for idempotency check: %s; proceeding to write",
+            target, exc,
+        )
+
+    # Atomic write: temp file + rename.  Rename is atomic on POSIX;
+    # readers either see the old bytes or the new bytes, never partial.
+    try:
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_bytes(candidate_bytes)
+        tmp.replace(target)
+    except OSError as exc:
+        logger.warning(
+            "projector: wicked.gate.decided disk projection — could not "
+            "write %s: %s",
+            target, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied wicked.gate.decided disk projection "
+        "project_id=%r phase=%r verdict=%r path=%s",
+        project_id, phase, data.get("result") or data.get("verdict"), target,
+    )
+
+
+def _gate_blocked(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.gate.blocked → no-op disk handler (PR-1 inert).
+
+    Site 4 of the bus-cutover staging plan (#746, #778).  Behaviour gated
+    on ``WG_BUS_AS_TRUTH_GATE_RESULT`` via
+    ``_bus_as_truth_enabled("GATE_RESULT")``.
+
+    PR-1 ships this handler INERT.  ``wicked.gate.blocked`` always follows
+    ``wicked.gate.decided`` in ``approve_phase``'s REJECT branch — by the
+    time this handler fires, ``gate-result.json`` is already in REJECT
+    state from the ``_gate_decided_disk`` projection (PR-2 onward).  No
+    additional disk mutation is needed under the current contract.
+
+    Why register at all then?  ``wicked.gate.blocked`` IS a real bus
+    event the daemon must consume — leaving it out of ``_HANDLERS`` would
+    surface every blocked emit as ``unknown event_type`` in the
+    projector log.  The registration here is for event handling, NOT
+    file materialisation: ``wicked.gate.blocked`` was REMOVED from
+    ``reconcile_v2._PROJECTION_MAP`` (PR #782 fold for Copilot finding
+    on PR-1) so the drift detector doesn't treat it as a file-producing
+    event.  Without the map removal, an event_log row with only
+    gate.blocked + an on-disk gate-result.json would silently pass the
+    projection-without-event check (false negative).
+
+    Future-compat: structured to be the place where REJECT-only metadata
+    (e.g., a ``blocking_reason`` annotation distinct from the gate verdict)
+    could be appended to the file if such a contract arrives later.  For
+    now: flag-off no-op; flag-on debug log + return.
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("GATE_RESULT")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off (will not re-warn this process): %s",
+                exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    project_id, _ = _require(payload, "project_id", et)
+    phase, _ = _require(payload, "phase", et)
+
+    logger.debug(
+        "projector: wicked.gate.blocked disk projection NO-OP — "
+        "gate-result.json already projected from preceding "
+        "wicked.gate.decided in approve_phase REJECT branch "
+        "(project_id=%r phase=%r)",
+        project_id, phase,
+    )
+
+
 # --- dispatch table --------------------------------------------------------
 
 _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
@@ -1214,6 +1539,17 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     # Registered always per Decision #6.
     "wicked.consensus.gate_completed": _consensus_gate_completed,
     "wicked.consensus.gate_pending": _consensus_gate_pending,
+    # Site 4 of bus-cutover (#746, #778): gate-result.json file projection.
+    # ``wicked.gate.decided`` continues to dispatch to ``_gate_decided`` (DB-row
+    # work); the disk projection runs as a try/except fan-out at the tail of
+    # ``_gate_decided``.  ``wicked.gate.blocked`` registers a fresh handler
+    # (``_gate_blocked``) so reconcile_v2's per-event-type handler-presence
+    # gate flips True for both events bound to gate-result.json (#774 fold).
+    # Both gate on WG_BUS_AS_TRUTH_GATE_RESULT inside the handler.  PR-1
+    # ships INERT — the existing emit at phase_manager.py:3931 lacks the
+    # full ``data`` payload, so flag-on triggers an early debug-return until
+    # PR-2 (#779) widens the emit shape.
+    "wicked.gate.blocked": _gate_blocked,
 }
 
 

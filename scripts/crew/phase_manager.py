@@ -3928,12 +3928,21 @@ def approve_phase(
         try:
             from _bus import emit_event
             gate_decision = gate_result.get("result", "UNKNOWN")
+            # Site 4 of bus-cutover (#746, #778): the payload now carries the
+            # full validated gate_result dict under ``data`` so the projector
+            # handler ``_gate_decided_disk`` can materialise gate-result.json
+            # from the bus event when WG_BUS_AS_TRUTH_GATE_RESULT=on.  The
+            # five top-level fields (project_id, phase, result, score,
+            # reviewer) are kept for downstream consumers that don't need the
+            # full dict.  The defensive ``copy()`` prevents downstream
+            # mutation of the in-memory verdict.
             emit_event("wicked.gate.decided", {
                 "project_id": state.name,
                 "phase": phase,
                 "result": gate_decision,
                 "score": gate_result.get("score"),
                 "reviewer": gate_result.get("reviewer"),
+                "data": dict(gate_result),
             }, chain_id=getattr(state, "chain_id", None))
             if gate_decision == "REJECT":
                 emit_event("wicked.gate.blocked", {
