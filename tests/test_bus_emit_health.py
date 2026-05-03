@@ -516,15 +516,16 @@ class TestFlagFlipDefaultState(unittest.TestCase):
             self.assertFalse(_bus._bus_as_truth_enabled("NEVER_SHIPPED_TOKEN"))
 
     def test_default_on_frozenset_contains_all_shipped_sites(self) -> None:
-        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 6 shipped site tokens
-        after Sites 1-5 (#746) all cut over."""
+        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 7 shipped site
+        tokens: Sites 1-5 (#746) + Site W1 (#787 solo_mode cutover)."""
         expected = frozenset({
-            "DISPATCH_LOG",        # Site 1
-            "CONSENSUS_REPORT",    # Site 2 (flag A)
-            "CONSENSUS_EVIDENCE",  # Site 2 (flag B — independent)
-            "REVIEWER_REPORT",     # Site 3
-            "GATE_RESULT",         # Site 4 (PR #784)
-            "CONDITIONS_MANIFEST", # Site 5 (this PR)
+            "DISPATCH_LOG",          # Site 1
+            "CONSENSUS_REPORT",      # Site 2 (flag A)
+            "CONSENSUS_EVIDENCE",    # Site 2 (flag B — independent)
+            "REVIEWER_REPORT",       # Site 3
+            "GATE_RESULT",           # Site 4 (PR #784)
+            "CONDITIONS_MANIFEST",   # Site 5 (PR #785)
+            "INLINE_REVIEW_CONTEXT", # Site W1 (#787, this PR)
         })
         self.assertEqual(_bus._BUS_AS_TRUTH_DEFAULT_ON, expected)
 

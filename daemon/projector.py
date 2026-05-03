@@ -1772,6 +1772,154 @@ def _condition_marked_cleared(conn: sqlite3.Connection, event: dict) -> None:
     )
 
 
+def _inline_review_context_recorded(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.crew.inline_review_context_recorded → inline-review-context.md.
+
+    Site W1 of bus-cutover wave-2 (#787).  Gated on
+    ``WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT`` via
+    ``_bus_as_truth_enabled("INLINE_REVIEW_CONTEXT")``.
+
+    Solo-mode (``scripts/crew/solo_mode.py``) writes three artifacts
+    when the inline-HITL path runs: gate-result.json,
+    conditions-manifest.json (CONDITIONAL only), and inline-review-context.md.
+    The first two are already covered by ``wicked.gate.decided`` via the
+    payload-aware ``_PROJECTION_RESOLVERS["wicked.gate.decided"]`` resolver.
+    This handler covers the third.
+
+    Payload contract (from ``solo_mode._emit_inline_review_context``):
+      project_id, phase, gate_name, bullets (list[str]), raw_response,
+      gate_result_ref (str path).  The handler reconstructs the same
+      markdown shape that ``solo_mode._write_inline_review_context``
+      produces so projector and direct-write paths produce
+      byte-identical output (modulo timestamps when the event includes
+      ``recorded_at``).
+
+    Idempotency: content-hash on the rendered markdown.  Atomic write
+    via temp+rename.  project_dir resolved via db.get_project; absent
+    row or NULL directory → warn and skip.
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("INLINE_REVIEW_CONTEXT")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off: %s", exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    gate_name, ok = _require(payload, "gate_name", et)
+    if not ok:
+        return
+
+    bullets = payload.get("bullets") or []
+    raw_response = payload.get("raw_response") or ""
+    gate_result_ref = payload.get("gate_result_ref") or "gate-result.json"
+    recorded_at = payload.get("recorded_at")
+
+    # Resolve project_dir.
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: wicked.crew.inline_review_context_recorded — "
+            "project %r has no directory in DB; skipping",
+            project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    target = project_dir / "phases" / str(phase) / "inline-review-context.md"
+
+    # Render the markdown — mirrors solo_mode._write_inline_review_context.
+    if recorded_at is None:
+        from datetime import datetime, timezone
+        recorded_at = datetime.now(timezone.utc).isoformat().replace(
+            "+00:00", "Z",
+        )
+
+    lines = [
+        f"# Inline Gate Review: {gate_name} ({phase})",
+        "",
+        f"**Timestamp**: {recorded_at}",
+        f"**Gate**: {gate_name}",
+        f"**Phase**: {phase}",
+        "",
+        "## Evidence Summary",
+        "",
+    ]
+    for b in bullets:
+        lines.append(f"- {b}")
+    lines += [
+        "",
+        "## User Response",
+        "",
+        f"> {str(raw_response).strip()}",
+        "",
+        "## Artifact Reference",
+        "",
+        f"Gate result: `{gate_result_ref}`",
+        "",
+    ]
+
+    candidate_bytes = "\n".join(lines).encode("utf-8")
+
+    # Content-hash idempotency.
+    import hashlib
+    try:
+        if target.exists():
+            existing_bytes = target.read_bytes()
+            if (
+                hashlib.sha256(existing_bytes).digest()
+                == hashlib.sha256(candidate_bytes).digest()
+            ):
+                logger.debug(
+                    "projector: inline-review-context — content hash matches "
+                    "existing %s; skipping rewrite", target,
+                )
+                return
+    except OSError as exc:
+        logger.warning(
+            "projector: inline-review-context — could not read %s for "
+            "idempotency check: %s; proceeding to write", target, exc,
+        )
+
+    # Atomic write.
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_bytes(candidate_bytes)
+        tmp.replace(target)
+    except OSError as exc:
+        logger.warning(
+            "projector: inline-review-context — could not write %s: %s",
+            target, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied wicked.crew.inline_review_context_recorded "
+        "project_id=%r phase=%r gate_name=%r path=%s",
+        project_id, phase, gate_name, target,
+    )
+
+
 def _gate_blocked(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.gate.blocked → no-op disk handler (PR-1 inert).
 
@@ -1897,6 +2045,15 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     # multiple files — see _PROJECTION_MAP shape change in
     # reconcile_v2.py).
     "wicked.condition.marked_cleared": _condition_marked_cleared,
+    # Site W1 of bus-cutover wave-2 (#787): solo_mode inline-HITL
+    # evidence record.  ``wicked.crew.inline_review_context_recorded`` is
+    # fired by ``solo_mode.dispatch_human_inline()`` BEFORE the legacy
+    # disk write at phases/{phase}/inline-review-context.md.  Solo-mode
+    # also fires ``wicked.gate.decided`` in the same flow which the
+    # existing gate.decided handler maps to gate-result.json (+
+    # conditions-manifest.json on CONDITIONAL) — this handler covers the
+    # third artifact.  Gated on WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT.
+    "wicked.crew.inline_review_context_recorded": _inline_review_context_recorded,
 }
 
 

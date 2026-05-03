@@ -610,12 +610,92 @@ def dispatch_human_inline(
         }
 
     # -----------------------------------------------------------------------
-    # Write gate-result.json
+    # Site W1 (#787) bus-cutover: emit BEFORE the legacy disk writes so the
+    # projector handlers can materialise the same files when the
+    # WG_BUS_AS_TRUTH_* flags are on.  Without these emits, the direct
+    # writes below would surface as ``projection-without-event`` drift in
+    # reconcile_v2 (Sites 4 + 5 went default-ON in PRs #784/#785).  The
+    # legacy writes still run for crash-recovery safety; the projector's
+    # content-hash idempotency makes its replay a no-op when bytes match.
+    # Fail-open: any emit failure must NOT block the disk writes.
     # -----------------------------------------------------------------------
     gate_result_ref = (
         str(project_dir / "phases" / phase / "gate-result.json")
         if project_dir else "gate-result.json"
     )
+    project_id_str = (
+        getattr(state, "name", None) if state is not None else None
+    )
+    chain_id_str = (
+        getattr(state, "chain_id", None) if state is not None else None
+    )
+    if chain_id_str is None and project_id_str:
+        # Synthesize a phase-level chain_id when state lacks one — keeps
+        # the projector handler's chain_id-based phase extraction working
+        # for callers that bootstrap solo-mode without a full ProjectState.
+        chain_id_str = f"{project_id_str}.{phase}.gate"
+
+    # Build the gate_result dict that the projector will use to materialise
+    # gate-result.json + (CONDITIONAL) conditions-manifest.json.  Same shape
+    # as ``_write_gate_result`` builds below — this is the source of truth
+    # the legacy direct writes mirror.
+    bus_gate_data: Dict[str, Any] = {
+        "verdict": parsed["verdict"],
+        "result": parsed["verdict"],
+        "reviewer": REVIEWER_NAME,
+        "recorded_at": _utc_now(),
+        "score": parsed["score"],
+        "reason": parsed.get("reason", ""),
+        "phase": phase,
+        "gate": gate_name,
+        "conditions": parsed.get("conditions") or [],
+        "dispatch_mode": DISPATCH_MODE,
+        "mode": DISPATCH_MODE,
+    }
+
+    if project_dir is not None and project_id_str:
+        try:
+            from _bus import emit_event  # type: ignore[import]
+            # wicked.gate.decided — covers gate-result.json + (CONDITIONAL)
+            # conditions-manifest.json via the existing payload-aware
+            # resolver in reconcile_v2._PROJECTION_RESOLVERS.
+            emit_event(
+                "wicked.gate.decided",
+                {
+                    "project_id": project_id_str,
+                    "phase": phase,
+                    "result": parsed["verdict"],
+                    "score": parsed["score"],
+                    "reviewer": REVIEWER_NAME,
+                    "data": bus_gate_data,
+                },
+                chain_id=chain_id_str,
+            )
+            # wicked.crew.inline_review_context_recorded — covers
+            # inline-review-context.md (Site W1, this PR).  Carries the
+            # same fields the projector handler needs to render the
+            # markdown deterministically.
+            emit_event(
+                "wicked.crew.inline_review_context_recorded",
+                {
+                    "project_id": project_id_str,
+                    "phase": phase,
+                    "gate_name": gate_name,
+                    "bullets": list(bullets),
+                    "raw_response": raw_response,
+                    "gate_result_ref": gate_result_ref,
+                    "recorded_at": bus_gate_data["recorded_at"],
+                },
+                chain_id=chain_id_str,
+            )
+        except Exception:  # noqa: BLE001 — fail-open per Decision #8
+            pass  # bus unavailable — disk writes still run below
+
+    # -----------------------------------------------------------------------
+    # Write gate-result.json (legacy direct write — preserved during
+    # cutover for crash-recovery safety; projector idempotency means its
+    # replay is a no-op when the bus-projected bytes match).
+    # -----------------------------------------------------------------------
     if project_dir is not None:
         _write_gate_result(project_dir, phase, gate_name, parsed, context_ref=None)
 
