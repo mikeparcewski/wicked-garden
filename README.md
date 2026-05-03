@@ -9,58 +9,130 @@
 
 # Wicked Garden
 
-**Helps Claude execute projects you can trust. Learns what you actually need. Stays lean as it grows.**
+> **Identity at a glance:** see [`ETHOS.md`](ETHOS.md) — what we believe, what we refuse, what we optimize for.
 
-> **Identity at a glance:** see [`ETHOS.md`](ETHOS.md) — what we believe, what we refuse, what we optimize for. One page, ≤200 lines. Read it once and you'll know whether this fits the way you think about software.
+---
+
+## The problem
+
+Every Claude Code session starts from scratch. Session 47 has no idea what session 1 decided. The auth token format, the migration that caused the outage, the architectural call you spent two hours debating — all gone. So Claude fills the gap the only way it can: it guesses, skips review steps, and ships things that feel right but aren't grounded in your actual history.
+
+The second problem is gates. Every team has review steps they believe in. Claude has no enforcement mechanism. Under deadline pressure, review becomes suggestion. Suggestion becomes optional. Optional becomes skipped. The gate existed on paper; the work shipped without it.
+
+The third problem is context. On any real project, the right specialist for a security decision is different from the right specialist for a data architecture call. Claude doesn't route. It answers from whatever context happens to be in the window.
+
+---
+
+## The fix
+
+Wicked Garden is an AI-native SDLC plugin for Claude Code. The trust mechanism is threefold: **the bus is the source of truth** (every gate verdict, every dispatch, every artifact write is a signed event on the bus before it hits disk), **the brain carries knowledge across sessions** (decisions, gotchas, and patterns persist and surface when relevant), and **quality gates reject work that doesn't meet the bar** (REJECT blocks advancement; CONDITIONAL blocks until a conditions manifest is cleared; no advisory checklists).
+
+---
+
+## What a Monday morning looks like
+
+It is 9:00 AM. You left a feature half-finished on Friday. You open Claude Code and type:
 
 ```bash
-/wicked-garden:crew:start "add OAuth login with role-based access"
+/wicked-garden:crew:start "finish the checkout flow — payment processing and tax calculation"
 ```
 
-Claude scores the work on 9 factors, detects 1 of 7 project archetypes, assembles the right specialists by reading their frontmatter, and runs gated phases — clarify, design, (challenge), build, test, review, operate. No skipped steps. No hallucinated shortcuts. Every decision is remembered for the next project.
+**9:00:01** — The `smaht` context assembler fires before Claude sees your message. It queries `wicked-brain` for every decision tagged to your checkout domain: the Stripe idempotency key pattern you established six weeks ago, the tax library evaluation that concluded `tax-rates` was too slow for realtime calls, the open requirement `REQ-CHECKOUT-14` about VAT handling for EU customers. All of it lands in the prompt context before you finish reading the first response.
 
-## Install
+**9:00:15** — The facilitator reads your request against nine factors: reversibility (moderate — payment state is hard to undo), blast radius (high — touches order service, tax service, webhook queue), compliance scope (yes — PCI DSS surface), novelty (low — established pattern in this codebase), and five more. It detects the `code-repo` archetype. Rigor tier: **full**. Phase chain: clarify → design → challenge → build → test → review → operate.
+
+**9:01** — The clarify phase begins. The facilitator dispatches the requirements analyst (`wicked-garden:product:elicit`). It surfaces `REQ-CHECKOUT-14` from the brain, notices it has no acceptance criterion for the VAT case, and asks you directly. You answer. The requirement gets a criteria block. The analyst writes the clarify artifact with `REQ-CHECKOUT-17` added for the EU edge case you just described. A `wicked.crew.phase_started` event lands on the bus.
+
+**9:08** — Clarify gates. The semantic reviewer (`wicked-testing:semantic-reviewer`, dispatched via the wicked-testing peer plugin) extracts every `AC-*` and `REQ-*` item from the clarify artifact and emits a gap report. Two items have no design pointer. The gate issues `CONDITIONAL`. A `conditions-manifest.json` is written to `phases/clarify/`. The `wicked.gate.decided` event is on the bus before the file hits disk, signed by the HMAC dispatch log.
+
+**9:12** — You resolve the two conditions. The `wicked-garden:crew:resolve` command marks them cleared. The manifest is updated. Another bus event. The clarify gate flips to `APPROVE`.
+
+**9:13** — Design phase. The solution architect (`wicked-garden:engineering:arch`) reads the clarify artifact and the brain's architectural history. It flags that the tax call pattern you proposed would add ~200ms to checkout latency under the p99 numbers from last month's load test (stored in the brain as a memory from that session). It proposes caching. You agree. Design artifact written. Bus event. Gate dispatched.
+
+**9:25** — Challenge phase fires automatically because complexity ≥ 4. The contrarian agent (`wicked-garden:crew:contrarian`) runs a structured steelman of the alternative: call the tax service synchronously and cache client-side. It finds two real objections to the caching approach — cache invalidation on tax rule changes, and stale rates for high-frequency users. You read the report. You add a cache TTL and a webhook listener for tax rule updates. Challenge gate: `APPROVE`.
+
+**9:40** — Build begins. The implementer has the full chain of requirements, design decisions, architectural calls, and challenge objections in context. It codes against your actual codebase structure (indexed by `wicked-garden:search:blast-radius` at session start). The `coding-task` event type on the build task triggers the SubagentStart hook to inject R1–R6 bulletproof standards: no dead code, no bare panics, no magic values, no swallowed errors.
+
+**10:15** — Test gate. `wicked-testing` dispatches the test designer. Test artifacts are written. The convergence tracker (`scripts/crew/convergence.py`) logs every artifact through its state machine: Designed → Built → Wired → Tested → Integrated. The review gate will not advance until every artifact reaches at least `Integrated`.
+
+**10:45** — Review gate. Multi-reviewer panel: senior engineer, security engineer (OWASP Top 10 against your payment path), the wicked-testing reviewer. BLEND aggregation: `0.4 × min + 0.6 × avg`. All three approve. Gate: `APPROVE`. The `wicked.gate.decided` event lands on the bus. `phases/review/gate-result.json` is materialized by the projector from that event — not written directly.
+
+**10:46** — Session ends. The Stop hook triggers memory consolidation. The Stripe idempotency pattern, the tax caching decision, the EU VAT requirement addition — all captured as durable memories in `wicked-brain`. Next session will know what this one decided.
+
+You shipped a feature that touched PCI scope, EU tax law, and payment state — with enforced gates, cross-session context, and an audit trail that can reconstruct every decision from the event log alone.
+
+---
+
+## Why it works
+
+**Gates are enforced by the bus, not by Claude's willpower.** Every gate verdict writes `phases/{phase}/gate-result.json` AFTER a `wicked.gate.decided` event lands on the bus. The PreToolUse lint (`hooks/scripts/pre_tool.py`) detects writes to gate-critical files that lack a paired bus event in the last N seconds and denies or warns — configurable via `WG_BUS_EMIT_LINT`. An HMAC-signed dispatch log (`phases/{phase}/dispatch-log.jsonl`) records every specialist dispatch; a gate result without a matching dispatch entry downgrades to `CONDITIONAL`. You cannot accidentally approve without a record.
+
+**Context survives session boundaries because the brain indexes everything.** `wicked-brain` maintains an FTS5 index of decisions, architectural patterns, gotchas, wiki articles, and memories. The `smaht` context assembler queries it on every prompt using intent-aware adapter fan-out (DEBUGGING, IMPLEMENTATION, PLANNING, RESEARCH each pull from different adapter subsets). A decision from session 1 surfaces in session 47 because it was stored with confidence, decay rules, and domain tags — not buried in a chat transcript.
+
+**Specialist routing is structural, not keyword-based.** 63 specialist agents live in `agents/**/*.md`. The facilitator discovers them at runtime by reading frontmatter — no static map, no registration ceremony. A security decision routes to the security engineer because the facilitator read its frontmatter description and matched it against the nine-factor rubric output. Add a new agent with a `subagent_type` line and it becomes eligible next session.
+
+**Rigor adapts to the project, not the other way around.** A typo fix and a schema migration are not the same project. The facilitator scores nine factors and detects one of seven archetypes (`schema-migration`, `multi-repo`, `testing-only`, `config-infra`, `skill-agent-authoring`, `docs-only`, `code-repo`). Rigor tier (minimal/standard/full) flows from the scoring. A config change gets two phases and advisory gates. A migration gets a full pipeline with multi-reviewer panels and archetype-aware evidence demands. You do not configure this — it reads the work.
+
+---
+
+## Bus-as-truth architecture
+
+Sites 1–5 of the bus cutover (#746) have shipped (PRs #751, #758, #773, #777, #781–#785). The architecture is now live.
+
+**The invariant**: every write to a gate-critical artifact is preceded by a bus event. The on-disk file is a projection of the event log, not the primary store.
+
+```
+Gate verdict computed
+        |
+   [wicked.gate.decided → wicked-bus]
+        |
+   [daemon/projector.py handler]
+        |
+   phases/{phase}/gate-result.json  ← materialized projection
+```
+
+The same pattern applies to all five cutover sites:
+
+| Artifact | Bus event | Feature flag |
+|----------|-----------|--------------|
+| `phases/{phase}/dispatch-log.jsonl` | `wicked.dispatch.log_entry_appended` | `WG_BUS_AS_TRUTH_DISPATCH_LOG` |
+| `phases/{phase}/consensus-report.json` | `wicked.consensus.report_created` | `WG_BUS_AS_TRUTH_CONSENSUS_REPORT` |
+| `phases/{phase}/reviewer-report.md` | `wicked.consensus.gate_completed` | `WG_BUS_AS_TRUTH_REVIEWER_REPORT` |
+| `phases/{phase}/gate-result.json` | `wicked.gate.decided` | `WG_BUS_AS_TRUTH_GATE_RESULT` |
+| `phases/{phase}/conditions-manifest.json` | `wicked.gate.decided` (CONDITIONAL) | `WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST` |
+
+Every flag defaults **on** after Sites 1–5 shipped — bus-as-truth is the default. Operators opt out per-site by setting `WG_BUS_AS_TRUTH_<TOKEN>=off` (literal `on`/`off` only, case/whitespace normalized — see PR #777). Each flag is independent; you can revert one site without touching the others, and `git revert` on the cutover PR is the always-available emergency lever.
+
+**The audit trail has teeth** because: the event log is append-only; the dispatch log is HMAC-signed; the content sanitizer (`gate_ingest_audit.py`) runs a codepoint allow-list and injection-pattern check on every gate-result ingestion; orphan detection rejects gate results without a matching dispatch entry. The security floor (AC-9 §5.4) applies to projected files the same as it applied to directly-written files.
+
+---
+
+## Trust the disk vs trust the bus
+
+You can verify bus-as-truth behavior at any time:
 
 ```bash
-claude plugins add mikeparcewski/wicked-garden
+# Check reconciler: projection-stale, event-without-projection, projection-without-event
+/wicked-garden:crew:reconcile --all --json
+
+# Check drift class counts (post-cutover schema)
+# "projection-stale" = projector is lagging
+# "event-without-projection" = handler missing or failed
+# "projection-without-event" = direct write bypassed the bus (lint should have caught this)
 ```
 
-**Standalone or full stack.** Wicked-garden runs on its own with local JSON storage and falls back to grep when the optional companions aren't installed. For full SDLC support, install [wicked-brain](https://github.com/mikeparcewski/wicked-brain) (memory + search index) and [wicked-testing](https://github.com/mikeparcewski/wicked-testing) (QE specialist agents). The crew gate dispatches `wicked-testing:*` Tier-1 agents when present.
+Zero drift on all three classes means the projector is current, every event has a materialized file, and no file appeared without an event.
 
-## What it does
+**Opt-out any site**: set `WG_BUS_AS_TRUTH_<SITE>=off` to revert that site to direct-write behavior. The lint (`WG_BUS_EMIT_LINT=warn|strict|off`) is independent — you can keep drift detection active while a site is in direct-write mode.
 
-Four things. Each is something a single human + Claude struggles with on real projects.
+**Content-hash idempotency**: the projector handler for each site computes the same output deterministically from the event payload. Re-projecting from a clean `event_log` after deleting all disk files produces byte-for-byte identical artifacts. This is the load-bearing assertion from issue #732: the project state is fully recoverable from the bus alone.
 
-### 1. Project execution Claude can trust
-
-Multi-phase workflow with **enforced gates**, not advisory checklists. The crew system runs clarify → design → (challenge) → build → test → review → operate. REJECT verdicts block phase advancement. CONDITIONAL verdicts write a `conditions-manifest.json` that must be cleared. Every dispatched specialist appends an HMAC-signed entry to the dispatch log; verdicts without matching dispatches downgrade to CONDITIONAL.
-
-The trust mechanism IS the product. You can leave Claude alone with `--yolo` and the gates still hold.
-
-**Observational steering** — detectors watch live work and emit `wicked.steer.*` events on the bus when patterns warrant more rigor: touching auth/payments/migrations code, blast radius exceeding the clarify estimate, council reaching a 2-2 split, test failure spikes. The `crew:rigor-escalator` subscriber mutates the active project's rigor tier in response, with full audit trail on the bus. Cross-plugin: wicked-testing can subscribe directly to react to test-failure events. See [`docs/steering-detectors.md`](docs/steering-detectors.md).
-
-### 2. Context gathering and communication
-
-Claude pulls context from three places automatically: **wicked-brain** (semantic search across past decisions, patterns, gotchas), the **search domain** (code lineage, blast-radius, hotspots), and **smaht context assembly** (tier-aware adapters that fan out by intent — DEBUGGING vs IMPLEMENTATION vs PLANNING). The `ground` skill pulls deeper context when Claude is uncertain and surfaces it back into the active turn.
-
-You don't have to remember what you did 3 months ago. The brain does.
-
-### 3. Specialist agents called dynamically
-
-63 specialist agents — backend, frontend, security, SRE, data, UX, accessibility, compliance, etc. — discovered at runtime by reading `agents/**/*.md` frontmatter. Add a markdown file with a `subagent_type` line and the facilitator can route to it next session. No static maps. No registration ceremony. The right specialist for the work, not the closest fit.
-
-### 4. Skills that compound your usage
-
-76 skills cover everything from migration planning to data lineage to risk-based experiment design. Skills use **progressive disclosure**: the YAML frontmatter is always loaded (~100 words), the SKILL.md body loads only when invoked (≤200 lines), and detailed `refs/` content loads on demand. Heavy skills delegate to specialist agents instead of inlining their own rubrics.
-
-**`/wicked-garden:smaht:propose-skills`** — proposes new skills based on patterns Claude detects in your past Claude Code sessions (Bash→Read sequences, repeated `gh issue` invocations, etc.), so the framework grows from your actual work, not from speculative authoring. Honors `CLAUDE_CONFIG_DIR` for non-default config locations. Privacy: scrubs absolute paths to `~/...`, skips sessions referencing "secret"/"private".
+---
 
 ## Subtraction is how it stays lean
 
-Each of the 4 outcomes above sounds like the kind of thing that grows into bloat. The discipline that prevents that: **every major version ships substantial deletions of its predecessor's code** as Claude proves it can follow good practices without the wrapping.
-
-| Version | What got deleted | Why it shipped | Net lines |
-|---------|------------------|----------------|-----------|
+| Version | What got deleted | Why | Net lines |
+|---------|-----------------|-----|-----------|
 | [**v4.6**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v4.6.0) | mem commands collapsed into thin passthroughs to wicked-brain skills | parallel memory store was creating sync bugs | **–25,491** |
 | [**v6.1**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v6.1.0) | v5 rule engine + HOT/FAST/SLOW orchestrator | keyword routing was getting gamed; replaced by 9-factor rubric | partial |
 | [**v7.0**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v7.0.0) | All QE extracted to wicked-testing peer plugin | QE was conflated with workflow; extraction lets each evolve independently | breaking |
@@ -68,9 +140,42 @@ Each of the 4 outcomes above sounds like the kind of thing that grows into bloat
 | [**v8.0**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v8.0.0) | `wicked-garden:mem:*` slash commands | shim layer was no longer load-bearing | – |
 | [**v8.4**](https://github.com/mikeparcewski/wicked-garden/releases/tag/wicked-garden-v8.4.0) | jam SKILL.md 191→42 (78%); propose-process SKILL.md 600→160 (~73%) | skill files were burning context; agents now own the rubric | – |
 
-**The honest pattern is add-then-slim, not pure subtraction.** v8.0 also added ~30k lines for the daemon (task projection, hook subscribers, typed state machine). The framework adds foundational capability when it's genuinely needed, then aggressively slims the layers above it once they prove unnecessary. Net: the user-facing surface is smaller and clearer than v6.
+The honest pattern is add-then-slim, not pure subtraction. v8.0 also added ~30k lines for the daemon (task projection, hook subscribers, typed state machine). The plugin adds foundational capability when genuinely needed, then aggressively slims the layers above once they prove unnecessary.
 
-**Note on the QE deletion (v7.0/v7.1):** the test gate didn't go away — it stays in wicked-garden's phase manager. Only the *specialist agents* moved to wicked-testing. The framework still enforces test evidence at gate boundaries; it just dispatches the work to a peer plugin.
+**Note on QE deletion (v7.0/v7.1)**: the test gate did not go away — it stays in the phase manager. Only the specialist agents moved to wicked-testing. The framework still enforces test evidence at gate boundaries; it dispatches the work to a peer plugin.
+
+---
+
+## What's in the box
+
+**13 domains**, 63 specialist agents, 76 skills, 12 lifecycle hooks.
+
+Workflow and intelligence: `crew` (facilitator, gates, convergence), `smaht` (context assembly, intent routing), `mem` (memory tiers), `search` (blast radius, lineage, hotspots), `jam` (brainstorming, multi-model council).
+
+Specialist disciplines: `engineering` (10 agents), `product` (11), `platform` (11), `qe` via wicked-testing (11), `data` (4), `delivery` (7), `agentic` (5), `persona` (1).
+
+Agents are discovered at runtime by reading `agents/**/*.md` frontmatter. Add a markdown file with a `subagent_type` line and it becomes eligible next session. No registration ceremony.
+
+---
+
+## What's the relationship with wicked-testing?
+
+wicked-garden orchestrates the full SDLC — crew workflow, phase management, gate enforcement, memory, and context assembly. wicked-testing is a separate peer plugin that owns all QE behavior: test planning, authoring, execution, and review. The two communicate through a stable public contract (`wicked-testing:*` subagent names, bus events, and an evidence manifest schema). wicked-garden's crew gate dispatches QE agents by their `wicked-testing:*` subagent names and subscribes to `wicked.verdict.recorded` for results.
+
+See the [wicked-garden integration guide](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/WICKED-GARDEN.md) for the full contract.
+
+---
+
+## Principles
+
+1. **Memory over amnesia** — Decisions persist. Session 47 knows what session 1 decided.
+2. **Factors over signals** — The facilitator reads 9 factors and archetype, not keyword patterns.
+3. **Perspectives over ego** — Multiple specialist domains catch what one voice misses.
+4. **Enforcement over suggestion** — Gates reject work that doesn't meet the bar.
+5. **Graceful degradation** — No external tools? Local JSON. Missing a specialist? Fallback agents.
+6. **Prompts over code** — Logic lives in markdown and config. Extensible by anyone.
+
+---
 
 ## Requirements
 
@@ -78,11 +183,15 @@ Each of the 4 outcomes above sounds like the kind of thing that grows into bloat
 - **Node.js 18+** — required for wicked-testing
 - **[wicked-testing](https://github.com/mikeparcewski/wicked-testing) `^0.2`** — required peer plugin; QE behavior lives here in v7.0+
 
-### Version pinning policy
+wicked-garden runs standalone with local JSON storage and grep fallback when optional companions are absent. For the full SDLC install [wicked-brain](https://github.com/mikeparcewski/wicked-brain) (memory + search index).
 
-`plugin.json:wicked_testing_version` pins a caret-range (`^0.2.0` for v7.1.x). Patch releases are backward-compatible bug fixes — always drop-in. Minor releases may add new Tier-1 agents (additive only) — compatible for consumers, no wicked-garden changes needed. A wicked-testing major bump requires wicked-garden to update its pin, coordinated with the next wicked-garden major release. See [INTEGRATION.md §8](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/INTEGRATION.md#8-version--compatibility) for the full policy.
+### Version pinning
 
-## Quick Start
+`plugin.json:wicked_testing_version` pins a caret-range (`^0.2.0` for v7.1.x). Patch releases are backward-compatible bug fixes. Minor releases may add new Tier-1 agents (additive only). A wicked-testing major bump requires a coordinated wicked-garden major release. See [INTEGRATION.md §8](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/INTEGRATION.md#8-version--compatibility).
+
+---
+
+## Install
 
 ```bash
 claude plugins add mikeparcewski/wicked-garden
@@ -95,193 +204,45 @@ Then start a project:
 /wicked-garden:crew:start "add OAuth login with role-based access"
 ```
 
-The plugin detects your stack, assembles specialists, and runs enforced phases. wicked-testing must be installed for test and review phases to work.
+Use `/wicked-garden:crew:guide` once a project is active — it ranks "what to do next" against the current phase and detected archetype. With no active project, `/wicked-garden:help` lists every command.
 
-### Start here
-
-Use `/wicked-garden:crew:guide` once a project is active — it ranks "what to do next" against the current phase + detected archetype. With no active project, `/wicked-garden:help` lists every command. Discovery is context-aware via `crew:guide`, not a curated subset.
-
-## What's the relationship with wicked-testing?
-
-wicked-garden orchestrates the full SDLC — crew workflow, phase management, gate enforcement, memory, and context assembly. wicked-testing is a separate peer plugin that owns all QE behavior: test planning, authoring, execution, and review. The two communicate through a stable public contract (agent `subagent_type` names, bus events, and an evidence manifest schema). wicked-garden's crew gate dispatches QE agents by their `wicked-testing:*` subagent names and subscribes to `wicked.verdict.recorded` for results. You can use wicked-testing independently on projects that don't use wicked-garden's crew workflow. See the [wicked-garden integration guide](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/WICKED-GARDEN.md) for the full contract.
-
-## What You Do
-
-Commands you run when you need them. No setup required.
-
-| I want to... | Command |
-|-------------|---------|
-| **Build a feature end-to-end** | `crew:start "add payment processing"` — facilitator scores 9 factors, picks specialists + phases, runs enforced gates |
-| **Teach Claude my codebase** | `smaht:onboard` — indexes structure, traces flows, maps architecture. Claude remembers it across sessions. |
-| **Review code with domain expertise** | `engineering:review` — security checks OWASP Top 10, architecture detects scope creep, QE catches test manipulation |
-| **Test before I code** | `qe:scenarios "checkout flow"` — generates happy paths, edge cases, error conditions, maps to CLI tools |
-| **Brainstorm with real perspectives** | `jam:council "monorepo or polyrepo?"` — pipes the question to every LLM CLI on your machine (Codex, Gemini, Copilot), synthesizes agreements and dissent |
-| **Find what breaks if I change this** | `search:blast-radius "handlePayment"` — dependency analysis across your codebase, not string matching |
-| **Design an A/B test** | `delivery:experiment` — hypothesis, sample size calculation, instrumentation plan, decision criteria |
-| **Collect audit evidence** | `platform:audit` — per-control evidence collection (SOC2, HIPAA, GDPR) with PASS/PARTIAL/FAIL and auditor notes |
-
-## What the Plugin Does Automatically
-
-These run in the background via lifecycle hooks. You don't invoke them — they make everything above smarter.
-
-| What happens | How it works |
-|-------------|-------------|
-| **Every prompt gets project context** | `smaht` assembles brain knowledge, memory, project state, and event history before Claude responds — 4-tier routing (hot/fast/slow/synthesize) keeps it fast for simple prompts and thorough for complex ones |
-| **Decisions persist across sessions** | `mem` stores what you decided and surfaces it when relevant — search "auth" and find the JWT decision from three months ago via auto-generated synonym tags |
-| **Working memory consolidates over time** | Session noise drops away, important patterns get promoted to durable knowledge. 3 tiers: working (transient) → episodic (sprint-level) → semantic (permanent) |
-| **Task metadata carries causality** | Native `TaskCreate` / `TaskUpdate` get a structured envelope (`chain_id`, `event_type`, `phase`, `archetype`). A PreToolUse hook validates it; a SubagentStart hook reads it to inject per-role procedures (R1–R6 for coding-tasks, Gate Finding Protocol for gate-findings) |
-| **The facilitator picks the plan** | 9-factor rubric scores your request, archetype detection classifies the work (schema-migration, docs-only, code-repo, etc.), rigor tier (minimal/standard/full) adapts gate behavior. A config change gets minimal tier + advisory gates; a migration gets full tier + multi-reviewer panels |
-| **Quality gates actually enforce** | APPROVE advances. CONDITIONAL writes a conditions manifest that must be verified. REJECT blocks. BLEND aggregation (0.4×min + 0.6×avg) lets one strong dissent hold up weak work. 3+ gate failures trigger swarm crisis response. |
-| **Artifacts converge, not just complete** | Designed → Built → Wired → Tested → Integrated → Verified. Completion ≠ wired into production. `convergence-verify` gate blocks review sign-off until every artifact reaches Integrated; stalls at 3 sessions become findings. |
-| **Traceability links deliverables across phases** | Requirements → designs → code → tests → evidence → gate approvals. After deploy, incidents link back to the requirements that caused them. |
-| **Session teardown captures learnings** | Stop hook prompts memory storage, consolidates working memories, runs the session-close guard pipeline, and persists session metadata for next time |
-
-## Why This Works
-
-Most AI coding sessions start from scratch. Session 47 has no idea what session 1 decided. Claude skips steps, hallucinates shortcuts, and ships without review.
-
-Wicked Garden fixes that with three layers:
-
-1. **Enforced workflow** (`crew`) — Facilitator rubric scores 9 factors, detects archetype, picks specialists by reading their frontmatter, runs gated phases. Quality gates reject work that doesn't meet the bar. Multi-reviewer BLEND aggregation at full rigor brings several specialist perspectives before advancement.
-2. **Cross-session memory** (`mem`) — Decisions, patterns, and gotchas persist and surface automatically. Auto-generated search tags mean "auth" finds the "JWT session token" decision. Working memories consolidate into durable knowledge over time.
-3. **Context assembly** (`smaht`) — Every prompt is enriched with brain knowledge, memory, project state, and event history. Four-tier routing keeps simple prompts fast and complex ones thorough. wicked-brain is an optional but strongly recommended companion plugin that serves as the primary knowledge layer.
-
-## How It Works
-
-```
-You type a prompt
-       |
-   [smaht assembles context: brain + domain + events + context7 + tools + delegation]
-       |
-   Claude responds with full project context
-       |
-   [PreToolUse validates task metadata; hooks track decisions, store learnings]
-       |
-   Next session starts with everything remembered
-```
-
-For complex work, `crew:start` orchestrates the full lifecycle:
-
-```
-Facilitator Rubric -> Archetype Detection -> Phase Plan -> Specialist Routing -> Quality Gates -> Memory Storage
-```
-
-A config change? Minimal rigor, two phases, done in minutes.
-A schema migration? Full rigor pipeline, archetype-aware evidence demands, multi-reviewer panels.
-**The system adapts to the work. You don't configure it.**
-
-## 13 Domains
-
-Every domain works independently. Install the plugin, use any command.
-
-### Workflow & Intelligence
-
-| Domain | What It Does | Key Commands |
-|--------|-------------|--------------|
-| **crew** | Facilitator-driven workflow engine with 7 archetypes, phase-boundary QE evaluator, convergence lifecycle, challenge gate, yolo guardrails, and multi-reviewer gate enforcement | `crew:start`, `crew:execute`, `crew:convergence`, `crew:swarm`, `crew:retro` |
-| **smaht** | Automatic context assembly on every prompt. 4-tier routing (hot/fast/slow/synthesize). Six adapters: domain, brain, events, context7, tools, delegation. | `smaht:onboard`, `smaht:collaborate`, `smaht:briefing` |
-| **mem** | 3-tier persistent memory (working → episodic → semantic) with auto-consolidation and tag-based search — **requires [wicked-brain](https://github.com/mikeparcewski/wicked-brain) plugin** | Use `wicked-brain:memory` (store/recall modes) directly |
-| **search** | Structural code intelligence — symbols, blast radius, data lineage, service maps | `search:code`, `search:lineage`, `search:blast-radius`, `search:service-map` |
-| **jam** | AI brainstorming with dynamic focus groups and multi-model council sessions | `jam:brainstorm`, `jam:quick`, `jam:council` |
-
-Tasks use Claude Code's native `TaskCreate` / `TaskUpdate` directly — no separate task domain. The PreToolUse validator enforces the metadata envelope.
-
-### Specialist Disciplines
-
-| Discipline | What It Brings |
-|-----------|---------------|
-| **Engineering** (10) | Senior engineer, solution architect, system designer, backend/frontend, debugger, tech writer, API documentarian, DevEx engineer, migration engineer |
-| **Product** (11) | Requirements, UX design + analysis, user research + voice, market/value strategy, WCAG a11y, UI review, mockups |
-| **Platform** (11) | Security, SRE, compliance, incident response, infrastructure, DevOps, release, audit, privacy, chaos, observability |
-| **Quality** (11) | Test strategist, test designer, automation, risk, testability, semantic reviewer, contract testing, requirements quality, code analyzer, continuous + production quality monitors |
-| **Data** (4) | Data analyst, engineer, ML engineer, unified OLTP+OLAP data architect |
-| **Delivery** (7) | Delivery manager, stakeholder reporter, rollout, experiments, risk, progress, cloud-cost intelligence |
-| **Agentic** (5) | Architect, safety, patterns, performance, framework research |
-| **Persona** (1) | On-demand specialist invocation with rich characteristics |
-
-Total: **63 specialist agents**, discovered at runtime via `subagent_type` frontmatter.
-
-## Integration
-
-| Integration | With It | Without It |
-|------------|---------|------------|
-| **External MCP tools** | Integration-discovery routes mem to Notion, delivery to Jira/Linear — auto-discovered at runtime | Local JSON files — same API |
-| **GitHub CLI (`gh`)** | Auto-file issues, PR creation, releases | Manual issue/PR workflow |
-| **Tree-sitter** | 73-language structural code search, lineage | Grep-based text search |
-| **DuckDB** | SQL on 10GB+ CSV/Excel files | Basic file reading |
-| **External LLM CLIs** | Multi-model council reviews (Codex, Gemini, OpenCode) with independent perspectives | Claude-only specialist agents |
-| **wicked-brain** | FTS5-indexed knowledge layer (wiki articles, chunks, memories) queried on every prompt | Brain adapter returns empty; grep/glob fallback |
-
-The plugin works fully standalone. Each integration adds capability but nothing breaks without it.
-
-## What You Can't Do With Just a CLAUDE.md
-
-| Capability | CLAUDE.md | Wicked Garden |
-|-----------|-----------|---------------|
-| Persistent cross-session memory | No — each session starts fresh | Yes — decisions surface automatically when relevant |
-| Automatic context assembly | No — must manually recap | Yes — smaht injects memory + search + project state every turn |
-| Enforced quality gates | No — suggestions, often skipped | Yes — PreToolUse validator + gate-policy denies advancement when evidence is missing |
-| Runtime specialist routing | No — fixed roles | Yes — facilitator reads agent frontmatter dynamically; 63 specialists on disk |
-| Native task metadata envelope | No | Yes — `chain_id`, `event_type`, `source_agent`, `phase`, `archetype` validated on every TaskCreate |
-| Procedure injection per role | No | Yes — SubagentStart hook injects R1–R6 for coding-tasks, Gate Finding Protocol for gate-findings |
-| Convergence tracking | No | Yes — Designed → Built → Wired → Tested → Integrated → Verified with stall detection |
-| Multi-model perspectives | No — Claude only | Yes — council pipes to Codex, Gemini, OpenCode |
-| Archetype-aware evidence | No | Yes — phase-boundary QE evaluator picks per-archetype test + evidence expectations |
-| Cross-phase traceability | No | Yes — requirements → designs → code → tests → evidence → incidents |
-
-## Troubleshooting
-
-- **wicked-testing not installed** — test and review phases will fail with "unknown subagent_type: wicked-testing:xxx". Run `npx wicked-testing install`, then confirm with `npx wicked-testing status`. See the [wicked-garden integration guide](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/WICKED-GARDEN.md) for full migration steps.
-- **Version mismatch** — wicked-garden `^7.1` requires wicked-testing `^0.2`. The SessionStart hook warns if the installed version falls outside the pinned range in `plugin.json`.
-- **Gate returns empty verdicts** — wicked-bus may not be running. wicked-bus is optional but wicked-garden's crew gate subscribes to `wicked.verdict.recorded` to advance phases. Run `npx wicked-bus status`.
-- **Node.js not installed** — `npx wicked-testing install` requires Node.js 18 or later. Download and install from [nodejs.org](https://nodejs.org), then re-run the install command.
-- **npm/npx auth failure during install** — common causes: corporate npm proxy not configured, VPN blocking the registry, or a stale `~/.npmrc` auth token. Fix: run `npm config get registry` to verify the registry URL, clear the token with `npm logout`, and re-run. If behind a proxy, set `npm config set proxy http://your-proxy` first.
-- **Offline install** — for air-gapped or offline environments, follow the offline bundle instructions tracked in [mikeparcewski/wicked-testing#5](https://github.com/mikeparcewski/wicked-testing/issues/5).
-
-## Principles
-
-1. **Memory over amnesia** — Decisions persist. Session 47 knows what session 1 decided.
-2. **Factors over signals** — The facilitator reads 9 factors and archetype, not keyword patterns.
-3. **Perspectives over ego** — Multiple specialist domains catch what one voice misses.
-4. **Enforcement over suggestion** — Gates reject work that doesn't meet the bar.
-5. **Graceful degradation** — No external tools? Local JSON. Missing a specialist? Fallback agents.
-6. **Prompts over code** — Logic lives in markdown and config. Extensible by anyone.
-
-## Upgrading to v7.0
-
-If you are upgrading from v6.x, see [docs/MIGRATION-v7.md](docs/MIGRATION-v7.md) for the grace-period timeline, rollback path, and troubleshooting steps.
+---
 
 ## Documentation
 
 | Guide | Description |
 |-------|-------------|
-| [Getting Started](docs/getting-started.md) | Installation, first session, common workflows |
+| [Getting Started](docs/getting-started.md) | Installation, first session, common workflows, troubleshooting |
 | [Domains](docs/domains.md) | All 13 domains with full command tables |
 | [Crew Workflow](docs/crew-workflow.md) | Facilitator rubric, archetype detection, gates, convergence |
 | [Architecture](docs/architecture.md) | Storage, native task metadata, gate policy, context assembly |
 | [Advanced Usage](docs/advanced.md) | Multi-model, yolo mode, customization, development commands |
-| [Cross-Phase Intelligence](docs/cross-phase-intelligence.md) | Traceability, artifact states, verification, convergence, knowledge graph |
+| [Cross-Phase Intelligence](docs/cross-phase-intelligence.md) | Traceability, artifact states, verification, convergence |
 | [Migration v7.0](docs/MIGRATION-v7.md) | Upgrading from v6.x, grace-period timeline, rollback |
+
+---
 
 ## Changelog
 
-**v6.3** — Phase-boundary QE evaluator + archetype detection (7 archetypes, DOMINANCE_RATIO=4); `subagent_type` frontmatter injected across 75 agents; agent consolidations (jam/facilitator → brainstorm-facilitator, visual-reviewer → ui-reviewer, business-strategist → market-strategist, value-analyst + alignment-lead → value-strategist, feedback-analyst + customer-advocate → user-voice, acceptance-test trio → test-designer, tdd-coach → test-strategist, analytics-architect → data-architect); new `ux-analyst` agent; workflow skill rewritten for v6.
+**v9.x (bus-cutover)** — Sites 1–5 of bus-as-truth cutover shipped (#751, #758, #773, #777, #781–#785). Bus events are now the source of truth for gate-critical artifacts; on-disk files are projections materialized by `daemon/projector.py`. Drift detector (`crew:reconcile`) measures projection-stale, event-without-projection, and projection-without-event. All five `WG_BUS_AS_TRUTH_*` flags default **on**; operators opt out per-site by setting the flag to `off`, with `git revert` on the cutover PR as the emergency lever.
 
-**v6.2** — Ops bundle: HMAC-signed dispatch log with orphan detection and rotation, pre-flip monitoring with StrictMode banner, yolo full-rigor guardrails (justification + sentinel), BLEND multi-reviewer aggregation (0.4×min + 0.6×avg), blind reviewer context stripping, partial-panel pending invariant, re-eval addendum schema 1.1.0, amendments.jsonl, plain-language `crew:explain` skill, gate-result security hardening (schema validator + content sanitizer + audit log).
+**v8.4** — jam SKILL.md 191→42 (78%); propose-process SKILL.md 600→160 (~73%). Skill files were burning context; agents now own the rubric.
 
-**v6.1** — Mode-3 formal crew execution with `phase-executor` + gate dispatch, SessionState + build-phase guard hook (R3/R5 AST heuristics), convergence lifecycle with `convergence-verify` gate, contrarian agent + challenge gate (auto-insert at complexity ≥ 4), semantic reviewer for spec-to-code alignment, persistent process memory + kaizen backlog, autonomous session-close guard pipeline, cross-session quality telemetry + drift detection, scored spec quality rubric + clarify-gate enforcement, wicked-bus integration.
+**v8.0** — `wicked-garden:mem:*` slash commands removed; shim layer was no longer load-bearing. wicked-brain is the direct interface for memory persistence.
 
-**v6.0** — Facilitator (`skills/propose-process/`) replaces the rule engine. 9-factor rubric, dynamic specialist routing via agent frontmatter, phase selection from `phases.json`, rigor tiers (minimal/standard/full). Bidirectional re-evaluation with addendum log. `gate-policy.json` codifies reviewer × rigor × dispatch-mode. Heavy skills flattened to be Skill()-invokable. `adopt-legacy` skill migrates v5 markers idempotently.
+**v7.1** — `agents/qe/` (11 agents), `skills/qe/` (19), `commands/qe/` (12) deleted (–6,336 lines). Followed through on v7.0 extraction contract.
 
-**v5.0** — Retired kanban domain. Tasks migrated to Claude Code's native `TaskCreate` / `TaskUpdate` with a structured metadata envelope (`chain_id`, `event_type`, `source_agent`, `phase`) validated by a PreToolUse hook. SubagentStart injects procedure bundles keyed on `event_type`.
+**v7.0** — All QE extracted to wicked-testing peer plugin. Test gate stays in phase manager; specialists moved to the peer plugin.
 
-**v4.0** — wicked-brain as unified knowledge layer: brain adapter replaces search as the primary context source, FTS5 index queried on every prompt. smaht v2 pipeline: 4-tier routing (hot/fast/slow/synthesize), intent-based adapter fan-out, budget enforcer, history condenser.
+**v6.3** — Phase-boundary QE evaluator + archetype detection (7 archetypes, DOMINANCE_RATIO=4). Per-archetype score-band tables in gate-adjudicator.
 
-**v3.6** — Consensus-backed gate decisions for high-complexity work, operate phase closing the SDLC feedback loop, 3-tier memory with auto-consolidation, auto-generated search tags.
+**v6.2** — HMAC-signed dispatch log with orphan detection, BLEND multi-reviewer aggregation (0.4×min + 0.6×avg), blind reviewer context stripping, partial-panel pending invariant, yolo full-rigor guardrails, gate-result security hardening.
 
-**v3.4** — Cross-phase intelligence: traceability links, artifact state machine, verification protocol, knowledge graph, council consensus with dissent tracking.
+**v6.1** — Mode-3 formal crew execution, convergence lifecycle, contrarian agent + challenge gate, semantic reviewer, cross-session quality telemetry.
 
-**v3.0–3.3** — Unified event log, session briefing, domain consolidation from 5 plugins into 1, lifecycle hook events.
+**v6.0** — Facilitator replaces rule engine. 9-factor rubric, dynamic specialist routing via agent frontmatter, phase selection from `phases.json`, `gate-policy.json`.
+
+---
 
 ## License
 
