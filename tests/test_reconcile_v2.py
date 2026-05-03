@@ -792,18 +792,23 @@ class TestJsonOutputSchema(_ReconcileV2Fixture):
 # ---------------------------------------------------------------------------
 
 class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
-    """Finding #1 BLOCKER: with all flags OFF (default), _active_projection_names()
-    returns an empty frozenset so no projection-without-event drift fires."""
+    """Finding #1 BLOCKER: with all flags explicitly OFF, _active_projection_names()
+    returns an empty frozenset so no projection-without-event drift fires.
+
+    After the flag-fold (PR #777), unset / empty env vars for shipped sites
+    (DISPATCH_LOG, CONSENSUS_REPORT, CONSENSUS_EVIDENCE, REVIEWER_REPORT) now
+    default ON.  Tests use explicit ``"off"`` to exercise the opt-out path."""
 
     def test_all_flags_off_returns_empty_set(self) -> None:
-        """With no WG_BUS_AS_TRUTH_* flags set, active projection names is empty."""
-        env_clear = {k: "" for k in [
-            "WG_BUS_AS_TRUTH_DISPATCH_LOG",
-            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT",
-            "WG_BUS_AS_TRUTH_REVIEWER_REPORT",
-            "WG_BUS_AS_TRUTH_GATE_RESULT",
-            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST",
-        ]}
+        """With all WG_BUS_AS_TRUTH_* flags explicitly ``"off"``, active names is empty."""
+        env_clear = {
+            "WG_BUS_AS_TRUTH_DISPATCH_LOG":        "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT":    "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE":  "off",
+            "WG_BUS_AS_TRUTH_REVIEWER_REPORT":     "off",
+            "WG_BUS_AS_TRUTH_GATE_RESULT":         "off",
+            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST": "off",
+        }
         with patch.dict(os.environ, env_clear):
             result = reconcile_v2._active_projection_names()
         self.assertEqual(result, frozenset(),
@@ -819,11 +824,12 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
         handler-gate behaviour is covered separately in TestHandlerPresenceGate.
         """
         env = {
-            "WG_BUS_AS_TRUTH_DISPATCH_LOG": "",
-            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "",
-            "WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on",
-            "WG_BUS_AS_TRUTH_GATE_RESULT": "",
-            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST": "",
+            "WG_BUS_AS_TRUTH_DISPATCH_LOG":        "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT":    "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE":  "off",
+            "WG_BUS_AS_TRUTH_REVIEWER_REPORT":     "on",
+            "WG_BUS_AS_TRUTH_GATE_RESULT":         "off",
+            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST": "off",
         }
         registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
         # Simulate Site 3 handler present — both event types that map to reviewer-report.md
@@ -843,8 +849,10 @@ class TestProjWithoutEventFlagGating(_ReconcileV2Fixture):
         project_dir = _make_project_dir(self.workspace, "legacy-dispatch")
         phase_dir = _make_phase_dir(project_dir, "build")
         _write_file(phase_dir / "dispatch-log.jsonl", '{"event": "test"}\n')
-        # No event rows — simulating pre-Site-1 state with flag OFF.
-        env = {"WG_BUS_AS_TRUTH_DISPATCH_LOG": ""}  # flag explicitly off
+        # No event rows — simulating pre-Site-1 state with flag explicitly OFF.
+        # Uses "off" (not empty string) after the flag-fold (PR #777) which made
+        # unset → default-ON for shipped sites like DISPATCH_LOG.
+        env = {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "off"}
         conn = self._conn()
         with patch.dict(os.environ, env):
             result = reconcile_v2.reconcile_project("legacy-dispatch", _daemon_conn=conn)
@@ -1095,14 +1103,17 @@ class TestSite2DualFlagIndependence(unittest.TestCase):
     """
 
     def _projection_names_with_env(self, env: dict) -> frozenset:
-        with patch.dict(os.environ, {k: "" for k in [
+        # Baseline: all flags OFF via explicit "off" so shipped tokens don't
+        # bleed through the default-ON map (PR #777 flag-fold).
+        baseline = {k: "off" for k in [
             "WG_BUS_AS_TRUTH_DISPATCH_LOG",
             "WG_BUS_AS_TRUTH_CONSENSUS_REPORT",
             "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE",
             "WG_BUS_AS_TRUTH_REVIEWER_REPORT",
             "WG_BUS_AS_TRUTH_GATE_RESULT",
             "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST",
-        ]}, clear=False):
+        ]}
+        with patch.dict(os.environ, baseline, clear=False):
             with patch.dict(os.environ, env):
                 return reconcile_v2._active_projection_names()
 
@@ -1142,10 +1153,10 @@ class TestSite2DualFlagIndependence(unittest.TestCase):
         self.assertIn("consensus-evidence.json", result)
 
     def test_both_flags_off_excludes_both_files(self) -> None:
-        """With both Site 2 flags off, scan set excludes both consensus files."""
+        """With both Site 2 flags explicitly ``"off"``, scan set excludes both files."""
         result = self._projection_names_with_env({
-            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "",
-            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "off",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "off",
         })
         self.assertNotIn("consensus-report.json", result)
         self.assertNotIn("consensus-evidence.json", result)
@@ -1197,15 +1208,21 @@ class TestHandlerPresenceGate(unittest.TestCase):
         env: dict,
         registry: dict,
     ) -> frozenset:
-        """Invoke _active_projection_names() with controlled env and registry."""
-        with patch.dict(os.environ, {k: "" for k in [
+        """Invoke _active_projection_names() with controlled env and registry.
+
+        Baseline: all flags set to ``"off"`` so shipped tokens don't bleed
+        through the default-ON map (PR #777 flag-fold).  Each test's ``env``
+        dict then overrides specific flags to ``"on"`` or ``"off"`` as needed.
+        """
+        baseline = {k: "off" for k in [
             "WG_BUS_AS_TRUTH_DISPATCH_LOG",
             "WG_BUS_AS_TRUTH_CONSENSUS_REPORT",
             "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE",
             "WG_BUS_AS_TRUTH_REVIEWER_REPORT",
             "WG_BUS_AS_TRUTH_GATE_RESULT",
             "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST",
-        ]}, clear=False):
+        ]}
+        with patch.dict(os.environ, baseline, clear=False):
             with patch.dict(os.environ, env):
                 with patch.object(
                     reconcile_v2,
@@ -1267,16 +1284,19 @@ class TestHandlerPresenceGate(unittest.TestCase):
         )
 
     def test_active_projection_names_excludes_when_handler_present_but_flag_off(self) -> None:
-        """Handler True but flag OFF → file excluded from scan set.
+        """Handler True but flag explicitly OFF → file excluded from scan set.
 
         The flag gate (pre-existing) must still apply even when the handler
         is available: both conditions are required.
+
+        Uses explicit ``"off"`` after the flag-fold (PR #777) which made unset /
+        empty string → default-ON for shipped sites like DISPATCH_LOG.
         """
         registry = self._make_event_type_registry({
             "wicked.dispatch.log_entry_appended": True,    # handler present
         })
         result = self._active_with_registry(
-            {"WG_BUS_AS_TRUTH_DISPATCH_LOG": ""},   # flag explicitly OFF
+            {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "off"},   # explicit opt-out
             registry,
         )
         self.assertNotIn(
@@ -1457,6 +1477,56 @@ class TestHandlerGateInDetectorFunctions(_ReconcileV2Fixture):
             [],
             "projection-stale must NOT be reported when handler is absent; "
             f"got: {stale}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestReconcileV2FlagPredicate — proves reconcile_v2 sees the PR #777 flag-fold
+# ---------------------------------------------------------------------------
+
+class TestReconcileV2FlagPredicate(unittest.TestCase):
+    """Verify reconcile_v2._flag_on() delegates to _bus_as_truth_enabled().
+
+    Finding #2 fix (PR #777): prior _flag_on() did its own
+    ``os.environ.get(...) == "on"`` check, bypassing the canonical predicate
+    in ``scripts/_bus.py``.  These tests prove the delegation is live.
+    """
+
+    def test_dispatch_log_default_on_when_unset(self) -> None:
+        """With no env var, DISPATCH_LOG (shipped) is ON via default map."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("WG_BUS_AS_TRUTH_DISPATCH_LOG", None)
+            self.assertTrue(reconcile_v2._flag_on("DISPATCH_LOG"))
+
+    def test_dispatch_log_off_when_explicit_off(self) -> None:
+        """Explicit ``"off"`` opts out for a shipped site."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "off"}):
+            self.assertFalse(reconcile_v2._flag_on("DISPATCH_LOG"))
+
+    def test_unshipped_site_default_off_when_unset(self) -> None:
+        """Unshipped token (GATE_RESULT) is OFF via default map when unset."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("WG_BUS_AS_TRUTH_GATE_RESULT", None)
+            self.assertFalse(reconcile_v2._flag_on("GATE_RESULT"))
+
+    def test_active_projection_names_includes_dispatch_log_by_default(self) -> None:
+        """Without any env var, DISPATCH_LOG is default-ON → dispatch-log.jsonl
+        is in _active_projection_names() (handler also present).
+
+        Proves reconcile_v2 sees the default-ON flip from _bus_as_truth_enabled().
+        This is the core Finding #2 regression test.
+        """
+        with patch.dict(os.environ, {}, clear=False):
+            # Remove the env var so we get pure default-map behavior.
+            os.environ.pop("WG_BUS_AS_TRUTH_DISPATCH_LOG", None)
+            result = reconcile_v2._active_projection_names()
+        self.assertIn(
+            "dispatch-log.jsonl",
+            result,
+            "dispatch-log.jsonl must be in active_projection_names() when "
+            "DISPATCH_LOG is in _BUS_AS_TRUTH_DEFAULT_ON and no env override. "
+            "If this fails, reconcile_v2._flag_on() is not delegating to "
+            "_bus_as_truth_enabled() (Finding #2 regression).",
         )
 
 

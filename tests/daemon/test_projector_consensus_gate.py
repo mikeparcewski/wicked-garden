@@ -236,19 +236,21 @@ def test_flag_off_gate_completed_noop(mem_conn, tmp_path) -> None:
     event = _make_gate_completed_create_event(project_id=project_id)
     report_path = project_dir / "phases" / "build" / "reviewer-report.md"
 
-    with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("WG_BUS_AS_TRUTH_REVIEWER_REPORT", None)
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "off"}):
         status = project_event(mem_conn, event)
 
     assert status == "applied"
     assert not report_path.exists(), (
         "flag-off: reviewer-report.md must NOT be written when "
-        "WG_BUS_AS_TRUTH_REVIEWER_REPORT is unset."
+        "WG_BUS_AS_TRUTH_REVIEWER_REPORT is explicitly off."
     )
 
 
 def test_flag_off_gate_pending_noop(mem_conn, tmp_path) -> None:
-    """flag-off → pending file not written."""
+    """flag-off (explicit ``"off"``) → pending file not written.
+
+    Uses explicit ``"off"`` after the flag-fold (PR #777) which made unset
+    → default-ON for REVIEWER_REPORT (shipped Site 3)."""
     from daemon.projector import project_event
 
     project_id = "proj-flagoff-pending"
@@ -258,8 +260,7 @@ def test_flag_off_gate_pending_noop(mem_conn, tmp_path) -> None:
     event = _make_gate_pending_event(project_id=project_id)
     report_path = project_dir / "phases" / "build" / "reviewer-report.md"
 
-    with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("WG_BUS_AS_TRUTH_REVIEWER_REPORT", None)
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "off"}):
         status = project_event(mem_conn, event)
 
     assert status == "applied"

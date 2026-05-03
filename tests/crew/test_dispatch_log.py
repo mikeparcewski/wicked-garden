@@ -228,16 +228,19 @@ class BusCutoverFlagByteIdentity(unittest.TestCase):
                 "must be byte-identical across modes."
             )
 
-    def test_dry_run_value_is_treated_as_off_per_council_c1(self):
-        """Council C1 — only the literal string `on` enables the cutover.
-        `dry-run`, `1`, `true`, or any other value MUST behave as off.
-        This pins the contract so a future maintainer cannot expand the
-        truthy values without an explicit council re-evaluation."""
+    def test_explicit_off_value_is_treated_as_off_per_council_c1(self):
+        """Council C1 — explicit ``"off"`` (and ``"OFF"``, ``" off "``) opts out.
+
+        Pre-fold, ``"dry-run"`` was used here as a proxy for "not on".  After the
+        flag-fold (PR #777) ``"dry-run"`` for a shipped token falls through to the
+        default-ON map → True.  The canonical opt-out is now the literal ``"off"``
+        (case/whitespace normalised).  This test is updated to use ``"off"`` as the
+        opt-out value so it continues to assert the byte-identity (C2) contract."""
         with tempfile.TemporaryDirectory() as tmp_off, \
-             tempfile.TemporaryDirectory() as tmp_dry, \
+             tempfile.TemporaryDirectory() as tmp_explicit_off, \
              patch.dict(os.environ, {"WICKED_BUS_DISABLED": "1"}):
             project_off = _make_project(tmp_off)
-            project_dry = _make_project(tmp_dry)
+            project_explicit_off = _make_project(tmp_explicit_off)
             dispatch_log._reset_state_for_tests()
             dispatch_log.set_hmac_secret("deterministic-secret")
 
@@ -254,14 +257,14 @@ class BusCutoverFlagByteIdentity(unittest.TestCase):
 
             with patch.dict(
                 os.environ,
-                {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "dry-run"},
+                {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "off"},
             ):
-                append(project_dry, "design", **common_kwargs)
-            dry_bytes = (
-                project_dry / "phases" / "design" / "dispatch-log.jsonl"
+                append(project_explicit_off, "design", **common_kwargs)
+            explicit_off_bytes = (
+                project_explicit_off / "phases" / "design" / "dispatch-log.jsonl"
             ).read_bytes()
 
-            self.assertEqual(off_bytes, dry_bytes)
+            self.assertEqual(off_bytes, explicit_off_bytes)
 
 
 class ChainIdIncludesDispatchId(unittest.TestCase):

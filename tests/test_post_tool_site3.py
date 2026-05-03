@@ -173,8 +173,8 @@ class TestPendingReportEvalIdThreading(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="proj2", phase="review")
 
-            # Flag is OFF — no emit but the file must still be written.
-            with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": ""}):
+            # Flag explicitly OFF — no emit but the file must still be written.
+            with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "off"}):
                 post_tool._write_pending_reviewer_report(phase_dir, "any-eval-id")
 
             report_path = phase_dir / "reviewer-report.md"
@@ -280,7 +280,16 @@ class TestWriteThenEmitInvariant(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestFlagContract(unittest.TestCase):
-    """Emits must only fire when WG_BUS_AS_TRUTH_REVIEWER_REPORT == 'on' (exactly)."""
+    """Flag contract for WG_BUS_AS_TRUTH_REVIEWER_REPORT after flag-fold (PR #777).
+
+    Resolution order:
+      1. Explicit ``"on"``  (case/whitespace normalised) → emits fire.
+      2. Explicit ``"off"`` (case/whitespace normalised) → emits suppressed.
+      3. Empty / any other value → default-ON (REVIEWER_REPORT is a shipped site).
+
+    The old literal-``"on"``-only contract (pre-fold) is replaced by a
+    normalization + default-map fall-through.  Tests updated accordingly.
+    """
 
     def _count_emits_with_env(self, env_value: str) -> int:
         emit_count = 0
@@ -304,20 +313,31 @@ class TestFlagContract(unittest.TestCase):
     def test_emit_fires_when_flag_is_on(self) -> None:
         self.assertGreater(self._count_emits_with_env("on"), 0)
 
-    def test_emit_suppressed_when_flag_is_off(self) -> None:
-        self.assertEqual(self._count_emits_with_env(""), 0)
+    def test_emit_suppressed_when_flag_is_explicit_off(self) -> None:
+        """Explicit ``"off"`` is the canonical opt-out — emits suppressed."""
+        self.assertEqual(self._count_emits_with_env("off"), 0)
 
-    def test_emit_suppressed_when_flag_is_true(self) -> None:
-        """Only the literal string 'on' enables the flag — 'true' must not."""
-        self.assertEqual(self._count_emits_with_env("true"), 0)
+    def test_emit_fires_for_non_on_off_shipped_site(self) -> None:
+        """Non-``"on"``/``"off"`` value for a shipped site → default-ON → emits fire.
 
-    def test_emit_suppressed_when_flag_is_1(self) -> None:
-        self.assertEqual(self._count_emits_with_env("1"), 0)
+        Pre-fold, ``"true"`` would suppress emits (literal-``"on"``-only contract).
+        Post-fold (PR #777), ``"true"`` falls through to the default-ON map
+        (REVIEWER_REPORT is a shipped site) → flag is ON → emits fire."""
+        self.assertGreater(self._count_emits_with_env("true"), 0)
 
-    def test_bus_as_truth_flag_on_helper_returns_false_by_default(self) -> None:
-        """Flag default must be OFF — never flip this default in this PR."""
+    def test_emit_fires_for_1_on_shipped_site(self) -> None:
+        """``"1"`` for a shipped site → default-ON → emits fire (Finding #4 fix)."""
+        self.assertGreater(self._count_emits_with_env("1"), 0)
+
+    def test_bus_as_truth_flag_on_helper_returns_true_by_default(self) -> None:
+        """Flag default is ON for REVIEWER_REPORT (shipped Site 3, PR #776/#777)."""
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("WG_BUS_AS_TRUTH_REVIEWER_REPORT", None)
+            self.assertTrue(post_tool._bus_as_truth_flag_on())
+
+    def test_bus_as_truth_flag_on_helper_returns_false_when_off(self) -> None:
+        """Explicit ``"off"`` opts out — helper returns False."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "off"}):
             self.assertFalse(post_tool._bus_as_truth_flag_on())
 
     def test_bus_as_truth_flag_on_helper_returns_true_for_on(self) -> None:

@@ -124,15 +124,17 @@ def _insert_event_log_parent(conn, event: dict) -> None:
 
 
 def test_flag_off_returns_applied_without_writing_table(mem_conn) -> None:
-    """Flag-off (env unset) → handler is a no-op.  The projector wrapper
+    """Flag-off (explicit ``"off"``) → handler is a no-op.  The projector wrapper
     still records the event_log row as `applied` (Decision #6 contract)
     but `dispatch_log_entries` stays empty.  This is the C2 byte-identity
-    contract on the projector side."""
+    contract on the projector side.
+
+    After the flag-fold (PR #777), DISPATCH_LOG is a shipped/default-ON site,
+    so an unset env var now → True.  This test uses explicit ``"off"`` to
+    exercise the opt-out path."""
     from daemon.projector import project_event  # type: ignore[import]
 
-    # Ensure flag is unset, not just empty.
-    with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("WG_BUS_AS_TRUTH_DISPATCH_LOG", None)
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "off"}):
         status = project_event(mem_conn, _make_event())
 
     assert status == "applied", (
@@ -148,15 +150,18 @@ def test_flag_off_returns_applied_without_writing_table(mem_conn) -> None:
     )
 
 
-def test_flag_off_dry_run_value_is_treated_as_off(mem_conn) -> None:
-    """Council C1 — only the literal `on` enables the cutover.  Pinned
-    here so a future maintainer cannot expand the truthy values without
-    a council re-evaluation."""
+def test_flag_off_explicit_off_value_is_treated_as_off(mem_conn) -> None:
+    """Council C1 — ``"off"`` (case/whitespace normalised) opts out.
+
+    Pre-fold, ``"dry-run"`` was used as a proxy for "not on".  After the
+    flag-fold (PR #777), ``"dry-run"`` for a shipped token (DISPATCH_LOG) falls
+    through to the default-ON map → True, so it can no longer serve as the
+    opt-out sentinel.  The canonical opt-out is now the literal ``"off"``."""
     from daemon.projector import project_event  # type: ignore[import]
 
     with patch.dict(
         os.environ,
-        {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "dry-run"},
+        {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "off"},
     ):
         status = project_event(mem_conn, _make_event())
 
