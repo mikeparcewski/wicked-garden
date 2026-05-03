@@ -269,6 +269,44 @@ def _scan_and_migrate(
         f"{errors} error(s)."
     )
 
+    # Wave-2 Tranche A audit-marker emit (#746 W4).  Same shape as
+    # adopt_legacy.py's wicked.crew.legacy_adopted: this script is
+    # EXEMPT from full bus-cutover (one-shot operator migration), but
+    # emits a summary marker so future forensics can identify projects
+    # that went through the qe-evaluator → gate-adjudicator rename.
+    # Only fires on actual application (not dry-run) AND when migrations
+    # happened.  Fail-open: bus unavailable must NOT fail the migration.
+    if not dry_run and migrated > 0:
+        try:
+            import sys as _sys
+            from pathlib import Path as _Path
+            _scripts_root = str(_Path(__file__).resolve().parents[1])
+            if _scripts_root not in _sys.path:
+                _sys.path.insert(0, _scripts_root)
+            from _bus import emit_event  # type: ignore[import]
+            # Scope identifier for chain_id: when targeting a single
+            # project_dir, use its basename; when scanning a projects_root,
+            # use the root's basename + "all-projects" sentinel so the
+            # marker is distinguishable from a single-project run.
+            scope_id = (
+                project_dir.name if project_dir is not None
+                else f"{(projects_root.name if projects_root else 'unknown')}-all-projects"
+            )
+            emit_event(
+                "wicked.crew.qe_evaluator_migrated",
+                {
+                    "project_id": scope_id,
+                    "scope": "single-project" if project_dir else "all-projects",
+                    "scanned": scanned,
+                    "migrated": migrated,
+                    "skipped": skipped,
+                    "errors": errors,
+                },
+                chain_id=f"{scope_id}.root",
+            )
+        except Exception:  # noqa: BLE001 — fail-open per Decision #8
+            pass  # bus unavailable — migration disk writes already completed
+
     return 1 if errors else 0
 
 

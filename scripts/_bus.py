@@ -106,6 +106,31 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.solo_mode",
         "description": "Inline-HITL gate review evidence recorded by solo_mode (Site W1 cutover)",
     },
+    # Wave-2 Tranche A summary emits — these are AUDIT MARKERS, not file
+    # projection events.  The corresponding scripts (adopt_legacy.py,
+    # migrate_qe_evaluator_name.py, log_retention.py) are EXEMPT from
+    # full bus-cutover per docs/v9/wave-2-cutover-plan.md §W2/W3/W4: the
+    # writes themselves are migration/maintenance side-effects (one-shot
+    # transformations or rotation) that don't fit the projector replay
+    # model.  These summary emits give the audit log a marker so future
+    # forensics can identify projects that went through legacy adoption
+    # / qe-evaluator rename / log rotation.  No projector handlers; no
+    # entries in _PROJECTION_RESOLVERS.
+    "wicked.crew.legacy_adopted": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.migration",
+        "description": "Legacy beta.3 → v6.0 project migration applied via adopt_legacy.py (audit marker)",
+    },
+    "wicked.crew.qe_evaluator_migrated": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.migration",
+        "description": "qe-evaluator → gate-adjudicator rename applied via migrate_qe_evaluator_name.py (audit marker)",
+    },
+    "wicked.log.rotated": {
+        "domain": "wicked-garden",
+        "subdomain": "platform.log_retention",
+        "description": "Log file rotated by log_retention.rotate_if_needed (audit marker)",
+    },
     # Jam domain — jam.py
     "wicked.session.started": {
         "domain": "wicked-garden",
