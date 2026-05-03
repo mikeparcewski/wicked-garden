@@ -121,6 +121,81 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
+# Per-EVENT-TYPE handler-availability registry — records whether
+# daemon/projector.py has a handler for each event type.
+#
+# Issue #769 Finding #2 (PR fold): restructured from per-FILE boolean to
+# per-EVENT-TYPE boolean.  The per-file shape could not model multi-event-type
+# files: reviewer-report.md is materialised by BOTH gate_completed AND
+# gate_pending; gate-result.json (Site 4) will be materialised by gate.decided
+# and possibly gate.blocked.  A per-file key cannot distinguish "handler for
+# gate_completed exists but not gate_pending" — that distinction matters for
+# the detector functions that filter individual events.
+#
+# Consumers:
+#   _handler_available_for_file(name)   — used by _active_projection_names()
+#   _detect_projection_stale()          — filters per-event directly
+#   _detect_event_without_projection()  — filters per-event directly
+#
+# Values are set to True only AFTER verifying the handler exists in
+# daemon/projector.py._HANDLERS.  Verification was done by reading
+# daemon/projector.py (lines 924-952) for this PR:
+#
+#   wicked.dispatch.log_entry_appended  → _dispatch_log_appended  [line 944]  ✓ PRESENT
+#   wicked.consensus.report_created     → _consensus_report_created [line 950] ✓ PRESENT
+#   wicked.consensus.evidence_recorded  → _consensus_evidence_recorded [line 951] ✓ PRESENT
+#   wicked.consensus.gate_completed     → NO handler registered  ✗ ABSENT (pending #768)
+#   wicked.consensus.gate_pending       → NO handler registered  ✗ ABSENT (pending #768)
+#   wicked.gate.decided                 → _gate_decided handles DB rows but NOT on-disk
+#                                          gate-result.json projection ✗ ABSENT
+#   wicked.gate.blocked                 → NO on-disk projection handler  ✗ ABSENT
+#
+# Update this dict when a new handler lands in daemon/projector.py.
+# Never mark True speculatively — read the file and verify first.
+# ---------------------------------------------------------------------------
+
+_PROJECTION_HANDLERS_AVAILABLE: Dict[str, bool] = {
+    # Site 1 — _dispatch_log_appended landed in PR #751
+    "wicked.dispatch.log_entry_appended": True,
+    # Site 2 — _consensus_report_created / _consensus_evidence_recorded landed in PR #758
+    "wicked.consensus.report_created":    True,
+    "wicked.consensus.evidence_recorded": True,
+    # Site 3 — both gate_completed and gate_pending map to reviewer-report.md;
+    # neither handler is registered yet (pending #768)
+    "wicked.consensus.gate_completed":    False,
+    "wicked.consensus.gate_pending":      False,
+    # Site 4 — on-disk projection handler not yet shipped
+    "wicked.gate.decided":                False,
+    "wicked.gate.blocked":                False,
+    # Site 5 — no event handler mapping yet
+    # (conditions-manifest.json has no event type in _PROJECTION_MAP)
+}
+
+
+def _handler_available_for_file(name: str) -> bool:
+    """Return True iff ALL event types that materialise *name* have a handler.
+
+    Resolves the event types that map to *name* by scanning _PROJECTION_MAP
+    in reverse.  Returns True only when handlers exist for ALL mapping event
+    types (conservative: if any event type lacks a handler the file is treated
+    as unprojectable until ALL handlers land).
+
+    A file with no event types in _PROJECTION_MAP (e.g. conditions-manifest.json
+    at Site 5 before its event type is added) returns False — defaulting to
+    safe exclusion.
+    """
+    event_types_for_file = [
+        et for et, template in _PROJECTION_MAP.items()
+        if Path(template).name == name
+    ]
+    if not event_types_for_file:
+        return False
+    return all(
+        _PROJECTION_HANDLERS_AVAILABLE.get(et, False)
+        for et in event_types_for_file
+    )
+
+# ---------------------------------------------------------------------------
 # Backwards-compatible view: SITE_PROJECTIONS exposes the same file sets that
 # callers or tests may already reference by site number.  Read-only; the drift
 # detector now uses PROJECTION_FILE_FLAGS directly.
@@ -160,13 +235,31 @@ def _site_flag_on(site_num: int) -> bool:
     )
 
 
+def _flag_on(token: str) -> bool:
+    """Return True iff the WG_BUS_AS_TRUTH_{token} env var is literally ``"on"``."""
+    return os.environ.get(f"WG_BUS_AS_TRUTH_{token}", "") == "on"
+
+
 def _active_projection_names() -> FrozenSet[str]:
     """Return the set of projection filenames that the drift detector should inspect.
 
-    Detector skips projection files whose flag is OFF — prevents false
-    ``projection-without-event`` drift on legacy direct-write paths during the
-    staged cutover.  When all flags are OFF (the default release state), the
-    returned set is empty and the detector fires no false-positives.
+    A file is included iff BOTH conditions hold:
+      1. Its WG_BUS_AS_TRUTH_<TOKEN> flag is literally ``"on"`` (flag gate).
+      2. ``_PROJECTION_HANDLERS_AVAILABLE[filename]`` is True (handler gate).
+
+    The handler gate (Issue #769, extended in fold PR) eliminates
+    false-confidence: enabling a flag before the corresponding projector handler
+    lands in daemon/projector.py would add a file to the scan set that the
+    projector can never materialise, causing every event to be flagged as
+    ``event-without-projection`` even though no handler could have written the
+    file.  ``_handler_available_for_file(name)`` resolves the per-event-type
+    registry for all event types that materialise *name*; a file is included
+    only when ALL its event types have handlers (conservative).
+
+    Flag gate (pre-existing): skips files whose cutover site is still OFF,
+    preventing false ``projection-without-event`` drift on legacy direct-write
+    paths.  When all flags are OFF (the default release state), the returned
+    set is empty and the detector fires no false-positives.
 
     Each file is individually gated by its own WG_BUS_AS_TRUTH_<TOKEN> flag
     (per-file granularity, Shape A).  This means Site 2's two files
@@ -174,11 +267,11 @@ def _active_projection_names() -> FrozenSet[str]:
     independently — flipping only WG_BUS_AS_TRUTH_CONSENSUS_REPORT does NOT
     include consensus-evidence.json in the scan set, and vice-versa.
     """
-    active: set[str] = set()
-    for filename, token in PROJECTION_FILE_FLAGS.items():
-        if os.environ.get(f"WG_BUS_AS_TRUTH_{token}", "") == "on":
-            active.add(filename)
-    return frozenset(active)
+    return frozenset(
+        name
+        for name, token in PROJECTION_FILE_FLAGS.items()
+        if _flag_on(token) and _handler_available_for_file(name)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -434,10 +527,19 @@ def _detect_projection_stale(
 
     'pending' means the projector ingested the event but has not yet
     written the projection file (lagging or slow handler).
+
+    Handler-presence gate (Finding #1 / #769 fold): events whose event_type
+    has no handler in ``_PROJECTION_HANDLERS_AVAILABLE`` are skipped — the
+    projector can never materialise the file, so reporting drift makes no
+    sense and would produce false positives when a flag is enabled before the
+    handler lands.
     """
     drift: List[Dict[str, Any]] = []
     for ev in events:
         if ev.get("projection_status") != "pending":
+            continue
+        # Skip events whose handler has not yet landed in daemon/projector.py.
+        if not _PROJECTION_HANDLERS_AVAILABLE.get(ev["event_type"], False):
             continue
         proj_path = _materialize_projection_path(
             project_dir, ev["event_type"], ev.get("chain_id")
@@ -475,9 +577,18 @@ def _detect_event_without_projection(
     Covers both projection_status='error' (explicit handler failure) and
     projection_status='applied' where the file is unexpectedly absent
     (handler wrote elsewhere, or file was deleted post-projection).
+
+    Handler-presence gate (Finding #1 / #769 fold): events whose event_type
+    has no handler in ``_PROJECTION_HANDLERS_AVAILABLE`` are skipped — the
+    projector can never materialise the file, so reporting drift makes no
+    sense and would produce false positives when a flag is enabled before the
+    handler lands.
     """
     drift: List[Dict[str, Any]] = []
     for ev in events:
+        # Skip events whose handler has not yet landed in daemon/projector.py.
+        if not _PROJECTION_HANDLERS_AVAILABLE.get(ev["event_type"], False):
+            continue
         # Only check events we can map to a projection path.
         proj_path = _materialize_projection_path(
             project_dir, ev["event_type"], ev.get("chain_id")
