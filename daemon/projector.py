@@ -1209,8 +1209,9 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     # in post_tool.py).  flag-off → no-op; flag-on → write
     # phases/{phase}/reviewer-report.md byte-identical to the legacy hook.
     # Payload contract: raw_payload = just-written section (per-section shape,
-    # #770).  Append branch applies file-existence branch detection + SHA-256
-    # idempotency guard.  Registered always per Decision #6.
+    # #770).  Append branch applies file-existence branch detection + substring
+    # scan idempotency guard (separator + raw_payload already in file → skip).
+    # Registered always per Decision #6.
     "wicked.consensus.gate_completed": _consensus_gate_completed,
     "wicked.consensus.gate_pending": _consensus_gate_pending,
 }

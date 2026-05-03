@@ -11,7 +11,7 @@ Covers:
   * test_idempotent_replay_gate_completed: replay same gate_completed (create) event twice
     → file unchanged on second apply.
   * test_idempotent_append_replay_no_double_append: replay same gate_completed (append) event
-    twice → no double-append (SHA-256 fingerprint guard, #770).
+    twice → no double-append (substring scan guard: separator+raw_payload already present, #770).
   * test_projector_reconstructs_cumulative_file_from_yaml_block: simulate legacy hook output,
     replay per-section payload via the projector → projector output byte-identical to legacy
     hook output (T1 determinism).
@@ -140,7 +140,6 @@ def _make_gate_completed_append_event(
     project_id: str = "my-proj",
     phase: str = "build",
     eval_id: str = "aabbccdd11223344",
-    existing_content: str,
     yaml_block: str | None = None,
 ) -> dict[str, Any]:
     """Build a wicked.consensus.gate_completed event (append branch).
@@ -318,7 +317,6 @@ def test_gate_completed_appends_to_existing(mem_conn, tmp_path) -> None:
     # Append event carries only the yaml_block (per-section payload, #770).
     event = _make_gate_completed_append_event(
         project_id=project_id,
-        existing_content=existing_content,
     )
     # Expected: existing + separator + yaml_block (byte-identical to legacy hook output).
     expected_full = existing_content + _SEPARATOR + _SAMPLE_YAML_BLOCK
@@ -438,7 +436,6 @@ def test_idempotent_append_replay_no_double_append(mem_conn, tmp_path) -> None:
 
     event = _make_gate_completed_append_event(
         project_id=project_id,
-        existing_content=existing_content,
     )
     expected_after_first = existing_content + _SEPARATOR + _SAMPLE_YAML_BLOCK
 
@@ -450,7 +447,7 @@ def test_idempotent_append_replay_no_double_append(mem_conn, tmp_path) -> None:
             "First append produced unexpected content."
         )
 
-        # Second apply — same event; SHA-256 guard must skip the duplicate.
+        # Second apply — same event; substring scan guard must skip the duplicate.
         _consensus_gate_completed(mem_conn, event)
         after_second = report_path.read_text(encoding="utf-8")
 
@@ -516,7 +513,6 @@ def test_projector_reconstructs_cumulative_file_from_yaml_block(mem_conn, tmp_pa
 
     event = _make_gate_completed_append_event(
         project_id=project_id,
-        existing_content=independent_review,
         yaml_block=fixed_yaml_block,
     )
 
