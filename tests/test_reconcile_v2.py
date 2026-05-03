@@ -200,10 +200,11 @@ class TestProjectionStaleDrift(_ReconcileV2Fixture):
     def test_pending_event_with_no_on_disk_file_is_projection_stale(self) -> None:
         """An event with projection_status=pending and absent on-disk file → drift.
 
-        Note (#769 fold): wicked.gate.decided handler is currently False (Site 4
-        not yet shipped). This test patches it as True to isolate the drift
-        detection logic from the handler-gate; the handler-gate behaviour is
-        tested in TestHandlerGateInDetectorFunctions.
+        Site 4 prep (#778) flipped wicked.gate.decided/blocked to True in the
+        production registry, so no handler-gate patching is required to
+        exercise the drift detection logic for gate-result.json events.
+        Handler-gate behaviour is still tested in
+        TestHandlerGateInDetectorFunctions.
         """
         _make_project_dir(self.workspace, "stale-proj")
         # Gate-decided event pending; NO gate-result.json on disk.
@@ -215,11 +216,7 @@ class TestProjectionStaleDrift(_ReconcileV2Fixture):
             projection_status="pending",
         )
         conn = self._conn()
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        registry["wicked.gate.decided"] = True   # simulate Site 4 handler present
-        registry["wicked.gate.blocked"] = True
-        with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-            result = reconcile_v2.reconcile_project("stale-proj", _daemon_conn=conn)
+        result = reconcile_v2.reconcile_project("stale-proj", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]
@@ -228,7 +225,8 @@ class TestProjectionStaleDrift(_ReconcileV2Fixture):
     def test_pending_event_with_file_present_is_not_projection_stale(self) -> None:
         """When the file exists, a pending event is not projection-stale.
 
-        Note (#769 fold): patches wicked.gate.decided as True to isolate drift logic.
+        Site 4 prep (#778) flipped the gate.* registry entries True natively;
+        no handler-gate patching is needed.
         """
         project_dir = _make_project_dir(self.workspace, "not-stale")
         phase_dir = _make_phase_dir(project_dir, "build")
@@ -242,11 +240,7 @@ class TestProjectionStaleDrift(_ReconcileV2Fixture):
             projection_status="pending",
         )
         conn = self._conn()
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        registry["wicked.gate.decided"] = True
-        registry["wicked.gate.blocked"] = True
-        with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-            result = reconcile_v2.reconcile_project("not-stale", _daemon_conn=conn)
+        result = reconcile_v2.reconcile_project("not-stale", _daemon_conn=conn)
         conn.close()
 
         stale = [d for d in result["drift"]
@@ -263,8 +257,7 @@ class TestEventWithoutProjectionDrift(_ReconcileV2Fixture):
     def test_applied_event_with_no_file_is_event_without_projection(self) -> None:
         """Applied event but no on-disk projection → event-without-projection drift.
 
-        Note (#769 fold): patches wicked.gate.decided as True to isolate the
-        drift detection logic from the handler-gate.
+        Site 4 prep (#778) flipped the gate.* registry entries True natively.
         """
         _make_project_dir(self.workspace, "ewp-proj")
         _insert_event_row(
@@ -275,11 +268,7 @@ class TestEventWithoutProjectionDrift(_ReconcileV2Fixture):
             projection_status="applied",
         )
         conn = self._conn()
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        registry["wicked.gate.decided"] = True
-        registry["wicked.gate.blocked"] = True
-        with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-            result = reconcile_v2.reconcile_project("ewp-proj", _daemon_conn=conn)
+        result = reconcile_v2.reconcile_project("ewp-proj", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]
@@ -337,23 +326,16 @@ class TestProjectionWithoutEventDrift(_ReconcileV2Fixture):
         WG_BUS_AS_TRUTH_GATE_RESULT=on so the file is included in the active
         projection set — otherwise Finding #1 correctly suppresses it.
 
-        Note (#769 fold): the handler-presence gate uses per-event-type keys.
-        This test patches wicked.gate.decided and wicked.gate.blocked as True
-        (simulating that Site 4's handler has landed) so the flag-gate behaviour
-        remains testable in isolation.
+        Site 4 prep (#778) flipped wicked.gate.decided/blocked to True in the
+        production registry, so no handler-gate patching is required.
         """
         project_dir = _make_project_dir(self.workspace, "pwe-proj")
         phase_dir = _make_phase_dir(project_dir, "build")
         _write_file(phase_dir / "gate-result.json")
         # No event rows in DB.
         conn = self._conn()
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        # Simulate Site 4 handler present for both event types mapping to gate-result.json
-        registry["wicked.gate.decided"] = True
-        registry["wicked.gate.blocked"] = True
         with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "on"}):
-            with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-                result = reconcile_v2.reconcile_project("pwe-proj", _daemon_conn=conn)
+            result = reconcile_v2.reconcile_project("pwe-proj", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]
@@ -1041,8 +1023,7 @@ class TestProjectionStaleEntrySchema(_ReconcileV2Fixture):
     def test_projection_stale_entry_has_cursor_fields(self) -> None:
         """projection-stale entry must contain projection_last_applied_seq + lag_events.
 
-        Note (#769 fold): patches wicked.gate.decided as True to isolate the
-        schema-field test from the handler-gate.
+        Site 4 prep (#778) flipped the gate.* registry entries True natively.
         """
         _make_project_dir(self.workspace, "stale-schema-proj")
         _insert_event_row(
@@ -1053,11 +1034,7 @@ class TestProjectionStaleEntrySchema(_ReconcileV2Fixture):
             projection_status="pending",
         )
         conn = self._conn()
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        registry["wicked.gate.decided"] = True
-        registry["wicked.gate.blocked"] = True
-        with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-            result = reconcile_v2.reconcile_project("stale-schema-proj", _daemon_conn=conn)
+        result = reconcile_v2.reconcile_project("stale-schema-proj", _daemon_conn=conn)
         conn.close()
 
         stale_entries = [d for d in result["drift"]

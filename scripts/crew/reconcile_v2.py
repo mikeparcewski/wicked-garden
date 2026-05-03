@@ -144,11 +144,13 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
 #   wicked.dispatch.log_entry_appended  → _dispatch_log_appended  [line 944]  ✓ PRESENT
 #   wicked.consensus.report_created     → _consensus_report_created [line 950] ✓ PRESENT
 #   wicked.consensus.evidence_recorded  → _consensus_evidence_recorded [line 951] ✓ PRESENT
-#   wicked.consensus.gate_completed     → NO handler registered  ✗ ABSENT (pending #768)
-#   wicked.consensus.gate_pending       → NO handler registered  ✗ ABSENT (pending #768)
-#   wicked.gate.decided                 → _gate_decided handles DB rows but NOT on-disk
-#                                          gate-result.json projection ✗ ABSENT
-#   wicked.gate.blocked                 → NO on-disk projection handler  ✗ ABSENT
+#   wicked.consensus.gate_completed     → _consensus_gate_completed (PR #773) ✓ PRESENT
+#                                          (registry flip is the subject of a follow-up issue)
+#   wicked.consensus.gate_pending       → _consensus_gate_pending (PR #773) ✓ PRESENT
+#                                          (registry flip is the subject of a follow-up issue)
+#   wicked.gate.decided                 → _gate_decided handles DB rows; disk projection
+#                                          fans out to _gate_decided_disk (PR-1 / #778)  ✓ PRESENT
+#   wicked.gate.blocked                 → _gate_blocked (PR-1 / #778, INERT no-op)  ✓ PRESENT
 #
 # Update this dict when a new handler lands in daemon/projector.py.
 # Never mark True speculatively — read the file and verify first.
@@ -164,9 +166,16 @@ _PROJECTION_HANDLERS_AVAILABLE: Dict[str, bool] = {
     # neither handler is registered yet (pending #768)
     "wicked.consensus.gate_completed":    False,
     "wicked.consensus.gate_pending":      False,
-    # Site 4 — on-disk projection handler not yet shipped
-    "wicked.gate.decided":                False,
-    "wicked.gate.blocked":                False,
+    # Site 4 — _gate_decided_disk fan-out (from existing _gate_decided) +
+    # _gate_blocked landed in PR-1 (#778).  Both are gated on
+    # WG_BUS_AS_TRUTH_GATE_RESULT inside the handler.  PR-1 ships INERT
+    # (the existing emit at phase_manager.py:3931 lacks the full ``data``
+    # payload — handler early-returns until PR-2 / #779 widens the emit).
+    # The registry flip happens here in PR-1 so reconcile_v2's drift detector
+    # picks up gate-result.json once the cutover lands; without this flip,
+    # _handler_available_for_file would keep the file excluded.
+    "wicked.gate.decided":                True,
+    "wicked.gate.blocked":                True,
     # Site 5 — no event handler mapping yet
     # (conditions-manifest.json has no event type in _PROJECTION_MAP)
 }
