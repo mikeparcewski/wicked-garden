@@ -10,9 +10,8 @@ Covers:
   * test_gate_pending_noop_when_report_exists: pre-existing report → file unchanged.
   * test_idempotent_replay_gate_completed: replay same gate_completed event twice → file
     unchanged on second apply.
-  * test_replay_matches_hook_byte_for_byte: run the legacy hook path to produce a reference
-    file, then replay via the projector → byte-identical (timestamps replaced with fixed
-    values per T1 determinism).
+  * test_projector_writes_raw_payload_verbatim: simulate legacy hook output with a fixed
+    timestamp, replay via the projector → byte-identical (T1 determinism).
   * test_both_handlers_are_registered: dispatch table contains both new event types.
   * test_flag_off_gate_completed_noop: flag-off → file not written.
   * test_flag_off_gate_pending_noop: flag-off → file not written.
@@ -44,9 +43,8 @@ import pytest
 # ---------------------------------------------------------------------------
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPTS = _REPO_ROOT / "scripts"
-_HOOKS_SCRIPTS = _REPO_ROOT / "hooks" / "scripts"
 
-for p in (_REPO_ROOT, _SCRIPTS, _HOOKS_SCRIPTS):
+for p in (_REPO_ROOT, _SCRIPTS):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
@@ -418,15 +416,16 @@ def test_idempotent_replay_gate_completed(mem_conn, tmp_path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_replay_matches_hook_byte_for_byte(mem_conn, tmp_path) -> None:
-    """Run the legacy hook path to produce a reference file, then replay via
-    the projector → byte-identical.
+def test_projector_writes_raw_payload_verbatim(mem_conn, tmp_path) -> None:
+    """Simulates the legacy hook output and verifies the projector writes it
+    byte-identically.
 
-    Timestamp non-determinism: the hook uses _now_iso() which embeds wall-clock
-    time in the YAML `reviewed_at` field.  We sidestep this by building
-    raw_payload manually with a fixed timestamp — the hook emits raw_payload
-    as the FULL file bytes, so what matters is that the projector writes those
-    bytes unchanged, not that it re-generates the yaml_block.
+    The hook would call _write_reviewer_report() which builds a YAML block via
+    _build_reviewer_report_yaml() and emits raw_payload = full file bytes.  We
+    replicate that output here with a fixed timestamp (T1 determinism requirement
+    — _now_iso() embeds wall-clock time which the hook would otherwise embed).
+    The projector's contract is to write raw_payload verbatim, so the assertion
+    is that projector output == the simulated reference bytes.
 
     Structural equivalence assertion: both files have the same lines (order-
     preserved), confirming the projector does not add/remove/transform content.

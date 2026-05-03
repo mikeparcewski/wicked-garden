@@ -897,9 +897,6 @@ def _consensus_evidence_recorded(conn: sqlite3.Connection, event: dict) -> None:
 #   (_BUS_IMPORT_WARNED latch, import-fail = flag-off) is now clearly
 #   stable.  ADR for N=3 base-class extraction is deferred to Issue #771.
 
-_CONSENSUS_GATE_SEPARATOR = "\n\n---\n## Consensus Gate Evaluation\n\n"
-
-
 def _consensus_gate_completed(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.consensus.gate_completed → reviewer-report.md on disk.
 
