@@ -285,10 +285,15 @@ production.
 
 #### Site 4: `phases/{phase}/gate-result.json`
 
-- **Site**: `scripts/crew/phase_manager.py:3676` (canonical write) plus
-  CONDITIONAL/REJECT/skip-reeval branches at 2684, 2913, 2939, 2958,
-  2994, 3415 (all 🔗 caller-chain via `approve_phase` →
-  `wicked.gate.decided` at line 3931).
+- **Site**: `scripts/crew/phase_manager.py:3676` is the SOLE write site
+  for `gate-result.json`. Verified by
+  `grep 'gate-result\.json.*write_text\|write_text.*gate-result\.json'
+  scripts/crew/phase_manager.py` — only line 3676 matches. (Earlier
+  drafts of this plan listed lines 2684, 2913, 2939, 2958, 2994, 3415
+  as additional caller-chain writers; that was wrong — those lines
+  write `conditions-manifest.json`, iteration files, status, and
+  reeval-log entries, not `gate-result.json`. Corrected 2026-05-03
+  during Site 4 pre-impl council.)
 - **Current write path**: `_persist_gate_result()` at line 3676 is the
   canonical writer. Mkdir then `write_text()`. Triggered from
   `approve_phase` after the gate verdict is computed.
