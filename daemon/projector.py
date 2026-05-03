@@ -872,19 +872,29 @@ def _consensus_evidence_recorded(conn: sqlite3.Connection, event: dict) -> None:
     )
 
 
-# --- bus-cutover Site 3 (#768) handlers -----------------------------------
+# --- bus-cutover Site 3 (#768, #770) handlers -----------------------------------
 #
 # Two handlers materialise phases/{phase}/reviewer-report.md from bus events,
 # producing the same on-disk file that hooks/scripts/post_tool.py's
 # _write_reviewer_report / _write_pending_reviewer_report write directly.
 #
-# Idempotency strategy (Decision #6 compatibility):
-#   The projector wrapper handles duplicate events via event_log INSERT OR IGNORE
-#   keyed on (event_id) — the same event is never presented to a handler twice
-#   in production.  Under test-harness replay (no event_log dedup), the
-#   handlers are still safe because raw_payload already contains the FULL
-#   target file content in all branches (create, append, pending).  Writing
-#   the same bytes twice is idempotent by nature.
+# Payload contract (#770 — per-section events):
+#   raw_payload = the just-written content (yaml_block), NOT the cumulative
+#   file.  Matches Site 1 (wicked.dispatch.log_entry_appended) per-entry shape.
+#   The _consensus_gate_completed handler applies branch detection:
+#   - create (file absent): write raw_payload as the full new file.
+#   - append (file exists): read existing + separator + raw_payload.
+#   _consensus_gate_pending: raw_payload is always the full pending template
+#   (this branch only creates fresh files, so shape is unchanged).
+#
+# Idempotency strategy (Decision #6 — with #770 correction):
+#   The daemon consumer does NOT deduplicate events before calling handlers
+#   (append_event_log uses INSERT OR REPLACE, not INSERT OR IGNORE — the
+#   handler is called for every event in the batch).  The append branch
+#   therefore guards with a substring scan: check whether
+#   (separator + raw_payload) is already in the existing file; skip if
+#   present.  Create and pending branches are idempotent by nature
+#   (writing the same bytes twice yields the same file).
 #
 # project_dir resolution:
 #   The payload carries project_id + phase.  We look up the project row in the
@@ -892,32 +902,44 @@ def _consensus_evidence_recorded(conn: sqlite3.Connection, event: dict) -> None:
 #   absent or directory is NULL, we log a warning and skip — never infer a path
 #   from local filesystem conventions in the daemon.
 #
-# Council Condition C8 addendum (N=3 warning):
+# Council Condition C8 addendum (N=3):
 #   With Site 3 we have three handler pairs.  The shared import pattern
 #   (_BUS_IMPORT_WARNED latch, import-fail = flag-off) is now clearly
 #   stable.  ADR for N=3 base-class extraction is deferred to Issue #771.
 
+_REVIEWER_REPORT_SEPARATOR = "\n\n---\n## Consensus Gate Evaluation\n\n"
+
+
 def _consensus_gate_completed(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.consensus.gate_completed → reviewer-report.md on disk.
 
-    Site 3 of the bus-cutover staging plan (#746, #768).  Behaviour is gated
-    on ``WG_BUS_AS_TRUTH_REVIEWER_REPORT`` via
+    Site 3 of the bus-cutover staging plan (#746, #768, #770).  Behaviour is
+    gated on ``WG_BUS_AS_TRUTH_REVIEWER_REPORT`` via
     ``_bus_as_truth_enabled("REVIEWER_REPORT")``:
 
       * flag-off (default): handler is a no-op.  The projector wrapper still
         records the event_log row as ``applied`` (Decision #6); the disk file
         remains source of truth.
-      * flag-on: write raw_payload to phases/{phase}/reviewer-report.md.
-        - create branch (``payload.branch == "create"``): write raw_payload as
-          the full file — mirrors _write_reviewer_report's else-branch.
-        - append branch (``payload.branch == "append"``): write raw_payload as
-          the full file — raw_payload already contains the pre-appended
-          separator + yaml_block per the hook's write-then-emit contract, so a
-          simple write is byte-identical to the legacy hook.
+      * flag-on: materialise reviewer-report.md from the per-section payload.
+        - create branch (``payload.branch == "create"`` or file absent):
+          write raw_payload as the full new file — mirrors
+          _write_reviewer_report's else-branch.
+        - append branch (``payload.branch == "append"`` and file exists):
+          read existing file, apply the standard ``_REVIEWER_REPORT_SEPARATOR``,
+          and append raw_payload (the just-written yaml_block).  This produces
+          the same cumulative bytes the legacy hook wrote — resolves the
+          architectural tension surfaced in PR #764 Copilot review (#770):
+          bounded payload AND projector replayability are both achieved.
 
-    Idempotency: writing the same raw_payload bytes twice produces the same
-    file — no duplicate-append risk.  The projector wrapper's event_log INSERT
-    OR IGNORE prevents re-presenting the same event_id to this handler.
+    Idempotency on the append branch (Decision #6 + #770):
+      The daemon consumer calls project_event for every event in a batch
+      without a prior event_id lookup (``append_event_log`` uses INSERT OR
+      REPLACE, not INSERT OR IGNORE — it does not short-circuit before the
+      handler fires).  Naive re-application of an append event would
+      double-append.  Guard: check whether (separator + raw_payload) is
+      already a substring of the existing file; skip if present.  This is
+      not redundant dead code — it is the only layer that prevents duplicate
+      appends on replay.
 
     project_dir is resolved via db.get_project(conn, project_id).directory.
     If the project row is absent or directory is NULL, the handler warns and
@@ -969,14 +991,34 @@ def _consensus_gate_completed(conn: sqlite3.Connection, event: dict) -> None:
     phase_dir = Path(project_row["directory"]) / "phases" / str(phase)
     report_path = phase_dir / "reviewer-report.md"
 
-    # Write raw_payload as the full file content.
-    # raw_payload is the canonical on-disk bytes: for the create branch it is
-    # the yaml_block; for the append branch it already includes the separator
-    # + yaml_block appended to the existing content.  Either way a plain write
-    # produces the byte-identical file that the legacy hook wrote.
+    branch = _opt(payload, "branch", "unknown")
+
     try:
-        phase_dir.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(str(raw_payload), encoding="utf-8")
+        if report_path.exists() and branch == "append":
+            # Append mode: read existing bytes, apply separator, append payload.
+            # raw_payload = the yaml_block that was just written by the hook
+            # (per-section payload contract, #770).
+            existing = report_path.read_text(encoding="utf-8")
+            section = _REVIEWER_REPORT_SEPARATOR + str(raw_payload)
+
+            # Idempotency guard: skip if this exact section was already appended.
+            # Scan the existing file for (separator + raw_payload).  Required
+            # because the daemon consumer does not deduplicate before calling
+            # handlers (append_event_log uses INSERT OR REPLACE, not INSERT OR
+            # IGNORE — handler fires for every event in the batch, #770).
+            if section in existing:
+                logger.debug(
+                    "projector: wicked.consensus.gate_completed — section already "
+                    "present in %s; skipping duplicate append",
+                    report_path,
+                )
+                return
+
+            report_path.write_text(existing + section, encoding="utf-8")
+        else:
+            # Create mode (file absent or create branch): write payload as fresh file.
+            phase_dir.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(str(raw_payload), encoding="utf-8")
     except OSError as exc:
         logger.warning(
             "projector: wicked.consensus.gate_completed — could not write %s: %s",
@@ -985,7 +1027,6 @@ def _consensus_gate_completed(conn: sqlite3.Connection, event: dict) -> None:
         )
         return
 
-    branch = _opt(payload, "branch", "unknown")
     logger.debug(
         "projector: applied wicked.consensus.gate_completed "
         "project_id=%r phase=%r branch=%r report_path=%s",
@@ -1162,12 +1203,14 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     # Same registered-always pattern as Site 1.
     "wicked.consensus.report_created": _consensus_report_created,
     "wicked.consensus.evidence_recorded": _consensus_evidence_recorded,
-    # Site 3 of bus-cutover (#746, #768): reviewer-report.md file projection.
-    # Both handlers gate on WG_BUS_AS_TRUTH_REVIEWER_REPORT (single flag,
-    # same env var the hook reads via _bus_as_truth_flag_on() in post_tool.py).
-    # flag-off → no-op; flag-on → write phases/{phase}/reviewer-report.md
-    # byte-identical to _write_reviewer_report / _write_pending_reviewer_report.
-    # Registered always per Decision #6 — gating happens inside each handler.
+    # Site 3 of bus-cutover (#746, #768, #770): reviewer-report.md file
+    # projection.  Both handlers gate on WG_BUS_AS_TRUTH_REVIEWER_REPORT
+    # (single flag, same env var the hook reads via _bus_as_truth_flag_on()
+    # in post_tool.py).  flag-off → no-op; flag-on → write
+    # phases/{phase}/reviewer-report.md byte-identical to the legacy hook.
+    # Payload contract: raw_payload = just-written section (per-section shape,
+    # #770).  Append branch applies file-existence branch detection + SHA-256
+    # idempotency guard.  Registered always per Decision #6.
     "wicked.consensus.gate_completed": _consensus_gate_completed,
     "wicked.consensus.gate_pending": _consensus_gate_pending,
 }
