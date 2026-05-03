@@ -993,5 +993,99 @@ class TestProjectionStaleEntrySchema(_ReconcileV2Fixture):
             )
 
 
+# ---------------------------------------------------------------------------
+# Finding #1 (PR #764 final fold) — Site 2 dual-flag independence
+# Verifies that CONSENSUS_REPORT and CONSENSUS_EVIDENCE are gated by
+# independent flags via the new per-file Shape A mapping.
+# ---------------------------------------------------------------------------
+
+class TestSite2DualFlagIndependence(unittest.TestCase):
+    """Finding #1 HIGH: Site 2 ships with two independent flags.
+
+    WG_BUS_AS_TRUTH_CONSENSUS_REPORT controls consensus-report.json.
+    WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE controls consensus-evidence.json.
+    Neither implies the other.
+    """
+
+    def _projection_names_with_env(self, env: dict) -> frozenset:
+        with patch.dict(os.environ, {k: "" for k in [
+            "WG_BUS_AS_TRUTH_DISPATCH_LOG",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE",
+            "WG_BUS_AS_TRUTH_REVIEWER_REPORT",
+            "WG_BUS_AS_TRUTH_GATE_RESULT",
+            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST",
+        ]}, clear=False):
+            with patch.dict(os.environ, env):
+                return reconcile_v2._active_projection_names()
+
+    def test_consensus_report_flag_alone_includes_only_consensus_report(self) -> None:
+        """With only CONSENSUS_REPORT=on, scan set includes consensus-report.json
+        but NOT consensus-evidence.json."""
+        result = self._projection_names_with_env(
+            {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "on"}
+        )
+        self.assertIn("consensus-report.json", result)
+        self.assertNotIn(
+            "consensus-evidence.json", result,
+            "consensus-evidence.json must NOT be included when only "
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT is on",
+        )
+
+    def test_consensus_evidence_flag_alone_includes_only_consensus_evidence(self) -> None:
+        """With only CONSENSUS_EVIDENCE=on, scan set includes consensus-evidence.json
+        but NOT consensus-report.json."""
+        result = self._projection_names_with_env(
+            {"WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "on"}
+        )
+        self.assertIn("consensus-evidence.json", result)
+        self.assertNotIn(
+            "consensus-report.json", result,
+            "consensus-report.json must NOT be included when only "
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE is on",
+        )
+
+    def test_both_flags_on_includes_both_files(self) -> None:
+        """With both Site 2 flags on, scan set includes both consensus files."""
+        result = self._projection_names_with_env({
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "on",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "on",
+        })
+        self.assertIn("consensus-report.json", result)
+        self.assertIn("consensus-evidence.json", result)
+
+    def test_both_flags_off_excludes_both_files(self) -> None:
+        """With both Site 2 flags off, scan set excludes both consensus files."""
+        result = self._projection_names_with_env({
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "",
+        })
+        self.assertNotIn("consensus-report.json", result)
+        self.assertNotIn("consensus-evidence.json", result)
+
+    def test_projection_file_flags_has_consensus_evidence_key(self) -> None:
+        """PROJECTION_FILE_FLAGS must map consensus-evidence.json to its own token."""
+        self.assertIn(
+            "consensus-evidence.json",
+            reconcile_v2.PROJECTION_FILE_FLAGS,
+            "PROJECTION_FILE_FLAGS must have a consensus-evidence.json key",
+        )
+        self.assertEqual(
+            reconcile_v2.PROJECTION_FILE_FLAGS["consensus-evidence.json"],
+            "CONSENSUS_EVIDENCE",
+        )
+
+    def test_projection_file_flags_has_consensus_report_key(self) -> None:
+        """PROJECTION_FILE_FLAGS must map consensus-report.json to its own token."""
+        self.assertIn(
+            "consensus-report.json",
+            reconcile_v2.PROJECTION_FILE_FLAGS,
+        )
+        self.assertEqual(
+            reconcile_v2.PROJECTION_FILE_FLAGS["consensus-report.json"],
+            "CONSENSUS_REPORT",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

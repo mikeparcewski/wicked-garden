@@ -20,6 +20,7 @@ Traces are written to a session-scoped JSONL file in $TMPDIR (local only).
 Always fails open — any unhandled exception returns {"continue": true}.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -998,8 +999,12 @@ def _write_reviewer_report(
 
         # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
         # Flag check: only emit when Site 3 cutover is enabled.
+        # Finding #3 fix: bounded digest payload — O(yaml_block) not O(file).
+        # raw_payload carries only the just-appended section; sha256 + size +
+        # line_count provide audit fingerprinting without unbounded growth.
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
+            _file_bytes = new_content.encode("utf-8")
             emit_event(
                 "wicked.consensus.gate_completed",
                 {
@@ -1008,7 +1013,10 @@ def _write_reviewer_report(
                     "verdict": verdict,
                     "eval_id": eval_id,
                     "branch": "append",
-                    "raw_payload": new_content,
+                    "sha256": hashlib.sha256(_file_bytes).hexdigest(),
+                    "byte_size": len(_file_bytes),
+                    "line_count": new_content.count("\n") + 1,
+                    "appended_section_preview": yaml_block,
                 },
                 chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
             )
@@ -1018,8 +1026,12 @@ def _write_reviewer_report(
         report_path.write_text(yaml_block, encoding="utf-8")
 
         # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
+        # Finding #3 fix: consistent digest shape — same fields as append path.
+        # For the create branch the file IS the yaml_block, so
+        # appended_section_preview == full content (bounded by yaml_block size).
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
+            _file_bytes = yaml_block.encode("utf-8")
             emit_event(
                 "wicked.consensus.gate_completed",
                 {
@@ -1028,7 +1040,10 @@ def _write_reviewer_report(
                     "verdict": verdict,
                     "eval_id": eval_id,
                     "branch": "create",
-                    "raw_payload": yaml_block,
+                    "sha256": hashlib.sha256(_file_bytes).hexdigest(),
+                    "byte_size": len(_file_bytes),
+                    "line_count": yaml_block.count("\n") + 1,
+                    "appended_section_preview": yaml_block,
                 },
                 chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
             )
@@ -1060,15 +1075,22 @@ def _write_pending_reviewer_report(phase_dir: "Path", eval_id: str) -> None:
         report_path.write_text(pending_content, encoding="utf-8")
 
         # Emit AFTER write — write-then-emit invariant.
+        # Finding #3 fix: bounded digest payload — same shape as gate_completed
+        # for consistency; pending_content is a small template so size is
+        # already bounded, but uniform shape aids downstream consumers.
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
+            _pending_bytes = pending_content.encode("utf-8")
             emit_event(
                 "wicked.consensus.gate_pending",
                 {
                     "project_id": project_id,
                     "phase": phase,
                     "eval_id": eval_id,
-                    "raw_payload": pending_content,
+                    "sha256": hashlib.sha256(_pending_bytes).hexdigest(),
+                    "byte_size": len(_pending_bytes),
+                    "line_count": pending_content.count("\n") + 1,
+                    "appended_section_preview": pending_content,
                 },
                 chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
             )
@@ -1145,6 +1167,15 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
     except (TypeError, ValueError):
         pass
 
+    # --- Mint eval_id ONCE at the entry point (Finding #2 fix) ---
+    # Per the bus-chain-id uniqueness gotcha, every emit in this invocation
+    # must carry a per-invocation token.  Mint here — before any try block —
+    # so the success path, pending path, and exception path all reuse the
+    # same value.  eval_id is the per-INVOCATION token, not a per-RESULT
+    # token; consensus_result.get("eval_id") is NOT preferred here.
+    # Width: uuid4().hex[:16] == 64 bits (matches Site 2's PR #762 widening).
+    eval_id: str = uuid.uuid4().hex[:16]
+
     # --- Run consensus evaluation ---
     try:
         scripts_crew = _PLUGIN_ROOT / "scripts" / "crew"
@@ -1173,14 +1204,6 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
             # No gate-result.json to evaluate — not an error, just nothing to do
             return {"continue": True}
 
-        # Site 3 of bus-cutover (#746): mint eval_id at the entry point so
-        # every emit in this hook invocation carries a unique chain_id
-        # discriminator segment.  Prefer eval_id already carried by
-        # consensus_result (set by consensus_gate.py at Site 2) to avoid
-        # minting a second UUID for the same evaluation.
-        # Width: uuid4().hex[:16] == 64 bits (matches Site 2's PR #762 widening).
-        eval_id: str = consensus_result.get("eval_id") or uuid.uuid4().hex[:16]
-
         verdict = consensus_result.get("result", "pending").lower()
         if verdict not in ("approved", "conditional", "rejected"):
             # Map gate result codes to reviewer-report verdicts
@@ -1194,13 +1217,12 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
                      "complexity": complexity})
 
     except Exception as exc:
-        # Fail-open: write pending report, log error, never crash
+        # Fail-open: write pending report, log error, never crash.
+        # Reuse the eval_id minted at the entry point — never mint a second
+        # UUID here.  This ensures the exception-path chain_id is consistent
+        # with what the success path would have emitted.
         try:
-            # eval_id may not be bound yet (exception before the mint).
-            # Mint a fresh one for the pending emit so the chain_id is
-            # always populated and unique.
-            _pending_eval_id: str = uuid.uuid4().hex[:16]
-            _write_pending_reviewer_report(phase_dir, _pending_eval_id)
+            _write_pending_reviewer_report(phase_dir, eval_id)
             _log("crew", "warn", "consensus_gate.error",
                  ok=False, detail={"project": project_name, "phase": phase,
                                    "error": str(exc)[:200]})

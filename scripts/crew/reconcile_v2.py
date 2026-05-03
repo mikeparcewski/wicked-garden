@@ -95,27 +95,36 @@ _PROJECTION_MAP: Dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Per-site projection file names — used by _active_projection_names() to
+# Per-FILE projection flag mapping — used by _active_projection_names() to
 # build the set of files that the drift detector should inspect.
 #
-# Keyed by site number; values are the on-disk artifact filenames that only
-# become bus-managed once that site's flag is ON.  Sites 1-3 are wired;
-# Sites 4-5 are placeholders that will be completed as their PRs land.
+# Finding #1 fix (PR #764): Site 2 ships with TWO independent flags —
+# WG_BUS_AS_TRUTH_CONSENSUS_REPORT and WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE —
+# each controlling its own projection file independently.  The previous
+# single-token-per-site shape could not represent this correctly.
+#
+# Shape A: per-file flag granularity.  Each projection filename maps to its
+# own WG_BUS_AS_TRUTH_<TOKEN> env var.  _active_projection_names() includes
+# file F iff its flag token is literally "on".  No site-number integer key.
+#
+# The token is composed into WG_BUS_AS_TRUTH_{token} by
+# _bus_as_truth_enabled() in scripts/_bus.py — same literal-"on" contract.
 # ---------------------------------------------------------------------------
 
-# Site-to-flag-token mapping — each site has exactly one env-var token.
-# The token is composed into WG_BUS_AS_TRUTH_{token} by
-# _bus_as_truth_enabled() in scripts/_bus.py.  We mirror that convention
-# here so there is one place to audit per site.
-_SITE_FLAG_TOKENS: Dict[int, str] = {
-    1: "DISPATCH_LOG",
-    2: "CONSENSUS_REPORT",       # Site 2 uses CONSENSUS_REPORT as the canonical token;
-                                 # CONSENSUS_EVIDENCE is treated as part of the same site.
-    3: "REVIEWER_REPORT",
-    4: "GATE_RESULT",            # placeholder — Site 4 not yet shipped
-    5: "CONDITIONS_MANIFEST",    # placeholder — Site 5 not yet shipped
+PROJECTION_FILE_FLAGS: Dict[str, str] = {
+    "dispatch-log.jsonl":       "DISPATCH_LOG",        # Site 1
+    "consensus-report.json":    "CONSENSUS_REPORT",    # Site 2 (flag A)
+    "consensus-evidence.json":  "CONSENSUS_EVIDENCE",  # Site 2 (flag B — independent)
+    "reviewer-report.md":       "REVIEWER_REPORT",     # Site 3
+    "gate-result.json":         "GATE_RESULT",         # Site 4 — placeholder
+    "conditions-manifest.json": "CONDITIONS_MANIFEST", # Site 5 — placeholder
 }
 
+# ---------------------------------------------------------------------------
+# Backwards-compatible view: SITE_PROJECTIONS exposes the same file sets that
+# callers or tests may already reference by site number.  Read-only; the drift
+# detector now uses PROJECTION_FILE_FLAGS directly.
+# ---------------------------------------------------------------------------
 SITE_PROJECTIONS: Dict[int, FrozenSet[str]] = {
     1: frozenset({"dispatch-log.jsonl"}),
     2: frozenset({"consensus-report.json", "consensus-evidence.json"}),
@@ -126,41 +135,49 @@ SITE_PROJECTIONS: Dict[int, FrozenSet[str]] = {
 
 
 def _site_flag_on(site_num: int) -> bool:
-    """Return True iff the WG_BUS_AS_TRUTH_<TOKEN> flag for *site_num* is ``"on"``.
+    """Return True iff ALL WG_BUS_AS_TRUTH_* flags for *site_num* are ``"on"``.
 
-    Reads the env var via the same literal-``on``-only contract as
-    ``_bus_as_truth_enabled()`` in ``scripts/_bus.py`` — any value other than
-    the exact string ``"on"`` (including unset, empty, ``1``, ``true``) returns
-    False.  All reads go through this helper so there is one place to audit per
-    site.
+    Reads env vars via the same literal-``on``-only contract as
+    ``_bus_as_truth_enabled()`` in ``scripts/_bus.py``.  For sites with
+    multiple independent flags (e.g. Site 2: CONSENSUS_REPORT and
+    CONSENSUS_EVIDENCE), returns True only when EVERY file in that site's
+    projection set has its flag on — conservative by design.
+
+    Prefer ``_active_projection_names()`` for drift-detector logic; this
+    helper is kept for callers that reason in terms of site numbers.
 
     Args:
         site_num: Cutover site number (1–5).  Unknown site numbers always
             return False — conservative default, never silent approval.
     """
-    token = _SITE_FLAG_TOKENS.get(site_num)
-    if token is None:
+    filenames = SITE_PROJECTIONS.get(site_num)
+    if filenames is None:
         return False
-    return os.environ.get(f"WG_BUS_AS_TRUTH_{token}", "") == "on"
+    return all(
+        os.environ.get(f"WG_BUS_AS_TRUTH_{PROJECTION_FILE_FLAGS[f]}", "") == "on"
+        for f in filenames
+        if f in PROJECTION_FILE_FLAGS
+    )
 
 
 def _active_projection_names() -> FrozenSet[str]:
     """Return the set of projection filenames that the drift detector should inspect.
 
-    Detector skips projection files whose owning site flag is OFF — prevents
-    false ``projection-without-event`` drift on legacy direct-write paths during
-    the staged cutover.  When all flags are OFF (the default release state), the
+    Detector skips projection files whose flag is OFF — prevents false
+    ``projection-without-event`` drift on legacy direct-write paths during the
+    staged cutover.  When all flags are OFF (the default release state), the
     returned set is empty and the detector fires no false-positives.
 
-    Only files from sites with flag ON are included.  This is conservative by
-    design: it is better to miss real drift for a period than to fire false alarms
-    that block operators.  Flags are flipped per-site as each cutover site is
-    verified in production.
+    Each file is individually gated by its own WG_BUS_AS_TRUTH_<TOKEN> flag
+    (per-file granularity, Shape A).  This means Site 2's two files
+    (consensus-report.json, consensus-evidence.json) can be enabled
+    independently — flipping only WG_BUS_AS_TRUTH_CONSENSUS_REPORT does NOT
+    include consensus-evidence.json in the scan set, and vice-versa.
     """
     active: set[str] = set()
-    for site_num, filenames in SITE_PROJECTIONS.items():
-        if _site_flag_on(site_num):
-            active.update(filenames)
+    for filename, token in PROJECTION_FILE_FLAGS.items():
+        if os.environ.get(f"WG_BUS_AS_TRUTH_{token}", "") == "on":
+            active.add(filename)
     return frozenset(active)
 
 

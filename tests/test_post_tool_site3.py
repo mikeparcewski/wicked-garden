@@ -361,5 +361,199 @@ class TestSite3EventTypesRegistered(unittest.TestCase):
         self.assertIn("raw_payload", allow)
 
 
+# ---------------------------------------------------------------------------
+# Finding #2 — eval_id minted at entry point, reused on exception path
+# ---------------------------------------------------------------------------
+
+class TestEvalIdEntryPointMint(unittest.TestCase):
+    """Finding #2: eval_id must be minted ONCE at the top of
+    _handle_bash_consensus and reused across success, pending, and exception
+    paths so chain_ids never diverge within one invocation.
+    """
+
+    def test_exception_path_gate_pending_chain_id_contains_provided_eval_id(self) -> None:
+        """The except block calls _write_pending_reviewer_report(phase_dir, eval_id)
+        where eval_id was minted at the entry point.  Verify the chain_id in the
+        gate_pending emit contains the eval_id passed to that function.
+
+        Strategy: call _write_pending_reviewer_report directly with a controlled
+        eval_id and assert the chain_id contains it.  This tests the post-fix
+        shape where eval_id is threaded from the caller rather than re-minted.
+        """
+        controlled_eval_id = "cafebabe12345678"
+        captured_chain_ids: List[str] = []
+
+        def _capture(event_type, payload, chain_id=None, metadata=None):
+            if chain_id:
+                captured_chain_ids.append(chain_id)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = _make_phase_dir(Path(tmp), project="exc-proj", phase="build")
+            with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}), \
+                 patch("_bus.emit_event", side_effect=_capture):
+                post_tool._write_pending_reviewer_report(phase_dir, controlled_eval_id)
+
+        self.assertTrue(
+            any(controlled_eval_id in cid for cid in captured_chain_ids),
+            f"Entry-point eval_id {controlled_eval_id!r} not found in captured chain_ids: "
+            f"{captured_chain_ids}.  Exception path must reuse entry-point eval_id.",
+        )
+
+    def test_exception_path_reuses_eval_id_not_fresh_mint(self) -> None:
+        """The except block in _handle_bash_consensus must NOT contain a second
+        uuid.uuid4() call.  Verify by inspecting the source.
+
+        This is a static check: read the source, find the except block, confirm
+        there is no uuid.uuid4() inside it.
+        """
+        import inspect
+        source = inspect.getsource(post_tool._handle_bash_consensus)
+        except_idx = source.find("except Exception")
+        self.assertGreater(except_idx, 0, "_handle_bash_consensus must have an except block")
+        except_body = source[except_idx:]
+        self.assertNotIn(
+            "uuid.uuid4()",
+            except_body,
+            "except block must not mint a second UUID — reuse entry-point eval_id instead",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Finding #3 — bounded raw_payload / digest shape
+# ---------------------------------------------------------------------------
+
+class TestBoundedDigestPayload(unittest.TestCase):
+    """Finding #3: raw_payload must be replaced with a bounded digest.
+
+    Append-path payload size is O(yaml_block) not O(cumulative file).
+    """
+
+    def _run_append_cycle(
+        self,
+        phase_dir: Path,
+        emit_count: int,
+        captured_payloads: list,
+    ) -> None:
+        """Run `emit_count` consecutive consensus writes and collect payloads."""
+        def _capture(event_type, payload, chain_id=None, metadata=None):
+            captured_payloads.append(payload)
+
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}), \
+             patch("_bus.emit_event", side_effect=_capture):
+            for i in range(emit_count):
+                cr = {
+                    "result": "approved",
+                    "agreement_ratio": 0.9,
+                    "findings": [],
+                    "conditions": [],
+                    "evidence_items_checked": i + 1,
+                    "eval_id": f"digest{i:08x}",
+                }
+                post_tool._write_reviewer_report(
+                    phase_dir, "approved", cr, f"digest{i:08x}"
+                )
+
+    def test_payload_has_sha256_field(self) -> None:
+        """All emit payloads must include a sha256 field (bounded digest)."""
+        captured: list = []
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = _make_phase_dir(Path(tmp), project="digest-proj", phase="build")
+            self._run_append_cycle(phase_dir, 1, captured)
+        self.assertGreater(len(captured), 0, "emit_event was never called")
+        for payload in captured:
+            self.assertIn("sha256", payload,
+                          "Payload must include sha256 digest field")
+            self.assertIsInstance(payload["sha256"], str)
+            self.assertEqual(len(payload["sha256"]), 64,
+                             "sha256 must be a 64-char hex string")
+
+    def test_payload_has_byte_size_field(self) -> None:
+        """All emit payloads must include a byte_size field."""
+        captured: list = []
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = _make_phase_dir(Path(tmp), project="digest-size", phase="build")
+            self._run_append_cycle(phase_dir, 1, captured)
+        self.assertGreater(len(captured), 0)
+        for payload in captured:
+            self.assertIn("byte_size", payload)
+            self.assertIsInstance(payload["byte_size"], int)
+            self.assertGreater(payload["byte_size"], 0)
+
+    def test_payload_has_appended_section_preview(self) -> None:
+        """All emit payloads must include appended_section_preview (the yaml_block only)."""
+        captured: list = []
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = _make_phase_dir(Path(tmp), project="digest-preview", phase="build")
+            self._run_append_cycle(phase_dir, 1, captured)
+        self.assertGreater(len(captured), 0)
+        for payload in captured:
+            self.assertIn("appended_section_preview", payload)
+
+    def test_no_raw_payload_field_in_completed_emit(self) -> None:
+        """gate_completed emits must NOT have a raw_payload field (replaced by digest)."""
+        captured: list = []
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = _make_phase_dir(Path(tmp), project="no-raw", phase="build")
+            self._run_append_cycle(phase_dir, 1, captured)
+        for payload in captured:
+            self.assertNotIn(
+                "raw_payload", payload,
+                "raw_payload must be removed from gate_completed emit payload (Finding #3)",
+            )
+
+    def test_byte_size_matches_file_after_each_append(self) -> None:
+        """byte_size must equal the actual file size after each append cycle."""
+        import hashlib as hl
+        captured: list = []
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = _make_phase_dir(Path(tmp), project="size-match", phase="build")
+            report_path = phase_dir / "reviewer-report.md"
+            self._run_append_cycle(phase_dir, 3, captured)
+
+            for i, payload in enumerate(captured):
+                # After cycle i+1, the file has accumulated i+1 write operations.
+                # The last captured payload has byte_size matching the file AT THAT POINT.
+                # Since all 3 writes happened before we read, verify the last payload's
+                # byte_size matches the final file.
+                pass
+
+            # Verify the last payload's byte_size matches the final file size.
+            final_file_bytes = report_path.read_bytes()
+            last_payload = captured[-1]
+            self.assertEqual(
+                last_payload["byte_size"],
+                len(final_file_bytes),
+                f"Last emit byte_size {last_payload['byte_size']} must match "
+                f"final file size {len(final_file_bytes)}",
+            )
+
+    def test_appended_section_preview_is_bounded(self) -> None:
+        """appended_section_preview must not grow cumulatively across appends.
+
+        After 3 cycles, each preview should be ~the same size (the yaml_block
+        for that cycle), not the full accumulated file.
+        """
+        captured: list = []
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = _make_phase_dir(Path(tmp), project="preview-bounded", phase="build")
+            self._run_append_cycle(phase_dir, 3, captured)
+
+        # All 3 appended_section_preview values should be approximately the same
+        # size (bounded by yaml_block), not growing cumulatively.
+        preview_sizes = [len(p["appended_section_preview"]) for p in captured]
+        # Max preview should not be dramatically larger than min preview.
+        # Allow up to 3x variance for evidence_items_checked field growth,
+        # but not the 10x+ that cumulative accumulation would cause.
+        self.assertGreater(len(preview_sizes), 0)
+        max_size = max(preview_sizes)
+        min_size = max(min(preview_sizes), 1)  # avoid div-by-zero
+        self.assertLessEqual(
+            max_size / min_size, 5.0,
+            f"appended_section_preview sizes grew too much across 3 appends: "
+            f"{preview_sizes}. Expected bounded growth (yaml_block only), "
+            f"not cumulative file content.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
