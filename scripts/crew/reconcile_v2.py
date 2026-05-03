@@ -210,13 +210,13 @@ SITE_PROJECTIONS: Dict[int, FrozenSet[str]] = {
 
 
 def _site_flag_on(site_num: int) -> bool:
-    """Return True iff ALL WG_BUS_AS_TRUTH_* flags for *site_num* are ``"on"``.
+    """Return True iff ALL WG_BUS_AS_TRUTH_* flags for *site_num* are enabled.
 
-    Reads env vars via the same literal-``on``-only contract as
-    ``_bus_as_truth_enabled()`` in ``scripts/_bus.py``.  For sites with
-    multiple independent flags (e.g. Site 2: CONSENSUS_REPORT and
-    CONSENSUS_EVIDENCE), returns True only when EVERY file in that site's
-    projection set has its flag on — conservative by design.
+    Delegates to ``_flag_on()`` (which calls ``_bus_as_truth_enabled()``) so all
+    flag resolution goes through a single predicate with normalization and
+    default-map fall-through.  For sites with multiple independent flags (e.g.
+    Site 2: CONSENSUS_REPORT and CONSENSUS_EVIDENCE), returns True only when
+    EVERY file in that site's projection set has its flag on — conservative.
 
     Prefer ``_active_projection_names()`` for drift-detector logic; this
     helper is kept for callers that reason in terms of site numbers.
@@ -229,15 +229,26 @@ def _site_flag_on(site_num: int) -> bool:
     if filenames is None:
         return False
     return all(
-        os.environ.get(f"WG_BUS_AS_TRUTH_{PROJECTION_FILE_FLAGS[f]}", "") == "on"
+        _flag_on(PROJECTION_FILE_FLAGS[f])
         for f in filenames
         if f in PROJECTION_FILE_FLAGS
     )
 
 
 def _flag_on(token: str) -> bool:
-    """Return True iff the WG_BUS_AS_TRUTH_{token} env var is literally ``"on"``."""
-    return os.environ.get(f"WG_BUS_AS_TRUTH_{token}", "") == "on"
+    """Return True iff the WG_BUS_AS_TRUTH_{token} flag is enabled.
+
+    Delegates to ``_bus_as_truth_enabled()`` in ``scripts/_bus.py`` — single
+    source of truth for flag resolution including normalization (.strip().lower())
+    and default-map fall-through for shipped sites.
+
+    Finding #2 fix (PR #777): prior implementation duplicated the predicate with
+    its own ``os.environ.get(...) == "on"`` check, bypassing the canonical helper
+    in ``_bus.py``.  This delegation ensures the flag flip propagates to the
+    reconciler scan path.
+    """
+    from _bus import _bus_as_truth_enabled  # type: ignore[import]
+    return _bus_as_truth_enabled(token)
 
 
 def _active_projection_names() -> FrozenSet[str]:

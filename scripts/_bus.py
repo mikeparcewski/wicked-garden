@@ -299,8 +299,24 @@ def _is_disabled() -> bool:
     return os.environ.get("WICKED_BUS_DISABLED", "").strip() in ("1", "true", "yes")
 
 
+# ---------------------------------------------------------------------------
+# Default-ON set for _bus_as_truth_enabled — shipped cutover sites whose
+# flag falls through to the default map.  Only sites 1-3 have shipped; the
+# remaining tokens (GATE_RESULT, CONDITIONS_MANIFEST) default OFF until their
+# cutovers land.  Keep this frozenset in sync with PROJECTION_FILE_FLAGS in
+# scripts/crew/reconcile_v2.py.
+# ---------------------------------------------------------------------------
+
+_BUS_AS_TRUTH_DEFAULT_ON: frozenset = frozenset({
+    "DISPATCH_LOG",       # Site 1 — dispatch-log.jsonl (PR #751)
+    "CONSENSUS_REPORT",   # Site 2 — consensus-report.json (PR #758)
+    "CONSENSUS_EVIDENCE", # Site 2 — consensus-evidence.json (PR #758)
+    "REVIEWER_REPORT",    # Site 3 — reviewer-report.md (PR #776)
+})
+
+
 def _bus_as_truth_enabled(site: str = "DISPATCH_LOG") -> bool:
-    """Return True iff ``WG_BUS_AS_TRUTH_<SITE>`` is set to the literal string ``on``.
+    """Resolve flag state for ``site`` token.
 
     Site 1 (#751) introduced this helper hardcoded to ``DISPATCH_LOG``.
     Site 2 (#746) added the ``site`` parameter so multiple cutover handlers
@@ -309,19 +325,36 @@ def _bus_as_truth_enabled(site: str = "DISPATCH_LOG") -> bool:
 
     Reading the env var directly in projector handlers or emitters is
     forbidden — every read MUST go through this helper so we have one place
-    to flip and one place to audit.  Cutover Sites 3-5 will pass their own
-    site name (``CONDITIONS_MANIFEST``, ``RESUME_PROJECTOR``, ...).
+    to flip and one place to audit.  Cutover Sites 3-5 pass their own site
+    name (``REVIEWER_REPORT``, ``GATE_RESULT``, ``CONDITIONS_MANIFEST``).
 
-    Values other than the literal ``on`` (including unset, empty, ``dry-run``,
-    ``1``, ``true``, ``True``) MUST return False — flag-off is the
-    byte-identity contract per Council Condition C2.
+    Resolution order (flag-fold PR #777):
+      1. Explicit ``"on"``  (case/whitespace normalised) → True.
+      2. Explicit ``"off"`` (case/whitespace normalised) → False.
+         Operator opt-out beats the default map — ``OFF``, ``Off``, `` off ``
+         all opt out correctly.
+      3. Empty / any other value → default map.
+         Shipped sites (``_BUS_AS_TRUTH_DEFAULT_ON``) return True;
+         unshipped sites return False.
+
+    This resolves four findings from the dual-bot review (#777):
+      Finding #1 — non-"on"/"off" values now fall through to the default map
+                   consistently for both shipped and unshipped sites.
+      Finding #3 — ``.strip().lower()`` normalises case + whitespace.
+      Finding #4 — asymmetric truthy-value handling eliminated; shipped and
+                   unshipped sites both go through the same fall-through path.
 
     Args:
         site: Cutover site identifier (uppercase token).  Composed into the
             env var name as ``WG_BUS_AS_TRUTH_<site>``.  Site 2 callers pass
             ``"CONSENSUS_REPORT"`` and ``"CONSENSUS_EVIDENCE"``.
     """
-    return os.environ.get(f"WG_BUS_AS_TRUTH_{site}", "") == "on"
+    raw = os.environ.get(f"WG_BUS_AS_TRUTH_{site}", "").strip().lower()
+    if raw == "on":
+        return True
+    if raw == "off":
+        return False
+    return site in _BUS_AS_TRUTH_DEFAULT_ON
 
 
 def _resolve_binary() -> Optional[str]:

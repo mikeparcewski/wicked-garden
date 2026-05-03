@@ -186,12 +186,15 @@ def test_both_handlers_are_registered_in_dispatch_table() -> None:
 
 
 def test_report_flag_off_returns_applied_without_writing_table(mem_conn) -> None:
-    """C3 — flag-off → handler is a no-op.  Wrapper still returns 'applied'
-    so the event_log row is recorded; only the projection table is skipped."""
+    """C3 — explicit ``"off"`` → handler is a no-op.  Wrapper still returns
+    'applied' so the event_log row is recorded; only the projection table is skipped.
+
+    After the flag-fold (PR #777), CONSENSUS_REPORT is a shipped/default-ON site,
+    so an unset env var now → True.  This test uses explicit ``"off"`` to
+    exercise the opt-out path."""
     from daemon.projector import project_event
 
-    with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("WG_BUS_AS_TRUTH_CONSENSUS_REPORT", None)
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "off"}):
         status = project_event(mem_conn, _make_report_event())
 
     assert status == "applied"
@@ -200,11 +203,10 @@ def test_report_flag_off_returns_applied_without_writing_table(mem_conn) -> None
 
 
 def test_evidence_flag_off_returns_applied_without_writing_table(mem_conn) -> None:
-    """C3 — same flag-off contract for the evidence handler."""
+    """C3 — same explicit ``"off"`` opt-out contract for the evidence handler."""
     from daemon.projector import project_event
 
-    with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE", None)
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "off"}):
         status = project_event(mem_conn, _make_evidence_event())
 
     assert status == "applied"
@@ -212,13 +214,15 @@ def test_evidence_flag_off_returns_applied_without_writing_table(mem_conn) -> No
     assert rows[0] == 0
 
 
-def test_report_flag_dry_run_value_is_treated_as_off(mem_conn) -> None:
-    """C2/C3 — only the literal `on` enables the cutover.  Pinned here so a
-    future maintainer cannot expand the truthy values without a council
-    re-evaluation."""
+def test_report_flag_explicit_off_value_is_treated_as_off(mem_conn) -> None:
+    """C2/C3 — ``"off"`` is the canonical opt-out value (case/whitespace normalised).
+
+    Pre-fold, ``"dry-run"`` was used as a proxy.  After the flag-fold (PR #777),
+    ``"dry-run"`` for a shipped token falls through to the default-ON map → True.
+    The canonical opt-out is now the literal ``"off"``."""
     from daemon.projector import project_event
 
-    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "dry-run"}):
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "off"}):
         status = project_event(mem_conn, _make_report_event())
 
     assert status == "applied"
@@ -233,16 +237,21 @@ def test_report_flag_dry_run_value_is_treated_as_off(mem_conn) -> None:
 def test_report_flag_on_does_not_enable_evidence_handler(mem_conn) -> None:
     """C5 — the two flags are INDEPENDENT.  Operators may flip one without
     the other.  This test pins that contract: enabling
-    `WG_BUS_AS_TRUTH_CONSENSUS_REPORT` MUST NOT cause the evidence handler
-    to start writing rows."""
+    ``WG_BUS_AS_TRUTH_CONSENSUS_REPORT`` MUST NOT cause the evidence handler
+    to start writing rows when ``WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE`` is off.
+
+    Uses explicit ``"off"`` for the companion flag so the test is unambiguous
+    after the flag-fold (PR #777) which made unset → default-ON for shipped sites."""
     from daemon.projector import project_event
 
     with patch.dict(
         os.environ,
-        {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "on"},
+        {
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "on",
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "off",
+        },
         clear=False,
     ):
-        os.environ.pop("WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE", None)
         # Project an evidence event.  The evidence handler's flag is OFF, so
         # nothing should land in consensus_evidence.
         evt = _make_evidence_event(event_id=42)
@@ -259,15 +268,20 @@ def test_report_flag_on_does_not_enable_evidence_handler(mem_conn) -> None:
 
 
 def test_evidence_flag_on_does_not_enable_report_handler(mem_conn) -> None:
-    """C5 — symmetric flag independence test."""
+    """C5 — symmetric flag independence test.
+
+    Uses explicit ``"off"`` for the companion flag so the test is unambiguous
+    after the flag-fold (PR #777) which made unset → default-ON for shipped sites."""
     from daemon.projector import project_event
 
     with patch.dict(
         os.environ,
-        {"WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "on"},
+        {
+            "WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "on",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "off",
+        },
         clear=False,
     ):
-        os.environ.pop("WG_BUS_AS_TRUTH_CONSENSUS_REPORT", None)
         evt = _make_report_event(event_id=43)
         _insert_event_log_parent(mem_conn, evt)
         project_event(mem_conn, evt)

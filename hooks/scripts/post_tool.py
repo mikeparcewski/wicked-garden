@@ -75,17 +75,29 @@ def _get_session_id() -> str:
 def _bus_as_truth_flag_on() -> bool:
     """Return True iff Site 3 bus-as-truth cutover flag is enabled.
 
-    Site 3 of the bus cutover (#746) gates on ``WG_BUS_AS_TRUTH_REVIEWER_REPORT``
-    == ``"on"``.  Default is OFF — never flip this default in this PR.
+    Site 3 of the bus cutover (#746) gates on ``WG_BUS_AS_TRUTH_REVIEWER_REPORT``.
+    This token is in the default-ON set (shipped, PR #776), so the flag is ON
+    unless explicitly set to ``"off"`` (case/whitespace normalised).
 
     Mirrors the ``_bus_as_truth_enabled(site)`` helper in ``scripts/_bus.py``
-    (same literal-``on``-only contract) but lives in this hook module so the
-    hook does not need to import ``_bus`` merely to read the flag.
+    (same normalization + default-map fall-through) but lives in this hook
+    module so the hook does not need to import ``_bus`` merely to read the flag.
+
+    Resolution order (flag-fold PR #777):
+      1. Explicit ``"on"``  (case/whitespace normalised) → True.
+      2. Explicit ``"off"`` (case/whitespace normalised) → False.
+      3. Empty / any other value → default-ON (REVIEWER_REPORT is a shipped site).
 
     Reading the env var directly anywhere else in this module is forbidden —
     all reads go through this helper so there is one place to flip and audit.
     """
-    return os.environ.get("WG_BUS_AS_TRUTH_REVIEWER_REPORT", "") == "on"
+    raw = os.environ.get("WG_BUS_AS_TRUTH_REVIEWER_REPORT", "").strip().lower()
+    if raw == "on":
+        return True
+    if raw == "off":
+        return False
+    # REVIEWER_REPORT is a shipped site — default ON.
+    return True
 
 
 # ---------------------------------------------------------------------------

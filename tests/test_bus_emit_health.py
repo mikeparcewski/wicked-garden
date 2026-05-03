@@ -433,5 +433,87 @@ class TestReconcileV2ModuleContract(unittest.TestCase):
         self.assertIsInstance(result, list)
 
 
+# ---------------------------------------------------------------------------
+# TestFlagFlipDefaultState — covers four findings from PR #777 dual-bot review
+# ---------------------------------------------------------------------------
+
+class TestFlagFlipDefaultState(unittest.TestCase):
+    """Verify _bus_as_truth_enabled() semantics after the flag-fold (PR #777).
+
+    Four findings resolved:
+      F1 — non-"on"/"off" values fall through to default map (not always-False).
+      F3 — .strip().lower() normalises case + whitespace.
+      F4 — shipped and unshipped sites use the same fall-through path (consistent).
+    """
+
+    def test_shipped_site_default_on_when_unset(self) -> None:
+        """DISPATCH_LOG (shipped) returns True when env var is unset."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("WG_BUS_AS_TRUTH_DISPATCH_LOG", None)
+            self.assertTrue(_bus._bus_as_truth_enabled("DISPATCH_LOG"))
+
+    def test_unshipped_site_default_off_when_unset(self) -> None:
+        """GATE_RESULT (unshipped) returns False when env var is unset."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("WG_BUS_AS_TRUTH_GATE_RESULT", None)
+            self.assertFalse(_bus._bus_as_truth_enabled("GATE_RESULT"))
+
+    def test_explicit_on_overrides_default_for_unshipped_site(self) -> None:
+        """Explicit ``"on"`` returns True even for an unshipped (default-OFF) site."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "on"}):
+            self.assertTrue(_bus._bus_as_truth_enabled("GATE_RESULT"))
+
+    def test_explicit_off_overrides_default_for_shipped_site(self) -> None:
+        """Explicit ``"off"`` returns False even for a shipped (default-ON) site."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "off"}):
+            self.assertFalse(_bus._bus_as_truth_enabled("DISPATCH_LOG"))
+
+    def test_case_insensitive_opt_out_uppercase(self) -> None:
+        """``"OFF"`` (uppercase) opts out for a shipped site (Finding #3)."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "OFF"}):
+            self.assertFalse(_bus._bus_as_truth_enabled("DISPATCH_LOG"))
+
+    def test_whitespace_trimming_opt_out(self) -> None:
+        """``" off "`` (with spaces) opts out for a shipped site (Finding #3)."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": " off "}):
+            self.assertFalse(_bus._bus_as_truth_enabled("DISPATCH_LOG"))
+
+    def test_case_insensitive_opt_out_mixed_case(self) -> None:
+        """``"Off"`` (mixed case) opts out for a shipped site (Finding #3)."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "Off"}):
+            self.assertFalse(_bus._bus_as_truth_enabled("DISPATCH_LOG"))
+
+    def test_dry_run_for_shipped_site_returns_true(self) -> None:
+        """``"dry-run"`` for a shipped site falls through to default-ON (Finding #1).
+
+        Pre-fold, ``"dry-run"`` was treated as OFF (literal-``"on"``-only contract).
+        Post-fold, it falls through to the default map → True for shipped sites."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "dry-run"}):
+            self.assertTrue(_bus._bus_as_truth_enabled("DISPATCH_LOG"))
+
+    def test_dry_run_for_unshipped_site_returns_false(self) -> None:
+        """``"dry-run"`` for an unshipped site falls through to default-OFF."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "dry-run"}):
+            self.assertFalse(_bus._bus_as_truth_enabled("GATE_RESULT"))
+
+    def test_1_for_unshipped_site_returns_false(self) -> None:
+        """``"1"`` for an unshipped site falls through to default-OFF (Finding #4).
+
+        Pre-fold: shipped ``"1"`` → True (truthy), unshipped ``"1"`` → False.
+        Post-fold: both go through the same fall-through path for consistency."""
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "1"}):
+            self.assertFalse(_bus._bus_as_truth_enabled("GATE_RESULT"))
+
+    def test_default_on_frozenset_contains_all_shipped_sites(self) -> None:
+        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 4 shipped site tokens."""
+        expected = frozenset({
+            "DISPATCH_LOG",
+            "CONSENSUS_REPORT",
+            "CONSENSUS_EVIDENCE",
+            "REVIEWER_REPORT",
+        })
+        self.assertEqual(_bus._BUS_AS_TRUTH_DEFAULT_ON, expected)
+
+
 if __name__ == "__main__":
     unittest.main()
