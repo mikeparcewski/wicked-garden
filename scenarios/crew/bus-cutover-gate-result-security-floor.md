@@ -28,11 +28,17 @@ no real timestamps that drift, no network. Each Case creates an isolated
 `PROJECT_DIR` and tears it down at the start.
 
 Cases 1–2 call the helper modules directly (schema validator, content sanitizer)
-because those helpers are the public API for those controls. Cases 3–5 that cover
-the **orchestrated** orphan-detection and audit-append paths invoke
-`phase_manager._load_gate_result()` directly so the scenario exercises the real
-composition, not a hand-rolled simulation. The actual composition inside
-`_load_gate_result()` is:
+because those helpers are the public API for those controls. Coverage by call path:
+
+- **Cases 1a, 1b, 2**: helper-direct (`validate_gate_result_from_file`,
+  `sanitize_gate_result`) — these are the public API surfaces for those controls.
+- **Case 3 SOFT, Case 4 STRICT + SOFT, Case 5A**: through `_load_gate_result()`
+  end-to-end — exercises real composition.
+- **Case 3 STRICT, Case 5B, Case 5C**: helper-direct (`check_orphan`,
+  `validate_gate_result`, `sanitize_gate_result`) — full Path-1 integration for
+  these sub-cases tracked in issue #771.
+
+The actual composition inside `_load_gate_result()` is:
 
 ```
 _load_gate_result()
@@ -1019,7 +1025,7 @@ unset PROJECT_DIR WG_GATE_RESULT_STRICT_AFTER
 - [x] **Case 1a**: Schema validator rejects missing-verdict payload with `missing-required-field:verdict-or-result`; `gate-ingest-audit.jsonl` records `schema_violation`.
 - [x] **Case 1b**: Schema validator rejects malformed-score payload with `wrong-type:score:expected-number:got-str`; audit log preserves both 1a and 1b entries (append-only).
 - [x] **Case 2**: Content sanitizer rejects `${env:SECRET}` injection and prompt-injection patterns; clean payload passes without false positive.
-- [x] **Case 3**: Orphan detection raises `GateResultAuthorizationError` in strict mode (past STRICT_AFTER) and soft-window mode; soft-window path audits as `unauthorized_dispatch_accepted_legacy`.
+- [x] **Case 3**: Orphan detection raises `GateResultAuthorizationError` in strict mode (past STRICT_AFTER); in soft-window mode (future STRICT_AFTER) `_load_gate_result()` catches the error, returns the parsed result, and writes `unauthorized_dispatch_accepted_legacy` to the audit log.
 - [x] **Case 4**: `gate-ingest-audit.jsonl` demonstrates both `unauthorized_dispatch` (strict-reject) and `unauthorized_dispatch_accepted_legacy` (soft-window) tag paths; all 4 entries intact in order; all entries carry required fields.
 - [x] **Case 5**: Each bypass sub-test sends a payload violating all 3 controls; named bypass skips; other two controls STILL fire — proves isolation.
 - [x] **Case 6**: `WG_GATE_RESULT_STRICT_AFTER=2020-01-01` auto-expires all three bypass levers; floor enforces regardless of `=off` settings.
@@ -1054,7 +1060,7 @@ confirming the security floor was not bypassed during materialization.
 Specific invariants that must hold post-cutover:
 - `GateResultSchemaError` is still raised on malformed projector payloads (Cases 1a, 1b).
 - `GateResultSchemaError(violation_class="content")` is still raised on injected content (Case 2).
-- `GateResultAuthorizationError` is still raised for orphaned projections and audited (Case 3).
+- `GateResultAuthorizationError` is still raised for orphaned projections in strict mode (past STRICT_AFTER); soft-window path returns parsed result and audits as `unauthorized_dispatch_accepted_legacy` (Case 3). Cases 3-strict, 5B, 5C remain helper-direct; full Path-1 application tracked in #771.
 - `gate-ingest-audit.jsonl` still accumulates entries for every rejected projection; both `unauthorized_dispatch` and `unauthorized_dispatch_accepted_legacy` tag paths exist (Case 4).
 - Bypass levers still work at projection time via the same envvar semantics (Case 5).
 - `WG_GATE_RESULT_STRICT_AFTER` auto-expire logic is envvar-driven and has no cutover dependency (Case 6).
