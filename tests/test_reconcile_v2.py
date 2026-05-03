@@ -306,13 +306,19 @@ class TestEventWithoutProjectionDrift(_ReconcileV2Fixture):
 class TestProjectionWithoutEventDrift(_ReconcileV2Fixture):
 
     def test_on_disk_file_with_no_event_is_projection_without_event(self) -> None:
-        """A gate-result.json on disk but no event_log row → projection-without-event."""
+        """A gate-result.json on disk but no event_log row → projection-without-event.
+
+        Note: gate-result.json is owned by Site 4.  The test sets
+        WG_BUS_AS_TRUTH_GATE_RESULT=on so the file is included in the active
+        projection set — otherwise Finding #1 correctly suppresses it.
+        """
         project_dir = _make_project_dir(self.workspace, "pwe-proj")
         phase_dir = _make_phase_dir(project_dir, "build")
         _write_file(phase_dir / "gate-result.json")
         # No event rows in DB.
         conn = self._conn()
-        result = reconcile_v2.reconcile_project("pwe-proj", _daemon_conn=conn)
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "on"}):
+            result = reconcile_v2.reconcile_project("pwe-proj", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]
@@ -331,7 +337,8 @@ class TestProjectionWithoutEventDrift(_ReconcileV2Fixture):
             projection_status="applied",
         )
         conn = self._conn()
-        result = reconcile_v2.reconcile_project("pwe-ok", _daemon_conn=conn)
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "on"}):
+            result = reconcile_v2.reconcile_project("pwe-ok", _daemon_conn=conn)
         conn.close()
 
         pwe = [d for d in result["drift"]
@@ -732,6 +739,258 @@ class TestJsonOutputSchema(_ReconcileV2Fixture):
             reconcile_v2.main(["--all", "--json"])
         payload = json.loads(buf.getvalue())
         self.assertEqual(payload["header"]["projector_health"], "unreachable")
+
+
+# ---------------------------------------------------------------------------
+# Copilot Finding #1 — per-site flag awareness on _active_projection_names()
+# ---------------------------------------------------------------------------
+
+class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
+    """Finding #1 BLOCKER: with all flags OFF (default), _active_projection_names()
+    returns an empty frozenset so no projection-without-event drift fires."""
+
+    def test_all_flags_off_returns_empty_set(self) -> None:
+        """With no WG_BUS_AS_TRUTH_* flags set, active projection names is empty."""
+        env_clear = {k: "" for k in [
+            "WG_BUS_AS_TRUTH_DISPATCH_LOG",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT",
+            "WG_BUS_AS_TRUTH_REVIEWER_REPORT",
+            "WG_BUS_AS_TRUTH_GATE_RESULT",
+            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST",
+        ]}
+        with patch.dict(os.environ, env_clear):
+            result = reconcile_v2._active_projection_names()
+        self.assertEqual(result, frozenset(),
+                         f"Expected empty frozenset with all flags off, got {result!r}")
+
+    def test_site3_flag_on_returns_reviewer_report_only(self) -> None:
+        """With only REVIEWER_REPORT flag ON, active names is {'reviewer-report.md'}."""
+        env = {
+            "WG_BUS_AS_TRUTH_DISPATCH_LOG": "",
+            "WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "",
+            "WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on",
+            "WG_BUS_AS_TRUTH_GATE_RESULT": "",
+            "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST": "",
+        }
+        with patch.dict(os.environ, env):
+            result = reconcile_v2._active_projection_names()
+        self.assertEqual(result, frozenset({"reviewer-report.md"}))
+
+
+class TestProjWithoutEventFlagGating(_ReconcileV2Fixture):
+    """Finding #1: drift detection respects per-site flag state."""
+
+    def test_dispatch_log_with_site1_flag_off_reports_no_drift(self) -> None:
+        """Legacy dispatch-log.jsonl with Site 1 flag OFF must NOT fire drift."""
+        project_dir = _make_project_dir(self.workspace, "legacy-dispatch")
+        phase_dir = _make_phase_dir(project_dir, "build")
+        _write_file(phase_dir / "dispatch-log.jsonl", '{"event": "test"}\n')
+        # No event rows — simulating pre-Site-1 state with flag OFF.
+        env = {"WG_BUS_AS_TRUTH_DISPATCH_LOG": ""}  # flag explicitly off
+        conn = self._conn()
+        with patch.dict(os.environ, env):
+            result = reconcile_v2.reconcile_project("legacy-dispatch", _daemon_conn=conn)
+        conn.close()
+
+        pwe = [d for d in result["drift"]
+               if d["type"] == reconcile_v2.DRIFT_PROJECTION_WITHOUT_EVENT]
+        self.assertEqual(
+            pwe, [],
+            "dispatch-log.jsonl should not fire projection-without-event when Site 1 flag is OFF",
+        )
+
+    def test_reviewer_report_with_site3_flag_on_and_matching_event_reports_no_drift(
+        self,
+    ) -> None:
+        """Site 3 flag ON + reviewer-report.md + matching event → zero drift."""
+        project_dir = _make_project_dir(self.workspace, "s3-flag-on-clean")
+        phase_dir = _make_phase_dir(project_dir, "review")
+        _write_file(phase_dir / "reviewer-report.md", "# approved\n")
+
+        _insert_event_row(
+            self.db_path,
+            event_id=200,
+            event_type="wicked.consensus.gate_completed",
+            chain_id="s3-flag-on-clean.review.consensus.aabbccdd",
+            projection_status="applied",
+        )
+        conn = self._conn()
+        env = {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}
+        with patch.dict(os.environ, env):
+            result = reconcile_v2.reconcile_project("s3-flag-on-clean", _daemon_conn=conn)
+        conn.close()
+
+        self.assertEqual(result["drift"], [],
+                         f"Expected no drift with Site 3 flag ON and matching event, got {result['drift']}")
+
+    def test_reviewer_report_with_site3_flag_on_and_no_event_reports_drift(self) -> None:
+        """Site 3 flag ON + reviewer-report.md but no matching event → drift fires."""
+        project_dir = _make_project_dir(self.workspace, "s3-flag-on-orphan")
+        phase_dir = _make_phase_dir(project_dir, "review")
+        _write_file(phase_dir / "reviewer-report.md", "# orphan report\n")
+        # No event rows.
+        conn = self._conn()
+        env = {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}
+        with patch.dict(os.environ, env):
+            result = reconcile_v2.reconcile_project("s3-flag-on-orphan", _daemon_conn=conn)
+        conn.close()
+
+        drift_types = [d["type"] for d in result["drift"]]
+        self.assertIn(
+            reconcile_v2.DRIFT_PROJECTION_WITHOUT_EVENT,
+            drift_types,
+            "reviewer-report.md with no event and Site 3 flag ON must fire projection-without-event",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Copilot Finding #2 — reconcile_all() validates explicit --daemon-db schema
+# ---------------------------------------------------------------------------
+
+class TestReconcileAllValidatesExplicitDb(unittest.TestCase):
+    """Finding #2 HIGH: reconcile_all() with --daemon-db pointing at a SQLite
+    file that lacks event_log must return [] — parity with reconcile_project()."""
+
+    def test_reconcile_all_with_empty_db_no_event_log_returns_empty_list(self) -> None:
+        """reconcile_all with an empty SQLite (no tables) via daemon_db_path returns []."""
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-f2-") as tmp:
+            empty_db = Path(tmp) / "empty.db"
+            sqlite3.connect(str(empty_db)).close()  # create empty file, no tables
+
+            result = reconcile_v2.reconcile_all(daemon_db_path=str(empty_db))
+        self.assertEqual(result, [],
+                         "reconcile_all with an empty/wrong-schema DB must return []")
+
+
+# ---------------------------------------------------------------------------
+# Copilot Finding #3 — header lag_events and projector_health with null cursor
+# ---------------------------------------------------------------------------
+
+class TestHeaderLagFieldsNullCursor(unittest.TestCase):
+    """Finding #3 HIGH: lag_events must be None (not a misleading zero) when
+    the projector cursor is unavailable, and projector_health must be 'unknown'."""
+
+    def test_lag_events_is_null_when_db_reachable(self) -> None:
+        """With DB reachable but cursor absent, lag_events must be null."""
+        import io
+        from contextlib import redirect_stdout
+
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-f3-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            conn = sqlite3.connect(str(db_path))
+            conn.executescript(
+                """
+                CREATE TABLE event_log (
+                    event_id INTEGER PRIMARY KEY,
+                    event_type TEXT NOT NULL,
+                    chain_id TEXT,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    projection_status TEXT NOT NULL DEFAULT 'applied',
+                    error_message TEXT,
+                    ingested_at INTEGER NOT NULL
+                );
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                reconcile_v2.main(["--all", "--json", "--daemon-db", str(db_path)])
+
+        payload = json.loads(buf.getvalue())
+        header = payload["header"]
+        self.assertIsNone(
+            header["lag_events"],
+            f"lag_events should be null (cursor unavailable), got {header['lag_events']!r}",
+        )
+
+    def test_projector_health_is_unknown_when_db_reachable_but_cursor_absent(self) -> None:
+        """projector_health must be 'unknown' when cursor is absent (not 'ok')."""
+        import io
+        from contextlib import redirect_stdout
+
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-f3b-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            conn = sqlite3.connect(str(db_path))
+            conn.executescript(
+                """
+                CREATE TABLE event_log (
+                    event_id INTEGER PRIMARY KEY,
+                    event_type TEXT NOT NULL,
+                    chain_id TEXT,
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    projection_status TEXT NOT NULL DEFAULT 'applied',
+                    error_message TEXT,
+                    ingested_at INTEGER NOT NULL
+                );
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                reconcile_v2.main(["--all", "--json", "--daemon-db", str(db_path)])
+
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(
+            payload["header"]["projector_health"],
+            "unknown",
+            f"projector_health should be 'unknown' when cursor absent, "
+            f"got {payload['header']['projector_health']!r}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Copilot Finding #4 — projection-stale entries carry staging-plan schema fields
+# ---------------------------------------------------------------------------
+
+class TestProjectionStaleEntrySchema(_ReconcileV2Fixture):
+    """Finding #4 MEDIUM: each projection-stale drift entry must carry
+    projection_last_applied_seq and lag_events per the staging plan §5 schema.
+    Both fields are null until the projector cursor is wired in."""
+
+    def test_projection_stale_entry_has_cursor_fields(self) -> None:
+        """projection-stale entry must contain projection_last_applied_seq + lag_events."""
+        _make_project_dir(self.workspace, "stale-schema-proj")
+        _insert_event_row(
+            self.db_path,
+            event_id=300,
+            event_type="wicked.gate.decided",
+            chain_id="stale-schema-proj.build.gate",
+            projection_status="pending",
+        )
+        conn = self._conn()
+        result = reconcile_v2.reconcile_project("stale-schema-proj", _daemon_conn=conn)
+        conn.close()
+
+        stale_entries = [d for d in result["drift"]
+                         if d["type"] == reconcile_v2.DRIFT_PROJECTION_STALE]
+        self.assertGreater(len(stale_entries), 0, "Expected at least one projection-stale entry")
+
+        for entry in stale_entries:
+            self.assertIn(
+                "projection_last_applied_seq",
+                entry,
+                "projection-stale entry missing 'projection_last_applied_seq' key",
+            )
+            self.assertIn(
+                "lag_events",
+                entry,
+                "projection-stale entry missing 'lag_events' key",
+            )
+            # Values must be null until projector cursor is wired in.
+            self.assertIsNone(
+                entry["projection_last_applied_seq"],
+                f"projection_last_applied_seq should be null (cursor unavailable), "
+                f"got {entry['projection_last_applied_seq']!r}",
+            )
+            self.assertIsNone(
+                entry["lag_events"],
+                f"lag_events should be null (cursor unavailable), "
+                f"got {entry['lag_events']!r}",
+            )
 
 
 if __name__ == "__main__":

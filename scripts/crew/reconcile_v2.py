@@ -49,7 +49,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
 
 # ---------------------------------------------------------------------------
 # Drift type labels — module-level constants so test suites and downstream
@@ -93,6 +93,76 @@ _PROJECTION_MAP: Dict[str, str] = {
     "wicked.consensus.gate_completed": "phases/{phase}/reviewer-report.md",
     "wicked.consensus.gate_pending": "phases/{phase}/reviewer-report.md",
 }
+
+# ---------------------------------------------------------------------------
+# Per-site projection file names — used by _active_projection_names() to
+# build the set of files that the drift detector should inspect.
+#
+# Keyed by site number; values are the on-disk artifact filenames that only
+# become bus-managed once that site's flag is ON.  Sites 1-3 are wired;
+# Sites 4-5 are placeholders that will be completed as their PRs land.
+# ---------------------------------------------------------------------------
+
+# Site-to-flag-token mapping — each site has exactly one env-var token.
+# The token is composed into WG_BUS_AS_TRUTH_{token} by
+# _bus_as_truth_enabled() in scripts/_bus.py.  We mirror that convention
+# here so there is one place to audit per site.
+_SITE_FLAG_TOKENS: Dict[int, str] = {
+    1: "DISPATCH_LOG",
+    2: "CONSENSUS_REPORT",       # Site 2 uses CONSENSUS_REPORT as the canonical token;
+                                 # CONSENSUS_EVIDENCE is treated as part of the same site.
+    3: "REVIEWER_REPORT",
+    4: "GATE_RESULT",            # placeholder — Site 4 not yet shipped
+    5: "CONDITIONS_MANIFEST",    # placeholder — Site 5 not yet shipped
+}
+
+SITE_PROJECTIONS: Dict[int, FrozenSet[str]] = {
+    1: frozenset({"dispatch-log.jsonl"}),
+    2: frozenset({"consensus-report.json", "consensus-evidence.json"}),
+    3: frozenset({"reviewer-report.md"}),
+    4: frozenset({"gate-result.json"}),
+    5: frozenset({"conditions-manifest.json"}),
+}
+
+
+def _site_flag_on(site_num: int) -> bool:
+    """Return True iff the WG_BUS_AS_TRUTH_<TOKEN> flag for *site_num* is ``"on"``.
+
+    Reads the env var via the same literal-``on``-only contract as
+    ``_bus_as_truth_enabled()`` in ``scripts/_bus.py`` — any value other than
+    the exact string ``"on"`` (including unset, empty, ``1``, ``true``) returns
+    False.  All reads go through this helper so there is one place to audit per
+    site.
+
+    Args:
+        site_num: Cutover site number (1–5).  Unknown site numbers always
+            return False — conservative default, never silent approval.
+    """
+    token = _SITE_FLAG_TOKENS.get(site_num)
+    if token is None:
+        return False
+    return os.environ.get(f"WG_BUS_AS_TRUTH_{token}", "") == "on"
+
+
+def _active_projection_names() -> FrozenSet[str]:
+    """Return the set of projection filenames that the drift detector should inspect.
+
+    Detector skips projection files whose owning site flag is OFF — prevents
+    false ``projection-without-event`` drift on legacy direct-write paths during
+    the staged cutover.  When all flags are OFF (the default release state), the
+    returned set is empty and the detector fires no false-positives.
+
+    Only files from sites with flag ON are included.  This is conservative by
+    design: it is better to miss real drift for a period than to fire false alarms
+    that block operators.  Flags are flipped per-site as each cutover site is
+    verified in production.
+    """
+    active: set[str] = set()
+    for site_num, filenames in SITE_PROJECTIONS.items():
+        if _site_flag_on(site_num):
+            active.update(filenames)
+    return frozenset(active)
+
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -300,21 +370,24 @@ def _collect_projection_files(project_dir: Path) -> List[Path]:
     Includes the known artifact filenames across all phases.  This is
     the exhaustive set for projection-without-event detection.
 
-    ``conditions-manifest.json`` is intentionally excluded during the
-    pre-Site-5 coexistence window.  Site 5 has not yet cut over, so no
-    event in _PROJECTION_MAP maps to that file.  Including it here would
-    fire a false ``projection-without-event`` finding for every existing
-    CONDITIONAL phase.  Re-add it (and the matching _PROJECTION_MAP entry)
-    when Site 5 ships — see docs/v9/bus-cutover-staging-plan.md §Site-5.
+    Only files whose owning cutover site has its flag ON are included.
+    ``_active_projection_names()`` builds the set dynamically from
+    ``SITE_PROJECTIONS`` and ``_site_flag_on()`` — preventing false
+    ``projection-without-event`` drift on legacy direct-write paths when
+    a site's flag is still OFF (the default release state).
+
+    Example: with all flags OFF (default), the returned set is empty and
+    no ``projection-without-event`` findings are raised.  With Site 3 flag
+    ON only, the set is ``{"reviewer-report.md"}`` and only that file is
+    checked.
+
+    Transition note: the previously hardcoded five-file set is replaced by
+    the dynamic call below.  If you need to understand which files are
+    currently active, inspect ``_active_projection_names()`` at runtime or
+    check the ``SITE_PROJECTIONS`` constant above.  See also
+    docs/v9/bus-cutover-staging-plan.md §Site-5 for ``conditions-manifest.json``.
     """
-    projection_names = {
-        "gate-result.json",
-        "dispatch-log.jsonl",
-        "consensus-report.json",
-        "consensus-evidence.json",
-        "reviewer-report.md",
-        # NOTE: "conditions-manifest.json" deliberately omitted — Site 5 not yet cut over.
-    }
+    projection_names = _active_projection_names()
     phases_dir = project_dir / "phases"
     if not phases_dir.is_dir():
         return []
@@ -355,12 +428,19 @@ def _detect_projection_stale(
         if proj_path is None:
             continue
         if not proj_path.exists():
+            # projection_last_applied_seq: the event_id at which the projector
+            # last successfully processed an event.  This cursor is not yet
+            # tracked in the daemon DB schema (no projector_state table / sidecar).
+            # Emit null per staging plan §5 schema compliance until the cursor is
+            # wired in (see PR #764 follow-up TODO in _build_report_header).
             drift.append({
                 "type": DRIFT_PROJECTION_STALE,
                 "projection": str(proj_path.relative_to(project_dir)),
                 "event_seq": ev["event_id"],
                 "event_type": ev["event_type"],
                 "chain_id": ev.get("chain_id"),
+                "projection_last_applied_seq": None,  # cursor pending — see TODO
+                "lag_events": None,                   # derived from cursor — unavailable
                 "reason": (
                     f"event_seq {ev['event_id']} ({ev['event_type']!r}) "
                     f"is pending but projection has not been materialised"
@@ -604,11 +684,12 @@ def reconcile_all(
         List of per-project result dicts (staging plan §5 schema).
         Empty list when the projector DB is unreachable.
     """
-    # Resolve DB path.
+    # Resolve DB path.  When an explicit path is supplied, run the same
+    # _validate_explicit_db_path() check used by reconcile_project() so that
+    # an empty/wrong-schema SQLite file returns [] (the "DB unavailable"
+    # contract) instead of opening and silently reading nothing.
     if daemon_db_path is not None:
-        resolved: Optional[Path] = Path(daemon_db_path)
-        if not resolved.is_file():
-            return []
+        resolved: Optional[Path] = _validate_explicit_db_path(Path(daemon_db_path))
     else:
         resolved = _daemon_db_path()
 
@@ -653,22 +734,39 @@ def _build_report_header(
             head_seq = _event_log_head(conn)
             total_seq = _event_log_total(conn)
 
-    # Simple projector health signal: if total > head, assume lagging
-    # (head is the max event_id; total counts all rows including pending).
-    lag = max(0, total_seq - head_seq) if total_seq > head_seq else 0
+    # Lag math — Path A (follow-up issue filed for Path B cursor wiring).
+    #
+    # The correct lag formula is:
+    #   head_seq - projection_last_applied_seq
+    # where projection_last_applied_seq is the event_id the projector last
+    # successfully processed.  That cursor is NOT currently tracked in the
+    # daemon DB schema — there is no projector_state table or sidecar file.
+    #
+    # The previous formula (total_seq - head_seq) was permanently false:
+    # MAX(event_id) >= COUNT(*) in any retained DB, so the condition
+    # `total_seq > head_seq` could never be true and lag was always 0.
+    #
+    # Until the projector cursor is wired in, we emit null for lag_events
+    # rather than a misleading zero.  projector_health transitions to
+    # "unknown" when the cursor is absent so callers can distinguish
+    # "cursor wired + no lag" from "cursor not yet tracked".
+    #
+    # TODO: wire projection_last_applied_seq from the projector and replace
+    # the null with the real lag.  Filed as follow-up (see PR #764 body).
+    lag_events: Optional[int] = None  # cursor unavailable — see TODO above
+
     if conn is None:
         projector_health = "unreachable"
-    elif lag > _LAG_EVENTS_THRESHOLD:
-        projector_health = "lagging"
     else:
-        projector_health = "ok"
+        # With cursor unavailable we cannot tell if the projector is lagging.
+        projector_health = "unknown"
 
     return {
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "command_invoked": command_invoked,
         "event_log_head_seq": head_seq,
         "event_log_total_seq": total_seq,
-        "lag_events": lag,
+        "lag_events": lag_events,
         "projector_health": projector_health,
     }
 
