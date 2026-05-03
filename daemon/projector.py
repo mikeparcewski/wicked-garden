@@ -1449,15 +1449,16 @@ def _gate_blocked(conn: sqlite3.Connection, event: dict) -> None:
     state from the ``_gate_decided_disk`` projection (PR-2 onward).  No
     additional disk mutation is needed under the current contract.
 
-    Why register at all then?  ``reconcile_v2._handler_available_for_file``
-    is conservative: ALL event types in ``_PROJECTION_MAP`` for a given
-    file must have registered handlers before that file becomes
-    scan-active in the drift detector.  ``wicked.gate.blocked`` is mapped
-    to ``gate-result.json`` (``reconcile_v2.py:80``), so without this
-    registration the file stays excluded from drift detection even after
-    ``_gate_decided_disk`` lands.  The Site 3 precedent (#774 fold) made
-    this gating per-event-type, which forces this kind of dummy
-    registration when one event lacks meaningful disk work.
+    Why register at all then?  ``wicked.gate.blocked`` IS a real bus
+    event the daemon must consume — leaving it out of ``_HANDLERS`` would
+    surface every blocked emit as ``unknown event_type`` in the
+    projector log.  The registration here is for event handling, NOT
+    file materialisation: ``wicked.gate.blocked`` was REMOVED from
+    ``reconcile_v2._PROJECTION_MAP`` (PR #782 fold for Copilot finding
+    on PR-1) so the drift detector doesn't treat it as a file-producing
+    event.  Without the map removal, an event_log row with only
+    gate.blocked + an on-disk gate-result.json would silently pass the
+    projection-without-event check (false negative).
 
     Future-compat: structured to be the place where REJECT-only metadata
     (e.g., a ``blocking_reason`` annotation distinct from the gate verdict)

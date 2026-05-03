@@ -76,8 +76,17 @@ _LAG_EVENTS_THRESHOLD = 10
 
 _PROJECTION_MAP: Dict[str, str] = {
     # Phase gate decisions
+    # Only ``wicked.gate.decided`` materialises gate-result.json.  ``wicked.
+    # gate.blocked`` is a sentinel signalling REJECT state that's already
+    # encoded in the file from the preceding ``wicked.gate.decided`` emit;
+    # it is intentionally NOT in this map so the drift detector treats it
+    # as non-materialising.  Without this exclusion, an event_log row with
+    # only gate.blocked + an on-disk gate-result.json would silently pass
+    # the projection-without-event check (false negative — Copilot finding
+    # on PR #782).  ``_gate_blocked`` stays registered in
+    # daemon/projector.py._HANDLERS for completeness; it just doesn't
+    # claim to produce a file.
     "wicked.gate.decided": "phases/{phase}/gate-result.json",
-    "wicked.gate.blocked": "phases/{phase}/gate-result.json",
     # Dispatch log entries (Site 1)
     "wicked.dispatch.log_entry_appended": "phases/{phase}/dispatch-log.jsonl",
     # Consensus artifacts (Site 2)
@@ -150,7 +159,14 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
 #                                          (registry flip is the subject of a follow-up issue)
 #   wicked.gate.decided                 → _gate_decided handles DB rows; disk projection
 #                                          fans out to _gate_decided_disk (PR-1 / #778)  ✓ PRESENT
-#   wicked.gate.blocked                 → _gate_blocked (PR-1 / #778, INERT no-op)  ✓ PRESENT
+#                                          (emit at phase_manager.py:3931 carries the full
+#                                          gate_result dict under payload["data"] — handler
+#                                          materialises gate-result.json when flag-on)
+#   wicked.gate.blocked                 → _gate_blocked (PR-1 / #778) — registered in
+#                                          _HANDLERS for completeness but REMOVED from
+#                                          _PROJECTION_MAP (above) because it doesn't
+#                                          materialise a file.  Therefore not keyed in
+#                                          this registry either.
 #
 # Update this dict when a new handler lands in daemon/projector.py.
 # Never mark True speculatively — read the file and verify first.
@@ -166,16 +182,16 @@ _PROJECTION_HANDLERS_AVAILABLE: Dict[str, bool] = {
     # neither handler is registered yet (pending #768)
     "wicked.consensus.gate_completed":    False,
     "wicked.consensus.gate_pending":      False,
-    # Site 4 — _gate_decided_disk fan-out (from existing _gate_decided) +
-    # _gate_blocked landed in PR-1 (#778).  Both are gated on
-    # WG_BUS_AS_TRUTH_GATE_RESULT inside the handler.  PR-1 ships INERT
-    # (the existing emit at phase_manager.py:3931 lacks the full ``data``
-    # payload — handler early-returns until PR-2 / #779 widens the emit).
-    # The registry flip happens here in PR-1 so reconcile_v2's drift detector
-    # picks up gate-result.json once the cutover lands; without this flip,
-    # _handler_available_for_file would keep the file excluded.
+    # Site 4 — _gate_decided_disk fan-out (from existing _gate_decided)
+    # landed in PR-1 (#778) and the emit at phase_manager.py:3931 was
+    # widened in the same PR to carry the full gate_result dict under
+    # payload["data"].  The handler is therefore materialising when
+    # WG_BUS_AS_TRUTH_GATE_RESULT=on; flipping the registry True here
+    # tells the drift detector to scan gate-result.json.
+    # ``wicked.gate.blocked`` is intentionally absent from this registry
+    # because it was removed from _PROJECTION_MAP above — it doesn't
+    # materialise a file and the detector doesn't gate on it.
     "wicked.gate.decided":                True,
-    "wicked.gate.blocked":                True,
     # Site 5 — no event handler mapping yet
     # (conditions-manifest.json has no event type in _PROJECTION_MAP)
 }

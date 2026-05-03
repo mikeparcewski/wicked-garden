@@ -218,13 +218,15 @@ def test_flag_off_gate_blocked_noop(mem_conn, tmp_path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_flag_on_inert_when_payload_lacks_data_key(mem_conn, tmp_path) -> None:
-    """flag-on + payload without ``data`` key (current emit shape) →
-    handler logs at debug and returns; no file written.
+def test_defensive_skip_when_payload_lacks_data_key(mem_conn, tmp_path) -> None:
+    """flag-on + payload without ``data`` key → handler logs at debug
+    and returns; no file written.
 
-    This is the PR-1 invariant: operators can flip the flag on safely
-    BEFORE PR-2 (#779) widens the emit, because the handler is inert
-    until ``data`` arrives in the payload.
+    Defensive check.  Production emit at phase_manager.py:3931 always
+    includes ``data`` after PR #782, but the handler refuses to write
+    when the key is missing (e.g. a malformed external emitter or a
+    legacy event from before the payload widening).  Better to skip
+    than to materialise an incomplete file.
     """
     from daemon.projector import _gate_decided_disk
 
