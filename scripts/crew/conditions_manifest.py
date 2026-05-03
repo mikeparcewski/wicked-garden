@@ -227,6 +227,42 @@ def mark_cleared(
         "written_at": timestamp,
     }
 
+    # Site 5 of bus-cutover (#746): emit BEFORE the disk writes so the
+    # projector handler can replay the same two-step ordering when
+    # WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST=on.  The legacy direct writes
+    # below still run for crash-recovery compatibility; the projector's
+    # content-hash idempotency makes its replay a no-op when the bytes
+    # match.  Fail-open: an emit failure must NOT block the disk writes
+    # (the manifest correctness is the load-bearing invariant).
+    #
+    # chain_id MUST include condition_id per
+    # ``memory/bus-chain-id-must-include-uniqueness-segment-gotcha.md`` —
+    # without it, a phase-level chain_id would let consumers silently
+    # skip every clear after the first in the same phase.
+    project_id, phase = _project_id_and_phase_from_manifest_path(manifest_path)
+    if project_id is not None and phase is not None:
+        try:
+            import sys as _sys
+            from pathlib import Path as _Path
+            _scripts_root = str(_Path(__file__).resolve().parents[1])
+            if _scripts_root not in _sys.path:
+                _sys.path.insert(0, _scripts_root)
+            from _bus import emit_event  # type: ignore[import]
+            emit_event(
+                "wicked.condition.marked_cleared",
+                {
+                    "project_id": project_id,
+                    "phase": phase,
+                    "condition_id": condition_id,
+                    "resolution_ref": resolution_ref,
+                    "note": note,
+                    "verified_at": timestamp,
+                },
+                chain_id=f"{project_id}.{phase}.{condition_id}",
+            )
+        except Exception:  # noqa: BLE001 — fail-open per Decision #8
+            pass  # bus unavailable / import failed — disk writes still run below
+
     # Step 1: resolution sidecar lands first. A crash after this point
     # leaves a "claim" on disk that recovery can act on.
     sidecar_path = _resolution_sidecar_path(manifest_path, condition_id)
@@ -244,6 +280,29 @@ def mark_cleared(
     atomic_write_json(manifest_path, manifest)
 
     return manifest
+
+
+def _project_id_and_phase_from_manifest_path(
+    manifest_path: Path,
+) -> "tuple[Optional[str], Optional[str]]":
+    """Extract (project_id, phase) from a conditions-manifest.json path.
+
+    Path shape: ``{project_dir}/phases/{phase}/conditions-manifest.json``.
+    The project_id is the basename of project_dir (matches the convention
+    used elsewhere in scripts/crew/).  Returns (None, None) when the path
+    doesn't match the expected shape — caller should fail-open and skip
+    the bus emit rather than guess.
+    """
+    parts = manifest_path.parts
+    # We need ".../phases/{phase}/conditions-manifest.json" suffix.
+    if len(parts) < 4 or parts[-1] != "conditions-manifest.json" or parts[-3] != "phases":
+        return None, None
+    phase = parts[-2]
+    # project_dir is the parent of "phases/" — i.e. parts[:-3]
+    project_dir = Path(*parts[:-3]) if parts[:-3] else None
+    if project_dir is None:
+        return None, None
+    return project_dir.name, phase
 
 
 def recover(

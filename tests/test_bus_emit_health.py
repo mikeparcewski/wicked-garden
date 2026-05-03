@@ -453,15 +453,26 @@ class TestFlagFlipDefaultState(unittest.TestCase):
             self.assertTrue(_bus._bus_as_truth_enabled("DISPATCH_LOG"))
 
     def test_unshipped_site_default_off_when_unset(self) -> None:
-        """GATE_RESULT (unshipped) returns False when env var is unset."""
+        """A token NOT in _BUS_AS_TRUTH_DEFAULT_ON returns False when env var unset.
+
+        After Site 5 (#746), all five planned cutover tokens (DISPATCH_LOG,
+        CONSENSUS_REPORT, CONSENSUS_EVIDENCE, REVIEWER_REPORT, GATE_RESULT,
+        CONDITIONS_MANIFEST) are in the default-ON set — there are no
+        unshipped tokens left.  This test guards the safety property: any
+        FUTURE token (e.g. a hypothetical Site 6 placeholder, or a token
+        used in tests) defaults OFF when unset, so an env-var typo never
+        silently flips bus-as-truth on for something we didn't intend to
+        ship.  Originally referenced GATE_RESULT (Site 4); flipped to a
+        hypothetical token in PR for Site 5.
+        """
         with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("WG_BUS_AS_TRUTH_GATE_RESULT", None)
-            self.assertFalse(_bus._bus_as_truth_enabled("GATE_RESULT"))
+            os.environ.pop("WG_BUS_AS_TRUTH_NEVER_SHIPPED_TOKEN", None)
+            self.assertFalse(_bus._bus_as_truth_enabled("NEVER_SHIPPED_TOKEN"))
 
     def test_explicit_on_overrides_default_for_unshipped_site(self) -> None:
         """Explicit ``"on"`` returns True even for an unshipped (default-OFF) site."""
-        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "on"}):
-            self.assertTrue(_bus._bus_as_truth_enabled("GATE_RESULT"))
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_NEVER_SHIPPED_TOKEN": "on"}):
+            self.assertTrue(_bus._bus_as_truth_enabled("NEVER_SHIPPED_TOKEN"))
 
     def test_explicit_off_overrides_default_for_shipped_site(self) -> None:
         """Explicit ``"off"`` returns False even for a shipped (default-ON) site."""
@@ -493,24 +504,27 @@ class TestFlagFlipDefaultState(unittest.TestCase):
 
     def test_dry_run_for_unshipped_site_returns_false(self) -> None:
         """``"dry-run"`` for an unshipped site falls through to default-OFF."""
-        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "dry-run"}):
-            self.assertFalse(_bus._bus_as_truth_enabled("GATE_RESULT"))
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_NEVER_SHIPPED_TOKEN": "dry-run"}):
+            self.assertFalse(_bus._bus_as_truth_enabled("NEVER_SHIPPED_TOKEN"))
 
     def test_1_for_unshipped_site_returns_false(self) -> None:
         """``"1"`` for an unshipped site falls through to default-OFF (Finding #4).
 
         Pre-fold: shipped ``"1"`` → True (truthy), unshipped ``"1"`` → False.
         Post-fold: both go through the same fall-through path for consistency."""
-        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_GATE_RESULT": "1"}):
-            self.assertFalse(_bus._bus_as_truth_enabled("GATE_RESULT"))
+        with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_NEVER_SHIPPED_TOKEN": "1"}):
+            self.assertFalse(_bus._bus_as_truth_enabled("NEVER_SHIPPED_TOKEN"))
 
     def test_default_on_frozenset_contains_all_shipped_sites(self) -> None:
-        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 4 shipped site tokens."""
+        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 6 shipped site tokens
+        after Sites 1-5 (#746) all cut over."""
         expected = frozenset({
-            "DISPATCH_LOG",
-            "CONSENSUS_REPORT",
-            "CONSENSUS_EVIDENCE",
-            "REVIEWER_REPORT",
+            "DISPATCH_LOG",        # Site 1
+            "CONSENSUS_REPORT",    # Site 2 (flag A)
+            "CONSENSUS_EVIDENCE",  # Site 2 (flag B — independent)
+            "REVIEWER_REPORT",     # Site 3
+            "GATE_RESULT",         # Site 4 (PR #784)
+            "CONDITIONS_MANIFEST", # Site 5 (this PR)
         })
         self.assertEqual(_bus._BUS_AS_TRUTH_DEFAULT_ON, expected)
 

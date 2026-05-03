@@ -1435,6 +1435,342 @@ def _gate_decided_disk(conn: sqlite3.Connection, event: dict) -> None:
         project_id, phase, data.get("result") or data.get("verdict"), target,
     )
 
+    # Site 5 fan-out (#746): when the verdict is CONDITIONAL and the
+    # payload carries a non-empty conditions list, ALSO materialise
+    # conditions-manifest.json from the same event.  One event, multiple
+    # files — the new _PROJECTION_MAP shape (Dict[str, FrozenSet[str]])
+    # makes this explicit.  Wrapped in try/except so a manifest-write
+    # failure NEVER taints the gate-result.json projection above.
+    try:
+        _conditions_manifest_from_gate_decided(
+            conn, project_dir, str(phase), data
+        )
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        logger.exception(
+            "projector: _conditions_manifest_from_gate_decided fan-out "
+            "raised — gate-result.json projection preserved; "
+            "conditions-manifest.json may not have been written"
+        )
+
+
+def _conditions_manifest_from_gate_decided(
+    conn: sqlite3.Connection,
+    project_dir: Path,
+    phase: str,
+    gate_data: dict,
+) -> None:
+    """Materialise conditions-manifest.json from a wicked.gate.decided event.
+
+    Site 5 of the bus-cutover staging plan (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST`` (separate flag from
+    ``WG_BUS_AS_TRUTH_GATE_RESULT`` so operators can opt out of one
+    cutover without disabling the other).
+
+    Short-circuits when:
+      * Flag is off.
+      * Verdict is not CONDITIONAL.
+      * ``gate_data["conditions"]`` is missing or empty.
+
+    Mirrors the legacy ``phase_manager._write_conditions_manifest()``
+    shape exactly (same condition_id format, same field set) so the
+    direct-write and projector paths produce byte-identical output.
+    Content-hash idempotency on rewrite, atomic temp+rename write —
+    same pattern as ``_gate_decided_disk``'s gate-result.json materialisation.
+
+    project_dir is supplied by the caller (already resolved from db).
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("CONDITIONS_MANIFEST")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off: %s", exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    verdict = gate_data.get("result") or gate_data.get("verdict")
+    if verdict != "CONDITIONAL":
+        # Only CONDITIONAL verdicts produce a conditions manifest.
+        # APPROVE / REJECT have no conditions to materialise.
+        return
+
+    conditions_in = gate_data.get("conditions") or []
+    if not conditions_in:
+        # CONDITIONAL with empty conditions list is a degenerate case;
+        # don't materialise an empty manifest (would be misleading).
+        logger.debug(
+            "projector: conditions-manifest projection — verdict CONDITIONAL "
+            "but conditions list is empty; skipping write (phase=%r)", phase,
+        )
+        return
+
+    # Mirror phase_manager._write_conditions_manifest's shape exactly so
+    # direct-write and projector paths produce byte-identical output.
+    # CONDITION-{i+1} ids and the same field set (description, verified=
+    # False, resolution=None, verified_at=None).
+    import json
+    import hashlib
+    from datetime import datetime, timezone
+
+    def _utc_iso() -> str:
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    manifest = {
+        "source_gate": phase,
+        "created_at": gate_data.get("recorded_at") or _utc_iso(),
+        "conditions": [
+            {
+                "id": f"CONDITION-{i + 1}",
+                "description": c.get("description", c.get("condition", str(c)))
+                if isinstance(c, dict) else str(c),
+                "verified": False,
+                "resolution": None,
+                "verified_at": None,
+            }
+            for i, c in enumerate(conditions_in)
+        ],
+    }
+
+    manifest_path = project_dir / "phases" / phase / "conditions-manifest.json"
+    candidate_bytes = json.dumps(manifest, indent=2).encode("utf-8")
+
+    # Content-hash idempotency: skip when existing bytes match.
+    try:
+        if manifest_path.exists():
+            existing_bytes = manifest_path.read_bytes()
+            if (
+                hashlib.sha256(existing_bytes).digest()
+                == hashlib.sha256(candidate_bytes).digest()
+            ):
+                logger.debug(
+                    "projector: conditions-manifest projection — content hash "
+                    "matches existing %s; skipping rewrite", manifest_path,
+                )
+                return
+    except OSError as exc:
+        logger.warning(
+            "projector: conditions-manifest projection — could not read "
+            "existing %s for idempotency check: %s; proceeding to write",
+            manifest_path, exc,
+        )
+
+    # Atomic write.
+    try:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = manifest_path.with_suffix(manifest_path.suffix + ".tmp")
+        tmp.write_bytes(candidate_bytes)
+        tmp.replace(manifest_path)
+    except OSError as exc:
+        logger.warning(
+            "projector: conditions-manifest projection — could not write %s: %s",
+            manifest_path, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied conditions-manifest projection from "
+        "wicked.gate.decided phase=%r conditions=%d path=%s",
+        phase, len(conditions_in), manifest_path,
+    )
+
+
+def _condition_marked_cleared(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.condition.marked_cleared → resolution sidecar + manifest flip.
+
+    Site 5 of the bus-cutover staging plan (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST`` via
+    ``_bus_as_truth_enabled("CONDITIONS_MANIFEST")``.
+
+    Replays the same atomic two-step write order as
+    ``conditions_manifest.mark_cleared()``:
+      1. Write resolution sidecar (.resolution.json) with fsync.
+      2. Mutate manifest in memory (flip verified=True, set resolution
+         + verified_at fields).
+      3. Atomically replace conditions-manifest.json.
+
+    A crash between steps 1 and 3 leaves the sidecar on disk; the
+    existing ``conditions_manifest.recover()`` reconciles such orphans
+    by re-running step 3 from the sidecar's contents.
+
+    Idempotency: when the manifest already shows the condition as
+    verified with the matching resolution_ref, the handler skips both
+    writes (no-op replay).  This is correct because the legacy direct
+    write at ``conditions_manifest.mark_cleared()`` is also still
+    running today (bus + direct-write coexist via this idempotency
+    until the legacy path is removed in a future cleanup).
+
+    project_dir resolved via db.get_project; absent row or NULL
+    directory → warn and skip (mirrors Site 3 / 4 contract).
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("CONDITIONS_MANIFEST")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off: %s", exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    condition_id, ok = _require(payload, "condition_id", et)
+    if not ok:
+        return
+    resolution_ref, ok = _require(payload, "resolution_ref", et)
+    if not ok:
+        return
+
+    note = payload.get("note")
+    verified_at = payload.get("verified_at")
+
+    # Resolve project_dir from the DB.
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: wicked.condition.marked_cleared — project %r has no "
+            "directory in DB; skipping (project must be projected via "
+            "wicked.project.created before Site 5 handlers can write files)",
+            project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    manifest_path = project_dir / "phases" / str(phase) / "conditions-manifest.json"
+
+    if not manifest_path.exists():
+        # No manifest to update — handler is a no-op rather than an error.
+        # The manifest is created by the gate.decided CONDITIONAL fan-out
+        # above; if it's absent, the gate.decided event hasn't been
+        # processed yet.  Replay will catch up when both events flow.
+        logger.debug(
+            "projector: wicked.condition.marked_cleared — manifest not yet "
+            "materialised at %s; skipping (gate.decided likely pending)",
+            manifest_path,
+        )
+        return
+
+    # Lazy import: re-uses the production helper for the atomic write
+    # ordering so a single source of truth governs the sidecar+manifest
+    # crash semantics.
+    import json
+    try:
+        from conditions_manifest import (  # type: ignore[import]
+            atomic_write_json,
+            _resolution_sidecar_path,
+            _find_condition_index,
+            _utc_now_iso,
+        )
+    except ImportError as exc:
+        logger.warning(
+            "projector: wicked.condition.marked_cleared — conditions_manifest "
+            "module unavailable: %s; skipping projection",
+            exc,
+        )
+        return
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning(
+            "projector: wicked.condition.marked_cleared — manifest unreadable "
+            "at %s: %s; skipping projection",
+            manifest_path, exc,
+        )
+        return
+
+    try:
+        idx = _find_condition_index(manifest, str(condition_id))
+    except ValueError:
+        logger.warning(
+            "projector: wicked.condition.marked_cleared — condition %r not "
+            "found in manifest %s; skipping (sidecar not orphaned because "
+            "we never wrote one)",
+            condition_id, manifest_path,
+        )
+        return
+
+    # Idempotency: if already cleared with the same resolution, skip both writes.
+    condition = manifest["conditions"][idx]
+    if (
+        condition.get("verified") is True
+        and condition.get("resolution") == resolution_ref
+    ):
+        logger.debug(
+            "projector: wicked.condition.marked_cleared — condition %r already "
+            "cleared with matching resolution_ref; skipping replay",
+            condition_id,
+        )
+        return
+
+    timestamp = str(verified_at) if verified_at else _utc_now_iso()
+    sidecar = {
+        "condition_id": str(condition_id),
+        "resolution_ref": str(resolution_ref),
+        "note": note,
+        "written_at": timestamp,
+    }
+
+    # Step 1: sidecar lands first (mirror mark_cleared crash-safety order).
+    sidecar_path = _resolution_sidecar_path(manifest_path, str(condition_id))
+    try:
+        atomic_write_json(sidecar_path, sidecar)
+    except OSError as exc:
+        logger.warning(
+            "projector: wicked.condition.marked_cleared — sidecar write "
+            "failed at %s: %s; skipping manifest flip",
+            sidecar_path, exc,
+        )
+        return
+
+    # Step 2: mutate manifest in memory.
+    condition["verified"] = True
+    condition["resolution"] = str(resolution_ref)
+    condition["verified_at"] = timestamp
+    if note is not None:
+        condition["resolution_note"] = note
+
+    # Step 3: atomic manifest replace.
+    try:
+        atomic_write_json(manifest_path, manifest)
+    except OSError as exc:
+        logger.warning(
+            "projector: wicked.condition.marked_cleared — manifest flip "
+            "failed at %s: %s; sidecar persisted, recover() will reconcile",
+            manifest_path, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied wicked.condition.marked_cleared "
+        "project_id=%r phase=%r condition_id=%r path=%s",
+        project_id, phase, condition_id, manifest_path,
+    )
+
 
 def _gate_blocked(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.gate.blocked → no-op disk handler (PR-1 inert).
@@ -1550,6 +1886,17 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     # full ``data`` payload, so flag-on triggers an early debug-return until
     # PR-2 (#779) widens the emit shape.
     "wicked.gate.blocked": _gate_blocked,
+    # Site 5 of bus-cutover (#746): conditions-manifest.json file projection.
+    # ``wicked.condition.marked_cleared`` is fired by
+    # ``conditions_manifest.mark_cleared()`` BEFORE its disk writes; the
+    # projector handler ``_condition_marked_cleared`` replays the same
+    # atomic two-step write order (sidecar → manifest flip).  Gated on
+    # ``WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST`` inside the handler.
+    # The gate.decided handler also fans out to write the INITIAL
+    # conditions-manifest.json on CONDITIONAL verdicts (one event,
+    # multiple files — see _PROJECTION_MAP shape change in
+    # reconcile_v2.py).
+    "wicked.condition.marked_cleared": _condition_marked_cleared,
 }
 
 

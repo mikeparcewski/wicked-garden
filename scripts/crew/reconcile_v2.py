@@ -74,34 +74,118 @@ _LAG_EVENTS_THRESHOLD = 10
 # These are the primary bus-truth artifacts after cutover Site 3.
 # ---------------------------------------------------------------------------
 
-_PROJECTION_MAP: Dict[str, str] = {
-    # Phase gate decisions
-    # Only ``wicked.gate.decided`` materialises gate-result.json.  ``wicked.
-    # gate.blocked`` is a sentinel signalling REJECT state that's already
-    # encoded in the file from the preceding ``wicked.gate.decided`` emit;
-    # it is intentionally NOT in this map so the drift detector treats it
-    # as non-materialising.  Without this exclusion, an event_log row with
-    # only gate.blocked + an on-disk gate-result.json would silently pass
-    # the projection-without-event check (false negative — Copilot finding
-    # on PR #782).  ``_gate_blocked`` stays registered in
-    # daemon/projector.py._HANDLERS for completeness; it just doesn't
-    # claim to produce a file.
-    "wicked.gate.decided": "phases/{phase}/gate-result.json",
-    # Dispatch log entries (Site 1)
-    "wicked.dispatch.log_entry_appended": "phases/{phase}/dispatch-log.jsonl",
+# ---------------------------------------------------------------------------
+# Per-event projection resolvers — function shape lets each event express
+# CONDITIONAL file production based on payload, not just static mapping.
+#
+# Rationale (Site 5 / #746): ``wicked.gate.decided`` ALWAYS materialises
+# gate-result.json but CONDITIONALLY materialises conditions-manifest.json
+# (only when verdict is CONDITIONAL with a non-empty conditions list).
+# A static ``Dict[str, FrozenSet[str]]`` cannot model this — it would
+# either over-claim (drift on every APPROVE event missing the manifest)
+# or under-claim (silent on the conditional case).  The resolver-function
+# shape models the conditional production directly: each function inspects
+# the payload and yields the paths the event is expected to produce, given
+# the actual verdict.  See
+# ``memory/workaround-vs-fix-stop-shaping-plans-around-bad-design.md`` for
+# the structural-fix-vs-workaround rationale.
+#
+# Resolver signature:
+#   (payload: Dict, phase: str, project_dir: Path) -> Iterable[Path]
+# ---------------------------------------------------------------------------
+
+
+def _resolve_gate_decided(
+    payload: Dict[str, Any], phase: str, project_dir: Path,
+) -> "list[Path]":
+    """``wicked.gate.decided`` — gate-result.json always; conditions-manifest.json
+    only on CONDITIONAL verdicts with a non-empty conditions list."""
+    paths: "list[Path]" = [
+        project_dir / "phases" / phase / "gate-result.json",
+    ]
+    data = payload.get("data") or {}
+    verdict = data.get("result") or data.get("verdict")
+    conditions = data.get("conditions") or []
+    if verdict == "CONDITIONAL" and conditions:
+        paths.append(
+            project_dir / "phases" / phase / "conditions-manifest.json"
+        )
+    return paths
+
+
+def _resolve_single_file(template: str):
+    """Build a resolver for events that always produce exactly one file."""
+    def _resolver(
+        payload: Dict[str, Any], phase: str, project_dir: Path,
+    ) -> "list[Path]":
+        return [project_dir / template.replace("{phase}", phase)]
+    _resolver.__name__ = f"_resolve_{template.replace('/', '_').replace('.', '_')}"
+    return _resolver
+
+
+_PROJECTION_RESOLVERS: Dict[str, Callable[[Dict[str, Any], str, Path], "list[Path]"]] = {
+    # Phase gate decisions — payload-aware (gate-result.json + maybe manifest).
+    "wicked.gate.decided": _resolve_gate_decided,
+    # ``wicked.gate.blocked`` is a REJECT-state sentinel that does not
+    # materialise a file (gate-result.json is already produced by the
+    # preceding gate.decided emit).  Intentionally NOT in this dict so the
+    # drift detector treats it as non-materialising.  Without this
+    # exclusion, an event_log row with only gate.blocked + an on-disk
+    # gate-result.json would silently pass projection-without-event
+    # detection (false negative — Copilot finding on PR #782).
+    # ``_gate_blocked`` stays registered in ``daemon/projector.py._HANDLERS``
+    # for completeness; it just doesn't claim to produce a file.
+    #
+    # Dispatch log (Site 1)
+    "wicked.dispatch.log_entry_appended": _resolve_single_file(
+        "phases/{phase}/dispatch-log.jsonl"
+    ),
     # Consensus artifacts (Site 2)
-    "wicked.consensus.report_created": "phases/{phase}/consensus-report.json",
-    "wicked.consensus.evidence_recorded": "phases/{phase}/consensus-evidence.json",
-    # Reviewer report (Site 3 — this PR).
-    # Both gate_completed (approved/rejected path) and gate_pending (deferred
-    # verdict path) materialise the same reviewer-report.md file.  The drift
-    # detector supports N event-types → 1 file; both entries are legal because
-    # _collect_projection_files returns each path once, and
-    # _detect_projection_without_event builds a set of resolved paths from
-    # ALL known events — so a file covered by either event is not flagged.
-    "wicked.consensus.gate_completed": "phases/{phase}/reviewer-report.md",
-    "wicked.consensus.gate_pending": "phases/{phase}/reviewer-report.md",
+    "wicked.consensus.report_created": _resolve_single_file(
+        "phases/{phase}/consensus-report.json"
+    ),
+    "wicked.consensus.evidence_recorded": _resolve_single_file(
+        "phases/{phase}/consensus-evidence.json"
+    ),
+    # Reviewer report (Site 3) — both event types produce the same file.
+    "wicked.consensus.gate_completed": _resolve_single_file(
+        "phases/{phase}/reviewer-report.md"
+    ),
+    "wicked.consensus.gate_pending": _resolve_single_file(
+        "phases/{phase}/reviewer-report.md"
+    ),
+    # Site 5 (this PR) — condition verification flip.
+    # ``wicked.condition.marked_cleared`` updates the manifest AND writes a
+    # resolution sidecar.  Sidecar paths vary per condition_id and are
+    # transient (the manifest is the source of truth; ``recover()``
+    # re-derives sidecars on demand) so they are NOT tracked here.
+    "wicked.condition.marked_cleared": _resolve_single_file(
+        "phases/{phase}/conditions-manifest.json"
+    ),
 }
+
+
+# Compatibility view: many call sites and tests refer to "the projection
+# map" by event_type → file basenames.  This view derives the static set
+# of basenames each event MAY produce (ignoring conditional production)
+# from the resolvers above by calling each with an empty payload AND a
+# CONDITIONAL+conditions stub.  Used by ``_handler_available_for_file``
+# and similar discovery code that needs "could this event ever produce
+# file F?" semantics.
+def _all_possible_basenames_for(event_type: str) -> FrozenSet[str]:
+    resolver = _PROJECTION_RESOLVERS.get(event_type)
+    if resolver is None:
+        return frozenset()
+    # Stub payload that triggers any conditional branches in the resolver.
+    stub_payload = {
+        "data": {
+            "result": "CONDITIONAL",
+            "verdict": "CONDITIONAL",
+            "conditions": [{"description": "stub"}],
+        },
+    }
+    paths = resolver(stub_payload, "_stub_phase_", Path("/__stub_root__"))
+    return frozenset(p.name for p in paths)
 
 # ---------------------------------------------------------------------------
 # Per-FILE projection flag mapping — used by _active_projection_names() to
@@ -126,7 +210,7 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
     "consensus-evidence.json":  "CONSENSUS_EVIDENCE",  # Site 2 (flag B — independent)
     "reviewer-report.md":       "REVIEWER_REPORT",     # Site 3
     "gate-result.json":         "GATE_RESULT",         # Site 4 — active (PR #782 + #780 default-ON)
-    "conditions-manifest.json": "CONDITIONS_MANIFEST", # Site 5 — placeholder
+    "conditions-manifest.json": "CONDITIONS_MANIFEST", # Site 5 — active (this PR default-ON)
 }
 
 # ---------------------------------------------------------------------------
@@ -164,9 +248,13 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
 #                                          materialises gate-result.json when flag-on)
 #   wicked.gate.blocked                 → _gate_blocked (PR-1 / #778) — registered in
 #                                          _HANDLERS for completeness but REMOVED from
-#                                          _PROJECTION_MAP (above) because it doesn't
+#                                          _PROJECTION_RESOLVERS (above) because it doesn't
 #                                          materialise a file.  Therefore not keyed in
 #                                          this registry either.
+#   wicked.condition.marked_cleared     → _condition_marked_cleared (Site 5 / this PR) ✓ PRESENT
+#                                          (writes resolution sidecar + flips manifest entry
+#                                          to verified=True; same atomic two-step ordering
+#                                          as conditions_manifest.mark_cleared())
 #
 # Update this dict when a new handler lands in daemon/projector.py.
 # Never mark True speculatively — read the file and verify first.
@@ -193,29 +281,40 @@ _PROJECTION_HANDLERS_AVAILABLE: Dict[str, bool] = {
     # WG_BUS_AS_TRUTH_GATE_RESULT=on; flipping the registry True here
     # tells the drift detector to scan gate-result.json.
     # ``wicked.gate.blocked`` is intentionally absent from this registry
-    # because it was removed from _PROJECTION_MAP above — it doesn't
+    # because it was removed from _PROJECTION_RESOLVERS above — it doesn't
     # materialise a file and the detector doesn't gate on it.
+    #
+    # Site 5 (this PR) extends ``_gate_decided_disk`` to ALSO materialise
+    # ``conditions-manifest.json`` when the verdict is CONDITIONAL and
+    # ``data["conditions"]`` is non-empty.  Same registry entry — one
+    # event, multiple files (the new _PROJECTION_RESOLVERS shape).
     "wicked.gate.decided":                True,
+    # Site 5 (this PR) — _condition_marked_cleared materialises the
+    # verification flip on conditions-manifest.json + writes the resolution
+    # sidecar.  Wired into conditions_manifest.mark_cleared() as a
+    # bus emit; projector handler in daemon/projector.py replays the
+    # same atomic two-step write order.
+    "wicked.condition.marked_cleared":    True,
     # Site 5 — no event handler mapping yet
-    # (conditions-manifest.json has no event type in _PROJECTION_MAP)
+    # (conditions-manifest.json has no event type in _PROJECTION_RESOLVERS)
 }
 
 
 def _handler_available_for_file(name: str) -> bool:
     """Return True iff ALL event types that materialise *name* have a handler.
 
-    Resolves the event types that map to *name* by scanning _PROJECTION_MAP
+    Resolves the event types that map to *name* by scanning _PROJECTION_RESOLVERS
     in reverse.  Returns True only when handlers exist for ALL mapping event
     types (conservative: if any event type lacks a handler the file is treated
     as unprojectable until ALL handlers land).
 
-    A file with no event types in _PROJECTION_MAP (e.g. conditions-manifest.json
+    A file with no event types in _PROJECTION_RESOLVERS (e.g. conditions-manifest.json
     at Site 5 before its event type is added) returns False — defaulting to
     safe exclusion.
     """
     event_types_for_file = [
-        et for et, template in _PROJECTION_MAP.items()
-        if Path(template).name == name
+        et for et in _PROJECTION_RESOLVERS
+        if name in _all_possible_basenames_for(et)
     ]
     if not event_types_for_file:
         return False
@@ -436,8 +535,14 @@ def _query_events_for_project(
 ) -> List[Dict[str, Any]]:
     """Return event_log rows whose chain_id starts with ``{project_slug}.``.
 
-    Rows are ordered by event_id ascending.  We fetch only the columns
-    reconcile_v2 needs to avoid surprises when the daemon schema evolves.
+    Rows are ordered by event_id ascending.  Site 5 (#746) added
+    ``payload_json`` to the SELECT so payload-aware projection resolvers
+    can decide which files an event is expected to produce based on
+    payload contents (e.g. ``wicked.gate.decided`` only requires
+    conditions-manifest.json on CONDITIONAL verdicts).  Each returned
+    row carries a parsed ``payload`` dict; rows with malformed JSON
+    silently fall back to ``{}`` so a single bad event doesn't taint
+    the rest of the scan.
     """
     # LIKE escape: project_slug may contain underscores which LIKE treats
     # as single-char wildcards.  Use ESCAPE clause to be safe.
@@ -445,16 +550,27 @@ def _query_events_for_project(
     try:
         rows = conn.execute(
             """
-            SELECT event_id, event_type, chain_id, projection_status, error_message, ingested_at
+            SELECT event_id, event_type, chain_id, payload_json,
+                   projection_status, error_message, ingested_at
             FROM   event_log
             WHERE  chain_id LIKE ? ESCAPE '\\'
             ORDER  BY event_id ASC
             """,
             (f"{escaped}.%",),
         ).fetchall()
-        return [dict(r) for r in rows]
     except sqlite3.Error:
         return []
+
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        raw = d.pop("payload_json", None)
+        try:
+            d["payload"] = json.loads(raw) if raw else {}
+        except (TypeError, ValueError):
+            d["payload"] = {}
+        out.append(d)
+    return out
 
 
 def _event_log_head(conn: sqlite3.Connection) -> int:
@@ -494,24 +610,39 @@ def _list_known_project_slugs() -> List[str]:
         return []
 
 
-def _materialize_projection_path(
-    project_dir: Path, event_type: str, chain_id: Optional[str]
-) -> Optional[Path]:
-    """Return the expected on-disk path for an event type + chain_id pair.
+def _materialize_projection_paths(
+    project_dir: Path,
+    event_type: str,
+    chain_id: Optional[str],
+    payload: Optional[Dict[str, Any]] = None,
+) -> List[Path]:
+    """Return the expected on-disk paths for an event, given its payload.
 
-    Returns None when the event type is not in _PROJECTION_MAP or the
-    chain_id does not carry enough information to resolve the path.
+    Per Site 5 (#746): an event may CONDITIONALLY produce files based on
+    payload contents (e.g. ``wicked.gate.decided`` produces
+    conditions-manifest.json only when verdict is CONDITIONAL with a
+    non-empty conditions list).  The resolver function in
+    ``_PROJECTION_RESOLVERS`` inspects the payload and yields the paths
+    the event is expected to produce.
+
+    Returns an empty list when the event type has no resolver, the
+    chain_id doesn't carry a phase segment, or the payload doesn't
+    trigger any conditional branches.
+
+    The ``payload`` parameter defaults to ``None`` (treated as ``{}``) so
+    legacy call sites that don't have the payload handy still get the
+    "always-produces" subset of projections — the conditional branches
+    just won't fire without payload data.
     """
-    template = _PROJECTION_MAP.get(event_type)
-    if template is None:
-        return None
+    resolver = _PROJECTION_RESOLVERS.get(event_type)
+    if resolver is None:
+        return []
 
     phase = _phase_from_chain_id(chain_id)
     if phase is None:
-        return None
+        return []
 
-    rel = template.replace("{phase}", phase)
-    return project_dir / rel
+    return list(resolver(payload or {}, phase, project_dir))
 
 
 def _collect_projection_files(project_dir: Path) -> List[Path]:
@@ -581,30 +712,30 @@ def _detect_projection_stale(
         # Skip events whose handler has not yet landed in daemon/projector.py.
         if not _PROJECTION_HANDLERS_AVAILABLE.get(ev["event_type"], False):
             continue
-        proj_path = _materialize_projection_path(
-            project_dir, ev["event_type"], ev.get("chain_id")
+        proj_paths = _materialize_projection_paths(
+            project_dir, ev["event_type"], ev.get("chain_id"), ev.get("payload"),
         )
-        if proj_path is None:
-            continue
-        if not proj_path.exists():
-            # projection_last_applied_seq: the event_id at which the projector
-            # last successfully processed an event.  This cursor is not yet
-            # tracked in the daemon DB schema (no projector_state table / sidecar).
-            # Emit null per staging plan §5 schema compliance until the cursor is
-            # wired in (see PR #764 follow-up TODO in _build_report_header).
-            drift.append({
-                "type": DRIFT_PROJECTION_STALE,
-                "projection": str(proj_path.relative_to(project_dir)),
-                "event_seq": ev["event_id"],
-                "event_type": ev["event_type"],
-                "chain_id": ev.get("chain_id"),
-                "projection_last_applied_seq": None,  # cursor pending — see TODO
-                "lag_events": None,                   # derived from cursor — unavailable
-                "reason": (
-                    f"event_seq {ev['event_id']} ({ev['event_type']!r}) "
-                    f"is pending but projection has not been materialised"
-                ),
-            })
+        for proj_path in proj_paths:
+            if not proj_path.exists():
+                # projection_last_applied_seq: the event_id at which the projector
+                # last successfully processed an event.  This cursor is not yet
+                # tracked in the daemon DB schema (no projector_state table /
+                # sidecar).  Emit null per staging plan §5 schema compliance
+                # until the cursor is wired in (PR #764 follow-up TODO in
+                # _build_report_header).
+                drift.append({
+                    "type": DRIFT_PROJECTION_STALE,
+                    "projection": str(proj_path.relative_to(project_dir)),
+                    "event_seq": ev["event_id"],
+                    "event_type": ev["event_type"],
+                    "chain_id": ev.get("chain_id"),
+                    "projection_last_applied_seq": None,  # cursor pending — see TODO
+                    "lag_events": None,                   # derived from cursor
+                    "reason": (
+                        f"event_seq {ev['event_id']} ({ev['event_type']!r}) "
+                        f"is pending but projection has not been materialised"
+                    ),
+                })
     return drift
 
 
@@ -629,31 +760,30 @@ def _detect_event_without_projection(
         # Skip events whose handler has not yet landed in daemon/projector.py.
         if not _PROJECTION_HANDLERS_AVAILABLE.get(ev["event_type"], False):
             continue
-        # Only check events we can map to a projection path.
-        proj_path = _materialize_projection_path(
-            project_dir, ev["event_type"], ev.get("chain_id")
+        # Only check events we can map to projection paths.
+        proj_paths = _materialize_projection_paths(
+            project_dir, ev["event_type"], ev.get("chain_id"), ev.get("payload"),
         )
-        if proj_path is None:
-            continue
-        # Projection absent on disk → drift regardless of projection_status.
-        if not proj_path.exists():
-            # Skip pending events — those are covered by projection_stale.
-            if ev.get("projection_status") == "pending":
-                continue
-            drift.append({
-                "type": DRIFT_EVENT_WITHOUT_PROJECTION,
-                "event_seq": ev["event_id"],
-                "event_type": ev["event_type"],
-                "chain_id": ev.get("chain_id"),
-                "expected_projection": str(proj_path.relative_to(project_dir)),
-                "projection_status": ev.get("projection_status"),
-                "error_message": ev.get("error_message"),
-                "reason": (
-                    f"event_seq {ev['event_id']} ({ev['event_type']!r}) "
-                    f"has no materialised projection at "
-                    f"{proj_path.relative_to(project_dir)}"
-                ),
-            })
+        for proj_path in proj_paths:
+            # Projection absent on disk → drift regardless of projection_status.
+            if not proj_path.exists():
+                # Skip pending events — those are covered by projection_stale.
+                if ev.get("projection_status") == "pending":
+                    continue
+                drift.append({
+                    "type": DRIFT_EVENT_WITHOUT_PROJECTION,
+                    "event_seq": ev["event_id"],
+                    "event_type": ev["event_type"],
+                    "chain_id": ev.get("chain_id"),
+                    "expected_projection": str(proj_path.relative_to(project_dir)),
+                    "projection_status": ev.get("projection_status"),
+                    "error_message": ev.get("error_message"),
+                    "reason": (
+                        f"event_seq {ev['event_id']} ({ev['event_type']!r}) "
+                        f"has no materialised projection at "
+                        f"{proj_path.relative_to(project_dir)}"
+                    ),
+                })
     return drift
 
 
@@ -668,13 +798,16 @@ def _detect_projection_without_event(
     direct-write bypassing the bus, or lint was off).
     """
     # Build a set of expected-projection paths from the known events so we
-    # can quickly test each on-disk file against it.
+    # can quickly test each on-disk file against it.  Per Site 5 (#746):
+    # an event may produce multiple files, and may produce them
+    # CONDITIONALLY based on payload (e.g. gate.decided produces
+    # conditions-manifest.json only on CONDITIONAL verdicts).  Pass
+    # ev["payload"] so the resolver can make those conditional decisions.
     event_projection_paths: set = set()
     for ev in events:
-        p = _materialize_projection_path(
-            project_dir, ev["event_type"], ev.get("chain_id")
-        )
-        if p is not None:
+        for p in _materialize_projection_paths(
+            project_dir, ev["event_type"], ev.get("chain_id"), ev.get("payload"),
+        ):
             event_projection_paths.add(p.resolve())
 
     drift: List[Dict[str, Any]] = []
