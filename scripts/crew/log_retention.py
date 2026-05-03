@@ -207,6 +207,38 @@ def rotate_if_needed(
         )
         return None
 
+    # Wave-2 Tranche A audit-marker emit (#746 W3).  log_retention is
+    # EXEMPT from full bus-cutover per docs/v9/wave-2-cutover-plan.md
+    # §W3 — rotation is a maintenance side-effect that doesn't change
+    # any source of truth (the reconciler reads active logs, not
+    # archives).  This optional summary marker gives operators a
+    # forensics anchor: "did the log rotate before or after the bug?"
+    # Fail-open: bus unavailable must NOT fail rotation (the disk
+    # operations have already completed by this point).
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        from _bus import emit_event  # type: ignore[import]
+        # chain_id is best-effort: log files don't carry a project
+        # identifier inherently.  Use the parent-directory name as a
+        # weak grouping key so per-project rotations are distinguishable.
+        rotation_scope = path.parent.parent.name or "unknown-scope"
+        emit_event(
+            "wicked.log.rotated",
+            {
+                "log_path": str(path),
+                "archive_path": str(dest),
+                "size_bytes": size,
+                "threshold_bytes": threshold,
+            },
+            chain_id=f"{rotation_scope}.root",
+        )
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        pass  # bus unavailable — rotation disk operations already completed
+
     return dest
 
 

@@ -1597,6 +1597,11 @@ def ensure_reviewer_context(
             f"Prior-phase gate findings live in "
             f"`phases/*/gate-result.json`.\n"
         )
+        # Bus-cutover wave-2 EXEMPT (#746 W10 site 1, per
+        # docs/v9/wave-2-cutover-plan.md §W10): reviewer-context.md is a
+        # PLACEHOLDER stub that the executor overwrites with real content
+        # before review.  Drift means the executor sees an empty stub
+        # and writes over it; harmless.  Not a projection target.
         context_path.write_text(stub, encoding="utf-8")
     except OSError:
         return None
@@ -4349,6 +4354,12 @@ def adopt_clarify_from_memo(
             "> " + excerpt.replace("\n", "\n> ") + excerpt_suffix,
             "",
         ]
+        # Bus-cutover wave-2 EXEMPT (#746 W10 site 4, per
+        # docs/v9/wave-2-cutover-plan.md §W10): adopted-from-design-memo
+        # pointer file is a pure operator-convenience artifact; the
+        # authoritative source is the memo it points to.  Not a
+        # projection target — projecting it would just duplicate the
+        # memo path.
         (phase_dir / fname).write_text(
             "\n".join(frontmatter_lines) + "\n".join(body),
             encoding="utf-8",
@@ -5287,6 +5298,12 @@ def cutover_action(project: str, target_mode: str) -> Dict[str, Any]:
     phases_dir = project_dir / "phases"
     phases_dir.mkdir(parents=True, exist_ok=True)
     marker_path = phases_dir / ".cutover-to-mode-3.json"
+    # Bus-cutover wave-2 EXEMPT (#746 W10 site 5, per
+    # docs/v9/wave-2-cutover-plan.md §W10): mode-3 cutover marker is a
+    # one-shot operator forensics artifact (writes once per project, never
+    # rewritten).  Not a projection target — the marker's whole purpose
+    # is "this happened at this time"; replaying it would lie about
+    # when it happened.
     try:
         marker_path.write_text(json.dumps({
             "timestamp": get_utc_timestamp(),

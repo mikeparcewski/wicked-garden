@@ -254,6 +254,15 @@ def apply_transformations(
     """Apply (or preview) transformations for each detected marker.
 
     Returns list of human-readable outcome lines.
+
+    Bus-cutover wave-2 Site W2 (#746): EXEMPT from full bus-cutover
+    per docs/v9/wave-2-cutover-plan.md §W2.  This is a one-shot
+    operator-invoked migration; the bus-as-truth contract applies to
+    runtime state, not migration tooling.  An audit-marker summary
+    event ``wicked.crew.legacy_adopted`` fires AFTER the
+    transformations land (only when not dry-run AND markers were
+    applied) so future forensics can identify projects that went
+    through the legacy adoption path.
     """
     outcomes: List[str] = []
     for marker in markers:
@@ -271,6 +280,32 @@ def apply_transformations(
             outcomes.append(
                 _transform_legacy_bypass(project_dir, file_path, dry_run)
             )
+
+    # Wave-2 Tranche A audit-marker emit (#746 W2).  Only fires on
+    # actual application (not dry-run) AND when markers were processed.
+    # Fail-open: bus unavailable must NOT fail the migration.
+    if not dry_run and outcomes:
+        try:
+            import sys as _sys
+            from pathlib import Path as _Path
+            _scripts_root = str(_Path(__file__).resolve().parents[1])
+            if _scripts_root not in _sys.path:
+                _sys.path.insert(0, _scripts_root)
+            from _bus import emit_event  # type: ignore[import]
+            project_id = project_dir.name
+            emit_event(
+                "wicked.crew.legacy_adopted",
+                {
+                    "project_id": project_id,
+                    "marker_count": len(markers),
+                    "outcome_count": len(outcomes),
+                    "markers_applied": list(markers),
+                },
+                chain_id=f"{project_id}.root",
+            )
+        except Exception:  # noqa: BLE001 — fail-open per Decision #8
+            pass  # bus unavailable — migration disk writes already completed
+
     return outcomes
 
 
