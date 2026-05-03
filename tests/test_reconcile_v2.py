@@ -1466,10 +1466,16 @@ class TestReconcileV2FlagPredicate(unittest.TestCase):
             self.assertFalse(reconcile_v2._flag_on("DISPATCH_LOG"))
 
     def test_unshipped_site_default_off_when_unset(self) -> None:
-        """Unshipped token (GATE_RESULT) is OFF via default map when unset."""
+        """Unshipped token (CONDITIONS_MANIFEST, Site 5) is OFF via default
+        map when unset.
+
+        GATE_RESULT (Site 4) was previously the unshipped reference here;
+        PR #780 flipped it default-ON when Site 4 cutover completed, so
+        CONDITIONS_MANIFEST is now the only remaining unshipped token.
+        """
         with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("WG_BUS_AS_TRUTH_GATE_RESULT", None)
-            self.assertFalse(reconcile_v2._flag_on("GATE_RESULT"))
+            os.environ.pop("WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST", None)
+            self.assertFalse(reconcile_v2._flag_on("CONDITIONS_MANIFEST"))
 
     def test_active_projection_names_includes_dispatch_log_by_default(self) -> None:
         """Without any env var, DISPATCH_LOG is default-ON → dispatch-log.jsonl

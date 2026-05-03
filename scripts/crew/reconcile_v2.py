@@ -125,7 +125,7 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
     "consensus-report.json":    "CONSENSUS_REPORT",    # Site 2 (flag A)
     "consensus-evidence.json":  "CONSENSUS_EVIDENCE",  # Site 2 (flag B — independent)
     "reviewer-report.md":       "REVIEWER_REPORT",     # Site 3
-    "gate-result.json":         "GATE_RESULT",         # Site 4 — placeholder
+    "gate-result.json":         "GATE_RESULT",         # Site 4 — active (PR #782 + #780 default-ON)
     "conditions-manifest.json": "CONDITIONS_MANIFEST", # Site 5 — placeholder
 }
 
