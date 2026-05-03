@@ -552,8 +552,11 @@ class TestGatePendingMapsToReviewerReport(_ReconcileV2Fixture):
         Note (#769 fold): the handler-presence gate now filters per event type.
         This test patches gate_pending as True (handler present) so the detector
         runs and reports the missing projection.  Without patching, gate_pending
-        handler is False (pending #768) and the detector correctly skips it —
-        that negative case is covered in TestHandlerGateInDetectorFunctions.
+        handler is False and the detector correctly skips it — that
+        negative case is covered in TestHandlerGateInDetectorFunctions.
+
+        PR #781 flipped the gate_completed/pending registry entries True
+        natively, so no patching is required to exercise this path.
         """
         _make_project_dir(self.workspace, "pending-missing-proj")
         _insert_event_row(
@@ -564,11 +567,7 @@ class TestGatePendingMapsToReviewerReport(_ReconcileV2Fixture):
             projection_status="applied",
         )
         conn = self._conn()
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        registry["wicked.consensus.gate_pending"] = True   # simulate handler present
-        registry["wicked.consensus.gate_completed"] = True
-        with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-            result = reconcile_v2.reconcile_project("pending-missing-proj", _daemon_conn=conn)
+        result = reconcile_v2.reconcile_project("pending-missing-proj", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]
@@ -813,13 +812,10 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
             "WG_BUS_AS_TRUTH_GATE_RESULT":         "off",
             "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST": "off",
         }
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        # Simulate Site 3 handler present — both event types that map to reviewer-report.md
-        registry["wicked.consensus.gate_completed"] = True
-        registry["wicked.consensus.gate_pending"] = True
+        # PR #781 flipped the Site 3 registry entries True natively;
+        # no handler-presence patching required.
         with patch.dict(os.environ, env):
-            with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-                result = reconcile_v2._active_projection_names()
+            result = reconcile_v2._active_projection_names()
         self.assertEqual(result, frozenset({"reviewer-report.md"}))
 
 
@@ -874,11 +870,9 @@ class TestProjWithoutEventFlagGating(_ReconcileV2Fixture):
     def test_reviewer_report_with_site3_flag_on_and_no_event_reports_drift(self) -> None:
         """Site 3 flag ON + reviewer-report.md but no matching event → drift fires.
 
-        Note (#769 fold): the handler-presence gate uses per-event-type keys.
-        This test patches both gate_completed and gate_pending as True so we can
-        verify the flag-gate + drift-detection path without the handler-gate
-        vetoing the file first.  The handler-gate behaviour (handler absent →
-        file excluded even when flag is on) is covered in
+        PR #781 flipped the Site 3 registry entries True natively, so the
+        handler-presence gate no longer vetoes the file.  The
+        handler-absent → file-excluded behaviour stays covered in
         TestHandlerPresenceGate.test_active_projection_names_excludes_files_with_no_handler.
         """
         project_dir = _make_project_dir(self.workspace, "s3-flag-on-orphan")
@@ -887,13 +881,8 @@ class TestProjWithoutEventFlagGating(_ReconcileV2Fixture):
         # No event rows.
         conn = self._conn()
         env = {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        # Simulate Site 3 handler present — both event types that map to reviewer-report.md
-        registry["wicked.consensus.gate_completed"] = True
-        registry["wicked.consensus.gate_pending"] = True
         with patch.dict(os.environ, env):
-            with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-                result = reconcile_v2.reconcile_project("s3-flag-on-orphan", _daemon_conn=conn)
+            result = reconcile_v2.reconcile_project("s3-flag-on-orphan", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]
@@ -1403,14 +1392,10 @@ class TestHandlerGateInDetectorFunctions(_ReconcileV2Fixture):
             projection_status="applied",
         )
         conn = self._conn()
-        # Registry with gate_completed handler explicitly present.
-        registry = dict(reconcile_v2._PROJECTION_HANDLERS_AVAILABLE)
-        registry["wicked.consensus.gate_completed"] = True
-        registry["wicked.consensus.gate_pending"] = True
+        # PR #781 flipped both handler-presence entries True natively.
         env = {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}
         with patch.dict(os.environ, env):
-            with patch.object(reconcile_v2, "_PROJECTION_HANDLERS_AVAILABLE", registry):
-                result = reconcile_v2.reconcile_project("handler-present-proj", _daemon_conn=conn)
+            result = reconcile_v2.reconcile_project("handler-present-proj", _daemon_conn=conn)
         conn.close()
 
         drift_types = [d["type"] for d in result["drift"]]

@@ -154,9 +154,9 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
 #   wicked.consensus.report_created     → _consensus_report_created [line 950] ✓ PRESENT
 #   wicked.consensus.evidence_recorded  → _consensus_evidence_recorded [line 951] ✓ PRESENT
 #   wicked.consensus.gate_completed     → _consensus_gate_completed (PR #773) ✓ PRESENT
-#                                          (registry flip is the subject of a follow-up issue)
+#                                          (registry flip landed in PR #781 / this commit)
 #   wicked.consensus.gate_pending       → _consensus_gate_pending (PR #773) ✓ PRESENT
-#                                          (registry flip is the subject of a follow-up issue)
+#                                          (registry flip landed in PR #781 / this commit)
 #   wicked.gate.decided                 → _gate_decided handles DB rows; disk projection
 #                                          fans out to _gate_decided_disk (PR-1 / #778)  ✓ PRESENT
 #                                          (emit at phase_manager.py:3931 carries the full
@@ -178,10 +178,14 @@ _PROJECTION_HANDLERS_AVAILABLE: Dict[str, bool] = {
     # Site 2 — _consensus_report_created / _consensus_evidence_recorded landed in PR #758
     "wicked.consensus.report_created":    True,
     "wicked.consensus.evidence_recorded": True,
-    # Site 3 — both gate_completed and gate_pending map to reviewer-report.md;
-    # neither handler is registered yet (pending #768)
-    "wicked.consensus.gate_completed":    False,
-    "wicked.consensus.gate_pending":      False,
+    # Site 3 — _consensus_gate_completed + _consensus_gate_pending landed
+    # in PR #773 (closing #768).  This registry was never updated at the
+    # time, leaving reviewer-report.md silently excluded from the drift
+    # detector even though Site 3 had shipped end-to-end with flag-on by
+    # default in PR #777.  Discovered during PR #782 (Site 4) and fixed
+    # here (#781).
+    "wicked.consensus.gate_completed":    True,
+    "wicked.consensus.gate_pending":      True,
     # Site 4 — _gate_decided_disk fan-out (from existing _gate_decided)
     # landed in PR-1 (#778) and the emit at phase_manager.py:3931 was
     # widened in the same PR to carry the full gate_result dict under
