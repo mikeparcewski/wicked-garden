@@ -419,140 +419,115 @@ class TestEvalIdEntryPointMint(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Finding #3 — bounded raw_payload / digest shape
+# raw_payload = full file bytes — matches Sites 1+2 contract
 # ---------------------------------------------------------------------------
 
-class TestBoundedDigestPayload(unittest.TestCase):
-    """Finding #3: raw_payload must be replaced with a bounded digest.
+class TestRawPayloadFullBytes(unittest.TestCase):
+    """raw_payload must be the full file bytes at time of emit.
 
-    Append-path payload size is O(yaml_block) not O(cumulative file).
+    Matches the Sites 1+2 contract (dispatch_log.py / consensus_gate.py)
+    which emit raw_payload = full bytes for projector byte-for-byte replay.
+    Digest payload was reverted; unbounded-growth concern tracked as #770.
     """
 
-    def _run_append_cycle(
+    def _capture_emit(
         self,
         phase_dir: Path,
-        emit_count: int,
-        captured_payloads: list,
-    ) -> None:
-        """Run `emit_count` consecutive consensus writes and collect payloads."""
-        def _capture(event_type, payload, chain_id=None, metadata=None):
-            captured_payloads.append(payload)
+        eval_id: str,
+    ) -> list:
+        """Run one consensus write and return captured payloads."""
+        captured: list = []
 
+        def _capture(event_type, payload, chain_id=None, metadata=None):
+            captured.append(payload)
+
+        cr = {
+            "result": "approved",
+            "agreement_ratio": 0.9,
+            "findings": [],
+            "conditions": [],
+            "evidence_items_checked": 1,
+            "eval_id": eval_id,
+        }
         with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}), \
              patch("_bus.emit_event", side_effect=_capture):
-            for i in range(emit_count):
-                cr = {
-                    "result": "approved",
-                    "agreement_ratio": 0.9,
-                    "findings": [],
-                    "conditions": [],
-                    "evidence_items_checked": i + 1,
-                    "eval_id": f"digest{i:08x}",
-                }
-                post_tool._write_reviewer_report(
-                    phase_dir, "approved", cr, f"digest{i:08x}"
-                )
+            post_tool._write_reviewer_report(phase_dir, "approved", cr, eval_id)
 
-    def test_payload_has_sha256_field(self) -> None:
-        """All emit payloads must include a sha256 field (bounded digest)."""
-        captured: list = []
-        with tempfile.TemporaryDirectory() as tmp:
-            phase_dir = _make_phase_dir(Path(tmp), project="digest-proj", phase="build")
-            self._run_append_cycle(phase_dir, 1, captured)
-        self.assertGreater(len(captured), 0, "emit_event was never called")
-        for payload in captured:
-            self.assertIn("sha256", payload,
-                          "Payload must include sha256 digest field")
-            self.assertIsInstance(payload["sha256"], str)
-            self.assertEqual(len(payload["sha256"]), 64,
-                             "sha256 must be a 64-char hex string")
+        return captured
 
-    def test_payload_has_byte_size_field(self) -> None:
-        """All emit payloads must include a byte_size field."""
-        captured: list = []
+    def test_append_path_raw_payload_equals_file_content(self) -> None:
+        """append branch: raw_payload must equal the full file content after write."""
         with tempfile.TemporaryDirectory() as tmp:
-            phase_dir = _make_phase_dir(Path(tmp), project="digest-size", phase="build")
-            self._run_append_cycle(phase_dir, 1, captured)
-        self.assertGreater(len(captured), 0)
-        for payload in captured:
-            self.assertIn("byte_size", payload)
-            self.assertIsInstance(payload["byte_size"], int)
-            self.assertGreater(payload["byte_size"], 0)
-
-    def test_payload_has_appended_section_preview(self) -> None:
-        """All emit payloads must include appended_section_preview (the yaml_block only)."""
-        captured: list = []
-        with tempfile.TemporaryDirectory() as tmp:
-            phase_dir = _make_phase_dir(Path(tmp), project="digest-preview", phase="build")
-            self._run_append_cycle(phase_dir, 1, captured)
-        self.assertGreater(len(captured), 0)
-        for payload in captured:
-            self.assertIn("appended_section_preview", payload)
-
-    def test_no_raw_payload_field_in_completed_emit(self) -> None:
-        """gate_completed emits must NOT have a raw_payload field (replaced by digest)."""
-        captured: list = []
-        with tempfile.TemporaryDirectory() as tmp:
-            phase_dir = _make_phase_dir(Path(tmp), project="no-raw", phase="build")
-            self._run_append_cycle(phase_dir, 1, captured)
-        for payload in captured:
-            self.assertNotIn(
-                "raw_payload", payload,
-                "raw_payload must be removed from gate_completed emit payload (Finding #3)",
-            )
-
-    def test_byte_size_matches_file_after_each_append(self) -> None:
-        """byte_size must equal the actual file size after each append cycle."""
-        import hashlib as hl
-        captured: list = []
-        with tempfile.TemporaryDirectory() as tmp:
-            phase_dir = _make_phase_dir(Path(tmp), project="size-match", phase="build")
+            phase_dir = _make_phase_dir(Path(tmp), project="rp-append", phase="build")
             report_path = phase_dir / "reviewer-report.md"
-            self._run_append_cycle(phase_dir, 3, captured)
 
-            for i, payload in enumerate(captured):
-                # After cycle i+1, the file has accumulated i+1 write operations.
-                # The last captured payload has byte_size matching the file AT THAT POINT.
-                # Since all 3 writes happened before we read, verify the last payload's
-                # byte_size matches the final file.
-                pass
+            # First write — creates the file.
+            captured1 = self._capture_emit(phase_dir, "eval00000001")
+            self.assertGreater(len(captured1), 0, "emit_event was never called (create)")
 
-            # Verify the last payload's byte_size matches the final file size.
-            final_file_bytes = report_path.read_bytes()
-            last_payload = captured[-1]
+            # Second write — appends to the file (triggers append branch).
+            captured2 = self._capture_emit(phase_dir, "eval00000002")
+            self.assertGreater(len(captured2), 0, "emit_event was never called (append)")
+
+            file_content = report_path.read_text(encoding="utf-8")
+            append_payload = captured2[-1]
+            self.assertIn("raw_payload", append_payload,
+                          "append branch must emit raw_payload field")
             self.assertEqual(
-                last_payload["byte_size"],
-                len(final_file_bytes),
-                f"Last emit byte_size {last_payload['byte_size']} must match "
-                f"final file size {len(final_file_bytes)}",
+                append_payload["raw_payload"],
+                file_content,
+                "raw_payload must equal full file content after append write",
             )
 
-    def test_appended_section_preview_is_bounded(self) -> None:
-        """appended_section_preview must not grow cumulatively across appends.
-
-        After 3 cycles, each preview should be ~the same size (the yaml_block
-        for that cycle), not the full accumulated file.
-        """
-        captured: list = []
+    def test_create_path_raw_payload_equals_file_content(self) -> None:
+        """create branch: raw_payload must equal the full file content after write."""
         with tempfile.TemporaryDirectory() as tmp:
-            phase_dir = _make_phase_dir(Path(tmp), project="preview-bounded", phase="build")
-            self._run_append_cycle(phase_dir, 3, captured)
+            phase_dir = _make_phase_dir(Path(tmp), project="rp-create", phase="build")
+            report_path = phase_dir / "reviewer-report.md"
 
-        # All 3 appended_section_preview values should be approximately the same
-        # size (bounded by yaml_block), not growing cumulatively.
-        preview_sizes = [len(p["appended_section_preview"]) for p in captured]
-        # Max preview should not be dramatically larger than min preview.
-        # Allow up to 3x variance for evidence_items_checked field growth,
-        # but not the 10x+ that cumulative accumulation would cause.
-        self.assertGreater(len(preview_sizes), 0)
-        max_size = max(preview_sizes)
-        min_size = max(min(preview_sizes), 1)  # avoid div-by-zero
-        self.assertLessEqual(
-            max_size / min_size, 5.0,
-            f"appended_section_preview sizes grew too much across 3 appends: "
-            f"{preview_sizes}. Expected bounded growth (yaml_block only), "
-            f"not cumulative file content.",
-        )
+            captured = self._capture_emit(phase_dir, "eval00000001")
+            self.assertGreater(len(captured), 0, "emit_event was never called")
+
+            file_content = report_path.read_text(encoding="utf-8")
+            create_payload = captured[0]
+            self.assertIn("raw_payload", create_payload,
+                          "create branch must emit raw_payload field")
+            self.assertEqual(
+                create_payload["raw_payload"],
+                file_content,
+                "raw_payload must equal full file content after create write",
+            )
+
+    def test_pending_path_raw_payload_equals_file_content(self) -> None:
+        """gate_pending: raw_payload must equal the pending template content."""
+        controlled_eval_id = "pendingeval12345"
+        captured: list = []
+
+        def _capture(event_type, payload, chain_id=None, metadata=None):
+            captured.append((event_type, payload))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = _make_phase_dir(Path(tmp), project="rp-pending", phase="build")
+            report_path = phase_dir / "reviewer-report.md"
+
+            with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}), \
+                 patch("_bus.emit_event", side_effect=_capture):
+                post_tool._write_pending_reviewer_report(phase_dir, controlled_eval_id)
+
+            self.assertGreater(len(captured), 0, "emit_event was never called")
+            pending_emits = [(et, p) for et, p in captured
+                             if et == "wicked.consensus.gate_pending"]
+            self.assertGreater(len(pending_emits), 0, "gate_pending was never emitted")
+
+            file_content = report_path.read_text(encoding="utf-8")
+            _, payload = pending_emits[0]
+            self.assertIn("raw_payload", payload,
+                          "gate_pending must emit raw_payload field")
+            self.assertEqual(
+                payload["raw_payload"],
+                file_content,
+                "raw_payload must equal pending file content",
+            )
 
 
 if __name__ == "__main__":

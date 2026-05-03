@@ -20,7 +20,6 @@ Traces are written to a session-scoped JSONL file in $TMPDIR (local only).
 Always fails open — any unhandled exception returns {"continue": true}.
 """
 
-import hashlib
 import json
 import os
 import re
@@ -999,12 +998,11 @@ def _write_reviewer_report(
 
         # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
         # Flag check: only emit when Site 3 cutover is enabled.
-        # Finding #3 fix: bounded digest payload — O(yaml_block) not O(file).
-        # raw_payload carries only the just-appended section; sha256 + size +
-        # line_count provide audit fingerprinting without unbounded growth.
+        # raw_payload = full file bytes — matches Sites 1+2 contract for
+        # projector byte-for-byte replay.  Unbounded-growth concern tracked
+        # as issue #770 for proper ADR resolution.
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
-            _file_bytes = new_content.encode("utf-8")
             emit_event(
                 "wicked.consensus.gate_completed",
                 {
@@ -1013,10 +1011,7 @@ def _write_reviewer_report(
                     "verdict": verdict,
                     "eval_id": eval_id,
                     "branch": "append",
-                    "sha256": hashlib.sha256(_file_bytes).hexdigest(),
-                    "byte_size": len(_file_bytes),
-                    "line_count": new_content.count("\n") + 1,
-                    "appended_section_preview": yaml_block,
+                    "raw_payload": new_content,
                 },
                 chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
             )
@@ -1026,12 +1021,11 @@ def _write_reviewer_report(
         report_path.write_text(yaml_block, encoding="utf-8")
 
         # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
-        # Finding #3 fix: consistent digest shape — same fields as append path.
-        # For the create branch the file IS the yaml_block, so
-        # appended_section_preview == full content (bounded by yaml_block size).
+        # raw_payload = full file bytes — matches Sites 1+2 contract for
+        # projector byte-for-byte replay.  Unbounded-growth concern tracked
+        # as issue #770 for proper ADR resolution.
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
-            _file_bytes = yaml_block.encode("utf-8")
             emit_event(
                 "wicked.consensus.gate_completed",
                 {
@@ -1040,10 +1034,7 @@ def _write_reviewer_report(
                     "verdict": verdict,
                     "eval_id": eval_id,
                     "branch": "create",
-                    "sha256": hashlib.sha256(_file_bytes).hexdigest(),
-                    "byte_size": len(_file_bytes),
-                    "line_count": yaml_block.count("\n") + 1,
-                    "appended_section_preview": yaml_block,
+                    "raw_payload": yaml_block,
                 },
                 chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
             )
@@ -1075,22 +1066,18 @@ def _write_pending_reviewer_report(phase_dir: "Path", eval_id: str) -> None:
         report_path.write_text(pending_content, encoding="utf-8")
 
         # Emit AFTER write — write-then-emit invariant.
-        # Finding #3 fix: bounded digest payload — same shape as gate_completed
-        # for consistency; pending_content is a small template so size is
-        # already bounded, but uniform shape aids downstream consumers.
+        # raw_payload = full file bytes — matches Sites 1+2 contract for
+        # projector byte-for-byte replay.  Unbounded-growth concern tracked
+        # as issue #770 for proper ADR resolution.
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
-            _pending_bytes = pending_content.encode("utf-8")
             emit_event(
                 "wicked.consensus.gate_pending",
                 {
                     "project_id": project_id,
                     "phase": phase,
                     "eval_id": eval_id,
-                    "sha256": hashlib.sha256(_pending_bytes).hexdigest(),
-                    "byte_size": len(_pending_bytes),
-                    "line_count": pending_content.count("\n") + 1,
-                    "appended_section_preview": pending_content,
+                    "raw_payload": pending_content,
                 },
                 chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
             )

@@ -764,19 +764,18 @@ def _build_report_header(
     # `total_seq > head_seq` could never be true and lag was always 0.
     #
     # Until the projector cursor is wired in, we emit null for lag_events
-    # rather than a misleading zero.  projector_health transitions to
-    # "unknown" when the cursor is absent so callers can distinguish
-    # "cursor wired + no lag" from "cursor not yet tracked".
+    # rather than a misleading zero.
     #
     # TODO: wire projection_last_applied_seq from the projector and replace
-    # the null with the real lag.  Filed as follow-up (see PR #764 body).
+    # the null with the real lag.  Filed as follow-up issue #767.
     lag_events: Optional[int] = None  # cursor unavailable — see TODO above
 
     if conn is None:
         projector_health = "unreachable"
     else:
-        # With cursor unavailable we cannot tell if the projector is lagging.
-        projector_health = "unknown"
+        # Cursor absent — consumer cannot act on the cursor either way.
+        # Schema enum is {ok, lagging, unreachable}; "unknown" is not valid.
+        projector_health = "unreachable"
 
     return {
         "captured_at": datetime.now(timezone.utc).isoformat(),

@@ -868,7 +868,9 @@ class TestReconcileAllValidatesExplicitDb(unittest.TestCase):
 
 class TestHeaderLagFieldsNullCursor(unittest.TestCase):
     """Finding #3 HIGH: lag_events must be None (not a misleading zero) when
-    the projector cursor is unavailable, and projector_health must be 'unknown'."""
+    the projector cursor is unavailable, and projector_health must be
+    'unreachable' (schema-conformant enum value — 'unknown' is not in the
+    documented v2 schema of {ok, lagging, unreachable})."""
 
     def test_lag_events_is_null_when_db_reachable(self) -> None:
         """With DB reachable but cursor absent, lag_events must be null."""
@@ -905,8 +907,13 @@ class TestHeaderLagFieldsNullCursor(unittest.TestCase):
             f"lag_events should be null (cursor unavailable), got {header['lag_events']!r}",
         )
 
-    def test_projector_health_is_unknown_when_db_reachable_but_cursor_absent(self) -> None:
-        """projector_health must be 'unknown' when cursor is absent (not 'ok')."""
+    def test_projector_health_is_unreachable_when_db_reachable_but_cursor_absent(self) -> None:
+        """projector_health must be 'unreachable' when cursor is absent.
+
+        Schema enum is {ok, lagging, unreachable}; 'unknown' is not valid.
+        Cursor-absent collapses with DB-unavailable — consumer cannot act on
+        the cursor either way.
+        """
         import io
         from contextlib import redirect_stdout
 
@@ -936,8 +943,9 @@ class TestHeaderLagFieldsNullCursor(unittest.TestCase):
         payload = json.loads(buf.getvalue())
         self.assertEqual(
             payload["header"]["projector_health"],
-            "unknown",
-            f"projector_health should be 'unknown' when cursor absent, "
+            "unreachable",
+            f"projector_health should be 'unreachable' when cursor absent "
+            f"(schema enum: {{ok, lagging, unreachable}}), "
             f"got {payload['header']['projector_health']!r}",
         )
 
