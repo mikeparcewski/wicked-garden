@@ -199,6 +199,23 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.consensus",
         "description": "Consensus rejection evidence written to consensus-evidence.json (audit trail)",
     },
+    # Site 3 of bus-cutover (#746): reviewer-report.md write sites
+    # (hooks/scripts/post_tool.py lines 963, 970, 984).
+    # Two events, not three:
+    #   gate_completed — emitted after each _write_reviewer_report call
+    #                    (both the append-to-existing and create-new branches)
+    #   gate_pending   — emitted after _write_pending_reviewer_report
+    #                    (failure path: no consensus_result available)
+    "wicked.consensus.gate_completed": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.consensus",
+        "description": "Consensus gate verdict written to reviewer-report.md (append or create)",
+    },
+    "wicked.consensus.gate_pending": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.consensus",
+        "description": "Pending consensus gate placeholder written to reviewer-report.md (evaluation failed)",
+    },
 }
 
 # Payload deny-list — these fields must NEVER appear in bus payloads.
@@ -232,7 +249,31 @@ _PAYLOAD_ALLOW_OVERRIDES: Dict[str, frozenset] = {
     # Condition C10 — `raw_payload` is REQUIRED for both emits.
     "wicked.consensus.report_created": frozenset({"raw_payload"}),
     "wicked.consensus.evidence_recorded": frozenset({"raw_payload"}),
+    # Site 3 of bus-cutover (#746): reviewer-report.md emits also ship
+    # raw_payload so the projector can reproduce the file byte-for-byte.
+    "wicked.consensus.gate_completed": frozenset({"raw_payload"}),
+    "wicked.consensus.gate_pending": frozenset({"raw_payload"}),
 }
+
+# ---------------------------------------------------------------------------
+# Emit health counters — module-level, protected by _emit_counter_lock.
+#
+# _EMIT_ATTEMPTED: incremented AFTER _check_available() + BUS_EVENT_MAP
+#   validation pass (bus-absent no-ops must NOT inflate the denominator).
+# _EMIT_SUCCEEDED: incremented inside _fire() on returncode == 0.
+#
+# Public accessor: bus_emit_stats() — pure reader, no side effects.
+# Test-teardown helper: _bus_reset_stats() — resets both to 0 atomically.
+#
+# Threshold for the 99.9% SLO lives in .claude-plugin/gate-policy.json
+# under bus_health.emit_success_threshold — NOT as a constant here.
+# See Site 3 cutover decision memory:
+#   site-3-threshold-lives-in-gate-policy-user-override-2026-05-02.md
+# ---------------------------------------------------------------------------
+
+_EMIT_ATTEMPTED: int = 0
+_EMIT_SUCCEEDED: int = 0
+_emit_counter_lock: threading.Lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Availability cache — 60s TTL, reset on failure
@@ -388,6 +429,12 @@ def emit_event(
     if event_def is None:
         return  # Unknown event type — fail silently
 
+    # Count attempts only AFTER availability + event-map validation pass.
+    # Bus-absent no-ops (early returns above) must NOT inflate the denominator.
+    global _EMIT_ATTEMPTED, _EMIT_SUCCEEDED
+    with _emit_counter_lock:
+        _EMIT_ATTEMPTED += 1
+
     safe_payload = _sanitize_payload(payload, event_type)
 
     cmd = _build_cmd(
@@ -407,17 +454,56 @@ def emit_event(
     if meta:
         cmd.extend(["--metadata", json.dumps(meta, default=str)])
 
-    def _fire():
+    def _fire() -> None:
+        global _EMIT_SUCCEEDED
         try:
-            subprocess.run(
+            result = subprocess.run(
                 cmd,
                 timeout=_EMIT_TIMEOUT_SECONDS,
                 capture_output=True,
             )
+            if result.returncode == 0:
+                with _emit_counter_lock:
+                    _EMIT_SUCCEEDED += 1
         except Exception:
             _invalidate_cache()
 
     threading.Thread(target=_fire, daemon=True).start()
+
+
+def bus_emit_stats() -> Dict[str, Any]:
+    """Return current emit health counters as a plain dict.
+
+    Pure reader — no logging, no side effects. Callers (e.g.
+    wicked-garden:platform:plugin-health) are responsible for alerting
+    when ratio falls below the threshold defined in gate-policy.json
+    bus_health.emit_success_threshold.
+
+    Returns:
+        {
+            "attempted": int,   -- emits past availability + BUS_EVENT_MAP check
+            "succeeded": int,   -- returncode-0 subprocess completions
+            "ratio": float,     -- succeeded / attempted; 0.0 when attempted == 0
+        }
+    """
+    with _emit_counter_lock:
+        attempted = _EMIT_ATTEMPTED
+        succeeded = _EMIT_SUCCEEDED
+    ratio = succeeded / attempted if attempted > 0 else 0.0
+    return {"attempted": attempted, "succeeded": succeeded, "ratio": ratio}
+
+
+def _bus_reset_stats() -> None:
+    """Reset emit health counters to zero.
+
+    TEST-TEARDOWN HELPER ONLY — not for production use. Wired into
+    tests/conftest.py autouse fixture so counter isolation is automatic
+    across the suite. Resets both counters atomically under the lock.
+    """
+    global _EMIT_ATTEMPTED, _EMIT_SUCCEEDED
+    with _emit_counter_lock:
+        _EMIT_ATTEMPTED = 0
+        _EMIT_SUCCEEDED = 0
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # wicked-garden Bus Event Catalog
 
 > Auto-generated from `scripts/_bus.py:BUS_EVENT_MAP`. Do not edit manually.
-> Regenerate: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_catalog_gen.py" > WICKED_GARDEN_BUS_EVENTS.md`
+> Regenerate: `python3 scripts/_bus_catalog_gen.py > WICKED_GARDEN_BUS_EVENTS.md`
 
 ## Naming Convention
 
@@ -46,7 +46,14 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 
 | Event Type | Subdomain | Description |
 |------------|-----------|-------------|
+| `wicked.consensus.evidence_recorded` | `crew.consensus` | Consensus rejection evidence written to consensus-evidence.json (audit trail) |
+| `wicked.consensus.gate_completed` | `crew.consensus` | Consensus gate verdict written to reviewer-report.md (append or create) |
+| `wicked.consensus.gate_pending` | `crew.consensus` | Pending consensus gate placeholder written to reviewer-report.md (evaluation failed) |
+| `wicked.consensus.report_created` | `crew.consensus` | Consensus gate report written to consensus-report.json |
+| `wicked.crew.yolo_revoked` | `crew.yolo` | Yolo auto-approval revoked due to scope-increase mutation (audit + observability) |
+| `wicked.dispatch.log_entry_appended` | `crew.dispatch` | HMAC-signed dispatch-log.jsonl entry appended (orphan-check sentinel) |
 | `wicked.gate.blocked` | `crew.gate` | Gate returned REJECT — phase advancement blocked |
+| `wicked.gate.condition.resolved` | `crew.condition` | Mechanical CONDITIONAL finding resolved via crew:resolve skill (verdict unchanged) |
 | `wicked.gate.decided` | `crew.gate` | Gate returned APPROVE, CONDITIONAL, or REJECT |
 | `wicked.phase.auto_advanced` | `crew.phase` | Phase auto-advanced for low-complexity project (audit trail) |
 | `wicked.phase.transitioned` | `crew.phase` | Phase approved and advanced to next |
@@ -60,6 +67,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 | Event Type | Subdomain | Description |
 |------------|-----------|-------------|
 | `wicked.experiment.concluded` | `delivery.experiment` | A/B experiment concluded with results |
+| `wicked.quality.drift_detected` | `delivery.telemetry` | Cross-session quality metric drifted past baseline threshold (special-cause or >=15% drop) |
 | `wicked.rollout.decided` | `delivery.rollout` | Rollout go/no-go decision made |
 
 ### Facts
@@ -67,6 +75,12 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 | Event Type | Subdomain | Description |
 |------------|-----------|-------------|
 | `wicked.fact.extracted` | `facts` | Structured fact extracted from conversation (consumed by wicked-brain auto-memorize) |
+
+### Gate
+
+| Event Type | Subdomain | Description |
+|------------|-----------|-------------|
+| `wicked.verdict.recorded` | `gate.verdict` | wicked-testing reviewer recorded a gate verdict (PASS/FAIL/N-A/SKIP) |
 
 ### Jam
 
@@ -84,6 +98,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 |------------|-----------|-------------|
 | `wicked.compliance.failed` | `platform.compliance` | Compliance check failed for a framework |
 | `wicked.compliance.passed` | `platform.compliance` | Compliance check passed for a framework |
+| `wicked.guard.findings` | `platform.guard` | Autonomous session-close guard pipeline surfaced findings (Issue #448) |
 | `wicked.security.finding_raised` | `platform.security` | Security review raised a finding |
 
 ### Qe
