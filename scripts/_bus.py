@@ -81,6 +81,18 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.condition",
         "description": "Mechanical CONDITIONAL finding resolved via crew:resolve skill (verdict unchanged)",
     },
+    # Site 5 of bus-cutover (#746): condition verification flip.
+    # Emitted from conditions_manifest.mark_cleared() BEFORE the disk
+    # writes (sidecar + manifest).  The projector handler
+    # _condition_marked_cleared in daemon/projector.py replays the same
+    # atomic two-step write order: sidecar first, then manifest flip.
+    # chain_id MUST include condition_id for per-condition idempotency
+    # (see ``memory/bus-chain-id-must-include-uniqueness-segment-gotcha.md``).
+    "wicked.condition.marked_cleared": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.condition",
+        "description": "Condition verification flipped to verified=True via mark_cleared() (Site 5 cutover)",
+    },
     # Jam domain — jam.py
     "wicked.session.started": {
         "domain": "wicked-garden",
@@ -301,17 +313,18 @@ def _is_disabled() -> bool:
 
 # ---------------------------------------------------------------------------
 # Default-ON set for _bus_as_truth_enabled — shipped cutover sites whose
-# flag falls through to the default map.  Sites 1-4 have shipped; only
-# CONDITIONS_MANIFEST defaults OFF until Site 5 lands.  Keep this frozenset
-# in sync with PROJECTION_FILE_FLAGS in scripts/crew/reconcile_v2.py.
+# flag falls through to the default map.  All five planned sites (1-5) have
+# shipped.  Keep this frozenset in sync with PROJECTION_FILE_FLAGS in
+# scripts/crew/reconcile_v2.py.
 # ---------------------------------------------------------------------------
 
 _BUS_AS_TRUTH_DEFAULT_ON: frozenset = frozenset({
-    "DISPATCH_LOG",       # Site 1 — dispatch-log.jsonl (PR #751)
-    "CONSENSUS_REPORT",   # Site 2 — consensus-report.json (PR #758)
-    "CONSENSUS_EVIDENCE", # Site 2 — consensus-evidence.json (PR #758)
-    "REVIEWER_REPORT",    # Site 3 — reviewer-report.md (PR #776)
-    "GATE_RESULT",        # Site 4 — gate-result.json (PR #782 + this PR)
+    "DISPATCH_LOG",        # Site 1 — dispatch-log.jsonl (PR #751)
+    "CONSENSUS_REPORT",    # Site 2 — consensus-report.json (PR #758)
+    "CONSENSUS_EVIDENCE",  # Site 2 — consensus-evidence.json (PR #758)
+    "REVIEWER_REPORT",     # Site 3 — reviewer-report.md (PR #776)
+    "GATE_RESULT",         # Site 4 — gate-result.json (PR #782 + #784)
+    "CONDITIONS_MANIFEST", # Site 5 — conditions-manifest.json (this PR)
 })
 
 

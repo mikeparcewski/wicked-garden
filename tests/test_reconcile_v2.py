@@ -578,39 +578,46 @@ class TestGatePendingMapsToReviewerReport(_ReconcileV2Fixture):
 # Finding #2 — conditions-manifest.json excluded during pre-Site-5 coexistence
 # ---------------------------------------------------------------------------
 
-class TestConditionsManifestExcludedPreSite5(_ReconcileV2Fixture):
-    """Regression: conditions-manifest.json must NOT trigger projection-without-event
-    before Site 5 ships.  Every existing CONDITIONAL phase would fire false drift
-    otherwise.
-
-    TODO (Site 5): when WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST ships, re-add
-    conditions-manifest.json to _collect_projection_files + _PROJECTION_MAP and
-    flip this test to assert drift IS detected when the file has no event.
+class TestConditionsManifestPostSite5(_ReconcileV2Fixture):
+    """Site 5 cutover (#746): conditions-manifest.json IS now a tracked
+    projection.  An on-disk manifest with no producing event in event_log
+    must fire ``projection-without-event`` drift (the TODO from the
+    original ``TestConditionsManifestExcludedPreSite5`` class is now done).
     """
 
-    def test_conditions_manifest_without_event_does_not_report_drift(self) -> None:
-        """Pre-Site-5 coexistence: conditions-manifest.json is not a tracked
-        projection and must produce zero drift even when no event exists for it."""
-        project_dir = _make_project_dir(self.workspace, "cond-manifest-proj")
+    def test_conditions_manifest_without_event_reports_drift(self) -> None:
+        """Post-Site-5: conditions-manifest.json on disk with NO producing
+        event in event_log → projection-without-event drift fires.
+
+        The expected producers post-Site-5 are:
+        - ``wicked.gate.decided`` with verdict CONDITIONAL + non-empty
+          conditions list (initial creation), OR
+        - ``wicked.condition.marked_cleared`` (subsequent verification flips).
+
+        With neither in event_log, the file is an orphan.
+        """
+        project_dir = _make_project_dir(self.workspace, "cond-orphan-proj")
         phase_dir = _make_phase_dir(project_dir, "design")
         _write_file(
             phase_dir / "conditions-manifest.json",
             '{"conditions": []}',
         )
-        # No event rows inserted — simulating pre-Site-5 state.
+        # No event rows inserted — orphan file scenario.
         conn = self._conn()
-        result = reconcile_v2.reconcile_project("cond-manifest-proj", _daemon_conn=conn)
+        result = reconcile_v2.reconcile_project("cond-orphan-proj", _daemon_conn=conn)
         conn.close()
 
         pwe = [
             d for d in result["drift"]
             if d["type"] == reconcile_v2.DRIFT_PROJECTION_WITHOUT_EVENT
         ]
-        self.assertEqual(
-            pwe,
-            [],
-            "conditions-manifest.json should not trigger projection-without-event "
-            "before Site 5 cuts over.",
+        self.assertTrue(
+            any(
+                d["projection"] == "phases/design/conditions-manifest.json"
+                for d in pwe
+            ),
+            "conditions-manifest.json with no producing event must fire "
+            f"projection-without-event drift. Got: {pwe}",
         )
 
 
@@ -1465,17 +1472,21 @@ class TestReconcileV2FlagPredicate(unittest.TestCase):
         with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "off"}):
             self.assertFalse(reconcile_v2._flag_on("DISPATCH_LOG"))
 
-    def test_unshipped_site_default_off_when_unset(self) -> None:
-        """Unshipped token (CONDITIONS_MANIFEST, Site 5) is OFF via default
-        map when unset.
+    def test_unknown_token_default_off_when_unset(self) -> None:
+        """Tokens NOT in ``_BUS_AS_TRUTH_DEFAULT_ON`` default OFF when unset.
 
-        GATE_RESULT (Site 4) was previously the unshipped reference here;
-        PR #780 flipped it default-ON when Site 4 cutover completed, so
-        CONDITIONS_MANIFEST is now the only remaining unshipped token.
+        After Site 5 (this PR), all five planned cutover tokens
+        (DISPATCH_LOG, CONSENSUS_REPORT, CONSENSUS_EVIDENCE,
+        REVIEWER_REPORT, GATE_RESULT, CONDITIONS_MANIFEST) are in the
+        default-ON set — there are no unshipped tokens left.  This test
+        guards the safety property: any FUTURE token (e.g. a hypothetical
+        Site 6 placeholder, or a token used in tests) defaults OFF when
+        unset, so an env-var typo never silently flips bus-as-truth on
+        for something we didn't intend to ship.
         """
         with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST", None)
-            self.assertFalse(reconcile_v2._flag_on("CONDITIONS_MANIFEST"))
+            os.environ.pop("WG_BUS_AS_TRUTH_NEVER_SHIPPED_TOKEN", None)
+            self.assertFalse(reconcile_v2._flag_on("NEVER_SHIPPED_TOKEN"))
 
     def test_active_projection_names_includes_dispatch_log_by_default(self) -> None:
         """Without any env var, DISPATCH_LOG is default-ON → dispatch-log.jsonl
