@@ -998,9 +998,11 @@ def _write_reviewer_report(
 
         # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
         # Flag check: only emit when Site 3 cutover is enabled.
-        # raw_payload = full file bytes — matches Sites 1+2 contract for
-        # projector byte-for-byte replay.  Unbounded-growth concern tracked
-        # as issue #770 for proper ADR resolution.
+        # raw_payload = yaml_block (just the appended section, NOT the full
+        # cumulative file).  Matches Site 1 per-entry contract (#770 resolution):
+        # the projector reads the existing file, applies the standard separator,
+        # and appends the payload — bounded payload + projector replayability
+        # both achieved.
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
             emit_event(
@@ -1011,7 +1013,7 @@ def _write_reviewer_report(
                     "verdict": verdict,
                     "eval_id": eval_id,
                     "branch": "append",
-                    "raw_payload": new_content,
+                    "raw_payload": yaml_block,
                 },
                 chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
             )
@@ -1021,9 +1023,10 @@ def _write_reviewer_report(
         report_path.write_text(yaml_block, encoding="utf-8")
 
         # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
-        # raw_payload = full file bytes — matches Sites 1+2 contract for
-        # projector byte-for-byte replay.  Unbounded-growth concern tracked
-        # as issue #770 for proper ADR resolution.
+        # raw_payload = yaml_block (the full file content on the create branch,
+        # since the file is fresh).  Per-section contract (#770): yaml_block IS
+        # the entire new file here, so create + append branches are both
+        # "just-written content" semantics.
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
             emit_event(
@@ -1066,9 +1069,9 @@ def _write_pending_reviewer_report(phase_dir: "Path", eval_id: str) -> None:
         report_path.write_text(pending_content, encoding="utf-8")
 
         # Emit AFTER write — write-then-emit invariant.
-        # raw_payload = full file bytes — matches Sites 1+2 contract for
-        # projector byte-for-byte replay.  Unbounded-growth concern tracked
-        # as issue #770 for proper ADR resolution.
+        # raw_payload = pending_content (the full pending template, which IS
+        # the just-written content — this branch always creates a fresh file).
+        # Per-section contract (#770): pending branch was already correct shape.
         if _bus_as_truth_flag_on():
             from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
             emit_event(

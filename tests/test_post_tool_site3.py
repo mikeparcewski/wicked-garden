@@ -419,15 +419,21 @@ class TestEvalIdEntryPointMint(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# raw_payload = full file bytes — matches Sites 1+2 contract
+# raw_payload = per-section payload (#770 resolution)
 # ---------------------------------------------------------------------------
 
-class TestRawPayloadFullBytes(unittest.TestCase):
-    """raw_payload must be the full file bytes at time of emit.
+class TestPerSectionPayload(unittest.TestCase):
+    """raw_payload must be the just-written content (per-section shape, #770).
 
-    Matches the Sites 1+2 contract (dispatch_log.py / consensus_gate.py)
-    which emit raw_payload = full bytes for projector byte-for-byte replay.
-    Digest payload was reverted; unbounded-growth concern tracked as #770.
+    - append branch: raw_payload == yaml_block (just the section appended),
+      NOT the cumulative file.  Matches Site 1 per-entry contract.
+    - create branch: raw_payload == yaml_block (which IS the full file on
+      create since the file is fresh) — unchanged from prior shape.
+    - pending branch: raw_payload == pending_content (full template) —
+      unchanged, already correct shape.
+
+    The projector handler reconstructs the cumulative file by reading the
+    existing file and applying the standard separator.
     """
 
     def _capture_emit(
@@ -455,15 +461,18 @@ class TestRawPayloadFullBytes(unittest.TestCase):
 
         return captured
 
-    def test_append_path_raw_payload_equals_file_content(self) -> None:
-        """append branch: raw_payload must equal the full file content after write."""
+    def test_append_path_raw_payload_equals_yaml_block_not_full_file(self) -> None:
+        """append branch: raw_payload must equal yaml_block (just the section),
+        NOT the full cumulative file.  Per-section payload contract (#770).
+        """
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="rp-append", phase="build")
             report_path = phase_dir / "reviewer-report.md"
 
-            # First write — creates the file.
+            # First write — creates the file (yaml_block = full file on create).
             captured1 = self._capture_emit(phase_dir, "eval00000001")
             self.assertGreater(len(captured1), 0, "emit_event was never called (create)")
+            first_yaml_block = captured1[0]["raw_payload"]
 
             # Second write — appends to the file (triggers append branch).
             captured2 = self._capture_emit(phase_dir, "eval00000002")
@@ -473,14 +482,40 @@ class TestRawPayloadFullBytes(unittest.TestCase):
             append_payload = captured2[-1]
             self.assertIn("raw_payload", append_payload,
                           "append branch must emit raw_payload field")
-            self.assertEqual(
-                append_payload["raw_payload"],
+
+            # raw_payload must be the yaml_block ONLY — NOT the cumulative file.
+            yaml_block = append_payload["raw_payload"]
+            self.assertNotEqual(
+                yaml_block,
                 file_content,
-                "raw_payload must equal full file content after append write",
+                "append branch raw_payload must NOT equal the full cumulative file",
+            )
+            # The cumulative file contains the first section + separator + second section.
+            # The second section (yaml_block) must appear at the END of the file.
+            self.assertTrue(
+                file_content.endswith(yaml_block),
+                "Cumulative file must end with the just-written yaml_block",
+            )
+            # The yaml_block must be a strict substring of the cumulative file.
+            self.assertIn(
+                yaml_block,
+                file_content,
+                "yaml_block must appear in cumulative file",
+            )
+            # The yaml_block must NOT include the first section's content.
+            self.assertNotIn(
+                first_yaml_block,
+                yaml_block,
+                "append branch raw_payload must not contain the first section",
             )
 
     def test_create_path_raw_payload_equals_file_content(self) -> None:
-        """create branch: raw_payload must equal the full file content after write."""
+        """create branch: raw_payload must equal the full file content after write.
+
+        On the create branch yaml_block IS the entire file, so create + append
+        branches share "just-written content" semantics — file content and
+        yaml_block are identical here.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="rp-create", phase="build")
             report_path = phase_dir / "reviewer-report.md"
@@ -495,7 +530,7 @@ class TestRawPayloadFullBytes(unittest.TestCase):
             self.assertEqual(
                 create_payload["raw_payload"],
                 file_content,
-                "raw_payload must equal full file content after create write",
+                "create branch: raw_payload must equal full file content (yaml_block IS the full file)",
             )
 
     def test_pending_path_raw_payload_equals_file_content(self) -> None:
