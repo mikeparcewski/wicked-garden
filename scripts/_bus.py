@@ -301,10 +301,9 @@ def _is_disabled() -> bool:
 
 # ---------------------------------------------------------------------------
 # Default-ON set for _bus_as_truth_enabled — shipped cutover sites whose
-# flag falls through to the default map.  Only sites 1-3 have shipped; the
-# remaining tokens (GATE_RESULT, CONDITIONS_MANIFEST) default OFF until their
-# cutovers land.  Keep this frozenset in sync with PROJECTION_FILE_FLAGS in
-# scripts/crew/reconcile_v2.py.
+# flag falls through to the default map.  Sites 1-4 have shipped; only
+# CONDITIONS_MANIFEST defaults OFF until Site 5 lands.  Keep this frozenset
+# in sync with PROJECTION_FILE_FLAGS in scripts/crew/reconcile_v2.py.
 # ---------------------------------------------------------------------------
 
 _BUS_AS_TRUTH_DEFAULT_ON: frozenset = frozenset({
@@ -312,6 +311,7 @@ _BUS_AS_TRUTH_DEFAULT_ON: frozenset = frozenset({
     "CONSENSUS_REPORT",   # Site 2 — consensus-report.json (PR #758)
     "CONSENSUS_EVIDENCE", # Site 2 — consensus-evidence.json (PR #758)
     "REVIEWER_REPORT",    # Site 3 — reviewer-report.md (PR #776)
+    "GATE_RESULT",        # Site 4 — gate-result.json (PR #782 + this PR)
 })
 
 

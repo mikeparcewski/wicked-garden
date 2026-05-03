@@ -1159,3 +1159,30 @@ Specific invariants that must hold post-cutover:
 - `gate-ingest-audit.jsonl` still accumulates entries for every rejected projection; both `unauthorized_dispatch` and `unauthorized_dispatch_accepted_legacy` tag paths exist (Case 4).
 - Bypass levers still work at projection time via the same envvar semantics (Case 5).
 - `WG_GATE_RESULT_STRICT_AFTER` auto-expire logic is envvar-driven and has no cutover dependency (Case 6).
+
+---
+
+## Post-cutover status (2026-05-03 — PR #780 default-flipped GATE_RESULT)
+
+After PR #782 landed `_gate_decided_disk` in the projector and PR #780
+flipped `WG_BUS_AS_TRUTH_GATE_RESULT` to default-ON, the projection path
+is the active write path in fresh checkouts. The legacy direct write at
+`phase_manager.py:3676` still runs (write-then-emit shape — see PR #782's
+fold for the rationale); the projector's content-hash idempotency makes
+the second write a no-op.
+
+This scenario therefore exercises **both paths** in the default
+configuration:
+- The direct write at `phase_manager.py:3676` produces the file first.
+- The projector handler `_gate_decided_disk` runs the security floor
+  (`validate_gate_result` covering schema + sanitizer per AC-9 §5.4
+  embedded composition; `check_orphan`; `append_audit_entry`) and
+  short-circuits via content-hash equality when the bytes match.
+- `_load_gate_result()` reads the file and re-runs the security floor at
+  read time.
+
+To exercise the legacy path in isolation, operators can opt out via
+`WG_BUS_AS_TRUTH_GATE_RESULT=off` (literal "on"/"off" only — see PR #777
+for the normalization contract). The scenario's case-by-case assertions
+remain valid in either configuration because each Case targets a public
+module surface, not a specific call site.
