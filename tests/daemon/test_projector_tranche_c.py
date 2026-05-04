@@ -385,8 +385,10 @@ def test_skipped_replay_short_circuits_via_content_hash(mem_conn, tmp_path) -> N
 
 
 def test_hitl_judge_emits_before_disk_write(tmp_path) -> None:
-    """write_hitl_decision_evidence emits wicked.hitl.decision_recorded
-    BEFORE writing the JSON file."""
+    """write_hitl_decision_evidence emits wicked.hitl.decision_recorded.
+    W5 bus-cutover: the legacy disk write has been removed; the projector
+    handler materialises the file from the bus event.  Verify the emit
+    fires with the correct payload and the function returns the target path."""
     from hitl_judge import write_hitl_decision_evidence, JudgeDecision  # type: ignore[import]
 
     project_dir = tmp_path / "proj-hitl-emit"
@@ -412,7 +414,8 @@ def test_hitl_judge_emits_before_disk_write(tmp_path) -> None:
             project_dir, "council", "council-decision.json", decision,
         )
 
-    assert path.exists()
+    # Function must still return the target path for caller compatibility.
+    assert path == project_dir / "phases" / "council" / "council-decision.json"
     assert len(captured) == 1
     emit = captured[0]
     assert emit["event_type"] == "wicked.hitl.decision_recorded"
@@ -425,9 +428,11 @@ def test_hitl_judge_emits_before_disk_write(tmp_path) -> None:
     assert emit["chain_id"] == "proj-hitl-emit.council.council-decision"
 
 
-def test_hitl_judge_emit_failure_does_not_block_write(tmp_path) -> None:
-    """A bus-emit failure must NOT block the disk write (evidence loss
-    must be visible — Decision #8 fail-open)."""
+def test_hitl_judge_emit_failure_does_not_block_return(tmp_path) -> None:
+    """A bus-emit failure must NOT prevent the function from returning the
+    target path (fail-open per Decision #8).  The projector handler replays
+    the write on reconnect; callers that stored the path will find the file
+    once the projector catches up."""
     from hitl_judge import write_hitl_decision_evidence, JudgeDecision  # type: ignore[import]
 
     project_dir = tmp_path / "proj-hitl-fail"
@@ -445,7 +450,5 @@ def test_hitl_judge_emit_failure_does_not_block_write(tmp_path) -> None:
             project_dir, "clarify", "hitl-decision.json", decision,
         )
 
-    # Disk write happened despite emit failure.
-    assert path.exists()
-    parsed = json.loads(path.read_text(encoding="utf-8"))
-    assert parsed["pause"] is False
+    # Function returns the expected path even when the bus emit failed.
+    assert path == project_dir / "phases" / "clarify" / "hitl-decision.json"

@@ -340,62 +340,6 @@ def _write_conditions_manifest(
 
 
 # ---------------------------------------------------------------------------
-# Inline-review-context writer
-# ---------------------------------------------------------------------------
-
-
-def _write_inline_review_context(
-    project_dir: Path,
-    phase: str,
-    gate_name: str,
-    bullets: List[str],
-    raw_response: str,
-    gate_result_ref: str,
-) -> Optional[Path]:
-    """Write ``inline-review-context.md`` alongside gate-result.json.
-
-    Contains: evidence summary, user's raw response, timestamp, gate-result ref.
-    """
-    phase_dir = project_dir / "phases" / phase
-    phase_dir.mkdir(parents=True, exist_ok=True)
-    ctx_path = phase_dir / "inline-review-context.md"
-
-    lines = [
-        f"# Inline Gate Review: {gate_name} ({phase})",
-        "",
-        f"**Timestamp**: {_utc_now()}",
-        f"**Gate**: {gate_name}",
-        f"**Phase**: {phase}",
-        "",
-        "## Evidence Summary",
-        "",
-    ]
-    for b in bullets:
-        lines.append(f"- {b}")
-    lines += [
-        "",
-        "## User Response",
-        "",
-        f"> {raw_response.strip()}",
-        "",
-        "## Artifact Reference",
-        "",
-        f"Gate result: `{gate_result_ref}`",
-        "",
-    ]
-
-    try:
-        ctx_path.write_text("\n".join(lines), encoding="utf-8")
-        return ctx_path
-    except OSError as exc:
-        sys.stderr.write(
-            f"[solo-mode] inline-review-context write failed "
-            f"(phase={phase}, gate={gate_name}): {exc}\n"
-        )
-        return None
-
-
-# ---------------------------------------------------------------------------
 # Gate-result writer
 # ---------------------------------------------------------------------------
 
@@ -698,20 +642,6 @@ def dispatch_human_inline(
     # -----------------------------------------------------------------------
     if project_dir is not None:
         _write_gate_result(project_dir, phase, gate_name, parsed, context_ref=None)
-
-    # -----------------------------------------------------------------------
-    # Write inline-review-context.md
-    # -----------------------------------------------------------------------
-    if project_dir is not None:
-        ctx_path = _write_inline_review_context(
-            project_dir, phase, gate_name, bullets, raw_response, gate_result_ref
-        )
-        if ctx_path:
-            # Back-patch context_ref into gate-result.json (best-effort)
-            _write_gate_result(
-                project_dir, phase, gate_name, parsed,
-                context_ref=str(ctx_path),
-            )
 
     # -----------------------------------------------------------------------
     # Write conditions-manifest.json for CONDITIONAL verdict

@@ -306,18 +306,7 @@ def _record_specialist_engagement(domain: str, agent_name: str) -> None:
                 chain_id=f"{project_id}.{current_phase}.{agent_name}-{ts_compact}",
             )
         except Exception:  # noqa: BLE001 — fail-open per Decision #8
-            pass  # bus unavailable — append below still runs
-
-        # JSONL append-only write (W9a refactor).  Mirrors the
-        # _jsonl_append_projection helper in daemon/projector.py for
-        # crash semantics: open("a") + flush + best-effort fsync.
-        with open(engagement_file, "a", encoding="utf-8") as fh:
-            fh.write(line)
-            fh.flush()
-            try:
-                os.fsync(fh.fileno())
-            except OSError:
-                pass  # fail-open: fsync unsupported on this FS
+            pass  # bus unavailable — projector handler replays on reconnect
 
     except Exception as exc:
         print(f"[wicked-garden] specialist engagement record error: {exc}", file=sys.stderr)
