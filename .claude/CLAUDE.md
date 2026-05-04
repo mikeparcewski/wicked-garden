@@ -392,6 +392,22 @@ and the unique-value test before their skills will be accepted in the marketplac
 
 `gate-result.json` ingestion runs a layered defense floor: schema validator, content sanitizer (codepoint allow-list + injection patterns), dispatch-log orphan detection, and append-only audit log. This is a **floor** against content drift and trivial prompt-injection — not a wall against local disk-write attackers. Rollback levers: `WG_GATE_RESULT_SCHEMA_VALIDATION=off`, `WG_GATE_RESULT_CONTENT_SANITIZATION=off`, `WG_GATE_RESULT_DISPATCH_CHECK=off` — all auto-expire at `WG_GATE_RESULT_STRICT_AFTER`. Benchmark SLO re-baseline is owned by the `wicked-garden:platform:gate-benchmark-rebaseline` skill.
 
+## Bus-as-truth architecture (v9.x cutover)
+
+Issue #746 cutover is complete (PRs #751 → #791). Bus events are the source of truth for every gate-critical and audit-load-bearing artifact; on-disk files are projections materialized by `daemon/projector.py` handlers. Drift detector (`scripts/crew/reconcile_v2.py`) measures three classes: `projection-stale` (projector lagging), `event-without-projection` (handler missing/failed), `projection-without-event` (direct write bypassing the bus).
+
+**14 default-ON `WG_BUS_AS_TRUTH_*` tokens**: `DISPATCH_LOG`, `CONSENSUS_REPORT`, `CONSENSUS_EVIDENCE`, `REVIEWER_REPORT`, `GATE_RESULT`, `CONDITIONS_MANIFEST`, `INLINE_REVIEW_CONTEXT`, `AMENDMENTS`, `REEVAL_ADDENDUM`, `CONVERGENCE`, `SEMANTIC_GAP`, `HITL_DECISION`, `SUBAGENT_ENGAGEMENT`, `SKIPPED_PHASE_STATUS`. Operators opt out per-site with `WG_BUS_AS_TRUTH_<TOKEN>=off` (literal `on`/`off` only, case/whitespace normalised — see PR #777 for the contract). Source of truth: `scripts/_bus.py::_BUS_AS_TRUTH_DEFAULT_ON`.
+
+**Resolver shape**: `scripts/crew/reconcile_v2.py::_PROJECTION_RESOLVERS` is `Dict[str, Callable[[payload, phase, project_dir], List[Path]]]` — function-per-event, payload-aware. One event can produce zero, one, or many files conditionally on payload. Site 5's `_resolve_gate_decided` produces `gate-result.json` always and `conditions-manifest.json` only on CONDITIONAL verdicts; Tranche B's W7 dual-file resolver produces both per-phase + project-root logs from one event; Tranche C's W5 hitl resolver picks the file from `payload["filename"]` validated against `_HITL_FILENAME_WHITELIST` for path-traversal defense.
+
+**Adding a new bus-projected artifact**: (1) register the event in `scripts/_bus.py::BUS_EVENT_MAP` + `_PAYLOAD_ALLOW_OVERRIDES` carve-out for `raw_payload`; (2) add the projector handler to `daemon/projector.py._HANDLERS` (use `_jsonl_append_projection` for JSONL append patterns); (3) add the resolver to `_PROJECTION_RESOLVERS`; (4) add `_PROJECTION_HANDLERS_AVAILABLE` entry True; (5) add the file to `PROJECTION_FILE_FLAGS` with a new token; (6) add the token to `_BUS_AS_TRUTH_DEFAULT_ON`; (7) wire the source-side emit BEFORE the legacy disk write, fail-open per Decision #8 (bus failure must NOT block the write).
+
+**Audit-marker events** (no projector handler): `wicked.crew.legacy_adopted`, `wicked.crew.qe_evaluator_migrated`, `wicked.log.rotated`. These mark "this happened" without becoming sources of truth — used for forensics on migration/maintenance side-effects.
+
+**Soak phase**: legacy direct-write paths still run during a soak window per `docs/v9/bus-cutover-staging-plan.md` §4 ("two releases of zero drift" rule). Content-hash idempotency in projector handlers makes the duplicate writes byte-for-byte safe. Direct-write deletion is mechanical follow-up work.
+
+**Architecture refs**: `docs/v9/bus-cutover-staging-plan.md` (wave-1 design), `docs/v9/wave-2-cutover-plan.md` (wave-2 per-site analysis + tranche sequencing), `docs/v9/adr-reconcile-v2.md` (why reconcile_v2 co-exists with reconcile.py).
+
 ## wicked-brain
 
 Digital brain: **wicked-garden** | 11,269 indexed items | 11,208 chunks, 23 wiki articles, 15 memories | server port 4243

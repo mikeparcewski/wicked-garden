@@ -23,6 +23,20 @@ External plugins integrate with wicked-garden by following the contract in
 Plugin authors must pass the v9 discovery conventions (`docs/v9/discovery-conventions.md`)
 and the unique-value test before their skills will be accepted in the marketplace.
 
+## Bus-as-truth contract (v9.x cutover)
+
+The bus-cutover (#746) shipped across PRs #751 → #791. **Bus events are the source of truth** for every gate-critical and audit-load-bearing artifact; on-disk files are projections materialized by `daemon/projector.py`. 14 sites are default-ON. See CLAUDE.md "Bus-as-truth architecture" for the full inventory and resolver shape.
+
+**Rules for agents writing code that produces a tracked artifact**:
+
+1. **Emit BEFORE the disk write.** Pattern: `emit_event("wicked.<domain>.<verb>", payload, chain_id=...)` then `write_text(...)`. Never write first and emit after — the projector replays from the event, so the event must precede the write.
+2. **Fail-open per Decision #8.** Wrap the emit in `try/except`. A bus emit failure must NEVER block the legacy disk write — evidence loss is preferable visible (the disk write succeeds; missing event surfaces as drift).
+3. **chain_id includes a uniqueness segment** when the operation can repeat in a phase. Per `memory/bus-chain-id-must-include-uniqueness-segment-gotcha.md`: phase-level `chain_id` lets `is_processed` dedupe drop subsequent events in the same phase. Include `condition_id`, `artifact_id`, `amendment_id`, etc. as the discriminator.
+4. **Carve out `raw_payload`** in `scripts/_bus.py::_PAYLOAD_ALLOW_OVERRIDES` if the projector needs the canonical bytes (JSONL append handlers always do; full-file rewrite handlers may instead carry structured fields).
+5. **For new artifacts**: follow the 7-step add-a-bus-projected-artifact procedure in CLAUDE.md "Bus-as-truth architecture" — event registration → carve-out → handler → resolver → handler-available → file-flag → default-ON.
+
+**Soak window**: legacy direct-write paths still run alongside the bus path. Don't delete them yet — `docs/v9/bus-cutover-staging-plan.md` §4 requires two releases of zero drift before deletion. Content-hash idempotency in projector handlers makes the duplicate writes safe.
+
 ## Planning & Execution
 
 - When I say "just do it" or "just make the changes", execute immediately without presenting plans for approval. Do not enter plan mode or ask for confirmation unless I explicitly ask for a plan.
