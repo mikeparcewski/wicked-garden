@@ -1524,5 +1524,282 @@ class TestReconcileV2FlagPredicate(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Issue #767 — projector cursor wiring
+# ---------------------------------------------------------------------------
+
+
+def _init_db_with_cursor_table(db_path: Path) -> None:
+    """Create event_log + cursor schema (mirrors daemon/db.py)."""
+    conn = sqlite3.connect(str(db_path))
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS event_log (
+            event_id            INTEGER PRIMARY KEY,
+            event_type          TEXT NOT NULL,
+            chain_id            TEXT,
+            payload_json        TEXT NOT NULL DEFAULT '{}',
+            projection_status   TEXT NOT NULL DEFAULT 'applied',
+            error_message       TEXT,
+            ingested_at         INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS cursor (
+            bus_source      TEXT PRIMARY KEY,
+            cursor_id       TEXT NOT NULL,
+            last_event_id   INTEGER NOT NULL DEFAULT 0,
+            acked_at        INTEGER NOT NULL
+        );
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+def _set_cursor(db_path: Path, last_event_id: int) -> None:
+    """Upsert a cursor row mimicking the daemon subscriber."""
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        """
+        INSERT INTO cursor (bus_source, cursor_id, last_event_id, acked_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(bus_source) DO UPDATE SET
+            last_event_id = excluded.last_event_id,
+            acked_at      = excluded.acked_at
+        """,
+        ("wicked-bus", "test-cursor", last_event_id, int(time.time())),
+    )
+    conn.commit()
+    conn.close()
+
+
+class TestProjectorCursorWiring(unittest.TestCase):
+    """Issue #767 — projector cursor wired into lag math.
+
+    Acceptance criteria from the issue:
+      * Cursor read populates lag_events = head_seq - last_event_id
+      * lag_events > _LAG_EVENTS_THRESHOLD → projector_health = "lagging"
+      * lag_events <= threshold → projector_health = "ok"
+      * Per-entry projection-stale records carry actual cursor value
+      * Cursor absent / DB unreachable → null fields preserved (fail-open)
+    """
+
+    def test_get_projector_last_applied_seq_returns_value_when_cursor_present(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-cursor-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            _init_db_with_cursor_table(db_path)
+            _set_cursor(db_path, last_event_id=42)
+
+            conn = sqlite3.connect(str(db_path))
+            try:
+                result = reconcile_v2._get_projector_last_applied_seq(conn)
+            finally:
+                conn.close()
+
+        self.assertEqual(result, 42)
+
+    def test_get_projector_last_applied_seq_returns_none_when_cursor_absent(self) -> None:
+        """Cursor table exists but has no row for wicked-bus → None."""
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-no-cursor-row-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            _init_db_with_cursor_table(db_path)
+
+            conn = sqlite3.connect(str(db_path))
+            try:
+                result = reconcile_v2._get_projector_last_applied_seq(conn)
+            finally:
+                conn.close()
+
+        self.assertIsNone(result)
+
+    def test_get_projector_last_applied_seq_returns_none_when_cursor_table_missing(self) -> None:
+        """Cursor table doesn't exist → sqlite.Error → None (fail-open)."""
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-no-table-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            _init_event_log_schema(db_path)  # only event_log, no cursor table
+
+            conn = sqlite3.connect(str(db_path))
+            try:
+                result = reconcile_v2._get_projector_last_applied_seq(conn)
+            finally:
+                conn.close()
+
+        self.assertIsNone(result)
+
+    def test_header_lag_events_zero_when_cursor_at_head(self) -> None:
+        """Cursor caught up to head → lag = 0 → projector_health = ok."""
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-caught-up-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            _init_db_with_cursor_table(db_path)
+            _insert_event_row(
+                db_path,
+                event_id=10,
+                event_type="wicked.gate.decided",
+                chain_id="p.build.gate",
+            )
+            _set_cursor(db_path, last_event_id=10)
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                reconcile_v2.main(["--all", "--json", "--daemon-db", str(db_path)])
+
+        payload = json.loads(buf.getvalue())
+        header = payload["header"]
+        self.assertEqual(header["lag_events"], 0)
+        self.assertEqual(header["projector_health"], "ok")
+        self.assertEqual(header["projection_last_applied_seq"], 10)
+
+    def test_header_lag_events_lagging_when_cursor_behind(self) -> None:
+        """Cursor far behind head → lag > threshold → projector_health = lagging."""
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-lagging-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            _init_db_with_cursor_table(db_path)
+            # Seed events spanning past the lag threshold (default 10).
+            for ev_id in range(1, 25):
+                _insert_event_row(
+                    db_path,
+                    event_id=ev_id,
+                    event_type="wicked.gate.decided",
+                    chain_id=f"p.build.gate-{ev_id}",
+                )
+            # Cursor at 5 → lag = 24 - 5 = 19 (> 10 threshold)
+            _set_cursor(db_path, last_event_id=5)
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                reconcile_v2.main(["--all", "--json", "--daemon-db", str(db_path)])
+
+        payload = json.loads(buf.getvalue())
+        header = payload["header"]
+        self.assertEqual(header["lag_events"], 19)
+        self.assertEqual(header["projector_health"], "lagging")
+        self.assertEqual(header["projection_last_applied_seq"], 5)
+
+    def test_header_lag_events_ok_when_cursor_within_threshold(self) -> None:
+        """Cursor a few events behind head → lag <= threshold → ok."""
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-ok-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            _init_db_with_cursor_table(db_path)
+            for ev_id in range(1, 16):
+                _insert_event_row(
+                    db_path,
+                    event_id=ev_id,
+                    event_type="wicked.gate.decided",
+                    chain_id=f"p.build.gate-{ev_id}",
+                )
+            # Cursor at 7 → lag = 15 - 7 = 8 (<= 10 threshold)
+            _set_cursor(db_path, last_event_id=7)
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                reconcile_v2.main(["--all", "--json", "--daemon-db", str(db_path)])
+
+        payload = json.loads(buf.getvalue())
+        header = payload["header"]
+        self.assertEqual(header["lag_events"], 8)
+        self.assertEqual(header["projector_health"], "ok")
+
+    def test_header_lag_events_clamped_to_zero_when_cursor_leads_head(self) -> None:
+        """Defensive: if cursor > head (shouldn't happen normally), clamp lag to 0
+        rather than emitting a misleading negative."""
+        with tempfile.TemporaryDirectory(prefix="wg-rv2-clamp-") as tmp:
+            db_path = Path(tmp) / "test.db"
+            _init_db_with_cursor_table(db_path)
+            _insert_event_row(
+                db_path,
+                event_id=10,
+                event_type="wicked.gate.decided",
+                chain_id="p.build.gate",
+            )
+            # Cursor at 99 (ahead of head=10) — partial DB rebuild scenario.
+            _set_cursor(db_path, last_event_id=99)
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                reconcile_v2.main(["--all", "--json", "--daemon-db", str(db_path)])
+
+        payload = json.loads(buf.getvalue())
+        header = payload["header"]
+        self.assertEqual(
+            header["lag_events"], 0,
+            "negative lag must be clamped to 0, not emitted as misleading "
+            f"negative or unbounded large value (got {header['lag_events']!r})",
+        )
+        self.assertEqual(header["projector_health"], "ok")
+
+
+class TestProjectionStaleEntryCarriesCursorFields(_ReconcileV2Fixture):
+    """Issue #767 — per-entry projection-stale records carry the actual
+    projection_last_applied_seq and lag_events when cursor is wired.
+
+    Inherits ``_ReconcileV2Fixture`` for the patched ``_projects_root`` —
+    extends the fixture's event_log-only schema with the cursor table.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        # Extend the fixture DB with the cursor table.  The fixture's
+        # _init_event_log_schema only created event_log; we need both
+        # for cursor wiring tests.
+        conn = sqlite3.connect(str(self.db_path))
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS cursor (
+                bus_source      TEXT PRIMARY KEY,
+                cursor_id       TEXT NOT NULL,
+                last_event_id   INTEGER NOT NULL DEFAULT 0,
+                acked_at        INTEGER NOT NULL
+            );
+            """
+        )
+        conn.commit()
+        conn.close()
+
+    def _seed_cursor(self, last_event_id: int) -> None:
+        _set_cursor(self.db_path, last_event_id=last_event_id)
+
+    def test_stale_entry_carries_cursor_value(self) -> None:
+        """Per-entry projection_last_applied_seq matches the cursor's last_event_id."""
+        # Make the project dir under the patched projects_root.
+        project_dir = self.projects_root / "stale-pe-proj"
+        (project_dir / "phases" / "build").mkdir(parents=True, exist_ok=True)
+
+        _insert_event_row(
+            self.db_path,
+            event_id=42,
+            event_type="wicked.gate.decided",
+            chain_id="stale-pe-proj.build.gate",
+            projection_status="pending",
+        )
+        self._seed_cursor(last_event_id=20)
+
+        conn = self._conn()
+        try:
+            result = reconcile_v2.reconcile_project(
+                "stale-pe-proj", _daemon_conn=conn,
+            )
+        finally:
+            conn.close()
+
+        stale_entries = [
+            d for d in result["drift"]
+            if d["type"] == reconcile_v2.DRIFT_PROJECTION_STALE
+        ]
+        self.assertGreater(
+            len(stale_entries), 0,
+            f"Expected projection-stale drift; got drift={result['drift']!r}",
+        )
+        for entry in stale_entries:
+            self.assertEqual(
+                entry["projection_last_applied_seq"], 20,
+                "per-entry cursor must reflect the actual cursor row",
+            )
+            # event_seq=42, cursor=20 → lag=22 for this entry
+            self.assertEqual(
+                entry["lag_events"], 22,
+                f"lag = event_seq - cursor; got {entry['lag_events']!r}",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
