@@ -226,6 +226,126 @@ def _phase_transitioned(conn: sqlite3.Connection, event: dict) -> None:
         "projector: applied %s project_id=%r %r -> %r", et, project_id, phase_from, phase_to
     )
 
+    # Site W10b fan-out (#746): when the transition is SKIPPED, ALSO
+    # materialise phases/{phase_from}/status.md from the same event.
+    # Gated on WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS.  Wrapped in
+    # try/except so a status-md write failure NEVER taints the DB-row
+    # work above (Decision #8).
+    try:
+        if str(_opt(payload, "gate_result", "")).upper() == "SKIPPED":
+            _phase_skipped_status_md(conn, event)
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        logger.exception(
+            "projector: _phase_skipped_status_md fan-out raised — "
+            "DB-row projection preserved; status.md may not have been written"
+        )
+
+
+def _phase_skipped_status_md(conn: sqlite3.Connection, event: dict) -> None:
+    """Materialise phases/{phase}/status.md for a SKIPPED phase transition.
+
+    Site W10b of bus-cutover wave-2 (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS``.  Mirrors the markdown
+    shape that ``phase_manager.skip_phase`` writes at line 4188 so
+    projection and direct-write paths produce byte-identical output.
+
+    Payload contract (from skip_phase emit):
+      project_id, phase_from (the phase being skipped),
+      gate_result == "SKIPPED" (the SKIPPED sentinel),
+      approver, skip_reason, skipped_at.
+
+    Idempotency: content-hash short-circuit on rewrite.
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("SKIPPED_PHASE_STATUS")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off: %s", exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    project_id = payload.get("project_id")
+    phase_from = payload.get("phase_from")
+    if not project_id or not phase_from:
+        return
+
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: status.md SKIPPED — project %r has no directory in DB; "
+            "skipping",
+            project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    target = project_dir / "phases" / str(phase_from) / "status.md"
+
+    approver = payload.get("approver", "auto")
+    skip_reason = payload.get("skip_reason", "")
+    skipped_at = payload.get("skipped_at", "")
+
+    body = (
+        f"---\n"
+        f"phase: {phase_from}\n"
+        f"status: skipped\n"
+        f"skipped_at: {skipped_at}\n"
+        f"approved_by: {approver}\n"
+        f"---\n\n"
+        f"# {str(phase_from).replace('-', ' ').title()} Phase — Skipped\n\n"
+        f"**Reason**: {skip_reason or 'Not applicable for this project scope'}\n\n"
+        f"**Approved by**: {approver}\n"
+    )
+    candidate_bytes = body.encode("utf-8")
+
+    import hashlib
+    try:
+        if target.exists():
+            existing_bytes = target.read_bytes()
+            if (
+                hashlib.sha256(existing_bytes).digest()
+                == hashlib.sha256(candidate_bytes).digest()
+            ):
+                logger.debug(
+                    "projector: status.md SKIPPED — content hash matches "
+                    "existing %s; skipping rewrite", target,
+                )
+                return
+    except OSError as exc:
+        logger.warning(
+            "projector: status.md SKIPPED — could not read %s for "
+            "idempotency check: %s; proceeding to write", target, exc,
+        )
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_bytes(candidate_bytes)
+        tmp.replace(target)
+    except OSError as exc:
+        logger.warning(
+            "projector: status.md SKIPPED — write failed at %s: %s",
+            target, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied status.md SKIPPED projection "
+        "project_id=%r phase=%r path=%s",
+        project_id, phase_from, target,
+    )
+
 
 def _phase_auto_advanced(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.phase.auto_advanced — phase-approved audit event.
@@ -2275,6 +2395,158 @@ def _semantic_gap_recorded(conn: sqlite3.Connection, event: dict) -> None:
     )
 
 
+# --- Wave-2 Tranche C (#746): W5 + W9b -------------------------------------
+
+
+# Whitelist of HITL evidence filenames the projector will materialise.
+# Caller-supplied filenames outside this set are rejected to defend
+# against path-traversal via payload (e.g. "../../etc/passwd").  See
+# wave-2 plan §W5 lines 233-239 for the threat model.
+_HITL_FILENAME_WHITELIST: frozenset = frozenset({
+    "hitl-decision.json",
+    "council-decision.json",
+    "hitl-challenge-decision.json",
+    "hitl-clarify-decision.json",
+    "hitl-council-decision.json",
+})
+
+
+def _hitl_decision_recorded(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.hitl.decision_recorded → phases/{phase}/{filename}.
+
+    Site W5 of bus-cutover wave-2 (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_HITL_DECISION``.  Replays the raw_payload bytes
+    (the JSON-serialised JudgeDecision) into the same path
+    ``hitl_judge.write_hitl_decision_evidence`` writes to.
+
+    Filename safety: payload["filename"] is caller-supplied (the three
+    integration points pass different names — clarify-halt vs council
+    vs challenge).  The handler validates the name against
+    ``_HITL_FILENAME_WHITELIST`` before writing.  Anything outside the
+    whitelist is rejected with a warning — defends against
+    path-traversal vectors via crafted payloads.
+
+    Idempotency: content-hash short-circuit (full-file rewrite, not append).
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("HITL_DECISION")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off: %s", exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    filename, ok = _require(payload, "filename", et)
+    if not ok:
+        return
+    raw_payload, ok = _require(payload, "raw_payload", et)
+    if not ok:
+        return
+
+    # Filename whitelist defense — reject anything outside the known set.
+    # This is the load-bearing security check; caller-supplied filenames
+    # could otherwise traverse out of phases/{phase}/ via "../" or write
+    # to arbitrary basenames.
+    if str(filename) not in _HITL_FILENAME_WHITELIST:
+        logger.warning(
+            "projector: wicked.hitl.decision_recorded — filename %r is "
+            "not in the whitelist; refusing to write (defends against "
+            "path-traversal via payload)",
+            filename,
+        )
+        return
+
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: wicked.hitl.decision_recorded — project %r has no "
+            "directory in DB; skipping",
+            project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    target = project_dir / "phases" / str(phase) / str(filename)
+    candidate_bytes = str(raw_payload).encode("utf-8")
+
+    import hashlib
+    try:
+        if target.exists():
+            existing_bytes = target.read_bytes()
+            if (
+                hashlib.sha256(existing_bytes).digest()
+                == hashlib.sha256(candidate_bytes).digest()
+            ):
+                logger.debug(
+                    "projector: hitl decision — content hash matches "
+                    "existing %s; skipping rewrite", target,
+                )
+                return
+    except OSError as exc:
+        logger.warning(
+            "projector: hitl decision — could not read %s for idempotency "
+            "check: %s; proceeding to write", target, exc,
+        )
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_bytes(candidate_bytes)
+        tmp.replace(target)
+    except OSError as exc:
+        logger.warning(
+            "projector: hitl decision — write failed at %s: %s",
+            target, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied wicked.hitl.decision_recorded "
+        "project_id=%r phase=%r filename=%r",
+        project_id, phase, filename,
+    )
+
+
+def _subagent_engaged(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.subagent.engaged → phases/{phase}/specialist-engagement.jsonl.
+
+    Site W9b of bus-cutover wave-2 (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_SUBAGENT_ENGAGEMENT``.  Replays the raw_payload
+    JSONL line from ``subagent_lifecycle._record_specialist_engagement``
+    into the same file.
+
+    The W9a precursor (in this same PR) refactored the source from
+    ``specialist-engagement.json`` (JSON array, read-modify-write) to
+    ``specialist-engagement.jsonl`` (append-only).  This handler uses
+    the standard JSONL append pattern.
+    """
+    _jsonl_append_projection(
+        conn, event,
+        flag_token="SUBAGENT_ENGAGEMENT",
+        relative_template="phases/{phase}/specialist-engagement.jsonl",
+        handler_name="wicked.subagent.engaged",
+    )
+
+
 def _gate_blocked(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.gate.blocked → no-op disk handler (PR-1 inert).
 
@@ -2417,6 +2689,15 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     "wicked.reeval.addendum_appended":        _reeval_addendum_appended,
     "wicked.convergence.transition_recorded": _convergence_transition_recorded,
     "wicked.review.semantic_gap_recorded":    _semantic_gap_recorded,
+    # Wave-2 Tranche C (#746):
+    # W5 hitl pause-decision evidence (payload-aware-on-filename with whitelist).
+    # W9b specialist engagement (JSONL append after W9a JSON→JSONL refactor
+    # in this same PR).
+    # W10b status.md SKIPPED is NOT a separate event — it fans out from
+    # the existing _phase_transitioned handler when payload signals
+    # gate_result=="SKIPPED" (gated on WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS).
+    "wicked.hitl.decision_recorded":          _hitl_decision_recorded,
+    "wicked.subagent.engaged":                _subagent_engaged,
 }
 
 

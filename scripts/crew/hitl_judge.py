@@ -610,8 +610,39 @@ def write_hitl_decision_evidence(
     target_dir = project_dir / "phases" / phase
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / filename
-    target_path.write_text(
-        json.dumps(decision.to_dict(), indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+
+    # Site W5 of bus-cutover wave-2 (#746): emit BEFORE the disk write
+    # so the projector handler can replay the same bytes.  chain_id
+    # uses {project}.{phase}.{filename-stem} for per-evidence-file
+    # uniqueness (different decisions land in different files within
+    # the same phase: hitl-decision.json vs hitl-council-decision.json
+    # vs hitl-challenge-decision.json).  Fail-open: bus unavailable
+    # must NOT block the disk write — evidence loss must be visible.
+    body_bytes = json.dumps(decision.to_dict(), indent=2, sort_keys=True)
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        from _bus import emit_event  # type: ignore[import]
+        project_id_str = project_dir.name
+        # filename stem (strip .json) for chain_id discriminator
+        filename_stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+        emit_event(
+            "wicked.hitl.decision_recorded",
+            {
+                "project_id": project_id_str,
+                "phase": phase,
+                "filename": filename,
+                "raw_payload": body_bytes,
+                "pause": decision.pause,
+                "rule_id": decision.rule_id,
+            },
+            chain_id=f"{project_id_str}.{phase}.{filename_stem}",
+        )
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        pass  # bus unavailable — direct write below still runs
+
+    target_path.write_text(body_bytes, encoding="utf-8")
     return target_path

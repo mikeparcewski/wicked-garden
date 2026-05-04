@@ -516,22 +516,27 @@ class TestFlagFlipDefaultState(unittest.TestCase):
             self.assertFalse(_bus._bus_as_truth_enabled("NEVER_SHIPPED_TOKEN"))
 
     def test_default_on_frozenset_contains_all_shipped_sites(self) -> None:
-        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 11 shipped
-        tokens: wave-1 Sites 1-5, Site W1 (#788), and wave-2 Tranche B
-        (W6/W7/W8/W10a)."""
+        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 14 shipped
+        tokens: wave-1 Sites 1-5, Site W1 (PR #788), wave-2 Tranche B
+        (W6/W7/W8/W10a, PR #790), and wave-2 Tranche C (W5/W9b/W10b,
+        this PR)."""
         expected = frozenset({
-            "DISPATCH_LOG",          # Site 1
-            "CONSENSUS_REPORT",      # Site 2 (flag A)
-            "CONSENSUS_EVIDENCE",    # Site 2 (flag B — independent)
-            "REVIEWER_REPORT",       # Site 3
-            "GATE_RESULT",           # Site 4 (PR #784)
-            "CONDITIONS_MANIFEST",   # Site 5 (PR #785)
-            "INLINE_REVIEW_CONTEXT", # Site W1 (PR #788)
-            # Wave-2 Tranche B (this PR):
-            "AMENDMENTS",            # Site W6 — amendments.jsonl
-            "REEVAL_ADDENDUM",       # Site W7 — reeval-log + project addendum
-            "CONVERGENCE",           # Site W8 — convergence-log.jsonl
-            "SEMANTIC_GAP",          # Site W10a — semantic-gap-report.json
+            "DISPATCH_LOG",            # Site 1
+            "CONSENSUS_REPORT",        # Site 2 (flag A)
+            "CONSENSUS_EVIDENCE",      # Site 2 (flag B — independent)
+            "REVIEWER_REPORT",         # Site 3
+            "GATE_RESULT",             # Site 4 (PR #784)
+            "CONDITIONS_MANIFEST",     # Site 5 (PR #785)
+            "INLINE_REVIEW_CONTEXT",   # Site W1 (PR #788)
+            # Wave-2 Tranche B (PR #790):
+            "AMENDMENTS",              # W6
+            "REEVAL_ADDENDUM",         # W7
+            "CONVERGENCE",             # W8
+            "SEMANTIC_GAP",            # W10a
+            # Wave-2 Tranche C (this PR):
+            "HITL_DECISION",           # W5
+            "SUBAGENT_ENGAGEMENT",     # W9b (W9a JSON→JSONL refactor in same PR)
+            "SKIPPED_PHASE_STATUS",    # W10b
         })
         self.assertEqual(_bus._BUS_AS_TRUTH_DEFAULT_ON, expected)
 

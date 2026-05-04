@@ -214,11 +214,25 @@ def _record_specialist_engagement(domain: str, agent_name: str) -> None:
     """Append a specialist engagement entry to the active phase directory.
 
     Writes to:
-        {project_dir}/phases/{current_phase}/specialist-engagement.json
+        {project_dir}/phases/{current_phase}/specialist-engagement.jsonl
 
-    The file is a JSON array. If it does not exist it is created; if it
-    exists the new entry is appended.  All errors are silently swallowed so
-    the hook never blocks on I/O failures.
+    Site W9 of bus-cutover wave-2 (#746):
+      * W9a refactor (this PR): switched from JSON array (read-modify-write)
+        to JSONL (append-only).  The append-only form aligns with the
+        bus-as-truth premise — events are append-only, so the on-disk
+        projection should be too.  Read-modify-write the JSON array
+        contradicted that premise and was a pre-bus design choice.
+      * W9b cutover (this PR): fires ``wicked.subagent.engaged`` BEFORE
+        the JSONL append so the projector handler can replay the same
+        line.  Gated on WG_BUS_AS_TRUTH_SUBAGENT_ENGAGEMENT.
+
+    Backward compatibility: legacy ``specialist-engagement.json`` files
+    in production projects are handled by the reader (see
+    ``hooks/scripts/pre_tool.py``) — JSONL preferred, .json fallback on
+    miss.  No migration tool needed; the next engagement append starts
+    the JSONL file fresh.
+
+    All errors are silently swallowed so the hook never blocks on I/O failures.
     """
     try:
         from _session import SessionState
@@ -258,27 +272,52 @@ def _record_specialist_engagement(domain: str, agent_name: str) -> None:
         base = get_local_path("wicked-crew", "projects")
         phase_dir = base / project_id / "phases" / current_phase
         phase_dir.mkdir(parents=True, exist_ok=True)
-        engagement_file = phase_dir / "specialist-engagement.json"
+        engagement_file = phase_dir / "specialist-engagement.jsonl"
 
-        # Load existing entries or start fresh
-        entries: list = []
-        if engagement_file.exists():
-            try:
-                entries = json.loads(engagement_file.read_text(encoding="utf-8"))
-                if not isinstance(entries, list):
-                    entries = []
-            except Exception:
-                entries = []
-
-        entries.append({
+        entry = {
             "domain": domain,
             "agent": agent_name,
             "completed_at": _now_iso(),
-        })
+        }
+        line = json.dumps(entry, sort_keys=False) + "\n"
 
-        tmp_path = engagement_file.with_suffix(".tmp")
-        tmp_path.write_text(json.dumps(entries, indent=2), encoding="utf-8")
-        os.replace(tmp_path, engagement_file)
+        # W9b emit BEFORE the disk append so the projector can replay the
+        # same line.  chain_id includes the agent_name + completed_at so
+        # multiple engagements in the same phase are uniquely identifiable
+        # downstream (per memory/bus-chain-id-must-include-uniqueness-segment-gotcha).
+        # Fail-open: bus unavailable must NOT block the append.
+        try:
+            import sys as _sys
+            from pathlib import Path as _Path
+            _scripts_root = str(_Path(__file__).resolve().parents[2] / "scripts")
+            if _scripts_root not in _sys.path:
+                _sys.path.insert(0, _scripts_root)
+            from _bus import emit_event  # type: ignore[import]
+            ts_compact = "".join(ch for ch in entry["completed_at"] if ch.isdigit())[:14] or "noid"
+            emit_event(
+                "wicked.subagent.engaged",
+                {
+                    "project_id": project_id,
+                    "phase": current_phase,
+                    "domain": domain,
+                    "agent": agent_name,
+                    "raw_payload": line,
+                },
+                chain_id=f"{project_id}.{current_phase}.{agent_name}-{ts_compact}",
+            )
+        except Exception:  # noqa: BLE001 — fail-open per Decision #8
+            pass  # bus unavailable — append below still runs
+
+        # JSONL append-only write (W9a refactor).  Mirrors the
+        # _jsonl_append_projection helper in daemon/projector.py for
+        # crash semantics: open("a") + flush + best-effort fsync.
+        with open(engagement_file, "a", encoding="utf-8") as fh:
+            fh.write(line)
+            fh.flush()
+            try:
+                os.fsync(fh.fileno())
+            except OSError:
+                pass  # fail-open: fsync unsupported on this FS
 
     except Exception as exc:
         print(f"[wicked-garden] specialist engagement record error: {exc}", file=sys.stderr)

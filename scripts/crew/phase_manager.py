@@ -4198,6 +4198,36 @@ def skip_phase(state: ProjectState, phase: str, reason: str = "", approved_by: s
         f"**Reason**: {reason or 'Not applicable for this project scope'}\n\n"
         f"**Approved by**: {approved_by}\n"
     )
+
+    # Site W10b of bus-cutover wave-2 (#746): emit
+    # ``wicked.phase.transitioned`` with ``gate_result="SKIPPED"`` BEFORE
+    # the disk write so the projector handler can fan out to
+    # status.md materialisation (gated on
+    # WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS).  The wave-2 plan W10b
+    # initially assumed the existing event covered SKIPPED transitions;
+    # verification showed skip_phase did not previously emit at all
+    # (only approve_phase did at line ~4055).  Adding the emit here
+    # closes that gap and keeps the bus-as-truth invariant for SKIPPED
+    # transitions on par with APPROVE/CONDITIONAL/REJECT.
+    # Fail-open: bus unavailable must NOT block the disk write.
+    try:
+        from _bus import emit_event
+        emit_event(
+            "wicked.phase.transitioned",
+            {
+                "project_id": state.name,
+                "phase_from": phase,
+                "phase_to": None,  # skip does not advance to a next phase
+                "approver": approved_by,
+                "gate_result": "SKIPPED",  # sentinel for the W10b fan-out
+                "skip_reason": reason or "",
+                "skipped_at": phase_state.completed_at,
+            },
+            chain_id=getattr(state, "chain_id", None),
+        )
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        pass  # bus unavailable — direct write below still runs
+
     status_file.write_text(status_content)
 
     return state
