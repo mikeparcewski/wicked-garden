@@ -196,6 +196,80 @@ Assert: PASS: parallelization-check violation detected (sub_task_count=3, dispat
 
 ---
 
+## Case 4: qe-orchestrator gate emits batched dispatch_mode + per_reviewer_verdicts
+
+**Verifies**: qe-orchestrator's inlined output contract — every gate verdict
+declares `dispatch_mode` and lists `per_reviewer_verdicts` for the reviewers
+named in step 2 of the agent body. Catches the "serial loop disguised as
+parallel" failure where an agent claims parallel but emits one verdict at
+a time.
+
+### Test — seed a strategy-gate qe-orchestrator output
+
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib
+go = {
+    'gate': 'strategy',
+    'target': 'phases/design/design.md',
+    'decision': 'APPROVE',
+    'score': 0.84,
+    'reviewer': 'qe-orchestrator',
+    'reviewers_dispatched': [
+        'wicked-testing:testability-reviewer',
+        'wicked-testing:test-strategist',
+        'wicked-testing:risk-assessor',
+    ],
+    'dispatch_mode': 'parallel',
+    'serial_reason': None,
+    'per_reviewer_verdicts': [
+        {'reviewer': 'wicked-testing:testability-reviewer', 'verdict': 'APPROVE', 'score': 0.86, 'summary': 'design is testable'},
+        {'reviewer': 'wicked-testing:test-strategist',     'verdict': 'APPROVE', 'score': 0.82, 'summary': 'scenarios cover ACs'},
+        {'reviewer': 'wicked-testing:risk-assessor',       'verdict': 'APPROVE', 'score': 0.84, 'summary': 'risk acceptable'},
+    ],
+    'findings': [],
+    'conditions': [],
+    'blockers': [],
+    'evidence_artifact': 'phases/design/strategy-gate-20260419.md',
+}
+pathlib.Path('${PROJECT_DIR}/phases/build/qe-orchestrator-output.json').write_text(json.dumps(go, indent=2))
+print('qe-orchestrator-output.json written')
+"
+Assert: qe-orchestrator-output.json written
+```
+
+### Assertion — dispatch_mode + reviewer count match the strategy-gate contract
+
+```bash
+Run: sh "${PLUGIN_ROOT}/scripts/_python.sh" -c "
+import json, pathlib, sys
+go = json.loads(pathlib.Path('${PROJECT_DIR}/phases/build/qe-orchestrator-output.json').read_text())
+# Strategy gate names 3 reviewers in agents/crew/qe-orchestrator.md
+assert go['gate'] == 'strategy', f'gate mismatch: {go[\"gate\"]}'
+assert go['dispatch_mode'] in ('parallel', 'serial'), f'dispatch_mode invalid: {go[\"dispatch_mode\"]}'
+if go['dispatch_mode'] == 'serial':
+    assert go.get('serial_reason'), 'serial dispatch missing serial_reason'
+verdicts = go['per_reviewer_verdicts']
+assert len(verdicts) == 3, f'strategy gate must batch 3 reviewers, got {len(verdicts)}'
+expected = {'wicked-testing:testability-reviewer','wicked-testing:test-strategist','wicked-testing:risk-assessor'}
+got = {v['reviewer'] for v in verdicts}
+assert got == expected, f'reviewer set mismatch: expected {expected}, got {got}'
+# APPROVE invariant: empty conditions + blockers + score >= 0.70
+if go['decision'] == 'APPROVE':
+    assert not go['conditions'], 'APPROVE with non-empty conditions'
+    assert not go['blockers'],   'APPROVE with non-empty blockers'
+    assert go['score'] >= 0.70,  'APPROVE with score < 0.70'
+# banned reviewer guard
+banned = {'fast-pass', 'just-finish-auto'}
+assert go['reviewer'] not in banned, 'banned reviewer identity'
+assert not go['reviewer'].startswith('auto-approve-'), 'banned auto-approve identity'
+print(f'PASS: qe-orchestrator strategy gate batched {len(verdicts)} reviewers, dispatch_mode={go[\"dispatch_mode\"]}, decision={go[\"decision\"]}')
+"
+Assert: PASS: qe-orchestrator strategy gate batched 3 reviewers, dispatch_mode=parallel, decision=APPROVE
+```
+
+---
+
 ## Teardown
 
 ```bash
