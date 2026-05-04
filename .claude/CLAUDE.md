@@ -188,6 +188,18 @@ Quality gates are hard enforcement mechanisms, not advisory:
 
 **Re-eval artifacts**: checkpoint re-evaluations append to `phases/{phase}/reeval-log.jsonl` (schema 1.1.0, archetype-aware, additive over 1.0), `phases/{phase}/amendments.jsonl` (per-gate, append-only), and `phases/{phase}/process-plan.addendum.jsonl` (plan mutations). Phases can be added mid-flight, never silently removed.
 
+### Pre-merge council requirement
+
+Cross-system bugs — phase-state transitions, gate decisions, event-bus sync points, multi-step orchestrator logic — live at boundaries between subsystems and are structurally invisible to unit tests. Council review (multiple independent specialists rendering blind verdicts) catches them; pytest cannot.
+
+**Trigger paths** (changes here require a pre-merge council pass):
+- `scripts/crew/phase_manager.py`, `scripts/crew/gate_dispatch.py`, `scripts/crew/reconcile_v2.py`, `scripts/crew/convergence.py`
+- `scripts/_bus.py`, `scripts/_event_schema.py`, `scripts/_session.py`
+- `daemon/projector.py` and any new `_HANDLERS` / `_PROJECTION_RESOLVERS` entry
+- Anything under `agents/crew/` (facilitator, gate-adjudicator, contrarian, reviewer panels)
+
+**Convention**: run `/wicked-garden:jam:council` on the diff and attach the verdict bundle to the PR. This is a pre-merge convention, not a hook-enforced gate (yet) — reviewers should request it on PRs touching the trigger paths.
+
 ### Bulletproof Standards
 
 Engineering agents enforce R1-R6 coding rules (no dead code, no bare panics, no magic values, no swallowed errors, no unbounded ops, no god functions). QE agents enforce T1-T6 testing rules (determinism, no sleep-based sync, isolation, single assertion focus, descriptive names, provenance). Rules are adapted per agent focus.

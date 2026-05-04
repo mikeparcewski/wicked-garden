@@ -37,6 +37,14 @@ The bus-cutover (#746) shipped across PRs #751 → #791. **Bus events are the so
 
 **Soak window**: legacy direct-write paths still run alongside the bus path. Don't delete them yet — `docs/v9/bus-cutover-staging-plan.md` §4 requires two releases of zero drift before deletion. Content-hash idempotency in projector handlers makes the duplicate writes safe.
 
+## Pre-merge council requirement
+
+Cross-system bugs at the boundary between subsystems (phase-state transitions, gate decisions, event-bus sync points, orchestrator logic) are structurally invisible to unit tests. Council review catches them; pytest cannot.
+
+**Trigger paths**: `scripts/crew/phase_manager.py`, `scripts/crew/gate_dispatch.py`, `scripts/crew/reconcile_v2.py`, `scripts/_bus.py`, `scripts/_event_schema.py`, `daemon/projector.py`, anything under `agents/crew/`.
+
+**Convention**: run `/wicked-garden:jam:council` on the diff and attach the verdict bundle to the PR. Pre-merge convention — not a hook-enforced gate yet.
+
 ## Planning & Execution
 
 - When I say "just do it" or "just make the changes", execute immediately without presenting plans for approval. Do not enter plan mode or ask for confirmation unless I explicitly ask for a plan.
