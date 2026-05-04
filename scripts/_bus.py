@@ -155,6 +155,17 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.review",
         "description": "Semantic-gap report persisted at review phase (Site W10a cutover)",
     },
+    # Wave-2 Tranche C (#746):
+    "wicked.hitl.decision_recorded": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.hitl",
+        "description": "HITL pause-decision evidence recorded by hitl_judge.write_hitl_decision_evidence (Site W5 cutover)",
+    },
+    "wicked.subagent.engaged": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.subagent",
+        "description": "Specialist subagent engagement recorded by subagent_lifecycle (Site W9b cutover)",
+    },
     # Jam domain — jam.py
     "wicked.session.started": {
         "domain": "wicked-garden",
@@ -337,6 +348,13 @@ _PAYLOAD_ALLOW_OVERRIDES: Dict[str, frozenset] = {
     "wicked.reeval.addendum_appended": frozenset({"raw_payload"}),
     "wicked.convergence.transition_recorded": frozenset({"raw_payload"}),
     "wicked.review.semantic_gap_recorded": frozenset({"raw_payload"}),
+    # Wave-2 Tranche C (#746): hitl + subagent_engagement carry the
+    # canonical bytes via raw_payload so the projector can reproduce
+    # the file byte-for-byte.  hitl additionally carries `filename`
+    # (caller-supplied evidence file name) — the projector validates it
+    # against a whitelist before writing to phases/{phase}/{filename}.
+    "wicked.hitl.decision_recorded": frozenset({"raw_payload", "filename"}),
+    "wicked.subagent.engaged": frozenset({"raw_payload"}),
 }
 
 # ---------------------------------------------------------------------------
@@ -391,18 +409,22 @@ def _is_disabled() -> bool:
 # ---------------------------------------------------------------------------
 
 _BUS_AS_TRUTH_DEFAULT_ON: frozenset = frozenset({
-    "DISPATCH_LOG",          # Site 1 — dispatch-log.jsonl (PR #751)
-    "CONSENSUS_REPORT",      # Site 2 — consensus-report.json (PR #758)
-    "CONSENSUS_EVIDENCE",    # Site 2 — consensus-evidence.json (PR #758)
-    "REVIEWER_REPORT",       # Site 3 — reviewer-report.md (PR #776)
-    "GATE_RESULT",           # Site 4 — gate-result.json (PR #782 + #784)
-    "CONDITIONS_MANIFEST",   # Site 5 — conditions-manifest.json (PR #785)
-    "INLINE_REVIEW_CONTEXT", # Site W1 — inline-review-context.md (PR #788)
-    # Wave-2 Tranche B (this PR):
-    "AMENDMENTS",            # Site W6 — amendments.jsonl
-    "REEVAL_ADDENDUM",       # Site W7 — reeval-log.jsonl + process-plan.addendum.jsonl
-    "CONVERGENCE",           # Site W8 — convergence-log.jsonl
-    "SEMANTIC_GAP",          # Site W10a — semantic-gap-report.json
+    "DISPATCH_LOG",            # Site 1 — dispatch-log.jsonl (PR #751)
+    "CONSENSUS_REPORT",        # Site 2 — consensus-report.json (PR #758)
+    "CONSENSUS_EVIDENCE",      # Site 2 — consensus-evidence.json (PR #758)
+    "REVIEWER_REPORT",         # Site 3 — reviewer-report.md (PR #776)
+    "GATE_RESULT",             # Site 4 — gate-result.json (PR #782 + #784)
+    "CONDITIONS_MANIFEST",     # Site 5 — conditions-manifest.json (PR #785)
+    "INLINE_REVIEW_CONTEXT",   # Site W1 — inline-review-context.md (PR #788)
+    # Wave-2 Tranche B (PR #790):
+    "AMENDMENTS",              # Site W6
+    "REEVAL_ADDENDUM",         # Site W7
+    "CONVERGENCE",             # Site W8
+    "SEMANTIC_GAP",            # Site W10a
+    # Wave-2 Tranche C (this PR):
+    "HITL_DECISION",           # Site W5 — phases/{phase}/hitl-*.json + council-*.json
+    "SUBAGENT_ENGAGEMENT",     # Site W9b — phases/{phase}/specialist-engagement.jsonl
+    "SKIPPED_PHASE_STATUS",    # Site W10b — phases/{phase}/status.md (SKIPPED only)
 })
 
 

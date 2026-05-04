@@ -984,15 +984,37 @@ def _check_specialist_engagement(phase_dir: Path, phase_name: str, phases_config
     if not required or complexity < 5:
         return ""
 
-    engagement_path = phase_dir / "specialist-engagement.json"
-    if not engagement_path.exists():
-        engaged_domains: set = set()
-    else:
-        entries = _safe_read_json(engagement_path)
+    # Site W9 of bus-cutover wave-2 (#746): the engagement file
+    # was refactored from JSON-array (read-modify-write) to JSONL
+    # (append-only) in W9a.  Read the JSONL form preferentially; fall
+    # back to the legacy .json form for production projects that
+    # haven't yet had their first post-W9a engagement recorded.  The
+    # next engagement append starts the .jsonl file fresh; both readers
+    # eventually converge on JSONL as projects exercise the hook.
+    engaged_domains: set = set()
+    engagement_jsonl = phase_dir / "specialist-engagement.jsonl"
+    engagement_json = phase_dir / "specialist-engagement.json"
+    if engagement_jsonl.exists():
+        try:
+            for line in engagement_jsonl.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(entry, dict):
+                    engaged_domains.add(entry.get("domain", ""))
+        except OSError:
+            pass  # fail-open: file unreadable → treat as no engagement
+    elif engagement_json.exists():
+        # Legacy backward-compat read for pre-W9a projects.
+        entries = _safe_read_json(engagement_json)
         if isinstance(entries, list):
-            engaged_domains = {e.get("domain", "") for e in entries if isinstance(e, dict)}
-        else:
-            engaged_domains = set()
+            engaged_domains = {
+                e.get("domain", "") for e in entries if isinstance(e, dict)
+            }
 
     missing = [s for s in required if s not in engaged_domains]
     if missing:

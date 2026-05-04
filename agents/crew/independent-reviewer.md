@@ -101,7 +101,7 @@ If `evidence_items_checked` == 0 and complexity >= 5: add a finding (but do not 
 
 ### 6. Check Specialist Engagement
 
-Read `{phase_dir}/specialist-engagement.json` if it exists.
+Read `{phase_dir}/specialist-engagement.jsonl` if it exists (one JSON object per line; refactored from JSON-array to JSONL in Site W9a wave-2 cutover).  For pre-W9a projects, fall back to the legacy `{phase_dir}/specialist-engagement.json` (single JSON array).
 Count the number of entries (each entry = one specialist engagement).
 
 If specialist engagement count == 0 and complexity >= 5:

@@ -802,6 +802,10 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
             "WG_BUS_AS_TRUTH_REEVAL_ADDENDUM":       "off",
             "WG_BUS_AS_TRUTH_CONVERGENCE":           "off",
             "WG_BUS_AS_TRUTH_SEMANTIC_GAP":          "off",
+            # Wave-2 Tranche C (this PR):
+            "WG_BUS_AS_TRUTH_HITL_DECISION":         "off",
+            "WG_BUS_AS_TRUTH_SUBAGENT_ENGAGEMENT":   "off",
+            "WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS": "off",
         }
         with patch.dict(os.environ, env_clear):
             result = reconcile_v2._active_projection_names()
@@ -827,6 +831,10 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
             "WG_BUS_AS_TRUTH_REEVAL_ADDENDUM":       "off",
             "WG_BUS_AS_TRUTH_CONVERGENCE":           "off",
             "WG_BUS_AS_TRUTH_SEMANTIC_GAP":          "off",
+            # Wave-2 Tranche C (this PR):
+            "WG_BUS_AS_TRUTH_HITL_DECISION":         "off",
+            "WG_BUS_AS_TRUTH_SUBAGENT_ENGAGEMENT":   "off",
+            "WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS": "off",
         }
         with patch.dict(os.environ, env):
             result = reconcile_v2._active_projection_names()

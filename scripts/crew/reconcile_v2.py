@@ -201,6 +201,45 @@ _PROJECTION_RESOLVERS: Dict[str, Callable[[Dict[str, Any], str, Path], "list[Pat
     "wicked.review.semantic_gap_recorded": lambda payload, phase, project_dir: [
         project_dir / "phases" / "review" / "semantic-gap-report.json",
     ],
+    # Wave-2 Tranche C (this PR) — payload-aware-on-filename + JSONL.
+    # W5 hitl: caller supplies the filename (different evidence files
+    # for clarify-halt vs council-synthesis vs challenge-charter).
+    # The resolver whitelists known filenames to defend against
+    # path-traversal via payload — anything outside the whitelist
+    # returns an empty list (no projection target → drift detector
+    # skips, projector handler refuses to write).
+    "wicked.hitl.decision_recorded": lambda payload, phase, project_dir: (
+        [project_dir / "phases" / phase / payload["filename"]]
+        if (
+            isinstance(payload, dict)
+            and isinstance(payload.get("filename"), str)
+            and payload["filename"] in {
+                "hitl-decision.json",
+                "council-decision.json",
+                "hitl-challenge-decision.json",
+                "hitl-clarify-decision.json",
+                "hitl-council-decision.json",
+            }
+        )
+        else []
+    ),
+    # W9b subagent engagement — single-file resolver to JSONL form.
+    # Note: W9a (precursor in this same PR) renamed the source from
+    # ``specialist-engagement.json`` (JSON array, RMW) to
+    # ``specialist-engagement.jsonl`` (append-only JSONL).  The reader
+    # in hooks/scripts/pre_tool.py reads JSONL preferentially with a
+    # one-shot legacy fallback to the .json form.
+    "wicked.subagent.engaged": _resolve_single_file(
+        "phases/{phase}/specialist-engagement.jsonl"
+    ),
+    # W10b — status.md SKIPPED projection is NOT a separate event.
+    # The existing ``wicked.phase.transitioned`` event covers it; the
+    # projector handler ``_phase_transitioned`` is extended to fan out
+    # to a status.md write when payload signals a SKIPPED transition
+    # (gate_result == "SKIPPED").  No entry needed in this resolver
+    # map — the status.md fan-out happens INSIDE the existing
+    # _phase_transitioned handler, gated on
+    # WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS.
 }
 
 
@@ -256,6 +295,22 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
     "reeval-log.jsonl":            "REEVAL_ADDENDUM",       # Site W7 — re-eval per-phase log (project-root mirror also produced from same event)
     "convergence-log.jsonl":       "CONVERGENCE",           # Site W8 — artifact convergence log
     "semantic-gap-report.json":    "SEMANTIC_GAP",          # Site W10a — semantic alignment report
+    # Wave-2 Tranche C (this PR) — active default-ON:
+    # W5 hitl_judge writes to filename specified by caller; the resolver
+    # validates against a whitelist of known evidence filenames.  All
+    # five share the HITL_DECISION flag.
+    "hitl-decision.json":              "HITL_DECISION",          # Site W5 — clarify-halt
+    "council-decision.json":           "HITL_DECISION",          # Site W5 — council synthesis
+    "hitl-challenge-decision.json":    "HITL_DECISION",          # Site W5 — challenge dispatch
+    "hitl-clarify-decision.json":      "HITL_DECISION",          # Site W5 — alternate clarify-halt name
+    "hitl-council-decision.json":      "HITL_DECISION",          # Site W5 — alternate council name
+    "specialist-engagement.jsonl":     "SUBAGENT_ENGAGEMENT",    # Site W9 — refactored from .json (W9a) + cutover (W9b)
+    # NOTE: status.md is intentionally NOT in this map.  Several
+    # phase_manager code paths write status.md (SKIPPED, gate-override
+    # audit, etc.); only the SKIPPED path is bus-projected via
+    # _phase_transitioned's payload-aware fan-out (W10b).  Tracking
+    # status.md as a projection target would surface the override-audit
+    # writes as projection-without-event drift.
 }
 
 # ---------------------------------------------------------------------------
@@ -354,6 +409,9 @@ _PROJECTION_HANDLERS_AVAILABLE: Dict[str, bool] = {
     "wicked.reeval.addendum_appended":         True,
     "wicked.convergence.transition_recorded":  True,
     "wicked.review.semantic_gap_recorded":     True,
+    # Wave-2 Tranche C (this PR) — handlers shipped below.
+    "wicked.hitl.decision_recorded":           True,
+    "wicked.subagent.engaged":                 True,
     # Site 5 — no event handler mapping yet
     # (conditions-manifest.json has no event type in _PROJECTION_RESOLVERS)
 }
